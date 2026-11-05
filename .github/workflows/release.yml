@@ -76,6 +76,7 @@ jobs:
       language: all
       upload_artifacts: ${{ needs.policy.outputs.upload == 'true' }}
       release_checks: true
+      retain_packages: true
   security:
     needs: policy
     uses: ./.github/workflows/extended.yml

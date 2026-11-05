@@ -12,6 +12,10 @@ on:
       release_checks:
         type: boolean
         default: false
+      retain_packages:
+        description: Internal release handoff; unavailable to manual dispatch
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       upload_artifacts:
@@ -19,7 +23,7 @@ on:
         type: boolean
         default: false
       release_checks:
-        description: Run installed-editor tests and retain the exact tested VSIX
+        description: Run installed-editor tests without retaining packages
         type: boolean
         default: false
       language:
@@ -151,7 +155,7 @@ jobs:
           python3.12 -B test/ci/release_packages.py editor
           --output "output/artifacts/qualified-editor/$SDK_RUN_ID"
       - name: Transfer only the tested VSIX and bounded receipt
-        if: ${{ success() && matrix.language == 'typescript' && inputs.release_checks && inputs.upload_artifacts && !env.ACT }}
+        if: ${{ success() && matrix.language == 'typescript' && inputs.release_checks && inputs.retain_packages && startsWith(github.ref, 'refs/tags/v') && inputs.upload_artifacts && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: release-editor-${{ github.run_id }}-${{ github.run_attempt }}
@@ -159,12 +163,13 @@ jobs:
           if-no-files-found: error
           path: output/artifacts/qualified-editor/${{ env.SDK_RUN_ID }}/
       - name: Stage the exact qualified SDK outputs
+        if: inputs.retain_packages && startsWith(github.ref, 'refs/tags/v') && inputs.upload_artifacts
         run: >-
           python3.12 -B test/ci/admission.py stage-sdk --language "$SDK_LANGUAGE"
           --run "$SDK_RUN_ID"
           --output "output/artifacts/qualified-sdk/$SDK_RUN_ID"
       - name: Upload the qualified SDK package set
-        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        if: ${{ success() && inputs.retain_packages && startsWith(github.ref, 'refs/tags/v') && inputs.upload_artifacts && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: qualified-sdk-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.language }}

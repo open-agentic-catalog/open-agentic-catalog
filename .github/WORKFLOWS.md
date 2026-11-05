@@ -66,7 +66,9 @@ make docs-check CATALOG_ENV_FILE=/dev/null
 
 ## Reports and failures
 
-Jobs preserve failing exit codes and write step summaries. Ordinary report uploads are disabled by default. Release tag checks require internal handoff uploads; manual release checks require `upload_artifacts=true`. Every upload is disabled under act. Those uploads use explicit safe paths and seven-day retention, including selected coverage reports, SPDX inventories and chart archives. They exclude raw fixture directories, credentials, dependency trees and the complete `output/` tree. Image evidence and chart archives use job-owned output paths. Exporters refuse existing destinations. Ordinary report uploads do not publish to a package, chart or image registry. Only the protected release-delivery job performs the explicitly selected external delivery.
+Jobs preserve failing exit codes and write step summaries. Ordinary report uploads are disabled by default. When selected, they use explicit paths and seven-day retention for reports, coverage and SPDX inventories. They exclude raw fixtures, credentials, dependency trees and the complete `output/` tree. SDK/editor and chart checks do not upload package archives, even with `upload_artifacts=true`.
+
+Release qualification uploads exact images and packages between jobs. Tag events enable this handoff; manual release checks require `upload_artifacts=true`. Only the protected delivery job publishes to GitHub Releases and GHCR. Every upload is disabled under act. Exporters refuse existing destinations.
 
 A missing report, cancelled job or unselected check is not a pass. Summaries label the status before artifact upload; the upload can still fail the final job. An older report is not evidence for a failed invocation. Coverage percentages from different profiles must not be added or averaged. `coverage-full` creates and reconciles its own fresh profiles.
 
@@ -105,9 +107,9 @@ The fixed `Contribution checks complete` job runs even when another job fails. I
 
 ## Exact package and release handoff
 
-See [the candidate procedure](../test/ci/README.md#exact-candidate-qualification) for local commands, receipts and refusal paths. SDK checks record current source and run identity beside the actual qualified packages. `stage-sdk` refuses stale receipts or changed packages. Go retains its tested source archive and manifest. The TypeScript editor checks require the qualified tarball to match the extension lock.
+See [the candidate procedure](../test/ci/README.md#exact-candidate-qualification) for local commands, receipts and refusal paths. SDK checks record current source and run identity beside the actual qualified packages. `stage-sdk` refuses stale receipts or changed packages. Go prepares its tested source archive and manifest locally. The TypeScript editor checks require the qualified tarball to match the extension lock.
 
-Tag-triggered release checks enable internal artifact handoff. Manual runs require `upload_artifacts=true`. The workflow builds each backend/UI platform once and scans those exact images. Existing API, Compose UI and OIDC UI journeys consume the AMD64 candidates. Their cleanup preserves borrowed images. The final gate also requires source, security, client and chart results from the same source.
+Tag-triggered release checks enable internal artifact handoff. Only the reusable release call sets `retain_packages=true`; client package uploads also require a version-tag ref. Manual client dispatch cannot set this input. Manual runs require `upload_artifacts=true`. The workflow builds each backend/UI platform once and scans those exact images. Existing API, Compose UI and OIDC UI journeys consume the AMD64 candidates. Their cleanup preserves borrowed images. The final gate also requires source, security, client and chart results from the same source.
 
 Follow the [delivery setup procedure](../documentation/src/content/docs/contributing/build-and-release.md#configure-and-approve-delivery) before enabling `RELEASE_PUBLISH_ENABLED`. Prepare a matching draft release and approve delivery only after checks pass. Manual `publish=false` always prevents delivery. No workflow creates a release, signs artifacts or deploys production.
 

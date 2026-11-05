@@ -88,15 +88,17 @@ Jobs use `CATALOG_ENV_FILE=/dev/null` and do not load deployment credentials. Th
 
 ### Read results and artifacts
 
-Open the run to inspect each selected job, its logs and summary. Manual report workflows default `upload_artifacts` to false. Automatic contribution checks do not upload artifacts. Pages uses its separate opt-in deployment controls. Hosted uploads require the maintainer to select true; act always skips them. When enabled, uploads use explicit paths and seven-day retention. They exclude credentials, raw fixture directories and the complete `output/` tree.
+Open the run to inspect each selected job, its logs and summary. Manual report workflows default `upload_artifacts` to false. Automatic contribution checks do not upload artifacts. Pages uses its separate opt-in deployment controls. Ordinary hosted report uploads require the maintainer to select true; act always skips them. When enabled, uploads use explicit paths and seven-day retention. They exclude credentials, raw fixture directories and the complete `output/` tree.
 
 | Selection | Available evidence and limits |
 | --- | --- |
 | Units and coverage | Selected Go profiles and UI component coverage. `coverage-full` produces a fresh weighted union of unit, local, PostgreSQL and process coverage. Do not add or average overlapping percentages. |
 | Clients | Job summaries and available package manifests; Rust also retains its coverage summary. SDK HTTP/TLS and installed-consumer checks are functional tests. `vscode-check` does not run an installed editor. |
-| Images and charts | Image summaries, SPDX JSON inventories and chart archives. Image archives are not uploaded. |
+| Images and charts | Image/chart summaries and SPDX JSON inventories. Ordinary checks upload neither image nor chart archives. |
 | Assurance | Property/proof reports and reduced mutation counts. Raw mutants, source diffs and verifier logs are excluded. Failed fuzzing can retain bounded synthetic counterexamples. |
 | Benchmarks | Source/environment information and measured samples. There is no timing threshold, application load test or comparison against another runner. |
+
+Package uploads belong to release qualification only. Ordinary client checks build SDK packages and the VSIX, then discard the runner without uploading them. Manual `release_checks=true` runs installed-editor tests; it does not enable package uploads. The release workflow alone passes the internal `retain_packages` input at a version tag. Pages delivery keeps its separate opt-in controls.
 
 Go properties use a fixed seed and 1,000 checks. Go fuzzing runs each maintained target for ten seconds with two workers. Mutation completion does not imply zero survivors; inspect survivors and timeouts before drawing conclusions. The formal selection proves the maintained Job retry helper, not the whole service. See [assertion-strength checks](#mutation-testing-and-assertion-strength) and [formal verification](#focused-formal-verification) for interpretation.
 

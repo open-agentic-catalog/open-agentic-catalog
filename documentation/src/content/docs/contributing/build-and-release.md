@@ -14,7 +14,7 @@ Use **Images and charts** (`images.yml`) manually to include both `linux/amd64` 
 
 | Manual input | Default | Effect |
 | --- | --- | --- |
-| `upload_artifacts` | `false` | Retain selected reports and charts for seven days. Local act skips uploads. |
+| `upload_artifacts` | `false` | Retain selected reports for seven days. Package archives stay on the temporary runner. Local act skips uploads. |
 | `scan` | `false` | Scan each exact image for High and Critical findings. |
 | `release_candidate` | `false` | Require clean source at the exact `v<VERSION>` tag before building. |
 
@@ -38,7 +38,7 @@ Tag events have no manual input defaults. The policy job supplies effective uplo
 
 The workflow builds backend/UI candidates once for AMD64 and ARM64. Each candidate retains its image archive, inspection, SPDX inventory, notices and bounded scan summary. Raw scan output stays private. Later jobs run existing AMD64 API, Compose UI and OIDC UI journeys against those images. They do not rebuild application images.
 
-Client checks retain the tested SDK packages. Release checks also run `test-vscode` on Linux and retain its exact VSIX after successful cleanup. The editor receipt binds the source and tested TypeScript SDK. Raw editor reports, SSH fixtures and tool paths stay private. No Windows or macOS execution is claimed.
+Ordinary client checks build and test SDK packages and the VSIX without uploading those files. Even `upload_artifacts=true` uploads only selected reports. Release qualification enables the internal package handoff at the exact version tag. It also runs `test-vscode` on Linux and retains the exact VSIX after successful cleanup. The editor receipt binds the source and tested TypeScript SDK. Raw editor reports, SSH fixtures and tool paths stay private. No Windows or macOS execution is claimed.
 
 ### Download release packages
 

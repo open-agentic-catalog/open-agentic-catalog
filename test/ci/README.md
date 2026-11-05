@@ -165,3 +165,9 @@ Release assembly requires both CLI platforms, the editor receipt, all four SDK r
 Unit tests intercept every delivery command. Functional fixtures create tags only inside disposable repositories. Ordinary image/chart workflows can run through act with uploads disabled. The release policy deliberately refuses act. Run SDK and installed-editor gates through their native Make targets.
 
 The [maintainer procedure](../../documentation/src/content/docs/contributing/build-and-release.md#configure-and-approve-delivery) owns activation, approvals, prepared drafts and failed-job reruns. Tag events use effective handoff inputs from the policy job. A manual `publish=false` disables delivery even when the repository switch is enabled. No local verification changes GitHub settings or sends project data externally.
+
+## Hosted package retention
+
+Ordinary image, chart, SDK and editor checks build packages to verify them. Their optional `upload_artifacts` input uploads reports only. Package files remain on the temporary runner.
+
+The release workflow passes `retain_packages=true` to the reusable client workflow. This input is absent from manual dispatch. SDK and VSIX uploads also require a version-tag ref and the release handoff upload input. Manual `release_checks=true` selects installed-editor tests without enabling package uploads. Release chart and image archives keep their existing same-run handoff. Pages delivery remains separately enabled. Local act keeps its selected inspection evidence under ignored output and performs no hosted uploads.

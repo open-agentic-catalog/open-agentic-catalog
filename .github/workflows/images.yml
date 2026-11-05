@@ -218,13 +218,12 @@ jobs:
             printf '%s\n' 'Release checks do not verify tag signatures or establish exact-image runtime qualification.'
           } > "$ARTIFACT_OUTPUT/reports/summary.txt"
           cat "$ARTIFACT_OUTPUT/reports/summary.txt" >> "$GITHUB_STEP_SUMMARY"
-      - name: Retain the chart packages and public summary
+      - name: Retain the chart validation summary
         if: ${{ (always() && steps.checkout.outcome == 'success') && inputs.upload_artifacts && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: charts-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ env.ARTIFACT_OUTPUT }}/*.tgz
             ${{ env.ARTIFACT_OUTPUT }}/reports/summary.txt
           retention-days: 7
           if-no-files-found: warn
