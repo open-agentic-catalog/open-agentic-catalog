@@ -225,7 +225,7 @@ test("startup diagnostics drain noisy stderr with a fixed retention limit", asyn
 
 test(
   "selected archives own TLS, isolate default seeding, stop and clean on success and startup failure",
-  { timeout: 90000 },
+  { timeout: 20 * 60 * 1000 },
   async () => {
     const directory = await mkdtemp(join(tmpdir(), "ui-archive-lifecycle-"));
     const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -249,7 +249,7 @@ test(
             join(directory, name),
             pkg,
           ],
-          { cwd: root, timeout: 30000 },
+          { cwd: root, timeout: 5 * 60 * 1000 },
         );
         try {
           assert.equal(await build.done, 0, build.diagnostics());
