@@ -8,6 +8,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import {
   RepresentationEditor,
@@ -133,38 +134,52 @@ it("generates an unsigned Card from ordinary fields without version duplication 
 
 it("edits repeated interfaces, abilities, literal tags, custom media and only explicitly selected capabilities", async () => {
   const test = await editor();
-  click("Add interface");
+  const interfaces = within(
+    screen.getByRole("group", { name: "Agent interfaces" }),
+  );
+  const abilities = within(
+    screen.getByRole("group", {
+      name: "What can this Agent do?",
+    }),
+  );
+  const inputs = within(screen.getByRole("group", { name: "Input format" }));
+  const outputs = within(screen.getByRole("group", { name: "Output format" }));
+  fireEvent.click(interfaces.getByRole("button", { name: "Add interface" }));
   change("Interface 1 HTTPS URL", "https://example.test/first");
   change("Interface 2 HTTPS URL", "https://example.test/second");
   change("Interface 2 protocol binding", "GRPC");
   change("Interface 2 A2A protocol version", "0.3");
-  click("Add ability");
+  fireEvent.click(abilities.getByRole("button", { name: "Add ability" }));
   change("Ability 1 name", "Original");
   change("Ability 1 ID", "original");
   change("Ability 2 name", "日本語");
   change("Ability 2 ID", "custom ability");
   change("Ability 2 description", "Second ability");
-  click("Add ability 1 tag");
+  fireEvent.click(abilities.getByRole("button", { name: "Add ability 1 tag" }));
   change("Ability 1 tag 1", "first");
   change("Ability 1 tag 2", "comma, literal");
-  click("Remove ability 1 tag 1");
+  fireEvent.click(
+    abilities.getByRole("button", { name: "Remove ability 1 tag 1" }),
+  );
   expect(screen.getByLabelText("Ability 1 tag 1")).toHaveProperty(
     "value",
     "comma, literal",
   );
   expect(document.activeElement).toBe(screen.getByLabelText("Ability 1 tag 1"));
-  click("Add input format");
+  fireEvent.click(inputs.getByRole("button", { name: "Add input format" }));
   change("Input format 2", "custom");
   change("Custom input format 2", "image/png");
-  click("Add input format");
+  fireEvent.click(inputs.getByRole("button", { name: "Add input format" }));
   change("Input format 3", "application/json");
-  click("Remove input format 1");
+  fireEvent.click(
+    inputs.getByRole("button", { name: "Remove input format 1" }),
+  );
   expect(document.activeElement).toBe(screen.getByLabelText("Input format 1"));
   expect(test.card().defaultInputModes).toEqual([
     "image/png",
     "application/json",
   ]);
-  click("Add output format");
+  fireEvent.click(outputs.getByRole("button", { name: "Add output format" }));
   change("Output format 2", "application/json");
   for (const name of [
     "Streaming responses",
@@ -179,8 +194,10 @@ it("edits repeated interfaces, abilities, literal tags, custom media and only ex
   });
   fireEvent.click(screen.getByLabelText("Streaming responses"));
   expect(test.card().capabilities).toHaveProperty("streaming", false);
-  click("Remove interface 1");
-  click("Remove ability 1");
+  fireEvent.click(
+    interfaces.getByRole("button", { name: "Remove interface 1" }),
+  );
+  fireEvent.click(abilities.getByRole("button", { name: "Remove ability 1" }));
   expect(test.card().supportedInterfaces).toEqual([
     {
       url: "https://example.test/second",

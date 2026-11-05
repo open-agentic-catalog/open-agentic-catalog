@@ -1065,6 +1065,8 @@ Discovery controls use separate Reader, Source Administrator and Publisher ident
 
 ### Component coverage
 
+Vitest runs at most two isolated workers. Logic-only tests have 5 seconds to complete; DOM workflows have 15 seconds. Asynchronous DOM queries and assertions have 5 seconds. The [unit setup](../../../../../catalog-ui/tests/unit/setup.ts) applies these bounds to accommodate jsdom and V8 coverage on slow runners. UI performance uses separate measurements and budgets. Investigate failed assertions before changing deadlines.
+
 `make ui-coverage` runs Vitest unit/component tests and writes source-mapped HTML, LCOV and JSON reports to `output/coverage/catalog-ui/`. The same coverage floors run in `ui-test-unit`, `ui-test` and `test-ui`. All application TS/TSX files, including unimported screens, count.
 
 Only test files and declaration-only types are excluded. Normal runs enforce 99% lines, statements and branches and 100% functions, with per-file 100% thresholds for selected modules. `make ui-coverage-100` is a separate exact-100% diagnostic.

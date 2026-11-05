@@ -7,6 +7,9 @@ export default mergeConfig(
   defineConfig({
     test: {
       include: ["src/**/*.test.{ts,tsx}"],
+      setupFiles: ["./tests/unit/setup.ts"],
+      // DOM workflows receive a separate completion budget in the setup file.
+      testTimeout: 5000,
       // Leave CPU and memory headroom for DOM queries and V8 on CI runners.
       maxWorkers: 2,
       coverage: {

@@ -55,10 +55,15 @@ it("applies public kind presets and history changes without serializing private 
 it.each(["x", "🙂"])(
   "rejects an oversized identifier (%s) before preparing a command",
   async (character) => {
+    // Validate the form, not cold module loading; browser tests cover chunks.
+    await import("./AuthoringWorkspace");
     const { props, get, post } = screenWorkspace();
     readReplies(get, { "/api/v1/namespaces": { items: [namespace] } });
     render(<Resources {...props} id="new" access={administrator} />);
-    await screen.findByRole("option", {
+    const namespaces = await screen.findByRole("combobox", {
+      name: "Namespace",
+    });
+    await within(namespaces).findByRole("option", {
       name: `${namespace.displayName} / ${namespace.slug} / ${namespace.id}`,
     });
     change("Namespace", namespace.id);

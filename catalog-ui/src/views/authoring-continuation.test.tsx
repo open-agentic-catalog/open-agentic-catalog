@@ -548,9 +548,11 @@ it("preserves optional Listing input through Back and corrects content using its
   const publisherChoices = await within(details).findByRole("combobox", {
     name: "Publisher",
   });
-  expect(w.get).toHaveBeenCalledWith(
-    "/api/v1/publishers",
-    expect.objectContaining({ params: { query: { limit: 25 } } }),
+  await waitFor(() =>
+    expect(w.get).toHaveBeenCalledWith(
+      "/api/v1/publishers",
+      expect.objectContaining({ params: { query: { limit: 25 } } }),
+    ),
   );
   expect(
     within(publisherChoices).queryByRole("option", {
@@ -562,20 +564,27 @@ it("preserves optional Listing input through Back and corrects content using its
   await within(publisherChoices).findByRole("option", {
     name: `${publisher.displayName} / ${publisher.id}`,
   });
-  change("Display name", "Entered listing name");
-  change("Description", "Entered listing description");
-  change("Publisher", publisher.id);
+  fireEvent.change(within(details).getByLabelText("Display name"), {
+    target: { value: "Entered listing name" },
+  });
+  fireEvent.change(within(details).getByLabelText("Description"), {
+    target: { value: "Entered listing description" },
+  });
+  fireEvent.change(publisherChoices, { target: { value: publisher.id } });
   click("Back: Content");
   click("Next: Listing details");
-  expect(screen.getByLabelText("Display name")).toHaveProperty(
+  const retained = within(
+    await screen.findByRole("region", { name: "Listing details" }),
+  );
+  expect(retained.getByLabelText("Display name")).toHaveProperty(
     "value",
     "Entered listing name",
   );
-  expect(screen.getByLabelText("Description")).toHaveProperty(
+  expect(retained.getByLabelText("Description")).toHaveProperty(
     "value",
     "Entered listing description",
   );
-  expect(screen.getByRole("combobox", { name: "Publisher" })).toHaveProperty(
+  expect(retained.getByRole("combobox", { name: "Publisher" })).toHaveProperty(
     "value",
     publisher.id,
   );
