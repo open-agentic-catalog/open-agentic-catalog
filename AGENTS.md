@@ -351,7 +351,7 @@ Preserve assertions and discovery when splitting mixed files, including negative
 
 Install tools explicitly when missing or after their locks change: `make dev-tools-install` for the locked common Python group, `make validation-tools-install`, `make workflow-tools-install` and the pinned [Ruff executable](documentation/src/content/docs/contributing/testing.md#python-linting) before `make check`, `make client-go-tools-install` before `make client-go-check`, `make ui-install` for frontend checks, and `make docs-install` for the site. `make python-lint` accepts a `RUFF` executable path and is read-only; default Go tests and `make verify` do not require Ruff or actionlint. These are separate toolchains; Go verification does not install or run the npm gates. Install Chromium with `make ui-browser-install` only for browser testing. Keep existing development servers and retained data separate from disposable test fixtures.
 
-The [GitHub Actions workflows](.github/README.md) call existing Make targets. Contribution checks run on pull requests and pushes to `main`. Pages prepares the manual on `main`; deployment requires maintainer activation. Other suites use reusable workflows or manual dispatch.
+The [GitHub Actions workflows](.github/WORKFLOWS.md) call existing Make targets. Contribution checks run on pull requests and pushes to `main`. Pages prepares the manual on `main`; deployment requires maintainer activation. Other suites use reusable workflows or manual dispatch.
 
 Keep tool acquisition separate from checks and avoid a second build/test implementation. `workflow-check` requires installed actionlint and ShellCheck; it does not acquire tools. Keep verification results in engineering records.
 

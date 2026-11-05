@@ -29,4 +29,4 @@ Choose an alternate by setting the `template` query parameter on the pull reques
 | [Documentation](PULL_REQUEST_TEMPLATE/documentation.md) | `template=documentation.md` |
 | [Testing](PULL_REQUEST_TEMPLATE/testing.md) | `template=testing.md` |
 
-GitHub uses these files from the default branch. They add no workflow triggers, required checks, labels, or hosted settings. The [existing workflow guide](README.md) describes the separate manual Actions selections.
+GitHub uses these files from the default branch. They add no workflow triggers, required checks, labels, or hosted settings. The [existing workflow guide](WORKFLOWS.md) describes the separate manual Actions selections.

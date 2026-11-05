@@ -6,6 +6,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { AuthoringWorkspace } from "./AuthoringWorkspace";
 import { ListingForm, type ListingFormHandle } from "./Listings";
@@ -478,25 +479,37 @@ it("keeps unsaved Listing edits when a new Resource changes its destination Name
       visibility: "private",
     },
   });
-  await screen.findByRole("option", { name: /Tools/ });
+  const namespaces = await screen.findByRole("combobox", {
+    name: "Namespace",
+  });
+  await within(namespaces).findByRole("option", { name: /Tools/ });
   change("Namespace", namespace.id);
   click("Next: Content");
   click("Next: Listing details");
-  await screen.findByLabelText("Display name");
-  change("Display name", "My edited name");
-  change("Description", "My edited description");
+  const firstListing = within(
+    await screen.findByRole("region", { name: "Listing details" }),
+  );
+  fireEvent.change(await firstListing.findByLabelText("Display name"), {
+    target: { value: "My edited name" },
+  });
+  fireEvent.change(firstListing.getByLabelText("Description"), {
+    target: { value: "My edited description" },
+  });
   click("Back: Content");
   click("Back: Basics");
   change("Namespace", second.id);
   click("Next: Content");
   click("Next: Listing details");
-  await screen.findByLabelText("Display name");
-  expect(
-    (screen.getByLabelText("Display name") as HTMLInputElement).value,
-  ).toBe("My edited name");
-  expect((screen.getByLabelText("Description") as HTMLInputElement).value).toBe(
-    "My edited description",
+  const nextListing = within(
+    await screen.findByRole("region", { name: "Listing details" }),
   );
+  expect(
+    ((await nextListing.findByLabelText("Display name")) as HTMLInputElement)
+      .value,
+  ).toBe("My edited name");
+  expect(
+    (nextListing.getByLabelText("Description") as HTMLInputElement).value,
+  ).toBe("My edited description");
   expect(post).not.toHaveBeenCalled();
 });
 

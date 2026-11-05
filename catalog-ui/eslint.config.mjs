@@ -64,6 +64,7 @@ export default defineConfig(
   {
     files: [
       "tests/browser/**/*.ts",
+      "tests/unit/setup.ts",
       "playwright.config.ts",
       "vitest.config.ts",
       "vite.config.ts",

@@ -99,9 +99,7 @@ function prepare() {
   change("Plugin input", "prepare");
 }
 function rename(label: string, value: string) {
-  fireEvent.change(screen.getByRole("textbox", { name: label }), {
-    target: { value },
-  });
+  change(label, value);
 }
 
 it("focuses archive inputs before typing and does not steal checksum focus on the next frame", () => {

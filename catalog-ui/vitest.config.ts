@@ -7,8 +7,11 @@ export default mergeConfig(
   defineConfig({
     test: {
       include: ["src/**/*.test.{ts,tsx}"],
-      // Bound DOM/V8 workers when the host also runs backend verification.
-      maxWorkers: 4,
+      setupFiles: ["./tests/unit/setup.ts"],
+      // DOM workflows receive a separate completion budget in the setup file.
+      testTimeout: 5000,
+      // Leave CPU and memory headroom for DOM queries and V8 on CI runners.
+      maxWorkers: 2,
       coverage: {
         provider: "v8",
         // Include untouched views too; imported-only coverage hides real gaps.

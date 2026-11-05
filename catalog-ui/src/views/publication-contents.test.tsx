@@ -49,23 +49,30 @@ it.each(["ARD", "AI Catalog"])(
         }}
       />,
     );
-    fireEvent.click(screen.getByText("Inspect ARD entries (28)"));
-    fireEvent.click(screen.getByText("Inspect AI Catalog entries (28)"));
-    const table = await screen.findByRole("table", {
+    const inventory = within(
+      screen.getByRole("region", { name: "Included discovery entries" }),
+    );
+    const ardToggle = inventory.getByText("Inspect ARD entries (28)");
+    const aiToggle = inventory.getByText("Inspect AI Catalog entries (28)");
+    const toggle = name === "ARD" ? ardToggle : aiToggle;
+    fireEvent.click(ardToggle);
+    fireEvent.click(aiToggle);
+    const table = await inventory.findByRole<HTMLTableElement>("table", {
       name: `${name} included entries`,
     });
-    const other = screen.getByRole("table", {
+    const other = await inventory.findByRole<HTMLTableElement>("table", {
       name: `${name === "ARD" ? "AI Catalog" : "ARD"} included entries`,
     });
-    // Query visible cells once per table instead of repeating accessibility
-    // traversal for every row on every sorting/pagination assertion.
+    // Confirm accessible cells once, then read native table order after each
+    // change without repeating computed-style checks for every cell.
+    expect(within(table).getAllByRole("cell")).toHaveLength(75);
+    expect(within(other).getAllByRole("cell")).toHaveLength(75);
     const identifiers = (target = table) =>
-      within(target)
-        .getAllByRole<HTMLTableCellElement>("cell")
-        .filter((cell) => cell.cellIndex === 0)
-        .map((cell) => cell.textContent);
+      Array.from(target.rows)
+        .slice(1)
+        .map((row) => row.cells.item(0)?.textContent);
     const pager = within(
-      screen.getByRole("group", {
+      inventory.getByRole("group", {
         name: `${name} included entries pagination`,
       }),
     );
@@ -144,17 +151,17 @@ it.each(["ARD", "AI Catalog"])(
       "urn:example:entry-3",
       "urn:example:entry-1",
     ]);
-    fireEvent.click(screen.getByText(`Inspect ${name} entries (28)`));
+    fireEvent.click(toggle);
     await waitFor(() =>
       expect(
-        screen.queryByRole("table", { name: `${name} included entries` }),
+        inventory.queryByRole("table", { name: `${name} included entries` }),
       ).toBeNull(),
     );
     expect(identifiers(other)).toEqual(
       entries.slice(0, 25).map((entry) => entry.identifier),
     );
-    fireEvent.click(screen.getByText(`Inspect ${name} entries (28)`));
-    const reopened = await screen.findByRole("table", {
+    fireEvent.click(toggle);
+    const reopened = await inventory.findByRole<HTMLTableElement>("table", {
       name: `${name} included entries`,
     });
     expect(identifiers(reopened)).toEqual([
@@ -169,7 +176,7 @@ it.each(["ARD", "AI Catalog"])(
     ).toBe("descending");
     expect(
       within(
-        screen.getByRole("group", {
+        inventory.getByRole("group", {
           name: `${name} included entries pagination`,
         }),
       ).getByRole("button", { name: "First page" }),
