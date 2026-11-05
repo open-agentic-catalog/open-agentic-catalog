@@ -104,6 +104,8 @@ The private-library OIDC journey verifies the service token's `library.own`, `ca
 
 Vitest uses at most two workers to leave CPU and memory headroom for DOM queries and V8 coverage on CI runners. Test timeouts, assertions and coverage floors remain unchanged. Run measured performance trials separately from other verification.
 
+Publication inventory units wait for both native disclosure events and check each table's accessible cells. They then read native table rows to verify sorting and pagination. Scoped queries keep each case bound to its own rendered inventory.
+
 The shared Administration geometry case also renders a 128-character opaque acting identity at narrow and enlarged sizes. Its exact value is separately checked by isolated context cases; browser rectangles check wrapping and absence of clipping. Large boundary units retain all sixteen discovery assignments and thirty-two Unicode tags while reusing their semantic controls, avoiding repeated whole-page accessibility scans.
 
 Ordinary Playwright journeys use two workers. Each test retains its own Catalog/UI processes, private ports, directory and browser context. The ten-minute suite limit, per-test/assertion limits, complete selection and zero retries remain unchanged.
