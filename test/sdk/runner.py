@@ -103,6 +103,9 @@ def install():
     native_go = Path(goroot) / "bin/go"
     for directory in (COMPAT / "tools", SDK, COMPAT / "go"):
         run([native_go, "mod", "download"], directory, env)
+    # Tidy also needs tests of imported dependencies, which download omits.
+    # Acquire them now without changing locks; verification stays offline.
+    run([native_go, "mod", "tidy", "-diff"], SDK, env)
     run([native_go, "build", "-trimpath", "-o", TOOLS / "oapi-codegen",
          "github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen"], COMPAT / "tools", env)
     for pin, package in ANALYZERS.values():

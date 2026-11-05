@@ -38,7 +38,7 @@ The manual's sidebar starts with Get started (including the existing-Catalog rea
 
 Root [CONTEXT.md](../CONTEXT.md) consolidates application context for repository readers. An optional local `continue.md` contains the working handoff; it is gitignored and is not required by documentation tooling. Keep summaries aligned with the owning sources below. Recorded coverage or qualification is not evidence of a fresh test run.
 
-**Develop and contribute** includes [GitHub Actions selections, prerequisites and reports](src/content/docs/contributing/testing.md#github-actions), plus [image builds and release-candidate checks](src/content/docs/contributing/build-and-release.md#github-actions). The [workflow directory guide](../.github/README.md) links the source files and their tool ownership.
+**Develop and contribute** includes [GitHub Actions selections, prerequisites and reports](src/content/docs/contributing/testing.md#github-actions), plus [image builds and release-candidate checks](src/content/docs/contributing/build-and-release.md#github-actions). The [workflow directory guide](../.github/WORKFLOWS.md) links the source files and their tool ownership.
 
 **Use the Catalog > Move drafts between Catalogs** contains the [transfer tutorial](src/content/docs/guides/draft-transfer.mdx). It covers both UI/CLI directions, five downloadable examples, destination permissions, package inputs, new Versions and interrupted imports.
 

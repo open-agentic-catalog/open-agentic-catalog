@@ -1,6 +1,6 @@
 # Workflow prerequisites
 
-This directory supports the [GitHub Actions workflows](../../.github/README.md). `tools.py` owns runner capacity checks, explicit tool acquisition, path exports and the installed actionlint check. `pins.json` contains CLI versions not already owned by another tool manifest.
+This directory supports the [GitHub Actions workflows](../../.github/WORKFLOWS.md). `tools.py` owns runner capacity checks, explicit tool acquisition, path exports and the installed actionlint check. `pins.json` contains CLI versions not already owned by another tool manifest.
 
 ## Local workflow commands
 

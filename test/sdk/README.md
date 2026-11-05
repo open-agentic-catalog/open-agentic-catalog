@@ -49,7 +49,7 @@ make sdk-check SDK_LANGUAGE=go
 make sdk-package SDK_LANGUAGE=go
 ```
 
-Installation acquires the pinned generator, runtime/test modules and analyzers. The other targets use installed inputs with Go module acquisition disabled. Missing tools, changed locks or changed analyzer pins require another explicit installation. Deployment `.env` settings are bypassed, and mixed SDK/deployment goals are rejected. Go-only checks need no Python SDK environment, Node or browser installation.
+Installation acquires the pinned generator, module dependencies and analyzers. It also checks SDK module tidiness while downloads are enabled, to acquire dependencies needed by offline checks and external consumers. Installation does not change module locks. The other targets use installed inputs with Go module acquisition disabled. Missing tools, changed locks or changed analyzer pins require another explicit installation. Deployment `.env` settings are bypassed, and mixed SDK/deployment goals are rejected. Go-only checks need no Python SDK environment, Node or browser installation.
 
 `sdk-generate` is a maintainer operation, not a prerequisite for consumers. Generated source is checked in. `sdk-check` generates twice in an owned directory, checks determinism and compares source without rewriting it. It verifies module tidiness, formatting, vet, Staticcheck, the root golangci-lint rules and imported dependency licenses. Analyzer versions and license policy come from the root Makefile. The generator and its configuration come from the existing locked [Go-client compatibility harness](../clientcompat/README.md).
 

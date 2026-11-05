@@ -4,6 +4,10 @@ Open Agentic Catalog is a standalone Go service for managing, reviewing, publish
 
 The Catalog validates resource descriptions and package metadata; it does not install or execute agents, tools, skills or plugins.
 
+[![Catalog UI with published Agents, resource filters and search controls](documentation/assets/catalog-ui/catalog-browse.png)](documentation/assets/catalog-ui/catalog-browse.png)
+
+The Catalog UI with sample data. Read the [online manual](https://open-agentic-catalog.github.io/open-agentic-catalog/) for setup, tutorials and operations.
+
 ## Features
 
 - Author and version resources, import and export [JSON drafts](documentation/src/content/docs/guides/draft-transfer.mdx), then review and approve listings for publication.

@@ -87,6 +87,10 @@ class RunnerUnits(unittest.TestCase):
             runner.install()
         self.assertEqual(runner.installed(), self.go)
         self.assertEqual([cwd for args, cwd in calls if "download" in args], [runner.COMPAT / "tools", runner.SDK, runner.COMPAT / "go"])
+        self.assertEqual([args[1:] for args, _ in calls if "download" in args],
+                         [["mod", "download"]] * 3)
+        self.assertEqual([(args[1:], cwd) for args, cwd in calls if "tidy" in args],
+                         [(["mod", "tidy", "-diff"], runner.SDK)])
 
     def test_failed_install_removes_stamp(self):
         self.stamp()
