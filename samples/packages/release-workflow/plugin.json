@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "release-workflow",
+  "version": "1.0.0",
+  "description": "Synthetic development metadata. Do not install or execute.",
+  "license": "Apache-2.0",
+  "extensions": {
+    "org.example.catalog-demo": {
+      "notice": "Inert release-review metadata"
+    }
+  }
+}

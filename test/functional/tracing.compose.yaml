@@ -1,0 +1,18 @@
+# Invocation-owned credentials and CA, never mounted by the default-off stack.
+services:
+  api:
+    environment:
+      CATALOG_TRACING: ${CATALOG_FUNCTIONAL_TRACING:?tracing settings required}
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?fixture directory required}
+        target: /etc/open-agentic-catalog/tracing
+        read_only: true
+  worker:
+    environment:
+      CATALOG_TRACING: ${CATALOG_FUNCTIONAL_TRACING:?tracing settings required}
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?fixture directory required}
+        target: /etc/open-agentic-catalog/tracing
+        read_only: true

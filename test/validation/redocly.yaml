@@ -1,0 +1,27 @@
+extends:
+  - spec
+resolve:
+  # A literal $ref in example data is not a request to load another document.
+  doNotResolveExamples: true
+rules:
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-parameters-unique: error
+  path-parameters-defined: error
+  no-identical-paths: error
+  no-ambiguous-paths: error
+  no-invalid-media-type-examples:
+    severity: error
+    allowAdditionalProperties: true
+  no-invalid-parameter-examples:
+    severity: error
+    allowAdditionalProperties: true
+  no-invalid-schema-examples:
+    severity: error
+    allowAdditionalProperties: true
+  operation-summary: error
+  operation-tag-defined: error
+  tag-description: error
+  security-defined: error
+  no-unused-components: warn
+  component-name-unique: warn

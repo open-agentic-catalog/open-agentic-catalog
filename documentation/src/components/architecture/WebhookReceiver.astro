@@ -1,0 +1,23 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="receiver-flow-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1184" role="img" aria-labelledby="receiver-flow-title receiver-flow-desc">
+  <title id="receiver-flow-title">Receiver acceptance and reconciliation are separate responsibilities</title>
+  <desc id="receiver-flow-desc">The receiver verifies a bounded HTTPS notification using the exact raw bytes, signature, timestamp and CloudEvent identity. It atomically deduplicates by source and event ID and durably accepts new work before acknowledging with 2xx. Already accepted duplicates also receive 2xx; inability to commit acceptance receives a retryable failure. Receiver-owned processing reads current authorized Catalog state.
+
+  Reconcile Catalog state periodically and after loss-counter changes or a restore. Refresh records within the integration's current authorized scope. Notification arrival order and stable loss counters do not prove that downstream work is complete.</desc>
+  <defs><marker id="receiver-flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 164 V234" marker-end="url(#receiver-flow-arrow)" />
+  <path class="svg-connector" d="M320 378 V448" marker-end="url(#receiver-flow-arrow)" />
+  <text class="svg-small" x="332" y="405">After commit</text>
+  <DiagramCard x={60} y={20} width={520} title={"Verify the bounded HTTPS notification"} tone="core" lines={["Check raw bytes, signature, timestamp", "age and CloudEvent identity", "HMAC input: timestamp + \".\" + raw body", "Invalid input is rejected without acceptance"]} />
+  <DiagramCard x={60} y={234} width={520} title={"Durably accept once"} tone="authority" lines={["Atomically deduplicate and retain", "accepted work by (source, id)", "Already accepted duplicate: return 2xx", "Commit failure: return a retryable response"]} />
+  <DiagramCard x={60} y={448} width={520} title={"Acknowledge with 2xx only after commit"} lines={["Receiver owns pending processing", "Read current authorized Catalog state,", "including withdrawal or absence", "Acceptance is not business completion"]} />
+  <DiagramCard x={60} y={662} width={520} title={["Reconcile without depending on", "notifications"]} lines={["Refresh periodically and after", "loss-counter changes or restore", "Also refresh after disabled", "intervals or exhausted delivery", "Page the currently authorized scope", "Retain the checkpoint and observed loss counters", "Repeat if those counters change during refresh"]} />
+  <DiagramCard x={60} y={948} width={520} title={["Receiver-owned acceptance and", "reconciliation"]} tone="warning" lines={["The example verifier is not a durable acceptance store", "There is no missed-event replay API", "Signatures do not grant API access", "or permission to execute resources", "Notifications can be delayed,", "duplicated, unordered or missed"]} />
+
+</svg>
+</div>

@@ -1,0 +1,15 @@
+{{- if .Values.api.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "api") | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  maxUnavailable: {{ .Values.api.podDisruptionBudget.maxUnavailable }}
+  selector:
+    matchLabels:
+      {{- include "open-agentic-catalog.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: api
+{{- end }}

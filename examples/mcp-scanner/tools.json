@@ -1,0 +1,17 @@
+{
+  "tools": [
+    {
+      "name": "add_integers",
+      "description": "Add two integers.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "left": { "type": "integer" },
+          "right": { "type": "integer" }
+        },
+        "required": ["left", "right"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

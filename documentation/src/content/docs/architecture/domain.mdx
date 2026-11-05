@@ -1,0 +1,165 @@
+---
+title: "Domain model and lifecycle"
+---
+
+import DomainModel from "../../../components/architecture/DomainModel.astro";
+import SearchPagination from "../../../components/architecture/SearchPagination.astro";
+
+Resources, version labels, content revisions, listing metadata, review evidence, releases, and public snapshots have separate identities. A draft correction never rewrites approved history.
+
+Content, listing presentation, and renewable validation keep separate histories. A ReviewSubmission binds their exact identities. An approved submission can become a release through a separate command. Eligible releases can then enter a publication snapshot for one host and audience.
+
+<DomainModel />
+
+## Identity and ownership
+
+### Tenant and realm
+
+A verified issuer and a dedicated or explicitly mapped external organization resolve to one active Catalog identity realm. A token cannot choose an internal tenant directly.
+
+Schema-owner operators can suspend or reactivate a realm. Before suspending the final active realm, unpublish every active discovery snapshot for that tenant. Disable every configured discovery host for that tenant before that suspension. Reactivation does not enable hosts or activate snapshots. Follow the [identity-realm administration procedure](../operations/database-roles.md#identity-realm-administration).
+
+### Membership and grants
+
+An active human or service membership receives permissions through direct assignments or same-realm groups. Assignments have tenant or exact-namespace scope and use built-in or custom roles. The service checks the current action and scope; role names and token role/group claims are not authority. Tenant Administrators can read bounded membership pages, suspend memberships reversibly, or offboard them permanently with atomic grant revocation.
+
+OAuth scopes can only narrow permissions.
+
+### Namespace and publisher
+
+Namespaces own listings and visibility. Namespace updates require `namespace.manage` for that namespace; Publisher updates require tenant-level `publisher.manage`. Both use optimistic concurrency. A declared domain cannot be removed while approved or actively published. Catalog publication-domain approval does not establish external publisher authority.
+
+## Visibility is separate from lifecycle
+
+### `private`
+
+Available only through the authenticated Control API. Governed metadata reads require `resource.read` for the owning namespace; history and exact content require their separate read actions. Tenant-scoped or exact-namespace assignments can supply those permissions. Collection reads filter by current permission before totals and pagination. Private visibility excludes a listing from discovery-host snapshots. Authoring, review, and release commands require their own scoped actions.
+
+### `tenant`
+
+Visible to authorized principals in the owning tenant. An approved release can appear on a configured authenticated discovery host only after snapshot activation.
+
+### `public`
+
+Eligible for anonymous discovery only after the same governance and publication gates. A public draft or approved-but-unpublished record is still not externally visible.
+
+## Representation model
+
+| Delivery form | Retained authority | Validation and publication behavior |
+| --- | --- | --- |
+| Inline object JSON | Canonical JSON object plus its canonical byte digest inside the immutable VersionRevision. | Duplicate-key-safe structural and semantic validation; object-valued data may be published when its adapter permits. |
+| Bounded text document | Exact UTF-8, NUL-free bytes in tenant-scoped PostgreSQL `document_blobs`, bound by SHA-256. | Integrity is rechecked before authenticated or publication-authorized delivery. |
+| Credential-free HTTPS document | External delivery URL plus exact safely decoded PostgreSQL validation bytes and 24-hour retrieval evidence. | Anonymous hardened fetch, same-origin redirects, renewal for identical bytes, fresh publication-time verification, drift requires a new VersionRevision. |
+| Skill ZIP or GZIP | Archive digest and size, complete file inventory and per-file digests, assessment states, immutable Git/OCI handoff. Archive bytes are not retained. | Bounded inspection without extraction or execution; public output requires a valid public delivery form. |
+| Plugin HTTPS ZIP or GZIP | External archive URL, SHA-256 and size, exact bounded manifest/component documents, inventory and assessments in PostgreSQL. Archive bytes are not retained. | Anonymous hardened retrieval and bounded inspection; revalidation and publication verify the reviewed archive identity. Public output points to the complete external archive, not a Catalog-hosted download. See [Plugin authoring and limits](../guides/agent-plugins.mdx). |
+| External Git or OCI | Credential-free Git repository plus full object ID and directory, or OCI repository plus immutable manifest digest. | Handoff evidence only. The Catalog does not clone, pull, install, or execute the content. |
+
+## Review state machine
+
+Draft VersionRevision and ListingRevision records, with current validation evidence, form a candidate bundle. Submission freezes the exact revisions and ValidationRun. Later validation cannot change a pending or decided review. A submitter cannot review their own submission. The reviewer chooses one terminal outcome:
+
+| Outcome | Effect |
+| --- | --- |
+| Approved | Positive decision; the first approval seals the version label. |
+| Changes required | Actionable feedback; create corrected revisions and a new submission. |
+| Rejected | Reason-bearing refusal; the submission and decision remain in history. |
+
+## Release state machine
+
+| State | Ordinary visibility | Meaning | Allowed next states |
+| --- | --- | --- | --- |
+| `published` | Authenticated Catalog immediately; host discovery after snapshot activation. | Exact approved release selected by the listing. | deprecated, retired, superseded, revoked |
+| `deprecated` | Authenticated Catalog immediately; host discovery while an active snapshot includes it. | Sunset or replacement guidance; not recommended for new use. | retired, superseded, revoked |
+| `retired` | Historical only | Removed from ordinary discovery without a security or replacement claim. | revoked |
+| `superseded` | Historical only | A named release is preferred; history and addressability remain. | revoked |
+| `revoked` | Withdrawn | Reason-bearing security, legal, or integrity action; tombstone retained. | Terminal |
+
+## Atomic domain boundaries
+
+### Private item feedback
+
+The [feedback service](decisions/0020-private-item-feedback.md) stores submitter comments and moderator responses in mutable tenant-owned records with exact resource/version context. Feedback is private to its submitter and authorized moderators. Own feedback requires `feedback.own`; moderation requires `feedback.moderate`. Feedback does not modify governed revisions, approval decisions, relevance scores, or public snapshots. Withdrawal and moderator removal clear current text but retain minimal context/state metadata and audit evidence. Reopening or editing clears the current response.
+
+Commands use an independent feedback revision and a replay receipt without text.
+
+See the [feedback guide](../guides/feedback.mdx) for workflow and retention limits. Public comments and federated feedback are unavailable.
+
+### Human resource ratings
+
+The [ratings service](decisions/0023-human-resource-ratings.md) stores one current human opinion per tenant, verified account and exact target. Local targets identify a Resource and immutable VersionRevision. Foreign targets also identify the source authority and advertised version. These opinions remain separate from private feedback, review decisions and search relevance.
+
+Rating commands commit the current opinion, aggregate counters, minimal history, audit and replay together. They do not create notification outbox records. Optional public summaries require deployment enablement, audience opt-in, individual consent and the minimum group size. Normal immutable publication captures those summaries. The [ratings guide](../guides/ratings.mdx) explains submission, moderation and sharing.
+
+### Transactional command boundary
+
+Protocol-v2 commands commit domain writes, command-owned audit, classified outbox evidence, and the exact replay response in one transaction. Every part commits or rolls back together. Audit-only actions do not create notification rows. The designated reads of exact private evidence record access before returning prepared bytes. External calls happen before the interactive transaction.
+
+### Every replay
+
+The service repeats authentication and checks current authorization. The reservation binds the actor, tenant context, and original permission requirements. A stored response cannot restore revoked access.
+
+### Every revision change
+
+Mutable objects use strong `"rev-N"` ETags and require `If-Match`. New immutable child records are appended instead of rewriting sealed evidence.
+
+### Every public activation
+
+A serializable transaction rechecks candidate membership and integrity. It moves one active host pointer with the publication audit, public activation event, and replay response.
+
+## Search architecture
+
+Exact and lexical candidates work independently. Optional semantic retrieval adds matching metadata from a complete compatible generation. It does not change authorization, explicit filters, governance, or provenance.
+
+1. Authorize the actor and apply tenant, namespace, visibility, kind, and structured filters.
+
+1. Select bounded lexical PostgreSQL candidates with exact-identifier precedence.
+
+1. Add parallel semantic candidates only when an evaluated provider and model are enabled. This changes relevance only.
+
+1. Merge deterministically. Prefer local typed identities, rank results, and preserve bounded external provenance.
+
+1. Read metadata for the selected local page and return a signed short-lived cursor bound to the query. Fetch complete records through authorized detail routes.
+
+### Supported core behavior
+
+Authenticated Catalog browse, exact and lexical search, structured filters, local facets, and complete governed records work without embeddings. Host-bound ARD Search, Explore, and List read the selected immutable publication snapshot; core `auto` Search continues an unchanged bounded live window alongside complete local traversal.
+
+### Bounded PostgreSQL execution
+
+Tenant-scoped PostgreSQL queries apply exact precedence, Unicode Letter/Number token normalization, lexical matching, filters, facets, sorting, and generation checks. Keyset pagination selects one bounded local page before metadata reads. Collection projections omit retained document bodies, findings, and package inventories. Exact detail and publication reads retain full evidence.
+
+Go and SQL use the same token and sort-key normalization. Bounded schema-owner repair uses a sparse tenant-and-ID index to rebuild missing or outdated observation projections. Search remains unavailable for an affected tenant until repair completes.
+
+### Authenticated federated result
+
+A closed result union merges local releases, grouped current indexed observations, and bounded live results in deterministic order. Live results come from active administrator-approved sources. Core Search can continue an unchanged window of at most 50 live candidates. Local releases win exact typed-identity collisions. Callers can select supported origin classes and namespace filters, but cannot select individual sources or topology.
+
+<SearchPagination />
+
+Core Catalog Search continues local/indexed results and an unchanged live window. Core ARD automatic Search combines that window with the local snapshot. Hybrid Search preserves the exact durable order. Live results follow those matches. Live-only Control Search pages without durable queries or embeddings. See the [pagination contract](../reference/api-conventions.md#pagination-and-search-consistency) for request binding and restart behavior.
+
+### Semantic tier
+
+Core search does not require embeddings. Optional hybrid retrieval uses one configured endpoint/model and rebuildable vector generations. Fresh requests explicitly fall back when indexing or inference is unavailable. Continuations bind the selected order and require restart after incompatible generation or profile changes. See [hybrid-search operations](../operations/hybrid-search.mdx).
+
+### Namespaced JSON-LD terms
+
+Query contexts support core terms and inline aliases. Unknown remote query contexts fail closed. Additional expanded-IRI or bounded literal-path indexing requires a demonstrated client need. A digest-pinned remote-context allowlist and cache are deferred until a client requirement needs them.
+
+### Bounded core search
+
+Ordinary PostgreSQL Catalog search selects bounded results in the database. Stateless short-lived cursors bind the actor, authorization projection, normalized query, page size, core profile, purpose, expiry, and local/indexed generations. Core live cursors bind a fresh replay of at most 50 candidates. Changed verified evidence requires restart; a temporary replay failure permits the same token to be retried.
+
+### Public ARD automatic pagination
+
+Public `none` and `referrals` Search paginate the immutable snapshot directly. Omitted or explicit `auto` combines local results with bounded live results. In core mode, a signed cursor continues an unchanged live window. Its local offset advances only by emitted local results. Exhausting the live window stops further peer calls.
+
+A failed peer request, invalid live-result metadata, expired deadline or changed source approval can prevent verification of live replay. The first page then keeps healthy results, but continuation includes only local results.
+
+Hybrid mode preserves the exact durable order. Live results follow those matches. Displaced local results remain reachable, and governed local typed identities win remote collisions across the complete match set.
+
+ARD permits a live result's required safe HTTPS source to differ from the configured responder origin. The service retains both separately; neither grants contact permission or establishes trust. Search does not require a stored session.
+
+[Search-tier decision](decisions/0011-search-and-embedding-tiers.md) - Why exact and lexical core search stands alone and semantic retrieval stays optional.
+
+[Search and cursor contract](../reference/api-conventions.md) - Core profile, pagination, JSON-LD terms, and current scale boundaries.

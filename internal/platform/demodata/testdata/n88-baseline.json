@@ -1,0 +1,203 @@
+{
+  "documentation-agent": {
+    "bodyDigest": "sha256:75330727a1156957c0e0ee55fadd2196a3025f6a961398ad70d66f94830c91d3",
+    "description": "Finds documentation and explains repository conventions.",
+    "kind": "agent",
+    "name": "Documentation guide Agent",
+    "namespace": "catalog-demo-v1",
+    "representativeQueries": [
+      "Find Documentation guide Agent",
+      "Finds documentation and explains repository conventions."
+    ],
+    "tags": [
+      "agent",
+      "catalog-demo",
+      "catalog-demo-v1",
+      "documentation"
+    ]
+  },
+  "documentation-mcp": {
+    "bodyDigest": "sha256:1501e4d855941fbd0f5e414e6a6142b2c13e5d2880aeffb36baa9427893726c4",
+    "description": "Describes documentation search tools.",
+    "kind": "mcp_server",
+    "name": "Documentation search MCP Server",
+    "namespace": "catalog-demo-v1",
+    "representativeQueries": [
+      "Find Documentation search MCP Server",
+      "Describes documentation search tools."
+    ],
+    "tags": [
+      "catalog-demo",
+      "catalog-demo-v1",
+      "documentation",
+      "mcp_server"
+    ]
+  },
+  "documentation-toolkit": {
+    "bodyDigest": "sha256:f5d201ba061366fbaa10090a7a8195b02a460cef3323cde55455abbf1f8804fe",
+    "description": "Bundles documentation MCP connection metadata.",
+    "kind": "plugin",
+    "name": "Documentation toolkit Plugin",
+    "namespace": "ide-plugins",
+    "representativeQueries": [
+      "Find Documentation toolkit Plugin",
+      "Bundles documentation MCP connection metadata."
+    ],
+    "tags": [
+      "catalog-demo-v1",
+      "documentation",
+      "ide-plugins",
+      "plugin"
+    ]
+  },
+  "order-agent": {
+    "bodyDigest": "sha256:cfe968fd712181a53283226376f0558d1169131f878df02f1825e0b71098594d",
+    "description": "Investigates blocked orders and coordinates the next approved action.",
+    "kind": "agent",
+    "name": "Order exception Agent",
+    "namespace": "catalog-demo-v1",
+    "representativeQueries": [
+      "Find Order exception Agent",
+      "Find order tools in the catalog demo"
+    ],
+    "tags": [
+      "agent",
+      "catalog-demo-v1",
+      "orders"
+    ]
+  },
+  "order-mcp": {
+    "bodyDigest": "sha256:b030d7e81a598d2d4b47e2bdde001123adaac53a6cf1a2d9871b0d7d91232063",
+    "description": "Connects governed order and fulfillment tools for development workflows.",
+    "kind": "mcp_server",
+    "name": "Order integration MCP Server",
+    "namespace": "catalog-demo-v1",
+    "representativeQueries": [
+      "Find Order integration MCP Server",
+      "Find order tools in the catalog demo"
+    ],
+    "tags": [
+      "catalog-demo-v1",
+      "mcp_server",
+      "orders"
+    ]
+  },
+  "order-skill": {
+    "bodyDigest": "sha256:95c74057d36e8b97e784ef96d9a870177d478e25446204d7214c92638f46c0e4",
+    "description": "Provides a repeatable workflow for triaging an order exception.",
+    "kind": "skill",
+    "name": "Triage order exception Skill",
+    "namespace": "catalog-demo-v1",
+    "representativeQueries": [
+      "Find Triage order exception Skill",
+      "Find order tools in the catalog demo"
+    ],
+    "tags": [
+      "catalog-demo-v1",
+      "orders",
+      "skill"
+    ]
+  },
+  "release-agent": {
+    "bodyDigest": "sha256:2d277b8339ecf3edd87b2cff212de8a5a564a29b0ef3190b6ac4b65203276867",
+    "description": "Reviews release evidence and recommends readiness checks.",
+    "kind": "agent",
+    "name": "Release review Agent",
+    "namespace": "catalog-demo-v1",
+    "representativeQueries": [
+      "Find Release review Agent",
+      "Reviews release evidence and recommends readiness checks."
+    ],
+    "tags": [
+      "agent",
+      "catalog-demo",
+      "catalog-demo-v1",
+      "release"
+    ]
+  },
+  "release-skill": {
+    "bodyDigest": "sha256:3dcde8835293e81e1ecdd29ab62bc472ba4ea56291a59cd41dccfce621a0328e",
+    "description": "Guides preparation of clear release notes.",
+    "kind": "skill",
+    "name": "Prepare release notes Skill",
+    "namespace": "catalog-demo-v1",
+    "representativeQueries": [
+      "Find Prepare release notes Skill",
+      "Guides preparation of clear release notes."
+    ],
+    "tags": [
+      "catalog-demo",
+      "catalog-demo-v1",
+      "release",
+      "skill"
+    ]
+  },
+  "release-workflow": {
+    "bodyDigest": "sha256:1e14d28e5f874edcf507f14d5416eabb7a15698a28bca44d2852db719c252722",
+    "description": "Bundles release guidance, MCP metadata and an inert client extension.",
+    "kind": "plugin",
+    "name": "Release workflow Plugin",
+    "namespace": "ide-plugins",
+    "representativeQueries": [
+      "Find Release workflow Plugin",
+      "Bundles release guidance, MCP metadata and an inert client extension."
+    ],
+    "tags": [
+      "catalog-demo-v1",
+      "ide-plugins",
+      "plugin",
+      "release"
+    ]
+  },
+  "repository-essentials": {
+    "bodyDigest": "sha256:33e5a36a28467ec976707188cba9327cf8514f297040f0c60a604739e05c0763",
+    "description": "Bundles an inert repository-review Skill.",
+    "kind": "plugin",
+    "name": "Repository essentials Plugin",
+    "namespace": "ide-plugins",
+    "representativeQueries": [
+      "Find Repository essentials Plugin",
+      "Bundles an inert repository-review Skill."
+    ],
+    "tags": [
+      "catalog-demo-v1",
+      "ide-plugins",
+      "plugin",
+      "repository"
+    ]
+  },
+  "repository-mcp": {
+    "bodyDigest": "sha256:6d42728202a1098d54283ef0f45291ff27c46634e2e66a8fac9d774a9ce6b354",
+    "description": "Describes read-only repository exploration tools.",
+    "kind": "mcp_server",
+    "name": "Repository explorer MCP Server",
+    "namespace": "catalog-demo-v1",
+    "representativeQueries": [
+      "Find Repository explorer MCP Server",
+      "Describes read-only repository exploration tools."
+    ],
+    "tags": [
+      "catalog-demo",
+      "catalog-demo-v1",
+      "mcp_server",
+      "repository"
+    ]
+  },
+  "review-skill": {
+    "bodyDigest": "sha256:106b4bdb4e423c7abc3d4fea04871336fbf8a7d367bf6ea76ca3d49e1100766a",
+    "description": "Guides evidence-based review of code changes.",
+    "kind": "skill",
+    "name": "Review code changes Skill",
+    "namespace": "catalog-demo-v1",
+    "representativeQueries": [
+      "Find Review code changes Skill",
+      "Guides evidence-based review of code changes."
+    ],
+    "tags": [
+      "catalog-demo",
+      "catalog-demo-v1",
+      "review",
+      "skill"
+    ]
+  }
+}

@@ -1,0 +1,27 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="telemetry-paths-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1142" role="img" aria-labelledby="telemetry-paths-title telemetry-paths-desc">
+  <title id="telemetry-paths-title">Independent metrics and trace collection paths</title>
+  <desc id="telemetry-paths-desc">Every API and worker process exposes Prometheus metrics. A scraper pulls each endpoint; a Prometheus-compatible data source supplies the provided Grafana dashboard. An OpenTelemetry Collector with a Prometheus receiver can bridge metrics to a different backend. Independently, enabled processes push bounded OTLP HTTP traces to the configured backend, directly or through a Collector. Tracing is disabled by default. No collector is a readiness dependency, and the Catalog does not push OTLP metrics or logs.</desc>
+  <defs><marker id="telemetry-paths-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M180 211 V141" marker-end="url(#telemetry-paths-arrow)" />
+  <text class="svg-small" x="192" y="187">Scrape /metrics</text>
+  <path class="svg-connector" d="M180 402 V332" marker-end="url(#telemetry-paths-arrow)" />
+  <text class="svg-small" x="192" y="378">Query metrics</text>
+  <path class="svg-connector" d="M320 141 V165 H628 V570 H320 V616" marker-end="url(#telemetry-paths-arrow)" />
+  <text class="svg-small" x="340" y="592">Enabled trace export</text>
+  <path class="svg-connector" d="M320 714 V784" marker-end="url(#telemetry-paths-arrow)" />
+  <text class="svg-small" x="332" y="741">Push spans</text>
+  <DiagramCard x={60} y={20} width={520} title={"Catalog API and worker replicas"} tone="core" lines={["API exposes /metrics on its API listener", "Worker exposes /metrics on its operations listener", "Scrape each process separately"]} />
+  <DiagramCard x={60} y={211} width={520} title={"Metrics collector and backend"} tone="external" lines={["Prometheus or a Collector pipeline", "Discover targets, retain instance", "labels and configure storage"]} />
+  <DiagramCard x={60} y={402} width={520} title={"Grafana dashboard"} tone="external" lines={["Provided queries require a", "Prometheus-compatible data source", "Use the Compose/Helm option or", "operator-supplied infrastructure"]} />
+  <DiagramCard x={60} y={616} width={520} title={"Independent optional trace exporter"} tone="optional" lines={["Disabled by default; bounded queue and export", "One scoped OTLP/HTTP endpoint with credentials and trust"]} />
+  <DiagramCard x={60} y={784} width={520} title={"OTLP/HTTP trace backend"} tone="external" lines={["Direct export or through an OpenTelemetry Collector", "View traces in the selected backend", "Independent of Prometheus, Grafana and Kubernetes"]} />
+  <DiagramCard x={60} y={975} width={520} title={["Application readiness does not", "depend on collectors"]} tone="warning" lines={["Catalog does not push OTLP metrics or logs", "Metrics, sampled traces and stdout logs", "do not replace retained audit evidence"]} />
+
+</svg>
+</div>

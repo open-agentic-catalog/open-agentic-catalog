@@ -1,0 +1,853 @@
+---
+title: "Deployment guide"
+---
+
+import Deployment from "../../../components/architecture/Deployment.astro";
+
+Add optional monitoring through the [Compose overlay](../guides/performance-and-monitoring.md) or a [separately installed Helm companion chart](helm-monitoring.md). The companion defaults to `enabled: false`; use `--set enabled=true` or `make monitoring-install` to deploy it. Neither is an application dependency or readiness gate. The product chart remains independent and installs no collectors.
+
+Monitoring data and credentials stay separate from Catalog PostgreSQL, and worker metrics stay off the product Service and ingress. Operators can use either option or their existing monitoring. They own production discovery, network access, infrastructure collectors, retention and alerting.
+
+## Managed container platforms
+
+These guides describe deployment without a Kubernetes cluster that you must operate. Each uses the provider's CLI and a managed PostgreSQL service:
+
+| Container host | Database service | Procedure |
+| --- | --- | --- |
+| IBM Cloud Code Engine | IBM Cloud Databases for PostgreSQL | [Deploy on IBM Cloud](ibm-code-engine.mdx) |
+| Azure Container Apps | Azure Database for PostgreSQL Flexible Server | [Deploy on Azure](azure-container-apps.mdx) |
+| Google Cloud Run | Cloud SQL for PostgreSQL | [Deploy on Google Cloud](google-cloud-run.mdx) |
+
+The procedures are based on public provider documentation and the Catalog's implemented contracts. These cloud deployments have not been tested. Confirm the [database requirements](database-roles.md#required-database-identities) before creating resources. Managed administrator accounts do not necessarily have the authority that Catalog migrations and workers require. Each guide identifies its compatibility checks and limits.
+
+## Artifact and deployment ownership
+
+Local Make targets build and test images and charts without publishing them. This guide describes deployment of supplied artifacts.
+
+Both [Helm](https://helm.sh/docs/) charts support CNCF-certified [Kubernetes](https://kubernetes.io/docs/home/) 1.34+ distributions that meet the prerequisites below. This includes OpenShift. Kubernetes 1.34.0 is the chart and schema-validation baseline; the maintained Minikube runtime fixture uses 1.35.9. Use a maintained patch release of the selected Kubernetes distribution.
+
+Use the application Helm chart to deploy Catalog and the optional monitoring companion to add Prometheus/Grafana. Supply PostgreSQL, identity configuration and credentials as described below. See [build and release](../contributing/build-and-release.md) for image and chart build commands.
+
+| Boundary | Service release responsibility | Deployment owner responsibility |
+| --- | --- | --- |
+| OCI image | Versioned API, worker and operator commands; configuration, mounts, ports, non-root filesystem, signals, health and migration contracts; artifact identity and Linux AMD64/ARM64 support. | Select a compatible container host, inject inputs, supervise roles, route traffic, apply resource/security limits and perform operator actions. |
+| Helm chart | Standard APIs, scoped release resources, external dependency references, safe values and the Kubernetes 1.34+ minimum. | Choose a namespace in a dedicated or shared cluster, admission/network policies, ingress, DNS, storage, identity integration and any local overlays. |
+| PostgreSQL | PostgreSQL 18 compatibility, required extensions, exact role/grant manifests, transactions, migrations and application recovery behavior. | Supply a compatible managed or self-operated database, protected writer connectivity, database administration, patching, HA and backup/restore operations. |
+| Operations | App metrics/logs, health, bounded drain, diagnostics, runbooks and reproducible local evidence. | Production collectors, infrastructure monitoring, alerting, scaling, capacity and recovery objectives, and on-call response. |
+
+The Helm chart provides the maintained Kubernetes integration. The binary also runs outside Kubernetes. A deployment owner can adapt the chart or run the same image outside Kubernetes while preserving the process contract below. Run API and worker roles separately.
+
+Follow [Docker with PostgreSQL](docker.mdx) for direct container commands without Compose or Kubernetes. It covers image selection, database roles, environment/file inputs, migrations, identity provisioning, readiness and container replacement.
+
+Apply migrations with the dedicated owner before compatible runtimes start. Mount configuration, secrets, private trust and writable temporary space. Preserve shutdown, drain and read/write database admission. Protect operations endpoints and egress.
+
+Replacing Helm hooks or Kubernetes probes requires equivalent launcher/operator behavior, not new domain code. No additional orchestrator adapter, installer or certification matrix is selected by this flexibility.
+
+Production clusters may be shared. The application does not need cluster ownership or Kubernetes API access; permissions to install the chart belong to the installer, not the runtime. Platform controls remain operator-owned and must not be installed or changed cluster-wide by Catalog defaults. Invocation-owned fixture allocation and cleanup are test-harness powers only: never run the local reset, seed, smoke, benchmark or cluster-deletion workflow against a shared or production deployment without explicit separate authorization.
+
+Prefer documented chart values for existing settings. Downstream owners may use overlays or modified templates; preserve role separation, exact database authority, migration ordering, health/drain, private operations, secret handling and outbound-policy invariants. Upstream evidence identifies the exact image, chart and tested values. A modification does not automatically inherit that result: record the effective manifests and rerun the relevant boundary checks. Changes to security or persistence invariants are not merely deployment customization; review them as compatibility changes.
+
+Kubernetes API and version checks cover the maintained chart boundary. Claims for a named cloud, distribution, managed database or other runtime need evidence for that environment. A local Minikube pass neither certifies all platforms nor requires users to deploy Minikube. Deployment-specific qualification belongs to the adopting operator; the project need not own or access an unknown future environment to release generic artifacts.
+
+### Helm runtime topology
+
+The frame below contains application chart resources in the release namespace. PostgreSQL, identity issuance and ingress controllers remain external. General Control/discovery ingress is operator-supplied; the optional chart API ingress covers only MCP and its OAuth metadata.
+
+<Deployment />
+
+See [logical applications and data](../architecture/deployment.mdx#logical-applications-and-data) for software responsibilities and [Helm routing and authority](../architecture/deployment.mdx#kubernetes-through-helm) for resource details. The migration hook does not drain existing workloads; use the [coordinated release procedure](maintenance.mdx#coordinated-release-deployment).
+
+### Kubernetes prerequisites
+
+Both charts declare `kubeVersion: ">=1.34.0-0"`. Helm rejects older clusters. The `-0` permits normal vendor suffixes and also accepts prerelease version strings; accepting a version string does not make an upstream alpha, beta or release candidate a recommended production release. No distribution-specific version allowlist is used.
+
+The charts use standard `v1`, `apps/v1`, `batch/v1` and `policy/v1` resources, plus `networking.k8s.io/v1` for optional UI Ingress/NetworkPolicy and `rbac.authorization.k8s.io/v1` for enabled monitoring discovery. Optional replica spreading requires labeled nodes and the default-enabled `MatchLabelKeysInPodTopologySpread` feature. Its selector merging is also default-enabled in 1.34; keep the standard feature behavior when selecting that option. See [Kubernetes topology spread](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/).
+
+Admission policies must allow the documented non-root workloads, and selected NetworkPolicies require an enforcing network implementation. Existing persistent-volume claims are required only when monitoring persistence is selected. Neither chart requires a Kubernetes Operator, CRD or a particular cloud provider.
+
+For offline chart rendering, pass `--kube-version 1.34.0` to `helm template` or `helm lint`; otherwise Helm uses its built-in default version. The Make chart checks and packaging target supply this explicitly. Real Helm installations use the selected cluster's version.
+
+## Supported process roles
+
+`catalogd api` serves HTTP. `catalogd worker` runs durable Jobs, automatic source maintenance, bounded housekeeping and outbox processing. It dispatches signed notifications when webhooks are enabled. Otherwise, it drains outbox records without network access.
+
+Its separate operations-only listener exposes health, status, version, and metrics. `catalogd all` is limited to the memory-backed local profile because PostgreSQL requires different effective roles for tenant-scoped API access and cross-tenant worker leases. Every PostgreSQL deployment scales API and worker roles independently and runs migrations as a separate release job.
+
+## Plan replicas and availability
+
+Choose API, worker and UI capacity separately. More application replicas do not provide database replication, writer promotion or backup recovery.
+
+### Start with the chart defaults
+
+| Component or setting | Chart default | Planning consequence |
+| --- | --- | --- |
+| API | Two replicas, each with a database pool capped at 20 connections. | Reserve database capacity for every live API process. Route requests through the API Service. |
+| Worker | Two replicas, each with a database pool capped at 20 connections and 16 Job slots. | Count Job execution slots separately from database connections. The durable queue is shared. |
+| UI | Disabled; one replica when enabled. | The UI uses HTTP connections, not SQL. Replicas share session keys, origin, base path and upstream. |
+| API and worker PodDisruptionBudgets (PDBs) | Enabled independently, each with `maxUnavailable: 1`. | At two healthy replicas, one voluntary eviction can proceed for each role. |
+| API and worker topology spread | Disabled. | Default replicas can share a node. Replica count alone does not establish node isolation. |
+| Runtime termination grace | 40 seconds for API and worker. | Keep the grace above the configured shutdown budget and allow time for endpoint changes. |
+| Backend shutdown budget | `CATALOG_HTTP_SHUTDOWN_TIMEOUT: 20s`. | API requests drain within this bound. Worker cancellation stops new claims and begins component shutdown. |
+
+The chart has no UI PDB or UI-specific topology-spread setting. Shared node selection, affinity and tolerations also affect the UI. Review actual placement when the UI needs node-level redundancy.
+
+API and worker Deployments use Kubernetes' default rolling-update strategy. It allows 25% surge and 25% unavailability. At two desired replicas, percentage rounding allows one surge Pod and zero unavailable Pods. Terminating processes can add further overlap. This strategy does not replace the [coordinated release procedure](maintenance.mdx#coordinated-release-deployment).
+
+### Record the operator decisions
+
+Complete these decisions before installation or a replica increase:
+
+| Decision | Required deployment input |
+| --- | --- |
+| Availability | Define acceptable downtime, its measurement window and planned maintenance allowances. Select the failure domains that the deployment must tolerate. |
+| Data recovery | Define the recovery point objective, or acceptable data loss, and the recovery time objective, or acceptable restoration time. Assign backup, restore and database recovery ownership. |
+| Writer routing | Supply a stable PostgreSQL 18 writer endpoint. Assign promotion and old-writer fencing to database infrastructure. Keep the schema owner on its direct database route. |
+| Placement | Provide enough eligible nodes or zones, their labels, resources and image access. Select hard or soft spread for the required failure domains. |
+| Capacity | Record desired and maximum replicas, surge, terminating overlap, database limits, Job slots and upstream HTTP/provider limits. |
+| Traffic and identity | Supply ingress or load-balancer routing, HTTPS, DNS, the OIDC issuer/client, Catalog memberships and the exact UI callback. Protect worker operations separately. |
+| External inputs | Provision exact database roles, DSN Secrets, signing/session keys, required trust bundles and any enabled optional credentials before installation. |
+
+The chart installs no PostgreSQL cluster or identity provider. The [database-role guide](database-roles.md#required-database-identities) defines required authority. The [sign-in guide](sign-in.md) defines identity and browser setup. Use the [configuration reference](../reference/configuration.mdx) for effective settings and input precedence.
+
+### Example replica and placement overlay
+
+Merge this overlay into complete deployment values. Supply your image digests, database Secret references, issuer settings and tenant mapping separately. Replace the illustrative UI origin, client and Secret name. Provision the UI Secret and register its callback before enabling the browser host.
+
+```yaml
+api:
+  replicas: 2
+  topologySpread:
+    enabled: true
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+worker:
+  replicas: 2
+  topologySpread:
+    enabled: true
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+ui:
+  enabled: true
+  replicas: 2
+  existingSecret: catalog-ui-inputs
+  config:
+    origin: https://browse.example.com
+    issuer: https://identity.example.com
+    clientId: catalog-browser
+configEnv:
+  CATALOG_DATABASE_MAX_CONNECTIONS: "6"
+  CATALOG_WORKER_CONCURRENCY: "2"
+```
+
+This overlay leaves ingress, network policy and external infrastructure to the selected deployment values. See the [complete UI inputs](../../../../../deployments/helm/open-agentic-catalog/README.md#optional-catalog-ui). All UI replicas must receive the same session-key ring.
+
+The example requires at least two eligible nodes with the selected hostname labels. Hard spread can leave a replacement Pending when only one eligible worker node survives. Check the available capacity and required service level before choosing this behavior. The [maintained topology scenario](#maintained-local-minikube-verification) tests that degraded state with two API and two worker replicas. It does not qualify this overlay for an operator's infrastructure.
+
+For the illustrative [direct PostgreSQL budget](database-roles.md#direct-postgresql-example), retain maximum counts of three API, two worker and two UI replicas. These limits are operator constraints; the values above set desired counts only. Raising the worker and UI desired counts to two stays within those maxima. It does not increase the worksheet's maximum connection ceiling.
+
+Use the [complete worksheet](database-roles.md#replica-and-dependency-budget) before accepting the six-connection pool choice. It includes surge, terminating old processes, direct owner/backup/monitoring clients, fault headroom and PostgreSQL reserves. The example permits 72 runtime connections at maximum overlap, not only the 24 allowed by its four steady-state backend pools. Check pool waits and Job heartbeat progress against the selected workload. UI capacity comes from HTTP admission and issuer/API limits, with no SQL allocation.
+
+Validate the complete values with `helm lint --strict` and render them with `helm template --kube-version 1.34.0`. Review the resulting workloads, references, probes and placement constraints. Follow the [coordinated deployment procedure](maintenance.mdx#coordinated-release-deployment) for installation or release changes.
+
+### Use an external API autoscaler
+
+The application chart does not install an HPA or a metrics provider. Operators can supply an `autoscaling/v2` HPA for the API Deployment. Set API CPU requests before using a CPU utilization target. Budget database connections for the maximum replica count, including deployment overlap.
+
+The [owned Minikube test](../../../../../test/minikube/README.md#api-autoscaling-qualification) selects two to three APIs, a 50m CPU request and a 50-percent utilization target. It tests actual scale-up, metrics loss, recovery and scale-down with bounded Search traffic. These settings define a local test, not production capacity recommendations. The fixture uses local TLS exceptions that operators must not copy into production.
+
+Inspect HPA conditions when CPU metrics are unavailable. Keep the metrics provider separate from Catalog readiness and runtime permissions. Verify useful reads and worker progress during an outage. Pause the HPA's recreator before [coordinated maintenance](maintenance.mdx#coordinated-release-deployment). Remove the targeting HPA. The coordinator rejects a targeting HPA, including a paused one.
+
+Save the following external manifest as `catalog-api-hpa.yaml`. It matches the local test bounds. Replace the namespace and Deployment name with the values from your rendered chart. Set an explicit API CPU request in your Helm values. Select production targets from workload measurements.
+
+```yaml
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: catalog-api
+  namespace: catalog
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: catalog-api
+  minReplicas: 2
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+```
+
+Install a compatible metrics provider under your cluster's security policy. Verify CPU samples before applying the HPA:
+
+```sh
+kubectl --context my-cluster --namespace catalog top pods
+kubectl --context my-cluster --namespace catalog apply -f catalog-api-hpa.yaml
+kubectl --context my-cluster --namespace catalog describe hpa catalog-api
+```
+
+Require useful CPU metrics and inspect the HPA conditions. Kubernetes availability of metrics does not establish Catalog readiness. Keep maximum replica counts within the reviewed database budget. Follow the [maintenance handoff](maintenance.mdx#hand-off-an-external-autoscaler) before a coordinated deployment.
+
+### Verify health and graceful drain
+
+Use API `/readyz` for API Service admission. Use the worker's private `/readyz` for database admission. Check `/status` and fresh Job progress for component recovery. PostgreSQL loss or a read-only runtime session makes both roles unready while their processes remain live. Liveness does not probe PostgreSQL. See the [health contract](observability.mdx#readiness-degradation-and-drain) for recovery signals.
+
+Startup probes use API/UI `/livez` and worker `/startupz`. They do not test the complete user path.
+
+UI `/readyz` reports initialized local state and drain, not API or issuer availability. Verify sign-in and an authorized read separately. UI liveness does not contact either dependency.
+
+On termination, the API becomes unready and drains in-flight requests. Workers stop new claims and cancel active components; unfinished leases remain recoverable through the existing worker rules. The private operations listener reports drain until other worker components finish. The UI marks itself unready and uses its separate 15-second shutdown bound.
+
+Allow time for probes and EndpointSlice updates before assuming traffic has left a terminating Pod. PDBs constrain voluntary evictions through the Eviction API. They do not prevent node loss, forced deletion or Deployment rolling updates. The [observed drain checks](../../../../../test/minikube/README.md#drain-and-disruption-qualification) require endpoint removal, an original ready survivor, useful Service reads and a denied second eviction.
+
+## Recover service after disruption
+
+Identify the deployment, affected role and failed dependency before changing anything. Collect [bounded status and diagnostics](observability.mdx#operator-diagnostics). Preserve command keys, request IDs and safe failure evidence. Use authorized reads of existing records to verify recovery; sample-loading and smoke commands create data.
+
+### Choose the response to the failure
+
+| Failure | Operator action | Required recovery check |
+| --- | --- | --- |
+| API Pod stops or drains | Restore the intended replicas and routing. Inspect an interrupted command before retrying it. | Check ready Service endpoints and an authorized read through a surviving API. A lost connection does not prove that a mutation failed. |
+| Worker process stops | Restore worker capacity. Let the retained lease and retry rules control eligible work. | Check the same Job's attempt, progress and result. Check outbox progress separately. Do not clear leases manually. |
+| Worker node becomes unavailable | Repair or replace eligible infrastructure. Establish fencing before excluding unreachable processes from capacity or recovery decisions. | Check node labels, scheduling, Pod placement and Service endpoints. Hard spread can leave replacements Pending while a survivor continues work. |
+| PostgreSQL is unavailable or read-only | Restore the configured writable route and valid credentials/trust. Let existing pools recover from transient loss. | Check readiness for both roles, retained API reads and required worker progress. Healthy liveness alone is insufficient. |
+| Planned database writer change | Let database infrastructure stop or fence the old writer, promote its successor and update the stable writer route. | Verify fresh read/write-capable sessions for both runtime identities. Inspect uncertain commands and retained work before declaring recovery. |
+| Abrupt database writer loss | Fence the old writer. Establish which data reached the promoted writer. Restore the stable route before command repair. | Verify retained state, exact replay or eligible repair, Job recovery and outbox progress. An asynchronous standby can lack acknowledged commits. |
+| Issuer or webhook receiver outage | Restore that dependency using its own procedure. Review sign-in failures or delivery outcomes. | Verify sign-in and an authorized read, or actual delivery and receiver reconciliation. UI local health and core readiness do not prove these paths. |
+
+Catalog does not promote PostgreSQL, move the writer route or fence infrastructure. [Writer routing](#postgresql-writer-routing-and-failover) defines the database contract. Use [worker status](observability.mdx#read-a-running-workers-status) and [delivery evidence](webhooks.mdx#retry-and-terminal-outcomes) to distinguish dependency recovery from completed work.
+
+### Resolve an interrupted command
+
+Keep the original idempotency key and request binding. A retained receipt can describe either success or failure. Replay within its retained window returns that receipt only when current authentication and permissions allow it. Check current state separately; a replay receipt is not a fresh read.
+
+Do not use a new key to bypass an uncertain outcome. If no completed receipt establishes the outcome, follow [idempotency inspection and repair](idempotency-repair.mdx#authority-and-safety). Repair requires proof that the original execution ended. After a writer change, it also requires old-writer fencing because advisory locks are not replicated.
+
+Stop if the original execution or writer state remains uncertain. An active command is not eligible for repair. Use the exact owner-reviewed plan and its audit evidence. After an ambiguous repair result, inspect a fresh plan before retrying apply. The linked runbook owns the commands and acceptance checks.
+
+### Check Jobs and notifications
+
+A replacement worker can claim eligible work after its previous lease expires. Completion requires the current tenant, Job, lease owner and unexpired lease. A former owner cannot complete a newer attempt. Observe heartbeat, retry and terminal state through the [Job workflow](observability.mdx#investigate-one-retained-job); do not infer completion from worker readiness.
+
+Outbox records commit with their domain changes, but HTTP delivery occurs outside that transaction. A receiver can accept a send before the worker saves its outcome. Retries can therefore produce duplicates. Notifications are unordered and at least once; receivers must deduplicate by CloudEvent `(source, id)` and reconcile current state through the API.
+
+Inspect failed or exhausted deliveries before taking further action. Follow the [receiver recovery procedure](webhooks.mdx#receiver-outages-capacity-and-reconciliation). Do not clear queues or treat an old notification as current Catalog state. Audit-only command repair creates no outbox event.
+
+### Restore the intended capacity
+
+A useful survivor establishes continuity, not full capacity. Complete these checks before restoring normal load:
+
+1. Confirm the intended writer is writable and its predecessor is fenced when required.
+1. Restore the selected replica counts and eligible node capacity. Check placement, image identity and terminating Pods, not only ready counts.
+1. Check the API Service's ready endpoints. Read expected retained state through the restored route with current authorization.
+1. Check worker status, fresh progress and the retained work affected by the incident. Inspect failed Jobs and deliveries; an empty queue is not required.
+1. Verify sign-in and an authorized read when the UI is enabled.
+1. Recheck the [replica and dependency budget](database-roles.md#replica-and-dependency-budget), including terminating overlap, direct clients and fault headroom.
+
+If hard spread leaves a replacement Pending, restore an eligible failure domain or review the placement policy before changing it. Do not increase replicas or pool sizes without checking capacity. Preserve original failure evidence even when later requests succeed.
+
+### Use the owning maintenance procedure
+
+| Operation | Procedure and stop condition |
+| --- | --- |
+| Install or release upgrade | Use [coordinated deployment](maintenance.mdx#coordinated-release-deployment). Stop all old API processes, then all old workers, before owner migrations. Keep failed deployments stopped until corrected. |
+| Failed migration or startup | Follow [upgrade recovery](maintenance.mdx#upgrade-and-failed-migration). Do not use automatic Helm/SQL rollback or restart an obsolete development runtime over the new schema. |
+| Backup or data restoration | Follow [backup and restore](backup-restore.mdx#backup-contract). Preserve matching configuration and protected keys. A logical dump does not qualify physical backup, WAL archiving or point-in-time recovery. |
+| Pooler input change or disablement | Follow [PgBouncer maintenance](maintenance.mdx#optional-pgbouncer-maintenance). Drain affected runtimes and use fresh connections; warm sessions do not establish new credential acceptance. |
+| Certificate, CA or credential replacement | Follow [credential and trust rotation](maintenance.mdx#rotate-credentials-and-trust). Replace startup consumers explicitly. Verify the successor before retiring old trust. |
+| Incident observation | Use [observability](observability.mdx#readiness-degradation-and-drain). Compare health with useful reads and worker progress before returning traffic. |
+
+The supported release procedure includes a maintenance interval. It does not provide zero-downtime migrations or a mixed-version window for obsolete development formats. The coordinator's preflight and drain ordering remain required even when PDBs and rolling-update settings exist.
+
+### What the local tests establish
+
+| Scenario | Maintained qualification and limit |
+| --- | --- |
+| API eviction, Pod loss and node loss | [Minikube topology](../../../../../test/minikube/README.md#drain-and-disruption-qualification), `make test-minikube-topology`: selected-request drain, Service reads through the original survivor, replay, tenant denial and worker takeover. Node-loss checks retain a survivor and Pending replacements; they do not restore full capacity. |
+| Dependency loss and process replacement | [Packaged functional tests](../../../../../test/functional/README.md), `make test-functional`: PostgreSQL outage/read-only readiness, liveness, recovery and retained responses across process replacement. Readiness recovery alone does not establish queued-work recovery. |
+| Planned and abrupt direct writer loss | [Writer recovery](../../../../../test/functional/README.md#postgresql-writer-recovery), `make test-postgres-failover`: retained baseline, same-process recovery, exact replay, eligible repair, later Job attempts and outbox acknowledgement. The fixture establishes a WAL replay barrier before the fault. |
+| Writer loss through session PgBouncer | [Pooler qualification](../../../../../test/pgbouncer/README.md), `make test-pgbouncer`: planned promotion. Select `PGBOUNCER_WRITER_LOSS=abrupt` for held-command repair, current-permission denial, second-worker takeover and stale-owner refusal. No receiver is registered in that abrupt case; acknowledgement does not prove remote delivery. |
+| Work under bounded pressure | [Replica pressure](../contributing/testing.md#replica-integrity-and-short-load), `make test-minikube-replicas`: shared queues, twelve completed Jobs, useful reads and observed request cancellation. This single-node workload does not qualify node-loss capacity. |
+| Worker loss during an external send | [Selected-event crash control](../../../../../test/functional/README.md#selected-event-worker-crash-control): the receiver accepts a send, the worker stops before saving its result, and recovery sends the same event again. This tests at-least-once delivery, not exactly-once receiver effects. |
+| Backup restoration | [Logical restore drills](backup-restore.mdx#test-backup-and-restore-locally): captured fixture data and matching key/configuration recovery in owned Compose and Minikube environments. Physical backup, WAL archive continuity and point-in-time recovery require separate qualification. |
+
+These results apply to the recorded local images, configuration, workload and fault controls. The direct writer-recovery interval ends when both selected runtimes become ready. It excludes later repair and final state verification. It is not a deployment recovery-time objective. The known WAL baseline does not establish zero-loss asynchronous replication.
+
+The local pooler drill tests initial TLS refusals, same-CA renewal, CA overlap and old-CA retirement on both database hops. The selected Minikube drill verifies Kubernetes projection, Pod activation and fresh connections after CA replacement. Follow the [server certificate procedure](database-roles.md#replace-database-server-certificates) and verify fresh handshakes on each hop. TCP probes and warm HTTP responses are insufficient.
+
+## Optional PostgreSQL pooler
+
+Use the [replica and dependency worksheet](database-roles.md#replica-and-dependency-budget) before choosing pool sizes or scaling limits. Include terminating processes and direct operator clients, even when the runtime uses PgBouncer.
+
+Direct PostgreSQL is the default. The application chart can provision one private PgBouncer with `pgbouncer.enabled=true`, existing authentication/TLS Secrets, verified upstream trust and explicit writer NetworkPolicy peers. This enables a component only: API/worker DSN Secrets must deliberately select its Service, while the migration Secret and other schema-owner commands stay direct. Provision the database CA inputs before the pre-install/pre-upgrade migration hook.
+
+API/worker replicas cannot remove the pooler's single-instance availability limit. Its replacement interrupts that route. Socket probes do not verify writer availability or database credentials.
+
+Session mode, separate exact runtime identities and one `Recreate` replica are enforced; transaction/statement mode, multi-pooler HA and database election are outside the supported boundary. Follow [enablement and budgets](database-roles.md#connection-pooling-boundary) and [credential replacement/disablement](maintenance.mdx#optional-pgbouncer-maintenance). The selected `make test-pgbouncer` and `make test-minikube-pgbouncer` qualifications supplement direct PostgreSQL tests.
+
+## Optional MCP ingress certificates
+
+An external [cert-manager](https://cert-manager.io/docs/) installation can manage the TLS Secret used by the MCP ingress. The Catalog chart installs neither cert-manager nor an ingress controller. Existing TLS Secrets remain supported.
+
+The certificate issuer signs the ingress certificate. The OIDC issuer authenticates Catalog users and clients. They are separate services with separate keys and trust settings. This procedure changes ingress TLS only; it adds no mutual TLS or token binding.
+
+### Prepare a local CA and Certificate
+
+Use a namespace and controller installation that you own. The examples use context `my-cluster`, namespace `catalog`, and hostname `catalog-mcp.test`. Start with the complete Helm values and database inputs from this guide. Install compatible cert-manager CRDs, its controller, webhook and CA injector. Install an ingress controller separately. Check the [cert-manager support matrix](https://cert-manager.io/docs/releases/) against your Kubernetes version.
+
+For the complete disposable local test, run these commands from the repository root:
+
+```sh
+make cert-manager-tools-install
+make test-minikube-cert-manager
+```
+
+The [test guide](../../../../../test/minikube/README.md#cert-manager-and-mcp-ingress-renewal) lists exact inputs, prerequisites, bounds and cleanup. The test uses Linux AMD64, one private Minikube profile, Traefik and a local CA. It uses no public ACME service or DNS credentials. All controller resources stay outside the Catalog release.
+
+For the manual procedure, install kubectl, OpenSSL, curl and the [cmctl CLI](https://cert-manager.io/docs/reference/cmctl/). Make these commands available on your PATH. Then create private CA files:
+
+```sh
+umask 077
+oac_tls_dir=$(mktemp -d)
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 \
+  -nodes -keyout "$oac_tls_dir/ca.key" -out "$oac_tls_dir/ca.pem" \
+  -days 2 -subj '/CN=Catalog local ingress CA' \
+  -addext 'basicConstraints=critical,CA:TRUE' \
+  -addext 'keyUsage=critical,keyCertSign,cRLSign'
+kubectl --context my-cluster --namespace catalog create secret tls catalog-local-ca \
+  --cert="$oac_tls_dir/ca.pem" --key="$oac_tls_dir/ca.key"
+```
+
+This short-lived CA is a local example. Protect its private key and keep its public certificate as the client's explicit trust input. Do not use a leaf Secret's `ca.crt` as automatic authority. A production CA needs operator-owned storage, access controls, renewal and retirement. The [CA issuer guide](https://cert-manager.io/docs/configuration/ca/) explains these responsibilities.
+
+Save and apply these resources separately from the Catalog release:
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: catalog-local-ca
+  namespace: catalog
+spec:
+  ca:
+    secretName: catalog-local-ca
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: catalog-mcp
+  namespace: catalog
+spec:
+  secretName: catalog-mcp-tls
+  dnsNames:
+    - catalog-mcp.test
+  duration: 2h
+  renewBefore: 30m
+  issuerRef:
+    name: catalog-local-ca
+    kind: Issuer
+    group: cert-manager.io
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  usages:
+    - digital signature
+    - server auth
+```
+
+Use `kubectl --context my-cluster --namespace catalog apply -f /path/to/issuer-and-certificate.yaml`. Wait for initial issuance:
+
+```sh
+kubectl --context my-cluster --namespace catalog wait --for=condition=Ready \
+  issuer/catalog-local-ca certificate/catalog-mcp --timeout=120s
+test "$(kubectl --context my-cluster --namespace catalog get secret catalog-mcp-tls \
+  -o 'go-template={{if and (index .data "tls.crt") (index .data "tls.key")}}ready{{end}}')" = ready
+```
+
+The operator workflow checks both required Secret keys before it starts the ingress consumer. Catalog processes do not query cert-manager or wait for its controllers. Certificate readiness does not prove that the controller serves the certificate.
+
+### Connect the MCP ingress
+
+Merge this overlay into your complete Catalog values:
+
+```yaml
+api:
+  ingress:
+    enabled: true
+    className: traefik
+    host: catalog-mcp.test
+    tlsSecretName: catalog-mcp-tls
+    annotations:
+      traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      traefik.ingress.kubernetes.io/router.tls: "true"
+configEnv:
+  CATALOG_PUBLIC_BASE_URL: https://catalog-mcp.test
+  CATALOG_MCP_ENABLED: "true"
+  CATALOG_MCP_ALLOWED_ORIGINS: '["https://assistant.example.com"]'
+```
+
+Use your installed IngressClass name. The disposable test instead uses the `catalog-local` class annotation with namespace-scoped controller permissions. It creates no cluster-wide IngressClass. Follow the [coordinated deployment procedure](maintenance.mdx#coordinated-release-deployment) to apply the complete values.
+
+Route only `/mcp` and `/.well-known/oauth-protected-resource/mcp`, with `Exact` paths. Preserve Host, Origin, Authorization and MCP headers. Do not rewrite the paths or expose Control API and worker routes. Permit controller traffic to API port 8080 if your network policy requires it. Keep Catalog ServiceAccounts tokenless and without access to certificate Secrets.
+
+For local access, forward your ingress Service in a separate terminal. This example assumes the Service is named `catalog-edge-traefik`:
+
+```sh
+kubectl --context my-cluster --namespace catalog port-forward \
+  service/catalog-edge-traefik 18443:443
+```
+
+Keep the canonical HTTPS hostname while using that local connection:
+
+```sh
+curl --fail --cacert "$oac_tls_dir/ca.pem" \
+  --connect-to catalog-mcp.test:443:127.0.0.1:18443 \
+  https://catalog-mcp.test/.well-known/oauth-protected-resource/mcp
+```
+
+The returned `resource` must be `https://catalog-mcp.test/mcp`. Its `authorization_servers` identifies the configured OIDC issuer, not the certificate issuer. Follow [MCP authentication](../guides/mcp-server.mdx#oauth-discovery-and-permissions) for client registration, tokens, scopes and protected tool reads.
+
+### Verify renewal on a fresh connection
+
+Capture the actual served certificate before renewal:
+
+```sh
+openssl s_client -connect 127.0.0.1:18443 -servername catalog-mcp.test \
+  -verify_hostname catalog-mcp.test -verify_return_error \
+  -CAfile "$oac_tls_dir/ca.pem" -showcerts </dev/null \
+  > "$oac_tls_dir/before.pem"
+openssl x509 -in "$oac_tls_dir/before.pem" -noout -serial -dates \
+  -fingerprint -sha256
+openssl x509 -in "$oac_tls_dir/before.pem" -pubkey -noout \
+  | openssl pkey -pubin -outform DER | openssl dgst -sha256
+```
+
+Request renewal with the official [cmctl CLI](https://cert-manager.io/docs/reference/cmctl/):
+
+```sh
+oac_certificate_revision=$(kubectl --context my-cluster \
+  --namespace catalog get certificate catalog-mcp \
+  -o jsonpath='{.status.revision}')
+cmctl --context my-cluster --namespace catalog \
+  renew catalog-mcp
+kubectl --context my-cluster --namespace catalog wait \
+  --for="jsonpath={.status.revision}=$((oac_certificate_revision + 1))" \
+  certificate/catalog-mcp --timeout=120s
+```
+
+Repeat the fresh `openssl s_client` command with output file `after.pem`. Compare the leaf fingerprint, serial and public-key hash. All three must change with `rotationPolicy: Always`. Verify the same CA and hostname. Allow a bounded interval for the ingress controller to reload its Secret. A new Secret revision alone does not prove activation.
+
+Existing connections can continue with their original TLS session. Do not use them as renewal evidence. Keep client trust stable for leaf renewal. Certificate updates do not require Catalog Pod restarts. Verify the controller's reload behavior; Secret projection alone is insufficient.
+
+### Recover from an issuer failure
+
+Inspect `Issuer.status.conditions`, `Certificate.status.conditions` and the latest CertificateRequest. A Certificate can remain Ready while a replacement is pending. Check `Issuing`, `status.renewalTime` and `status.notAfter` as well.
+
+In an owned local test only, point the Issuer at a missing Secret:
+
+```sh
+kubectl --context my-cluster --namespace catalog patch issuer catalog-local-ca \
+  --type=merge -p '{"spec":{"ca":{"secretName":"catalog-test-missing"}}}'
+kubectl --context my-cluster --namespace catalog wait --for=condition=Ready=false \
+  issuer/catalog-local-ca --timeout=60s
+cmctl --context my-cluster --namespace catalog renew catalog-mcp
+```
+
+Require the last valid certificate to remain served. Restore the original reference without replacing the CA or submitting another renewal:
+
+```sh
+kubectl --context my-cluster --namespace catalog patch issuer catalog-local-ca \
+  --type=merge -p '{"spec":{"ca":{"secretName":"catalog-local-ca"}}}'
+kubectl --context my-cluster --namespace catalog wait --for=condition=Ready \
+  issuer/catalog-local-ca --timeout=60s
+```
+
+Verify that the pending issuance completes and that a fresh connection serves the replacement. If the old certificate expires first, verified clients must reject it. Do not disable certificate checks or change the host clock. Operators own alerts for failed issuance and approaching expiry, with thresholds that leave time for repair. The Catalog does not provide an issuer-aware health gate or alert controller.
+
+### Remove the local certificate setup
+
+Delete the owned Certificate first to stop renewal. Disable the MCP ingress through the complete reviewed Helm values before removing its TLS Secret. Then delete the owned Issuer, leaf Secret and CA Secret. cert-manager normally retains the leaf Secret after Certificate deletion.
+
+Remove the private directory created above when you no longer need its CA files. Uninstall controller releases only if they belong to this test. Do not remove shared controllers, CRDs, issuers or Secrets. The disposable Minikube target removes its complete private profile, network, image aliases and private keys on success and failure.
+
+## Optional Catalog UI
+
+Follow [authentication and sign-in](sign-in.md) for issuer registration, API identity mapping and the browser callback.
+
+Enable `ui.enabled=true` in the application chart to deploy the separate browser host and its Service. Supply `ui.image`, the exact HTTPS `ui.config.origin`, OIDC issuer/client ID and an existing `ui.existingSecret` with `keys.json` and `client-secret`. Register the callback for the configured origin and base path, and provision users' Catalog memberships separately. The [UI chart instructions](../../../../../deployments/helm/open-agentic-catalog/README.md#optional-catalog-ui) provide the complete values and ingress example. For local evaluation, `make compose-up LOCAL_UI=on` starts the UI with development identities; it does not create production users.
+
+The UI forwards authorized requests to one fixed Catalog API and has no database credential, persistent volume or worker access. Replicas share their origin, base path, upstream, cookie name and session-key ring; no sticky sessions are needed. Keep API and issuer trust separate. Existing Secret or CA-file changes require a UI rollout; see [credential rotation](maintenance.mdx#rotate-credentials-and-trust). UI `/livez` and `/readyz` describe the browser host itself, not backend or issuer availability. Check a sign-in and authorized read separately when verifying the complete user path.
+
+Optional `ui.networkPolicy.enabled` limits the UI's network access. Its defaults allow cluster DNS and this release's API; add the intended ingress peers and issuer egress, plus API egress when overriding the upstream. The chart cannot infer those deployment-specific destinations. See [UI architecture](../architecture/catalog-ui.mdx) for session and authorization boundaries.
+
+## OCI image
+
+The repository-root `Containerfile` is the canonical build and `deployments/container/Dockerfile` is a byte-identical compatibility copy checked by `make container-check`. The byte-identical `.containerignore` and `.dockerignore` files default-deny the build context and admit module metadata, project license, license collection script and reviewed service and functional-fixture source. The backend, functional-fixture and UI Containerfiles are linted. The Dockerfile frontend and Go base are digest-pinned.
+
+The build verifies the downloaded module cache. Compilation uses no network access. The Go toolchain runs on the build platform. It cross-compiles for BuildKit's requested operating system and architecture.
+
+It emits CGO-free, path-trimmed, version-stamped `catalogd` and `catalogctl` binaries with the linker build ID, symbol table, and DWARF data removed. A literal scratch stage copies the executables and `/licenses/`. It sets a numeric non-root user, stop signal and OCI identity labels. Its working directory is `/var/lib/open-agentic-catalog`.
+
+The image contains no writable application data, shell, package manager, dynamic loader or operating-system trust store. It includes no configuration, credentials or source. `make binary-check` enforces the local executable contract. `make container-verify` builds the explicit runtime stage and checks its platform, metadata, port and stop signal.
+
+It copies both actual image executables into a disposable directory and rechecks their build metadata. It runs both embedded version commands without network access.
+
+Use `make container-verify IMAGE=<registry>/<repository>:<tag> VERSION=<version> COMMIT=<commit>` with Docker or set `CONTAINER_ENGINE=podman`. The target accepts only `linux/amd64` and `linux/arm64`. It builds the final `runtime` stage for the selected architecture. It refuses registry pulls during checks.
+
+Every handled exit removes its stopped inspection container and copied files. Checks require labels, binary metadata and embedded version commands to match the requested inputs. Its execution checks require local engine support for that architecture. Use `make container-build CONTAINER_PLATFORM=linux/arm64 IMAGE=<image>` or the equivalent `linux/amd64` value to build a foreign supported architecture without running it.
+
+Compose builds the current-platform image once and reuses it for migration, provisioning, API, and worker roles. The Helm chart runs API, worker, and migration roles from the same repository and defaults an empty tag to the chart `appVersion` with `+` replaced by `_`; an exact `image.digest` takes precedence for immutable deployment, and `imagePullSecrets` applies to all three roles. Before pushing an image, run `make helm-check` and `make deploy-check` against the checked-in chart and container sources, and run `make container-scan IMAGE=<image>` against the exact built image. Target-aware compilation makes local amd64 and arm64 builds efficient.
+
+Use `container-inspect` without rebuilding, `licenses` to extract included files, `sbom` for local-image SPDX JSON and `helm-package` for versioned chart archives; see the [build/release guide](../contributing/build-and-release.md). Build evidence records the exact release and scanner tool versions plus vulnerability-database identity; an unrecorded host-installed scanner is only a time-bound development signal. `make deploy-check` retrieves Kubernetes 1.34.0 schemas from Kubeconform's upstream source and validates representative chart profiles without requiring a cluster.
+
+The image's non-root user and declared ports are image defaults, not a complete runtime security policy. The launcher must enforce a read-only filesystem, dropped capabilities, no privilege escalation and appropriate port publication. `container-verify` runs both version commands with those filesystem and privilege restrictions and no network, checks the configured `catalogd` entrypoint without overriding it, and rejects a nonzero command exit even when stdout contains matching version text. It leaves the built tag locally for subsequent testing; it does not start PostgreSQL, migrate data or publish an image. See [container builds](../contributing/build-and-release.md) for build-context and compatibility-copy rules.
+
+Independent no-cache Docker builds currently retain different layer timestamps and therefore produce different image digests even when version, commit, platform, source, and executable behavior match. Supplying only `SOURCE_DATE_EPOCH` fixes the image creation time but does not normalize those layers. Do not claim bit-reproducible images. Test the resulting image and promote that build when releasing; independent rebuilds are not required to have identical digests.
+
+### Building for AMD64 and ARM64
+
+The existing `container-build` target accepts one platform per invocation. For an ARM64 image, use `make container-build CONTAINER_PLATFORM=linux/arm64 IMAGE=open-agentic-catalog:local-arm64`; for AMD64, select `linux/amd64` and a different local tag. Make builds derive version, full commit and source state from root `VERSION` and the working tree. Supply `VERSION` or `COMMIT` only when deliberately overriding that identity; overrides mark source state unknown.
+
+Bare Go builds and direct Containerfile builds retain the `dev`/`unknown` defaults. See [application version and release checks](../contributing/build-and-release.md#application-version-and-release-checks) for release suffixes and override behavior. Build inputs may be supplied through the selected Make-compatible environment file or command line; neither command publishes the image.
+
+The Go compiler runs on the builder's native platform and emits Linux binaries for the selected target with CGO disabled. The scratch stage only copies files and does not execute the target binaries. This construction does not need QEMU, privileged emulator registration or an ARM machine to build an ARM64 image on AMD64. It follows [Docker's cross-compilation strategy](https://docs.docker.com/build/building/multi-platform/#cross-compilation).
+
+| Check | What it establishes | Architecture requirement |
+| --- | --- | --- |
+| `make container-build` with an explicit platform | The selected image builds. | A supported native builder; no target execution. |
+| `make container-verify` with the same platform and inputs | A rebuilt image passes metadata, binary and version-command checks. | An engine able to execute that architecture, natively or through explicitly configured emulation. |
+| `make container-inspect` with an explicit platform | Existing image metadata, static/stripped binaries, architecture and included licenses. | No target execution or ARM hardware required. |
+
+Build separate local tags for AMD64 and ARM64 in the selected Docker/Podman image store. This is local engine storage, not a registry server. A combined multi-platform local image needs compatible storage support and is not required for ordinary builds. Future publishing can use standard Buildx tooling to place both variants under one registry image reference without an intermediate tar archive. Image export/import remains an optional use of standard tools, not a maintained release-bundle workflow. See [Docker's multi-platform image guidance](https://docs.docker.com/build/building/multi-platform/).
+
+### Builds and release tags
+
+Use the applicable [normal test gates](../contributing/testing.md) for each change and record the tested source, image and chart identities. Developers may rebuild locally. A passing main build can later be promoted by assigning a release tag to the same image content; retagging does not alter the embedded `VERSION`, `COMMIT` or OCI labels. Select the desired embedded identity before building, or retain the main build's identity when promoting it.
+
+Changing that identity requires a new build and applicable verification, not a claim that the old test result covers different bytes. No additional release-only test framework is required. See [Docker image tags](https://docs.docker.com/reference/cli/docker/image/tag/).
+
+Helm chart `version` identifies the chart package, while `appVersion` describes the application version. The application chart uses `appVersion` with `+` replaced by `_` as its image tag only when no explicit tag or digest is set; `image.digest` takes precedence. A chart-only release can reference an unchanged application image. Keep the optional monitoring chart independent: its pinned Prometheus/Grafana versions do not become Catalog versions. Local packaging does not publish files, configure CI/CD or define a release schedule. The [deployment sequence](#release-sequence) covers applying supplied artifacts, not building or publishing them.
+
+### Public and private trust inputs
+
+Both commands import the pinned `golang.org/x/crypto/x509roots/fallback` package, which embeds the maintained NSS public root set and activates it when no system pool exists. Public HTTPS therefore requires no CA file in the scratch image. A root-set update is application dependency work and requires the normal build, test, vulnerability, and release gates. Federation private CA and mTLS material is never embedded: one named private profile can add a mounted CA bundle only to that profile, and one exact-origin credential binding can load its mounted client certificate and key just in time.
+
+The OIDC verifier accepts an optional bounded `auth.trustBundleFile` through its dedicated transport; Helm projects an existing `auth.trustBundleConfigMap` key `ca.pem` only into the API. A reviewed API rollout loads any trust change; the separate `make test-functional-oidc` profile qualifies real HTTPS tokens with this scoped input. Do not use `SSL_CERT_FILE`, an image-wide private root, or disabled verification as a production substitute. Local TLS tests cover federation private-CA and mTLS paths plus OIDC private trust and its isolation; an actual release environment still qualifies its projection, rotation, revocation, file permissions, network route, and independent egress enforcement using its own infrastructure.
+
+## Required dependencies
+
+- PostgreSQL 18 at the current minor release, UTF8 database encoding and `pgcrypto`, separate exact-manifest NOBYPASSRLS API and BYPASSRLS worker roles, and a dedicated Catalog schema-owning migration role as described in [database roles](database-roles.md), encrypted transport, backups, and point-in-time recovery. The migration role must own or be able to alter extension functions installed in application-visible schemas so it can remove installation-default execution grants. pgvector is not required for core search. [Optional hybrid search](hybrid-search.mdx) additionally requires the pinned vector extension, explicit optional-schema setup and one configured embedding endpoint; installing the extension alone does not enable retrieval.
+- A trusted signed-JWT issuer, HTTPS discovery and verification-key path, and Catalog audience. Login and token issuance remain in the owning platform or identity service. The deployment selects dedicated or shared tenancy, and an operator provisions every exact realm, tenant or external-organization mapping, active subject membership, and initial Catalog role before that token can authenticate. The issuer must chain to the embedded public roots or the configured OIDC-specific private bundle. A discovered HTTPS key endpoint may use another origin, but remains subject to the same isolated certificate and hostname verification.
+- The platform identity, deployment-injected secrets, optional credential resolution, and controlled egress required by enabled workflows. A source resolver is not required for public federation or credential-free external representations, and provider declarations alone do not install or validate integrations.
+
+PostgreSQL stores bounded textual representation documents, exact decoded validation bytes and retrieval evidence for credential-free HTTPS representations, plus Agent Skill inventory and handoff evidence and Plugin inspection documents, inventory and external archive identity transactionally. Core production validation does not require S3. An external representation keeps its external delivery URL and is not rehosted by the Catalog. Skill and Plugin archive bytes are transient and are not included in a Catalog database backup; keep external package storage available independently. [ADR-0017](../architecture/decisions/0017-first-release-baseline.md) removes the pre-release object bridge, its adapters and configuration. No object provider can be enabled for bounded Catalog documents; no supported predecessor or S3 bridge qualification is part of the first release.
+
+Core search is the default and needs no model. Optional hybrid search requires explicitly installed pgvector, owner-applied semantic schema/grants and one configured embedding endpoint. Compose can start a verified offline model with `LOCAL_EMBEDDINGS=on`; this alone does not enable search. The application Helm chart accepts provider settings and scoped token/CA Secret references but does not deploy a model. See [hybrid-search setup](hybrid-search.mdx) and the [embedding boundary](../architecture/deployment.mdx#optional-embedding-service-boundary).
+
+ADR-0012 requires no external event broker. The PostgreSQL outbox and worker provide the reliable post-commit notification handoff. Signed HTTPS webhooks are optional; a deployment with webhooks disabled needs no webhook key, destination, dispatcher, external service, or webhook readiness check. Every classified public outbox event a covered workflow creates while disabled is already terminal or is cleared by the disabled worker's no-network drainer, so later enablement cannot deliver it.
+
+An audit-only action creates no outbox row and therefore no notification. Keep `webhooks.enabled=false` in both API and worker until any pending outbox backlog is empty, then replace all disabled workers before starting an enabled API; the reverse transition stops enabled API writes and drains the pending outbox before replacing enabled workers. Do not allow an enabled API to overlap a disabled drainer. The chart does not automate this startup-only flag transition ordering; the complete procedure and controls are in [webhook runbook](webhooks.mdx).
+
+## Secrets and environment
+
+Configuration starts with safe defaults. An optional strict JSON baseline selected by `--config` overrides them. Explicit typed environment overrides follow. Role-specific validation runs last.
+
+The Helm chart uses schema-validated `configEnv` values in a ConfigMap and needs no JSON mount. The schema pins the `0.0.0.0:8080` listener, PostgreSQL driver and OIDC mode. It also pins the federation policy path and enabled credential directory. It requires the selected mode's tenancy inputs and accepts the strict `CATALOG_DISCOVERY_HOSTS` JSON array.
+
+A shared-tenancy values overlay sets the mode and `CATALOG_AUTH_ORGANIZATION_CLAIM`. The chart omits the inherited dedicated tenant ID in shared mode. It omits the inactive organization claim in dedicated mode.
+
+Compose retains a development JSON baseline for its structured bearer-token fixtures and forwards the same explicit runtime allowlist. Its one-shot owner process provisions those identities after migration. Compose pins the in-container listener, public URL and PostgreSQL driver. It also pins distinct local database DSNs, selected runtime role names and federation mount paths. Inject a different `CATALOG_DATABASE_DSN` into migration and provisioning, API, and worker workloads.
+
+Startup rejects superuser, role-creation, database-creation, replication, inherited authority and other role memberships. It rejects missing required privileges and every excess effective Catalog-schema privilege. The API requires NOBYPASSRLS. The worker requires BYPASSRLS.
+
+The production API and worker each require a 32-byte cursor-signing key. Supply base64 through `CATALOG_CURSOR_SIGNING_KEY`, or one line through `CATALOG_CURSOR_SIGNING_KEY_FILE`. The webhook key uses the equivalent direct or `_FILE` pair and is read only when webhooks are enabled. A direct value and its file variant are mutually exclusive.
+
+The chart requires distinct API, worker and migration database Secret name/key references. It uses the shared cursor Secret only where required. It adds the webhook Secret reference only when `CATALOG_WEBHOOKS_ENABLED` is exactly `true`.
+
+Federation policy is a non-secret ConfigMap document: use `federation.policy.document` or set `federation.policy.existingConfigMap` and `key`. `federation.trustBundleConfigMap` optionally mounts public CA files at `/etc/open-agentic-catalog/federation/trust`. When `CATALOG_CREDENTIAL_RESOLUTION_ENABLED` is `true`, set the fixed `CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY`. Supply `secrets.federationCredentials.name`.
+
+Project the strict metadata and referenced secret leaves described in the [configuration reference](../reference/configuration.mdx). The same read-only Secret is mounted into API and worker Pods. Do not put secret values in Helm values.
+
+Publish each federation credential metadata file and all referenced leaves as one atomic projection. Advance its non-secret revision for every material or constraint change. Do not reuse revisions. Do not update a token, certificate, key, origin, tenant, type or expiry under an existing revision.
+
+Kubernetes Secret projection provides the required generation switch when all keys are in one Secret. Verify equivalent semantics before using another CSI or external-secret projection. Retain the previous generation until no in-flight request can still hold it.
+
+API, worker and migration use distinct configurable ServiceAccounts. The chart creates no RBAC. Token automount is disabled on each account and Pod. When the UI is enabled, its generated account name must differ from every backend account, including external accounts.
+
+Helm rendering rejects collisions. Chart-managed API and worker accounts are ordinary release resources. The migration account is a weight `-20` pre-install or pre-upgrade hook. Helm creates it before its ConfigMap and Job.
+
+Helm removes successful hook resources. The failed migration Job and Pod remain available until the Job's completion TTL expires. Helm can remove the ServiceAccount and ConfigMap hooks after they succeed, even when the migration Job fails. A retry through the [coordinated deployment workflow](maintenance.mdx#coordinated-release-deployment) recreates the required hooks. Retain the required evidence before you abandon a failed release.
+
+Remove any retained hook ServiceAccount and non-secret ConfigMap only after you save the required evidence. These are role-specific workload-identity and policy attachment points rather than a second application authorization system.
+
+The migration hook has configurable resources, one bounded retry by default, a 15-minute active deadline, and a one-hour completion TTL. The Helm command timeout must exceed the migration deadline plus scheduling and image-pull time. Configure API/worker replica counts, resources, shared scheduling inputs, role-specific topology spread, disruption budgets and termination grace through values. Each disruption budget defaults to `maxUnavailable: 1`.
+
+Either budget can be disabled. Topology spread is opt-in. When enabled, spread selects the role and current `pod-template-hash`. Old Deployment revisions therefore do not distort rollout placement.
+
+The default 40-second termination grace exceeds the default 20-second HTTP drain, and an override must continue to leave time for endpoint removal. The Service defaults to `ClusterIP`. All three Pod roles disable service-link environment injection, and the chart accepts existing image pull Secrets without storing registry credentials in values. See the [chart guide](../../../../../deployments/helm/open-agentic-catalog/README.md) for install, rotation, and values guidance.
+
+## Logging configuration and collection
+
+Choose startup verbosity and text/JSON output through the [logging configuration reference](../reference/configuration.mdx#logging-configuration). For Helm, set the [chart logging values](../../../../../deployments/helm/open-agentic-catalog/README.md#logging) in the deployment values file; API/worker and UI settings have independent rollout checksums. Follow the normal release procedure when applying them. Logging requires neither the monitoring companion nor a trace collector.
+
+Capture service stdout and terminal stderr through the deployment's log pipeline, with restricted access, rotation and retention. The application provides no log-file path or rotation setting. Use the [log-inspection instructions](observability.mdx#inspect-application-logs) to check selected settings and identify the correct process, keeping [audit evidence](audit.md) separate from filtered operational logs.
+
+## Pod DNS resolver options
+
+The chart's `podDNSOptions` value sets resolver options for API, worker, migration and enabled UI/PgBouncer Pods. It defaults to `[]`. Kubernetes applies a changed Pod template to new Pods.
+
+If a request waits for DNS, check the DNS service, routing and network policy. The Go resolver supports `use-vc` to select TCP DNS:
+
+```yaml
+podDNSOptions:
+  - name: use-vc
+```
+
+Permit TCP port 53 to the selected DNS service. Keep required UDP rules for clients that use UDP. Catalog still validates all resolved destination addresses. See the [chart options](../../../../../deployments/helm/open-agentic-catalog/README.md#pod-resolver-options) and [network diagnostics](troubleshooting.md).
+
+## Maintained local Minikube verification
+
+Run `make test-minikube-contract` for the cluster-free harness tests. Run `make test-minikube` for the single-node Helm installation and retained-state reconfiguration flow, and `make test-minikube-topology` for the three-node replica, disruption, drain, and Calico NetworkPolicy flow. Use `make test-minikube-upgrade` for focused cross-node upgrade ordering, failure/retry and retained-state qualification; it uses the same topology harness but stops before the separate network-policy/federation/disruption campaign. Its report sets `upgradeOnly: true` and does not claim a full topology pass. The cluster runs are intentionally outside `make check` and `make verify` because they build images and create local clusters.
+
+The topology test also checks the in-cluster API Service route before API eviction. A restricted client must observe both API processes over separate connections. A denied control must time out against the same ClusterIP. See the [route checks and limits](../../../../../test/minikube/README.md#drain-and-disruption-qualification). The topology scenario also checks retained Job reads and command replay through the Service while one API drains. See the linked test guide for the controlled interval and limits.
+
+Use `make test-minikube-replicas` for three UI, three API and three worker replicas sharing PostgreSQL on one disposable node. It verifies concurrent commands, retained state and sessions after process replacement, and short mixed-load batches. See [replica integrity and short load](../contributing/testing.md#replica-integrity-and-short-load) for commands, report interpretation and the distinction from node-loss, browser and scale testing. It uses the same minimum host capacity as the basic profile below and does not change chart replica defaults.
+
+Use `make test-minikube-peers` for federation between two independent Catalogs in one owned cluster. Each chart release uses a separate namespace, PostgreSQL instance, persistent claim and credentials. The scenario checks publication, synchronization, provenance, updates, withdrawal, outage recovery and retained state after process replacement. It uses eight CPUs and 12 GiB of memory. See [the cluster guide](../../../../../test/minikube/README.md#federation-between-two-independent-catalogs) for scope and limits. Application replicas and PostgreSQL replication remain separate tests.
+
+The maintained host contract is Linux amd64 with Docker, exact Minikube 1.39.0, a kubectl client within one minor of the pinned Kubernetes 1.35.9 server, and Helm 3.15 or newer. The configured digest-bound Minikube base and PostgreSQL images must already exist in Docker. The basic profile requires at least 4 CPUs, 6 GiB memory, and 8 GiB free disk; topology requires 8 CPUs, 12 GiB memory, and 12 GiB free disk. When the isolated Minikube home cannot reuse a normal cache, pass an already present preload archive explicitly:
+
+```sh
+make test-minikube MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.35.9-containerd-overlay2-amd64.tar.lz4
+make test-minikube-topology MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.35.9-containerd-overlay2-amd64.tar.lz4
+```
+
+See [inotify limits for local clusters](#inotify-limits-for-local-clusters) if a node reports "Too many open files" or cannot create a file watcher.
+
+Each invocation creates a collision-resistant profile under a temporary Minikube home and kubeconfig, an exact Docker network, short-lived credentials and OIDC tokens, local image aliases, and loopback port forwards. Every Minikube, kubectl, and Helm command names that profile or context. The harness refuses incompatible tools, mutable dependency inputs, insufficient declared capacity, and pre-existing invocation names; prints bounded diagnostics on failure and a JSON identity and scenario report on success; and deletes only its own cluster, network, image tags, port forwards, and temporary files. Teardown gives each resource class a fresh bounded context, so one failed or timed-out cleanup step cannot suppress the remaining owned cleanup. The harness never reads, changes, or deletes another Minikube profile or the caller's current context.
+
+The single-node scenario proves a deliberately failed migration hook leaves the schema untouched and no runtime Deployment, then corrects the missing database role and safely retries the release. Every running application Pod must use the exact configuration digest recorded after the local image build. Checks cover migration reconciliation, hook cleanup, restricted admission and separate tokenless API, worker and migration identities. They require no chart-created RBAC and verify deterministic OIDC membership resolution under the local test profile.
+
+They cover API/worker health, product-port isolation, served version/OpenAPI identity and the governed smoke workflow. Pod recreation must retain state. One checksum change must roll Pods; an identical Helm reapply must not.
+
+The topology scenario installs two API and two worker replicas from the exact locally built application image across two labelled workers with opt-in hard role spread and exact Calico 3.32.2 image verification. It also runs the coordinated upgrade failure/retry checks across those nodes: complete drain before the migration hook, preserved Pods after invalid input, stopped runtimes after migration/startup failure, and recovery/reapply with unchanged governed records and two ready, separately placed replicas per role. It proves allowed private-HTTPS federation and a same-cluster decoy denied by NetworkPolicy through the actual application path; denial requires both the safe HTTP failure and an unchanged decoy request counter rather than an assumed timing threshold. It checks one cross-replica idempotent effect and audit record, plus deterministic worker lease takeover after owner loss.
+
+It exercises both disruption budgets through the Eviction API. Checks cover readiness endpoint removal, bounded in-flight drain, direct API/worker Pod loss and retained spread through a Helm rollout. Traffic must continue through the surviving API when one worker node stops. Hard `DoNotSchedule` spread leaves one replacement per role Pending on the sole surviving worker. This is expected degraded availability. It does not indicate a rescheduling failure or establish production availability.
+
+These targets build uniquely tagged developer images and validate one pinned local Kubernetes version. These are ordinary build tests, not a separate release-certification stage. Their results cover the tested build and platform; the Kubernetes 1.34 compatibility minimum is checked separately through chart constraints and schemas. An operator's modified chart and infrastructure require their own relevant validation.
+
+Their minimal HTTP identity fixture is deliberately sufficient for cluster topology and is not an independent provider or production-HTTPS claim. The functional suite includes a separate Compose-only, resource-bounded, digest-pinned real-provider overlay for production-profile discovery, JWKS and real client-credentials tokens with dedicated/shared mappings. Controlled verifier tests retain deterministic faults; `make test-functional-oidc` runs the independent profile. Keycloak is exact upstream non-distributed test tooling under ADR-0003, with its [license/security review](../contributing/testing.md#packaged-oidc-qualification) recorded separately; its mixed-license image never joins the product chart or release artifacts.
+
+PostgreSQL and the identity and federation fixtures belong only to their respective test layers; the production chart still installs none of them.
+
+The checked-in `.env.example` and Makefile loading behavior are local developer conveniences only. Production processes do not read env files from disk; inject reviewed variables and secret references through the deployment platform.
+
+Never place bearer tokens, source credentials, media-store secrets, database passwords, webhook secrets, or private keys in the JSON configuration, federation policy, ConfigMap, image, log stream, or Helm values committed to source control. Inject them through the SRE-selected Kubernetes or platform mechanism. Source records contain only opaque credential bindings and non-secret tested revisions. Restrict the mounted credential Secret to the Catalog workloads and exact bindings that need it; the baseline chart uses one projection for both roles, so use separate releases or a reviewed chart extension when API and worker access must differ.
+
+### Inotify limits for local clusters
+
+Linux [inotify](https://man7.org/linux/man-pages/man7/inotify.7.html) lets programs monitor files and directories. Each instance contains a list of watches. Concurrent containers and development tools can share the same user quota. Minikube node startup can fail when these workloads exhaust that quota.
+
+Inspect the limits on the Linux host that runs the container engine:
+
+```sh
+sysctl fs.inotify.max_user_instances fs.inotify.max_user_watches
+ulimit -Sn
+ulimit -Hn
+```
+
+| Limit | Meaning | When to investigate |
+| --- | --- | --- |
+| `fs.inotify.max_user_instances` | Inotify instances per real user ID. | An inotify initialization failure, including "Too many open files". |
+| `fs.inotify.max_user_watches` | Inotify watches per real user ID. | A failure to add a watch, including `ENOSPC`. This can also indicate another allocation failure. |
+| Process open-file limit | File descriptors available to one process. | "Too many open files" when the process exhausts its file descriptors. |
+
+The [inotify initialization manual](https://man7.org/linux/man-pages/man2/inotify_init.2.html) lists both instance exhaustion and process file limits as causes of `EMFILE`. The message alone does not identify the exhausted limit. The `ulimit` commands describe the current shell; inspect `/proc/<pid>/limits` for the failing process. Raising the shell's file limit does not raise an inotify quota. See [watch allocation errors](https://man7.org/linux/man-pages/man2/inotify_add_watch.2.html) when a watch cannot be added.
+
+For local multi-node tests, 1024 instances is a practical starting value. Keep higher existing limits. Size the limit for all concurrent workloads; 1024 is not a Catalog runtime requirement. Change other limits only when diagnostics identify a separate problem.
+
+For a temporary increase, record the previous value first. Run `sudo sysctl -w fs.inotify.max_user_instances=1024` only if the current value is lower. Restore the recorded value when the temporary test ends.
+
+For a persistent setting, review existing [sysctl.d configuration](https://www.freedesktop.org/software/systemd/man/latest/sysctl.d.html) for the same key. Review any existing file with the name below before replacing it. The following example preserves a higher active limit and applies only this file:
+
+```sh
+set -eu
+catalog_inotify_instances=$(sysctl -n fs.inotify.max_user_instances)
+if [ "$catalog_inotify_instances" -lt 1024 ]; then
+  catalog_inotify_instances=1024
+fi
+printf 'fs.inotify.max_user_instances = %s\n' "$catalog_inotify_instances" |
+  sudo tee /etc/sysctl.d/99-catalog-local-inotify.conf
+sudo sysctl -p /etc/sysctl.d/99-catalog-local-inotify.conf
+sysctl fs.inotify.max_user_instances
+```
+
+On systemd hosts, `systemd-sysctl` loads these files at boot. Later filenames can override earlier values, so avoid conflicting entries. Other hosts need their own startup mechanism. A persistent change does not require restoration after each test.
+
+Confirm which Linux host runs the engine when you use WSL2 or a virtual machine. Apply the setting there, outside the Catalog Pods. The harness does not change sysctls or grant Pods extra privileges. Rerun the affected cluster scenario after the change. Keep unrelated request deadlines and network failures separate from an inotify startup failure.
+
+## Release sequence
+
+Use the [coordinated maintenance workflow](maintenance.mdx#coordinated-release-deployment): `make helm-deploy` for the explicitly selected Kubernetes release, or `make compose-up` for local development. They drain old API/worker processes before the target migration step and verify startup. The Helm hook alone does not drain old Pods. `catalogctl migrate plan` from the selected image owns the embedded version/checksum inventory; [migration requirements](../../../../../migrations/README.md) and the exact privilege code own repair and grant boundaries.
+
+Unsupported retained development formats are refused without conversion or deletion. Webhook ciphertext replacement remains a separate stopped-runtime operation under the [webhook runbook](webhooks.mdx#deployment-encryption-key-replacement).
+
+The checked-in bootstrap creates only the restricted local roles and database/schema connection boundary. `catalogctl migrate apply` owns the versioned Catalog-schema privilege manifest, removes unsafe defaults, installs exact per-role table and column grants, and returns a verified report. Role attributes and RLS remain necessary but are not substitutes for that reconciliation.
+
+Use [installation and maintenance](maintenance.mdx) for the ordered first-installation and upgrade procedures. Preserve a qualified PostgreSQL recovery point and separately protected configuration/key inventory before changing an existing installation. Run profile verification, migration plan/apply and exact role reconciliation with the dedicated schema-owner identity. Provision the first administrator for each intended realm on initial installation; do not rerun the development bootstrap as an upgrade step.
+
+After starting compatible runtimes, verify both roles' readiness, version/profile identity and authorized read-only state. Keep an existing valid publication snapshot; installation or upgrade does not require generating and activating a replacement. Publication, source administration and webhook tests are explicit authorized workflows, not automatic deployment probes.
+
+Run mutating governance, revocation, membership, federation, replay and repair tests only against disposable data through the [maintained test suites](../contributing/testing.md). Those suites build and test each relevant change; they are not commands to run against an adopter's existing tenants. A clean Job or delivery queue is not required for a healthy deployment: inspect progress, retry state and degradation using [observability](observability.mdx).
+
+Unsupported pre-release formats and document-bridge settings are rejected. Never reset an existing database, object directory or bucket implicitly. A fresh disposable installation and an operator-approved recovery of valued data are different operations.
+
+The initial migration is appropriate for a fresh installation. Once a migration may have been applied, never edit its bytes; add a new numbered forward migration.
+
+Worker components, including the enabled webhook dispatcher, retry classified dependency failures through [bounded supervisor restart windows](../reference/configuration.mdx#worker-dependency-restarts). The supervisor doubles each window to its configured ceiling and samples a delay from the upper half. These restart delays are separate from healthy polling and durable Job/delivery retry schedules.
+
+During a PostgreSQL outage both processes stay live, API and worker `/readyz` return unavailable, and background processing resumes after the dependency recovers. The local `make test-functional` gate proves both roles' readiness loss, liveness, process survival, and readiness recovery through an actual PostgreSQL stop and start and after both disposable runtime roles are forced read-only; it does not prove queued-work recovery, replication, failover, or point-in-time restore. The same gate also requires a native-canceled blocked command to retain and replay its exact failure after API restart, and requires persisted successful command responses to replay unchanged after complete process replacement.
+
+PostgreSQL cancellation keeps an acknowledged session usable and closes it after a fixed 500-millisecond network fallback when cancellation cannot be acknowledged. Standard pgx connection validation requires a read/write-capable session for every new physical API and worker connection, and readiness checks the acquired session without a canary write; intentionally read-only restore inspection and audit comparison retain their separate operator connection contract. A webhook receiver failure affects that optional delivery backlog, not core Catalog readiness. Non-dependency component failures remain fail-fast so the workload is restarted and investigated.
+
+## PostgreSQL connection maintenance
+
+Tune per-process pool lifetime, idle age and maintenance cadence through the [pool settings](../reference/configuration.mdx#postgresql-pool-settings). Restart the affected processes or roll the Helm Deployments after changes. Use pool wait, acquisition and connection gauges alongside PostgreSQL connection capacity when choosing values. The maintenance cadence does not replace readiness, failover routing or query deadlines.
+
+## PostgreSQL writer routing and failover
+
+The [operational simplicity principle](../architecture/design.mdx#operational-simplicity-and-least-surprise) separates database HA from application recovery. The deployment supplies replication, promotion, old-writer fencing and writer routing. Catalog reconnects using its configured database access; it does not control those infrastructure operations. The test harness explicitly promotes its disposable standby to simulate the infrastructure's action, not a shipped Catalog capability. Reconnection does not authorize blindly repeating an uncertain write; completed commands retain exact-key replay and interrupted reservations use the [documented repair procedure](idempotency-repair.mdx).
+
+Every runtime DSN must resolve to the deployment's PostgreSQL writer route. An operator-managed read/write Service or a managed-database writer endpoint is the normal contract; pgx also accepts a multi-host DSN with `target_session_attrs=read-write`, PostgreSQL's standard mechanism for rejecting hot standbys and other default read-only sessions. Runtime pool construction composes that same acceptance behavior into every new physical API and worker connection even when the DSN omits the optional selector, and readiness uses the equivalent bounded session check so a routing mistake is reported honestly. This is defense in depth rather than an HA controller or a reason to reject an isolated read-only database used by an operator verifier. The service does not send reads to replicas, discover or promote a primary, select a database operator, or make a write-availability objective.
+
+`make test-postgres-failover` covers planned and abrupt physical writer changes with a known replicated baseline. API and worker recover without restart or forced pool closure; checks cover readiness, exact command replay/publication bytes and ETags, reviewed interrupted-command repair, later-attempt Job recovery, outbox acknowledgement and retained audit/publication state. Observations completing at or after a polling deadline fail. Its reported recovery interval ends when both unchanged runtimes become ready, before subsequent repair and final state checks; it is not an end-to-end recovery objective. The fixture does not promise lossless asynchronous replication or qualify a deployment's HA system. PostgreSQL HA and backup/PITR procedures belong to the deployment; see the [backup and restore guide](backup-restore.mdx).
+
+## Health and probes
+
+The API exposes `/livez` for process liveness and `/readyz` for drain state plus required PostgreSQL readiness. The Helm API Deployment configures startup, liveness, and readiness probes against those endpoints. Liveness deliberately performs no dependency check, while readiness returns unavailable before initialization, during drain, and when required PostgreSQL access fails. Optional webhook receivers and disabled capabilities do not affect core readiness.
+
+The worker exits on an unrecoverable component failure and supervises transient PostgreSQL failures. Its separate operations listener exposes `/startupz`, `/livez`, `/readyz`, `/status`, `/version`, and `/metrics` but no product API. The Helm Deployment probes its named `operations` port directly and neither the Service nor Ingress exposes that port. Compose likewise publishes no worker port and uses the bounded loopback-only `catalogctl probe` command because the scratch image contains no shell or Curl. See the [observability and worker health runbook](observability.mdx) for exact semantics and metric boundaries.
+
+## Network policy
+
+Ingress should expose only the intended Catalog administration or discovery hosts. Keep metrics and operational endpoints on the platform network. Exact discovery-host mapping is implemented: one canonical host maps to one tenant, one mode, and one publisher domain, and separate hosts are used when the same tenant needs both audiences. The standalone service does not require an external product control plane or gateway.
+
+The server rejects `Forwarded`, `X-Forwarded-Host`, and `X-Original-Host` on discovery routes; configure ingress to preserve the reviewed HTTP `Host` and remove those fields before forwarding. Verify the effective ingress preserves that direct-host contract. Add an allowlisted trusted-proxy contract only if a demonstrated deployment cannot preserve it safely. Source registration requires authenticated, current tenant-scoped `source.manage`. That permission requires `source.inspect` and `source.read`. The Source Administrator and Tenant Administrator templates include them. External publishers and ordinary Catalog contributors lack these source permissions.
+
+The outbound egress policy controls permitted destinations. Production and the chart default to an empty exact public-origin allowlist, while a deliberate `any_public_https` mode may permit any HTTPS destination resolving exclusively to public addresses. Every private source uses an SRE-defined named profile with exact origins, bounded private address ranges, assigned tenants, direct transport, and optional mounted trust. External representations always use the anonymous public route and cannot select a private profile or credential binding.
+
+`CATALOG_FEDERATION_POLICY_FILE` selects the strict mounted document; it contains no credentials. API and worker replicas must mount identical bytes and report the same normalized digest. A policy change is a coordinated rollout, not a hot reload; pause affected sources, roll both roles, verify the digest, retest each source and affected URL representation, and then resume. A restrictive change does not rewrite an already active immutable snapshot, so explicitly unpublish a host when the policy change is also intended to withdraw its existing external URL entries.
+
+Deployment egress limits and product source configuration have separate owners. SRE permits reachable origins and sets hard fan-out, referral-depth, timeout, redirect, and response limits. Callers with current tenant-scoped `source.manage` select permitted inspected endpoints and their retrieval mode. They select exact resource scopes, live/referral participation, approved source edges, query disclosure and discovery audiences. The Source Administrator and Tenant Administrator templates include this permission. Host-bound ARD Search callers cannot modify that source set.
+
+A newly observed referral requires an independently connected and approved source edge before the service may contact it, and runtime traversal additionally requires the upstream response to advertise the exact endpoint. Authenticated Control API Catalog Search derives its indexed and live source set from the same tenant-scoped topology and accepts no source override. Referral, live, endpoint-conflict, current-observation, and topology selection use exact or `limit + 1` PostgreSQL queries before fetch, aggregation, or graph traversal. Focused tests prove bounded progress for fixed equal-priority Job and automatic-source work without a tenant scheduler.
+
+Use the [performance guide](../guides/performance-and-monitoring.md) to measure application costs in disposable workloads.
+
+SRE supplies the independent network boundary appropriate to the cluster: Kubernetes NetworkPolicy, firewall, egress proxy or gateway, service mesh, or equivalent. The chart does not install one of those products. Egress should permit PostgreSQL, identity metadata, approved federation and external-artifact origins, enabled webhook destinations and the configured OTLP endpoint when tracing is enabled, through controlled DNS and routes. OTLP uses separate endpoint-scoped network and trust settings; do not add the collector to federation policy.
+
+See [tracing configuration](../reference/configuration.mdx#optional-tracing-configuration). Permit the configured embedding endpoint only when semantic search is enabled; its network and trust policy is separate from federation. Do not provision routes for unavailable media or scanning adapters. The application safe fetcher still rejects user info, fragments, unsafe schemes, denied address classes, mixed DNS answers, unsafe redirects, and oversized responses.
+
+Compose defaults to the exact `http://api:8080` development fixture on the fixed `172.30.255.0/24` project network and permits only the configured tenant to select its named profile. A deliberate `CATALOG_COMPOSE_SUBNET` override must be accompanied by a host policy whose exact private address range matches; changing only the network remains fail closed. `CATALOG_COMPOSE_FEDERATION_POLICY_FILE` selects that policy at the fixed container path. Optional host directories selected by `CATALOG_COMPOSE_FEDERATION_CREDENTIALS_DIRECTORY` and `CATALOG_COMPOSE_FEDERATION_TRUST_DIRECTORY` are mounted read-only; keep credential files outside the repository. The maintained Helm-through-Minikube topology gate applies role-selecting default-deny egress policies, proves one intended fixture is reachable through its Service, and proves an otherwise application-authorized same-cluster decoy receives no request.
+
+### Optional UI network policy
+
+`ui.networkPolicy.enabled` defaults to `false`. Enabling it selects only this release's UI Pods; built-in egress admits the same release's API Pods in the same namespace on TCP 8080 and the labelled cluster DNS Pods on TCP/UDP 53. It does not grant the UI direct PostgreSQL or worker-operations access. Configure `ui.networkPolicy.ingress` explicitly for the actual ingress controller or other authorized callers; an empty list admits no ordinary-Pod ingress through this policy. These controls govern the Go UI host, not browser networking.
+
+A standard NetworkPolicy-enforcing CNI must be installed by the operator. Policies are additive: another policy or a broad `extraEgress` rule can grant access omitted here. If the API has its own ingress restrictions, also permit the UI-to-API connection there. Node/kubelet probes and `kubectl port-forward` do not prove ordinary-Pod ingress isolation.
+
+For OIDC, explicitly permit the configured issuer's token, metadata and key endpoints using `ui.networkPolicy.extraEgress`. Standard NetworkPolicy cannot allowlist DNS names. For example, an external issuer at an operator-controlled stable IP could use the rule below; `192.0.2.42` is a documentation-only address, not a usable issuer or a production preset:
+
+```yaml
+ui:
+  networkPolicy:
+    enabled: true
+    extraEgress:
+      - to:
+          - ipBlock:
+              cidr: 192.0.2.42/32
+        ports:
+          - protocol: TCP
+            port: 443
+```
+
+Use namespace and Pod selectors for an in-cluster issuer, or your deployment's existing egress design for changing external addresses. Custom API destinations need their own precise rule. For custom or NodeLocal DNS, explicitly admit the actual resolver address/peer on both UDP and TCP 53; the built-in `kube-system`/`k8s-app=kube-dns` rule is not universal. Verify the destination/port as seen by your CNI, including Service translation. Do not add unrestricted egress merely to make login work.
+
+`make test-minikube-topology` includes a focused UI-policy phase. It checks selected and unselected client ingress, an authenticated UI-to-API read and both DNS transports. It checks denial of database, worker and unrelated-peer connections, plus addition and removal of an explicit peer exception. The fixture uses a restricted diagnostic container in a UI Pod and fresh TCP connections with live permitted controls. It adds no tools to the production image. Successful rendering and helper checks alone do not establish network enforcement.
+
+A UI-policy phase result does not establish a full topology pass. Check the complete report for later federation-inspection failures. Keep UI-policy enforcement, backend Calico qualification and whole-topology completion as separate results.
+
+### Verify discovery through ingress and caches
+
+Run these read-only checks through the endpoint that clients actually use. Record the configured host, mode, tenant and intended audience first. Use an existing eligible active snapshot and separately supplied test credentials. Keep tokens out of shell history, copied output and support reports.
+
+1. Check TLS and routing for each intended discovery hostname. Confirm that the backend receives its reviewed `Host` value.
+2. Check the well-known aliases, Search, Explore, List and an authorized document. Use their documented methods and inputs from [OpenAPI](../../../../../api/openapi/control-v1.yaml).
+3. Check the audience and authentication outcomes below. Repeat private reads with each test identity through the same cache path.
+4. Compare cache headers with the table below. Check that the edge preserves `Vary` and the route's validators.
+5. Repeat a validated alias or document read with its returned ETag in `If-None-Match`. Check that an unchanged authorized result returns 304.
+6. Check the configured public route allowlist. Keep worker operations, metrics and other unintended operational routes private.
+
+| Request | Expected backend outcome |
+| --- | --- |
+| Configured anonymous host | Only its public-audience snapshot; an attached token adds no records. |
+| Configured authenticated host without a valid token | 401 with a Bearer challenge. |
+| Authenticated host with another tenant's valid token | 403; no snapshot disclosure. |
+| Authenticated host with the correct tenant | Current `discovery.read` and any enforced `catalog.read` scope still apply. Only its tenant/public audience is eligible. |
+| Unknown or disabled discovery host | 404, without selecting another tenant or a default host. |
+| Enabled host without an available matching publication | 503 `PUBLICATION_NOT_READY`; no draft or unrelated snapshot fallback. |
+| Document outside the active snapshot's authority | 404; knowing its identifier does not authorize its bytes. |
+
+Anonymous cache policies start with `public`; authenticated policies start with `private`. Authenticated responses vary on `Authorization`.
+
+| Route | Cache-Control | Validators and variation |
+| --- | --- | --- |
+| `/.well-known/ard.json`, `/.well-known/ai-catalog.json` | `public` or `private`, plus `no-cache, no-transform` | ETag and Last-Modified; conditional reads can return 304. Varies on Accept-Encoding and, when authenticated, Authorization. |
+| `/ard/v1/search`, `/ard/v1/explore` | `no-store` | No response reuse; authenticated responses vary on Authorization. |
+| `/ard/v1/agents` | `public` or `private`, plus `max-age=60, must-revalidate` | List has no ETag/304 contract. Authenticated responses vary on Authorization. |
+| Publication-authorized document URLs | `public` or `private`, plus `max-age=60, must-revalidate` | ETag and conditional reads; authenticated responses vary on Authorization. |
+| Discovery errors | `no-store` | No retained success validators. |
+
+The edge must remove `Forwarded`, `X-Forwarded-Host` and `X-Original-Host` before forwarding discovery requests. The direct backend rejects those headers. An edge that strips them can legitimately return the normal routed response. Verify the effective host and disclosure instead of requiring the same direct-backend refusal.
+
+Check that shared caches cannot return an authenticated response to another identity or an anonymous caller. Do not add stale-on-error delivery to revocable aliases or documents. Follow the [cache contract](../architecture/decisions/0009-public-and-private-discovery.md#caching-and-delivery). Qualify activation, withdrawal and rollback propagation separately with authorized owned content or a disposable fixture. Existing-deployment review does not authorize those mutations.
+
+### Check outbound connections separately
+
+Each connection has its own enablement, network and credential boundary. There is no universal Catalog trust bundle or proxy switch.
+
+| Initiator and destination | When and network path | Trust, credentials and owning procedure |
+| --- | --- | --- |
+| API verifier, UI host or human CLI to the configured issuer | OIDC login or verification; each client uses its configured issuer transport. | Separate issuer trust and client inputs; [sign-in setup](sign-in.md) and [OIDC private trust](../reference/configuration.mdx#oidc-private-trust). |
+| API or worker to approved sources, representations and contexts | The owning operation uses the hardened fetcher and its permitted public or private route. | Exact origins, scoped trust and opaque source credential bindings; [outbound boundary selection](../architecture/security.mdx#outbound-boundary-selection). External representations remain anonymous. |
+| Worker or API endpoint test to a webhook receiver | Webhooks must be enabled; signed HTTPS uses the hardened fetch boundary. | Endpoint signing secret and separate encryption keys; [webhook operations](webhooks.mdx). |
+| API or worker to the embedding provider | Hybrid search must be enabled; one fixed configured endpoint. | Provider-specific trust and authorization inputs; [hybrid search](hybrid-search.mdx). |
+| Backend process to the OTLP collector | Tracing must be enabled; the configured collector transport remains endpoint-bound. | Separate collector trust and credential files; [tracing setup](observability.mdx#distributed-tracing). |
+
+Keep database access separate through the [database roles and connection budget](database-roles.md). The UI connects to one configured API and its issuer; it has no database access.
+
+## Shutdown
+
+Send `SIGTERM`. The API marks readiness false and drains HTTP within `http.shutdownTimeout`; workers stop new claims and cancel bounded in-flight work. The worker operations listener remains up until the other components drain and reports `/readyz` unavailable with lifecycle `draining`. Kubernetes termination grace must exceed the application timeout plus endpoint-removal time.
+
+Configuration validation requires `http.shutdownTimeout` and the socket write timeout to cover the maximum cooperative `http.requestTimeout`, the fixed five-second database-cleanup allowance, and a one-second response margin; Kubernetes grace must continue to exceed that process bound. A Job or outbox lease abandoned by a terminated worker becomes claimable after `worker.leaseDuration`. `make test-functional` proves an in-flight read and idempotent command become bounded, the API becomes unready while draining, exact failure replay survives restart, a new-key retry succeeds, and idle API and worker containers exit cleanly and restart. The Minikube topology gate observes a selected API request blocked by an exact database lock before Eviction, requires prior ready Service membership and subsequent removal with a ready survivor, and validates retained content or the exact safe work-deadline response.
+
+It separately proves replacement identities after forced Pod loss, retained authenticated reads/command replay/audit after Pod and node loss, and deterministic worker lease takeover after owner loss. Node-loss qualification leaves one ready and one hard-spread Pending replica per role; it does not claim full-capacity recovery. Keep these as ordinary regressions; no additional release-only drain mechanism or duplicate test phase is required.

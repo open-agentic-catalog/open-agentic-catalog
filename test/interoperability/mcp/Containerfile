@@ -1,0 +1,8 @@
+# syntax=docker/dockerfile:1.28.0@sha256:bb22d9815c728170f72750f4e5b0d672e06176142e1d602c7e66c050100b7e5b
+FROM docker.io/library/node:22.23.4-alpine3.24@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+WORKDIR /tools
+COPY package.json package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund && npm cache clean --force
+COPY Everything-LICENSE /tools/notices/Everything-LICENSE
+USER 65532:65532
+ENTRYPOINT ["node"]

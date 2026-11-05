@@ -1,0 +1,24 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="scoped-access-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 882" role="img" aria-labelledby="scoped-access-title scoped-access-desc">
+  <title id="scoped-access-title">Direct and group permission paths</title>
+  <desc id="scoped-access-desc">An active Catalog membership can receive a role through a direct assignment or active group membership and group assignment. Only permissions from active paths applicable to the requested action and tenant or exact namespace add together. Removing one path does not remove another applicable grant. Any enforced OAuth scope is an additional ceiling. Navigation hints and issuer role or group claims do not grant authority; protected access administration needs a direct tenant-wide Tenant Administrator.</desc>
+  <defs><marker id="scoped-access-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 95 V130 H180 V165" marker-end="url(#scoped-access-arrow)" />
+  <path class="svg-connector" d="M320 95 V130 H460 V165" marker-end="url(#scoped-access-arrow)" />
+  <path class="svg-connector" d="M460 289 V324 H320 V359" marker-end="url(#scoped-access-arrow)" />
+  <path class="svg-connector" d="M180 266 V343 H12 V488 H320 V504" marker-end="url(#scoped-access-arrow)" />
+  <path class="svg-connector" d="M320 434 V504" marker-end="url(#scoped-access-arrow)" />
+  <DiagramCard x={60} y={20} width={520} title={"Active Catalog membership"} tone="core" lines={["One tenant and identity realm"]} />
+  <DiagramCard x={60} y={165} width={240} title={["Direct role", "assignment"]} lines={["Tenant or exact namespace"]} />
+  <DiagramCard x={340} y={165} width={240} title={["Active group", "membership"]} lines={["Catalog-owned groups", "No nested groups"]} />
+  <DiagramCard x={60} y={359} width={520} title={"Group role assignment"} lines={["Tenant or exact namespace"]} />
+  <DiagramCard x={60} y={504} width={520} title={"Combine the current applicable permissions"} tone="authority" lines={["Combine permissions from active paths", "for this action and scope", "Then apply any enforced OAuth scope limit"]} />
+  <DiagramCard x={60} y={672} width={520} title={"Revocation removes one path"} tone="warning" lines={["Another active applicable", "assignment can still retain access", "Navigation hints and issuer", "role/group claims are not authority", "Protected access administration requires", "a direct tenant-wide Tenant Administrator"]} />
+
+</svg>
+</div>

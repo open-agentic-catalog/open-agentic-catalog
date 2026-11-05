@@ -1,0 +1,72 @@
+/bin/
+/coverage/
+/.mypy_cache/
+/.hypothesis/
+/output/
+/publication-report.json
+/.publication-report-*
+/specs/
+/.codex/
+/continue.md
+/todo/
+.tools/
+node_modules/
+/catalog-ui/dist/
+/test/validation/.tools/
+/test/formal/.tools/
+/test/clientcompat/.tools/
+/test/sdk/.tools/
+/test/clientcompat/go/generated/
+/documentation/.astro/
+/documentation/dist/
+/documentation/src/content/docs/generated/
+/documentation/public/generated/
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/
+.playwright-cli/
+/objects/
+/objects-*/
+.env
+.env.*
+!.env.example
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
+/go.work
+/go.work.sum
+*.swp
+*.swo
+*~
+*.log
+*.test
+*.prof
+/test/apigenerated/.tools/
+
+/test/performance/.tools/
+
+# Shared development-only Python environment
+.tools/dev/
+
+# Workflow-only prerequisites; never shipped or cached as executable receipts
+/.tools/ci/
+
+# Pinned development-only secret scanner
+/.tools/gitleaks/
+
+# Pinned test-only Directory tools and upstream source
+/.tools/agntcy/
+
+# Pinned test-only Gateway source, inventories and images
+/.tools/gateway/
+
+# Pinned test-only ANS source, binaries and image inventories
+/.tools/ans/
+
+/test/vscode/.tools/
+/extensions/vscode/dist/
+/extensions/vscode/THIRD_PARTY_NOTICES.txt
+
+/extensions/vscode/.tools/

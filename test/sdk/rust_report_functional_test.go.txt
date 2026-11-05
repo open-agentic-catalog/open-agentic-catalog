@@ -1,0 +1,438 @@
+//go:build functional
+
+package clientcompat_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+)
+
+func reportRun(t *testing.T, origin, token string, extra ...string) (int, string, string) {
+	t.Helper()
+	file := filepath.Join(t.TempDir(), "token")
+	must(t, os.WriteFile(file, []byte(token+"\n"), 0600))
+	args := []string{"--origin", origin, "--token-file", file, "--allow-loopback-http"}
+	return reportCommand(t, append(args, extra...)...)
+}
+
+func reportCommand(t *testing.T, args ...string) (int, string, string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 75*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, os.Getenv("CATALOG_RUST_REPORT"), args...)
+	command.Env = append(os.Environ(), "HTTP_PROXY=http://127.0.0.1:1", "HTTPS_PROXY=http://127.0.0.1:1", "ALL_PROXY=http://127.0.0.1:1", "NO_PROXY=")
+	var stdout, stderr bytes.Buffer
+	command.Stdout, command.Stderr = &stdout, &stderr
+	err := command.Run()
+	if ctx.Err() != nil {
+		t.Fatal("report process exceeded fixture deadline")
+	}
+	code := 0
+	if err != nil {
+		failure, ok := err.(*exec.ExitError)
+		if !ok {
+			t.Fatal(err)
+		}
+		code = failure.ExitCode()
+	}
+	return code, stdout.String(), stderr.String()
+}
+
+func reportSeed(t *testing.T, f *fixture, count int) (string, []string) {
+	t.Helper()
+	actor := f.actor("admin")
+	publisher, err := f.service.CreatePublisher(actor, catalog.CreatePublisherInput{DisplayName: "Report publisher", Domains: []string{"catalog.example.com"}})
+	must(t, err)
+	_, err = f.service.ApprovePublisherPublicationDomain(actor, publisher.ID, "catalog.example.com", "Owned fixture", publisher.Revision)
+	must(t, err)
+	var namespace string
+	var releases []string
+	card := json.RawMessage(`{"name":"Report Agent","description":"Owned report fixture","version":"1.0.0","supportedInterfaces":[{"url":"https://agents.example.com/report","protocolBinding":"JSONRPC","protocolVersion":"1.0"}],"capabilities":{},"defaultInputModes":["application/json"],"defaultOutputModes":["application/json"],"skills":[{"id":"report","name":"Report","description":"Report metadata","tags":["report"]}]}`)
+	for i := range count {
+		if i < 2 {
+			ns, e := f.service.CreateNamespace(actor, catalog.CreateNamespaceInput{Slug: fmt.Sprintf("report-%d", i), DisplayName: "Report namespace"})
+			must(t, e)
+			namespace = ns.ID
+		}
+		resource, e := f.service.CreateResource(actor, catalog.CreateResourceInput{NamespaceID: namespace, Kind: catalog.KindAgent, CanonicalIdentifier: fmt.Sprintf("urn:air:catalog.example.com:report:item-%d", i)})
+		must(t, e)
+		_, revision, _, e := f.service.CreateVersion(actor, resource.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: []catalog.RepresentationInput{{Role: "primary", MediaType: "application/a2a-agent-card+json", Data: card}}})
+		must(t, e)
+		listing, e := f.service.CreateListing(actor, catalog.CreateListingInput{NamespaceID: namespace, ResourceID: resource.ID})
+		must(t, e)
+		listing, _, e = f.service.CreateListingRevision(actor, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, DisplayName: fmt.Sprintf("Report <b>|[item] %d", i), Description: "Read-only report fixture", PublisherID: publisher.ID, Visibility: catalog.VisibilityTenant, License: "Apache-2.0"}, listing.Revision)
+		must(t, e)
+		submission, e := f.service.Submit(actor, listing.ID)
+		must(t, e)
+		_, _, e = f.service.DecideSubmission(f.actor("reviewer"), submission.ID, "approve", "Reviewed fixture", submission.Revision)
+		must(t, e)
+		listing, e = f.service.GetListing(actor, listing.ID)
+		must(t, e)
+		_, release, _, e := f.service.Publish(actor, listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision)
+		must(t, e)
+		releases = append(releases, release.ID)
+	}
+	return namespace, releases
+}
+
+func reportJSON(t *testing.T, f *fixture, path string, body any) map[string]any {
+	t.Helper()
+	method := http.MethodGet
+	var data []byte
+	if body != nil {
+		method = http.MethodPost
+		var err error
+		data, err = json.Marshal(body)
+		must(t, err)
+	}
+	request, err := http.NewRequestWithContext(t.Context(), method, f.server.URL+path, bytes.NewReader(data))
+	must(t, err)
+	request.Header.Set("Authorization", "Bearer reader")
+	request.Header.Set("Content-Type", "application/json")
+	response, err := explicitHTTPClient().Do(request)
+	must(t, err)
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != 200 {
+		t.Fatal("fixture read refused", response.StatusCode)
+	}
+	return decode[map[string]any](t, mustRead(t, response.Body))
+}
+
+func mustRead(t *testing.T, input io.Reader) []byte {
+	t.Helper()
+	data, err := io.ReadAll(io.LimitReader(input, responseLimit+1))
+	must(t, err)
+	if len(data) > responseLimit {
+		t.Fatal("fixture response exceeded bound")
+	}
+	return data
+}
+
+func TestRustSDKReportCatalog(t *testing.T) {
+	external := &rustNoExternal{}
+	f := newFixtureWithFetcher(t, external)
+	namespace, releases := reportSeed(t, f, 11)
+	grant, err := f.identity.GrantRole(f.actor("admin"), identity.GrantRoleInput{Subject: "scoped", ActorType: identity.ActorHuman, Role: identity.RoleReader, NamespaceID: namespace, Reason: "Report qualification"}, "report-grant")
+	must(t, err)
+	var writes atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && !(r.Method == http.MethodPost && r.URL.Path == "/api/v1/catalog/search") {
+			writes.Add(1)
+		}
+		f.server.Config.Handler.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+	for _, tc := range []struct {
+		token  string
+		count  int
+		status int
+	}{{"reader", 11, 0}, {"scoped", 10, 0}, {"other", 0, 0}, {"invalid", 0, 1}} {
+		t.Run(tc.token, func(t *testing.T) {
+			code, output, message := reportRun(t, server.URL, tc.token)
+			if code != tc.status {
+				t.Fatal("unexpected exit", code, message)
+			}
+			if code != 0 {
+				if output != "" || !strings.Contains(message, "HTTP 401") {
+					t.Fatal("unsafe refusal", output, message)
+				}
+				return
+			}
+			if message != "" || strings.Count(output, "| agent |") != tc.count {
+				t.Fatal("unexpected report", output, message)
+			}
+			if tc.token == "reader" {
+				if !strings.Contains(output, "Complete (2 pages, 11 releases)") || !strings.Contains(output, `Report &lt;b&gt;\|\[item\]`) {
+					t.Fatal("paging or escaping lost", output)
+				}
+				for _, release := range releases {
+					if !strings.Contains(output, release) {
+						t.Fatal("missing release", release)
+					}
+				}
+			}
+			if tc.token == "scoped" && strings.Contains(output, releases[0]) {
+				t.Fatal("namespace disclosure")
+			}
+		})
+	}
+	code, output, message := reportRun(t, server.URL, "reader", "--query", "no-match-987654")
+	if code != 0 || message != "" || !strings.Contains(output, "No authorized matches.") {
+		t.Fatal("empty search", code, output, message)
+	}
+	if writes.Load() != 0 || external.calls.Load() != 0 {
+		t.Fatal("report caused a mutation or external fetch")
+	}
+	t.Run("revoked-after-search", func(t *testing.T) {
+		var revoked atomic.Bool
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Method == http.MethodGet && revoked.CompareAndSwap(false, true) {
+				_, err := f.identity.RevokeRole(f.actor("admin"), grant.ID, "Owned revocation", "report-revoke", grant.Revision)
+				must(t, err)
+			}
+			f.server.Config.Handler.ServeHTTP(w, r)
+		}))
+		defer server.Close()
+		code, output, message := reportRun(t, server.URL, "scoped")
+		if code != 1 || output != "" || !revoked.Load() || !strings.Contains(message, "Record read failed: Catalog SDK: HTTP") {
+			t.Fatal("current permission loss did not refuse the report", code, output, message)
+		}
+	})
+	t.Run("thirty-record-budget", func(t *testing.T) {
+		f := newFixture(t)
+		_, _ = reportSeed(t, f, 31)
+		code, output, message := reportRun(t, f.server.URL, "reader")
+		if code != 2 || message != "" || strings.Count(output, "| agent |") != 30 || !strings.Contains(output, "Incomplete (3 pages, 30 releases)") || !strings.Contains(output, "More matches remain") {
+			t.Fatal("record/page budget failed", code, output, message)
+		}
+	})
+}
+
+func TestRustSDKReportWire(t *testing.T) {
+	f := newFixture(t)
+	_, _ = reportSeed(t, f, 11)
+	base := reportJSON(t, f, "/api/v1/catalog/search", map[string]any{"limit": 10, "origins": []string{"local"}})
+	items := base["items"].([]any)
+	records := map[string]map[string]any{}
+	for _, item := range items[:2] {
+		release := item.(map[string]any)["local"].(map[string]any)["release"].(map[string]any)["id"].(string)
+		records[release] = reportJSON(t, f, "/api/v1/catalog/resources/"+release, nil)
+	}
+	page := func(selected []any, cursor string, partial bool) map[string]any {
+		copy := map[string]any{}
+		for key, value := range base {
+			copy[key] = value
+		}
+		copy["items"], copy["partial"] = selected, partial
+		delete(copy, "nextCursor")
+		if cursor != "" {
+			copy["nextCursor"] = cursor
+		}
+		return copy
+	}
+	type wireCase struct {
+		name                             string
+		pages                            []map[string]any
+		code, recordStatus, searchStatus int
+		searches, reads                  int
+		corrupt                          string
+		contains                         string
+		message                          string
+	}
+	partial := page([]any{}, "", true)
+	partial["diagnostics"] = []any{map[string]any{"status": "failed", "message": "sensitive-diagnostic"}}
+	partialFirst := page(items[:1], "partial-cursor", true)
+	cases := []wireCase{
+		{name: "short-and-empty-continuation", pages: []map[string]any{page(items[:1], "sensitive-cursor/+$", false), page([]any{}, "next-sensitive-cursor", false), page(items[1:2], "", false)}, searches: 3, reads: 2, contains: "Complete (3 pages, 2 releases)"},
+		{name: "three-page-cap", pages: []map[string]any{page([]any{}, "a", false), page([]any{}, "b", false), page([]any{}, "c", false)}, code: 2, searches: 3, contains: "No rows were obtained within the budget."},
+		{name: "partial-empty", pages: []map[string]any{partial}, code: 2, searches: 1, contains: "Search diagnostic statuses: failed."},
+		{name: "partial-then-complete", pages: []map[string]any{partialFirst, page(items[1:2], "", false)}, code: 2, searches: 2, reads: 2, contains: "Incomplete (2 pages, 2 releases)"},
+		{name: "empty", pages: []map[string]any{page([]any{}, "", false)}, searches: 1, contains: "No authorized matches."},
+		{name: "malformed-search", pages: []map[string]any{{"detail": "sensitive-error-body"}}, code: 1, searches: 1, message: "Search failed: Catalog returned an unexpected or malformed success response (HTTP 200)."},
+		{name: "denied-record", pages: []map[string]any{page(items[:2], "", false)}, code: 1, recordStatus: 403, searches: 1, reads: 2, message: "Record read failed: Catalog SDK: HTTP 403"},
+		{name: "unavailable-record", pages: []map[string]any{page(items[:2], "", false)}, code: 1, recordStatus: 503, searches: 1, reads: 2, message: "Record read failed: Catalog SDK: HTTP 503"},
+		{name: "withdrawn-record", pages: []map[string]any{page(items[:2], "", false)}, code: 1, recordStatus: 404, searches: 1, reads: 2, message: "Record read failed: Catalog SDK: HTTP 404"},
+		{name: "expired-cursor", pages: []map[string]any{page(items[:1], "sensitive-expired", false)}, code: 1, searchStatus: 409, searches: 2, reads: 1, message: "Search failed: Catalog SDK: HTTP 409"},
+		{name: "mismatched-record", pages: []map[string]any{page(items[:1], "", false)}, code: 1, corrupt: "mismatch", searches: 1, reads: 1, message: "Record read returned a different release UUID."},
+		{name: "missing-required-field", pages: []map[string]any{page(items[:1], "", false)}, code: 1, corrupt: "missing", searches: 1, reads: 1, message: "Record read failed: Catalog returned an unexpected or malformed success response (HTTP 200)."},
+		{name: "absent-license", pages: []map[string]any{page(items[:1], "", false)}, corrupt: "license", searches: 1, reads: 1, contains: "| not declared |"},
+		{name: "oversized-license", pages: []map[string]any{page(items[:1], "", false)}, corrupt: "oversized", searches: 1, reads: 1, contains: "| omitted: exceeds 512 characters |"},
+		{name: "duplicate-release", pages: []map[string]any{page(items[:1], "a", false), page(items[:1], "", false)}, code: 1, searches: 2, reads: 1, message: "Search repeated a release UUID."},
+		{name: "over-limit-page", pages: []map[string]any{page(append(append([]any{}, items...), items[0]), "", false)}, code: 1, searches: 1, message: "Search exceeded the requested page limit."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var searches, reads atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.Header.Get("Authorization") != "Bearer reader" {
+					t.Error("credential missing")
+				}
+				if r.Method == http.MethodPost && r.URL.Path == "/api/v1/catalog/search" {
+					i := int(searches.Add(1)) - 1
+					input := decode[map[string]any](t, mustRead(t, r.Body))
+					if input["limit"] != float64(10) || input["text"] != "testing" || fmt.Sprint(input["origins"]) != "[local]" || fmt.Sprint(input["kinds"]) != "[agent]" {
+						t.Error("filters changed", input)
+					}
+					if i > len(tc.pages) || (i == len(tc.pages) && tc.searchStatus == 0) {
+						t.Error("unexpected Search retry or continuation")
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					if i > 0 && input["cursor"] != tc.pages[i-1]["nextCursor"] {
+						t.Error("cursor changed")
+					}
+					if i >= len(tc.pages) {
+						w.WriteHeader(tc.searchStatus)
+						_, _ = w.Write([]byte(`{"detail":"sensitive-error-body"}`))
+						return
+					}
+					must(t, json.NewEncoder(w).Encode(tc.pages[i]))
+					return
+				}
+				if r.Method != http.MethodGet || !strings.HasPrefix(r.URL.Path, "/api/v1/catalog/resources/") {
+					t.Error("unexpected request", r.Method, r.URL.Path)
+					w.WriteHeader(500)
+					return
+				}
+				read := reads.Add(1)
+				if tc.recordStatus != 0 && read == 2 {
+					w.WriteHeader(tc.recordStatus)
+					_, _ = w.Write([]byte(`{"detail":"sensitive-error-body"}`))
+					return
+				}
+				raw, ok := records[strings.TrimPrefix(r.URL.Path, "/api/v1/catalog/resources/")]
+				if !ok {
+					t.Error("unexpected release ID")
+					w.WriteHeader(404)
+					return
+				}
+				encoded, err := json.Marshal(raw)
+				must(t, err)
+				copy := decode[map[string]any](t, encoded)
+				switch tc.corrupt {
+				case "mismatch":
+					copy["release"].(map[string]any)["id"] = "00000000-0000-7000-8000-000000000999"
+				case "missing":
+					delete(copy["version"].(map[string]any), "version")
+					copy["detail"] = "sensitive-error-body"
+				case "license":
+					delete(copy["listingRevision"].(map[string]any), "license")
+				case "oversized":
+					copy["listingRevision"].(map[string]any)["license"] = strings.Repeat("x", 513)
+				}
+				must(t, json.NewEncoder(w).Encode(copy))
+			}))
+			defer server.Close()
+			code, output, message := reportRun(t, server.URL, "reader", "--query", "testing", "--kind", "agent")
+			if code != tc.code {
+				t.Fatal("wrong exit", code, output, message)
+			}
+			if code == 1 {
+				if output != "" || message != "Catalog report: "+tc.message+"\n" {
+					t.Fatal("wrong failure diagnostic or partial report", output, message)
+				}
+			} else if message != "" || !strings.Contains(output, tc.contains) {
+				t.Fatal("wrong output", output, message)
+			}
+			if strings.Contains(output+message, "sensitive") || searches.Load() > 3 {
+				t.Fatal("unsafe output or unbounded paging")
+			}
+			if int(searches.Load()) != tc.searches || int(reads.Load()) != tc.reads {
+				t.Fatal("unexpected request counts", searches.Load(), reads.Load())
+			}
+			if code == 2 && strings.Contains(output, "No authorized matches.") {
+				t.Fatal("partial results mislabeled")
+			}
+		})
+	}
+	// A real TLS request qualifies delivery of the example's private CA input.
+	server, caBytes := rustTLSServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		must(t, json.NewEncoder(w).Encode(page([]any{}, "", false)))
+	}))
+	defer server.Close()
+	ca := filepath.Join(t.TempDir(), "ca.pem")
+	must(t, os.WriteFile(ca, caBytes, 0600))
+	code, output, message := reportRun(t, server.URL, "reader", "--ca-file", ca)
+	if code != 0 || message != "" || !strings.Contains(output, "No authorized matches.") {
+		t.Fatal("private CA failed", code, output, message)
+	}
+	code, output, _ = reportRun(t, server.URL, "reader")
+	if code != 1 || output != "" {
+		t.Fatal("untrusted CA accepted")
+	}
+	var requests atomic.Int32
+	guard := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests.Add(1); w.WriteHeader(500) }))
+	defer guard.Close()
+	for _, args := range [][]string{
+		{"--origin", guard.URL, "--token-file", filepath.Join(t.TempDir(), "missing"), "--allow-loopback-http"},
+		{"--origin", guard.URL, "--token-file", t.TempDir(), "--allow-loopback-http"},
+	} {
+		code, output, _ := reportCommand(t, args...)
+		if code != 1 || output != "" {
+			t.Fatal("invalid input accepted")
+		}
+	}
+	for _, token := range []string{"", `{"accessToken":"sensitive"}`, "Bearer sensitive"} {
+		code, output, message := reportRun(t, guard.URL, token)
+		if code != 1 || output != "" || strings.Contains(message, "sensitive") {
+			t.Fatal("bad credential handling")
+		}
+	}
+	if requests.Load() != 0 {
+		t.Fatal("invalid credentials made requests")
+	}
+	file := filepath.Join(t.TempDir(), "valid-token")
+	must(t, os.WriteFile(file, []byte("reader"), 0600))
+	for _, args := range [][]string{
+		{"--origin", guard.URL, "--token-file", file},
+		{"--origin", guard.URL, "--token-file", file, "--allow-loopback-http", "--ca-file", filepath.Join(t.TempDir(), "missing")},
+	} {
+		code, output, _ := reportCommand(t, args...)
+		if code != 1 || output != "" {
+			t.Fatal("invalid transport input accepted")
+		}
+	}
+	if requests.Load() != 0 {
+		t.Fatal("invalid transport inputs made requests")
+	}
+}
+
+func TestRustSDKReportDeadline(t *testing.T) {
+	f := newFixture(t)
+	_, _ = reportSeed(t, f, 11)
+	page := reportJSON(t, f, "/api/v1/catalog/search", map[string]any{"origins": []string{"local"}, "limit": 1})
+	item := page["items"].([]any)[0].(map[string]any)
+	release := item["local"].(map[string]any)["release"].(map[string]any)["id"].(string)
+	record := reportJSON(t, f, "/api/v1/catalog/resources/"+release, nil)
+	page["nextCursor"] = "sensitive-deadline-cursor"
+	var calls atomic.Int32
+	cancelled := make(chan struct{}, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		// Consume the small request body before observing disconnects. Otherwise
+		// net/http cannot start its background connection reader for this POST.
+		_, err := io.Copy(io.Discard, io.LimitReader(r.Body, 4096))
+		must(t, err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		select {
+		case <-r.Context().Done():
+			cancelled <- struct{}{}
+			return
+		case <-time.After(24 * time.Second):
+		}
+		if r.Method == http.MethodPost {
+			must(t, json.NewEncoder(w).Encode(page))
+		} else {
+			must(t, json.NewEncoder(w).Encode(record))
+		}
+	}))
+	defer server.Close()
+	code, output, message := reportRun(t, server.URL, "reader")
+	if code != 1 || output != "" || !strings.Contains(message, "sixty-second report deadline") || calls.Load() != 3 {
+		t.Fatal("whole-run deadline failed", code, output, message, calls.Load())
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(3 * time.Second):
+		t.Fatal("pending HTTP request was not cancelled")
+	}
+}

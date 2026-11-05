@@ -1,0 +1,61 @@
+{
+  "platform": "linux/amd64",
+  "cutoff": "2026-10-19T23:34:47Z",
+  "approvedSecurityExceptions": {
+    "vault": "2.2.1",
+    "vso": "1.6.2",
+    "proxy": "v0.23.1"
+  },
+  "charts": {
+    "vault": {
+      "file": "vault-0.34.1.tgz",
+      "sha256": "df4c37fac32496892ff1e1d6fd7954d3a402cc7b1b2b4c2226af11b8a57564c4",
+      "url": "https://helm.releases.hashicorp.com/vault-0.34.1.tgz"
+    },
+    "vault-secrets-operator": {
+      "file": "vault-secrets-operator-1.6.2.tgz",
+      "sha256": "0753310fc2d40f089fded7d1040e838994c8799ae7c59bd5f961ebf6361a1aa5",
+      "url": "https://helm.releases.hashicorp.com/vault-secrets-operator-1.6.2.tgz"
+    }
+  },
+  "images": {
+    "vault": {
+      "reference": "docker.io/hashicorp/vault:2.2.1@sha256:2194d86d9ddbb17a6d017c3b2e555e1d4431195f18c3cb2827e3f61320fb6855",
+      "indexDigest": "sha256:962a92876e168d68eaaa24b0b8b49bbce1cb63024060a67bba95cd158a366fc2"
+    },
+    "vso": {
+      "reference": "docker.io/hashicorp/vault-secrets-operator:1.6.2@sha256:0e53c94cd2571a535d9aa36657f807c2f683ae9271e58cad203e1dc4318b7f54",
+      "indexDigest": "sha256:8f77bc42ac47a4a1b2d1bb8b3a398fc53c19b3ce626002824a87ceb6cf91e5ad"
+    },
+    "proxy": {
+      "reference": "quay.io/brancz/kube-rbac-proxy:v0.23.1@sha256:bb7c6fbfbb00cc2892e97fd102b8f01eb19eef09ce216385a7cf68ea7a9e7fac",
+      "indexDigest": "sha256:c280684dd23793fb2f287d1f4efc84b7800b3e01205d770b98694827bfe514cb"
+    }
+  },
+  "sources": {
+    "hashicorp/vault": {
+      "revision": "0e7c41b936218bd2401ab0f891c93bec10e2e8e4",
+      "path": "LICENSE",
+      "file": "hashicorp-vault-LICENSE",
+      "sha256": "45f5550c3bf6df29cd3bd8811857dcd8fbb266d319736a11939c32b60d67da64"
+    },
+    "hashicorp/vault-helm": {
+      "revision": "aa1c92e4adddbce9660e536dfe5222a88eda6d52",
+      "path": "LICENSE",
+      "file": "hashicorp-vault-helm-LICENSE",
+      "sha256": "a370fb74ebae555472e6c27650ef446fbd82b87fcba8416c58a10184f5ef5289"
+    },
+    "hashicorp/vault-secrets-operator": {
+      "revision": "ade4f948881d5d14822f56b44e2de0d6ea8217a6",
+      "path": "LICENSE",
+      "file": "hashicorp-vault-secrets-operator-LICENSE",
+      "sha256": "4e31bc6b759a28b8dead7e149a39e576997056e954c4fbc7990a960c5ecdf4ea"
+    },
+    "kube-rbac-proxy/kube-rbac-proxy": {
+      "revision": "0766d1dbaf0c2c777887b4ccc3ecaef06e8938b3",
+      "path": "LICENSE",
+      "file": "kube-rbac-proxy-kube-rbac-proxy-LICENSE",
+      "sha256": "b20e86f0eb01718215dcd8231aea979cfda7b3bb88c53b4732dfe3d09bdfcb5b"
+    }
+  }
+}

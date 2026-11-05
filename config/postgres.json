@@ -1,0 +1,303 @@
+{
+  "publisherDomainVerification": {"mode":"disabled", "challengeTTL":"24h", "proofMaxAge":"720h", "lookupTimeout":"5s"},
+  "demoArchives": {},
+  "logLevel": "info",
+  "logFormat": "text",
+  "tracing": {"enabled": false},
+  "environment": "development",
+  "profile": "postgres",
+  "serviceName": "open-agentic-catalog",
+  "validation": {
+    "maxFindings": 128,
+    "maxDiagnosticBytes": 65536
+  },
+  "mcp": {"enabled": false, "allowedOrigins": [], "maxToolBytes": 262144, "maxConcurrency": 4},
+  "http": {
+    "serviceActivityEnabled": false,
+    "address": "0.0.0.0:8080",
+    "publicBaseUrl": "http://localhost:8080",
+    "readTimeout": "10s",
+    "requestTimeout": "10s",
+    "writeTimeout": "30s",
+    "idleTimeout": "60s",
+    "shutdownTimeout": "20s",
+    "maxBodyBytes": 2097152
+  },
+  "database": {
+    "driver": "postgres",
+    "dsn": "postgres://catalog_api:catalog-api@postgres:5432/catalog?sslmode=disable",
+    "maxConnections": 12,
+    "maxConnLifetime": "30m",
+    "maxConnIdleTime": "5m",
+    "healthCheckPeriod": "30s",
+    "migrateOnStart": false
+  },
+  "auth": {
+    "mode": "development",
+    "developmentTokens": {
+      "local-admin": {
+        "subject": "local-admin",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "tenant_admin"
+        ],
+        "label": "Tenant administrator (development bundle)",
+        "description": "Primary tenant. Elevated access to administration, content and operations. Independent review and OAuth limits still apply.",
+        "profileGroup": "bundle",
+        "elevated": true
+      },
+      "local-reader": {
+        "subject": "local-reader",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "reader",
+          "discovery_reader",
+          "feedback_member"
+        ],
+        "label": "Reader and discovery (development bundle)",
+        "description": "Primary tenant. Trusted-reader workflow: private local reads, external discovery, saved items, eligible ratings and own feedback.",
+        "profileGroup": "bundle"
+      },
+      "local-contributor": {
+        "subject": "local-contributor",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "contributor",
+          "discovery_reader",
+          "feedback_member",
+          "publisher_creator"
+        ],
+        "label": "Contributor (development bundle)",
+        "description": "Primary tenant. Authoring, publisher creation, discovery, saved items, eligible ratings and own feedback. A different reviewer must approve.",
+        "profileGroup": "bundle"
+      },
+      "local-reviewer": {
+        "subject": "local-reviewer",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "reviewer",
+          "discovery_reader",
+          "feedback_member"
+        ],
+        "label": "Reviewer (development bundle)",
+        "description": "Primary tenant. Independent review, private local reads, discovery, saved items, eligible ratings and own feedback.",
+        "profileGroup": "bundle"
+      },
+      "local-publisher": {
+        "subject": "local-publisher",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "publisher",
+          "discovery_reader",
+          "feedback_member",
+          "publication_admin"
+        ],
+        "label": "Publisher (development bundle)",
+        "description": "Primary tenant. Release publication and discovery snapshots, discovery, saved items, eligible ratings and own feedback.",
+        "profileGroup": "bundle"
+      },
+      "other-tenant-admin": {
+        "subject": "other-admin",
+        "tenantId": "00000000-0000-7000-8000-000000000002",
+        "roleTemplates": [
+          "tenant_admin"
+        ],
+        "label": "Other-tenant administrator (development bundle)",
+        "description": "Separate tenant. Elevated administration; its records and grants are isolated from the primary tenant.",
+        "profileGroup": "bundle",
+        "elevated": true,
+        "separateTenant": true
+      },
+      "local-template-reader": {
+        "subject": "local-template-reader",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "reader"
+        ],
+        "label": "Reader (exact template)",
+        "description": "Primary tenant. Local metadata, history, retained content and Explore; eligible personal ratings. No authoring or external discovery.",
+        "profileGroup": "template"
+      },
+      "local-template-contributor": {
+        "subject": "local-template-contributor",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "contributor"
+        ],
+        "label": "Contributor (exact template)",
+        "description": "Primary tenant. Resource authoring, validation and review submission; publisher creation is separate.",
+        "profileGroup": "template"
+      },
+      "local-template-reviewer": {
+        "subject": "local-template-reviewer",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "reviewer"
+        ],
+        "label": "Reviewer (exact template)",
+        "description": "Primary tenant. Resource evidence and independent review decisions; no authoring or release publication.",
+        "profileGroup": "template"
+      },
+      "local-template-publisher": {
+        "subject": "local-template-publisher",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "publisher"
+        ],
+        "label": "Publisher (exact template)",
+        "description": "Primary tenant. Publish approved releases and change release lifecycle; discovery snapshots are separate.",
+        "profileGroup": "template"
+      },
+      "local-template-tenant-admin": {
+        "subject": "local-template-tenant-admin",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "tenant_admin"
+        ],
+        "label": "Tenant administrator (exact template)",
+        "description": "Primary tenant. All tenant tasks; OAuth ceilings, independent review and disabled capabilities still apply.",
+        "profileGroup": "template",
+        "elevated": true
+      },
+      "local-template-discovery-reader": {
+        "subject": "local-template-discovery-reader",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "discovery_reader"
+        ],
+        "label": "Discovery reader (exact template)",
+        "description": "Primary tenant. External discovery, published snapshots, publisher reads, saved items and eligible ratings. No local Resource reads or operational Jobs.",
+        "profileGroup": "template"
+      },
+      "local-template-publisher-creator": {
+        "subject": "local-template-publisher-creator",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "publisher_creator"
+        ],
+        "label": "Publisher creator (exact template)",
+        "description": "Primary tenant. Read and create publishers; no publisher updates or domain approval.",
+        "profileGroup": "template"
+      },
+      "local-template-publication-admin": {
+        "subject": "local-template-publication-admin",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "publication_admin"
+        ],
+        "label": "Publication administrator (exact template)",
+        "description": "Primary tenant. Manage eligible audience snapshots and their Jobs without private Resource API reads. Release publication is separate.",
+        "profileGroup": "template"
+      },
+      "local-template-source-admin": {
+        "subject": "local-template-source-admin",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "source_admin"
+        ],
+        "label": "Source administrator (exact template)",
+        "description": "Primary tenant. Inspect and manage federation sources, sync and eligible Jobs; no local authoring.",
+        "profileGroup": "template"
+      },
+      "local-template-security-reviewer": {
+        "subject": "local-template-security-reviewer",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "security_reviewer"
+        ],
+        "label": "Security reviewer (exact template)",
+        "description": "Primary tenant. Read/export private tenant audit context without Resource API reads. Token scopes and current audit admission apply.",
+        "profileGroup": "template"
+      },
+      "local-template-webhook-admin": {
+        "subject": "local-template-webhook-admin",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "webhook_admin"
+        ],
+        "label": "Webhook administrator (exact template)",
+        "description": "Primary tenant. Manage enabled webhooks and delivery evidence; no local resource reads.",
+        "profileGroup": "template"
+      },
+      "local-template-feedback-member": {
+        "subject": "local-template-feedback-member",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "feedback_member"
+        ],
+        "label": "Feedback member (exact template)",
+        "description": "Primary tenant. Read, edit and withdraw existing own feedback; new reports need separate resource-read permission.",
+        "profileGroup": "template"
+      },
+      "local-template-library-member": {
+        "subject": "local-template-library-member",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "library_member"
+        ],
+        "label": "Library member (exact template)",
+        "description": "Primary tenant. Manage own saved references and named searches; no resource reads or administration.",
+        "profileGroup": "template"
+      },
+      "local-template-service-client": {
+        "subject": "local-template-service-client",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "roleTemplates": [
+          "service_client"
+        ],
+        "label": "Service client (exact template; nonhuman)",
+        "description": "Primary tenant. Nonhuman identity with an empty template. No product permissions or human-only tasks; authenticated self and service reads remain available.",
+        "profileGroup": "template"
+      }
+    }
+  },
+  "jobs": {"maxAttempts": 5, "retryCeiling": "1h"},
+  "worker": {
+    "dependencyRetryInitialDelay": "1s",
+    "dependencyRetryCeiling": "30s",
+    "pollInterval": "250ms",
+    "leaseDuration": "30s",
+    "concurrency": 4,
+    "sourceMaintenanceInterval": "15m",
+    "housekeepingInterval": "5m",
+    "terminalJobRetention": "168h",
+    "acknowledgedOutboxRetention": "24h",
+    "operationsAddress": "0.0.0.0:9090"
+  },
+  "federation": {
+    "requestTimeout": "2s",
+    "maxResponseBytes": 2097152,
+    "maxRedirects": 3,
+    "maxFanout": 3,
+    "maxLivePagesPerSource": 1,
+    "maxHops": 2
+  },
+  "discovery": {
+    "hosts": [
+      {
+        "host": "127.0.0.1",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "mode": "anonymous",
+        "publisherDomain": "catalog.example.com"
+      }
+    ]
+  },
+  "publication": {
+    "ardProfile": "ard-0.91-aa3e598",
+    "aiCatalogProfile": "ai-catalog-1.0-b062278"
+  },
+  "webhooks": {
+    "policyFile": "",
+    "enabled": false,
+    "maxAttempts": 5,
+    "retryCeiling": "1h",
+    "timeout": "10s",
+    "pollInterval": "500ms"
+  },
+  "semanticSearch": {"enabled": false},
+  "trustVerification": {"enabled": false},
+  "listingMedia": {"allowedOrigins": []},
+  "managedMedia": {"enabled": false},
+  "softwareAssessment": {"enabled": false},
+  "credentialResolution": {"enabled": false}
+}

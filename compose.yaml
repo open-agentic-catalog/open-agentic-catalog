@@ -1,0 +1,258 @@
+x-catalog-runtime-environment: &catalog-runtime-environment
+  CATALOG_DEMO_ARCHIVES:
+  CATALOG_TRACING:
+  CATALOG_ENVIRONMENT:
+  CATALOG_LOG_LEVEL:
+  CATALOG_LOG_FORMAT:
+  CATALOG_PROFILE:
+  CATALOG_SERVICE_NAME:
+  CATALOG_HTTP_SERVICE_ACTIVITY_ENABLED:
+  CATALOG_HTTP_ADDRESS:
+  CATALOG_PUBLIC_BASE_URL:
+  CATALOG_HTTP_READ_TIMEOUT:
+  CATALOG_HTTP_REQUEST_TIMEOUT:
+  CATALOG_HTTP_WRITE_TIMEOUT:
+  CATALOG_HTTP_IDLE_TIMEOUT:
+  CATALOG_HTTP_SHUTDOWN_TIMEOUT:
+  CATALOG_VALIDATION_MAX_FINDINGS:
+  CATALOG_VALIDATION_MAX_DIAGNOSTIC_BYTES:
+  CATALOG_HTTP_MAX_BODY_BYTES:
+  CATALOG_MCP_ENABLED:
+  CATALOG_MCP_MAX_TOOL_BYTES:
+  CATALOG_MCP_MAX_CONCURRENCY:
+  CATALOG_MCP_ALLOWED_ORIGINS:
+  CATALOG_HTTP_CORS_ORIGINS:
+  CATALOG_DATABASE_DRIVER:
+  CATALOG_DATABASE_MAX_CONNECTIONS:
+  CATALOG_DATABASE_MAX_CONN_LIFETIME:
+  CATALOG_DATABASE_MAX_CONN_IDLE_TIME:
+  CATALOG_DATABASE_HEALTH_CHECK_PERIOD:
+  CATALOG_AUTH_MODE:
+  CATALOG_AUTH_ISSUER:
+  CATALOG_AUTH_TRUST_BUNDLE_FILE:
+  CATALOG_AUTH_AUDIENCE:
+  CATALOG_AUTH_TENANCY_MODE:
+  CATALOG_AUTH_DEDICATED_TENANT_ID:
+  CATALOG_AUTH_ORGANIZATION_CLAIM:
+  CATALOG_AUTH_ENFORCE_SCOPES:
+  CATALOG_JOBS_MAX_ATTEMPTS:
+  CATALOG_JOBS_RETRY_CEILING:
+  CATALOG_WORKER_POLL_INTERVAL:
+  CATALOG_WORKER_DEPENDENCY_RETRY_INITIAL_DELAY:
+  CATALOG_WORKER_DEPENDENCY_RETRY_CEILING:
+  CATALOG_WORKER_LEASE_DURATION:
+  CATALOG_WORKER_CONCURRENCY:
+  CATALOG_WORKER_SOURCE_MAINTENANCE_INTERVAL:
+  CATALOG_WORKER_HOUSEKEEPING_INTERVAL:
+  CATALOG_WORKER_TERMINAL_JOB_RETENTION:
+  CATALOG_WORKER_ACKNOWLEDGED_OUTBOX_RETENTION:
+  CATALOG_WORKER_OPERATIONS_ADDRESS:
+  CATALOG_FEDERATION_REQUEST_TIMEOUT:
+  CATALOG_FEDERATION_MAX_RESPONSE_BYTES:
+  CATALOG_FEDERATION_MAX_REDIRECTS:
+  CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE:
+  CATALOG_FEDERATION_MAX_FANOUT:
+  CATALOG_FEDERATION_MAX_HOPS:
+  CATALOG_FEDERATION_POLICY_FILE:
+  CATALOG_DISCOVERY_HOSTS:
+  CATALOG_PUBLICATION_ARD_PROFILE:
+  CATALOG_PUBLICATION_AI_CATALOG_PROFILE:
+  CATALOG_WEBHOOKS_ENABLED:
+  CATALOG_WEBHOOKS_MAX_ATTEMPTS:
+  CATALOG_WEBHOOKS_RETRY_CEILING:
+  CATALOG_WEBHOOKS_POLICY_FILE:
+  CATALOG_WEBHOOKS_TIMEOUT:
+  CATALOG_WEBHOOKS_POLL_INTERVAL:
+  # Optional endpoint/model JSON; inference deployment and schema setup are separate.
+  CATALOG_SEMANTIC_SEARCH:
+  CATALOG_RATINGS_SHARING_ENABLED:
+  CATALOG_RATINGS_MINIMUM_SHARED_COUNT:
+  CATALOG_LISTING_MEDIA:
+  CATALOG_TRUST_VERIFICATION:
+  CATALOG_PUBLISHER_DOMAIN_VERIFICATION:
+  CATALOG_MANAGED_MEDIA_ENABLED:
+  CATALOG_SOFTWARE_ASSESSMENT_ENABLED:
+  CATALOG_CREDENTIAL_RESOLUTION_ENABLED:
+  CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY:
+  CATALOG_WEBHOOK_ENCRYPTION_KEY:
+  CATALOG_WEBHOOK_ENCRYPTION_KEY_FILE:
+  CATALOG_CURSOR_SIGNING_KEY:
+  CATALOG_CURSOR_SIGNING_KEY_FILE:
+
+services:
+  postgres:
+    # Vector-capable local database; this does not enable semantic search.
+    image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: catalog
+    healthcheck:
+      # The entrypoint's bootstrap-only Unix-socket server is not runtime-ready.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U catalog -d catalog"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    ports:
+      - "127.0.0.1:${CATALOG_COMPOSE_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - ./deployments/postgres/init.sql:/docker-entrypoint-initdb.d/010-catalog-roles.sql:ro
+      - catalog-postgres-18:/var/lib/postgresql
+
+  migrate:
+    image: ${IMAGE:-open-agentic-catalog:dev}
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: Containerfile
+      target: runtime
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-unknown}
+        SOURCE_STATE: ${SOURCE_STATE:-unknown}
+    entrypoint: ["/usr/local/bin/catalogctl"]
+    command: ["migrate", "apply", "--config", "/config/config.json", "--api-role", "catalog_api", "--worker-role", "catalog_worker"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog:catalog@postgres:5432/catalog?sslmode=disable
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./config/postgres.json:/config/config.json:ro
+    restart: "no"
+
+  provision:
+    image: ${IMAGE:-open-agentic-catalog:dev}
+    pull_policy: never
+    entrypoint: ["/usr/local/bin/catalogctl"]
+    command: ["identity", "provision-development", "--config", "/config/config.json"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *catalog-runtime-environment
+      CATALOG_DATABASE_DSN: postgres://catalog:catalog@postgres:5432/catalog?sslmode=disable
+      CATALOG_FEDERATION_POLICY_FILE: /config/federation-policy.json
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./config/postgres.json:/config/config.json:ro
+      - type: bind
+        source: ${CATALOG_COMPOSE_FEDERATION_POLICY_FILE:-./config/federation-policy.local.json}
+        target: /config/federation-policy.json
+        read_only: true
+    restart: "no"
+
+  api:
+    image: ${IMAGE:-open-agentic-catalog:dev}
+    pull_policy: never
+    command: ["api", "--config", "/config/config.json"]
+    depends_on:
+      provision:
+        condition: service_completed_successfully
+    environment:
+      <<: *catalog-runtime-environment
+      CATALOG_DATABASE_DSN: postgres://catalog_api:catalog-api@postgres:5432/catalog?sslmode=disable
+      CATALOG_DATABASE_DRIVER: postgres
+      CATALOG_HTTP_ADDRESS: 0.0.0.0:8080
+      CATALOG_PUBLIC_BASE_URL: ${CATALOG_PUBLIC_BASE_URL:-http://localhost:${CATALOG_COMPOSE_HTTP_PORT:-8080}}
+      CATALOG_FEDERATION_POLICY_FILE: /config/federation-policy.json
+    ports:
+      - "127.0.0.1:${CATALOG_COMPOSE_HTTP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/catalogctl", "probe", "--url", "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    read_only: true
+    init: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./config/postgres.json:/config/config.json:ro
+      - type: bind
+        source: ${CATALOG_COMPOSE_FEDERATION_POLICY_FILE:-./config/federation-policy.local.json}
+        target: /config/federation-policy.json
+        read_only: true
+      - type: bind
+        source: ${CATALOG_COMPOSE_FEDERATION_CREDENTIALS_DIRECTORY:-./config/federation-credentials.example}
+        target: /etc/open-agentic-catalog/federation/credentials
+        read_only: true
+      - type: bind
+        source: ${CATALOG_COMPOSE_FEDERATION_TRUST_DIRECTORY:-./config/federation-trust.example}
+        target: /etc/open-agentic-catalog/federation/trust
+        read_only: true
+      - type: bind
+        source: ${CATALOG_COMPOSE_TRUST_VERIFICATION_DIRECTORY:-./config/trust-verification.example}
+        target: /etc/open-agentic-catalog/trust-verification
+        read_only: true
+
+  worker:
+    image: ${IMAGE:-open-agentic-catalog:dev}
+    pull_policy: never
+    command: ["worker", "--config", "/config/config.json"]
+    depends_on:
+      provision:
+        condition: service_completed_successfully
+    environment:
+      <<: *catalog-runtime-environment
+      CATALOG_DATABASE_DSN: postgres://catalog_worker:catalog-worker@postgres:5432/catalog?sslmode=disable
+      CATALOG_DATABASE_DRIVER: postgres
+      CATALOG_HTTP_ADDRESS: 0.0.0.0:8080
+      CATALOG_WORKER_OPERATIONS_ADDRESS: 0.0.0.0:9090
+      CATALOG_PUBLIC_BASE_URL: ${CATALOG_PUBLIC_BASE_URL:-http://localhost:${CATALOG_COMPOSE_HTTP_PORT:-8080}}
+      CATALOG_FEDERATION_POLICY_FILE: /config/federation-policy.json
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/catalogctl", "probe", "--url", "http://127.0.0.1:9090/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    read_only: true
+    init: true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./config/postgres.json:/config/config.json:ro
+      - type: bind
+        source: ${CATALOG_COMPOSE_FEDERATION_POLICY_FILE:-./config/federation-policy.local.json}
+        target: /config/federation-policy.json
+        read_only: true
+      - type: bind
+        source: ${CATALOG_COMPOSE_FEDERATION_CREDENTIALS_DIRECTORY:-./config/federation-credentials.example}
+        target: /etc/open-agentic-catalog/federation/credentials
+        read_only: true
+      - type: bind
+        source: ${CATALOG_COMPOSE_FEDERATION_TRUST_DIRECTORY:-./config/federation-trust.example}
+        target: /etc/open-agentic-catalog/federation/trust
+        read_only: true
+      - type: bind
+        source: ${CATALOG_COMPOSE_TRUST_VERIFICATION_DIRECTORY:-./config/trust-verification.example}
+        target: /etc/open-agentic-catalog/trust-verification
+        read_only: true
+
+volumes:
+  catalog-postgres-18:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${CATALOG_COMPOSE_SUBNET:-172.30.255.0/24}

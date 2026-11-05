@@ -1,0 +1,9 @@
+{
+  "packageName": "catalog_sdk.generated",
+  "projectName": "open-agentic-catalog",
+  "library": "httpx",
+  "supportHttpxSync": true,
+  "hideGenerationTimestamp": true,
+  "disallowAdditionalPropertiesIfNotPresent": false,
+  "generateSourceCodeOnly": true
+}

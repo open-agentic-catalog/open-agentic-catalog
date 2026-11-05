@@ -1,0 +1,154 @@
+# Shared development tools only; this repository is not a Python package.
+[dependency-groups]
+dev = ["ruff==0.17.0", "jsonschema==4.26.0", "bump-my-version==1.5.1"]
+
+[tool.uv]
+required-version = "==0.13.4"
+exclude-newer = "2026-10-09T22:30:23Z"
+
+[tool.uv.dependency-groups]
+dev = { requires-python = ">=3.12,<3.15" }
+
+[tool.bumpversion]
+parse = '^(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<pre>rc)\.(?P<rc>[1-9]\d*))?$'
+serialize = ["{major}.{minor}.{patch}-{pre}.{rc}", "{major}.{minor}.{patch}"]
+commit = false
+tag = false
+push = false
+allow_dirty = false
+
+[tool.bumpversion.parts.pre]
+values = ["final", "rc"]
+optional_value = "final"
+
+[tool.bumpversion.parts.rc]
+first_value = 1
+
+[[tool.bumpversion.files]]
+filename = "VERSION"
+search = "{current_version}"
+replace = "{new_version}"
+
+[[tool.bumpversion.files]]
+filename = "api/openapi/control-v1.yaml"
+search = "\n  version: {current_version}\n"
+replace = "\n  version: {new_version}\n"
+
+[[tool.bumpversion.files]]
+filename = "sdk/rust/Cargo.toml"
+search = '''name = "open-agentic-catalog"
+version = "{current_version}"'''
+replace = '''name = "open-agentic-catalog"
+version = "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "sdk/rust/Cargo.lock"
+search = '''name = "open-agentic-catalog"
+version = "{current_version}"'''
+replace = '''name = "open-agentic-catalog"
+version = "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "test/sdk/rust/consumer/Cargo.toml"
+search = 'open-agentic-catalog = {{ path = "../../../../sdk/rust", version = "{current_version}" }}'
+replace = 'open-agentic-catalog = {{ path = "../../../../sdk/rust", version = "{new_version}" }}'
+
+[[tool.bumpversion.files]]
+filename = "test/sdk/rust/consumer/Cargo.lock"
+search = '''name = "open-agentic-catalog"
+version = "{current_version}"'''
+replace = '''name = "open-agentic-catalog"
+version = "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "examples/rust-catalog-report/Cargo.toml"
+search = 'open-agentic-catalog = {{ path = "../../sdk/rust", version = "{current_version}" }}'
+replace = 'open-agentic-catalog = {{ path = "../../sdk/rust", version = "{new_version}" }}'
+
+[[tool.bumpversion.files]]
+filename = "examples/rust-catalog-report/Cargo.lock"
+search = '''name = "open-agentic-catalog"
+version = "{current_version}"'''
+replace = '''name = "open-agentic-catalog"
+version = "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "sdk/python/pyproject.toml"
+serialize = ["{major}.{minor}.{patch}{pre}{rc}", "{major}.{minor}.{patch}"]
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "test/sdk/python/uv.lock"
+serialize = ["{major}.{minor}.{patch}{pre}{rc}", "{major}.{minor}.{patch}"]
+search = '''name = "open-agentic-catalog"
+version = "{current_version}"'''
+replace = '''name = "open-agentic-catalog"
+version = "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "examples/langgraph/uv.lock"
+serialize = ["{major}.{minor}.{patch}{pre}{rc}", "{major}.{minor}.{patch}"]
+search = '''name = "open-agentic-catalog"
+version = "{current_version}"'''
+replace = '''name = "open-agentic-catalog"
+version = "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "sdk/typescript/package.json"
+search = '''"name": "@open-agentic-catalog/client",
+  "version": "{current_version}"'''
+replace = '''"name": "@open-agentic-catalog/client",
+  "version": "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "sdk/typescript/package-lock.json"
+search = '''"name": "@open-agentic-catalog/client",
+  "version": "{current_version}"'''
+replace = '''"name": "@open-agentic-catalog/client",
+  "version": "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "sdk/typescript/package-lock.json"
+search = '''"name": "@open-agentic-catalog/client",
+      "version": "{current_version}"'''
+replace = '''"name": "@open-agentic-catalog/client",
+      "version": "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "extensions/vscode/package.json"
+search = '''"version": "{current_version}",
+  "publisher": "open-agentic-catalog"'''
+replace = '''"version": "{new_version}",
+  "publisher": "open-agentic-catalog"'''
+
+[[tool.bumpversion.files]]
+filename = "extensions/vscode/package-lock.json"
+search = '''"name": "open-agentic-catalog",
+  "version": "{current_version}"'''
+replace = '''"name": "open-agentic-catalog",
+  "version": "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "extensions/vscode/package-lock.json"
+search = '''"name": "open-agentic-catalog",
+      "version": "{current_version}"'''
+replace = '''"name": "open-agentic-catalog",
+      "version": "{new_version}"'''
+
+[[tool.bumpversion.files]]
+filename = "extensions/vscode/package.json"
+search = '''open-agentic-catalog-client-{current_version}.tgz'''
+replace = '''open-agentic-catalog-client-{new_version}.tgz'''
+
+[[tool.bumpversion.files]]
+filename = "extensions/vscode/package-lock.json"
+search = '''open-agentic-catalog-client-{current_version}.tgz'''
+replace = '''open-agentic-catalog-client-{new_version}.tgz'''
+
+[[tool.bumpversion.files]]
+filename = "extensions/vscode/package-lock.json"
+search = '''"node_modules/@open-agentic-catalog/client": {{
+      "version": "{current_version}"'''
+replace = '''"node_modules/@open-agentic-catalog/client": {{
+      "version": "{new_version}"'''

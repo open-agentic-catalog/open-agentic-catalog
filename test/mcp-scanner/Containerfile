@@ -1,0 +1,10 @@
+FROM python:3.13.17-slim-bookworm@sha256:e32be0e55814a08977501ca863271d9bd02443710db8f2afaf8372e2c4508530
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHON_DOTENV_DISABLED=1 LITELLM_LOCAL_MODEL_COST_MAP=true HOME=/tmp/home
+COPY requirements.txt /opt/requirements.txt
+RUN python -m pip --isolated install --index-url https://pypi.org/simple --no-cache-dir --only-binary=:all: --require-hashes -r /opt/requirements.txt \
+    && pip check \
+    && python -c 'import importlib.metadata as m, shutil; shutil.copytree(m.distribution("cisco-ai-mcp-scanner").locate_file("mcpscanner/data/yara_rules"), "/opt/rules")'
+COPY catalog_mcp_scan.py worker.py /opt/example/
+COPY libyara-COPYING /usr/share/licenses/libyara/COPYING
+USER 65532:65532
+ENTRYPOINT ["python", "-B", "/opt/example/worker.py"]

@@ -1,0 +1,12 @@
+{{- if not .Values.federation.policy.existingConfigMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "federation-policy") | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: federation-policy
+data:
+  {{ .Values.federation.policy.key | quote }}: |-
+{{ .Values.federation.policy.document | nindent 4 }}
+{{- end }}

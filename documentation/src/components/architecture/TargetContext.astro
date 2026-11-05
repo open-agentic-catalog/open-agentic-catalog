@@ -1,0 +1,35 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="target-context-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1438" role="img" aria-labelledby="target-context-title target-context-desc">
+  <title id="target-context-title">Target architecture: core services and optional providers</title>
+  <desc id="target-context-desc">Clients reach the Catalog API through HTTPS ingress. API and worker share domain rules and PostgreSQL as their authority. Optional hybrid search uses derived pgvector state and one configured embedding endpoint. Optional ANS registration checks use operator public keys and bounded public evidence.
+
+  Managed media storage and software assessment remain unavailable; broad trust and rights are not assessed. External artwork delivery is implemented without managed storage. Core search requires none of these optional capabilities.</desc>
+  <rect class="svg-boundary" x="48" y="321" width="544" height="507" rx="18" />
+  <defs><marker id="target-context-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 118 V188" marker-end="url(#target-context-arrow)" />
+  <path class="svg-connector" d="M320 263 V298 H180 V333" marker-end="url(#target-context-arrow)" />
+  <path class="svg-connector" d="M180 431 V466 H320 V501" marker-end="url(#target-context-arrow)" />
+  <path class="svg-connector" d="M460 431 V466 H320 V501" marker-end="url(#target-context-arrow)" />
+  <path class="svg-connector svg-connector-authority" d="M320 599 V634 H180 V669" marker-end="url(#target-context-arrow)" />
+  <path class="svg-connector" d="M320 599 V634 H460 V669" marker-end="url(#target-context-arrow)" />
+  <path class="svg-connector" d="M460 816 V851 H180 V886" marker-end="url(#target-context-arrow)" />
+  <path class="svg-connector" d="M460 816 V886" marker-end="url(#target-context-arrow)" />
+  <DiagramCard x={60} y={20} width={520} title={"Product and discovery clients"} tone="external" lines={["UI, IDE, CLI, automation, ARD", "consumers and peer registries"]} />
+  <DiagramCard x={60} y={188} width={520} title={"HTTPS ingress"} lines={["Deployment-managed TLS and routing"]} />
+  <DiagramCard x={60} y={333} width={240} title={"API role"} tone="core" lines={["Authenticated APIs and", "host-scoped discovery"]} />
+  <DiagramCard x={340} y={333} width={240} title={"Worker role"} tone="core" lines={["Durable Jobs and sync", "Optional webhook delivery"]} />
+  <DiagramCard x={60} y={501} width={520} title={"Shared domain services and platform interfaces"} tone="core" lines={["Governance, validation, publication,", "Search, federation, identity and audit"]} />
+  <DiagramCard x={60} y={669} width={240} title={["PostgreSQL 18 +", "pgcrypto"]} tone="authority" lines={["Catalog authority", "Optional derived pgvector"]} />
+  <DiagramCard x={340} y={669} width={240} title={["Scoped outbound", "adapters"]} lines={["Safe fetch, approved", "sources and", "credential bindings"]} />
+  <DiagramCard x={60} y={886} width={240} title={"Embedding endpoint"} tone="optional" lines={["Separate local", "or hosted model", "Implemented; default off"]} />
+  <DiagramCard x={340} y={886} width={240} title={["ANS registration", "checks"]} tone="optional" lines={["Operator public keys", "Bounded public evidence", "Implemented; default off"]} />
+  <DiagramCard x={60} y={1103} width={520} title={"Managed media storage is unavailable"} tone="target" lines={["Future S3-compatible icons and screenshots", "Unimplemented; enabling it fails startup"]} />
+  <DiagramCard x={60} y={1271} width={520} title={["Core Search needs none of these optional", "capabilities"]} tone="warning" lines={["External artwork delivery works without managed storage", "Software assessment is unavailable;", "broad trust and rights are not_assessed"]} />
+
+</svg>
+</div>

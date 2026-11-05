@@ -1,0 +1,255 @@
+"""Isolated selection, package and candidate refusal tests. No processes or network."""
+
+import copy
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest.mock import patch
+
+import admission as a
+import candidate as c
+import release_delivery as r
+
+SOURCE = {"commit": "a" * 40, "sourceSha256": "b" * 64}
+
+
+class AdmissionTests(unittest.TestCase):
+    def setUp(self):
+        guard = patch.object(a.subprocess, "check_output", side_effect=AssertionError("unit started a process"))
+        guard.start()
+        self.addCleanup(guard.stop)
+
+    def test_backend_contract_and_shared_tools_select_every_client(self):
+        for name in ("internal/catalog/service.go", "api/openapi/control-v1.yaml", "VERSION", "Makefile", "test/sdk/runner.py", ".github/workflows/clients.yml", "sdk/shared-input"):
+            with self.subTest(name=name):
+                self.assertEqual(a.select([name])["languages"], list(a.LANGUAGES))
+
+    def test_independent_language_and_projected_document_inputs(self):
+        for language in a.LANGUAGES:
+            self.assertEqual(a.select([f"sdk/{language}/client.code"])["languages"], [language])
+        self.assertTrue(a.select(["some/published-guide.md"], ["some/published-guide.md"])["docs"])
+        self.assertEqual(a.select(["examples/rust-catalog-report/main.rs"])["languages"], ["rust"])
+        self.assertEqual(a.select(["extensions/vscode/src/main.ts"])["languages"], ["typescript"])
+        self.assertEqual(a.select(["documentation/assets/favicon.svg"])["languages"], [])
+        self.assertTrue(a.select(["catalog-ui/src/view.tsx"])["ui"])
+        self.assertFalse(a.select([])["docs"])
+        for invalid in ("../private", "/private"):
+            with self.assertRaises(ValueError):
+                a.select([invalid])
+
+    def test_invalid_language_never_silently_returns_an_empty_matrix(self):
+        self.assertEqual(a.languages("all"), list(a.LANGUAGES))
+        for value in ("", "unknown", "--publish"):
+            with self.assertRaises(ValueError):
+                a.languages(value)
+
+    def test_selected_failure_skip_and_cancellation_cannot_complete(self):
+        plan = {"ui": True, "docs": False, "languages": ["rust"]}
+        result = {"baseline": "success", "unit": "success", "ui": "success", "docs": "skipped", "clients": "success"}
+        self.assertEqual(a.outcomes(plan, result)["docs"], "unselected")
+        for name in ("baseline", "unit", "ui", "clients"):
+            for failure in ("failure", "cancelled", "skipped", ""):
+                with self.subTest(name=name, failure=failure), self.assertRaises(ValueError):
+                    a.outcomes(plan, {**result, name: failure})
+
+    def sdk(self, root):
+        directory = root / "output/artifacts/sdk/typescript"
+        directory.mkdir(parents=True)
+        (root / "api/openapi").mkdir(parents=True)
+        (root / "api/openapi/control-v1.yaml").write_text("api")
+        (root / "VERSION").write_text("0.1.0\n")
+        (root / "client.ts").write_text("source")
+        (directory / "client.tgz").write_text("qualified package")
+        value = {"language": "typescript", "releaseBase": "0.1.0", "openapiSha256": a.digest(root / "api/openapi/control-v1.yaml"),
+                 "sources": {"client.ts": a.digest(root / "client.ts")}, "tools": {"node": "pinned"},
+                 "artifacts": {"client.tgz": a.digest(directory / "client.tgz")}}
+        (directory / "manifest.json").write_text(json.dumps(value))
+        return directory
+
+    def test_only_fresh_successful_sdk_packages_are_staged(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(a, "source_identity", return_value=SOURCE):
+            root = Path(temporary)
+            directory = self.sdk(root)
+            output = root / "output/artifacts/qualified-sdk/run-1"
+            with self.assertRaises(ValueError):
+                a.stage_sdk(root, "typescript", "run-1", output)
+            a.qualify_sdk(root, "typescript", "run-1", SOURCE)
+            a.stage_sdk(root, "typescript", "run-1", output)
+            self.assertEqual({p.name for p in output.iterdir()}, {"manifest.json", "qualification.json", "client.tgz"})
+            for change in ("run", "package", "source"):
+                with self.subTest(change=change), self.assertRaises(ValueError):
+                    if change == "run":
+                        a.stage_sdk(root, "typescript", "another-run", root / "output/artifacts/qualified-sdk/run-2")
+                    elif change == "package":
+                        (directory / "client.tgz").write_text("changed")
+                        a.stage_sdk(root, "typescript", "run-1", root / "output/artifacts/qualified-sdk/run-2")
+                    else:
+                        (root / "client.ts").write_text("changed")
+                        a.qualify_sdk(root, "typescript", "run-1", SOURCE)
+
+    def test_same_source_and_all_results_are_required_for_release(self):
+        results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime"), "success")
+        self.assertEqual(c.release_results(SOURCE, results)["source"], SOURCE)
+        for key in results:
+            for bad in (None, "failure", "cancelled", "skipped"):
+                changed = {**results, key: bad}
+                with self.assertRaises(ValueError):
+                    c.release_results(SOURCE, changed)
+
+    def test_image_platform_and_build_substitution_are_refused(self):
+        value = {"product": "backend", "platform": "linux/amd64", "imageId": "sha256:" + "c" * 64,
+                 "build": {"version": "0.1.0", "commit": SOURCE["commit"], "sourceState": "clean"}}
+        raw = {"Id": value["imageId"], "Os": "linux", "Architecture": "amd64", "Config": {"Labels": {
+            "org.opencontainers.image.version": "0.1.0", "org.opencontainers.image.revision": SOURCE["commit"],
+            "io.open-agentic-catalog.source-state": "clean", "org.opencontainers.image.title": "Open Agentic Catalog"}}}
+        c.image_identity(raw, value)
+        for key, bad in (("Id", "sha256:" + "d" * 64), ("Architecture", "arm64")):
+            with self.assertRaises(ValueError):
+                c.image_identity({**raw, key: bad}, value)
+        changed = copy.deepcopy(raw)
+        changed["Config"]["Labels"]["org.opencontainers.image.version"] = "different"
+        with self.assertRaises(ValueError):
+            c.image_identity(changed, value)
+
+    def test_external_delivery_is_refused_locally_and_under_act(self):
+        for environment in ({}, {"ACT": "true", "GITHUB_ACTIONS": "true", "RELEASE_PUBLISH": "true"}, {"GITHUB_ACTIONS": "true"}):
+            with self.assertRaises(ValueError):
+                r.delivery_plan(Path("/nonexistent"), environment)
+
+    def test_destination_reuse_requires_the_same_qualified_objects(self):
+        image_id = "sha256:" + "c" * 64
+        r.existing_member(None, image_id)
+        r.existing_member({"config": {"digest": image_id}}, image_id)
+        with self.assertRaises(ValueError):
+            r.existing_member({"config": {"digest": "sha256:" + "d" * 64}}, image_id)
+        members = {"amd64": "sha256:" + "1" * 64, "arm64": "sha256:" + "2" * 64}
+        index = {"manifests": [{"platform": {"os": "linux", "architecture": arch}, "digest": digest} for arch, digest in members.items()]}
+        r.existing_index(None, members)
+        r.existing_index(index, members)
+        changed = copy.deepcopy(index)
+        changed["manifests"][1]["digest"] = "sha256:" + "3" * 64
+        with self.assertRaises(ValueError):
+            r.existing_index(changed, members)
+        with self.assertRaises(ValueError):
+            r.existing_index({"manifests": index["manifests"][:1]}, members)
+
+    def release_fixture(self, directory):
+        images = {}
+        build = {"version": "0.1.0", "commit": SOURCE["commit"], "sourceState": "clean"}
+        for product in c.PRODUCTS:
+            for arch in ("amd64", "arm64"):
+                name = product + "-" + arch
+                target = directory / name
+                target.mkdir()
+                image_id = "sha256:" + str(len(images) + 1) * 64
+                images[name] = image_id
+                (target / "image.tar").write_bytes(b"archive")
+                (target / "inventory.spdx.json").write_text("{}")
+                (target / "scan-summary.json").write_text(json.dumps({"outcome": "passed", "imageId": image_id, "platform": "linux/" + arch}))
+                value = {"schemaVersion": 1, "product": product, "platform": "linux/" + arch, "imageId": image_id,
+                         "build": build, "source": SOURCE, "checks": dict.fromkeys(("inspection", "sbom", "scan"), "success"),
+                         "files": c.inventory(target)}
+                (target / "candidate.json").write_text(json.dumps(value))
+        for language in a.LANGUAGES:
+            target = directory / language
+            target.mkdir()
+            names = {"go": [], "python": ["client.whl", "client.tar.gz"], "typescript": ["client.tgz"], "rust": ["client.crate"]}[language]
+            artifacts = {}
+            for name in names:
+                (target / name).write_bytes(language.encode())
+                artifacts[name] = c.digest(target / name)
+            manifest = {"language": language, "releaseBase": (r.ROOT / "VERSION").read_text().strip(),
+                        "openapiSha256": a.digest(r.ROOT / "api/openapi/control-v1.yaml"), "tools": {"compiler": "pinned"},
+                        "sources": {"VERSION": a.digest(r.ROOT / "VERSION")}, "artifacts": artifacts}
+            (target / "manifest.json").write_text(json.dumps(manifest))
+            receipt = {"schemaVersion": 1, "language": language, "run": "fixture-run", **SOURCE,
+                       "manifestSha256": c.digest(target / "manifest.json"), "result": "success"}
+            (target / "qualification.json").write_text(json.dumps(receipt))
+        target = directory / "charts"
+        target.mkdir()
+        charts = {}
+        for name in ("open-agentic-catalog-0.1.0.tgz", "open-agentic-catalog-monitoring-0.1.0.tgz"):
+            (target / name).write_bytes(b"chart")
+            charts[name] = c.digest(target / name)
+        (target / "qualification.json").write_text(json.dumps({"source": SOURCE, "result": "success", "files": charts}))
+        for suite in r.SUITES:
+            selected = {"backend": images["backend-amd64"]}
+            if suite != "api":
+                selected["ui"] = images["ui-amd64"]
+            (directory / ("runtime-" + suite + ".json")).write_text(json.dumps({"suite": suite, "source": SOURCE, "result": "success", "images": selected}))
+        return images
+
+    def test_release_assembly_requires_complete_same_candidate_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(a, "source_identity", return_value=SOURCE):
+            directory = Path(temporary) / "inputs"
+            directory.mkdir()
+            images = self.release_fixture(directory)
+            results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime"), "success")
+            output = Path(temporary) / "complete"
+            result = r.assemble(directory, results, output)
+            self.assertEqual(result["images"], images)
+            self.assertEqual(set(result["runtime"]), set(r.SUITES))
+            self.assertTrue((output / "release-evidence.tar.gz").is_file())
+            self.assertIn("charts/open-agentic-catalog-0.1.0.tgz", result["files"])
+            self.assertIn("sdk/rust/client.crate", result["files"])
+            (directory / "runtime-ui-oidc.json").unlink()
+            with self.assertRaisesRegex(ValueError, "Missing runtime"):
+                r.assemble(directory, results, Path(temporary) / "missing")
+            self.assertFalse((Path(temporary) / "missing").exists())
+
+    def test_failed_delivery_preserves_its_completed_subset_without_rebuilding(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            (directory / "release.json").write_text("{}")
+            value = {"source": SOURCE, "build": {"version": "0.1.0"}, "files": {},
+                     "images": {product + "-" + arch: "sha256:" + "c" * 64 for product in c.PRODUCTS for arch in ("amd64", "arm64")}}
+            calls = []
+
+            def execute(args, **_kwargs):
+                calls.append(args)
+                if args[:3] == ["docker", "image", "push"]:
+                    raise OSError("fixture push failure")
+
+            with patch.object(r, "delivery_plan", return_value=value), patch.object(r, "existing_assets"), patch.object(r, "registry_manifest", return_value=None), patch.object(r.subprocess, "run", side_effect=execute):
+                with self.assertRaises(OSError):
+                    r.publish(directory)
+            record = json.loads((directory / "delivery-result.json").read_text())
+            self.assertEqual(record["result"], "incomplete")
+            self.assertEqual(record["completed"], ["load-backend-amd64", "tag-backend-amd64"])
+            self.assertFalse(any("build" in args or "make" in args for args in calls))
+
+    def test_sdk_staging_rejects_a_copy_that_changes_qualified_bytes(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(a, "source_identity", return_value=SOURCE):
+            root = Path(temporary)
+            self.sdk(root)
+            a.qualify_sdk(root, "typescript", "run-1", SOURCE)
+            copyfile = a.shutil.copyfile
+
+            def changed_copy(source, destination):
+                copyfile(source, destination)
+                if destination.name == "client.tgz":
+                    destination.write_bytes(b"changed during copy")
+
+            output = root / "output/artifacts/qualified-sdk/run-1"
+            with patch.object(a.shutil, "copyfile", side_effect=changed_copy), self.assertRaisesRegex(ValueError, "during staging"):
+                a.stage_sdk(root, "typescript", "run-1", output)
+            self.assertFalse(output.exists())
+
+    def test_delivery_admission_accepts_an_exact_edition_and_refuses_tag_or_checksum_drift(self):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(a, "source_identity", return_value=SOURCE):
+            directory = Path(temporary)
+            (directory / "asset.tgz").write_bytes(b"qualified")
+            value = {"result": "success", "source": SOURCE, "build": {"version": "0.1.0", "sourceState": "clean"},
+                     "files": {"asset.tgz": c.digest(directory / "asset.tgz")}}
+            (directory / "release.json").write_text(json.dumps(value))
+            checksums = value["files"]["asset.tgz"] + "  asset.tgz\n" + c.digest(directory / "release.json") + "  release.json\n"
+            (directory / "SHA256SUMS").write_text(checksums)
+            environment = {"GITHUB_ACTIONS": "true", "RELEASE_PUBLISH": "true", "GITHUB_REF": "refs/tags/v0.1.0", "GITHUB_SHA": SOURCE["commit"]}
+            self.assertEqual(r.delivery_plan(directory, environment), value)
+            for key, wrong in (("GITHUB_REF", "refs/heads/main"), ("GITHUB_SHA", "d" * 40), ("ACT", "true")):
+                with self.assertRaises(ValueError):
+                    r.delivery_plan(directory, {**environment, key: wrong})
+            (directory / "SHA256SUMS").write_text("substituted checksums")
+            with self.assertRaisesRegex(ValueError, "checksums changed"):
+                r.delivery_plan(directory, environment)

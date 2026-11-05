@@ -1,0 +1,137 @@
+name: Disposable functional qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_artifacts:
+        description: Upload selected reports only when the maintainer explicitly enables it
+        type: boolean
+        default: false
+      suite:
+        description: Run one maintained suite on its own disposable runner
+        type: choice
+        required: true
+        default: coverage-postgres-check
+        options:
+          - coverage-postgres-check
+          - test-process-postgres
+          - test-functional
+          - test-ui-compose
+          - test-ui-oidc
+          - test-backup-restore
+          - test-federation-peers
+          - test-webhook-report
+
+permissions:
+  contents: read
+
+concurrency:
+  group: functional-${{ github.workflow }}-${{ github.ref }}-${{ inputs.suite }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CATALOG_ENV_FILE: /dev/null
+  DEV_PYTHON: python3.12
+  PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONOPTIMIZE: '0'
+  GOTELEMETRY: 'off'
+  ASTRO_TELEMETRY_DISABLED: '1'
+  NPM_CONFIG_AUDIT: 'false'
+
+jobs:
+  qualification:
+    name: ${{ inputs.suite }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      SUITE: ${{ inputs.suite }}
+      REPORT_DIRECTORY: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/functional/${{ inputs.suite }}
+    steps:
+      - name: Check out the complete source history
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Select fixed prerequisites and check runner capacity
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            coverage-postgres-check|test-process-postgres|test-functional|test-backup-restore|test-webhook-report) profile=functional ;;
+            test-ui-compose|test-ui-oidc|test-federation-peers) profile=functional-ui ;;
+            *) printf '%s\n' 'Unsupported fixed functional suite.' >&2; exit 2 ;;
+          esac
+          python3.12 -B test/ci/tools.py preflight --profile "$profile"
+          printf 'CI_TOOL_PROFILE=%s\n' "$profile" >> "$GITHUB_ENV"
+      - name: Install only the selected prerequisite profile
+        run: python3.12 -B test/ci/tools.py install --profile "$CI_TOOL_PROFILE"
+      - name: Install locked Python development tools
+        run: make dev-tools-install
+      - name: Install locked UI dependencies
+        if: inputs.suite == 'test-ui-compose' || inputs.suite == 'test-ui-oidc' || inputs.suite == 'test-federation-peers'
+        run: make ui-install
+      - name: Install Chromium system libraries
+        if: inputs.suite == 'test-ui-compose' || inputs.suite == 'test-ui-oidc' || inputs.suite == 'test-federation-peers'
+        working-directory: catalog-ui
+        run: node node_modules/@playwright/test/cli.js install-deps chromium
+      - name: Install the locked Chromium browser
+        if: inputs.suite == 'test-ui-compose' || inputs.suite == 'test-ui-oidc' || inputs.suite == 'test-federation-peers'
+        run: make ui-browser-install
+      - name: Run the selected fixture and its owned cleanup
+        id: qualification
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            coverage-postgres-check) make coverage-postgres-check ;;
+            test-process-postgres) make test-process-postgres ;;
+            test-functional) make -j1 test-functional ;;
+            test-ui-compose) make test-ui-compose ;;
+            test-ui-oidc) make test-ui-oidc ;;
+            test-backup-restore) make test-backup-restore ;;
+            test-federation-peers) make test-federation-peers ;;
+            test-webhook-report) make test-webhook-report ;;
+            *) printf '%s\n' 'Unsupported fixed functional suite.' >&2; exit 2 ;;
+          esac
+      - name: Reject changes outside ignored fixture output
+        if: always() && steps.checkout.outcome == 'success'
+        run: |
+          set -euo pipefail
+          git diff --quiet -- || { printf '%s\n' 'Unexpected unstaged source changes.' >&2; exit 1; }
+          git diff --cached --quiet -- || { printf '%s\n' 'Unexpected staged source changes.' >&2; exit 1; }
+          test -z "$(git ls-files --others --exclude-standard)" || { printf '%s\n' 'Unexpected non-ignored files.' >&2; exit 1; }
+      - name: Summarize the selected boundary
+        if: always() && steps.checkout.outcome == 'success'
+        env:
+          QUALIFICATION_OUTCOME: ${{ steps.qualification.outcome || 'not_run' }}
+          STATUS_AT_SUMMARY: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$REPORT_DIRECTORY"
+          {
+            printf 'Checkout: %s\nSuite: %s\nRunner: %s/%s\nStatus at summary: %s\nQualification: %s\n' "$(git rev-parse HEAD)" "$SUITE" "$RUNNER_OS" "$RUNNER_ARCH" "$STATUS_AT_SUMMARY" "$QUALIFICATION_OUTCOME"
+            printf '%s\n' 'This report covers only the selected suite.'
+            case "$SUITE" in
+              test-backup-restore) printf '%s\n' 'Scope: logical database restore, retained state and recovered API/worker behavior.' ;;
+              test-federation-peers) printf '%s\n' 'Scope: two-Catalog indexed/live discovery, lifecycle and API/CLI/browser pagination.' ;;
+              test-webhook-report) printf '%s\n' 'Scope: standalone HTTPS receiver, durable inbox, restart and reconciliation against owned PostgreSQL.' ;;
+            esac
+            printf '%s\n' 'The maintained harness owns its PostgreSQL roles, temporary credentials, ports, projects and cleanup.'
+            printf '%s\n' 'Packaged tests rebuild their fixture images; they do not consume or qualify images from images.yml.'
+            printf '%s\n' 'Forced cancellation can interrupt cleanup. Failed or cancelled work is not complete qualification.'
+            printf '%s\n' 'No retained stack or hosted identity, discovery or resource endpoint is a test target.'
+          } > "$REPORT_DIRECTORY/summary.txt"
+          cat "$REPORT_DIRECTORY/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain only the public summary and selected coverage profile
+        if: ${{ (always() && steps.checkout.outcome == 'success') && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: functional-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.suite }}
+          path: |
+            ${{ env.REPORT_DIRECTORY }}/summary.txt
+            coverage/postgres.out
+          retention-days: 7
+          if-no-files-found: warn

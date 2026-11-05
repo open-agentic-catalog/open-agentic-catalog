@@ -1,0 +1,95 @@
+.activity-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+.activity-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+}
+.activity-toolbar > label {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  width: auto;
+  max-width: none;
+  gap: 0.5rem;
+}
+.activity-toolbar input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.activity-stats {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+}
+.activity-stats > .overview-stat {
+  grid-column: span 3;
+}
+.activity-stats > .overview-stat:nth-child(n + 5) {
+  grid-column: span 4;
+}
+.activity-stats .overview-panel-heading {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.activity-stats .overview-number {
+  font-size: clamp(1.15rem, 3vw, 1.7rem);
+  overflow-wrap: anywhere;
+}
+.activity-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr));
+  gap: 1rem;
+}
+.activity-details > .overview-panel {
+  grid-column: auto;
+}
+.activity-overview p {
+  margin: 0;
+}
+.activity-overview .overview-panel p {
+  margin-block: 0.75rem;
+}
+.activity-overview td {
+  font-variant-numeric: tabular-nums;
+}
+.activity-overview caption {
+  text-align: left;
+  padding: 0.5rem;
+}
+.activity-id {
+  overflow-wrap: anywhere;
+}
+.activity-stale {
+  font-weight: 600;
+}
+.activity-overview .overview-panel > label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+@media (max-width: 60rem) {
+  .activity-stats > .overview-stat:nth-child(n) {
+    grid-column: span 6;
+  }
+  .activity-stats > .overview-stat:last-child {
+    grid-column: span 12;
+  }
+}
+@media (max-width: 38rem) {
+  .activity-stats > .overview-stat:nth-child(n) {
+    grid-column: span 12;
+  }
+}

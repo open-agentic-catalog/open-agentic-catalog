@@ -1,0 +1,442 @@
+---
+title: Google Cloud Run and Cloud SQL
+---
+
+Deploy the API as a [Cloud Run service](https://docs.cloud.google.com/run/docs/deploying) and the durable worker as a [Cloud Run worker pool](https://docs.cloud.google.com/run/docs/deploy-worker-pools). Use separate identities, configuration inputs and database credentials. The optional UI uses its own image and service.
+
+Catalog can use Cloud SQL only if the database meets the requirements below. This deployment has not been tested on Google Cloud. Check the database permissions, process lifecycle and ingress behavior before serving production traffic.
+
+## Check database compatibility first
+
+[Cloud SQL supports PostgreSQL 18](https://docs.cloud.google.com/sql/docs/postgres/db-versions) and lists [pgcrypto](https://docs.cloud.google.com/sql/docs/postgres/extensions) among its supported extensions. Use PostgreSQL 18 and enable `pgcrypto`; Catalog will not start with another PostgreSQL major version. Engine and extension support do not establish the required database permissions. Catalog also checks exact database identities, ownership, forced row-level security (RLS) and extension-function grant authority.
+
+| Identity | Required database authority |
+| --- | --- |
+| API | Direct `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT NOBYPASSRLS`; no incoming or outgoing role memberships; exact API manifest. |
+| Worker | Direct `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT BYPASSRLS`; no incoming or outgoing role memberships; exact worker manifest. |
+| Operator | Dedicated database/schema owner; access across forced RLS; authority to reconcile Catalog and application-visible extension-function grants. |
+
+[Cloud SQL's user documentation](https://docs.cloud.google.com/sql/docs/postgres/users) restricts customer superuser access. Its default administrator has `CREATEROLE`, `CREATEDB` and `LOGIN`. Built-in users created through Cloud SQL normally receive `cloudsqlsuperuser` membership. Neither that membership nor `CREATEROLE` proves the required worker `BYPASSRLS` attribute. PostgreSQL has [separate rules for granting BYPASSRLS](https://www.postgresql.org/docs/18/sql-createrole.html).
+
+A supported Cloud SQL procedure for these runtime roles and owner permissions has not been established. Confirm how to create both exact runtime identities and prepare the owner before provisioning. Do not assume that the generic `CREATE ROLE ... BYPASSRLS` example works as the Cloud SQL administrator. SQL-created roles can also acquire an administrator membership during creation; inspect both membership directions. Do not retain `cloudsqlsuperuser` on either runtime.
+
+Follow [PostgreSQL roles](database-roles.md), including [non-superuser owner preparation](database-roles.md#prepare-an-isolated-non-superuser-owner). Installing trusted `pgcrypto` does not necessarily transfer function ownership to the Catalog owner. The owner must be able to remove `PUBLIC` and excess runtime extension privileges, then grant only the reviewed overloads. Do not copy an ownership-changing procedure into Cloud SQL without confirming provider support.
+
+Require all of the following before continuing:
+
+1. Confirm PostgreSQL major 18, UTF8 encoding and `pgcrypto` in the selected dedicated database.
+2. Confirm exact role attributes, direct authentication and absence of runtime memberships in both directions.
+3. Confirm schema ownership, forced-RLS access and extension-function grant authority for the operator.
+4. Run the selected image's owner-only migration plan and apply in an authorized isolated test database.
+5. Require compliant `runtimePrivileges` reports for both roles and successful startup using each runtime's own DSN.
+
+For an existing server, check the engine and extension through a protected SQL session:
+
+```sql
+SHOW server_version;
+SHOW server_encoding;
+SELECT extname, extversion
+  FROM pg_catalog.pg_extension
+ WHERE extname = 'pgcrypto';
+```
+
+Expect `18.x`, `UTF8` and one installed `pgcrypto` row. Follow the [role inspection and migration checks](database-roles.md#apply-migrations-and-verify-runtime-authority) for the separate permission requirements.
+
+If any required operation is unavailable, stop. This Cloud SQL configuration does not meet Catalog's database requirements. Select a PostgreSQL deployment that meets the contract; do not weaken RLS, privilege inspection or role separation. No Cloud Run setting or Cloud SQL connection proxy resolves missing SQL authority.
+
+## Select the runtime resources
+
+:::caution[Container hardening has a platform limit]
+Cloud Run provides a [writable in-memory filesystem](https://docs.cloud.google.com/run/docs/container-contract#file_system). The non-root Catalog image does not make it read-only. This procedure cannot reproduce the Docker filesystem and privilege controls in the [deployment contract](deployment.mdx#artifact-and-deployment-ownership). If those controls are required, select a host that enforces them. Do not claim that an immutable image digest supplies equivalent runtime isolation.
+:::
+
+| Component | Google Cloud resource | Required behavior |
+| --- | --- | --- |
+| API | Cloud Run service | HTTP ingress on the selected container port; authenticated Catalog control requests; optional public discovery. |
+| Worker | Cloud Run worker pool | At least one running instance, continuous CPU and private operations listener on port 9090. |
+| Migration and provisioning | Explicit operator process on the private network | Finite owner-only commands while every API and worker is stopped. |
+| Optional UI | Separate Cloud Run service | HTTPS browser origin, independent OIDC client and shared cookie keys; no database credential. |
+
+Worker pools are [generally available](https://docs.cloud.google.com/run/docs/release-notes#April_14_2026). Check the [current worker-pool regions](https://docs.cloud.google.com/run/docs/deploy-worker-pools) before choosing a common region with Cloud SQL and the VPC subnet. A worker pool has no load-balanced service URL and does not automatically scale. Set a positive instance count explicitly. A zero count disables work; an HTTP request cannot wake it.
+
+Cloud Run Jobs execute finite tasks. They do not replace `catalogd worker`, which polls durable Jobs, dispatches outbox records and performs bounded maintenance continuously. A separately selected finite migration Job can run an owner command. It must preserve the same maintenance ordering and use only the owner's database credential.
+
+If regional or organizational policy prevents worker pools, test a separate Cloud Run service for the worker. It needs [instance-based billing](https://docs.cloud.google.com/run/docs/configuring/billing-settings), `--no-cpu-throttling`, a positive minimum instance count and a listener on its configured ingress port. Set `--port=9090` and `CATALOG_WORKER_OPERATIONS_ADDRESS=0.0.0.0:9090`. Restrict ingress and invocation to operators. Minimum instances alone do not allocate continuous CPU under request-based billing. Do not allow this worker service to scale to zero.
+
+Both models can replace instances. Durable leases and database state provide recovery; process-local memory does not. Monitor work age, failed Jobs, outbox delay and worker readiness independently of API request traffic. Size database connection budgets for all instances and temporary rollout overlap. Cloud Run maximum-instance controls do not replace PostgreSQL connection limits.
+
+## Prepare networking and TLS
+
+Install the [Google Cloud CLI](https://docs.cloud.google.com/sdk/docs/install) and authenticate through your approved operator flow. Select a billed project and a region that supports every required resource. Use [gcloud initialization](https://docs.cloud.google.com/sdk/docs/initializing) or your organization's federated login; runtime service accounts do not replace operator authentication.
+
+Have the platform administrator enable the Cloud Run, Compute Engine, Artifact Registry and Secret Manager APIs. The existing Cloud SQL private-network setup also needs its applicable database and networking APIs. Follow the [Cloud Run setup](https://docs.cloud.google.com/run/docs/setup) and [Cloud SQL private-IP prerequisites](https://docs.cloud.google.com/sql/docs/postgres/configure-private-ip#before_you_begin).
+
+Create the distinct API and worker service accounts before using their names below. Grant the deployer the [deployment permissions](https://docs.cloud.google.com/run/docs/deploying#required_roles), including permission to act as those specific accounts and read the selected image repository. The selected `--no-invoker-iam-check` option also requires [permission to change the service IAM policy](https://docs.cloud.google.com/run/docs/authenticating/public#required_roles). Secret creation and access-policy changes need separately scoped Secret Manager permissions. Do not grant database-owner or secret-administration authority to the runtime accounts.
+
+Use an operator-provided VPC, regional subnet and Cloud SQL private connection. [Direct VPC egress](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc) connects Cloud Run services and worker pools to that network. Configure private service access or Private Service Connect according to the selected [Cloud SQL private connection](https://docs.cloud.google.com/sql/docs/postgres/configure-private-ip) design. The deploy commands below assume this infrastructure already exists.
+
+Allow subnet capacity for rollout overlap and address retention. Direct VPC networking can delay connection establishment during startup and reset connections during maintenance. Qualify Catalog startup with the selected driver connection timeout and platform behavior; a longer health-probe budget cannot retry a process that already exited after database initialization failed.
+
+Allow only the required database route, DNS and selected outbound HTTPS destinations. `private-ranges-only` sends private destinations through the VPC; it is not a general internet egress filter. Use `all-traffic` with reviewed routes, NAT and firewall policy when the deployment requires centralized public egress control. Keep the [Catalog outbound boundary](security.md) configured separately for federation, artifacts, media and webhooks. OIDC discovery and signing-key access use the configured issuer verifier.
+
+This example connects pgx directly to private PostgreSQL over verified TLS. It does not use `--add-cloudsql-instances`, a Cloud SQL Auth Proxy sidecar or automatic IAM database authentication. The Catalog does not contain a Cloud SQL connector or a database IAM-token refresh integration. Static role credentials remain scoped Secret Manager inputs.
+
+Choose a Cloud SQL CA mode and hostname that support `sslmode=verify-full`. With a shared CA, use the instance certificate's DNS name and configure private DNS resolution to the selected private address. Google documents this [server identity verification procedure](https://docs.cloud.google.com/sql/docs/postgres/configure-ssl-instance#server_identity_verification). Do not substitute an arbitrary private IP or alias that the certificate does not cover. Enforce encrypted connections on the server as well.
+
+Each role's DSN has this shape; replace every placeholder and percent-encode reserved password characters:
+
+```text
+postgres://catalog_api:PERCENT_ENCODED_PASSWORD@CERTIFICATE_DNS_NAME:5432/catalog?sslmode=verify-full&sslrootcert=/etc/catalog-trust/db/ca.pem
+```
+
+Use `catalog_worker` and the dedicated operator identity in their separate files. If the server requires client certificates, supply that role's certificate/key files and DSN options separately. Private networking does not remove TLS verification requirements.
+
+## Prepare configuration and secrets
+
+Use an existing exact backend image digest in Artifact Registry. Select its `linux/amd64` artifact for the [Cloud Run container contract](https://docs.cloud.google.com/run/docs/container-contract). The repository's backend image contains static `catalogd` and `catalogctl` binaries, embedded public roots and licenses. It runs as UID/GID `65532:65532` and has no shell, package manager or curl. Use explicit binary commands and arguments.
+
+Prepare a reviewed copy of [production.example.json](../../../../../config/production.example.json) outside the checkout. Replace issuer, audience, tenant and discovery-host placeholders. Keep `database.migrateOnStart` false. Optional webhooks, hybrid search, trust verification and managed media are outside this core example; leave their switches disabled. Set the Catalog public base URL to the final external HTTPS API URL.
+
+Cloud Run services [inject PORT](https://docs.cloud.google.com/run/docs/container-contract#port). Catalog does not read that variable. The example fixes the provider port to 8080 and sets `CATALOG_HTTP_ADDRESS=0.0.0.0:8080`. Change both together. Do not place `$PORT` in a JSON string or argument: there is no shell to expand it. The worker uses its separate operations listener on 9090.
+
+Cloud Run normally sends `SIGKILL` ten seconds after `SIGTERM`, including for worker pools. Catalog's production example allows a 20-second shutdown. For this deployment, set `http.requestTimeout` to `2s`, `http.writeTimeout` to `8s` and `http.shutdownTimeout` to `8s`. These values satisfy Catalog's request-plus-cleanup validation and leave a small platform margin. Test that your workload drains within eight seconds; a successful configuration check does not prove this. If requests or shutdown need longer, choose a runtime with a sufficient termination grace period.
+
+Retain the 30-second worker lease unless workload tests establish another valid setting. The lease and shutdown budgets serve different purposes. A killed worker can leave work leased until expiry; preserve safe retry and idempotency rather than forcing immediate repeats.
+
+Create separate [Secret Manager](https://docs.cloud.google.com/secret-manager/docs/creating-and-accessing-secrets) secrets for these inputs:
+
+| Example secret | Consumer and mounted path |
+| --- | --- |
+| `catalog-runtime-config` | API and worker: `/etc/catalog/config.json`; non-secret JSON stored through the same delivery mechanism. |
+| `catalog-db-ca` | Each database consumer: `/etc/catalog-trust/db/ca.pem`; public trust certificate. |
+| `catalog-api-dsn` | API only: `/run/secrets/database/dsn`. |
+| `catalog-worker-dsn` | Worker only: `/run/secrets/database/dsn`. |
+| `catalog-owner-dsn` | Operator only; never attach to either runtime. |
+| `catalog-cursor-key` | API and worker: `/run/secrets/cursor/key`; base64 for exactly 32 random bytes. |
+
+Use distinct runtime service accounts. Grant each account `roles/secretmanager.secretAccessor` on only its listed secrets. Keep deployment, Artifact Registry, network and owner privileges separate. A Cloud IAM service account does not become a Catalog actor or PostgreSQL role.
+
+The commands below are review examples. They create billable resources or change deployment state when executed. Replace all `REPLACE_` values and select an authorized project before execution. Keep a Bash terminal with error checks and a private input directory:
+
+```sh
+set -euo pipefail
+umask 077
+CATALOG_GCP_PROJECT='REPLACE_PROJECT_ID'
+CATALOG_GCP_REGION='REPLACE_COMMON_REGION'
+CATALOG_GCP_NETWORK='REPLACE_VPC_NAME'
+CATALOG_GCP_SUBNET='REPLACE_SUBNET_NAME'
+CATALOG_GCP_IMAGE='REPLACE_REGION-docker.pkg.dev/REPLACE_PROJECT/REPLACE_REPOSITORY/catalog@sha256:REPLACE_DIGEST'
+CATALOG_GCP_API='catalog-api'
+CATALOG_GCP_WORKER='catalog-worker'
+CATALOG_GCP_API_ACCOUNT="catalog-api@$CATALOG_GCP_PROJECT.iam.gserviceaccount.com"
+CATALOG_GCP_WORKER_ACCOUNT="catalog-worker@$CATALOG_GCP_PROJECT.iam.gserviceaccount.com"
+CATALOG_GCP_INPUTS="$HOME/.local/share/open-agentic-catalog/google-cloud"
+```
+
+For a new input set, create an unused private directory and copy the production profile:
+
+```sh
+test ! -e "$CATALOG_GCP_INPUTS"
+mkdir -p "$CATALOG_GCP_INPUTS"
+cp config/production.example.json "$CATALOG_GCP_INPUTS/config.json"
+```
+
+Apply the settings described above before uploading this file. For an existing deployment, preserve its protected inputs and prepare a separately reviewed target set; do not overwrite it with the example profile.
+
+Provision the input files through the deployment's credential process. Keep passwords and key bytes out of commands, shell history and JSON configuration. For a new secret, this command uploads a private file without placing its value in an argument:
+
+```sh
+gcloud secrets create catalog-api-dsn --project="$CATALOG_GCP_PROJECT" \
+  --replication-policy=automatic --data-file="$CATALOG_GCP_INPUTS/api.dsn"
+gcloud secrets add-iam-policy-binding catalog-api-dsn \
+  --project="$CATALOG_GCP_PROJECT" \
+  --member="serviceAccount:$CATALOG_GCP_API_ACCOUNT" \
+  --role=roles/secretmanager.secretAccessor
+```
+
+Repeat with the exact intended consumer for the remaining secrets. For an existing secret, create a reviewed new version instead of recreating it. Record numeric versions and reference them explicitly below; `1` is illustrative. Do not use `latest` for a coordinated release.
+
+[Cloud Run service secrets](https://docs.cloud.google.com/run/docs/configuring/services/secrets) and [worker-pool secrets](https://docs.cloud.google.com/run/docs/configuring/workerpools/secrets) support files and secret-backed environment variables. Second-generation secret volumes are root-owned. The [default file mode is 0444](https://docs.cloud.google.com/run/docs/reference/rest/v1/Volume), permitting the non-root Catalog user to read them. A root-only `0400` mount is unusable. Keep containers and secret access scoped to the intended consumer. Use a distinct mount directory per secret so one volume does not hide another.
+
+Use global Secret Manager secrets; [regional secrets are unsupported](https://docs.cloud.google.com/run/docs/configuring/services/secrets#limitations). Do not mount secrets under `/dev`, `/proc` or `/sys`. The dedicated paths in this guide avoid those reserved locations.
+
+For an environment alternative, map `CATALOG_DATABASE_DSN=catalog-api-dsn:1` with `--set-secrets` and omit `CATALOG_DATABASE_DSN_FILE`. Use `CATALOG_CURSOR_SIGNING_KEY` similarly only if its file setting is absent. Direct/file pairs are mutually exclusive. Binaries do not load `.env`; only documented `CATALOG_*` overrides have effect. Cloud CLI environment-file syntax does not make the repository's Make workflow file a runtime configuration. See [configuration precedence](../reference/configuration.mdx#configuration-delivery-and-precedence).
+
+## Apply migrations with the owner
+
+Run the selected image's `catalogctl` from an explicit operator host that reaches the private database. This example uses an authorized Linux host with Docker and private DNS/network access. Acquire the exact target image through the release process first; `--pull=never` does not download it. Keep the host's reviewed `config.json`, `db-ca.pem` and `owner.dsn` private. The helper selects the host's non-root UID/GID to read its private bind mounts:
+
+```sh
+CATALOG_GCP_OPERATOR_UID=$(id -u)
+CATALOG_GCP_OPERATOR_GID=$(id -g)
+test "$CATALOG_GCP_OPERATOR_UID" -ne 0
+catalog_gcp_owner() {
+  docker run --rm --pull=never --read-only --network=host \
+    --user "$CATALOG_GCP_OPERATOR_UID:$CATALOG_GCP_OPERATOR_GID" \
+    --cap-drop=ALL --security-opt=no-new-privileges:true \
+    -e CATALOG_DATABASE_DSN_FILE=/run/secrets/database/dsn \
+    --mount "type=bind,src=$CATALOG_GCP_INPUTS/config.json,dst=/etc/catalog/config.json,readonly" \
+    --mount "type=bind,src=$CATALOG_GCP_INPUTS/db-ca.pem,dst=/etc/catalog-trust/db/ca.pem,readonly" \
+    --mount "type=bind,src=$CATALOG_GCP_INPUTS/owner.dsn,dst=/run/secrets/database/dsn,readonly" \
+    --entrypoint=/usr/local/bin/catalogctl "$CATALOG_GCP_IMAGE" "$@"
+}
+```
+
+Before an upgrade, follow the complete [drain procedure below](#stop-and-upgrade). A fresh installation has no running API or worker. The helper supplies only the owner DSN and no runtime signing keys. Invoke these commands:
+
+```sh
+catalog_gcp_owner config validate --config /etc/catalog/config.json --role migration
+catalog_gcp_owner migrate plan --config /etc/catalog/config.json
+catalog_gcp_owner migrate apply --config /etc/catalog/config.json \
+  --api-role catalog_api --worker-role catalog_worker
+```
+
+These are operator-process commands, not startup arguments for the API or worker. Review the migration plan before apply. Apply must report compliant grants for both roles. If SQL commits but reconciliation fails, keep all runtimes stopped, fix the reported problem and repeat the same target apply. Do not restart an earlier image automatically.
+
+Provision the first Catalog administrator using the database schema owner's login. Use the exact issuer and subject from the selected identity provider:
+
+```sh
+catalog_gcp_owner identity provision --config /etc/catalog/config.json \
+  --tenant REPLACE_TENANT_UUID --tenant-name 'REPLACE_TENANT_NAME' \
+  --issuer 'https://REPLACE_ISSUER' --tenancy-mode dedicated \
+  --subject REPLACE_SUBJECT --roles tenant_admin \
+  --operator REPLACE_OPERATOR --reason 'Initial Catalog tenant bootstrap'
+```
+
+Do not use development identity provisioning or smoke seeding for production installation.
+
+## Deploy the API service
+
+Choose [HTTPS ingress](https://docs.cloud.google.com/run/docs/securing/ingress). This example assumes an existing external Application Load Balancer and uses `internal-and-cloud-load-balancing`. Configure its serverless backend, certificate, DNS and host routing separately. Keep the API at its supported root paths; do not introduce a path prefix. Cloud Run terminates external TLS and forwards HTTP to the container.
+
+Configure `http.publicBaseUrl`, discovery host mappings and publisher domains for the final API host. The listener setting does not enable application TLS. Do not assume an unconfigured `run.app` hostname serves the same discovery audience as the configured custom host.
+
+Preserve the selected public `Host` through ingress. ARD discovery rejects `Forwarded`, `X-Forwarded-Host` and `X-Original-Host`; remove them before requests reach Catalog. Ordinary `X-Forwarded-For` and `X-Forwarded-Proto` do not select a tenant or discovery audience. Verify the actual managed proxy behavior before publishing discovery. Keep the API's unauthenticated `/metrics` route outside public load-balancer routing; restrict it to authorized monitoring. The worker's private operations listener does not protect that API route.
+
+The example disables the Cloud Run Invoker IAM check so Catalog receives its OAuth bearer tokens. Catalog still authenticates and authorizes control routes. Public discovery remains limited to configured hosts and immutable snapshots. Review [Cloud Run public access](https://docs.cloud.google.com/run/docs/authenticating/public) and organization policy before selecting this boundary.
+
+```sh
+gcloud run deploy "$CATALOG_GCP_API" \
+  --project="$CATALOG_GCP_PROJECT" --region="$CATALOG_GCP_REGION" \
+  --image="$CATALOG_GCP_IMAGE" --service-account="$CATALOG_GCP_API_ACCOUNT" \
+  --execution-environment=gen2 --port=8080 --ingress=internal-and-cloud-load-balancing \
+  --no-invoker-iam-check --cpu=1 --memory=512Mi \
+  --scaling=auto --min=1 --max=2 --concurrency=16 --timeout=10s \
+  --network="$CATALOG_GCP_NETWORK" --subnet="$CATALOG_GCP_SUBNET" \
+  --vpc-egress=private-ranges-only \
+  --command=/usr/local/bin/catalogd --args=api,--config,/etc/catalog/config.json \
+  --set-env-vars=CATALOG_HTTP_ADDRESS=0.0.0.0:8080,CATALOG_DATABASE_DSN_FILE=/run/secrets/database/dsn,CATALOG_CURSOR_SIGNING_KEY_FILE=/run/secrets/cursor/key \
+  --set-secrets=/etc/catalog/config.json=catalog-runtime-config:1,/etc/catalog-trust/db/ca.pem=catalog-db-ca:1,/run/secrets/database/dsn=catalog-api-dsn:1,/run/secrets/cursor/key=catalog-cursor-key:1 \
+  --startup-probe=httpGet.path=/readyz,httpGet.port=8080,periodSeconds=5,timeoutSeconds=3,failureThreshold=24 \
+  --readiness-probe=httpGet.path=/readyz,httpGet.port=8080,periodSeconds=5,timeoutSeconds=3,failureThreshold=2,successThreshold=2 \
+  --liveness-probe=httpGet.path=/livez,httpGet.port=8080,periodSeconds=10,timeoutSeconds=2,failureThreshold=3
+```
+
+The resource sizes and instance bounds are starting points for testing, not measured capacity recommendations. The application request timeout remains separate from Cloud Run's ingress timeout.
+
+Use the current [gcloud probe flags](https://docs.cloud.google.com/sdk/gcloud/reference/run/deploy#--readiness-probe). The readiness flag accepts the fields above; it does not accept `initialDelaySeconds`. The API probes have separate purposes:
+
+| Probe | Path and budget | Purpose |
+| --- | --- | --- |
+| Startup | `/readyz`, every 5 seconds, 3-second timeout, 24 failures | Require local readiness and a successful repository check before startup succeeds. |
+| Readiness | `/readyz`, every 5 seconds, 3-second timeout, 2 failures/2 successes | Remove new traffic during dependency failure; resume after recovery. |
+| Liveness | `/livez`, every 10 seconds, 2-second timeout, 3 failures | Check the process without contacting PostgreSQL. |
+
+The API bounds each readiness dependency check at two seconds. The probe's three-second timeout leaves time for the HTTP response. Readiness failure does not terminate the instance. Do not use it as the steady-state liveness probe.
+
+[Cloud Run can send traffic after startup succeeds, before the first readiness result](https://docs.cloud.google.com/run/docs/configuring/healthchecks). Startup therefore also checks `/readyz`. This limits initial traffic to a dependency-ready instance; it does not retry a process that already exited during initialization. Worker-pool and UI-host probes retain their separate behavior below. These settings still require deployment qualification on Google Cloud.
+
+Cloud IAM invocation normally uses a Google ID token for the Cloud Run service audience. Catalog expects a signed JWT access token for its configured issuer and API audience. These credentials are distinct. Retaining both checks requires a client or gateway that supplies both credentials; test that arrangement separately. The built-in UI forwards the Catalog bearer and does not obtain a Cloud Run invocation token. See [Cloud Run service authentication](https://docs.cloud.google.com/run/docs/authenticating/service-to-service) and [Catalog sign-in](sign-in.md).
+
+## Deploy the durable worker
+
+Create a private `worker-pool.yaml` outside the checkout. Replace every `REPLACE_` value, numeric secret version and instance count. YAML does not expand the shell variables defined above. The example uses [manual worker scaling](https://docs.cloud.google.com/run/docs/configuring/workerpools/manual-scaling), Direct VPC egress and four separate secret volumes:
+
+```yaml title="worker-pool.yaml"
+apiVersion: run.googleapis.com/v1
+kind: WorkerPool
+metadata:
+  name: catalog-worker
+  labels:
+    cloud.googleapis.com/location: REPLACE_COMMON_REGION
+  annotations:
+    run.googleapis.com/manualInstanceCount: "1"
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/network-interfaces: '[{"network":"REPLACE_VPC_NAME","subnetwork":"REPLACE_SUBNET_NAME"}]'
+        run.googleapis.com/vpc-access-egress: private-ranges-only
+    spec:
+      serviceAccountName: catalog-worker@REPLACE_PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: REPLACE_REGION-docker.pkg.dev/REPLACE_PROJECT/REPLACE_REPOSITORY/catalog@sha256:REPLACE_DIGEST
+          command: [/usr/local/bin/catalogd]
+          args: [worker, --config, /etc/catalog/config.json]
+          env:
+            - name: CATALOG_WORKER_OPERATIONS_ADDRESS
+              value: 0.0.0.0:9090
+            - name: CATALOG_DATABASE_DSN_FILE
+              value: /run/secrets/database/dsn
+            - name: CATALOG_CURSOR_SIGNING_KEY_FILE
+              value: /run/secrets/cursor/key
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /livez
+              port: 9090
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 9090
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          volumeMounts:
+            - name: configuration
+              mountPath: /etc/catalog
+            - name: db-trust
+              mountPath: /etc/catalog-trust/db
+            - name: database
+              mountPath: /run/secrets/database
+            - name: cursor
+              mountPath: /run/secrets/cursor
+      volumes:
+        - name: configuration
+          secret:
+            secretName: catalog-runtime-config
+            items: [{key: "1", path: config.json}]
+        - name: db-trust
+          secret:
+            secretName: catalog-db-ca
+            items: [{key: "1", path: ca.pem}]
+        - name: database
+          secret:
+            secretName: catalog-worker-dsn
+            items: [{key: "1", path: dsn}]
+        - name: cursor
+          secret:
+            secretName: catalog-cursor-key
+            items: [{key: "1", path: key}]
+```
+
+Apply the reviewed file:
+
+```sh
+gcloud run worker-pools replace "$CATALOG_GCP_INPUTS/worker-pool.yaml" \
+  --project="$CATALOG_GCP_PROJECT"
+```
+
+The [replace command](https://docs.cloud.google.com/sdk/gcloud/reference/run/worker-pools/replace) reads the region from the YAML location label. Set it to the same reviewed region as the API and private subnet.
+
+Worker [startup and liveness checks](https://docs.cloud.google.com/run/docs/configuring/workerpools/healthchecks) target the existing operations listener. A successful worker deployment does not prove database readiness or useful work. Monitor `/readyz`, component state and leased-work progress through a private operator path. A pool has no public service URL. Direct VPC egress alone is not a monitoring design; explicitly configure and restrict [Direct VPC ingress](https://docs.cloud.google.com/run/docs/configuring/vpc-direct-vpc) if remote operations scraping is required. Use the documented subnet/IP controls; worker ingress cannot use a network tag as its firewall target. Never publish port 9090 through the public API load balancer.
+
+## Add the optional UI
+
+Use the independently packaged [UI image and host configuration](../reference/ui-host-configuration.md#host-configuration). Set its JSON `listen` to `0.0.0.0:8080` and the Cloud Run service port to 8080. Backend `CATALOG_*` variables and `PORT` do not configure this host.
+
+Make the UI HTTPS origin reachable by its intended browsers. Disable the UI service's Cloud Run Invoker IAM check, or test a separate gateway authentication arrangement that permits login, assets and the OIDC callback. Catalog browser sessions do not satisfy Cloud Run IAM. The UI's own sign-in checks still protect session-bound API forwarding; its static assets and bundled manual are public.
+
+Use a separate HTTPS UI origin, such as `https://console.example.com`, and an API origin such as `https://catalog.example.com`. Configure `upstream` as that exact API origin without a path. Allow the UI's server requests through the API's selected ingress boundary. Do not require a Cloud Run invocation ID token from the built-in host. Keep the upstream origin free of redirects.
+
+Set `origin`, `basePath` and the provider callback consistently. For an empty base path, register `https://console.example.com/auth/callback`. For `/catalog`, register `https://console.example.com/catalog/auth/callback` and preserve that prefix through ingress. Keep the UI's fixed `/docs/` route available. A single-host URL map must also preserve the backend root routes and avoid collisions; separate hosts are the simpler example.
+
+Configure the UI for production OIDC, with the same issuer accepted by the API and a separate confidential web-client ID. The ID token targets the UI client; the JWT access token targets Catalog. Provision Catalog membership separately. Google workload identity and the deployment service account do not provide this human sign-in flow.
+
+Prepare `ui.json` with the required host fields. Replace the issuer and client ID, then select the actual HTTPS origins. Add reviewed Catalog scopes when the API enforces OAuth ceilings:
+
+```json title="ui.json"
+{
+  "logLevel": "info",
+  "logFormat": "json",
+  "listen": "0.0.0.0:8080",
+  "environment": "production",
+  "origin": "https://console.example.com",
+  "basePath": "",
+  "assets": "/app/assets",
+  "upstream": "https://catalog.example.com",
+  "cookieName": "catalog-session",
+  "keysFile": "/run/secrets/ui-keys/keys.json",
+  "sessionSeconds": 3600,
+  "requestBytes": 2097152,
+  "responseBytes": 16777216,
+  "timeoutSeconds": 60,
+  "authMode": "oidc",
+  "issuer": "https://identity.example.com",
+  "clientId": "REPLACE_UI_CLIENT_ID",
+  "clientSecretFile": "/run/secrets/ui-oidc/client-secret",
+  "scopes": []
+}
+```
+
+Use a third pre-created service account for the UI. Give it image-read access and secret access only to `catalog-ui-config`, `catalog-ui-keys` and `catalog-ui-client-secret`. Create these secrets from the reviewed JSON, cookie-key ring and client-secret files, using the file-upload procedure above. The UI receives no database DSN, owner input or backend cursor key. Add independent API/issuer CA files and their JSON paths only when required.
+
+This example uses another reviewed serverless backend behind the existing load balancer. Configure its UI hostname, certificate and route before testing browser login. Select the actual UI image digest and numeric secret versions:
+
+```sh
+CATALOG_GCP_UI_IMAGE='REPLACE_REGION-docker.pkg.dev/REPLACE_PROJECT/REPLACE_REPOSITORY/catalog-ui@sha256:REPLACE_DIGEST'
+CATALOG_GCP_UI_ACCOUNT="catalog-ui@$CATALOG_GCP_PROJECT.iam.gserviceaccount.com"
+gcloud run deploy catalog-ui \
+  --project="$CATALOG_GCP_PROJECT" --region="$CATALOG_GCP_REGION" \
+  --image="$CATALOG_GCP_UI_IMAGE" --service-account="$CATALOG_GCP_UI_ACCOUNT" \
+  --execution-environment=gen2 --port=8080 --ingress=internal-and-cloud-load-balancing \
+  --no-invoker-iam-check --cpu=1 --memory=512Mi \
+  --scaling=auto --min=0 --max=2 --concurrency=16 --timeout=60s \
+  --command=/usr/local/bin/catalog-ui --args=--config,/etc/catalog-ui/config.json \
+  --set-secrets=/etc/catalog-ui/config.json=catalog-ui-config:1,/run/secrets/ui-keys/keys.json=catalog-ui-keys:1,/run/secrets/ui-oidc/client-secret=catalog-ui-client-secret:1 \
+  --startup-probe=httpGet.path=/livez,httpGet.port=8080,periodSeconds=5,timeoutSeconds=2,failureThreshold=24 \
+  --liveness-probe=httpGet.path=/livez,httpGet.port=8080,periodSeconds=10,timeoutSeconds=2,failureThreshold=3
+```
+
+The UI can scale to zero because it serves browser requests and has no durable worker loop. Add the separately reviewed VPC options only when its fixed API or issuer requires private routing. Verify that routing before sign-in. UI `/readyz` checks the host, not the API or identity provider.
+
+All UI instances need the same origin, base path, upstream, cookie name and key ring. HTTPS cookies are Secure, HttpOnly and SameSite=Lax. Follow [UI key rotation](maintenance.mdx#rotate-ui-session-keys); no database, affinity or refresh-token store is required. Qualify token sizes against the 3,600-byte encoded-cookie limit.
+
+The current UI host uses a fixed 15-second shutdown bound, exceeding Cloud Run's usual ten-second termination grace. There is no supported JSON/env setting to reduce that bound. Cloud Run can interrupt browser/API requests before the UI finishes draining. Preserve command idempotency and provide client recovery for uncertain outcomes.
+
+## Verify and operate
+
+After an authorized deployment, check the selected API URL's `/readyz` and `/version`, then perform an authorized `/api/v1/me` or capabilities read. Verify the private worker readiness and useful work separately. Test OIDC sign-in through the final UI origin when enabled. Health responses and Cloud Run deployment status alone do not prove issuer compatibility, exact SQL grants or a complete working setup.
+
+Qualification also needs idle-worker progress, instance replacement during work, lease expiry/recovery, database outage/recovery and private operations access. Confirm that request-based API scaling cannot stop the independent worker. Exercise every selected secret replacement through fresh processes and fresh database connections. Keep logs and support reports free of tokens, DSNs and secret values.
+
+Cloud Run captures stdout/stderr through [Cloud Logging](https://docs.cloud.google.com/run/docs/logging). Use Catalog structured JSON logs when appropriate. The platform owns retention, access and alerts. Database operators configure Cloud SQL backup/PITR, availability, maintenance and writer routing, and test restores. Follow [backup and restore](backup-restore.mdx); an available provider backup is not evidence of a successful Catalog restore.
+
+## Stop and upgrade
+
+Use a maintenance interval for releases that change schema or exact privileges. Pause deployment automation and any external scaling controller. Record the desired target image, numeric secret versions and API/worker counts before changing live state. Qualify a recovery point separately.
+
+1. Stop new API requests at the selected ingress. Remove all traffic tags and retire unintended traffic splits.
+2. Disable the API service with manual scaling zero. Wait for every API revision and process to stop.
+3. Set the worker pool count to zero. Wait for every worker revision and process to stop.
+4. Confirm no predecessor API/worker database sessions or active owner command remain.
+5. Run the target image's owner-only plan/apply and any explicitly required bounded repair.
+6. Deploy the matching worker and API configuration with the recorded positive target counts. Verify readiness, build identity and retained-state reads.
+
+These commands initiate the selected stop operations; wait for completion between roles:
+
+```sh
+gcloud run services update-traffic "$CATALOG_GCP_API" --clear-tags \
+  --project="$CATALOG_GCP_PROJECT" --region="$CATALOG_GCP_REGION"
+gcloud run services update "$CATALOG_GCP_API" --scaling=0 \
+  --project="$CATALOG_GCP_PROJECT" --region="$CATALOG_GCP_REGION"
+```
+
+After the complete API drain:
+
+```sh
+gcloud run worker-pools update "$CATALOG_GCP_WORKER" --instances=0 \
+  --project="$CATALOG_GCP_PROJECT" --region="$CATALOG_GCP_REGION"
+```
+
+[Cloud Run manual scaling](https://docs.cloud.google.com/run/docs/configuring/services/manual-scaling#disable_a_service) does not disable revisions kept active only by traffic tags. API traffic removal, `--no-traffic` and a successful scaling update are not sufficient evidence of a complete drain. Worker revision instance splits also need explicit review. Do not run migrations until all old processes have stopped. The SQL advisory lock serializes migration commands; it does not drain Cloud Run resources.
+
+After apply, replace only with matching target binaries. Restart using the reviewed deployment commands, explicitly restoring API automatic scaling and the positive worker count. Do not infer the desired replica counts from the live zero values. On any migration, grant or target-readiness failure, keep runtimes stopped and repair forward under [maintenance guidance](maintenance.mdx#upgrade-and-failed-migration). Cloud Run revision rollback does not undo SQL.
+
+Configuration files and initialized credentials load at startup. Secret Manager rotation or a changed mounted file does not reload Catalog's active database pool, signing key or UI key ring. Follow the per-input [credential rotation procedure](maintenance.mdx#rotate-credentials-and-trust) and replace the intended processes with pinned input versions. Keep owner secrets and retained recovery keys outside runtime access.

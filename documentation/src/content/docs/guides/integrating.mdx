@@ -1,0 +1,830 @@
+---
+title: Integrate a Catalog client
+---
+
+import ClientRetry from "../../../components/architecture/ClientRetry.astro";
+import FederationPeers from "../../../components/architecture/FederationPeers.astro";
+import WebhookReceiver from "../../../components/architecture/WebhookReceiver.astro";
+
+Use the HTTP API for authoring, governance and private discovery. Use the configured Agentic Resource Discovery (ARD) interfaces for interoperable discovery. The Catalog never executes returned resources. You can call these APIs directly without an SDK, browser login or external service subscription.
+
+For a browser-first visit, [connect to an existing Catalog](reader-quickstart.mdx). Use the [search cookbook](search-cookbook.mdx) for matching UI/CLI recipes and [result interpretation](understand-results.mdx) for exact references and evidence limits. The [client matrix](../index.mdx#choose-a-client) compares supported workflows.
+
+## Choose an integration example
+
+Obtain the example files from a source checkout. Choose a workflow below, then follow its owning guide for exact tool versions, connection settings, limits and cleanup.
+
+Both assistants below return metadata without installing or executing resources. The [Catalog MCP server](mcp-server.mdx) separately exposes Catalog read tools for an MCP host.
+
+### Use an existing terminal assistant
+
+The [Catalog discovery Skill](assistant-discovery.md) works with your assistant's existing model and command controls. It needs the installed `catalogctl` binary, the complete Skill package and an explicitly configured API origin and bearer token. Setup copies files into your assistant project; discovery does not change Catalog data.
+
+A Reader can search authorized local releases. Summarizing indexed or live results also requires tenant `federation.discover`; enforced OAuth scopes require `catalog.read`. Live Search can disclose queries to approved peers. Exact record inspection remains local. The guide includes a worked first request and explains partial results and permission failures.
+
+### Run a Python discovery assistant
+
+The [LangGraph assistant](../../../../../examples/langgraph/README.md) supplies its own Python graph and two discovery tools. Install Python, uv and the installation-time Go toolchain, then prepare a local Ollama model. Its guide pins the versions and explains model disk and memory requirements.
+
+Configure a Reader bearer credential and API origin separately from the model. The tools search local releases and inspect selected local records; they exclude indexed and live results. Enforced OAuth scopes require `catalog.read`. Setup creates an optional Python environment and downloads model weights; discovery does not change Catalog data or execute returned resources.
+
+### Generate a Rust inventory report
+
+The [Rust Catalog report](../../../../../examples/rust-catalog-report/README.md) is a standalone SDK consumer. It needs the source checkout, Rust 1.88 or newer, Cargo, a native C toolchain and an explicit Reader token file. Optional private CA input preserves TLS verification; enforced OAuth scopes require `catalog.read`.
+
+The CLI searches only local releases and reads exact records. It prints escaped Markdown with query/kind filters, bounded paging and complete/partial exit status. Setup downloads the locked Cargo dependencies; execution does not change Catalog data or invoke resources. The guide includes a worked curated-sample query and troubleshooting.
+
+### List a published Catalog with TypeScript
+
+The [TypeScript discovery client](../../../../../examples/typescript-ard-list/README.md) lists one host's active ARD publication. Install its local SDK tarball and use a supported Node runtime. It needs no token for anonymous discovery. Authenticated discovery requires same-tenant `discovery.read` and enforced `catalog.read`, without private Resource access.
+
+The client checks response fields and prints bounded JSON metadata. It reports complete, page-limited and failed traversals separately. Private CA trust uses Node's startup configuration. It does not follow entry URLs or execute resources.
+
+### Set up password login and federation
+
+The [interactive Keycloak tutorial](../operations/oidc-keycloak.md#run-the-interactive-local-tutorial) prepares an owned local environment. It requires Docker with Compose, Python, OpenSSL, Make, Go, curl and a browser. Its preparation creates private credentials and TLS inputs outside the checkout. Following the procedure creates database and issuer state, accounts and Catalog access assignments.
+
+Continue with the [two-Catalog federation tutorial](two-catalog-federation.mdx) to publish resources on A and synchronize them into B. It uses separate human identities, service credentials and source credentials. The tutorials explain scopes, private trust, VS Code access and deliberate disposal of persistent local state.
+
+### Import Agent and Skill drafts
+
+The [native-import starter](resource-authoring.mdx#use-the-agent-and-skill-starter) supplies a manifest, an Agent Card and a standalone Skill document. Build `catalogctl` from the source checkout. Offline preview needs no Catalog or credential. Apply needs existing Namespace and Publisher IDs, authoring permissions and an explicit API token.
+
+Copy the files privately before changing destination IDs and canonical identifiers. The CLI creates drafts through separate API commands and retains one private recovery receipt. Resume uses the unchanged files and original receipt after interruption or completion. Import does not review, release, publish or execute the content. The Skill document is not a complete package.
+
+### Register an existing server or a saved Registry record
+
+Follow [Register an existing server](resource-authoring.mdx#register-an-existing-server) for a producer's Agent Card or MCP metadata. Choose a local file or an allowed HTTPS metadata document. Saving retrieves HTTPS content; later revalidation checks it against retained bytes.
+
+Use [Import one MCP Registry record](resource-authoring.mdx#import-one-mcp-registry-record) for a saved Registry response. The offline fixture shows extraction of its native `server` object, private destination choices and CLI preview. Use normal review and publication afterward. This creates drafts; it does not mirror the Registry or invoke its servers.
+
+### Receive signed notifications
+
+The [Go publication report](../../../../../examples/publication-report/README.md) is a runnable HTTPS receiver with its own PostgreSQL database. It uses the Go SDK to refresh current publication state and reconcile missed notifications. Its guide covers TLS, minimal API grants, protected files, bounded work and recovery.
+
+The [Go webhook receiver example](../../../../../examples/webhookreceiver/README.md) supplies a standard-library verifier and HTTP handler outline for your application. It requires an HTTPS receiver and the exact webhook secret and version returned to the registering administrator. Use separate authorized Catalog API credentials when processing needs current-state reads.
+
+Custom receivers must implement event validation, durable acceptance and deduplication. Those operations create receiver-owned persistent state. The verifier outline does not provide a standalone server or storage implementation. Follow [webhook operations](../operations/webhooks.mdx) for enablement, rotation, retries and reconciliation.
+
+The `examples/` directory contains these client integrations and tutorial inputs. The `samples/` directory contains governed resource metadata and package inputs for the [sample Catalog](sample-catalog.mdx). The `api/examples/` directory contains reviewed request templates and notification payloads, indexed in [API assets](../../../../../api/README.md). The `test/` directory contains owned qualification fixtures and harnesses; use the [testing guide](../contributing/testing.md) to select their explicit checks.
+
+## Obtain a local SDK package
+
+SDKs are available from this repository; no registry releases are published. Consumers need only the selected language and runtime dependencies. Maintainer generators, test tools, the UI and database are not consumer prerequisites.
+
+Start with the [SDK overview](../../../../../sdk/README.md) to choose a language. Follow the [Go](../../../../../sdk/go/README.md), [Python](../../../../../sdk/python/README.md), [JavaScript/TypeScript](../../../../../sdk/typescript/README.md) or [Rust](../../../../../sdk/rust/README.md) guide for installation and transport setup. This page provides complete integration examples and shared API behavior.
+
+Configure an HTTPS API origin without a path, embedded credentials, query or fragment. Even empty `?` and `#` suffixes are invalid. Use the explicit loopback HTTP option only for local development. Select the API listener, not the optional UI host; an SDK does not use the UI's login cookie.
+
+The examples use placeholder origins, tokens and IDs. Your application supplies current credentials and retains command keys. Control API reads and writes require their current Catalog permissions and any configured OAuth scopes. Omit credentials only for a discovery host that permits anonymous access.
+
+Maintainers can install locked tools, qualify all packages and build local artifacts with:
+
+```sh
+make sdk-tools-install UV=/path/to/uv-0.13.4
+make sdk-check
+make sdk-package
+```
+
+Run each target separately. Use `SDK_LANGUAGE=go`, `python`, `typescript` or `rust` for one language; the default is `all`. See [SDK qualification](../contributing/testing.md#combined-sdk-qualification) for prerequisites. Packaging alone runs no tests and publishes nothing.
+
+Python wheels/source archives and npm tarballs use `output/artifacts/sdk/<language>/`. Install a selected wheel with `python -m pip install /absolute/path/to/package.whl`. Install a selected npm tarball with `npm install /absolute/path/to/package.tgz --ignore-scripts --no-audit --no-fund`. Go remains a source module; follow its [local replacement example](../../../../../sdk/go/README.md). Rust uses a local source dependency or an extracted `.crate`; follow its [Cargo installation instructions](../../../../../sdk/rust/README.md#install-from-local-source). Normal consumer installation can acquire runtime dependencies; the qualification harness supplies exact cached versions offline.
+
+Root `VERSION` supplies the release base. Python release candidates use PEP 440; npm and Cargo retain SemVer. Package manifests record artifact, contract and tool/input hashes. Keep those identities with packages that you share. Registry publication and release tags require separate action.
+
+Use the <a href={`${import.meta.env.BASE_URL}api/`}>HTTP API reference</a> for operation contracts, fields and status codes. Use [access management](access-management.mdx) to select permissions and scope. The package guides explain each language's method names, error types and transport limits.
+
+## Go SDK
+
+The [Go SDK](../../../../../sdk/go/README.md) provides generated operations for the complete OpenAPI contract, including ARD discovery. It requires Go 1.27.3 or later and is available through a local module replacement. No remote package release is available yet. The [Python SDK](#python-sdk) is also available locally. The [JavaScript/TypeScript SDK](#javascripttypescript-sdk) is also available locally.
+
+Use `catalogclient.New` with an explicit HTTPS origin and optional token or token provider. It verifies TLS, refuses redirects, ignores ambient proxy settings and bounds responses before typed decoding. Default limits are 30 seconds, 16 MiB per request body, 8 MiB per response body and 32 KiB for response headers. See the package guide for private CAs, per-call response limits and explicit loopback development access.
+
+Check HTTP status and the documented response branch, even when the Go error is nil. Use raw `WithBody` methods for arbitrary native JSON; typed maps can round large integers. Keep cursors, partial results, ETags, command keys and replay decisions explicit. The SDK does not enumerate, poll Jobs, acquire tokens or retry mutations automatically.
+
+The package guide includes discovery, transport setup and [bounded Search with local-record readback](../../../../../sdk/go/README.md#search-and-open-a-local-result). The following functions use a configured client; close that client when you finish. Contributors use the separate [SDK verification workflow](../contributing/testing.md#go-sdk-verification); ordinary service and CLI builds do not require its generator.
+
+### Search one page with Go
+
+This function selects local published releases. Pass `nil` for the first cursor and the returned `NextCursor` for the next page:
+
+```go
+import (
+    "context"
+    "fmt"
+    "net/http"
+
+    catalogclient "github.com/open-agentic-catalog/open-agentic-catalog/sdk/go"
+)
+
+func searchPage(ctx context.Context, client *catalogclient.SDK, cursor *string) (*catalogclient.CatalogSearchResponse, error) {
+    text, limit := "weather", 10
+    origins := []catalogclient.CatalogSearchOrigins{catalogclient.CatalogSearchOriginsLocal}
+    response, err := client.SearchCatalogWithResponse(ctx, catalogclient.CatalogSearch{
+        Text: &text, Limit: &limit, Origins: &origins, Cursor: cursor,
+    })
+    if err != nil {
+        return nil, err
+    }
+    if response.StatusCode() != http.StatusOK || response.JSON200 == nil {
+        return nil, fmt.Errorf("Search returned HTTP %d", response.StatusCode())
+    }
+    return response.JSON200, nil
+}
+```
+
+Inspect `Partial`, `Diagnostics` and `NextCursor` on the returned page. Keep the same query, filters, page size and identity for continuation. An absent or empty cursor ends the traversal; item count alone does not.
+
+### Create a resource with Go
+
+Supply an existing namespace UUID, a valid canonical identifier and a command key retained by your application. The namespace ID can come from `ListNamespacesWithResponse`. The token needs `resource.create`, required namespace access and `catalog.write` when OAuth scope enforcement is enabled.
+
+```go
+import (
+    "context"
+    "fmt"
+    "net/http"
+
+    catalogclient "github.com/open-agentic-catalog/open-agentic-catalog/sdk/go"
+)
+
+func createAgent(ctx context.Context, client *catalogclient.SDK, namespaceID catalogclient.UUID, identifier, commandKey string) (*catalogclient.CreateResourceResponse, error) {
+    response, err := client.CreateResourceWithResponse(ctx,
+        &catalogclient.CreateResourceParams{IdempotencyKey: commandKey},
+        catalogclient.CreateResourceJSONRequestBody{
+            NamespaceId: namespaceID,
+            Kind: catalogclient.ResourceKindAgent,
+            CanonicalIdentifier: identifier,
+        })
+    if err != nil {
+        return nil, err
+    }
+    if response.StatusCode() != http.StatusCreated || response.JSON201 == nil {
+        return nil, fmt.Errorf("Resource creation returned HTTP %d", response.StatusCode())
+    }
+    return response, nil
+}
+```
+
+Retain `JSON201.Id` and the response ETag. This creates a Resource, not a published release. Follow [resource authoring](resource-authoring.mdx) and [publication](publishing.mdx) for evidence, listing metadata and release approval. Revision-bound commands also require the current `If-Match` value.
+
+After an uncertain outcome, preserve the original body, key and preconditions. Do not generate a replacement key to retry. Observe the [completed-command replay window](../reference/api-conventions.md#request-rules).
+
+## Python SDK
+
+The [Python SDK](../../../../../sdk/python/README.md) includes the complete Control OpenAPI and ARD routes. It supports Python 3.12-3.14. Install the local package with `python -m pip install ./sdk/python` from the repository root. No registry release is available yet. Consumer installation needs no generator, Go toolchain, database or UI.
+
+Use [the LangGraph example](../../../../../examples/langgraph/README.md) for a complete read-only assistant with this SDK and a local model. Its optional environment keeps framework dependencies separate from the SDK and service images.
+
+```python
+from catalog_sdk import Client, Config
+from catalog_sdk.generated.api.service_api import ServiceApi
+
+client = Client(Config(origin="https://catalog.example.com", token="explicit-token"))
+response = ServiceApi(client).get_capabilities_sync_with_http_info()
+print(response.status_code)
+```
+
+Use `await api.get_capabilities_with_http_info()` in async code. Results retain typed data, exact raw bytes and case-insensitive headers. Control Problems and ARD errors have separate types. Transport and decode failures use fixed safe diagnostics. The SDK makes one request per call; it does not retry commands, enumerate pages or poll Jobs.
+
+Check `status_code` before you use typed data. A returned 4xx/5xx result is not a transport exception. An empty or JSON-null required body raises `SDKError`; documented 204/304 responses remain bodyless. Do not log raw results, model values or caller arguments. Direct Pydantic model errors can include supplied values.
+
+Configure either `token` or a synchronous `token_provider` for each client. Omit both for anonymous discovery. The provider must remain bounded; the SDK does not acquire or refresh tokens. TLS verification stays enabled. `ca_file` supplies private trust. Literal loopback HTTP requires `allow_loopback_http=True`. Pass the Boolean value `True`, not a string or number. Ambient proxies, cookies and redirects are disabled.
+
+Default budgets are 30 seconds per network call, 10 seconds per phase, 16 MiB per request, 8 MiB per response and 32 KiB for parsed headers. Configure these through `Config`. A positive scalar `_request_timeout` can shorten the call deadline; tuple overrides are unsupported. Async cancellation closes the connection. Synchronous provider calls and CPU-bound codecs must stay bounded because Python cannot interrupt them.
+
+### Search one page with Python
+
+Use this function from an async application with a configured `client`. It selects local published releases:
+
+```python
+from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
+from catalog_sdk.generated.models.catalog_search import CatalogSearch
+
+async def search_page(client, cursor=None):
+    query = CatalogSearch(text="weather", origins=["local"], limit=10, cursor=cursor)
+    response = await CatalogDiscoveryApi(client).search_catalog_with_http_info(
+        catalog_search=query,
+    )
+    if response.status_code != 200:
+        raise RuntimeError(f"Catalog Search returned HTTP {response.status_code}")
+    return response.data
+```
+
+Inspect `page.partial`, `page.diagnostics` and `page.next_cursor` on the returned page. Read a Search item with `item.to_dict()`; its `type` identifies local, indexed or live evidence. Call the function again with its cursor to continue the same query. Keep the query, filters, page size and identity unchanged. An absent or empty cursor ends the traversal; item count alone does not. Do not restart an expired cursor automatically or call synchronous methods inside an active event loop.
+
+### Create a resource with Python
+
+Use a token with `resource.create` permission and its required namespace read access. OAuth scope enforcement also requires `catalog.write`. Supply an existing namespace UUID, a valid canonical identifier and a command key retained by your application:
+
+```python
+from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
+from catalog_sdk.generated.models.create_resource import CreateResource
+from catalog_sdk.generated.models.resource_kind import ResourceKind
+
+def create_agent(client, namespace_id, identifier, command_key):
+    response = CatalogLifecycleApi(client).create_resource_sync_with_http_info(
+        idempotency_key=command_key,
+        create_resource=CreateResource(
+            namespaceId=namespace_id,
+            kind=ResourceKind.AGENT,
+            canonicalIdentifier=identifier,
+        ),
+    )
+    if response.status_code != 201:
+        raise RuntimeError(f"Resource creation returned HTTP {response.status_code}")
+    return response
+```
+
+Retain `response.data.id` and `response.headers["ETag"]`. This command creates a Resource, not a published release. Follow [native authoring](resource-authoring.mdx#prepare-a-request-to-create-a-version) and [publication](publishing.mdx) to add evidence, listing metadata and a release. Existing-revision commands also require the current ETag through `if_match`.
+
+Resolve a lost response with the original key and unchanged command. Do not generate a replacement key or change the body. Completed commands have a 24-hour replay window from reservation; pending commands have separate recovery rules. See [request rules](../reference/api-conventions.md#request-rules).
+
+### Read exact bytes with Python
+
+Supply the UUID of a readable VersionRevision as `revision_id`:
+
+```python
+from catalog_sdk import response_limit
+
+with response_limit(32 * 1024 * 1024):
+    response = client.raw_sync("GET", f"/api/v1/version-revisions/{revision_id}")
+if response.status != 200:
+    raise RuntimeError(f"Revision read returned HTTP {response.status}")
+record_bytes = response.data
+```
+
+The override applies only to the current context. Exceeding a limit refuses the response; the SDK does not return truncated bytes. `raw` and `raw_sync` also accept an exact `body=bytes` request. Supply the complete API request envelope and required headers for a command. Do not send a native card directly where the API requires a version-creation object.
+
+Typed models can normalize values or discard unknown fields. Use raw bytes for exact native evidence, large numbers and decimal text. Inline JSON can have a different digest scope from original external artifact bytes. The two conditional input types and the Search-result and audit-details containers preserve JSON objects. They do not validate every schema constraint; the API validates command inputs. See the [type limits](../../../../../sdk/python/README.md#exact-evidence-and-type-limits) and [SDK testing](../contributing/testing.md#python-sdk-verification) for the remaining boundaries.
+
+## JavaScript/TypeScript SDK
+
+The [ESM SDK](../../../../../sdk/typescript/README.md) includes JavaScript and TypeScript declarations for the complete Catalog API. It uses [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) behind a bounded transport. Use Node 22.13+ within major 22, Node 24.20+ within major 24, or a modern browser. Chromium is the qualified browser. Type declarations are checked with TypeScript 5.9.3. No npm registry release is published.
+
+Build and qualify a local package, then install the reported tarball in your own project:
+
+```sh
+make sdk-tools-install SDK_LANGUAGE=typescript
+make sdk-check SDK_LANGUAGE=typescript
+npm install /absolute/path/to/reported-package.tgz --ignore-scripts --no-audit --no-fund
+```
+
+Run the Make commands from this repository and `npm install` from your consumer project. Replace the package path with the artifact reported by the check. The install target acquires maintainer tools; normal npm installation can download consumer runtime dependencies. The consumer needs no generator, compiler, browser fixture, UI or database. See [SDK verification](../contributing/testing.md#javascripttypescript-sdk-verification) for prerequisites and cleanup.
+
+Use ESM, for example with `"type": "module"` in your package.json. TypeScript can use `module` and `moduleResolution` set to `NodeNext`. Browser clients need a bundler or import map for the package's runtime dependencies.
+
+```ts
+import { createCatalogClient } from "@open-agentic-catalog/client";
+
+const client = createCatalogClient({
+  origin: "https://catalog.example.com",
+  token: "explicit-access-token",
+});
+const page = await client.api.POST("/api/v1/catalog/search", {
+  body: { text: "weather", origins: ["local"], kinds: ["agent"], limit: 10 },
+});
+if (page.response.status !== 200 || !page.data) {
+  throw new Error(`Search returned HTTP ${page.response.status}`);
+}
+```
+
+Check status before `data` or `error`. Control Problems and ARD errors remain separate alternatives. Bodyless 204 and 304 need no JSON. Headers retain ETag, request ID, Location, Retry-After and replay metadata. A partial page retains its diagnostics. Submit `nextCursor` explicitly with the same query, filters and credentials. The SDK neither retries commands nor fetches another page automatically.
+
+### Search one page with JavaScript or TypeScript
+
+This reusable function selects local published releases. Omit the cursor for the first page:
+
+```ts
+import type { CatalogClient } from "@open-agentic-catalog/client";
+
+export async function searchPage(client: CatalogClient, cursor?: string) {
+  const result = await client.api.POST("/api/v1/catalog/search", {
+    body: {
+      text: "weather", origins: ["local"], limit: 10,
+      ...(cursor ? { cursor } : {}),
+    },
+  });
+  if (result.response.status !== 200 || !result.data) {
+    throw new Error(`Search returned HTTP ${result.response.status}`);
+  }
+  return result.data;
+}
+```
+
+Inspect `partial`, `diagnostics` and `nextCursor` on the returned page. Call `searchPage(client, page.nextCursor)` only when a cursor is present. Keep the query, filters, page size and identity unchanged. An absent or empty cursor ends the traversal; item count alone does not. For plain JavaScript, remove the `import type` line and parameter type annotations from these examples.
+
+Valid JSON error responses return `error` and `response`, including 429 and 503 responses with Retry-After. Network failures, exceeded limits and malformed JSON throw `SDKError`, with available status and request ID. `parseAs` selects successful response decoding; error responses still require JSON. Do not log private error bodies. A malformed write response leaves the outcome uncertain; preserve the original command bindings for recovery. Use `raw()` from the outset for exact response bytes; do not repeat a mutation just to obtain them.
+
+Configure an HTTPS origin without paths, credentials, query or fragment. Supply `token` or an asynchronous `tokenProvider(signal)`, or omit both for anonymous discovery. The SDK does not acquire tokens or refresh them. It omits cookies and refuses redirects. Use explicit literal-loopback HTTP only for development.
+
+Browser calls can use the same origin. For cross-origin calls, configure the API's [allowed CORS origins](../reference/configuration.mdx#configuration-groups) or an operator-managed CORS gateway. Use `http.corsOrigins` or `CATALOG_HTTP_CORS_ORIGINS` for the API allowlist. This SDK adds no CORS or browser login feature.
+
+Native Fetch owns TLS trust and transport header limits. Configure private CAs through your Node process or browser trust store; preserve certificate and hostname verification. Do not replace Fetch with an ambient-proxy or retry adapter. The default deadline is 30 seconds. Request and response body defaults are 16 MiB and 8 MiB; parsed headers have a 32 KiB check. These checks do not replace native transport limits.
+
+Pass an AbortSignal to cancel, or select a shorter `timeoutMs` and a larger finite `responseBytes` per call. Over-limit bodies fail without truncation. Synchronous serialization, parsing and provider code cannot be interrupted. Elapsed-time checks reject late transmission or body completion when execution resumes.
+
+Typed JSON can round large numbers and does not perform full schema validation. Use `raw()` with original bytes for arbitrary native documents. Its response includes exact bytes and strict UTF-8 text. `rawBytes(response)` also retains bytes from a typed exchange. Do not treat an inline JSON projection as original artifact bytes; follow [export digest scopes](#export-native-documents).
+
+### Create a resource with JavaScript or TypeScript
+
+Supply an existing namespace UUID, a valid canonical identifier and a retained command key. The token needs `resource.create`, required namespace access and `catalog.write` when OAuth scope enforcement is enabled:
+
+```ts
+import type { CatalogClient } from "@open-agentic-catalog/client";
+
+export async function createAgent(
+  client: CatalogClient, namespaceId: string, identifier: string, commandKey: string,
+) {
+  const result = await client.api.POST("/api/v1/resources", {
+    params: { header: { "Idempotency-Key": commandKey } },
+    body: { namespaceId, kind: "agent", canonicalIdentifier: identifier },
+  });
+  if (result.response.status !== 201 || !result.data) {
+    throw new Error(`Resource creation returned HTTP ${result.response.status}`);
+  }
+  return result;
+}
+```
+
+Retain `data.id` and `response.headers.get("ETag")`. This does not publish the resource. For versions, submit the complete CreateVersion envelope through typed calls or original raw bytes. Follow [resource authoring](resource-authoring.mdx) and [publication](publishing.mdx). Preserve command keys, bodies and If-Match on uncertain outcomes; observe the [24-hour completed replay limit](../reference/api-conventions.md#request-rules).
+
+### Read exact bytes with JavaScript or TypeScript
+
+Supply the UUID of a readable VersionRevision. Set a larger finite budget only when the valid response needs it:
+
+```ts
+import type { CatalogClient } from "@open-agentic-catalog/client";
+
+export async function readRevision(client: CatalogClient, revisionID: string) {
+  const result = await client.raw(`/api/v1/version-revisions/${revisionID}`, {
+    responseBytes: 32 * 1024 ** 2,
+  });
+  if (result.status !== 200) {
+    throw new Error(`Revision read returned HTTP ${result.status}`);
+  }
+  return result.bytes;
+}
+```
+
+The returned bytes preserve the API response. They are not automatically the original external artifact. Exceeding the limit refuses the whole result; the SDK does not truncate it.
+
+## Rust SDK
+
+The [Rust SDK guide](../../../../../sdk/rust/README.md) covers local source and `.crate` installation. The client provides asynchronous Control API operations, including ARD discovery. `Client::export_version_revision_draft` exports an exact VersionRevision as `CatalogDraftFile`; see [Export a reusable draft](../../../../../sdk/rust/README.md#export-a-reusable-draft). Use Rust 1.88+ and an application-owned Tokio runtime. Native Linux AMD64 is the qualified platform; registry publication is disabled.
+
+### Use the Rust client
+
+Use `Client::new(Config)` with an explicit API origin and credentials. HTTPS verifies certificates and hostnames. Add private CA certificates through `config.root_certificates`. Set the literal-loopback HTTP option only for owned local development. The SDK does not use UI cookies or log in automatically.
+
+| Workflow | Example and behavior |
+| --- | --- |
+| Make a first request | [Run a complete consumer program](../../../../../sdk/rust/README.md#make-your-first-request). Supply explicit example inputs and read authenticated capabilities. |
+| Search and continue | [Bounded Search continuation](../../../../../sdk/rust/README.md#continue-search-with-a-finite-budget). Pass the returned cursor unchanged with the same filters. Inspect partial-result diagnostics before using a federated page. |
+| Open a local result | [Read the complete record](../../../../../sdk/rust/README.md#open-a-local-resources-complete-record) using the local release UUID. Indexed and live results use separate contracts. |
+| Create an Agent draft | [Create a resource](../../../../../sdk/rust/README.md#create-a-resource). Supply an authorized namespace and your command key. Draft creation does not validate or publish a release. |
+| Change a revision | [Send an authorized command](../../../../../sdk/rust/README.md#send-an-authorized-command). Preserve the original request, idempotency key and ETag for deliberate replay. |
+| Inspect accepted work | [Read one Job outcome](../../../../../sdk/rust/README.md#inspect-an-asynchronous-command). Acceptance is not successful completion; current family and target permissions still apply. |
+| Read exact evidence | [Read exact bytes](../../../../../sdk/rust/README.md#read-exact-bytes). A finite override can allow a larger valid response without changing the original client. |
+| Find another operation | [Operation lookup](../../../../../sdk/rust/README.md#find-an-operation). Generated methods and models follow the authoritative API; the SDK does not implement domain rules locally. |
+
+Successful typed calls return `Response<T>` with status, headers, exact raw bytes and optional data. HTTP refusals return `ApiOpError::Api`; transport failures return `ApiOpError::Transport`. `Client::raw` returns all HTTP statuses for explicit inspection. Read the [error guidance](../../../../../sdk/rust/README.md#read-results-and-handle-errors) before processing uncertain command outcomes or private evidence.
+
+The SDK never retries mutations or executes discovered resources. A typed decode failure can follow a committed write. Reconcile the authorized state or replay the original command with its original key and validator. Do not issue a new mutation merely to obtain its response.
+
+Contributors use the existing [Rust verification](../contributing/testing.md#rust-sdk-verification) targets. The package examples compile on both supported compilers, and the discovery program runs against an owned Catalog during package qualification.
+
+## Choose a discovery interface
+
+For a terminal-capable assistant, the optional [Catalog discovery Skill](assistant-discovery.md) provides a read-only search, comparison and selected-release inspection workflow through the installed CLI.
+
+| Client | Interface | Endpoint and access |
+| --- | --- | --- |
+| Hosted manifest client | `GET /.well-known/ard.json`; separate compatibility document at `GET /.well-known/ai-catalog.json` | Read the configured host's active snapshot. The two documents use their respective profiles. |
+| ARD HTTP client | `POST /ard/v1/search` with a nested `query` object | Use the configured discovery host. Its anonymous or authenticated audience controls access. |
+| ARD browse client | `POST /ard/v1/explore` for facets; `GET /ard/v1/agents` for Registry List | Both optional ARD operations are implemented. List serves supported entry types, not just Agents. |
+| `catalogctl remote` | Authenticated Control API, including `/api/v1/catalog/search` | Supply the Catalog API origin, without a path or trailing slash; this is not a generic external Registry client. |
+| Local MCP host | [Catalog MCP server](mcp-server.mdx) through `catalogctl mcp serve` over stdio | Six read-only tools use an explicit API origin and bearer token, including local facets and current access. Remote clients use the separate [HTTP MCP setup](mcp-server.mdx#connect-over-http). |
+| Catalog UI | Control API through the UI's configured backend | Sign in with a current Catalog membership. The backend destination is deployment configuration, not a result-selected URL. |
+
+For interactive CLI use, [sign in with an existing OIDC issuer](../reference/commands.md#human-cli-login) and explicitly select `--login-file`. Remote reads and online import/export support this file, including configured token refresh. They also accept explicit bearer credentials. SDKs and the stdio MCP host use their separate bearer-token inputs.
+
+For example, with a reader token supplied through `--token-file`:
+
+```sh
+catalogctl remote search --base-url https://catalog.example.com --token-file /run/secrets/catalog-reader-token --text "order processing" --kind agent
+```
+
+See [remote commands](../reference/commands.md#remote-catalog-reads) for development loopback, private trust and other options. Do not append `/ard/v1` or `/api/v1` to the CLI base URL. ARD HTTP clients instead send the standard nested request, for example `{"query":{"text":"order processing","filter":{"type":"application/a2a-agent-card+json"}},"federation":"none"}` to `/ard/v1/search`.
+
+For inline A2A cards, ARD clients can also filter `data.defaultInputModes`, `data.defaultOutputModes` and `data.skills.tags`. For example, `{"query":{"text":"weather","filter":{"data.defaultInputModes":"text/plain","data.skills.tags":"weather"}},"federation":"none"}` selects declared defaults and skill keywords. These filters do not resolve skill-specific overrides or authorize invocation. See [native card filters and facets](../reference/standards.mdx#native-card-filters-and-facets) for matching rules and sparse peer responses.
+
+The [ARD Connect guides](https://agenticresourcediscovery.org/connect/) describe assistant instructions and HTTP or MCP transports. Catalog provides ARD HTTP discovery and separate [Control MCP tools](#connect-a-local-mcp-host). Its optional authenticated HTTP MCP endpoint must be enabled by the operator; it is not an ARD wrapper or a resource execution service. Configure the exact endpoint and credentials through the [HTTP MCP setup](mcp-server.mdx#connect-over-http). Appending `/mcp` to an arbitrary Catalog URL does not enable it. Instructions alone do not provide transport or Catalog permissions.
+
+### Prepare direct ARD HTTP requests
+
+Use curl and Python 3 for the List, Explore and Search response examples below. Select the configured discovery origin, including its port, without a trailing slash. Both List and Explore read that host's active audience snapshot. They return `404` when no snapshot is active.
+
+For an authenticated host, set `ARD_HEADERS_FILE` to a [protected curl header file](../operations/oidc-keycloak.md#prepare-private-http-credentials). The file contains `Authorization: Bearer ...`, not a bare token or login JSON. Follow [discovery access requirements](#find-the-registry-and-check-access) for permissions and OAuth scopes. Leave `ARD_HEADERS_FILE` unset for an anonymous host. Optionally set `ARD_CA_FILE` for the operator's private CA.
+
+Run these definitions in one shell. Responses remain in a new private temporary directory:
+
+```sh
+set -eu
+umask 077
+ARD_ORIGIN=${ARD_ORIGIN:-https://catalog.example.com}
+ARD_RESULTS=$(mktemp -d)
+ard_http() {
+  if [ -n "${ARD_HEADERS_FILE:-}" ]; then
+    set -- --header "@$ARD_HEADERS_FILE" "$@"
+  fi
+  if [ -n "${ARD_CA_FILE:-}" ]; then
+    set -- --cacert "$ARD_CA_FILE" "$@"
+  fi
+  curl --fail-with-body --silent --show-error \
+    --connect-timeout 5 --max-time 30 "$@"
+}
+printf '%s\n' "$ARD_RESULTS"
+```
+
+An unexpected HTTP failure stops the example. Inspect the retained response before continuing. Keep these files private. Remove only this temporary directory after review.
+
+### List snapshot entries without a search
+
+This example selects Agent Cards and MCP Server Cards, ordered by display name. It requests one entry per page:
+
+```sh
+ARD_LIST_FILTER="type = 'application/a2a-agent-card+json,application/mcp-server-card+json'"
+ard_list() {
+  ard_http --get "$ARD_ORIGIN/ard/v1/agents" \
+    --data-urlencode "filter=$ARD_LIST_FILTER" \
+    --data-urlencode 'orderBy=displayName' \
+    --data-urlencode 'pageSize=1' "$@"
+}
+ard_list --output "$ARD_RESULTS/list-1.json"
+ARD_PAGE_TOKEN=$(python3 -c \
+  'import json,sys; print(json.load(open(sys.argv[1])).get("pageToken", ""))' \
+  "$ARD_RESULTS/list-1.json")
+if [ -n "$ARD_PAGE_TOKEN" ]; then
+  ard_list --data-urlencode "pageToken=$ARD_PAGE_TOKEN" \
+    --output "$ARD_RESULTS/list-2.json"
+fi
+```
+
+Read `items` for this page and `total` for all matching entries in the active snapshot. `pageToken` continues this List response. It is not Control `nextCursor` or AGNTCY `nextPageToken`. This example reads at most two pages; continue with each new token when needed. An absent or empty token ends traversal.
+
+Keep the origin, identity, filters, ordering and page size unchanged during continuation. Cursors expire after 15 minutes. Activating a different snapshot generation invalidates the token. Start a fresh traversal without it.
+
+List includes eligible entries of supported types and the generated Registry self-entry, subject to filters. The example's type filter excludes that self-entry. List does not enumerate drafts, every retained Resource or package-only releases without discovery delivery.
+
+| Filter or ordering | Meaning |
+| --- | --- |
+| `displayName = 'Weather agent'` | Case-insensitive equality with the complete name. |
+| `type = 'application/a2a-agent-card+json'` | Exact representation media type, not a Resource kind. Comma-separated values match any listed type. |
+| `publisherId = 'example.com'` | AIR publisher domain, not a local Publisher UUID. Comma-separated domains match any listed value. |
+| `createdAfter > '2026-10-01'` | Exclusive date or timestamp bound. Resource entries use the Registry-local release activation time. The self-entry uses snapshot creation time. |
+| `updatedAfter > '2026-10-01T12:00:00Z'` | Exclusive bound on the effective entry update time, not the client's retrieval time. |
+| `orderBy` | `displayName`, `displayName DESC`, `updatedAt` or `updatedAt DESC`. Omission selects ascending display-name order. |
+
+Join supported filter clauses with `AND`. Enclose each value in single quotes. A filter permits at most 2,048 bytes and five distinct fields. Dates use UTC midnight; timestamps use their supplied timezone. See `listARDRegistryEntries` in the <a href={`${import.meta.env.BASE_URL}api/`}>HTTP API reference</a> for parameters and schemas. Time filters describe the active snapshot; they do not provide a durable change feed or report removed entries.
+
+### Count snapshot entries with Explore
+
+Using the same HTTP helper, request up to five type buckets:
+
+```sh
+ard_http "$ARD_ORIGIN/ard/v1/explore" \
+  -H 'Content-Type: application/json' \
+  --data '{"resultType":{"facets":[{"field":"type","limit":5}]}}' \
+  --output "$ARD_RESULTS/explore.json"
+```
+
+Read `facets.type.buckets` for each `value` and its entry `count`. The Registry self-entry can contribute its own type bucket. `otherCount`, when present, sums counts for buckets omitted by the limit. For multivalue facets, one entry can contribute to several buckets; omitted counts need not identify distinct resources.
+
+Explore has no continuation cursor. Narrow its optional `query` or increase the facet limit, up to 100, for a different bounded view. Counts cover the host's active snapshot, not live federation results. See [native facet paths](../reference/standards.mdx#native-card-filters-and-facets) for additional supported fields.
+
+### Example: filter and continue Control API Search
+
+Use this two-page example with an authorized reader token, the installed CLI and Python 3. Replace the API origin and protected token-file path. Select text and a tag appropriate to your Catalog. The defaults match Agents tagged `catalog-curated` with text `agent` in the [populated local Catalog](sample-catalog.mdx). Empty results are valid when no authorized records match.
+
+```sh
+search_api_origin=https://catalog.example.com
+search_token_file=/run/secrets/catalog-reader-token
+search_text=agent
+search_tag=catalog-curated
+search_kind=agent
+search_pages_dir=$(mktemp -d)
+search_page() {
+  catalogctl remote search --base-url "$search_api_origin" \
+    --token-file "$search_token_file" --text "$search_text" --kind "$search_kind" \
+    --tag "$search_tag" --limit 1 "$@"
+}
+if search_page > "$search_pages_dir/first.json"; then
+  search_cursor=$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["data"].get("nextCursor", ""))' "$search_pages_dir/first.json")
+  if [ -n "$search_cursor" ]; then
+    search_page --cursor "$search_cursor" > "$search_pages_dir/second.json"
+  fi
+fi
+```
+
+Inspect `first.json` and, when present, `second.json` in the private temporary directory. Retain or remove these metadata files according to your client policy. This example requests only two pages. Continue with each returned cursor until `nextCursor` is absent or empty; do not infer completion from the number of items.
+
+The CLI sends `POST /api/v1/catalog/search`, with `text`, `kinds`, `tags` and `limit` in a flat JSON body. It adds `cursor` for the second request. A direct HTTP client reads `items` and `nextCursor` from the response itself; these CLI files wrap them in `data`. The shell function retains the same query, filters, page size and credentials. Keep the same tenant, subject and current authority throughout traversal. If authorization or search generations change, restart the query rather than modify its cursor. See [pagination and search consistency](../reference/api-conventions.md#pagination-and-search-consistency).
+
+Inspect each page's `partial` and `diagnostics` as well as its items. `durableTotal` counts matching local/indexed results; `liveCount` counts transient live items in that page. Eligible live sources require nonblank text. Core Search can continue an unchanged window of at most 50 live candidates. Each live continuation repeats the approved peer traversal; ordinary durable continuation does not.
+
+`continuation_unavailable` reports a remaining upstream token after [bounded peer paging](../reference/configuration.mdx#live-peer-pages); accepted results remain usable, but the response is partial. A cursor traverses the admitted window, not omitted peer inventory. Hybrid Search returns local and indexed results in their exact order, followed by live results. Live-only Search pages the bounded window without durable or embedding calls. The [ARD discovery rules](../reference/api-conventions.md#federation-authority) describe the separate public-discovery behavior.
+
+Read the returned `tier`, `profile` and optional `fallbackReason` instead of assuming semantic retrieval is enabled. Core lexical search works without embeddings. Fresh hybrid queries can fall back to lexical retrieval; a hybrid continuation never silently changes ranking tier. `partialIndex` identifies eligible metadata that remains lexical-only, separately from federation `partial`. See [search tiers](../reference/api-conventions.md#search-tiers) and [hybrid search behavior](../operations/hybrid-search.mdx#search-behavior-and-monitoring) for the exact limits.
+
+### Find the Registry and check access
+
+An ARD manifest can advertise a Registry through an entry with `type: "application/ai-registry+json"`. This Catalog advertises its own Registry with a `url` ending in `/ard/v1/`. Resolve `search`, `explore` and `agents` relative to that base. Other Registries can use different base paths.
+
+This URL supports [Registry discovery](https://agenticresourcediscovery.org/spec/#53-the-search-api). It is not a resource invocation endpoint or the API origin accepted by `catalogctl remote`. Select an expected destination before contacting it. Do not forward a Catalog token to a URL merely because metadata contains it. Follow the [local readback example](local-development.mdx#discover-and-read-back-the-demo-agent) to try this without contacting another service.
+
+Control API reads enforce the endpoint's Catalog permissions and optional OAuth scope ceiling. Authenticated ARD discovery requires an active identity/membership in the configured host's tenant and current tenant-wide `discovery.read` permission. When scope enforcement is enabled, it also requires `catalog.read`.
+
+Authenticated ARD discovery serves the host's configured audience snapshot and approved federation participation. It does not require the Control API Reader role or apply Control API per-caller namespace filtering. Anonymous discovery serves its configured snapshot and explicitly approved live/referral participation. Attaching a token does not expand that audience. Other Registries can apply different caller policies. See [discovery configuration](../reference/configuration.mdx) before exposing a host.
+
+### Interpret results before handing them off
+
+ARD Search returns a `results` array. An entry's canonical `type` names its representation media type, not its trust status.
+
+Control API Search returns `items`. Each item's `type` distinguishes `local`, `indexed` and `live`. Its `kind` identifies Agent, MCP Server, Skill or Plugin. The CLI puts the API response in `data` and response metadata in `meta`. Read CLI Search results at `.data.items`. Do not interchange these envelopes or require the noncanonical result field `mediaType`.
+
+A representation can be inline `data` or a metadata-document `url`. A document URL is not necessarily an invocation endpoint, repository, package download or install command; interpret the declared [standard and profile](../reference/standards.mdx) first. Optional display metadata can be absent. Preserve absent versus explicit-empty versions, source provenance, partial diagnostics and opaque continuation tokens.
+
+Only a local result supplies a ListingRelease ID for `catalogctl remote record`. Indexed results remain external observations; live metadata has no local release to read. Treat descriptions and inline documents as untrusted data, never executable instructions. Do not automatically fetch returned URLs, follow referrals, forward the caller's credentials or install/invoke a result. Federation participation and query disclosure require approved source policy; discovery is not local approval or permission to execute.
+
+An ARD result's `source` identifies its Registry, not necessarily the publisher or runtime. Control API results instead carry typed local/indexed/live provenance; a local record's `source: "local"` is a label, not a URL. Sparse ARD results may omit the full entry, version or native endpoint; there is no generic full-entry lookup guaranteed by an AIR identifier. Use the UI's [exact references and document downloads](understand-results.mdx#copy-references-and-download-documents) or the local release read to inspect available evidence without inventing missing fields.
+
+#### Check an ARD Search response
+
+Use the [direct HTTP setup](#prepare-direct-ard-http-requests) to capture response headers separately from JSON. Replace `weather` with suitable search text. Omitted `federation` selects `auto` within the approved topology:
+
+```sh
+ard_http "$ARD_ORIGIN/ard/v1/search" \
+  -H 'Content-Type: application/json' \
+  --data '{"query":{"text":"weather"},"pageSize":5}' \
+  --dump-header "$ARD_RESULTS/search.headers" \
+  --output "$ARD_RESULTS/search.json"
+```
+
+A successful HTTP `200` response can include this header:
+
+```http
+Server-Timing: federation;desc="partial"
+```
+
+This signal means federation is incomplete. Healthy returned results remain usable. It identifies neither a failed source nor its cause. Do not require Control API `partial` or `diagnostics` fields in the ARD JSON body. Read `results` and any `pageToken` through the separate ARD contract.
+
+Without this partial signal, the response still does not establish exhaustive upstream inventory. Approved scope and traversal limits apply. Follow the [continuation rules](../reference/api-conventions.md#core-live-continuation) before retrying or restarting a query.
+
+### Export native documents
+
+Use [`catalogctl export`](../reference/commands.md#export-a-native-document) to save a selected local release's native document. Pass its exact ListingRelease ID and a new output directory. Select the representation explicitly when several are available. The command uses the authorized record and artifact APIs, with no database or administrator observation access.
+
+Exact artifact downloads have verified digest, size and media type. Inline JSON preserves the value delivered by the API and has its own file checksum. The sidecar records which form was exported. External Skill and Plugin packages provide references, archive digests and inspection data only. Export does not retrieve or reconstruct their archives. Review these distinctions before a separate handoff or import.
+
+For several releases, [preview a local selection](../reference/commands.md#preview-a-local-selection), inspect its saved identities, then run `export batch --selection-file PATH`. You can instead repeat `--release-id` for an explicit list. Preview never contacts a federation peer or downloads native content. Batch checks the saved origin and identities, then applies current access checks to each read.
+
+Read `batch.json` for complete, reference-only, denied, failed and unattempted items. An incomplete selection cannot produce a complete batch report. Earlier successful exports remain available after later failures. These independent reads do not establish a point-in-time backup. See [native re-import](resource-authoring.mdx#export-an-existing-native-document) for complete documents and explicit draft destinations.
+
+### Understand what the evidence establishes
+
+Use [the shared evidence table](understand-results.mdx#understand-what-the-evidence-establishes) to distinguish byte equality, structural validation, local review, publisher declarations, ratings, registration assessments and target authorization. It also explains unavailable software scanning and `not_assessed` trust/rights. Keep those limits with the selected resource when implementing a client handoff.
+
+## Authenticate and establish membership
+
+In production, obtain an access token through the deployment's identity system. The Catalog validates issuer, audience, signature and time claims. It does not issue tokens. An accepted token still needs an active tenant-bound Catalog identity and membership. OAuth scopes or identity-provider groups alone do not grant Catalog permissions. The [security runbook](../operations/security.md) and [database-role/bootstrap procedure](../operations/database-roles.md) describe the operator setup; [configuration](../reference/configuration.mdx) defines exact claim mappings and the optional issuer-specific private CA input.
+
+Development tokens such as `local-admin` work only when the deployment explicitly selects development authentication and configures those token mappings. Never distribute them as production credentials. Keep real tokens out of URLs, source files, shell history, browser storage, logs and support bundles.
+
+### Keep identities and credentials separate
+
+| Question | Identity or authority | Enforcement |
+| --- | --- | --- |
+| Which resource is this? | Resource/AIR identifier, plus version or local release ID when supplied. | Catalog retains the reference and provenance; an AIR is not a ListingRelease UUID. |
+| Which running program is calling? | An externally issued workload identity. | The deployment's identity infrastructure attests the workload and issues credentials. |
+| May it access Catalog data? | Verified JWT subject, current membership and endpoint-specific permissions. | Catalog authenticates and authorizes each protected request. |
+| Who published the resource? | Publisher identity and declared trust evidence. | Catalog checks structure. Optional [ANS assessments](../operations/security.md#ans-verification-authorities) verify signed registration evidence against operator-selected keys. They do not independently prove publisher ownership. |
+| May it use the resource? | Target-specific credentials or consented user delegation, where required. | The target enforces its own access policy. |
+| May Catalog contact an upstream? | An approved source and its origin-bound credential binding. | Catalog's outbound policy and fetch boundary, not the caller's bearer token. |
+
+[Workload identity](../reference/glossary.md#workload-identity), including [SPIFFE/SPIRE identities](../reference/glossary.md#spiffe-spire-and-svid), identifies a running program rather than a cataloged Resource. Neither a cloud role name, email, provider group nor SPIFFE path grants a Catalog role. Catalog uses its existing JWT verifier and membership model; credentials are supplied by the deployment, not minted or exchanged by Catalog.
+
+### Example: a workload reads the Control API
+
+This is an illustrative production flow, not a provider setup recipe or a cloud-qualified integration. The local walkthrough tests discovery using development tokens, not these production credentials.
+
+1. An operator provisions the workload's exact issuer/subject as an active service membership and grants Reader access for the intended Catalog scope. `service_client` alone does not grant Reader access.
+2. The workload obtains an access token intended for the configured Catalog audience through its external identity system. Keep its credentials outside Catalog records and inject or renew them through the deployment.
+3. It sends that token to the configured Catalog API origin. Catalog checks the [required JWT claims](../reference/configuration.mdx#authentication-and-catalog-identity). Dedicated mode selects the configured tenant; shared mode resolves the verified issuer and one configured top-level organization string through a provisioned mapping, never an arbitrary token-carried tenant UUID.
+4. Catalog resolves current membership and enforces the read's roles, namespaces and optional scope ceiling, then returns authorized metadata. A valid token signature alone does not grant access. The [identity diagram](../architecture/security.mdx#inbound-identity-decision) shows this Control API boundary.
+
+### Example: a client uses a discovered resource
+
+1. Search through an authorized Catalog interface and select a result. Preserve its exact identifier, optional version, release ID when local, source and representation; do not reinterpret a metadata-document URL as an endpoint.
+2. Inspect the available metadata or explicitly copy/download the authorized reference in the UI. Treat unknown trust, rights and assessment as unknown. The [standards guide](../reference/standards.mdx) distinguishes Agent Cards, MCP Registry records, Server Cards and Skill/Plugin delivery. This is where the executable local example ends.
+3. If the user chooses to continue, their client applies its own selection policy and the resource's native contract. For A2A or MCP, it obtains target-specific credentials or proof where required and requests the desired operation from the target. It does not reuse the Catalog bearer token. Acting as a workload is different from acting on behalf of a consenting user; [delegation](../reference/glossary.md#delegation) requires the target's supported mechanism.
+4. For a Skill or Plugin, the next step can instead be a user-selected package handoff or installation in a compatible client, not a remote invocation. Catalog does not install or execute it. Missing delivery information or target permission stops the handoff; discovery cannot supply either automatically.
+
+Credential expiry, Catalog membership revocation, publication withdrawal and runtime decommissioning are separate events. Unpublishing does not stop an Agent or revoke its runtime credential; deleting a runtime does not remove its Catalog metadata. See [credential and authorization limits](../operations/security.md#credential-and-authorization-limits) for rotation, proof-binding and delegation boundaries.
+
+## Connect a local MCP host
+
+Use the [Catalog MCP server](mcp-server.mdx) to connect an assistant or IDE through `catalogctl mcp serve` over stdio. Remote clients can use the separately enabled [HTTP MCP endpoint](mcp-server.mdx#connect-over-http). Both interfaces expose the same read-only Control tools and preserve current API permissions. Search defaults to local releases. Neither interface invokes discovered resources. The dedicated guide covers configuration, tool arguments, pagination, permissions, limits and troubleshooting.
+
+## Evaluate a generated Go client
+
+The maintained [Go SDK](#go-sdk) has separate generation targets and checked-in source. Its consumers do not run this compatibility generator.
+
+The repository maintains a pinned Control OpenAPI generation and compatibility harness. It is test tooling, not a released Go SDK. Follow [generated Go-client compatibility](../contributing/testing.md#generated-go-client-compatibility) for prerequisites and qualification. Run `make client-go-tools-install` explicitly, then `make client-go-check`, each separately. The check generates and tests an invocation-owned client without an existing Catalog or database. Optional `make client-go-generate` creates an ignored inspection copy; do not commit generated output.
+
+Use a transport that bounds response bodies before generated parsers read them, with explicit deadlines, authentication and TLS trust. Check HTTP status and media type even when the generated method returns no Go error. Preserve arbitrary standards documents and extension data through raw response methods and `json.RawMessage`; submit exact JSON with generated `WithBody` methods. Typed maps can lose large-integer precision. A raw-body method does not validate the request or establish standards compatibility. The linked procedure explains these boundaries and their tested limits.
+
+## Build a safe request loop
+
+1. Read the endpoint's authentication, role and namespace requirements in the [API conventions](../reference/api-conventions.md) and generated HTTP reference.
+2. Send JSON with the documented media type and a fresh `Idempotency-Key` for a new mutation. Reuse the same key and identical request when retrying an uncertain result; do not manufacture a second command by changing the key after a network timeout.
+3. Read and retain the current ETag before changing an existing revision. Send it in `If-Match`. A stale revision is a conflict to reconcile, not a reason to overwrite blindly.
+4. On failure, handle the stable problem `code`, HTTP status and `X-Request-ID`. Do not parse internal error text or assume a denial reveals whether another tenant's object exists.
+5. Follow server pagination continuations with the same query and authorization. Start a fresh search deliberately if the server rejects a stale cursor. Do not decode, alter or silently restart opaque continuations.
+6. For asynchronous work, inspect the returned Job to a terminal state. An accepted command is not proof of successful synchronization or publication.
+
+The [publication walkthrough](publishing.mdx) contains executable author, reviewer and publisher requests. Use [local development](local-development.mdx) for setup and owned smoke checks. The [API assets](../../../../../api/README.md) identify reviewed examples and the exact downloadable OpenAPI contract. Generated snippets describe the wire format; substitute your authorized endpoint and input values, and never paste credentials into the documentation site. The reference is read-only and has no request console.
+
+## Export an MCP client configuration
+
+Use the [browser handoff](understand-results.mdx#download-an-mcp-client-configuration) or [CLI export](../reference/commands.md#export-an-mcp-client-configuration) for one current local MCP release.
+Select one supported HTTPS remote connection explicitly when several are declared.
+Streamable HTTP becomes `http`; SSE remains `sse` in formats that require a type.
+
+VS Code uses `.vscode/mcp.json`:
+
+```json
+{"servers":{"catalog-00000000-0000-7000-8000-000000000001":{"type":"http","url":"https://mcp.example.test/mcp"}}}
+```
+
+Claude Code uses `.mcp.json`:
+
+```json
+{"mcpServers":{"catalog-00000000-0000-7000-8000-000000000001":{"type":"http","url":"https://mcp.example.test/mcp"}}}
+```
+
+Cursor uses `.cursor/mcp.json`:
+
+```json
+{"mcpServers":{"catalog-00000000-0000-7000-8000-000000000001":{"url":"https://mcp.example.test/mcp"}}}
+```
+
+The browser saves `mcp.json`; rename it for Claude Code.
+Place or merge the entry yourself, and rename its server key if needed.
+Configure target credentials and certificate trust separately; exports omit all header values.
+Exporting does not contact the server, but opening the configuration in your client can start a connection.
+These files configure a cataloged MCP Server, not the Catalog's own read-only MCP tools.
+
+## Retry and reconcile uncertain outcomes
+
+:::caution[A timeout can hide a committed command]
+A timeout can occur after the server commits a mutation. Retrying does not extend the command's replay window.
+:::
+
+Keep the original method, path, query, body, media type, idempotency key and `If-Match` value for an uncertain mutation, under the same tenant and actor. Use bounded retries with backoff and honor `Retry-After` when supplied. Refresh an expired access token through the deployment's identity system; replay still requires current authentication, authorization and disclosure permission. Changed request inputs or authority can prevent replay. Keep credentials and private payloads out of diagnostic logs.
+
+A completed command has a fixed 24-hour replay window measured from its original reservation. A retry does not extend that window. After expiry, the same key can start a new command. The key does not provide permanent exactly-once protection. If the outcome remains unknown after expiry, reconcile authorized target state before deciding whether to submit another mutation.
+
+An active or interrupted pending reservation fails closed. It does not expire into permission to duplicate work. Ask an operator to inspect an interrupted reservation with the [idempotency repair procedure](../operations/idempotency-repair.mdx). Do not invent a new key to bypass it.
+
+<ClientRetry />
+
+## Track Jobs to completion
+
+A `202` response means work was accepted, not that it succeeded. Read the returned Job ID with `GET /api/v1/jobs/{jobId}`. Poll with bounded backoff and a client deadline. The Job read returns a direct JSON object.
+
+Command responses use different shapes. Source `:sync` returns `{job, existing}`; `existing` indicates deduplication against live work. Job `:retry` returns the child Job directly. Follow the endpoint's schema rather than assuming every `202` has the same envelope.
+
+A client timeout ends polling. It does not cancel the Job or authorize a duplicate submission.
+
+| State | Client interpretation |
+| --- | --- |
+| `queued`, `running`, `waiting` | Not terminal; progress alone is not proof of success. |
+| `succeeded` | Work completed; inspect its safe result summary and current authorized target state. |
+| `failed`, `dead_letter` | Terminal unsuccessful work; inspect the bounded `failureClass` and `safeError` before deciding on recovery. |
+| `cancelled` | Terminal cancellation, not successful completion. |
+
+Authorized operators can request cancellation with `POST /api/v1/jobs/{jobId}:cancel` and a reason plus idempotency key. Cancellation of running work is cooperative; inspect the resulting Job state rather than assuming the response stopped every effect immediately. Only failed or dead-letter Jobs can be explicitly retried with `:retry`; that command creates a new child Job with `parentJobId`, requires the kind-specific management role, and returns `202`. Follow the new ID, not the old terminal Job. Do not build an unlimited retry loop around permanent failures.
+
+Jobs are operational records, not permanent history. Eligible terminal Jobs are reclaimed under [housekeeping retention](../operations/housekeeping.md). A later `404` is not proof of either success or failure: reconcile current authorized state and, where authorized, audit evidence. Retain the result your integration needs without treating the Job endpoint as a permanent receipt archive.
+
+## Import native drafts
+
+Use [`catalogctl import`](../reference/commands.md#apply-and-resume-native-drafts) to prepare native content and create one to 64 new drafts through the Control API. Items run in manifest order after all local inputs and namespace permissions pass preflight. Each item has four separate creation commands; the batch has no automatic rollback. Supply existing namespace/publisher IDs, an API origin and an access token. The CLI checks current namespace permissions and keeps one private recovery receipt for the unchanged whole manifest. It does not load database authority, adopt a collision or publish the draft.
+
+Follow [resource preparation and recovery](resource-authoring.mdx#apply-and-resume-a-native-draft) for complete Skill packages, HTTPS Plugin hosting, exact keys and uncertain outcomes. This manifest differs from the development sample inventory and does not run its approval workflow.
+
+Start with the [copyable Agent and Skill files](resource-authoring.mdx#use-the-agent-and-skill-starter) for a complete local manifest and explicit apply/resume commands.
+
+## Govern, publish and discover
+
+Create a stable Resource, add immutable version/representation and listing revisions, validate the required evidence, and submit for independent review. Review approval and release are explicit transitions; publication builds an immutable candidate, then a separately authorized activation serves the snapshot through the configured discovery host. Client code must preserve that separation rather than treating ingestion, validation or search presence as approval.
+
+Agents, MCP Servers, Skills and Plugins have distinct representation requirements. Follow the [standards reference](../reference/standards.mdx) and schema details instead of labeling every JSON document as an Agent or treating a Skill archive as code to run. Unknown external formats retain provenance but do not become governed local resources automatically.
+
+Use [resource authoring](resource-authoring.mdx#submit-inline-or-https-content) for inline or HTTPS submissions and the UI's [local document loading](resource-authoring.mdx#load-a-local-json-or-markdown-document) for editor input. To create a local draft from one retained external occurrence, follow [observation adoption](../operations/federation.mdx#adopt-one-observation-as-a-local-draft). Loading content or adopting an observation still requires validation, review and release.
+
+Administrators inspect and approve federation sources, origin policy and participation. Ordinary callers cannot submit arbitrary source URLs or choose a topology. Indexed results are retained observations; live results are bounded by the approved topology and disclosure policy. A partial sync must not withdraw the last complete snapshot. Public discovery host and audience policy determines whether a read is anonymous or token-protected; an unauthenticated endpoint in one local fixture is not a global access promise.
+
+## Test federation between two Catalogs
+
+Follow [Connect and maintain a federated Catalog](../operations/federation.mdx) for the operator procedure and source-change recovery.
+
+Run `make test-federation-peers` from a source checkout with the [container-test prerequisites](../contributing/testing.md). It builds two independent API/worker/PostgreSQL deployments and tests publication, indexed synchronization, live Search, tenant/audience isolation, scoped credentials and upstream recovery. No existing deployment is modified. See the [federation testing guide](../contributing/testing.md#test-boundaries) for topology, assertions, bounds and the report location.
+
+Federation imports approved published metadata as observations, not local Resources or database replicas. A populated Catalog ARD manifest is a hybrid source: complete manifest synchronization can withdraw absent members, while a failed or unavailable manifest preserves the last complete view. Registry List ingestion has separate pagination and stale-member semantics. Build and activate a new upstream snapshot before expecting listing changes to become discoverable. A listing-only review can reuse the same sealed resource version without changing that version's revision or timestamps.
+
+<FederationPeers />
+
+The arrows show metadata flow, not database replication. B initiates both synchronization and permitted live queries; live participation is optional, bounded and restricted to eligible requests. Indexed observations and local releases remain distinct even when they appear in one Search response.
+
+Live participation requires an administrator-approved source and query-disclosure acknowledgement. Host-bound ARD Search also requires an eligible discovery-host assignment. Authenticated Control API Search uses the tenant's approved live sources without a host assignment. Private-network sources cannot be assigned to anonymous discovery.
+
+The test uses an authenticated B host and one origin-bound reader credential for A's authenticated discovery host. B does not forward its caller's token. The test does not introduce a synchronization key exchange.
+
+## Integrate optional notifications
+
+Webhooks notify a receiver after committed changes. Clients must still fetch current authorized state. Webhooks are optional, signed HTTPS CloudEvents with bounded retries. Delivery can contain duplicates and has no ordering guarantee. Disabled intervals, capacity limits or exhausted retries can leave gaps. Receivers must therefore reconcile current state.
+
+See the [webhook runbook](../operations/webhooks.mdx) for enablement, verification, key rotation, reconciliation and failure recovery. Use the [standard-library verifier and handler outline](../../../../../examples/webhookreceiver/README.md) for a custom receiver. No broker, external account or receiver is required when the feature is disabled.
+
+The [Go publication report](../../../../../examples/publication-report/README.md) provides a runnable HTTPS receiver with a PostgreSQL inbox in its own database. It uses the Go SDK to read current publication state and reconcile periodically.
+
+The [MCP Scanner example](mcp-scanner.mdx) uses release notifications to collect tool definitions from an explicitly configured local MCP endpoint. It saves private YARA reports outside the Catalog and never invokes tools.
+
+<WebhookReceiver />
+
+Store an accepted event durably before returning success. The verifier outline checks signatures but provides no durable store for deduplication or processing.
+
+Reconcile periodically or in response to an event. Refresh the integration's authorized Catalog scope; this does not replay missed notifications. Reading loss counters requires `webhook.read_evidence` permission. With scope enforcement enabled, it also requires `webhooks.manage`. Reading affected Catalog records requires their separate permissions. See [capacity and reconciliation](../operations/webhooks.mdx#receiver-outages-capacity-and-reconciliation) for checkpoint rules.
+
+## Evaluate the ARD Explorer browser client
+
+The independent ARD Explorer can browse an anonymous Catalog through its public Registry API. Use a Registry base URL such as `http://127.0.0.1:8080/ard/v1/`. The current manifest URL, `http://127.0.0.1:8080/.well-known/ard.json`, also resolves that Registry. Discovery does not invoke the returned Agents, MCP Servers or Skills.
+
+Contributors can run the [confined qualification](../../../../../test/interoperability/ard-explorer/README.md) against a disposable Catalog:
+
+```sh
+make ard-explorer-tools-install
+make test-interoperability-ard-explorer
+```
+
+The first command acquires the exact reviewed source and builds it locally. The second starts an owned Catalog and disposable browser, tests native workflows, and removes its processes and temporary state. It does not connect to your retained development Catalog. Review its JSON report and native screenshots under `output/interoperability/ard-explorer/browse-*/`. No external endpoint is tested.
+
+The qualified paths include Search, type filters, three Search pages, Explore counts and one List page. The native Agents tab lists ARD entries of different kinds. The selected client has no authentication or `queryContext` input and cannot continue List pages. Its referral Connect action also mishandles URLs that already end in `/search`. Use the Catalog UI, SDKs or CLI when you need authenticated access or the complete supported request fields. The [harness guide](../../../../../test/interoperability/ard-explorer/README.md#qualify-native-browsing) describes exact versions, bounds and client limits.
+
+## Browse from VS Code
+
+The optional [VS Code client](../../../../../extensions/vscode/README.md) bundles the TypeScript SDK for Catalog reads. Follow [installation](../../../../../extensions/vscode/README.md#install-the-local-package), [connection setup](../../../../../extensions/vscode/README.md#add-a-connection) and the [first browse walkthrough](../../../../../extensions/vscode/README.md#browse-the-catalog). Reader access is sufficient for explicit MCP selection, complete Skill installation, separately activated Plugins and A2A text conversations. Target credentials and execution permissions remain separate from Catalog access.
+
+The SDK examples above also apply to extension-host code. Keep access tokens in the host's SecretStorage and use an explicit Catalog origin. Do not put tokens or SDK calls in a webview. The packaged client includes offline connection help and workflow screenshots; it needs no Catalog UI or external documentation website.
+
+If you need a local Catalog first, follow the [local quickstart](local-development.mdx). Contributors can use the [VS Code package procedure](../contributing/build-and-release.md#optional-vs-code-package) to build and qualify a VSIX from this checkout.
+
+### Remote MCP reads
+
+The optional API `/mcp` endpoint serves the same six read-only tools as stdio. Each HTTP request uses its caller's current Catalog authority. See [HTTP setup and OAuth discovery](mcp-server.mdx#connect-over-http) for activation, client registration, protocol headers and limits. It does not use UI cookies or execute discovered resources.
+
+## Evaluate Pi as an ARD client
+
+The pi-ard extension exposes three ARD tools in Pi. It reads public Catalog manifests and searches configured Registry endpoints. Discovery does not authorize installation or execution.
+
+Set `searchUrl` to the full Search endpoint. Set `trustedDomains` to the hosts whose manifests Pi can read. For a local Catalog with anonymous discovery, the configuration is:
+
+```json
+{
+  "registries": [
+    {"name": "catalog", "searchUrl": "http://127.0.0.1:8080/ard/v1/search"}
+  ],
+  "trustedDomains": ["127.0.0.1"]
+}
+```
+
+The maintained test creates this configuration in disposable state. It does not change personal Pi settings or contact a retained Catalog. Run these commands separately from the repository root:
+
+```sh
+make pi-ard-tools-install
+make test-interoperability-pi-ard
+```
+
+The [harness guide](../../../../../test/interoperability/pi-ard/README.md) covers prerequisites, exact versions, dependency checks, reports and cleanup. The test loads unchanged pi-ard 0.2.1 through Pi 1.5.0's public extension loader. It uses a real Pi session and scripted provider with model networking disabled. It creates governed releases in an isolated Catalog and exercises 18 native tool calls. Installation receives a decline response; no artifact is retrieved.
+
+The selected client has these limits:
+
+- It has no authentication input, so private Catalog reads fail with HTTP 401.
+- It accepts text and media-type filters. It has no `queryContext`, other ARD filter inputs, Explore or List tool.
+- Its MCP filter adds the `application/mcp-server+json` alias. Catalog responses keep their canonical media types.
+- It does not recognize the Catalog's canonical Skill media type. The decline test uses a separate, labeled Skill fixture.
+- Its formatted Search text omits per-result `source` metadata. The test checks that metadata in the actual HTTP response.
+
+Configured trust and declared signatures do not establish Catalog approval. The test checks those labels without fetching attestations or following referrals. The recorded Pi 1.5.0 dependency scan has no reported vulnerabilities. Tests retain the documented network and resource limits. Positive installation, real model behavior and a human terminal interface remain untested.

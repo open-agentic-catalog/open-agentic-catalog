@@ -1,0 +1,45 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="client-retry-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1035" role="img" aria-labelledby="client-retry-title client-retry-desc">
+<title id="client-retry-title">Retry an uncertain command without duplicating it</title>
+<desc id="client-retry-desc">Prepare a mutation with one idempotency key and the required current If-Match value. Branch on its outcome. Use the returned result once after a confirmed success. When needed, follow the returned Job until it reaches a terminal state.
+
+  An unknown outcome keeps the exact request, tenant and actor for bounded replay with backoff. Every retry requires current authorization. A stale-revision rejection instead requires reading current state and deliberately preparing a reconciled command. Completed responses replay only within 24 hours of the original reservation; pending reservations do not expire into permission to duplicate work.</desc>
+<defs><marker id="client-retry-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+<DiagramCard x={30} y={20} width={580} title="Prepare and send one mutation" tone="core" lines={[
+  "Retain the exact request and Idempotency-Key",
+  "Keep the required current If-Match value",
+]} />
+<path class="svg-connector" d="M320 118 V154 H12 V736" />
+<path class="svg-connector" d="M12 260 H30" marker-end="url(#client-retry-arrow)" />
+<path class="svg-connector" d="M12 483 H30" marker-end="url(#client-retry-arrow)" />
+<path class="svg-connector" d="M12 736 H30" marker-end="url(#client-retry-arrow)" />
+<DiagramCard x={30} y={190} width={580} title="Use the returned result" kicker="KNOWN SUCCESS" tone="authority" lines={[
+  "Do not repeat it as a new command",
+  "Follow a returned Job ID until it reaches a terminal result",
+  "202 means accepted, not completed",
+]} />
+<DiagramCard x={30} y={410} width={580} title="Keep the same command" kicker="OUTCOME UNKNOWN" tone="warning" lines={[
+  "Use the same inputs, key, tenant and actor",
+  "Bound retries with backoff; honor Retry-After",
+  "Each attempt still requires current authorization",
+  "Never use a new key to bypass pending work",
+]} />
+<DiagramCard x={30} y={660} width={580} title="Read current state and reconcile" kicker="STALE REVISION" lines={[
+  "Fetch current state and its ETag",
+  "Review changes before you resubmit",
+  "A changed command needs a new key",
+  "Do not blindly overwrite or use last-write-wins",
+]} />
+<DiagramCard x={30} y={880} width={580} title="Replay has a fixed limit" tone="warning" lines={[
+  "Completed responses replay for 24 hours from reservation",
+  "After that window, reconcile before writing",
+  "Pending work fails closed and can need operator inspection",
+  "Other errors follow their documented problem code",
+]} />
+</svg>
+</div>

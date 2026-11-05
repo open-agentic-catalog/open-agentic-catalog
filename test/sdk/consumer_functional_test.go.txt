@@ -1,0 +1,214 @@
+//go:build functional
+
+package clientcompat_test
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/api"
+	sdk "github.com/open-agentic-catalog/open-agentic-catalog/sdk/go"
+	"go.yaml.in/yaml/v3"
+)
+
+func TestSDKCompleteOperationInventory(t *testing.T) {
+	var contract struct {
+		Paths map[string]map[string]any `yaml:"paths"`
+	}
+	must(t, yaml.Unmarshal(api.ControlV1, &contract))
+	generated := reflect.TypeFor[sdk.ClientInterface]()
+	typed := reflect.TypeFor[sdk.ClientWithResponsesInterface]()
+	seen := map[string]bool{}
+	for _, path := range contract.Paths {
+		for _, value := range path {
+			operation, ok := value.(map[string]any)
+			if !ok {
+				continue
+			}
+			name, _ := operation["operationId"].(string)
+			if name == "" {
+				continue
+			}
+			if seen[name] {
+				t.Fatal("duplicate operation ID", name)
+			}
+			seen[name] = true
+			exported := strings.ToUpper(name[:1]) + name[1:]
+			_, raw := generated.MethodByName(exported)
+			if !raw {
+				_, raw = generated.MethodByName(exported + "WithBody")
+			}
+			_, parsed := typed.MethodByName(exported + "WithResponse")
+			if !parsed {
+				_, parsed = typed.MethodByName(exported + "WithBodyWithResponse")
+			}
+			if !raw || !parsed {
+				t.Fatal("omitted operation", name)
+			}
+		}
+	}
+	if len(seen) == 0 {
+		t.Fatal("empty operation inventory")
+	}
+	t.Logf("Qualified every operation in the current unchanged contract: %d", len(seen))
+}
+
+func TestManagedSDKRealCatalogDraftAndReplay(t *testing.T) {
+	f := newFixture(t)
+	ctx := context.Background()
+	c, err := sdk.New(sdk.Config{Origin: f.server.URL, AllowLoopbackHTTP: true, Token: "admin"})
+	must(t, err)
+	defer c.Close()
+	ns, err := c.CreateNamespaceWithResponse(ctx, &sdk.CreateNamespaceParams{IdempotencyKey: "sdk-namespace"}, sdk.CreateNamespaceJSONRequestBody{DisplayName: "SDK", Slug: "sdk"})
+	must(t, err)
+	if ns.JSON201 == nil {
+		t.Fatal("namespace rejected", ns.StatusCode())
+	}
+	params := &sdk.UpdateNamespaceParams{IdempotencyKey: "sdk-update", IfMatch: ns.HTTPResponse.Header.Get("ETag")}
+	name := "SDK updated"
+	body := sdk.UpdateNamespaceJSONRequestBody{DisplayName: &name, Reason: "SDK qualification"}
+	first, err := c.UpdateNamespaceWithResponse(ctx, ns.JSON201.Id, params, body)
+	must(t, err)
+	replay, err := c.UpdateNamespaceWithResponse(ctx, ns.JSON201.Id, params, body)
+	must(t, err)
+	if first.JSON200 == nil || replay.StatusCode() != 200 || !bytes.Equal(first.Body, replay.Body) || replay.HTTPResponse.Header.Get("Idempotency-Replayed") != "true" || replay.HTTPResponse.Header.Get("ETag") != first.HTTPResponse.Header.Get("ETag") {
+		t.Fatal("explicit original-key replay changed")
+	}
+	params.IdempotencyKey = "sdk-stale"
+	stale, err := c.UpdateNamespaceWithResponse(ctx, ns.JSON201.Id, params, body)
+	must(t, err)
+	if stale.StatusCode() != 412 || stale.ApplicationproblemJSONDefault == nil || stale.ApplicationproblemJSONDefault.Code != "PRECONDITION_FAILED" {
+		t.Fatal("stale revision not preserved")
+	}
+	resource, err := c.CreateResourceWithResponse(ctx, &sdk.CreateResourceParams{IdempotencyKey: "sdk-agent"}, sdk.CreateResourceJSONRequestBody{NamespaceId: ns.JSON201.Id, Kind: sdk.ResourceKind("agent"), CanonicalIdentifier: "urn:air:catalog.example.com:sdk:agent"})
+	must(t, err)
+	if resource.JSON201 == nil {
+		t.Fatal("resource rejected", resource.StatusCode())
+	}
+	// Reuse the valid native card from the established compatibility workflow.
+	card := `{"name":"SDK Agent","description":"SDK evidence","version":"1.0.0","supportedInterfaces":[{"url":"https://agents.example.com/sdk","protocolBinding":"JSONRPC","protocolVersion":"1.0"}],"capabilities":{"extensions":[{"uri":"https://example.com/sdk","params":{"large":9007199254740993,"nested":[null,false,""]}}]},"defaultInputModes":["application/json"],"defaultOutputModes":["application/json"],"skills":[{"id":"sdk","name":"SDK","description":"Find evidence","tags":["sdk"]}]}`
+	raw := `{"version":"1.0.0","representations":[{"role":"primary","mediaType":"application/a2a-agent-card+json","data":` + card + `}]}`
+	version, err := c.CreateResourceVersionWithBodyWithResponse(ctx, resource.JSON201.Id, &sdk.CreateResourceVersionParams{IdempotencyKey: "sdk-version"}, "application/json", strings.NewReader(raw))
+	must(t, err)
+	if version.JSON201 == nil || version.JSON201.Evidence.State != "complete" {
+		t.Fatal("native evidence rejected", version.StatusCode())
+	}
+	retained, err := c.GetVersionRevision(ctx, version.JSON201.Revision.Id)
+	must(t, err)
+	data := f.result(retained, nil, 200)
+	if !bytes.Contains(data, []byte("9007199254740993")) || !bytes.Contains(data, []byte(`"nested":[null,false,""]`)) {
+		t.Fatal("raw evidence changed")
+	}
+	reader, err := sdk.New(sdk.Config{Origin: f.server.URL, AllowLoopbackHTTP: true, Token: "reader"})
+	must(t, err)
+	defer reader.Close()
+	denied, err := reader.CreateNamespaceWithResponse(ctx, &sdk.CreateNamespaceParams{IdempotencyKey: "sdk-denied"}, sdk.CreateNamespaceJSONRequestBody{DisplayName: "Denied", Slug: "denied"})
+	must(t, err)
+	if denied.StatusCode() != 403 || denied.ApplicationproblemJSONDefault == nil {
+		t.Fatal("backend authorization bypassed")
+	}
+	missing, err := reader.GetNamespaceWithResponse(ctx, ns.JSON201.Id)
+	must(t, err)
+	if missing.StatusCode() != 200 || missing.HTTPResponse.Header.Get("X-Request-ID") == "" {
+		t.Fatal("current authorized read failed")
+	}
+}
+
+func TestManagedSDKCommittedMutationRecovery(t *testing.T) {
+	f := newFixture(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	const commandKey = "sdk-lost-update"
+	type committedResponse struct {
+		status int
+		body   []byte
+		etag   string
+	}
+	committed := make(chan committedResponse, 1)
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.Header.Get("Idempotency-Key") != commandKey {
+			f.server.Config.Handler.ServeHTTP(w, r)
+			return
+		}
+		if attempts.Add(1) != 1 {
+			f.server.Config.Handler.ServeHTTP(w, r)
+			return
+		}
+		// Let the real Catalog commit and retain the result. Lose only its first
+		// HTTP response, so the caller cannot tell whether the command committed.
+		recorded := httptest.NewRecorder()
+		f.server.Config.Handler.ServeHTTP(recorded, r)
+		committed <- committedResponse{recorded.Code, bytes.Clone(recorded.Body.Bytes()), recorded.Header().Get("ETag")}
+		conn, _, err := w.(http.Hijacker).Hijack()
+		if err != nil {
+			t.Error("could not inject lost response", err)
+			return
+		}
+		_ = conn.Close()
+	}))
+	t.Cleanup(server.Close)
+	token := "admin"
+	c, err := sdk.New(sdk.Config{Origin: server.URL, AllowLoopbackHTTP: true, TokenProvider: func(context.Context) (string, error) { return token, nil }})
+	must(t, err)
+	t.Cleanup(c.Close)
+	ns, err := c.CreateNamespaceWithResponse(ctx, &sdk.CreateNamespaceParams{IdempotencyKey: "sdk-lost-namespace"}, sdk.CreateNamespaceJSONRequestBody{DisplayName: "Before", Slug: "sdk-lost"})
+	must(t, err)
+	if ns.JSON201 == nil || ns.HTTPResponse.Header.Get("ETag") == "" {
+		t.Fatal("valid create control failed", ns.StatusCode())
+	}
+	name := "Committed once"
+	params := &sdk.UpdateNamespaceParams{IdempotencyKey: commandKey, IfMatch: ns.HTTPResponse.Header.Get("ETag")}
+	body := sdk.UpdateNamespaceJSONRequestBody{DisplayName: &name, Reason: "Qualify lost command response"}
+	uncertain, err := c.UpdateNamespaceWithResponse(ctx, ns.JSON201.Id, params, body)
+	var diagnostic *sdk.Error
+	if uncertain != nil || !errors.As(err, &diagnostic) || diagnostic.Code != "request_or_decode_failed" || attempts.Load() != 1 {
+		t.Fatal("lost command was retried or uncertainty was hidden", err, attempts.Load())
+	}
+	var original committedResponse
+	select {
+	case original = <-committed:
+	case <-ctx.Done():
+		t.Fatal("command did not reach the real Catalog", ctx.Err())
+	}
+	if original.status != http.StatusOK || original.etag == "" || original.etag == params.IfMatch {
+		t.Fatal("fault did not follow a successful committed update", original.status)
+	}
+	readback, err := c.GetNamespaceWithResponse(ctx, ns.JSON201.Id)
+	must(t, err)
+	if readback.JSON200 == nil || readback.JSON200.DisplayName != name || readback.JSON200.Revision != ns.JSON201.Revision+1 || readback.HTTPResponse.Header.Get("ETag") != original.etag {
+		t.Fatal("lost response did not retain exactly one update")
+	}
+	// A retained success is not permission to disclose it to a current reader.
+	token = "reader"
+	denied, err := c.UpdateNamespaceWithResponse(ctx, ns.JSON201.Id, params, body)
+	must(t, err)
+	if denied.StatusCode() != http.StatusForbidden || denied.ApplicationproblemJSONDefault == nil || denied.ApplicationproblemJSONDefault.Code != "FORBIDDEN" || denied.HTTPResponse.Header.Get("Idempotency-Replayed") != "" {
+		t.Fatal("replay bypassed current write authorization")
+	}
+	token = "admin"
+	changed := "Must not replace the committed update"
+	conflict, err := c.UpdateNamespaceWithResponse(ctx, ns.JSON201.Id, params, sdk.UpdateNamespaceJSONRequestBody{DisplayName: &changed, Reason: body.Reason})
+	must(t, err)
+	if conflict.StatusCode() != http.StatusConflict || conflict.ApplicationproblemJSONDefault == nil || conflict.ApplicationproblemJSONDefault.Code != "IDEMPOTENCY_KEY_REUSED" {
+		t.Fatal("changed command reused the retained binding")
+	}
+	replay, err := c.UpdateNamespaceWithResponse(ctx, ns.JSON201.Id, params, body)
+	must(t, err)
+	if replay.JSON200 == nil || !bytes.Equal(replay.Body, original.body) || replay.HTTPResponse.Header.Get("ETag") != original.etag || replay.HTTPResponse.Header.Get("Idempotency-Replayed") != "true" {
+		t.Fatal("explicit original command did not recover the retained response")
+	}
+	after, err := c.GetNamespaceWithResponse(ctx, ns.JSON201.Id)
+	must(t, err)
+	if after.JSON200 == nil || !bytes.Equal(after.Body, readback.Body) || after.HTTPResponse.Header.Get("ETag") != original.etag || attempts.Load() != 4 {
+		t.Fatal("refused or replayed requests changed state or added attempts", attempts.Load())
+	}
+}

@@ -1,0 +1,37 @@
+{{- if .Values.enabled }}
+{{- if gt (int .Values.prometheus.scrapeTimeoutSeconds) (int .Values.prometheus.scrapeIntervalSeconds) -}}
+{{- fail "prometheus.scrapeTimeoutSeconds must not exceed scrapeIntervalSeconds" -}}
+{{- end -}}
+{{- if and .Values.prometheus.storage.existingClaim (eq .Values.prometheus.storage.existingClaim .Values.grafana.storage.existingClaim) -}}
+{{- fail "Prometheus and Grafana must use separate claims" -}}
+{{- end -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "catalog-monitoring.name" . }}
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "catalog-monitoring.labels" . | nindent 4 }}
+data:
+  prometheus.yaml: |
+    {{- include "catalog-monitoring.prometheus" . | nindent 4 }}
+  grafana.ini: |
+    {{- include "catalog-monitoring.grafana" . | nindent 4 }}
+  datasource.yaml: |
+    {{- include "catalog-monitoring.datasource" . | nindent 4 }}
+  dashboards.yaml: |
+    {{- required "packaged dashboard provider is missing" (.Files.Get "files/dashboards.yaml") | nindent 4 }}
+  empty.yaml: |
+    apiVersion: 1
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "catalog-monitoring.name" . }}-dashboard
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "catalog-monitoring.labels" . | nindent 4 }}
+data:
+  catalog.json: |
+    {{- required "packaged dashboard is missing" (.Files.Get "files/catalog.json") | nindent 4 }}
+{{- end }}

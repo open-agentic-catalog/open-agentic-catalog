@@ -1,0 +1,40 @@
+# Invocation-owned qualification only: install pgvector as the database owner
+# before the explicit optional migration. Runtimes never receive this authority.
+services:
+  postgres:
+    cpus: 2
+    mem_limit: 1g
+  semantic-setup:
+    image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+    entrypoint: [psql]
+    command: ["postgres://catalog:catalog@postgres:5432/catalog?sslmode=disable", "-v", "ON_ERROR_STOP=1", "-c", "CREATE EXTENSION IF NOT EXISTS vector"]
+    depends_on:
+      postgres: {condition: service_healthy}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: "no"
+  migrate:
+    command: [migrate, apply, --semantic, --config, /config/config.json, --api-role, catalog_api, --worker-role, catalog_worker]
+    depends_on:
+      semantic-setup: {condition: service_completed_successfully}
+  api:
+    cpus: 2
+    mem_limit: 512m
+    environment:
+      CATALOG_JOBS_MAX_ATTEMPTS: "7"
+      CATALOG_JOBS_RETRY_CEILING: 5.5s
+      CATALOG_WORKER_DEPENDENCY_RETRY_INITIAL_DELAY: 1.25s
+      CATALOG_WORKER_DEPENDENCY_RETRY_CEILING: 2.5s
+      CATALOG_PUBLIC_BASE_URL: http://127.0.0.1:${CATALOG_COMPOSE_HTTP_PORT}
+      CATALOG_DISCOVERY_HOSTS: '[{"host":"127.0.0.1","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"demo.catalog.example.com"}]'
+  worker:
+    cpus: 1
+    mem_limit: 512m
+    environment:
+      CATALOG_JOBS_MAX_ATTEMPTS: "7"
+      CATALOG_JOBS_RETRY_CEILING: 5.5s
+      CATALOG_WORKER_DEPENDENCY_RETRY_INITIAL_DELAY: 1.25s
+      CATALOG_WORKER_DEPENDENCY_RETRY_CEILING: 2.5s
+      CATALOG_PUBLIC_BASE_URL: http://127.0.0.1:${CATALOG_COMPOSE_HTTP_PORT}
+      CATALOG_DISCOVERY_HOSTS: '[{"host":"127.0.0.1","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"demo.catalog.example.com"}]'

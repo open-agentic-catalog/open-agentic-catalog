@@ -1,0 +1,10 @@
+{
+  "scanner": "4.8.7",
+  "scannerSource": "b27af3b0e66ea8d5ab9c294b47aba137f4c30752",
+  "rulesSha256": "9a9c71de25825864a47c9370ec03d682f00ad253252e1d72738ed5f95057ad71",
+  "scannerPublishedAt": "2026-10-20T17:30:42.219299Z",
+  "scannerAgeExceptionApproved": false,
+  "dependencyCutoff": "2026-10-14T00:00:09Z",
+  "baseImage": "python:3.13.17-slim-bookworm@sha256:e32be0e55814a08977501ca863271d9bd02443710db8f2afaf8372e2c4508530",
+  "uv": "0.13.4"
+}

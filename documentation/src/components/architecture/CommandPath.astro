@@ -1,0 +1,31 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="request-path-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1531" role="img" aria-labelledby="request-path-title request-path-desc">
+  <title id="request-path-title">HTTP command path through the modular monolith</title>
+  <desc id="request-path-desc">A client command passes through request middleware, a thin HTTP handler, the owning domain service and its repository interface. The identity service checks current permissions at the required scope. The command reserves its idempotency key before any required bounded external preparation. Domain writes occur afterward in one transaction. PostgreSQL applies tenant and actor context, and atomically saves domain writes, audit, independently classified outbox evidence and the captured idempotent response. It returns the exact response or a currently authorized replay.</desc>
+  <defs><marker id="arrow-request" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 95 V165" marker-end="url(#arrow-request)" />
+  <path class="svg-connector" d="M320 263 V333" marker-end="url(#arrow-request)" />
+  <path class="svg-connector" d="M320 408 V443 H180 V478" marker-end="url(#arrow-request)" />
+  <path class="svg-connector" d="M300 538.5 H340" marker-end="url(#arrow-request)" />
+  <path class="svg-connector" d="M460 648 V683 H320 V718" marker-end="url(#arrow-request)" />
+  <path class="svg-connector" d="M320 816 V886" marker-end="url(#arrow-request)" />
+  <path class="svg-connector" d="M320 961 V1031" marker-end="url(#arrow-request)" />
+  <path class="svg-connector" d="M320 1198 V1268" marker-end="url(#arrow-request)" />
+  <DiagramCard x={60} y={20} width={520} title={"Untrusted HTTP command"} tone="external" lines={["POST /api/v1/..."]} />
+  <DiagramCard x={60} y={165} width={520} title={"Request middleware"} lines={["Request ID, limits, authentication and scope checks", "Reserve the idempotency key before external preparation"]} />
+  <DiagramCard x={60} y={333} width={520} title={"Thin HTTP handler"} lines={["Strict decoding and mapping; typed result or safe error"]} />
+  <DiagramCard x={60} y={478} width={240} title={"Identity service"} tone="authority" lines={["Current membership,", "permission and", "exact scope"]} />
+  <DiagramCard x={340} y={478} width={240} title={["Owning domain", "service"]} tone="core" lines={["Invariants and", "transitions", "Safe errors and", "narrow interfaces"]} />
+  <DiagramCard x={60} y={718} width={520} title={"Bounded preparation when needed"} tone="warning" lines={["Validate or safely fetch evidence", "outside the write transaction"]} />
+  <DiagramCard x={60} y={886} width={520} title={"Repository interface"} lines={["Contract describes domain behavior, not SQL"]} />
+  <DiagramCard x={60} y={1031} width={520} title={"PostgreSQL adapter: one atomic command"} tone="authority" lines={["Set tenant and actor context; recheck current evidence", "Save state and documents with", "bounded audit and classified outbox", "Capture the exact response and idempotent replay record", "Preparation reads use short, separate transactions"]} />
+  <DiagramCard x={60} y={1268} width={520} title={"After commit: exact response"} tone="authority" lines={["Return the new result or a currently authorized replay"]} />
+  <DiagramCard x={60} y={1413} width={520} title={"No external call in the write transaction"} tone="warning" lines={["Every command-owned write commits with", "its required evidence and response."]} />
+
+</svg>
+</div>

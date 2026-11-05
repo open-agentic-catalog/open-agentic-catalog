@@ -1,0 +1,188 @@
+---
+title: "Federation architecture"
+---
+
+import Federation from "../../../components/architecture/Federation.astro";
+
+Site Reliability Engineering (SRE) defines the network origins and private routes the deployment can reach. Source administrators select reviewed sources for indexing, live queries, or referrals within that boundary. Ordinary search callers use the current configured topology. They cannot supply a URL or source set.
+
+## Administrative and query planes
+
+### Administrative plane
+
+Administrators inspect endpoints and connect one reviewed interface with a non-empty scope. They create immutable source revisions, assign discovery audiences, approve referral edges, and acknowledge query disclosure. They can test, synchronize, pause, resume, and remove sources.
+
+### Query plane
+
+ARD discovery for an exact host derives eligible live sources and referrals from active topology. Authenticated Catalog Search derives the tenant's eligible indexed and direct-live sources, then merges bounded results with local releases. The separate live-search command is an administrator diagnostic over configured sources.
+
+## Source exclusions
+
+A source can omit exact identifiers through `scope.excludedIdentifiers`. The rule applies to every version and kind from that source. It takes precedence over positive filters. Another source's copy and an existing local adoption remain available.
+
+Current source policy applies to indexed and live discovery, counts, groups and new adoption. Administrative evidence remains available. Adoption checks the source revision again at the final local commit. A concurrent source edit prevents that commit.
+
+Exclusions are local policy, not an ARD extension. The Catalog does not send the list upstream or publish it. Each approved referral source uses its own scope. Exclusions do not block upstream enumeration or direct client requests to referred peers.
+
+## Source onboarding
+
+Initial onboarding consumes an unexpired inspection. Testing and synchronization use only the active immutable revision. A configuration change requires a separate preview and PATCH command.
+
+<Federation />
+
+**Diagnostic evidence describes actual egress.** It lists only configured sources that reached the hardened fetch boundary. Sources rejected earlier are not reported as contacted, including paused, stale, invalid, or referral-only sources. An aggregate with accepted results and valid empty results remains successful and complete.
+
+Source configuration, synchronization state, audit, and applicable public events commit atomically. Classified evidence covers inspection and change-preview creation, connection and lifecycle changes, outbound tests, manual synchronization requests, and administrator diagnostic live search. Each distinct committed complete, incomplete, or failed synchronization snapshot also has classified evidence.
+
+Connection, revision changes, pause, resume, removal, and diagnostic live search require operation-specific closed bodies with bounded reasons. Preview creation, tests, and synchronization do not require reasons. A preview declares update or removal intent. It binds a count and digest over current matched observation IDs and exact-entry digests in stable order. PostgreSQL computes them without loading raw observation bodies into the application.
+
+The mutation transaction locks the source against synchronization and recomputes the preview count and digest. A synchronization that changes current membership or content makes the preview stale, even if the source revision does not change. An unchanged synchronization need not invalidate equivalent consequences. Removal requires the current matching digest.
+
+A valid authorized inspection, test, or diagnostic records a safe outcome after it reaches the hardened outbound boundary. This includes policy refusal before a socket, transport or HTTP failure, parse failure, and partial results. Authentication, authorization, malformed input, missing sources, stale preconditions, and earlier failures remain redacted operational signals. Diagnostic POST uses idempotency because it writes audit. Ordinary Catalog and ARD search, leases, heartbeats, and raw remote content do not produce a universal audit stream or durable public events.
+
+## Inspection discovery sequence
+
+### Normalize
+
+Require policy-permitted HTTPS; reject user info, fragments, ambiguous ports, and unsafe address classes.
+
+### Normative ARD path
+
+For a domain input, first fetch `/.well-known/ard.json` on the requested domain. Use the root only for bounded HTTP/HTML `rel="ard"` discovery, in-page metadata, or a valid root-document fallback.
+
+### Preserve interface
+
+Generic manifests use current ARD. Explicit media types, exact well-known locations, Link relations, nested catalog declarations, and retained source profiles distinguish predecessor AI Catalog compatibility. The `specVersion` and `host` fields alone never select a format. Contradictory explicit signals fail closed. A resolved endpoint, source type, profile or Registry-interface change requires a new Source identity. Reinspection of the same interface can qualify changed explicit network or credential bindings.
+
+### Compatibility
+
+Optionally inspect `/.well-known/ai-catalog.json`, `rel="ai-catalog"`, and inert in-page JSON-LD without executing page content.
+
+### Registry
+
+Probe advertised Search and exact derived List operations independently; retain referrals as evidence instead of contacting them automatically.
+
+### Report
+
+The inspection retains exact requested and resolved URLs, media type, body digest, profile, and bounded entry/metadata summaries. It also retains Registry capabilities, opaque route and credential references, policy identity, safe findings, creation time, and a 15-minute expiry. It does not retain the fetched body or transport secrets.
+
+## Indexed ingestion pipeline
+
+Manual and automatic synchronization use the same durable path. Per-document retrieval state, Registry List pages, observations, and the source pointer commit in the same atomic snapshot transaction.
+
+1. Claim the Job lease bound to the source revision and durable Job identity.
+
+1. Resolve the current egress policy, private profile, and credential revision.
+
+1. Enumerate and fetch bounded root and approved nested documents within the global fetch and entry budgets.
+
+1. Preserve raw entries and retrieval evidence. Parse duplicate-safe JSON with the inspected profile.
+
+1. Check adapter metadata, findings, source scope, and admission. Do not execute resources.
+
+1. Commit occurrences, membership, reconciliation, and the source pointer atomically.
+
+`POST /api/v1/federation/sources/{sourceId}:sync` enqueues a manual durable synchronization Job. Worker-capable roles scan due enumerable sources marked `automatic` and enqueue the same Job type. Indexing requires an exact successfully probed Registry List interface when List is the source root. Validated root, nested, and remote-context documents can use private conditional state and safe `304` reuse. Search-only Registries remain live-only and unscheduled.
+
+### Automatic synchronization trigger
+
+The trigger uses one deployment minimum interval, deterministic source-derived spread, one bounded batch of due sources, and the existing `source.sync` Job. Automatic enqueue and its admission marker commit together. Manual and automatic requests share a source-revision deduplication key. Later scans enqueue missed work. Durable leases let another worker reclaim Jobs after a worker process stops.
+
+### Per-document reuse
+
+Reusable root, nested, and remote-context validators bind the source, profile, policy, credential revision, and safe request identity. A matching `304` creates fresh retrieval evidence. Parent reuse never skips changing children or contexts. Multi-page Lists are fetched afresh; cursor chains are not retained.
+
+### Bounded List consumer
+
+Only a successful probe from one inspected Registry operational base can establish `GET /agents`. List becomes that source's single indexed root; it is not automatically combined with a manifest. Page tokens remain request-local, and the service reapplies scope locally. Exceeding aggregate limits produces a partial result. A complete view marks unseen prior List evidence stale without claiming withdrawal.
+
+The inspection derives the List endpoint from an advertised Registry entry. A successful direct Search probe alone does not establish List capability. Indexed enrollment requires the retained inspection to include a successfully probed List endpoint.
+
+## Source types and withdrawal authority
+
+| Source | Indexed | Live | Absence can prove withdrawal? | Status |
+| --- | --- | --- | --- | --- |
+| Direct ARD manifest | Yes | No | Yes, after one complete safely fetched document. | Implemented |
+| AI Catalog | Yes | No | Direct root can; nested traversal only when every permitted branch completes. | Implemented |
+| Registry Search only | No complete inventory | Yes | No. Search projections expire; expiry is not deletion. | Implemented live |
+| Registry with supported List | Bounded current inventory | Optional | No for the pinned v0.91 profile: it defines no cross-page snapshot guarantee. | Implemented |
+| Hybrid manifest + Registry Search | Manifest is the indexed root | Yes | Yes for the complete manifest tree; a discovered List is not silently unioned. | Implemented |
+| Explicit artifact document | One observation | No | Refresh applies only to that exact URL. | Implemented |
+
+## ARD federation modes
+
+### `none`
+
+Search only the current Registry's active host-bound publication snapshot. Indexed external observations remain attributed private evidence and are not re-exported merely because they were admitted.
+
+### `referrals`
+
+Return local results plus administrator-approved Registry descriptors for the exact host and audience. A referral is metadata and is not contacted.
+
+### `auto`
+
+Query only eligible approved live Registries within one end-to-end budget, with request-local loop detection and bounded contact count. Upstreams receive `none` unless approved referrals are bounded. A signed client cursor can continue one unchanged bounded live window. Core Search combines this window with durable results. Hybrid Search preserves the durable rank order, then adds live results. Live-only Control Search does not query durable records or embeddings.
+
+Each continuation verifies the current window and access; changes require a new search. The [two-Catalog test](../contributing/testing.md#functional-coverage-inventory) checks peer-page admission, partial results during an outage and fresh-query recovery. Its private-network peers use an authenticated discovery host; anonymous reads make no peer request.
+
+These are the accepted v1 defaults and ceilings. The active fetch policy can lower the response byte bound. See [live peer configuration](../reference/configuration.mdx#live-peer-pages) for scheduling, access checks and partial-result behavior.
+
+| Live federation limit | Default | Accepted ceiling | Current enforcement note |
+| --- | --- | --- | --- |
+| Direct upstream Registries | 3 | 8 | Bounded again by total fan-out. |
+| Approved referral depth | 0 | 2 | Requires explicit approved edges and per-source hop policy. |
+| Total Registries contacted | 3 | 12 | One configuration bound covers the complete request. |
+| Overall deadline | 2 seconds | 5 seconds | One end-to-end context, not a fresh timeout per source. |
+| Search pages per peer | 1 | 5 | The initial request counts as one. Three is an explicit operator choice. |
+| Search fetch calls | 3 | 60 | Fan-out multiplied by the page limit, within the shared deadline. |
+| Per-page response | 2 MiB | 8 MiB | The selected fetch policy can be stricter. |
+| Accumulated response bodies per peer | 8 MiB | 8 MiB | Remaining allowance is enforced before another read. |
+| Results considered per peer page | 50 | 50 | The parser rejects larger pages. |
+
+## Safety and privacy rules
+
+### Exact egress
+
+Production defaults to exact public-origin allowlisting. Private networks need an SRE-defined named profile, bounded address ranges, exact origins, and tenant assignment.
+
+### Origin-bound credentials
+
+The service resolves bearer, API-key, or mutual TLS (mTLS) material just before use from an opaque binding. Secrets never cross an origin-changing redirect or enter Jobs, observations, logs, or responses.
+
+### Minimal live query
+
+Only query text and supported filters leave after explicit disclosure acknowledgement. Tenant IDs, user identity, roles, groups, visibility, and internal policy are never sent.
+
+### Partial results
+
+One upstream failure never invalidates a completed local result set. Safe partial diagnostics report outcome without leaking private topology.
+
+### Exact grouping
+
+Live Registry results and durable indexed observations use normalized identifiers plus explicit version presence and value. Durable groups combine equivalent normalized members while retaining exact source contributions. They expose differing members and same-source conflicts.
+
+Observation List/Search and group-member reads select metadata, including exact-byte availability, without loading raw or normalized documents into the application. Availability checks presence; it does not reverify integrity. Raw export, adoption, and synchronization read complete evidence.
+
+A group previews at most 100 source contributions and explicitly marks truncation. One bounded database statement returns selected occurrence counts and latest provenance tuples. Missing evidence fails the group. Conflict detection includes current contributions outside the preview. Per-observation occurrence histories remain paginated. Exact count costs grow with history size.
+
+### Explicit adoption only
+
+Adoption requires tenant-level `source.read_evidence` and `resource.create` for the target namespace. The actor selects one exact complete occurrence from a current supported observation without a same-source conflict. The command creates a local draft with immutable provenance; visibility defaults to private. Normal validation, review, and publication still apply.
+
+### Reconcile complete source snapshots
+
+A complete withdrawal-authoritative snapshot marks absent observations `withdrawn` in the same transaction. An exact reappearance returns the original observation to `current` and adds a complete occurrence. It does not enrich or rewrite original evidence. Current retained formats require complete provenance and reject incomplete pre-release evidence. Incomplete, cancelled, failed, or stale-revision work cannot change prior complete membership. A complete non-authoritative Registry List replaces its current projection and marks unseen prior List evidence `stale`.
+
+Source 429/503 responses retain bounded `Retry-After` minima. The durable Job worker adds bounded exponential backoff with random jitter after each retryable failed attempt. A hint does not make input, authentication, or policy failures retryable. Manual and automatic creation share `jobs.maxAttempts`.
+
+After a retryable failure, work resumes in the same Job. Its limits and the last complete snapshot remain unchanged. See [configuration and retained schedules](../reference/configuration.mdx#durable-job-retry-policy).
+
+### Automatic maintenance boundary
+
+Workers maintain enumerable automatic sources with one indexed root per source. Maintenance requires inspected Registry List capability where applicable and uses per-document conditional evidence, bounded pagination/admission, and typed retry classification. A non-authoritative latest view can mark old evidence stale but cannot claim withdrawal. The mechanism does not provide a general scheduler, shared HTTP cache, page checkpoints, web crawler, or caller-selected topology.
+
+[Federation execution ADR](decisions/0010-federation-execution-modes.md) - Administrative authority versus ARD request modes.
+
+[Connectivity ADR](decisions/0008-federated-source-connectivity.md) - Public origins, private profiles, credentials, and SRE egress.
+
+[Egress configuration](../reference/configuration.mdx#outbound-egress-policy) - Policy document, hard denials, routes, credentials, and startup validation.

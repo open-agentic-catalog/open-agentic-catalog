@@ -1,0 +1,17 @@
+{
+  "version": "2.3.0",
+  "repository": "modelcontextprotocol/python-sdk",
+  "revision": "2118f14f8a19bc158d8a1cf90af58d85d187f849",
+  "wheels": [
+    {
+      "digests": {
+        "blake2b_256": "ce4832583066b155bb5d4507e7887dc88ee23118cc4de8e2a12870c49719e2a8",
+        "md5": "24246786378257e0de0b519bb97c7664",
+        "sha256": "968efdbdaedfab06adae40d378a34395f1090c5921d4be3c9cde283aaf76d91d"
+      },
+      "filename": "mcp_types-2.3.0-py3-none-any.whl",
+      "upload_time_iso_8601": "2026-10-02T22:06:54.099202Z",
+      "url": "https://files.pythonhosted.org/packages/ce/48/32583066b155bb5d4507e7887dc88ee23118cc4de8e2a12870c49719e2a8/mcp_types-2.3.0-py3-none-any.whl"
+    }
+  ]
+}

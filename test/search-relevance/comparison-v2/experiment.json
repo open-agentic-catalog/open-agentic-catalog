@@ -1,0 +1,32 @@
+{
+  "version": 2,
+  "corpus_sha256": "926d402bcf92c152a9af6aff0c1c04d8efd1c1eb3c856c0e201d59e98736383c",
+  "profiles": [
+    "bge-small-v1",
+    "minilm-l6-v1"
+  ],
+  "thresholds": [
+    0.2,
+    0.25,
+    0.3,
+    0.35,
+    0.4,
+    0.45,
+    0.5,
+    0.55,
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8,
+    0.85,
+    0.9,
+    0.95,
+    1,
+    1.01
+  ],
+  "selection": "least-added-no-answer-errors_then-highest-mean-hybrid-ndcg_then-profile-id",
+  "rrf_k": 60,
+  "minimum_ndcg_gain": 0.05
+}
+

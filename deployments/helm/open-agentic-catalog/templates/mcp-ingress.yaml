@@ -1,0 +1,40 @@
+{{- if .Values.api.ingress.enabled }}
+{{- $ingress := .Values.api.ingress -}}
+{{- $public := urlParse .Values.configEnv.CATALOG_PUBLIC_BASE_URL -}}
+{{- if ne (default "false" .Values.configEnv.CATALOG_MCP_ENABLED) "true" -}}
+{{- fail "api.ingress requires CATALOG_MCP_ENABLED=true" -}}
+{{- end -}}
+{{- if or (ne $public.scheme "https") (ne $public.host $ingress.host) (and $public.path (ne $public.path "/")) $public.query $public.fragment $public.userinfo -}}
+{{- fail "api.ingress.host must match the HTTPS CATALOG_PUBLIC_BASE_URL origin without a port" -}}
+{{- end -}}
+{{- range $key, $value := $ingress.annotations -}}
+{{- if or (contains "rewrite" (lower $key)) (contains "snippet" (lower $key)) -}}
+{{- fail "api.ingress annotations must not rewrite paths or inject configuration snippets" -}}
+{{- end -}}
+{{- end -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "mcp") | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: mcp
+  annotations: {{- toYaml $ingress.annotations | nindent 4 }}
+spec:
+  {{- with $ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  tls:
+    - hosts: [{{ required "api.ingress.host is required" $ingress.host | quote }}]
+      secretName: {{ required "api.ingress.tlsSecretName is required" $ingress.tlsSecretName | quote }}
+  rules:
+    - host: {{ $ingress.host | quote }}
+      http:
+        paths:
+          {{- range list "/mcp" "/.well-known/oauth-protected-resource/mcp" }}
+          - path: {{ . | quote }}
+            pathType: Exact
+            backend:
+              service: {name: {{ include "open-agentic-catalog.fullname" $ | quote }}, port: {name: http}}
+          {{- end }}
+{{- end }}

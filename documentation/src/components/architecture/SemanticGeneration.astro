@@ -1,0 +1,37 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="semantic-generation-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1344" role="img" aria-labelledby="semantic-generation-title semantic-generation-desc">
+  <title id="semantic-generation-title">Complete a replacement semantic generation</title>
+  <desc id="semantic-generation-desc">A worker builds a replacement generation under its Job lease. The generation binds the tenant, embedding profile and source generation. Bounded input pages reuse compatible vectors or request new ones outside database transactions. A permanent item rejection is accounted for and remains keyword-only; transient provider failure retries work without invalidating metadata. Before the replacement becomes usable, completion checks the source generation and Job ownership. It also verifies that every member has a vector or permanent rejection.</desc>
+  <defs><marker id="semantic-generation-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 95 V165" marker-end="url(#semantic-generation-arrow)" />
+  <path class="svg-connector" d="M320 240 V310" marker-end="url(#semantic-generation-arrow)" />
+  <path class="svg-connector" d="M320 385 V455" marker-end="url(#semantic-generation-arrow)" />
+  <text class="svg-small" x="332" y="412">Missing inputs</text>
+  <path class="svg-connector" d="M320 385 V439 H12 V633 H320 V649" marker-end="url(#semantic-generation-arrow)" />
+  <text class="svg-small" x="38" y="625">Compatible vectors</text>
+  <path class="svg-connector" d="M320 579 V649" marker-end="url(#semantic-generation-arrow)" />
+  <path class="svg-connector" d="M320 773 V817" marker-end="url(#semantic-generation-arrow)" />
+  <path class="svg-connector" d="M320 941 V969 H22 V149 H320 V165" marker-end="url(#semantic-generation-arrow)" />
+  <text class="svg-small" x="38" y="793">More input</text>
+  <path class="svg-connector" d="M320 941 V985" marker-end="url(#semantic-generation-arrow)" />
+  <text class="svg-small" x="332" y="965">Complete</text>
+  <path class="svg-connector" d="M320 579 V603 H628 V1160 H320 V1176" marker-end="url(#semantic-generation-arrow)" />
+  <text class="svg-small" x="340" y="1152">Retryable failure</text>
+  <path class="svg-connector" d="M320 1274 V1328 H618 V119 H320 V165" marker-end="url(#semantic-generation-arrow)" />
+  <text class="svg-small" x="340" y="1316">Resume</text>
+  <DiagramCard x={60} y={20} width={520} title={"Begin a leased replacement generation"} tone="core" lines={["Bind tenant, embedding profile and source generation"]} />
+  <DiagramCard x={60} y={165} width={520} title={"Read a bounded page of eligible metadata"} lines={["Authoritative records stay unchanged"]} />
+  <DiagramCard x={60} y={310} width={520} title={"Check for compatible vectors"} lines={["Reuse known vectors; infer only missing inputs"]} />
+  <DiagramCard x={60} y={455} width={520} title={["Run inference outside database", "transactions"]} lines={["Keep new vectors or permanent item-rejection outcomes", "Rejected metadata remains keyword-only"]} />
+  <DiagramCard x={60} y={649} width={520} title={["Save each member's vector or", "permanent rejection"]} lines={["Retain reused/new vectors and item rejections", "Recheck the current Job lease and generation"]} />
+  <DiagramCard x={60} y={817} width={520} title={["Does every member have a vector", "or permanent rejection?"]} lines={["More pages keep the replacement incomplete", "No partial generation becomes ready"]} />
+  <DiagramCard x={60} y={985} width={520} title={"Complete the replacement generation"} tone="authority" lines={["Recheck the source generation and Job lease", "Confirm a vector or permanent rejection for every member", "Only then serve the verified replacement"]} />
+  <DiagramCard x={60} y={1176} width={520} title={"Transient provider failure"} tone="warning" lines={["Bounded Job retry resumes work", "The old usable state is not replaced"]} />
+
+</svg>
+</div>

@@ -1,0 +1,23 @@
+# Installed dependencies and compiled browser assets
+node_modules/
+/dist/
+
+# Local coverage and TypeScript/linter caches
+/coverage/
+*.tsbuildinfo
+.eslintcache
+
+# Local environment files and diagnostic logs
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+
+# Local editor and OS files; shared editor settings remain source
+/.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

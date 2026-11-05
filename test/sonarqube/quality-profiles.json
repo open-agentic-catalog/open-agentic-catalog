@@ -1,0 +1,18 @@
+{
+  "go": {
+    "go:S3776": { "threshold": "40" },
+    "go:S107": { "Max": "15" }
+  },
+  "py": {
+    "python:S3776": { "threshold": "40" },
+    "python:S107": { "max": "15" }
+  },
+  "js": {
+    "javascript:S3776": { "threshold": "40" },
+    "javascript:S107": { "maximumFunctionParameters": "15" }
+  },
+  "ts": {
+    "typescript:S3776": { "threshold": "40" },
+    "typescript:S107": { "maximumFunctionParameters": "15" }
+  }
+}

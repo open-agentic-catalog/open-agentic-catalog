@@ -1,0 +1,293 @@
+---
+title: Install, upgrade, rotate and remove
+---
+
+import UIKeyRotation from "../../../components/architecture/UIKeyRotation.astro";
+
+import CoordinatedUpgrade from "../../../components/architecture/CoordinatedUpgrade.astro";
+
+Operators use these procedures to install and maintain their deployments. They select the Kubernetes distribution, replica count, backup schedule and service objectives. Use the [deployment guide](deployment.mdx), [Helm reference](../../../../../deployments/helm/open-agentic-catalog/README.md) and [configuration reference](../reference/configuration.mdx) for exact inputs. Local Compose and Minikube are test environments, not production installation recipes.
+
+## First installation
+
+Before changing the deployment, identify these inputs:
+
+- Exact image/build and chart.
+- PostgreSQL 18 database and required `pgcrypto` extension.
+- Dedicated schema owner and distinct API/worker roles.
+- Issuer, tenant/membership inventory and host audiences.
+- Outbound policy and secret/trust mounts.
+
+Validate the role-specific configuration with `catalogctl config validate`. Validation does not prove network access or database privileges.
+
+Keep API and worker stopped. Run `catalogctl migrate plan` as the dedicated owner. Review the embedded versions and checksums. Apply migrations with both exact runtime role names.
+
+Require both manifest reports to be compliant before starting either runtime. Follow [database roles](database-roles.md) for provisioning; never substitute an administrator DSN for a runtime role to get past a startup refusal. Production identity provisioning uses the operator command, not the development `bootstrap` shortcut.
+
+After startup, check the separate API and worker readiness surfaces and perform an authorized read of capabilities/current tenant state. Liveness alone is insufficient. Stop if configuration, privilege or identity checks fail. Retain version/profile identity and redacted reports. Run mutating smoke or full functional tests only on disposable data, not as an automatic production acceptance probe.
+
+## Coordinated release deployment
+
+<CoordinatedUpgrade />
+
+This sequence uses the supported Helm coordinator. Complete the API drain before the worker drain. The owner then applies migrations and grants before target startup. The Compose procedure below has equivalent stages with different orchestration.
+
+Select the target image and complete values. Then invoke one deployment command. A brief maintenance interval is intentional: every old API and worker stops before the target image applies migrations. Application processes never acquire schema-owner authority. No zero-downtime or predecessor-development-format compatibility is implied.
+
+For Kubernetes, provision the namespace, external PostgreSQL/roles and referenced Secrets/ConfigMaps first. Retain the exact chart, image digests, profiles, configuration and separately protected keys, plus a qualified [recovery point](backup-restore.mdx). Review the target release requirements and owner-only migration plan. Pause external GitOps/reconciliation and autoscaling.
+
+Run only one deployment operation at a time. The coordinator refuses HorizontalPodAutoscalers (HPAs) that target either runtime, including inactive HPAs. Remove those HPAs before invoking the coordinator. Pause controllers that can recreate them. Restore the selected autoscaling configuration after successful deployment. The migration advisory lock protects SQL application, not concurrent deployment commands.
+
+```sh
+make helm-deploy-check HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
+  HELM_RELEASE=catalog HELM_CHART=/path/to/open-agentic-catalog.tgz \
+  HELM_VALUES=/path/to/production-values.yaml
+make helm-deploy HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
+  HELM_RELEASE=catalog HELM_CHART=/path/to/open-agentic-catalog.tgz \
+  HELM_VALUES=/path/to/production-values.yaml HELM_DEPLOY_TIMEOUT=20m
+```
+
+The check snapshots local inputs, renders, runs a server-connected dry-run and verifies workload ownership and autoscaler constraints without changing workloads. It cannot validate Secret contents, PostgreSQL credentials or runtime access. Deployment repeats that validation, drains API then worker and waits for all selected old Pods to disappear, invokes the existing owner-only pre-install/pre-upgrade hook, and waits for the intended target replicas to become ready. First installation skips scaling absent workloads.
+
+The desired replica counts come from the selected target values, never from the live objects after drain. Both roles must have a positive target count. The drain, Helm deployment and readiness phases default to ten minutes each. Supported overrides are one second to one hour.
+
+Set the timeout above the migration deadline plus scheduling and image-pull time. The example uses 20 minutes for the default 15-minute migration deadline. Local input preparation and preflight each have a fixed two-minute bound, and failed-deployment cleanup has a separate one-minute bound. No chart download, namespace creation, smoke seeding or automatic rollback occurs.
+
+The [operator tool guide](../../../../../test/deployment/README.md) describes limits and tests.
+
+For local development, run `make compose-up`. It builds and validates target API/worker configuration, then stops API followed by worker. Compose's existing successful-migration/provisioning dependencies gate startup; the launcher waits up to 180 seconds for healthy services. It retains the selected project's database volume and never loads sample records automatically. Raw `docker compose up` does not supply this drain sequence. Local development identity provisioning is deliberate fixture behavior, not a production identity policy.
+
+When rebuilding a retained Compose stack, reuse its project, enabled `LOCAL_*` selectors and custom port assignments. For example, keep `LOCAL_UI=on` and `LOCAL_MONITORING=on` if those services already run. Preserve a custom `CATALOG_MONITORING_GRAFANA_PORT`; omitting it restores the default port rather than discovering the existing binding. Set these non-secret inputs in your trusted Make workflow file or repeat them on the command line. Review the [workflow input reference](../reference/configuration.mdx#workflow-only-variables) before replacement. Do not stop another project's services to free a port.
+
+After success, verify API and worker readiness, expected version/profile identity and an authorized read of retained tenant state. An empty migration plan or a version label does not establish safe mixed-version operation. Compatible configuration-only rollouts may use ordinary orchestration when schema/privileges remain unchanged; release upgrades use the conservative path above. PostgreSQL engine-major upgrades, backup restoration and webhook ciphertext-key replacement are separate operator procedures.
+
+### Hand off an external autoscaler
+
+Save the reviewed HPA manifest before maintenance. Record the target API and worker replica counts in the selected Helm values. Keep those counts positive. A live HPA replica count does not replace the target values.
+
+Pause GitOps or any other process that can recreate the targeting HPA. Remove each HPA that targets the API or worker Deployment. An inactive HPA still blocks the coordinator. An unrelated HPA in the same namespace does not block it. A pause annotation alone does not establish that a controller stops reconciliation.
+
+For the example release `catalog`, remove the API HPA with these explicit inputs:
+
+```sh
+kubectl --context my-cluster --namespace catalog delete hpa catalog-api
+kubectl --context my-cluster --namespace catalog get hpa
+```
+
+Use the actual HPA name from your reviewed manifest. Remove a targeting worker HPA too, if present. Keep HPA recreation paused through drain, migration, startup and application readback. Run the deployment commands above with the complete target values.
+
+After success, inspect the target Deployments and Pods:
+
+```sh
+kubectl --context my-cluster --namespace catalog get deployments,pods \
+  -l app.kubernetes.io/instance=catalog
+```
+
+Require the configured API and worker counts to be ready. Verify an authorized read of retained Catalog data. Then restore the reviewed external HPA:
+
+```sh
+kubectl --context my-cluster --namespace catalog apply -f /path/to/catalog-api-hpa.yaml
+kubectl --context my-cluster --namespace catalog get hpa
+```
+
+Resume its recreator only after the restored HPA targets the intended Deployment. Check `ScalingActive` and current metrics. HPA decisions can change the replica count after this handoff. Use the [external autoscaler example](deployment.mdx#use-an-external-api-autoscaler) and [connection worksheet](database-roles.md#replica-and-dependency-budget) before choosing limits.
+
+Do not restore the HPA if deployment fails. Keep its recreator paused. Inspect Deployment counts, all runtime Pods, including terminating Pods, and the migration Job. A successful scale-to-zero request does not prove that every Pod has stopped. The stop request can also fail. Correct the cause and retry the same target inputs. Restore the HPA only after target readiness and application readback succeed.
+
+The [owned Minikube scenario](../../../../../test/minikube/README.md#api-autoscaling-qualification) checks active and inactive targeting-HPA refusal, an unaffected neighbor, migration ordering and failure recovery. Its HPA manifests are applied manually; it does not qualify an external GitOps controller.
+
+### Saved tenant policy during deployment
+
+Inspect [live tenant settings](../reference/configuration.mdx#live-tenant-settings) before changing Job or automatic-source defaults. Saved overrides survive a normal deployment and take precedence. Keep API and worker fallback values consistent. A rollout does not reset tenant policy or update earlier command responses.
+
+Use Administration > Settings or its API to reset an override deliberately. Supply a current validator and an audit reason. Do not edit the settings table or treat deployment diagnostics as the active tenant view.
+
+## Upgrade and failed migration
+
+Do not edit numbered SQL, migration checksums or the ledger. `migrate plan` inspects the ledger/checksums; it does not admit runtime roles. `migrate apply` validates both existing roles before SQL, holds the advisory lock through forward migrations and exact grant reconciliation, and returns both manifest reports. Optional semantic installation uses the existing `--semantic` selection/chart semantic settings; it does not enable hybrid search by itself.
+
+| Failure point | Recovery |
+| --- | --- |
+| Invalid chart/values, ownership or preflight | Running workloads remain unchanged. Correct the selected inputs and recheck. |
+| API/worker drain or interrupted drain | Migration has not started. Some roles may already be stopped. Inspect them, correct the obstruction and retry the same target; do not infer desired replicas from live zero values. |
+| Migration transaction fails | That transaction rolls back; earlier migrations may already be committed. Keep both runtimes stopped, inspect the retained hook and owner diagnostics, correct the cause and retry the same target. |
+| Exact grant reconciliation fails after SQL | Keep runtimes stopped. Correct role/grant inputs and rerun target apply. Never substitute administrator runtime credentials. |
+| Migration succeeds but target startup/readiness fails | The coordinator attempts to set target replicas to zero. Inspect Pods and hook status, fix target configuration/credentials/image and retry forward. No previous image is restarted automatically. |
+| Interrupted Helm operation or cleanup failure | Inspect the explicit release with `helm status`/`helm history`, retained hook Jobs and runtime Pods. Ensure no owner operation remains active. Resolve any Helm pending state deliberately before retry; do not blindly delete release metadata or migration evidence. |
+
+A retry reapplies the same immutable SQL identities, reconciles exact grants and restores the target values' replica counts. Helm rollback cannot undo committed SQL. If integrity or compatibility is uncertain, keep workloads stopped and use an independently authorized [isolated restore](backup-restore.mdx) with a compatible binary. Never automatically restore, reset data or assume an old image is safe.
+
+Some migrations require data repair while runtimes remain stopped. Drain both roles completely. Plan and apply migrations with the selected image and exact role names. Run the documented bounded repair. Start compatible runtimes, then verify readiness and application reads. The coordinator does not run repair commands between its migration hook and startup.
+
+Retained observations crossing migration 000027 or 000039 require [search-projection repair](search-projection-repair.mdx). Migration 000039 adds the separate declaration-filter version marker. Fresh installations have no retained observations to repair. Keep redacted plan/apply reports and the exact image/configuration identities with the repair result.
+
+## Rotate credentials and trust
+
+Deliver new credentials before activating them. Revoke old credentials after the required acceptance checks. Backend direct/file pairs reject simultaneous settings even when one is empty; files are bounded single-line values. The independent UI uses only its own configured files.
+
+Optional embedding and tracing inputs and source bindings also use files, with no equivalent direct credential variable. Configuration validation checks inputs without proving remote acceptance. See the [exact input contracts](../reference/configuration.mdx#environment-overrides).
+
+| Input and consumer | Loading and delivery | Replacement, overlap and acceptance | Historical recovery |
+| --- | --- | --- | --- |
+| PostgreSQL DSN: API, worker and separately invoked owner commands | Exactly one of `CATALOG_DATABASE_DSN` / `_FILE`; role-specific configuration and pool are built at process startup. Helm uses separate existing Secret keys for each role. | Keep the same reviewed direct LOGIN identity and exact grants. PostgreSQL password replacement affects new authentication. Existing sessions retain their authentication. Use a maintenance window. Stop affected runtimes. Change the role password and replace their scoped DSNs. Start them and check required readiness plus exact-role diagnostics. Test the retired and replacement passwords with genuinely new connections. Catalog does not support overlapping passwords for a single database role. Emergency session termination is a separate database-owner action. | Old passwords do not decrypt database backups. Restore/bootstrap the exact roles and grants with current protected credentials. Retain owner credentials separately from API/worker credentials. |
+| Catalog cursor-signing key: API and worker runtime composition | Exactly one of `CATALOG_CURSOR_SIGNING_KEY` / `_FILE`, base64 for 32 bytes; startup only. Migration commands do not require it. | Replace every affected process with one consistent key. There is no verification overlap ring. Mixed-key API replicas reject each other's cursors. Verify a new paginated read/continuation and rejection of a pre-transition cursor. Clients restart pagination. A file/Secret change alone does not change an initialized verifier. | Old cursor keys are unnecessary for retained records or backup recovery; outstanding cursors intentionally expire or become invalid. |
+| UI cookie keys: independent UI host | Runtime UI JSON `keysFile` (chart-pinned to the `ui.existingSecret` mount), one to three pairs, startup only; no backend environment override. | Use the staged [UI rotation sequence](#rotate-ui-session-keys). Only the first pair writes; all retained pairs verify. Check every replica, including existing sessions and pending callbacks. Emergency removal invalidates affected sessions; it does not revoke stolen issuer access tokens. | Historical cookie keys are unnecessary for database recovery. Retain predecessor pairs only for the documented session/callback overlap window unless a security incident requires removal. |
+| UI OIDC client secret: independent UI host | Runtime UI JSON `clientSecretFile` (chart-pinned to the `ui.existingSecret` mount), startup only; no direct environment alternative. | If the issuer supports overlap, arrange acceptance of the new secret first. Replace the mounted secret. Restart every UI replica. Verify fresh sign-in and an authorized API read. Then retire the issuer's old secret. Without issuer overlap, use a maintenance window. UI readiness checks neither issuer nor API. | Restore with a currently accepted issuer client credential; database backups do not require an old client secret. |
+| Private trust: API OIDC verifier, API/worker outbound profiles, UI API/issuer transports | Configured CA files are loaded into scoped transports at construction. UI `apiCAFile` / `issuerCAFile` are independent; source mTLS leaves follow the source row below. | Install a reviewed old/new CA bundle before switching peer certificates. Restart all affected consumers. Test actual authenticated exchanges. Remove the predecessor CA after peer transition and restart again. Replacing a CA ConfigMap alone proves neither rollout nor trust revocation. The verifier/issuer handles normal JWKS refresh. Issuer, audience and claim-map changes require a controlled restart. | Preserve public trust and policy configuration needed to reach restored dependencies, separately from private keys. An old CA is not a ciphertext recovery key; do not retain compromised trust merely for a backup. |
+| Source bearer/API-key/mTLS: API and worker resolver | Opaque binding metadata and referenced leaves under `credentialResolution.directory`; reread on each outbound request. No direct secret variable. | Publish one complete immutable generation atomically with a new revision. Do not reuse a revision or replace a leaf under it. Coordinate remote acceptance and retirement. Use source test and synchronization to read back the new revision without restart. Missing/revoked/expired bindings fail only the affected operation and retain complete snapshots. Changing resolver configuration or approved endpoint/profile/interface requires rollout or administrative reinspection as applicable. | Restore bindings externally with currently valid credentials and correct tenant/origin metadata. Retained Catalog evidence stores the opaque binding/revision, not secret bytes. |
+| Embedding bearer token and private CA: enabled API/worker semantic clients | `semanticSearch.tokenFile` and `semanticSearch.caFile`, startup only; no direct credential alternative. Disabled clients read neither. | Arrange provider overlap if supported. Replace scoped files. Restart affected consumers. Verify a successful hybrid query, worker indexing and provider receipt. Then revoke the old provider token. File replacement or removal cannot revoke a token held by an initialized client. Provider rejection can. Lexical fallback and dependency-independent health must remain available. | Restore with current provider credentials and the same selected model contract; embeddings are derived state. Historical provider tokens are not backup decryption keys. |
+| OTLP authentication, private CA and mTLS: enabled API/worker tracing providers | `tracing.headersFile`, `caFile`, `clientCertificateFile` and `clientKeyFile`, startup only, no equivalent direct credential input. Disabled providers read none. | Coordinate collector overlap. Replace complete inputs. Restart affected processes. Verify export counters and collector receipt. Then retire old credentials and trust. File replacement does not reload exports. Readiness is independent of the collector. See [tracing verification](observability.mdx#verify-and-troubleshoot-tracing). | Restore with currently accepted collector inputs; historical credentials are unnecessary for database recovery. |
+| ANS verification public keys and authority policy: enabled API/worker | `trustVerification` settings and explicit public PEM files, startup only. Helm mounts `trustVerification.publicKeysConfigMap`; ConfigMap content changes do not restart workloads. | Supply matching settings to both roles. Add accepted successor keys before producer rotation, then replace both processes. Remove retired keys through another rollout. Distinct producer key IDs are required for RA overlap. See [authority operations](security.md#ans-verification-authorities). | Policy changes make old results historical. Retained evidence remains readable under current authorization. Disabling requires replacement of both roles; cancel pending work when needed. Ordinary discovery remains independent of ANS. |
+| Webhook endpoint signing secret: API lifecycle and worker sends | Generated through authenticated endpoint create/rotate operations and retained encrypted in PostgreSQL; not an environment/file input. | Use the [signing rotation lifecycle](webhooks.mdx#rotate-endpoint-signing-secrets). Prepare the receiver for overlap. Rotate through the API. Install the returned new secret before `previousSecretExpiresAt`. Routine rotation retains one predecessor for the bounded overlap; emergency rotation removes it. Verify an actual signed delivery, not only API readback. Existing sender reads use retained endpoint state. No runtime restart is needed. | Endpoint signing secrets in a backup require that backup's deployment encryption key. Do not substitute signing rotation for ciphertext rewrapping. |
+| Deployment webhook encryption key: enabled API/worker and separate owner maintenance | Exactly one of `CATALOG_WEBHOOK_ENCRYPTION_KEY` / `_FILE`, base64 for 32 bytes; startup only. Owner rewrapping explicitly selects protected old/new key files. | Stop every send-capable runtime. Complete the bounded owner-only [replacement procedure](webhooks.mdx#deployment-encryption-key-replacement). Update both runtime inputs. Restart and verify delivery. Keep both keys during partial replacement. No automatic rollout may run midway through rewrapping. | Retain separately protected keys for older backups and both keys for partially completed replacement. Discarding a required key makes its retained ciphertext unusable. |
+
+Secrets must remain in scoped deployment inputs, not JSON profiles, Helm values, Git, support output or database backup metadata. Public input names, resolved source revisions and trust digests can establish which configuration was selected without printing secret values. Readiness, a successful Secret synchronization or a chart render does not establish credential acceptance; use the per-consumer checks above.
+
+Chart-owned configuration hashes and changes to Secret/ConfigMap references in the Pod template can trigger a rollout. Existing Secret or CA ConfigMap **contents** are externally owned and do not change those hashes or templates. Secret-backed environment values remain fixed for a running container. Projected files can change, but startup consumers still need replacement.
+
+Use explicit coordinated rollouts for startup inputs. Per-request source generations use the complete projection boundary instead. Do not attach a blanket restart controller to every secret.
+
+For source mTLS, check both [binding metadata expiry and certificate validity](../reference/configuration.mdx#federated-source-credential-bindings). Neither extends the other. Publish a complete successor generation with a new revision before retrying the affected Source test or synchronization. A failed attempt does not discard the last complete snapshot.
+
+For collector mTLS, follow the [client identity and CA replacement procedure](observability.mdx#distributed-tracing). Verify a fresh export after each restart and trust change. Certificate renewal alone does not revoke the predecessor certificate. Collector trust and revocation policies remain operator-owned.
+
+### Optional PgBouncer maintenance
+
+The [connection pooling runbook](database-roles.md#connection-pooling-boundary) owns enablement, direct owner access, private trust and capacity. With the optional pooler, coordinate runtime DSNs, each PostgreSQL runtime password and its protected `userlist.txt` together. Stage CA overlap before switching certificates. Stop and drain affected API/worker processes before activating replacement credentials, certificates, trust or pooler settings. Existing authenticated sessions do not prove replacement credentials work.
+
+For server certificates, follow the [renewal and CA retirement sequence](database-roles.md#replace-database-server-certificates). Renew leaves under the current CA separately from a CA change. Load the applicable old/new trust before switching peer certificates. Replace startup consumers again after removing old trust. Verify both served identities, fresh backend sessions, a useful API read and worker progress.
+
+Replace only selected external inputs. Restart the single pooler when its inputs change. Start matching runtimes. Verify readiness and a useful authorized request through genuinely fresh connections.
+
+Kubernetes Secret projection alone does not reload initialized clients, and Helm cannot hash unread Secret/ConfigMap contents. Secret-name changes roll the pooler; content changes require an explicit rollout. Keep schema-owner operations direct and exclude the owner from pooler authentication.
+
+One pooler replica uses `Recreate`, so replacement temporarily reduces availability. Do not assume `PAUSE` or `RECONNECT` moves long-lived pgx sessions. For disablement, drain runtimes. Return their existing DSN Secrets to verified direct PostgreSQL.
+
+Remove the optional pooler in the selected deployment. Start and verify the desired replicas. Follow the coordinated release procedure for upgrades involving migration hooks; an intermediate raw Helm upgrade is not a drain operation.
+
+Preserve current command keys for uncertain outcomes. Use exact replay or supported idempotency repair. Do not blindly repeat a mutation. Database infrastructure owns writer promotion and its stable writer endpoint. Neither Catalog nor PgBouncer elects a writer or repairs replication.
+
+### Optional external Vault delivery
+
+Follow the [optional Vault tutorial](vault.md) for the complete local lab and operator-managed setup.
+
+Vault is optional. The default Helm deployment uses operator-supplied Kubernetes Secrets and requires no Vault server, VSO controller or provider CRDs. Operators can install Vault and VSO separately, then use the existing Catalog Secret references. No Catalog feature flag is needed.
+
+An external [HashiCorp Vault Secrets Operator (VSO)](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/vso) can synchronize static Vault KV data into existing Catalog Kubernetes Secrets. The owned Minikube test verifies initial delivery, startup, database password replacement and source-bearer rotation. It also verifies scoped denials, Vault sealing, persistent Pod replacement, controller outage and authentication repair.
+
+The application chart contains no Vault resource, SDK or dependency. Select exact Vault/VSO/chart/image versions. Review their licenses and security guidance. Dynamic database identities/leases and general hot reload require separate qualification.
+
+Use an external `VaultConnection` with verified TLS. Use a namespace-scoped `VaultAuth` with Kubernetes authentication. Bind it to a dedicated synchronization service account and exact Vault paths. Its operator obtains the required authentication tokens; Catalog API/worker/UI and the migration hook can retain `automountServiceAccountToken: false` and need no Vault credentials. Review operator RBAC, TokenRequest permission and Vault policy separately. The selected upstream VSO controller has cluster-wide Secret access and workload patch permissions. Dedicated sync identities and Vault policies do not restrict that controller authority. [VSO connection/authentication guidance](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/vso/sources/vault) defines those external resources.
+
+For example, an external deployment owner can define a `VaultStaticSecret` with `type: kv-v2`, `mount: catalog`, `path: production/api-database`, a reviewed `vaultAuthRef`, `refreshAfter: 60s`, and `destination: {create: true, name: catalog-api-database}`. Store only the expected `dsn` data key at that Vault path and select `secrets.apiDatabase: {name: catalog-api-database, key: dsn}` in Catalog values. Repeat with separate static paths/destinations for worker, owner and optional keys; never issue randomly named database roles. Omit `rolloutRestartTargets`: the Catalog's per-input maintenance ordering owns activation. These are external provider resources, not additions to the application release. Check the selected version's [VSO API contract](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/vso/api-reference).
+
+Provision and verify every referenced Secret before `helm-deploy` or the owner migration hook starts. Helm hook ordering cannot establish external synchronization readiness. Verify names, required keys, destination ownership and complete data.
+
+For VSO, require a current `SecretSynced=True` condition with reason `Synced` and matching `observedGeneration`. Check the expected KV version and destination marker separately. A successful condition can survive a destination-write failure; inspect warning events too. Do not display values.
+
+For database passwords, drain API and worker before changing PostgreSQL acceptance. Synchronize all successor DSNs before coordinated deployment. Test retired and successor passwords through fresh TLS connections that require password authentication. Keep runtimes stopped after a partial replacement; correct the remaining inputs forward. Restoring old KV bytes does not restore an accepted database password.
+
+For source credentials, verify the mounted revision, Source test and a complete worker snapshot. Retire the old credential at the source and verify rejection. Neither controller health nor Secret projection proves application activation or upstream revocation.
+
+Execute the consumer's acceptance checks. Review adoption and deletion behavior before reusing an existing Secret owner. Prevent two controllers from writing the same destination. Source metadata and leaves must occupy one complete Secret generation, preserving the binding contract rather than separate asynchronous leaf updates.
+
+The synchronized destination persists in Kubernetes storage; base64 is not encryption. Configure encryption at rest, least-privilege Secret access, protected backups and audited administrative reads under [Kubernetes Secret guidance](https://kubernetes.io/docs/concepts/configuration/secret/). VSO's optional encrypted client cache is a separate controller facility and does not encrypt destination Secrets; review its persistence/encryption choices using the [VSO Helm guidance](https://developer.hashicorp.com/vault/docs/deploy/kubernetes/vso/helm).
+
+On synchronization/authentication failure, treat destination freshness as unconfirmed: an existing Secret can remain stale and a running startup consumer can continue with previously accepted credentials. Alert on sync health and upstream expiry/revocation. Do not roll out or run migrations from unverified inputs.
+
+Check only the inputs required by the selected consumer. Owner migration does not require source tokens or cursor keys. A source authentication failure must not become a global Catalog readiness failure. Follow the relevant maintenance window.
+
+An outage does not prove revocation. For removal, stop the selected synchronization first. Inspect destination ownership and deletion policy. Preserve separately required backup keys.
+
+Revoke the selected external access. Clean only explicitly owned disposable resources. Real provider qualification must exercise scoped denial, synchronization outage/recovery, destination persistence, replacement/activation, upstream retirement and cleanup; synthetic Secret/file checks do not satisfy those obligations.
+
+### Rotate UI session keys
+
+<UIKeyRotation />
+
+Complete each rollout before the next stage. Start the overlap window when the last old-key writer stops. Keep the old pair for the maximum session lifetime or five minutes, whichever is longer. Emergency removal follows a separate procedure.
+
+The UI reads one to three cookie-key pairs at startup. Only the first pair writes new cookies; all listed pairs can read them. For routine rotation without invalidating sessions on replicas still running an older configuration:
+
+1. Generate a new independent pair. Use 64 random bytes for `hash` and 32 for `block`. Hex-encode both in the `keys.json` array described by the [UI chart instructions](../../../../../deployments/helm/open-agentic-catalog/README.md#optional-catalog-ui).
+
+   Add it after the current first pair. Roll out every UI replica. All replicas must be able to read the new key before any replica writes with it.
+2. Move the new pair to the first position. Retain the old pair. Complete a second rollout. Keep the remaining session-binding configuration unchanged.
+3. Wait until the last old-key writer stops. Retain the old pair for at least the configured maximum session lifetime or five minutes, whichever is longer. The five-minute bound also protects in-progress OIDC callbacks. Then remove the old pair. Roll out every replica again.
+
+The maintained `make test-minikube-ui` scenario uses synthetic mounted keys and explicit requests to each of two Pods to verify staged replacement, mixed-stage acceptance and emergency removal with a live overlap control. It verifies startup loading through process replacement; updating an existing Secret alone does not reload the running key ring. Deterministic UI-host tests verify the normal retirement window for both session cookies and pending login state. The packaged scenario removes the old key immediately using the emergency path; it does not simulate waiting for the ordinary lifetime or qualify human OIDC login.
+
+Do not exceed the three-pair limit. Retire an already expired predecessor before adding another pair. Remove a compromised key consistently across replicas. Affected sessions and sign-in attempts must restart. Removing UI cookie keys does not revoke an access token already stolen from a compromised session; use the issuer and Catalog membership controls where needed.
+
+## Change discovery hosts and audiences
+
+Each `discovery.hosts` entry binds one exact hostname to a tenant, mode and `publisherDomain`. Here, `publisherDomain` supplies the Registry identifier and AI Catalog host metadata. It does not rename a Publisher record or prove domain ownership. Use [Publisher administration](../guides/publishing.mdx#publisher-approval-and-dns-evidence) for declared Publisher domains and their approval.
+
+Retained snapshots bind their host, audience, profiles and document metadata. Configuration replacement does not rewrite them. Keep the tenant boundary unchanged when following this procedure.
+
+| Change | Required publication action |
+| --- | --- |
+| Add or replace a hostname | Build and activate an eligible candidate for the new hostname. Each hostname has separate publication history. |
+| Change an enabled host's mode or `publisherDomain` | Deploy the new binding, then build and activate a matching candidate. Discovery can reject the old bundle until activation completes. |
+| Retire an active host | Unpublish it while its binding remains enabled, then disable or remove the binding. |
+| Re-enable a retained hostname | Inspect its retained active state before exposing the route. An old active snapshot can become available again if the binding matches. |
+
+Changing `authenticated` to `anonymous` does not make the retained authenticated bundle public. The new anonymous candidate includes only eligible public releases. Changing `publisherDomain` changes the generated host metadata, not the Resources' canonical identifiers.
+
+### Prepare and replace a host binding
+
+1. Record the current host binding, retained active snapshot ID, ingress route and client or federation endpoints.
+2. Select the target hostname, mode and `publisherDomain` for the same tenant.
+3. Plan an interruption if the old and new bindings cannot serve valid snapshots during the change.
+4. Validate the complete replacement profile with `catalogctl config validate` for each affected role.
+5. Deploy the API and worker configuration through [coordinated deployment](#coordinated-release-deployment).
+6. Build a candidate for the exact enabled target host through [discovery publication](../guides/publishing.mdx#build-and-activate-discovery-separately).
+7. Inspect its audience, entries and exclusions before activation.
+8. Activate the candidate with a reason, a new idempotency key and its current ETag.
+9. Verify both discovery documents through the intended route and audience.
+10. Update clients and federation sources to use the intended endpoint.
+
+Adding a hostname does not copy or activate another host's snapshot. Keep the old binding during verification when the planned audience permits it. Same-host mode or domain changes can replace the prior active bundle through fresh generation and activation. Prior unpublish is optional for that replacement; use it when the plan requires an explicit withdrawal before the change. Do not promise uninterrupted discovery between configuration replacement and activation.
+
+Use the [ingress and cache checks](deployment.mdx#verify-discovery-through-ingress-and-caches) for the actual route. Check HTTP `Host`, anonymous and authenticated requests, both manifests, cache headers and conditional requests. DNS alone does not establish correct routing or access. Existing clients can retain cached documents until their cache rules expire.
+
+### Retire or re-enable a host
+
+Use [Unpublish host or its API command](../guides/publishing.mdx#change-release-disposition-or-withdraw-discovery) before disabling or removing an active binding. Unpublish requires a reason and an idempotency key; it does not require `If-Match`. Commands reject absent or disabled bindings, so keep the binding enabled until withdrawal succeeds. Then deploy the disabled or removed mapping and retire its routing deliberately.
+
+Removing a binding does not retire or delete retained snapshots. If it was removed first, restrict routing before re-enabling it for withdrawal. Inspect retained state through the enabled binding before exposing the route. A matching old active bundle can become available immediately. Resources and their governance history remain unchanged.
+
+### Recover a failed host change
+
+Inspect the currently configured binding and retained active state before choosing recovery. Restore the previous complete configuration and routing only if that is the intended boundary. A changed DNS record or restored configuration file alone does not guarantee a usable publication.
+
+Use [guarded snapshot rollback](../guides/publishing.mdx#change-release-disposition-or-withdraw-discovery) only when the snapshot matches the restored configuration and current release eligibility. Supply its current ETag, a new idempotency key and a reason. Activation or rollback retires the preceding active bundle atomically. If eligibility has changed, build and activate a fresh candidate instead. Do not rewrite immutable documents or move snapshots between hosts or tenants.
+
+## Routine care and removal
+
+Use the [housekeeping runbook](housekeeping.md) to distinguish bounded automatic cleanup of eligible operational state from retained audit and governed history. Use supported Job retry/cancellation and source pause/removal APIs, including concurrency and consequence-preview checks. Do not hand-edit terminal state or create a general purge job.
+
+For a normal stop, send `SIGTERM`. Allow readiness removal and the configured drain time. Durable leases and idempotency preserve recovery for uncertain work. Follow [deployment shutdown](deployment.mdx#shutdown) for process and Kubernetes timing.
+
+The product chart connects to an external PostgreSQL and externally supplied Secrets; it does not own an adopter's database backup or deletion lifecycle. Review the exact rendered/customized manifests before `helm uninstall`. It removes release-managed workloads, Services and configuration. Independently owned databases and Secrets remain. Verify retained backup, keys and evidence before separately authorizing any data destruction. Local Compose volume removal and benchmark cleanup are invocation-specific destructive development operations, never production removal procedures.
+
+### Plan storage growth
+
+Measure a representative period of your actual workload before selecting storage headroom. Record elapsed time, accepted changes, package/document sizes and retained relation sizes. Use the [table inventory](../architecture/persistence.md#durable-table-areas) to assign each measurement to its owner.
+
+| Storage area | What to measure | What can change its size |
+| --- | --- | --- |
+| Resources, immutable revisions, releases and retained documents | New revisions/releases and actual document bytes per interval | Continued authoring adds history even when current Resource counts stay constant. |
+| Observations, snapshots and audit evidence | Source refresh volume, publication frequency and relation/index growth | Cleanup of disposable work does not remove retained governed or audit evidence. |
+| Search indexes and optional embeddings | Index bytes, indexed rows and vector dimensions | These are derived state. Rebuilding still needs temporary space and the supported procedure. |
+| Replay, previews, leases, terminal Jobs, deliveries and acknowledged outbox | Eligible ages, cleanup saturation and relation sizes | Only the [documented eligible state](housekeeping.md#what-is-reclaimed) can be reclaimed automatically. |
+| PostgreSQL WAL and temporary files | WAL bytes per interval, retained WAL and temporary-disk use | Writes, replication slots, backup retention and maintenance affect infrastructure storage independently. |
+| Backups and monitoring data | Actual backup/archive sizes and collector retention | These have separate storage, schedules and retention owners. |
+
+Ask the database operator to collect authorized read-only measurements. PostgreSQL's `pg_relation_size`, `pg_indexes_size` and `pg_total_relation_size` distinguish table, index and total relation storage. Do not add an index size again to a total that already includes it. Use infrastructure statistics for WAL, temporary files, replication slots and filesystem capacity. Application metrics do not supply those complete inventories.
+
+Compare net byte growth with the actual change rate over the same interval. Repeat across representative source refreshes, larger documents and maintenance windows. The scale fixture reuses small documents; its bytes per Resource are not a production storage estimate. Current counts alone do not predict immutable history or external backup growth.
+
+Record an operator-selected planning horizon and reserve space for expected growth, WAL retention, temporary work and maintenance or restore operations. Check the [backup contract](backup-restore.mdx#backup-contract) against the recovery plan. A healthy housekeeping cycle can coexist with continued growth. Ordinary row deletion makes space reusable but does not promise smaller database files.
+
+When space is low, inspect filesystem capacity, WAL retention and [housekeeping progress](housekeeping.md#observe-and-troubleshoot) first. Coordinate a capacity increase or reduction of nonessential incoming work with the infrastructure owner. Preserve governed history and audit evidence. Use supported source pause, Job cancellation and repair procedures where appropriate. Do not delete database rows or immutable documents to force space recovery.

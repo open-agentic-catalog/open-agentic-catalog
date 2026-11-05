@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+  "name": "mcp-servers/memory",
+  "version": "0.6.3",
+  "description": "Reference stdio memory graph tools; requires a disposable MEMORY_FILE_PATH.",
+  "repository": {
+    "url": "https://github.com/modelcontextprotocol/servers",
+    "source": "github"
+  },
+  "_meta": {
+    "org.open-agentic-catalog/curation": {
+      "package": "@modelcontextprotocol/server-memory",
+      "packageVersion": "2026.8.31",
+      "runtimeName": "memory-server",
+      "transport": "stdio",
+      "sourceRevision": "a40bc270fb5ece62673f8a1196f57116d885c5eb"
+    }
+  }
+}

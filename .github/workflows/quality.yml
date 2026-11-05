@@ -1,0 +1,399 @@
+name: Source quality
+
+on:
+  workflow_call:
+    inputs:
+      suite:
+        type: string
+        default: all
+      upload_artifacts:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      upload_artifacts:
+        description: Upload selected reports only when the maintainer explicitly enables it
+        type: boolean
+        default: false
+      suite:
+        description: Quality suite to select; all includes every job below
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - unit
+          - source
+          - lint
+          - ui
+          - docs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}-${{ inputs.suite }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CATALOG_ENV_FILE: /dev/null
+  DEV_PYTHON: python3.12
+  PYTHONDONTWRITEBYTECODE: "1"
+  GOTELEMETRY: "off"
+  SELECTED_SUITE: ${{ inputs.suite }}
+  ASTRO_TELEMETRY_DISABLED: '1'
+  NPM_CONFIG_AUDIT: 'false'
+
+jobs:
+  admission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Admit a fixed source selection
+        env:
+          SUITE: ${{ inputs.suite }}
+        run: |
+          case "$SUITE" in
+            all|unit|source|lint|ui|docs) ;;
+            *) printf '%s\n' 'Invalid source quality selection.' >&2; exit 2 ;;
+          esac
+  isolated-unit:
+    needs: admission
+    name: Isolated Go and tooling units
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'unit' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out complete source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check runner capacity
+        run: python3.12 -B test/ci/tools.py preflight --profile unit
+      - name: Install selected toolchains
+        run: python3.12 -B test/ci/tools.py install --profile unit
+      - name: Install locked Python helper tools
+        run: make dev-tools-install
+      - name: Measure isolated application units
+        id: go_units
+        run: make coverage-unit
+      - name: Check isolated Python helpers
+        id: python_units
+        run: make test-tooling-unit
+      - name: Reject unexpected source changes
+        if: ${{ !cancelled() }}
+        run: |
+          if ! git diff --quiet --; then
+            printf 'Verification changed unstaged source files.\n' >&2
+            exit 1
+          fi
+          if ! git diff --cached --quiet --; then
+            printf 'Verification changed staged source files.\n' >&2
+            exit 1
+          fi
+          unexpected="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$unexpected" ]]; then
+            printf 'Verification created unexpected non-ignored files.\n' >&2
+            exit 1
+          fi
+      - name: Record unit scope
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+          GO_UNITS: ${{ steps.go_units.outcome || 'not_run' }}
+          PYTHON_UNITS: ${{ steps.python_units.outcome || 'not_run' }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          # Summary format strings contain literal Markdown backticks.
+          # shellcheck disable=SC2016
+          {
+            printf '### Isolated units\n\nStatus at summary, before artifact upload: `%s`.\n\n' "$RESULT"
+            printf 'Commit: `%s`\n\n' "$SOURCE_COMMIT"
+            printf 'Requested quality suite: `%s`.\n' "$SELECTED_SUITE"
+            if [[ "$SELECTED_SUITE" != all ]]; then
+              printf 'Other quality suites are unselected.\n'
+            fi
+            printf 'Go units: `%s`; Python helper units: `%s`.\n\n' "$GO_UNITS" "$PYTHON_UNITS"
+            printf 'Application coverage: `coverage/unit.out`; Python helper units have a separate scope.\n'
+            printf 'No local functional, PostgreSQL or browser coverage is included in this measurement.\n'
+          } | tee "$RUNNER_TEMP/ci-quality-unit.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Save the local job summary before runner removal
+        if: ${{ always() && env.ACT }}
+        env:
+          LOCAL_REPORT_DIRECTORY: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/quality/isolated-unit
+        run: |
+          set -euo pipefail
+          mkdir -p -- "$LOCAL_REPORT_DIRECTORY"
+          cp --no-dereference -- "$RUNNER_TEMP/ci-quality-unit.md" "$LOCAL_REPORT_DIRECTORY/summary.md"
+      - name: Retain safe unit evidence
+        if: ${{ (always()) && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: quality-unit-${{ github.run_id }}-${{ github.run_attempt }}-${{ runner.arch }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/ci-quality-unit.md
+            coverage/unit.out
+
+  source-local:
+    needs: admission
+    name: Source checks and local regression
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'source' || inputs.suite == 'lint' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out complete source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check runner capacity
+        run: python3.12 -B test/ci/tools.py preflight --profile quality
+      - name: Install source-check prerequisites
+        run: python3.12 -B test/ci/tools.py install --profile quality
+      - name: Install locked Python tools
+        run: make dev-tools-install
+      - name: Install locked API validators
+        run: make validation-tools-install
+      - name: Lint source without broad regression
+        id: lint
+        if: inputs.suite == 'lint'
+        run: make check
+      - name: Check source and broad local behavior
+        id: regression
+        if: inputs.suite != 'lint'
+        run: make check verify
+      # The nested validation module is outside the root Go test traversal.
+      - name: Qualify the API validation launcher
+        id: api_validation
+        if: inputs.suite != 'lint'
+        run: make api-validation-test
+      - name: Reject unexpected source changes
+        if: ${{ !cancelled() }}
+        run: |
+          if ! git diff --quiet --; then
+            printf 'Verification changed unstaged source files.\n' >&2
+            exit 1
+          fi
+          if ! git diff --cached --quiet --; then
+            printf 'Verification changed staged source files.\n' >&2
+            exit 1
+          fi
+          unexpected="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$unexpected" ]]; then
+            printf 'Verification created unexpected non-ignored files.\n' >&2
+            exit 1
+          fi
+      - name: Record local regression scope
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+          LINT: ${{ steps.lint.outcome || 'not_run' }}
+          REGRESSION: ${{ steps.regression.outcome || 'not_run' }}
+          API_VALIDATION: ${{ steps.api_validation.outcome || 'not_run' }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          # Summary format strings contain literal Markdown backticks.
+          # shellcheck disable=SC2016
+          {
+            printf '### Source and local regression\n\nStatus at summary, before artifact upload: `%s`.\n\n' "$RESULT"
+            printf 'Commit: `%s`\n\n' "$SOURCE_COMMIT"
+            printf 'Requested quality suite: `%s`.\n' "$SELECTED_SUITE"
+            if [[ "$SELECTED_SUITE" != all ]]; then
+              printf 'Other quality suites are unselected.\n'
+            fi
+            if [[ "$SELECTED_SUITE" == lint ]]; then
+              printf 'Source lint: `%s`. Broad regression and API launcher tests are unselected.\n' "$LINT"
+            else
+              printf 'Source/local aggregate: `%s`; API launcher qualification: `%s`.\n\n' "$REGRESSION" "$API_VALIDATION"
+              printf '`check verify` covers source checks, Go race/local functional coverage, binaries and pinned conformance fixtures.\n'
+              printf '`api-validation-test` separately qualifies the installed API validators.\n'
+            fi
+            printf 'This job does not qualify PostgreSQL, packaged applications, SDKs or deployed infrastructure.\n'
+          } | tee "$RUNNER_TEMP/ci-quality-local.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Save the local job summary before runner removal
+        if: ${{ always() && env.ACT }}
+        env:
+          LOCAL_REPORT_DIRECTORY: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/quality/source-local
+        run: |
+          set -euo pipefail
+          mkdir -p -- "$LOCAL_REPORT_DIRECTORY"
+          cp --no-dereference -- "$RUNNER_TEMP/ci-quality-local.md" "$LOCAL_REPORT_DIRECTORY/summary.md"
+      - name: Retain safe local coverage evidence
+        if: ${{ (always() && inputs.suite != 'lint') && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: quality-local-${{ github.run_id }}-${{ github.run_attempt }}-${{ runner.arch }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/ci-quality-local.md
+            coverage/default.out
+            coverage/core.out
+
+  ui:
+    needs: admission
+    name: UI units and local browser journeys
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'ui' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out complete source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check runner capacity
+        run: python3.12 -B test/ci/tools.py preflight --profile ui
+      - name: Install UI toolchain
+        run: python3.12 -B test/ci/tools.py install --profile ui
+      - name: Install locked UI packages
+        run: make ui-install
+      - name: Install Chromium system libraries
+        run: node catalog-ui/node_modules/playwright/cli.js install-deps chromium
+      - name: Install the selected Chromium
+        run: make ui-browser-install
+      - name: Check UI source and local journeys
+        id: ui_checks
+        run: make test-ui
+      - name: Reject unexpected source changes
+        if: ${{ !cancelled() }}
+        run: |
+          if ! git diff --quiet --; then
+            printf 'Verification changed unstaged source files.\n' >&2
+            exit 1
+          fi
+          if ! git diff --cached --quiet --; then
+            printf 'Verification changed staged source files.\n' >&2
+            exit 1
+          fi
+          unexpected="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$unexpected" ]]; then
+            printf 'Verification created unexpected non-ignored files.\n' >&2
+            exit 1
+          fi
+      - name: Record browser scope
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+          UI_CHECKS: ${{ steps.ui_checks.outcome || 'not_run' }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          # Summary format strings contain literal Markdown backticks.
+          # shellcheck disable=SC2016
+          {
+            printf '### UI checks\n\nStatus at summary, before artifact upload: `%s`.\n\n' "$RESULT"
+            printf 'Commit: `%s`\n\n' "$SOURCE_COMMIT"
+            printf 'Requested quality suite: `%s`.\n' "$SELECTED_SUITE"
+            if [[ "$SELECTED_SUITE" != all ]]; then
+              printf 'Other quality suites are unselected.\n'
+            fi
+            printf 'UI aggregate: `%s`.\n\n' "$UI_CHECKS"
+            printf '`test-ui` includes lint, types, dead-code checks, component units and owned local browser journeys.\n'
+            printf 'Component coverage comes from Vitest. Browser journeys have separate functional results.\n'
+            printf 'Visual baseline comparisons and updates are not selected.\n'
+          } | tee "$RUNNER_TEMP/ci-quality-ui.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Save the local job summary before runner removal
+        if: ${{ always() && env.ACT }}
+        env:
+          LOCAL_REPORT_DIRECTORY: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/quality/ui
+        run: |
+          set -euo pipefail
+          mkdir -p -- "$LOCAL_REPORT_DIRECTORY"
+          cp --no-dereference -- "$RUNNER_TEMP/ci-quality-ui.md" "$LOCAL_REPORT_DIRECTORY/summary.md"
+      - name: Retain safe UI coverage evidence
+        if: ${{ (always()) && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: quality-ui-${{ github.run_id }}-${{ github.run_attempt }}-${{ runner.arch }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/ci-quality-ui.md
+            output/coverage/catalog-ui/coverage-summary.json
+            output/coverage/catalog-ui/lcov.info
+
+  documentation:
+    needs: admission
+    name: Documentation source and root/base builds
+    if: ${{ inputs.suite == 'all' || inputs.suite == 'docs' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out complete source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check runner capacity
+        run: python3.12 -B test/ci/tools.py preflight --profile docs
+      - name: Install documentation toolchain
+        run: python3.12 -B test/ci/tools.py install --profile docs
+      - name: Install locked documentation packages
+        run: make docs-install
+      - name: Check Markdown and repository documentation
+        id: docs_source_checks
+        run: make docs-check
+      - name: Check the static manual
+        id: docs_site_checks
+        run: make docs-site-check
+      - name: Reject unexpected source changes
+        if: ${{ !cancelled() }}
+        run: |
+          if ! git diff --quiet --; then
+            printf 'Verification changed unstaged source files.\n' >&2
+            exit 1
+          fi
+          if ! git diff --cached --quiet --; then
+            printf 'Verification changed staged source files.\n' >&2
+            exit 1
+          fi
+          unexpected="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$unexpected" ]]; then
+            printf 'Verification created unexpected non-ignored files.\n' >&2
+            exit 1
+          fi
+      - name: Record documentation scope
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+          DOCS_SOURCE_CHECKS: ${{ steps.docs_source_checks.outcome || 'not_run' }}
+          DOCS_SITE_CHECKS: ${{ steps.docs_site_checks.outcome || 'not_run' }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          # Summary format strings contain literal Markdown backticks.
+          # shellcheck disable=SC2016
+          {
+            printf '### Documentation checks\n\nStatus at summary, before artifact upload: `%s`.\n\n' "$RESULT"
+            printf 'Commit: `%s`\n\n' "$SOURCE_COMMIT"
+            printf 'Requested quality suite: `%s`.\n' "$SELECTED_SUITE"
+            if [[ "$SELECTED_SUITE" != all ]]; then
+              printf 'Other quality suites are unselected.\n'
+            fi
+            printf 'Markdown and repository contracts: `%s`; site checks: `%s`.\n\n' "$DOCS_SOURCE_CHECKS" "$DOCS_SITE_CHECKS"
+            printf '`docs-check` includes Markdown lint, repository documentation contracts and workflow defaults.\n'
+            printf '`docs-site-check` includes JS/Astro diagnostics, native tests and root/non-root builds.\n'
+            printf 'This job does not publish the manual or qualify packaged `/docs/` delivery.\n'
+          } | tee "$RUNNER_TEMP/ci-quality-docs.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Save the local job summary before runner removal
+        if: ${{ always() && env.ACT }}
+        env:
+          LOCAL_REPORT_DIRECTORY: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/quality/documentation
+        run: |
+          set -euo pipefail
+          mkdir -p -- "$LOCAL_REPORT_DIRECTORY"
+          cp --no-dereference -- "$RUNNER_TEMP/ci-quality-docs.md" "$LOCAL_REPORT_DIRECTORY/summary.md"
+      - name: Retain documentation summary
+        if: ${{ (always()) && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: quality-docs-${{ github.run_id }}-${{ github.run_attempt }}-${{ runner.arch }}
+          retention-days: 7
+          if-no-files-found: error
+          path: ${{ runner.temp }}/ci-quality-docs.md

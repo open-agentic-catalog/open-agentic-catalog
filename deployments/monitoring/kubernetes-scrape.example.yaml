@@ -1,0 +1,37 @@
+# Operator-owned example; not installed by the Catalog chart or local Compose.
+# Replace the namespace, Helm release and catalog_deployment label together.
+# The scraper needs its own Kubernetes discovery credentials/RBAC and network access.
+scrape_configs:
+  - job_name: catalog-pods
+    scrape_interval: 10s
+    scrape_timeout: 4s
+    metrics_path: /metrics
+    scheme: http
+    scrape_protocols: [PrometheusText0.0.4]
+    kubernetes_sd_configs:
+      - role: pod
+        namespaces:
+          names: [open-agentic-catalog]
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_instance]
+        regex: open-agentic-catalog
+        action: keep
+      # Select exactly one named port on each application Pod, never migration Jobs.
+      - source_labels:
+          - __meta_kubernetes_pod_label_app_kubernetes_io_component
+          - __meta_kubernetes_pod_container_port_name
+        regex: 'api;http|worker;operations'
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_phase]
+        regex: Running
+        action: keep
+      - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+        target_label: catalog_role
+      - target_label: catalog_deployment
+        replacement: example-cluster/open-agentic-catalog/open-agentic-catalog
+    # Preserve the discovered Pod IP:port as instance; do not scrape a load balancer.
+    sample_limit: 10000
+    label_limit: 16
+    label_name_length_limit: 128
+    label_value_length_limit: 256
+    body_size_limit: 1MB

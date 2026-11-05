@@ -1,0 +1,8 @@
+---
+// Resolve file inputs in Astro configuration, before bundling component code.
+const value = JSON.parse(import.meta.env.CATALOG_DOCS_EDITION ?? 'null');
+---
+{value && <aside aria-label="Manual edition">
+  <p><a href={`${value.site}${import.meta.env.BASE_URL}catalog-manual.pdf`} download>Download the complete manual (PDF)</a></p>
+  <p>Version {value.version}. Source revision <code>{value.commit}</code>.</p>
+</aside>}

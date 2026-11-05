@@ -1,0 +1,8 @@
+# Applied only after restore verification. Never start source dependencies.
+services:
+  api:
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_api:catalog-api@restored:5432/catalog?sslmode=disable
+  worker:
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_worker:catalog-worker@restored:5432/catalog?sslmode=disable

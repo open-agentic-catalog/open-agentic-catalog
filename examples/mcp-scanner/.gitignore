@@ -1,0 +1,14 @@
+# Local environments, captures and reports
+.venv/
+.tools/
+reports/
+__pycache__/
+*.py[cod]
+.coverage
+.coverage.*
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db

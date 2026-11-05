@@ -1,0 +1,5 @@
+# Pinned source is built separately, unchanged, without build isolation.
+hatchling
+click>=8.0
+strictyaml>=1.7.3
+pip==26.2.2

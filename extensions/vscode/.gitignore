@@ -1,0 +1,33 @@
+# Installed npm dependencies
+node_modules/
+
+# Local build tools and Python bytecode
+/.tools/
+__pycache__/
+*.py[cod]
+
+# Generated bundles, packages and runtime notices
+/dist/
+*.vsix
+/THIRD_PARTY_NOTICES.txt
+
+# Test output and TypeScript/linter caches
+/coverage/
+/.vscode-test/
+*.tsbuildinfo
+.eslintcache
+
+# Local environment files and diagnostic logs
+.env
+.env.*
+!.env.example
+*.log
+npm-debug.log*
+
+# Local editor and OS files; shared editor settings remain source
+/.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

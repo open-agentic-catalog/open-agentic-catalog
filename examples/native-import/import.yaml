@@ -1,0 +1,30 @@
+format: 1
+resources:
+  - key: review-helper
+    namespaceId: 00000000-0000-7000-8000-000000000010
+    canonicalIdentifier: urn:example:catalog:agent:review-helper
+    kind: agent
+    version: "0.1.0"
+    listing:
+      publisherId: 00000000-0000-7000-8000-000000000020
+      displayName: Review helper
+      description: Describes an example Agent that prepares review notes.
+      visibility: private
+    representations:
+      - role: primary
+        mediaType: application/a2a-agent-card+json
+        dataFile: agent.json
+  - key: review-notes
+    namespaceId: 00000000-0000-7000-8000-000000000010
+    canonicalIdentifier: urn:example:catalog:skill:review-notes
+    kind: skill
+    version: "0.1.0"
+    listing:
+      publisherId: 00000000-0000-7000-8000-000000000020
+      displayName: Review notes
+      description: Describes a short procedure for a change review.
+      visibility: private
+    representations:
+      - role: primary
+        mediaType: application/agent-skills+md
+        contentFile: skills/review-notes/SKILL.md

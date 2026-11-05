@@ -1,0 +1,38 @@
+services:
+  sonarqube:
+    image: ${SONAR_IMAGE:?Use make sonarqube-up}
+    platform: linux/amd64
+    container_name: ${SONAR_NAME:?Use make sonarqube-up}
+    labels:
+      org.open-agentic-catalog.sonarqube.owner: ${SONAR_OWNER:?Use make sonarqube-up}
+    ports:
+      - "127.0.0.1:${SONAR_PORT:-19000}:9000"
+    environment:
+      SONAR_TELEMETRY_ENABLE: "false"
+      SONAR_UPDATECENTER_ACTIVATE: "false"
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    mem_limit: 4g
+    cpus: 2
+    stop_grace_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - data:/opt/sonarqube/data
+      - extensions:/opt/sonarqube/extensions
+      - logs:/opt/sonarqube/logs
+    tmpfs:
+      - /opt/sonarqube/temp:uid=1000,gid=1000
+networks:
+  default:
+    labels:
+      org.open-agentic-catalog.sonarqube.owner: ${SONAR_OWNER:?Use make sonarqube-up}
+volumes:
+  data:
+    labels:
+      org.open-agentic-catalog.sonarqube.owner: ${SONAR_OWNER:?Use make sonarqube-up}
+  extensions:
+    labels:
+      org.open-agentic-catalog.sonarqube.owner: ${SONAR_OWNER:?Use make sonarqube-up}
+  logs:
+    labels:
+      org.open-agentic-catalog.sonarqube.owner: ${SONAR_OWNER:?Use make sonarqube-up}

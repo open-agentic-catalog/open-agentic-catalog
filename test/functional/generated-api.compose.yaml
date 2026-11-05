@@ -1,0 +1,13 @@
+services:
+  provision:
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?functional fixture directory is required}/generated-config.json
+        target: /config/config.json
+        read_only: true
+  api:
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?functional fixture directory is required}/generated-config.json
+        target: /config/config.json
+        read_only: true

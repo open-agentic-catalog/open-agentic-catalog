@@ -1,0 +1,132 @@
+---
+title: "Publication architecture"
+---
+
+import Publication from "../../../components/architecture/Publication.astro";
+
+Publication builds one immutable bundle for an exact host and audience from eligible approved releases. Public reads use that bundle, not drafts or mutable authoring tables.
+
+Candidate construction does not change public state. Activation rechecks an immutable candidate before it atomically replaces the active pointer. A failed candidate leaves the last safe snapshot active.
+
+<Publication />
+
+## Exact discovery-host isolation
+
+| Configured mode | Authentication | Eligible audience | Unknown or inactive host |
+| --- | --- | --- | --- |
+| `disabled` | No discovery response. | None. | `404` |
+| `anonymous` | No token required; adding a token never expands the result. | Current `public` releases only. | `404` |
+| `authenticated` | Verified Catalog token for the exact host tenant, current tenant-level `discovery.read`, and `catalog.read` OAuth scope when enforced. | Current `tenant` and `public` releases; namespace-private records stay on Control API. | `404` |
+
+Each mapping also fixes one publisher domain. ARD and AI Catalog output profiles are service-wide startup settings. Wildcards, query-selected tenants, forwarded-host guessing, and token-selected audiences are not supported.
+
+V1 includes every currently eligible release for the configured host audience. PostgreSQL stores exact candidates, membership, exclusions, active pointers, and history. Snapshot commands require the corresponding tenant-level `publication.*` permissions through the Control API or UI. The Publication Administrator template supplies them; the Publisher template supplies separate namespace-scoped release permissions. Host mappings remain startup configuration. The service does not store per-host configuration in the database or support manually curated release subsets.
+
+## Eligibility gates
+
+### Governance
+
+- Current published or deprecated ListingRelease.
+- Exact approved ReviewSubmission.
+- Current complete validation over the immutable subject.
+- Administrator-approved publication domain.
+
+### Representation
+
+- Supported Agent, MCP Server, Skill or Plugin adapter.
+- Valid `urn:air` identifier and version rules.
+- Exactly one safe public URL or object-valued inline data.
+- No credentials in the delivery URL.
+
+Native documents can declare private-address runtime endpoints. Authors and reviewers decide whether to disclose those references. Publication does not redact them or authorize the Catalog to contact them.
+
+A Plugin entry points to its complete external HTTPS archive and carries the archive checksum and size. It does not publish individual components or place the archive on the Catalog artifact endpoint. The [Plugin guide](../guides/agent-plugins.mdx#verify-package-bytes-and-revalidate-a-plugin) explains freshness, revalidation and safety withdrawal.
+
+### Discovery quality
+
+- Display name and approved public metadata.
+- A public ListingRelease requires two to five representative queries. An ARD snapshot entry independently requires them. AI Catalog allowances do not bypass the public-release rule.
+- Unique identifier/version membership.
+- All current profile and digest checks pass.
+
+## Generated bundle
+
+### ARD manifest
+
+Pinned profile `ard-0.91-aa3e598`, complete eligible entries, and the host-bound Registry self-entry.
+
+Resource entries include compact license text and topic labels from the immutable reviewed ListingRevision. See [license and topic filters](../reference/standards.mdx#license-topic-and-metadata-filters) for their limits and meaning. Native documents and private Listing extensions remain unchanged.
+
+A projection change requires normal candidate generation and activation. An existing active snapshot remains readable with its original contents. Activation and rollback still compare every entry with current eligibility rules; regenerate a target that no longer matches.
+
+### AI Catalog
+
+Separate compatibility output under `ai-catalog-1.0-b062278`; it may include valid entries lacking ARD discovery queries.
+
+### Registry data
+
+Local Search results, Explore, and List read the same exact active bundle. Core ARD Search can continue an unchanged bounded live window in `auto` mode. Hybrid Search returns durable matches in their exact order, followed by live results. It can return separately approved referrals in `referrals` mode. Both use the discovery host's audience and source-disclosure policy. They do not expose drafts or private authoring evidence.
+
+### Evidence
+
+Exact membership, exclusions, byte digests, ETags, profiles, generated time, and public document allowlist.
+
+Candidate construction selects at most 1,000 eligible releases and 32 MiB of governed projection in deterministic PostgreSQL order. It computes the next generation exactly. Save, activation, and rollback enforce the same entry, exclusion, and artifact-reference limits. They also enforce 16 MiB per document, 36 MiB per snapshot, and 100,000 work units.
+
+External-representation safety withdrawal uses one exact bounded lookup of affected releases. Referral, live, conflict, topology, and current-observation paths use exact lookup or `limit + 1` database selection. Overflow fails explicitly.
+
+ADR-0014 defines one configurable cooperative deadline for product work. It covers authentication, decoding, idempotency, database access, outbound requests, domain work, and response preparation. Probes, metrics, static assets, preflight, unmatched routes, and worker operations remain outside it.
+
+Native PostgreSQL cancellation preserves the session for an atomic command when it remains responsive. It also preserves the standard Go context cause. A fixed 500-millisecond fallback closes an unresponsive connection. One fixed cleanup window can only finish or roll back already-produced atomic work, then release or discard its connection.
+
+One process-wide construction slot bounds concurrent publication memory use. Job and due-source selection use bounded FIFO work without extra tenant scheduling state. The [bounded-work ADR](decisions/0014-bounded-synchronous-work.md) retains the qualification rationale.
+
+## Externally hosted HTTPS representation
+
+The external URL remains the delivery authority; PostgreSQL retains validation evidence, not a new public mirror.
+
+1. Use a credential-free HTTPS origin allowed by public egress policy.
+
+1. Fetch through DNS/IP, TLS, same-origin redirect, status, media-type, deadline, and byte checks.
+
+1. Retain exact bytes in tenant-scoped PostgreSQL with the digest, policy, and 24-hour retrieval freshness.
+
+1. Review and approve evidence bound to the immutable VersionRevision.
+
+1. Refetch before publication. Status, media type, size, digest, and exact bytes must still match.
+
+An identical revalidation renews evidence. An unavailable route, unsafe response, status/media failure, or byte drift records a blocked run. Changed bytes require a new VersionRevision. Explicit blocked revalidation withdraws affected active snapshots. Evidence expiry or deployment-policy drift marks readiness stale but does not rewrite an immutable active bundle.
+
+## Caching and delivery
+
+| Response | Cache contract | Integrity and access |
+| --- | --- | --- |
+| Anonymous well-known alias | `public, no-cache, no-transform` and `Vary: Accept-Encoding`; intermediaries must revalidate. | Exact host and active public snapshot; strong ETag and [RFC 9530 Content-Digest](https://www.rfc-editor.org/rfc/rfc9530.html). |
+| Authenticated well-known alias | `private, no-cache, no-transform` and `Vary: Authorization, Accept-Encoding`. | Token tenant must equal host tenant; active private-discovery snapshot only. |
+| ARD Search / Explore | `no-store` by default because queries and source participation may be sensitive. | Host mode, snapshot, topology, and request bounds apply. |
+| ARD List | Anonymous responses use `public, max-age=60, must-revalidate`; authenticated responses use the equivalent private policy and `Vary: Authorization`. | Request-bound snapshot cursor and exact host audience apply. |
+| Catalog-owned document | Anonymous responses use `public, max-age=60, must-revalidate`; authenticated responses use the equivalent private policy and `Vary: Authorization`. | Served only while an active snapshot explicitly allowlists the tenant-scoped digest. |
+
+## Revocation, rollback, and unpublish
+
+### Safety withdrawal
+
+Publisher-domain revocation, release retirement, supersession, release revocation, or an explicitly blocked external representation deactivates every affected host bundle. Withdrawal commits in the originating command transaction. Each changed host pointer receives one audit record and public unpublish event. Discovery returns `404` until a safe replacement is activated.
+
+### Rollback
+
+A retained snapshot can reactivate only after current eligibility, revocation, profile, document, and external-reference checks pass. The command binds the host and snapshot and requires the current ETag and a bounded operator reason. It commits its audit and public activation event. A historical activation does not bypass current checks.
+
+### Unpublish
+
+The host-bound command requires a reason and explicitly deactivates the host. It commits its audit and public unpublish event while preserving configuration, immutable snapshots, and validation history.
+
+[Discovery contract](../reference/api-conventions.md#discovery-publication) - Host behavior, errors, caching, documents, and withdrawal.
+
+[Discovery ADR](decisions/0009-public-and-private-discovery.md) - Why public and authenticated discovery use exact host mappings.
+
+[Content ADR](decisions/0005-object-storage-modes.md) - Why PostgreSQL, Git, OCI, HTTPS, and optional media have distinct authority.
+
+[Bounded-work ADR](decisions/0014-bounded-synchronous-work.md) - Why deterministic data bounds precede one cooperative product deadline and fixed atomic cleanup remains separate.
+
+[Housekeeping ADR](decisions/0015-operational-housekeeping-and-retention.md) - Why mechanical expiry is automatic, operational retention is prospective, and governed history remains retained.

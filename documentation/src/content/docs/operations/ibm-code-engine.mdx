@@ -1,0 +1,426 @@
+---
+title: "IBM Cloud Code Engine"
+description: "Plan a Catalog deployment on IBM Cloud Code Engine and check the PostgreSQL authority prerequisites before provisioning."
+---
+
+Use [IBM Cloud Code Engine](https://cloud.ibm.com/docs/codeengine?topic=codeengine-application-workloads) for separate API and worker applications. Use finite Code Engine jobs for owner commands. This guide applies only if the selected PostgreSQL service supplies the permissions below. No IBM-hosted Catalog deployment or database compatibility test has verified this procedure.
+
+The required PostgreSQL permissions remain unresolved for [IBM Cloud Databases for PostgreSQL](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-user-management). Do not create billable resources until IBM confirms a supported procedure that satisfies every requirement. If the service forbids a requirement, select another PostgreSQL deployment that meets the [database-role contract](database-roles.md). Do not bypass Catalog's database checks.
+
+## Check compatibility before provisioning
+
+Use PostgreSQL 18, UTF8 encoding and `pgcrypto`. Catalog will not start with another PostgreSQL major version. IBM documents [PostgreSQL 18 availability](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-postgresql-relnotes) and lists [pgcrypto support](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-extensions). Engine and extension availability do not establish the required database permissions.
+
+The database examples below target the `standard` service plan documented under `databases-for-postgresql`. IBM also documents a [Gen 2 service](https://cloud.ibm.com/docs/databases-for-postgresql-gen2?topic=databases-for-postgresql-gen2-getting-started) with different provisioning, users and networking. Do not substitute `standard-gen2` into this procedure. Test its complete database permissions and network setup separately.
+
+| Requirement | Evidence required before selecting the managed database |
+| --- | --- |
+| Engine | PostgreSQL major 18, UTF8 encoding and the required `pgcrypto` extension. Core discovery does not require `pgvector`. |
+| API login | Direct `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT NOBYPASSRLS`, without role membership in either direction. |
+| Worker login | Direct `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT BYPASSRLS`, without role membership in either direction. |
+| Owner login | Dedicated database/schema ownership, access across forced row-level security, and authority over all extension-function grants inspected by Catalog. |
+| Exact grants | Apply all pending migrations using the database schema owner. Check that the command finishes without privilege errors for either runtime role. Start the API and worker with their separate database logins. |
+| Network and TLS | Reachable private database hostname and provider port, with certificate verification using `sslmode=verify-full`. |
+
+IBM's [user-management guide](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-user-management) says that `ibm` is its only superuser and is unavailable to customers. Service-credential, CLI and API users receive `ibm-cloud-base-user` membership. Such users do not meet Catalog's runtime requirements.
+
+PostgreSQL 18 permits [BYPASSRLS role creation](https://www.postgresql.org/docs/18/sql-createrole.html) only from a superuser or a role that already has `BYPASSRLS`. Ordinary `CREATEROLE` authority does not establish that capability. SQL-created roles are not a verified solution: inspect their attributes and every incoming and outgoing membership, including creator memberships. `NOINHERIT` does not remove memberships.
+
+IBM's public documentation does not establish a supported procedure for the required worker `BYPASSRLS` attribute and owner extension-function grants. Ask IBM to confirm independent API and worker logins, worker `BYPASSRLS`, and owner access across forced RLS. Also confirm [extension-function grant authority](database-roles.md#prepare-an-isolated-non-superuser-owner). IBM installs extensions in its [read-only `ibm_extension` schema](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-extensions#installing-extensions). Catalog still needs to revoke excess function access and grant only its reviewed digest overloads. Database ownership and successful extension installation alone are insufficient.
+
+Do not use provider group roles, a shared administrator login, `SET ROLE`, disabled RLS or handwritten broad grants as substitutes. If IBM cannot supply the required authority, the managed database is incompatible with this Catalog version. The later Code Engine steps apply only after this prerequisite is established.
+
+For an existing database selected for testing, inspect these non-secret facts through an approved PostgreSQL client:
+
+```sql
+SHOW server_version;
+SHOW server_encoding;
+SELECT rolname, rolcanlogin, rolsuper, rolcreatedb, rolcreaterole,
+       rolreplication, rolinherit, rolbypassrls
+  FROM pg_catalog.pg_roles
+ WHERE rolname IN ('catalog_owner', 'catalog_api', 'catalog_worker');
+SELECT granted.rolname AS granted_role, member.rolname AS member_role
+  FROM pg_catalog.pg_auth_members membership
+  JOIN pg_catalog.pg_roles granted ON granted.oid = membership.roleid
+  JOIN pg_catalog.pg_roles member ON member.oid = membership.member
+ WHERE granted.rolname IN ('catalog_api', 'catalog_worker')
+    OR member.rolname IN ('catalog_api', 'catalog_worker');
+SELECT extname, extversion FROM pg_catalog.pg_extension
+ WHERE extname = 'pgcrypto';
+```
+
+Expect `18.x`, `UTF8` and one installed `pgcrypto` row. The role attributes must match the table, and the membership query must return no rows. These queries do not replace owner preparation, exact-grant checks or startup with each runtime's own login. Test compatibility in an isolated database. Do not execute migrations as a compatibility experiment against a retained installation.
+
+### Check Code Engine ingress and lifecycle
+
+Code Engine terminates public HTTPS and forwards HTTP to the container. Catalog needs `0.0.0.0:8080`; it does not read Code Engine's injected `PORT` setting. IBM [reserves port 9090](https://cloud.ibm.com/docs/codeengine?topic=codeengine-application-workloads). Override the worker operations listener with `CATALOG_WORKER_OPERATIONS_ADDRESS=0.0.0.0:8080`.
+
+Confirm that ingress preserves the effective request `Host`. Public discovery rejects `Forwarded`, `X-Forwarded-Host` and `X-Original-Host`; it does not trust them as routing authority. Test the selected Code Engine endpoint or custom domain against that rule. If the platform adds prohibited headers that cannot be removed safely, stop discovery rollout and correct the ingress configuration. API readiness does not test public discovery routing.
+
+Use [HTTP readiness and liveness probes](https://cloud.ibm.com/docs/codeengine?topic=codeengine-app-probes) on `/readyz` and `/livez`. A database outage must fail readiness without becoming a liveness restart loop. The separate worker listener includes status and metrics but has no product API or authentication. Keep it private and limit access through infrastructure.
+
+IBM's [scaling documentation](https://cloud.ibm.com/docs/codeengine?topic=codeengine-app-scale) describes SIGTERM followed by SIGKILL after the configured request timeout during scale-down. The examples select 60 seconds, above Catalog's default 20-second shutdown budget. Confirm actual termination behavior for application deletion, replacement and platform maintenance before production use.
+
+## Select the deployment layout
+
+| Workload | Image command | Endpoint and resources |
+| --- | --- | --- |
+| API application | `/usr/local/bin/catalogd api --config /config/config.json` | Private API behind reviewed public ingress; container port 8080; minimum 1, maximum 2 instances in this example. |
+| Worker application | `/usr/local/bin/catalogd worker --config /config/config.json` | Private operations endpoint on container port 8080; minimum and maximum 1 instance. |
+| Owner job run | `/usr/local/bin/catalogctl` with explicit arguments | One finite task instance, no automatic retry; only the owner DSN. |
+| Optional UI application | `/usr/local/bin/catalog-ui --config /config/ui.json` | Separate public HTTPS origin and image; no database inputs. |
+
+The worker polls durable Jobs without incoming HTTP traffic. Keep its minimum instance count at one. Code Engine [bills running instances for CPU and memory](https://cloud.ibm.com/docs/codeengine?topic=codeengine-pricing), including an application fixed at one instance. Test that the worker continues to process Jobs without incoming HTTP traffic. A finite task job is unsuitable for the long-running worker; this procedure uses applications for both backend roles.
+
+:::caution[Container hardening has a platform limit]
+The [Code Engine application controls](https://cloud.ibm.com/docs/codeengine?topic=codeengine-cli#cli-application-create) select a non-root user but do not establish the read-only root filesystem, capability drops and privilege restrictions in the [deployment contract](deployment.mdx#artifact-and-deployment-ownership). Secret mounts and an immutable image digest do not supply those controls. Confirm the required runtime isolation before selecting Code Engine; use another host if the platform cannot enforce your requirements.
+:::
+
+The examples use [1 vCPU and 2 GB memory](https://cloud.ibm.com/docs/codeengine?topic=codeengine-mem-cpu-combo), an accepted combination, rather than a measured Catalog capacity recommendation. Set each backend pool to five connections initially. Two API instances and one worker then permit 15 runtime connections, before owner commands, replacement overlap and operator reserves. Size the actual database budget before increasing replica or pool limits.
+
+The private worker endpoint is reachable beyond the project through permitted IBM private networking. Use [context-based restrictions](https://cloud.ibm.com/docs/codeengine?topic=codeengine-cbr-inbound) for the approved operator network. If only same-project access is needed, select `--visibility project` instead. Neither setting authenticates the worker operations surface. Keep unrelated workloads out of the project.
+
+## Prepare operator tools and release inputs
+
+Install the [IBM Cloud CLI and Code Engine plug-in](https://cloud.ibm.com/docs/codeengine?topic=codeengine-install-cli) and the [Cloud Databases plug-in](https://cloud.ibm.com/docs/cloud-databases?topic=cloud-databases-icd-cli). Use Bash for the examples. Replace all names, regions and protected paths with reviewed deployment inputs.
+
+```sh
+set -euo pipefail
+umask 077
+CATALOG_REGION=us-south
+CATALOG_RESOURCE_GROUP=catalog-production
+CATALOG_PROJECT=catalog-production
+CATALOG_DATABASE_INSTANCE=catalog-postgresql
+CATALOG_INPUTS="$HOME/.local/share/open-agentic-catalog/ibm-production"
+CATALOG_IMAGE='us.icr.io/your-namespace/catalog@sha256:REPLACE_WITH_RELEASE_DIGEST'
+CATALOG_CONFIG_MAP=catalog-config-v1
+CATALOG_DATABASE_CA_MAP=catalog-database-ca-v1
+CATALOG_API_SECRET=catalog-api-database-v1
+CATALOG_WORKER_SECRET=catalog-worker-database-v1
+CATALOG_OWNER_SECRET=catalog-owner-database-v1
+CATALOG_CURSOR_SECRET=catalog-cursor-v1
+CATALOG_REGISTRY_SECRET=catalog-registry
+```
+
+Use the managed [build and release procedure](../contributing/build-and-release.md) to produce and review a `linux/amd64` backend image. Publish it through your authorized release process. Supply its immutable registry digest here. A local image ID is not a registry digest. Build and publish the optional UI separately.
+
+The backend image contains static `catalogd` and `catalogctl` binaries and no shell, package manager or database client. Code Engine commands below pass direct executable arguments. Do not wrap them in `sh -c` or add tools to the runtime image.
+
+Authenticate through your approved operator login:
+
+```sh
+ibmcloud login --sso
+ibmcloud target -r "$CATALOG_REGION" -g "$CATALOG_RESOURCE_GROUP"
+```
+
+IAM authorization for project administration, image pulls and database management is separate from PostgreSQL login authority and Catalog permissions. Grant only the required platform access. Do not inject an operator IAM API key into a Catalog runtime.
+
+## Provision only after the database prerequisite passes
+
+These commands create cloud resources and can incur costs. Continue only after the authority requirements, region availability, networking and operational budget are approved for this selected deployment.
+
+For a new instance of the documented `standard` service, pin major version 18 and private endpoints. Review provider sizing, backup and encryption settings before creation:
+
+```sh
+ibmcloud resource service-instance-create "$CATALOG_DATABASE_INSTANCE" \
+  databases-for-postgresql standard "$CATALOG_REGION" \
+  -g "$CATALOG_RESOURCE_GROUP" \
+  -p '{"version":"18","members_host_flavor":"multitenant"}' \
+  --service-endpoints private
+ibmcloud resource service-instance "$CATALOG_DATABASE_INSTANCE"
+ibmcloud ce project create --name "$CATALOG_PROJECT"
+ibmcloud ce project select --name "$CATALOG_PROJECT"
+ibmcloud ce project get --name "$CATALOG_PROJECT"
+```
+
+Follow IBM's [provisioning procedure](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-provisioning) and wait for the database to become active. Check the resulting engine version and endpoint selection. Do not rely on the provider's changing default major version.
+
+For existing resources, inspect and select them instead of running creation commands. The [project endpoint setting](https://cloud.ibm.com/docs/codeengine?topic=codeengine-serviceendpt) controls management access; application visibility is a separate setting. Confirm `Application Private Visibility Supported` before using the worker's private visibility.
+
+Have the authorized database administrator complete the verified role and owner setup in a dedicated Catalog database. Use the exact names `catalog_owner`, `catalog_api` and `catalog_worker`, or update all matching DSNs and owner arguments. Do not create runtime identities through the service-credential shortcut described earlier.
+
+Retrieve the [private connection information](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-connection-strings) through an approved protected workflow. IBM connection details include the actual hostname, port, database and base64 CA certificate. Decode the certificate to PEM. Do not assume port 5432 or the default `ibmclouddb` database.
+
+Verify private DNS and TCP reachability from the selected Code Engine project and from the owner-job environment. A private-only instance also requires a private route from an operator SQL client. Configure the selected [outbound connectivity](https://cloud.ibm.com/docs/codeengine?topic=codeengine-connectivity-outbound) and IBM database endpoint rules. Do not enable a public database endpoint to conceal a missing private route.
+
+## Prepare protected files
+
+Create an unused private input directory outside the checkout. Save a reviewed production profile there:
+
+```sh
+test ! -e "$CATALOG_INPUTS"
+mkdir -p "$CATALOG_INPUTS"
+cp config/production.example.json "$CATALOG_INPUTS/config.json"
+```
+
+Edit `config.json` before upload. The [configuration reference](../reference/configuration.mdx) owns exact fields, supported overrides and validation.
+
+| Field | Required value for this layout |
+| --- | --- |
+| `environment`, `profile` | `production`. |
+| `http.address` | `0.0.0.0:8080`. |
+| `http.publicBaseUrl` | The canonical public API HTTPS origin, such as `https://catalog.example.com`. |
+| `database.driver`, `database.maxConnections` | `postgres`, `5`; remove the example inline `database.dsn`. |
+| `database.migrateOnStart` | `false`. |
+| `auth` | `oidc`, exact external issuer, Catalog API audience, and one explicit dedicated/shared tenant mapping. |
+| `worker.operationsAddress` | `0.0.0.0:8080`; the application also supplies the supported override explicitly. |
+| `discovery.hosts` | Exact approved API hostnames, tenant IDs, audience modes and publisher domains; remove sample host mappings. |
+| `http.corsOrigins` | Exact intended browser origins when direct cross-origin API clients require them; remove sample origins. |
+
+Use an external issuer that meets [API and browser sign-in requirements](sign-in.md). IBM Cloud IAM login and Code Engine routing do not configure Catalog OIDC. The API needs a signed JWT access token with its configured audience. Provision its exact issuer and subject within Catalog separately.
+
+Keep optional webhooks, hybrid search, trust verification, tracing and external media disabled until their separate configuration, network and secret requirements are complete. Managed media remains unavailable. This guide does not establish those integrations.
+
+Supply these files through your protected credential workflow:
+
+| File | Contents and consumers |
+| --- | --- |
+| `db-ca.pem` | Provider CA certificate; API, worker and owner jobs. |
+| `api.dsn` | API login only; API application. |
+| `worker.dsn` | Worker login only; worker application. |
+| `owner.dsn` | Schema owner only; finite operator jobs. |
+| `cursor.key` | Base64 for exactly 32 random bytes; same stable key for API and worker. |
+| `registry-pull.key` | Existing pull-only registry credential; used only by the operator upload command. |
+
+Each DSN is one connection string, optionally followed by one newline. Percent-encode reserved password characters. Use the provider's exact private hostname and port, the dedicated Catalog database and `sslmode=verify-full&sslrootcert=/database-ca/db-ca.pem`. For example:
+
+```text
+postgres://catalog_api:PERCENT_ENCODED_PASSWORD@PRIVATE_DATABASE_HOST:PROVIDER_PORT/catalog?sslmode=verify-full&sslrootcert=/database-ca/db-ca.pem
+```
+
+Protect private source files and their backups. Do not place secrets in JSON, Git, shell arguments or support output. Private issuer trust, when required, needs a separate reviewed map and scoped mounts under the [OIDC trust contract](../reference/configuration.mdx#oidc-private-trust).
+
+## Upload maps and scoped secrets
+
+Use [file-backed maps and secrets](https://cloud.ibm.com/docs/codeengine?topic=codeengine-secretcm-reference-mountedfiles) to preserve the existing Catalog input contracts. Mount each role's DSN separately:
+
+```sh
+ibmcloud ce configmap create --name "$CATALOG_CONFIG_MAP" \
+  --from-file "config.json=$CATALOG_INPUTS/config.json"
+ibmcloud ce configmap create --name "$CATALOG_DATABASE_CA_MAP" \
+  --from-file "db-ca.pem=$CATALOG_INPUTS/db-ca.pem"
+ibmcloud ce secret create --name "$CATALOG_API_SECRET" \
+  --from-file "database.dsn=$CATALOG_INPUTS/api.dsn"
+ibmcloud ce secret create --name "$CATALOG_WORKER_SECRET" \
+  --from-file "database.dsn=$CATALOG_INPUTS/worker.dsn"
+ibmcloud ce secret create --name "$CATALOG_OWNER_SECRET" \
+  --from-file "database.dsn=$CATALOG_INPUTS/owner.dsn"
+ibmcloud ce secret create --name "$CATALOG_CURSOR_SECRET" \
+  --from-file "cursor.key=$CATALOG_INPUTS/cursor.key"
+```
+
+A map key becomes a filename in its mounted directory. The application receives the resulting container path through `CATALOG_DATABASE_DSN_FILE` or `CATALOG_CURSOR_SIGNING_KEY_FILE`. Do not also set the corresponding direct secret variables. Catalog does not consume IBM service-binding JSON or load `.env` automatically.
+
+Configure [private-registry access](https://cloud.ibm.com/docs/codeengine?topic=codeengine-add-registry) with a pull-only credential. This example reads an already provisioned protected IAM API-key file; it does not create that key:
+
+```sh
+ibmcloud ce registry create --name "$CATALOG_REGISTRY_SECRET" \
+  --server us.icr.io --username iamapikey \
+  --password-from-file "$CATALOG_INPUTS/registry-pull.key"
+```
+
+Match the registry server to the image reference. Limit project access to the role secrets and retain the image's non-root UID 65532. Confirm that mounted files are readable by that UID without exposing their contents. The owner secret must never be mounted into an API, worker or UI application.
+
+## Validate, migrate and bootstrap through finite jobs
+
+Keep both backend applications absent or fully stopped during owner migrations. Define a Bash helper that submits one direct `catalogctl` task. It mounts only configuration, database trust and the owner DSN:
+
+```sh
+catalog_owner_run() {
+  local run_name="$1"
+  shift
+  local argument
+  local -a arguments=()
+  for argument in "$@"; do
+    arguments+=("--argument=$argument")
+  done
+  ibmcloud ce jobrun submit --name "$run_name" --image "$CATALOG_IMAGE" \
+    --registry-secret "$CATALOG_REGISTRY_SECRET" \
+    --command /usr/local/bin/catalogctl "${arguments[@]}" \
+    --mode task --array-size 1 --retrylimit 0 \
+    --maxexecutiontime 1800 --cpu 1 --memory 2G \
+    --mount-configmap "/config=$CATALOG_CONFIG_MAP" \
+    --mount-configmap "/database-ca=$CATALOG_DATABASE_CA_MAP" \
+    --mount-secret "/database-secret=$CATALOG_OWNER_SECRET" \
+    --env CATALOG_DATABASE_DSN_FILE=/database-secret/database.dsn \
+    --wait --wait-timeout 1900
+  ibmcloud ce jobrun get --name "$run_name"
+  ibmcloud ce jobrun logs --jobrun "$run_name"
+}
+catalog_owner_run catalog-owner-validate-v1 \
+  config validate --config /config/config.json --role migration
+catalog_owner_run catalog-owner-plan-v1 \
+  migrate plan --config /config/config.json
+```
+
+Review the plan before apply. Offline configuration validation does not prove network access or role authority. Use a unique job-run name for every explicit invocation. Run only one owner operation at a time.
+
+```sh
+catalog_owner_run catalog-owner-apply-v1 \
+  migrate apply --config /config/config.json \
+  --api-role catalog_api --worker-role catalog_worker
+```
+
+Require one successful instance with exit status zero and compliant `runtimePrivileges` reports for both roles. A submitted job is not a completed migration. IBM's [job-run controls](https://cloud.ibm.com/docs/codeengine?topic=codeengine-cli#cli-jobrun-submit) default to retries; `--retrylimit 0` prevents automatic repetition of an uncertain owner mutation. If submission or waiting fails, inspect that exact run's status and logs before deciding what happened.
+
+If SQL commits but grant reconciliation fails, keep runtimes stopped. Correct the reported authority problem and rerun the selected apply deliberately. Do not retry by giving runtimes the owner DSN. Follow [migration failure recovery](maintenance.mdx#upgrade-and-failed-migration).
+
+Provision the initial administrator using attributable deployment values:
+
+```sh
+catalog_owner_run catalog-owner-bootstrap-v1 \
+  identity provision --config /config/config.json \
+  --tenant 00000000-0000-7000-8000-000000000001 \
+  --tenant-name "Production tenant" \
+  --issuer https://identity.example.com --tenancy-mode dedicated \
+  --subject REPLACE_WITH_EXACT_ACCESS_TOKEN_SUBJECT --roles tenant_admin \
+  --operator release-operator --reason "Initial tenant bootstrap"
+```
+
+Replace the example tenant, issuer, subject and operator before execution. For shared tenancy, follow the exact [realm and organization mapping procedure](database-roles.md#initial-catalog-identity-provisioning). Do not use `provision-development` or development bearer tokens in production.
+
+## Start the API and worker applications
+
+Configure the API as a private application with explicit executable arguments, scoped mounts and separate probes. Expose selected product and discovery routes through an operator-managed gateway:
+
+```sh
+ibmcloud ce application create --name catalog-api --image "$CATALOG_IMAGE" \
+  --registry-secret "$CATALOG_REGISTRY_SECRET" --user 65532 \
+  --command /usr/local/bin/catalogd \
+  --argument=api --argument=--config --argument=/config/config.json \
+  --port 8080 --visibility private --cpu 1 --memory 2G \
+  --min-scale 1 --max-scale 2 --request-timeout 60 \
+  --mount-configmap "/config=$CATALOG_CONFIG_MAP" \
+  --mount-configmap "/database-ca=$CATALOG_DATABASE_CA_MAP" \
+  --mount-secret "/database-secret=$CATALOG_API_SECRET" \
+  --mount-secret "/cursor-secret=$CATALOG_CURSOR_SECRET" \
+  --env CATALOG_HTTP_ADDRESS=0.0.0.0:8080 \
+  --env CATALOG_DATABASE_DSN_FILE=/database-secret/database.dsn \
+  --env CATALOG_CURSOR_SIGNING_KEY_FILE=/cursor-secret/cursor.key \
+  --probe-live type=http --probe-live path=/livez --probe-live port=8080 \
+  --probe-live initial-delay=30 --probe-live interval=10 \
+  --probe-live timeout=2 --probe-live failure-threshold=3 \
+  --probe-ready type=http --probe-ready path=/readyz --probe-ready port=8080 \
+  --probe-ready interval=10 --probe-ready timeout=5 \
+  --probe-ready failure-threshold=3 --wait --wait-timeout 600
+```
+
+Start the worker with a private operations endpoint. It needs no incoming product traffic:
+
+```sh
+ibmcloud ce application create --name catalog-worker --image "$CATALOG_IMAGE" \
+  --registry-secret "$CATALOG_REGISTRY_SECRET" --user 65532 \
+  --command /usr/local/bin/catalogd \
+  --argument=worker --argument=--config --argument=/config/config.json \
+  --port 8080 --visibility private --cpu 1 --memory 2G \
+  --min-scale 1 --max-scale 1 --request-timeout 60 \
+  --mount-configmap "/config=$CATALOG_CONFIG_MAP" \
+  --mount-configmap "/database-ca=$CATALOG_DATABASE_CA_MAP" \
+  --mount-secret "/database-secret=$CATALOG_WORKER_SECRET" \
+  --mount-secret "/cursor-secret=$CATALOG_CURSOR_SECRET" \
+  --env CATALOG_WORKER_OPERATIONS_ADDRESS=0.0.0.0:8080 \
+  --env CATALOG_DATABASE_DSN_FILE=/database-secret/database.dsn \
+  --env CATALOG_CURSOR_SIGNING_KEY_FILE=/cursor-secret/cursor.key \
+  --probe-live type=http --probe-live path=/livez --probe-live port=8080 \
+  --probe-live initial-delay=30 --probe-live interval=10 \
+  --probe-live timeout=2 --probe-live failure-threshold=3 \
+  --probe-ready type=http --probe-ready path=/readyz --probe-ready port=8080 \
+  --probe-ready interval=10 --probe-ready timeout=5 \
+  --probe-ready failure-threshold=3 --wait --wait-timeout 600
+```
+
+Review the [Code Engine CLI reference](https://cloud.ibm.com/docs/codeengine?topic=codeengine-cli#cli-application-create) for exact supported options. Catalog enforces its own request and shutdown deadlines independently of Code Engine's timeout. Explicit replica maxima limit connection growth; they do not establish availability or throughput objectives.
+
+Keep the API private and connect the approved ingress gateway through the project's private networking. Expose only reviewed product, discovery, health, version and contract paths. Keep `/metrics` on the operator network. Neither a public Code Engine application nor a custom domain alone filters paths; do not leave an autogenerated public endpoint that bypasses the gateway.
+
+Set the canonical public API hostname, TLS and DNS at that gateway. Keep `http.publicBaseUrl`, `discovery.hosts` and publisher domains consistent with that hostname. Preserve the effective `Host` and remove the prohibited forwarding headers. Where routing requires a Code Engine [custom domain mapping](https://cloud.ibm.com/docs/codeengine?topic=codeengine-domain-mappings), test it together with the private connection and gateway. Stop public discovery rollout if the combined ingress cannot preserve these rules. Do not publish snapshots with placeholder hosts.
+
+## Add the optional UI
+
+Use the separate UI image and [host configuration](../reference/ui-host-configuration.md#host-configuration). Prepare `ui.json` with `listen: 0.0.0.0:8080`, `environment: production`, the exact public `origin`, an empty root `basePath`, and `assets: /app/assets`. Set its fixed `upstream` to the API origin tested above. Prefer the canonical API HTTPS origin for this initial layout.
+
+Set the required forwarding limits, cookie name, session lifetime and timeout explicitly. Set `authMode: oidc`, the exact issuer, UI client ID, `clientSecretFile: /ui-auth/client-secret`, and `keysFile: /ui-auth/keys.json`. Supply independent private API/issuer trust files only when required. Backend environment overrides do not configure this host.
+
+Register a confidential OIDC web client with code/PKCE and the exact `origin + basePath + /auth/callback` redirect. The access token must target the API audience. The ID token must target the UI client, and both subjects must agree. Use the [browser sign-in setup](sign-in.md#add-optional-browser-login) for complete prerequisites and cookie-key creation.
+
+Upload `ui.json` as a dedicated configmap. Upload the client secret and shared cookie key ring as one UI-only secret. Then create its application:
+
+```sh
+ibmcloud ce configmap create --name catalog-ui-config-v1 \
+  --from-file "ui.json=$CATALOG_INPUTS/ui.json"
+ibmcloud ce secret create --name catalog-ui-auth-v1 \
+  --from-file "keys.json=$CATALOG_INPUTS/ui-keys.json" \
+  --from-file "client-secret=$CATALOG_INPUTS/ui-client-secret"
+ibmcloud ce application create --name catalog-ui \
+  --image 'us.icr.io/your-namespace/catalog-ui@sha256:REPLACE_WITH_UI_DIGEST' \
+  --registry-secret "$CATALOG_REGISTRY_SECRET" --user 65532 \
+  --command /usr/local/bin/catalog-ui \
+  --argument=--config --argument=/config/ui.json \
+  --port 8080 --visibility public --cpu 1 --memory 2G \
+  --min-scale 1 --max-scale 2 --request-timeout 60 \
+  --mount-configmap /config=catalog-ui-config-v1 \
+  --mount-secret /ui-auth=catalog-ui-auth-v1 \
+  --probe-live type=http --probe-live path=/livez --probe-live port=8080 \
+  --probe-ready type=http --probe-ready path=/readyz --probe-ready port=8080 \
+  --wait --wait-timeout 600
+```
+
+Map the configured UI hostname with an already issued TLS certificate:
+
+```sh
+ibmcloud ce secret create --name catalog-ui-tls --format tls \
+  --cert-chain-file "$CATALOG_INPUTS/ui-certificate-chain.pem" \
+  --private-key-file "$CATALOG_INPUTS/ui-private-key.pem"
+ibmcloud ce domainmapping create --domain-name console.example.com \
+  --target catalog-ui --target-type application --tls-secret catalog-ui-tls
+ibmcloud ce domainmapping get --domain-name console.example.com
+```
+
+Set the UI DNS CNAME to the value returned by Code Engine. Wait for DNS, certificate and domain readiness. Keep certificate renewal and private keys under operator control. Preserve Host, Origin and any selected base path. Configure all replicas with the same cookie-key ring and deployment binding. UI readiness checks local host state, not API or issuer acceptance.
+
+Verify sign-in and an authorized API read before admitting browser users.
+
+## Verify the selected deployment
+
+Inspect the applications and bounded logs:
+
+```sh
+ibmcloud ce application get --name catalog-api
+ibmcloud ce application get --name catalog-worker
+ibmcloud ce application logs --application catalog-api --tail 100
+ibmcloud ce application logs --application catalog-worker --tail 100
+```
+
+Check API `/readyz`, worker `/readyz` from an approved private location, and the expected `/version` build identity. Obtain a production access token through the configured issuer. Run an authorized read with a protected token file:
+
+```sh
+catalogctl remote capabilities --base-url https://catalog.example.com \
+  --token-file /protected/catalog-api-token
+```
+
+Read `/api/v1/me` through an approved client and confirm tenant, subject and actor type. Check an allowed read and an operation outside that identity's authority. Verify worker progress without incoming requests, private operations isolation, dependency loss and recovery, and SIGTERM drain with disposable staging data.
+
+Qualify public discovery separately after an explicitly authorized staging publication. Verify the canonical hostname, retained publication URLs and permitted audience, including rejection through an unconfigured host. Discovery reads only active snapshots; an empty installation does not establish publication or ingress correctness. Do not run `smoke` as a production health probe: it creates and publishes records.
+
+Send logs to the platform collector through stdout. Configure retention and alerting outside the application. Follow [observability](observability.mdx) for metrics and lifecycle signals; do not expose worker status or metrics publicly to simplify collection. Record actual hosted results separately from this documented procedure.
+
+## Upgrade, rotate and recover
+
+Use a maintenance window for release changes. Save the exact old and target image digests, profiles, domain mappings, app settings and protected input references. Take and verify a recovery point under the [backup and restore procedure](backup-restore.mdx). IBM's [backups and recovery](https://cloud.ibm.com/docs/cloud-databases?topic=cloud-databases-dashboard-backups) remain infrastructure responsibilities.
+
+Block new product traffic and pause external reconcilers. Drain and remove the old API application first, then the worker. This deliberately interrupts service and removes application definitions; retain the reviewed recreation inputs and domain settings first:
+
+```sh
+ibmcloud ce application delete --name catalog-api --wait --wait-timeout 600
+ibmcloud ce application delete --name catalog-worker --wait --wait-timeout 600
+```
+
+Confirm that every old instance and revision has stopped before starting an owner migration. Inspect cancellation, termination and owner-job state if a command times out. Do not infer completion from a missing response. Code Engine `--max-scale 0` permits quota-bound scaling; it does not stop an application. Updating an image creates a revision and is not a migration drain procedure.
+
+Run the target image's owner validation, plan and apply with unique job-run names. Complete any explicitly required bounded repair while both runtimes remain stopped. Require both exact-grant reports to pass. Recreate the target API and worker from the complete reviewed inputs, restore their domain mappings, and verify readiness, build identity and authorized retained reads. Restore product traffic only after those checks.
+
+If a migration or reconciliation fails, keep both applications absent and repair forward. Do not automatically recreate the previous image across committed schema or grant changes. A database restore needs its separately authorized scope and matching binaries. Test provider failover, engine upgrades and backup restoration separately.
+
+For credential or trust rotation, create a new versioned secret or map and replace every startup consumer. Do not assume a projected file update reloads Catalog. Preserve exact login identities and per-role scoping. Test new PostgreSQL connections before retiring passwords; existing sessions do not prove replacement acceptance. Follow [credential rotation](maintenance.mdx#rotate-credentials-and-trust), including cursor-key coordination and staged [UI cookie-key rotation](maintenance.mdx#rotate-ui-session-keys).
+
+Retain migration evidence and required protected recovery inputs. Remove completed owner job runs and their owner secret from the project after the approved maintenance retention period; recreate scoped owner access for later maintenance. Deleting an application does not delete the PostgreSQL instance, registry artifacts, maps, secrets or their charges. Review every selected resource before authorized teardown; do not delete retained data as routine deployment cleanup.

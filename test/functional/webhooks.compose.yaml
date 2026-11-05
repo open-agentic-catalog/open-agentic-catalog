@@ -1,0 +1,62 @@
+services:
+  publication-report:
+    profiles: [publication-report]
+    image: ${IMAGE:?}
+    pull_policy: never
+    user: "${CATALOG_FUNCTIONAL_REPORT_UID:-65532}:${CATALOG_FUNCTIONAL_REPORT_GID:-65532}"
+    network_mode: service:api
+    entrypoint: [/report-inputs/receiver]
+    command: [serve, --origin, "http://127.0.0.1:8080", --allow-loopback-http,
+              --tenant, "00000000-0000-7000-8000-000000000001", --host, "127.0.0.1",
+              --database-file, /report-inputs/receiver.dsn, --token-file, /report-inputs/catalog-token,
+              --signer-file, /report-inputs/signer.json, --tls-cert, /report-inputs/server.pem,
+              --tls-key, /report-inputs/server-key.pem, --listen, "0.0.0.0:9443",
+              --output, /report-output/report.json, --poll-interval, 1s, --reconcile-interval, 24h]
+    volumes:
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/publication-report:/report-inputs:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/publication-report-output:/report-output
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  api:
+    environment:
+      CATALOG_WEBHOOKS_ENABLED: ${CATALOG_FUNCTIONAL_WEBHOOK_ENABLED:-true}
+      CATALOG_WEBHOOK_ENCRYPTION_KEY_FILE: /config/webhooks/encryption.key
+      CATALOG_WEBHOOKS_POLICY_FILE: /config/webhooks/policy.json
+      CATALOG_WEBHOOKS_TIMEOUT: 1s
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?functional fixture directory is required}/webhooks
+        target: /config/webhooks
+        read_only: true
+  worker:
+    ports:
+      - target: 9090
+        published: "0"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    environment:
+      CATALOG_WEBHOOKS_ENABLED: ${CATALOG_FUNCTIONAL_WEBHOOK_ENABLED:-true}
+      CATALOG_WEBHOOK_ENCRYPTION_KEY_FILE: /config/webhooks/encryption.key
+      CATALOG_WEBHOOKS_POLICY_FILE: /config/webhooks/policy.json
+      CATALOG_WEBHOOKS_TIMEOUT: 3s
+      CATALOG_WEBHOOKS_MAX_ATTEMPTS: "3"
+      # Worker-loss qualification pauses acceptance before its response.
+      # API test sends keep their separate one-second transport timeout.
+      CATALOG_WEBHOOKS_POLL_INTERVAL: 100ms
+      CATALOG_WEBHOOKS_RETRY_CEILING: 5s
+      CATALOG_WORKER_LEASE_DURATION: 5s
+      # Keep setup outside the next cleanup cycle. The retention phase alone
+      # recreates the worker with a short cadence to test eventual cleanup.
+      CATALOG_WORKER_HOUSEKEEPING_INTERVAL: ${CATALOG_FUNCTIONAL_WEBHOOK_HOUSEKEEPING_INTERVAL:-1h}
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?functional fixture directory is required}/webhooks
+        target: /config/webhooks
+        read_only: true
+  migrate:
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?functional fixture directory is required}/webhooks
+        target: /config/webhooks
+        read_only: true

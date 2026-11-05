@@ -1,0 +1,447 @@
+---
+title: "Local quickstart and API walkthrough"
+---
+
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Run a local Catalog, load sample data and follow the governed API workflow with this guide. Use the [command reference](../reference/commands.md#obtain-and-invoke-the-binaries) for executable paths, help and output conventions. See the [API conventions](../reference/api-conventions.md) for request rules and the [OpenAPI document](../../../../../api/openapi/control-v1.yaml) for payload schemas.
+
+For users and passwords, follow the [local OIDC setup](../operations/oidc-keycloak.md#run-the-interactive-local-tutorial). The [two-Catalog federation tutorial](two-catalog-federation.mdx) continues with independent review, synchronization and installed VS Code discovery.
+
+## Start the service
+
+Run commands from the repository root. Install Make, [Python](https://www.python.org/downloads/) 3.12 or later, Git and curl. Managed builds use Python and Git to compute [build identity](../contributing/build-and-release.md#application-version-and-release-checks). This calculation needs no Python packages.
+
+Choose one startup method. Use different host ports if another Catalog already runs. Do not stop unrelated services.
+
+| Method | Requirements | State and access |
+| --- | --- | --- |
+| Local (memory) | Go 1.27.3; no container or Node.js for the API. | Combined API/worker; development identities; state clears at exit. |
+| Docker (memory) | Docker with BuildKit; no host Go or Compose. | Combined API/worker in one image; state clears at exit. |
+| Docker Compose | Docker Engine and Docker Compose. | Separate API/worker; development identities; PostgreSQL data survives stop/down. |
+| Kubernetes (Helm) | Go, Helm, kubectl and a prepared Kubernetes 1.34+ cluster. | External PostgreSQL 18, distinct database roles, OIDC and operator-supplied deployment inputs. |
+
+The [Compose topology](../architecture/deployment.mdx#docker-compose) shows local containers, loopback ports, startup conditions and persistent storage.
+
+Creating `.env` is optional when the checked-in local defaults are sufficient. It is ignored and is loaded by Make targets only. Direct binaries do not search for it. See the [configuration reference](../reference/configuration.mdx) before adding overrides or secrets.
+
+Local startup does not load sample records. Follow [the explicit sample-loading procedure](#populated-development-catalog) when you want a populated development Catalog. Stop and reset have different effects; read [the cleanup instructions](#stop-and-clean-up-local-runs) before discarding data.
+
+<Tabs>
+<TabItem label="Local (memory)">
+
+Install [Go](https://go.dev/doc/install) 1.27.3. A compatible Go launcher with automatic toolchain selection can select this version.
+
+Start the combined API and worker with the local profile:
+
+```sh
+test -e .env || cp .env.example .env
+make env-check
+make run
+```
+
+The service listens on `http://127.0.0.1:8080`. That exact host is mapped to the primary development tenant in anonymous discovery mode. Metadata, Catalog identity state, and bounded textual representation documents use in-memory stores and reset when the process exits.
+
+`make env-check` validates configuration. `make run` starts the service. Both use `go run`, which compiles the required command automatically. A separate `make build` is unnecessary for this startup path.
+
+Keep this terminal open. Stop the process with Ctrl-C. For a browser, follow [the local UI instructions](catalog-ui.mdx#start-locally) in another terminal. They require the separate Node/npm toolchain.
+
+</TabItem>
+<TabItem label="Docker (memory)">
+
+Install [Docker Engine](https://docs.docker.com/engine/install/) with BuildKit. Select `linux/arm64` instead of `linux/amd64` on an ARM64 host. The image build uses its own Go compiler.
+
+Build an image and run it on unused loopback port 18081:
+
+```sh
+CATALOG_IMAGE=open-agentic-catalog:docker-local
+make container-build CONTAINER_PLATFORM=linux/amd64 IMAGE="$CATALOG_IMAGE" CATALOG_ENV_FILE=/dev/null
+docker run --rm --name catalog-docker-memory --pull=never --init --read-only \
+  --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 \
+  --stop-timeout 40 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+  -p 127.0.0.1:18081:8080 \
+  --mount "type=bind,src=$PWD/config/local.json,dst=/config/config.json,readonly" \
+  -e CATALOG_HTTP_ADDRESS=0.0.0.0:8080 \
+  -e CATALOG_PUBLIC_BASE_URL=http://127.0.0.1:18081 \
+  "$CATALOG_IMAGE" all --config /config/config.json
+```
+
+Visit `http://127.0.0.1:18081/readyz`. Use this port for the API walkthrough. Keep the terminal open and stop with Ctrl-C; memory state clears at exit. Startup does not load samples or start the separate UI.
+
+For the existing port-8080 shortcut, use `make container-run IMAGE="$CATALOG_IMAGE"` after building. It selects the memory profile and does not forward Make runtime overrides. Use explicit Docker flags for settings and mounts. Follow [Docker with PostgreSQL](../operations/docker.mdx) for persistent data, separate roles, production inputs and `--env-file` delivery.
+
+</TabItem>
+<TabItem label="Docker Compose">
+
+Install [Docker Engine](https://docs.docker.com/engine/install/) and [Docker Compose](https://docs.docker.com/compose/install/). Start the API, worker, PostgreSQL and optional browser UI:
+
+```sh
+make compose-up LOCAL_UI=on
+```
+
+Omit `LOCAL_UI=on` for an API-only run. Open `http://127.0.0.1:4180/catalog` when the UI is enabled. Plain `compose-up` does not load samples.
+
+The target rebuilds and recreates the services while retaining the named PostgreSQL volume under the selected `COMPOSE_PROJECT`. The database retains metadata, identity, bounded documents, package inspection evidence and federation source revisions. A one-shot schema-owner process provisions configured development identities after migration and before the API and worker start.
+
+Compose publishes the API on loopback port 8080 and PostgreSQL on loopback port 55432 by default. The worker listener is not published. It checks both long-running roles internally. Use the same selected `COMPOSE_PROJECT` for status and logs:
+
+```sh
+make compose-ps
+make compose-logs
+```
+
+`compose-logs` stays in the foreground. Stop the log view with Ctrl-C; this does not stop the services. Follow [Compose settings and packaged checks](#compose-settings-and-packaged-checks) for optional features and worker probes.
+
+</TabItem>
+<TabItem label="Kubernetes (Helm)">
+
+Install the repository [Go toolchain](https://go.dev/doc/install), [Helm](https://helm.sh/docs/intro/install/) and [kubectl](https://kubernetes.io/docs/tasks/tools/). Prepare the namespace, PostgreSQL 18, schema owner, distinct API/worker roles, images, OIDC, Secrets and ConfigMaps first. Follow [installation and maintenance](../operations/maintenance.mdx#coordinated-release-deployment) and the [Helm reference](../../../../../deployments/helm/open-agentic-catalog/README.md#install-or-upgrade) for the complete inputs.
+
+Review the target image's owner-only migration plan. Run only one deployment operation at a time. Suspend external reconciliation and autoscaling before deployment. Replace the context, namespace, release, local chart path and values path with your reviewed inputs:
+
+```sh
+make helm-deploy-check HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
+  HELM_RELEASE=catalog HELM_CHART=/path/to/open-agentic-catalog.tgz \
+  HELM_VALUES=/path/to/production-values.yaml
+make helm-deploy HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
+  HELM_RELEASE=catalog HELM_CHART=/path/to/open-agentic-catalog.tgz \
+  HELM_VALUES=/path/to/production-values.yaml HELM_DEPLOY_TIMEOUT=20m
+```
+
+The coordinator drains old runtimes, runs the owner-only migration hook and starts the configured replicas. Application processes never migrate the database. First installation skips the drain of absent workloads. See [failure recovery](../operations/maintenance.mdx#upgrade-and-failed-migration) before retrying a failed deployment.
+
+Verify [API and worker readiness](../operations/deployment.mdx#health-and-probes), the expected version and an authorized read using your deployment's endpoint and credentials. Enable the [optional UI](../../../../../deployments/helm/open-agentic-catalog/README.md#optional-catalog-ui) through its reviewed values and registered OIDC client. Use [operator removal instructions](../operations/maintenance.mdx#routine-care-and-removal) for cleanup.
+
+</TabItem>
+</Tabs>
+
+### Verify a local run
+
+The remaining API walkthrough uses disposable memory or development Compose with its default loopback port and identities. It does not configure a Helm deployment. Docker memory uses port 18081; replace the example API port throughout for that choice. For any overridden port, use the selected API address throughout.
+
+In another terminal, verify the process and authenticated control API:
+
+```sh
+curl -fsS http://127.0.0.1:8080/livez
+curl -fsS http://127.0.0.1:8080/readyz
+curl -fsS http://127.0.0.1:8080/version
+curl -fsS -H 'Authorization: Bearer local-admin' http://127.0.0.1:8080/api/v1/capabilities
+```
+
+The exact unauthenticated OpenAPI 3.1 YAML is available at `http://127.0.0.1:8080/openapi/control-v1.yaml`. The service does not bundle a Swagger UI. Import that URL or the checked-in `api/openapi/control-v1.yaml` into the OpenAPI viewer or client generator you choose.
+
+For interactive Search and record previews, run the optional [Catalog UI](catalog-ui.mdx) alongside this backend. It uses the same local identities and published data. Its launcher does not seed or reset the Catalog.
+
+### Run the disposable walkthrough
+
+Run smoke only against a disposable Catalog: it creates records and activates a public snapshot. Run the complete executable walkthrough against that process:
+
+```sh
+make smoke
+```
+
+With Docker memory, run the shipped CLI inside the named container instead. This needs no host Go and targets that container's API:
+
+```sh
+docker exec catalog-docker-memory /usr/local/bin/catalogctl smoke --base-url http://127.0.0.1:8080
+```
+
+If using the host Make command for Docker memory, select `make smoke CATALOG_SMOKE_BASE_URL=http://127.0.0.1:18081`. Do not leave it pointed at a different Catalog on port 8080.
+
+The walkthrough checks these behaviors:
+
+- Create a uniquely named Agent, MCP Server and Skill.
+- Verify exact idempotency replay and cross-tenant non-disclosure.
+- Reject contributor self-approval, then complete independent review and publication.
+- Activate a public snapshot and check authenticated Search, ARD, AI Catalog and immutable cache headers.
+- Check ARD Search, Explore and List.
+- Page memberships, then suspend, reactivate and offboard a disposable member.
+- Update namespace and Publisher metadata, and reject removal of an approved domain.
+- Delete an unused draft aggregate and its unique document from current reads, while retaining its reserved canonical identifier.
+
+The command prints retained resource, listing, release and snapshot IDs as JSON. Its default target is loopback. A remote target requires HTTPS and the explicit `--allow-remote` switch. See [smoke inputs and limits](../reference/commands.md#development-bootstrap-and-smoke) for timeout and run-ID settings.
+
+Use `CATALOG_SMOKE_BASE_URL` to select another running endpoint. The command defaults to the development identities below. Alternate development tokens can be provided through the `CATALOG_SMOKE_ADMIN_TOKEN`, `CATALOG_SMOKE_CONTRIBUTOR_TOKEN`, `CATALOG_SMOKE_REVIEWER_TOKEN`, `CATALOG_SMOKE_PUBLISHER_TOKEN`, `CATALOG_SMOKE_READER_TOKEN`, and `CATALOG_SMOKE_OTHER_TENANT_TOKEN` environment variables. Keep real bearer values out of shell history.
+
+### Compose settings and packaged checks
+
+Reruns preserve existing valid identities. Make selects `compose.yaml` explicitly and disables Compose's separate automatic `.env` loading. It forwards only allowlisted runtime variables. The selected `CATALOG_ENV_FILE` supplies file assignments. Command-line assignments override file assignments, which override inherited values.
+
+Compose mounts `config/federation-policy.local.json` into both roles, uses a fixed narrow project subnet, and permits only the exact internal API origin through the tenant-assigned `compose-catalogs` profile. That origin is a network-policy fixture, not a pre-populated remote Catalog.
+
+Override the host policy, trust, or credential directories only with the documented `CATALOG_COMPOSE_FEDERATION_*` workflow variables and keep credential files outside the repository. The profile also installs pgvector in PostgreSQL 18, but core search does not depend on it and the extension alone does not enable semantic search or install an embedding model. Use the [cleanup instructions](#stop-and-clean-up-local-runs) before resetting Compose volumes.
+
+Compose enables webhooks by default. Add `LOCAL_WEBHOOKS=off` to disable them. Add `LOCAL_UI=on` for the [browser UI](catalog-ui.mdx) or `LOCAL_MONITORING=on` for Prometheus and Grafana. The [performance and monitoring guide](performance-and-monitoring.md#monitor-the-persistent-development-stack) covers dashboard access, generated credentials and monitoring-only cleanup.
+
+To exercise the worker's isolated listener without exposing it, run `docker compose --env-file /dev/null -f compose.yaml -p open-agentic-catalog exec -T worker /usr/local/bin/catalogctl probe --url http://127.0.0.1:9090/readyz`, replacing `open-agentic-catalog` with the same `COMPOSE_PROJECT` selected for `make compose-up` when it was overridden. See the [observability and worker-health runbook](../operations/observability.mdx) for probe meanings, metrics, diagnostics, and Kubernetes access boundaries.
+
+Run `make test-functional` to validate the packaged stack in a disposable Compose project. It selects a random project name and narrow `/28` subnet. It also generates a private HTTPS Registry fixture. The target checks these workflows:
+
+- Verify the served build identity and OpenAPI document.
+- Run the governed smoke workflow through an assigned loopback port.
+- Check worker-driven automatic List pagination, partial-run preservation, retry, staleness, conditional reuse and duplicate prevention.
+- Stop and recover PostgreSQL, then verify API liveness and dependency readiness.
+- Recreate PostgreSQL, migration, provisioning, API, worker and fixture containers over the retained volume without rebuilding images.
+- Replay the governed workflow with identical evidence and verify retained publication and document state.
+- Require clean idle SIGTERM shutdown and restart for API and worker.
+
+The harness removes its containers, network, volume, temporary images and generated certificate authority (CA), trust and policy files. It disables Compose's automatic `.env` interpolation and selects its service fixture explicitly. Make can still read workflow settings such as `COMPOSE` from the selected env file. The harness does not change the persistent development project or contact an external Registry. Packaged results remain separate from units, in-process workflows, repository integration and coverage. Install the gate-specific tools in the [testing guide](../contributing/testing.md) before lint or test gates, including locked API validators and shared Python tools for `make check`.
+
+See [logging configuration](../reference/configuration.mdx#logging-configuration) for DEBUG/INFO/WARN/ERROR, text/JSON and independent backend/UI launcher examples. Changes take effect after restart or Compose recreation. Follow the [log-inspection instructions](../operations/observability.mdx#inspect-application-logs) for the selected Compose project. Changing a local log level does not change audit, trace sampling or retry behavior.
+
+## Populated development catalog
+
+Load fourteen curated resources through [the sample Catalog guide](sample-catalog.mdx), with twelve published results across all four kinds. It owns startup, receipts, recovery, category prerequisites and optional local peers. Loading is explicit and changes only the selected development instance.
+
+<a id="compose-launch-and-load"></a>
+
+See [Start the Catalog with Compose and load sample data](sample-catalog.mdx#start-the-catalog-with-compose-and-load-sample-data).
+
+<a id="in-memory-launch-and-load"></a>
+
+See [Start an in-memory Catalog and load sample data](sample-catalog.mdx#start-an-in-memory-catalog-and-load-sample-data).
+
+<a id="explore-the-two-namespaces"></a>
+
+See [Explore the two namespaces](sample-catalog.mdx#explore-the-two-namespaces).
+
+<a id="receipts-and-reruns"></a>
+
+See [Receipts and reruns](sample-catalog.mdx#receipts-and-reruns).
+
+<a id="continue-the-unpublished-examples"></a>
+
+See [Continue the unpublished examples](sample-catalog.mdx#continue-the-unpublished-examples).
+
+<a id="troubleshooting"></a>
+
+See [Troubleshooting](sample-catalog.mdx#troubleshooting).
+
+<a id="stop-and-deliberately-dispose-of-the-demo"></a>
+
+See [Stop and deliberately dispose of the demo](sample-catalog.mdx#stop-and-deliberately-dispose-of-the-demo).
+
+## Development identities
+
+`config/local.json` and `config/postgres.json` define the same local identity fixtures:
+
+| Token | Intended use |
+| --- | --- |
+| `local-admin` | Complete smoke walkthrough and tenant administration. |
+| `local-contributor` | Create resources, versions, listings, and submissions. |
+| `local-reviewer` | Review another actor's submission. |
+| `local-publisher` | Publish an approved listing and manage public snapshots. |
+| `local-reader` | Browse and search governed records. |
+| `other-tenant-admin` | Verify cross-tenant denial. |
+
+Use separate contributor, reviewer and publisher identities to demonstrate separation of duties. `local-admin` is convenient for setup, but using one identity for every step does not prove the intended governance flow.
+
+Tenant Administrators can exercise Catalog-owned role administration through `GET` and `POST /api/v1/role-assignments` and `POST /api/v1/role-assignments/{assignmentId}:revoke`. The convenience grant workflow needs an existing issuer subject, a `human` or `service` actor type, a supported role and a reason. Select tenant-wide or exact-namespace scope explicitly. Use the access-policy endpoints for custom roles and group assignments.
+
+Revocation also needs the assignment ETag in `If-Match`. Use a disposable subject when testing: assignments retain audit history, and the final active tenant administrator cannot be revoked.
+
+The same administrator can use `GET /api/v1/memberships?limit=50`, exact membership reads, and the `:suspend`, `:reactivate`, and terminal `:offboard` commands. Lifecycle commands require a reason, idempotency key, and current membership ETag. Offboarding revokes active roles and namespace memberships without erasing their history. Realm suspension is intentionally absent from the bearer-token API and uses the schema-owner commands documented in the [database-role runbook](../operations/database-roles.md).
+
+`local-admin` also has Security Reviewer authority. Use `GET /api/v1/audit-events` with exact actor, action, request, paired target, or half-open time filters to investigate the local tenant. Use `POST /api/v1/audit-exports` with a unique idempotency key, mandatory time range, and reason to save one bounded deterministic range, then run `catalogctl audit verify-export --file <path>` without a database connection. The complete filter contract and recovery-point comparison sequence are in the [audit runbook](../operations/audit.md).
+
+## Request contract
+
+All control requests use a Bearer token. Commands that change state need an `Idempotency-Key`. Read-only Search and Explore do not need one. Use a new key for each command and retain it for exact retries.
+
+Commands against an existing revision need its current `ETag` in `If-Match`. Follow each operation's method: removals use named POST commands, not DELETE requests.
+
+For example, create a namespace:
+
+```sh
+curl -fsS -i -X POST http://127.0.0.1:8080/api/v1/namespaces \
+  -H 'Authorization: Bearer local-admin' \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: walkthrough-namespace-1' \
+  --data '{"slug":"default","displayName":"Default"}'
+```
+
+Capture returned IDs and `ETag` headers in the client you use for the remaining calls. Do not construct IDs, revisions, or cursors locally.
+
+Tenant Administrators update namespace or Publisher display metadata with `PATCH` plus the current ETag, a unique idempotency key, and a reason. Publisher updates replace the complete declared-domain set, and a domain cannot be removed once approved or while referenced by an active publication. An eligible creator or Tenant Administrator deletes an unused unpublished draft with `POST /api/v1/resources/{resourceId}:delete` and `{"reason":"Discard unused draft"}`. Adoption, review, or release history blocks the command, and the retained canonical identifier cannot be reused.
+
+## Create a resource, review its listing and publish a release
+
+Follow [Review, publish and maintain a resource](publishing.mdx) for a complete API walkthrough. It creates a namespace and Publisher, retains validated content, submits an exact listing for independent review, and publishes a release. The [resource-content guide](resource-authoring.mdx) supplies the other native formats.
+
+Approval seals the selected version content. The submitter cannot approve their own review, even with administrator authority. A release becomes available to authorized Catalog readers; public discovery requires separate snapshot activation. The publication guide also covers corrections, replacement releases and withdrawal.
+
+## Test an HTTPS representation
+
+The built-in local outbound policy has an empty public allowlist, and `make smoke` deliberately uses retained local documents. To test a URL-backed version, copy the strict outbound-policy document to a local file. Add only the exact disposable HTTPS origin under `public.origins`. Select the copied file with `CATALOG_FEDERATION_POLICY_FILE` before starting the process. Restore the default policy after the test.
+
+The destination must resolve through the public route; URL representations cannot select a private-network profile, loopback exception, credential binding, or alternate trust bundle. Do not use a shared Catalog, production artifact, or arbitrary internet destination as a fixture.
+
+With an already-created Agent resource and a disposable endpoint serving a valid A2A Agent Card, the version request body has this shape:
+
+```json
+{
+  "version": "1.0.0",
+  "representations": [
+    {
+      "role": "primary",
+      "mediaType": "application/a2a-agent-card+json",
+      "url": "https://content.example.test/agents/order-card.json"
+    }
+  ]
+}
+```
+
+The request still needs the normal Bearer token, `Content-Type`, and unique `Idempotency-Key`. The response retains the external URL and a Catalog document ID for the exact decoded bytes used for validation. The document is held in memory under `make run`, or in PostgreSQL for persistent deployments. Profile-v7 retrieval evidence records the final same-origin URL, status, media type, digest, size, policy identity, retrieval time and 24-hour expiry. Replaying the same idempotency key returns the original response without refetching. Revalidation fetches again: identical bytes renew the evidence, while failure or drift records a blocked run and withdraws an active snapshot containing the revision.
+
+Changed bytes require a new VersionRevision. Publication verifies the retained Catalog document bytes and fetches the same external URL again before committing. Public discovery continues to emit the external URL rather than a Catalog document URL. See the [reviewed request example](../../../../../api/examples/https-representation.json) and [API conventions](../reference/api-conventions.md).
+
+Search the governed Catalog after publishing:
+
+```sh
+curl -fsS -X POST http://127.0.0.1:8080/api/v1/catalog/search \
+  -H 'Authorization: Bearer local-reader' \
+  -H 'Content-Type: application/json' \
+  --data '{"text":"order exception","kinds":["agent"],"limit":20}'
+```
+
+Use the returned `nextCursor` unchanged as the next request's `cursor`. A changed query, actor, permission set, page size or result generation, an expired or edited cursor, or a cursor-signing key change invalidates the continuation and returns `400`. Restart the search. An expired Bearer access token is instead an authentication failure (`401`).
+
+## Publish ARD and AI Catalog snapshots
+
+Follow [Build and activate discovery separately](publishing.mdx#build-and-activate-discovery-separately) to generate and inspect a candidate, then activate it for the configured host. This requires tenant-wide publication authority. Namespace release permissions alone are insufficient.
+
+A release does not refresh the active immutable snapshot. On an empty instance, public discovery returns `404` until activation. See [withdrawal and rollback](publishing.mdx#change-release-disposition-or-withdraw-discovery) for their effects on snapshots and authenticated Catalog reads.
+
+### Discover and read back the demo Agent
+
+Use a fresh owned instance with the original minimal fixture, selected explicitly with `make demo-seed DEMO_SAMPLE_SET=minimal DEMO_STATE_FILE=output/demo/minimal-readback.json`. The default curated profile does not contain `order-agent`. The minimal loader publishes the `order-agent` release and activates its snapshot. Do not repeat snapshot activation or mix this fixture with smoke data.
+
+The following read-only sequence needs Go, curl and jq. Run it from the repository root, setting `catalog_demo_url` to that instance's literal `127.0.0.1` origin. It uses only the public manifest, local ARD Search and authenticated Control API reads. The fixed `local-reader` token is a development fixture, not a production credential.
+
+```sh
+(
+  set -eu
+  catalog_demo_url=http://127.0.0.1:8080
+  catalog_demo_air=urn:air:demo.catalog.example.com:demo:order-agent
+
+  # Select only this instance's advertised Registry, not an arbitrary result URL.
+  catalog_manifest=$(curl --fail --silent --show-error --max-time 10 \
+    "$catalog_demo_url/.well-known/ard.json")
+  catalog_registry=$(printf '%s' "$catalog_manifest" | jq -er \
+    --arg expected "$catalog_demo_url/ard/v1/" \
+    '[.entries[] | select(.type == "application/ai-registry+json" and .url == $expected)]
+     | if length == 1 then .[0].url else error("Expected one owned Registry") end')
+
+  catalog_ard=$(curl --fail --silent --show-error --max-time 10 \
+    -H 'Content-Type: application/json' \
+    --data '{"query":{"text":"order","filter":{"type":"application/a2a-agent-card+json"}},"federation":"none"}' \
+    "${catalog_registry}search")
+  printf '%s' "$catalog_ard" | jq -e --arg air "$catalog_demo_air" \
+    '.results[] | select(.identifier == $air)'
+
+  # The CLI takes the API origin, not the advertised ARD base.
+  export CATALOG_REMOTE_BASE_URL="$catalog_demo_url"
+  export CATALOG_REMOTE_TOKEN=local-reader
+  catalog_matches=$(go run ./cmd/catalogctl remote search \
+    --text order --tag catalog-demo-v1 --kind agent)
+  catalog_release=$(printf '%s' "$catalog_matches" | jq -er --arg air "$catalog_demo_air" \
+    '[.data.items[] | select(.type == "local" and .identifier == $air)]
+     | if length == 1 then .[0].local.release.id else error("Expected one local release") end')
+  catalog_record=$(go run ./cmd/catalogctl remote record --id "$catalog_release")
+  printf '%s' "$catalog_record" | jq -e --arg air "$catalog_demo_air" --arg release "$catalog_release" \
+    '.data | select(.resource.canonicalIdentifier == $air and .release.id == $release)
+     | {resource: .resource.canonicalIdentifier, release: .release.id,
+        version: .version.version, representations: .versionRevision.representations}'
+)
+```
+
+The same AIR identifies the Agent in ARD and Control Search. Only the local Control result supplies the ListingRelease UUID used by `remote record`. The AIR itself is not a record-lookup ID. ARD uses `results` and a representation media `type`, while Control Search uses `items` and `type: "local"`.
+
+The CLI wraps each API response in `data` with separate response `meta`, so its jq selectors start with `.data`. A successful ARD query with no matches has an empty `results` array. It is not the `404` returned when no snapshot is active.
+
+Inspect the returned representation or use the UI's [record preview and exact-reference controls](catalog-ui.mdx) to copy or download authorized metadata. These synthetic Agent endpoints are not running services. These commands read only the selected local Catalog. They do not fetch resource URLs, forward credentials, install resources or invoke them.
+
+The [client handoff flow](integrating.mdx#example-a-client-uses-a-discovered-resource) explains what a user-selected external client would decide next. Rerunning these reads does not create data. Retain the seeder receipt and use the existing [cleanup procedure](#stop-and-clean-up-local-runs) for the owned instance.
+
+## Connect a federated source
+
+Follow [Connect and maintain a federated Catalog](../operations/federation.mdx) for prerequisites, inspection, approval, test, synchronization and observation readback. The guide also covers live/referral participation, source changes, failed syncs and deliberate adoption.
+
+Source Administrators select approved connectivity and source participation. A successful `:test` updates the source ETag. Use that ETag for `:sync`, then follow the returned Job to a terminal state.
+
+The in-memory local profile uses the built-in empty allowlist and therefore makes no federation request unless a policy file is selected. Compose supplies its exact private fixture profile. Credential resolution remains disabled unless both `CATALOG_CREDENTIAL_RESOLUTION_ENABLED=true` and an absolute in-container directory are configured. The mounted-file format, Compose host-directory hook, and Helm Secret projection are documented in the [configuration reference](../reference/configuration.mdx).
+
+Never weaken the origin, address, redirect, or credential boundary merely to make a fixture reachable.
+
+## Verify changes
+
+Use the smallest useful gate while iterating, then run both complete gates before handing off work:
+
+```sh
+make test-unit
+make check
+make verify
+```
+
+Run `make test-functional` after changing the built HTTP workflow, Compose wiring, process roles, automatic source maintenance, container packaging, or restart behavior. Run `make test-fuzz` after changing AIR identifiers, cursor handling, outbound URL policy, Agent Skill archive parsing, federation discovery, or Registry List parsing. Use the PostgreSQL, deployment and security gates when touching their boundaries. The [testing guide](../contributing/testing.md) lists maintained gates and prerequisites.
+
+## Stop and clean up local runs
+
+Stop `make run` with Ctrl-C. Its in-memory state disappears with the process. For the persistent development stack, `make compose-stop` stops services while retaining containers and volumes, and `make compose-down` removes the project's containers and network but retains its database volume. Use the same `COMPOSE_PROJECT` that created the stack.
+
+Neither command is a database reset.
+
+`make compose-reset` is destructive: use it only after explicitly deciding to discard the selected development project's data and reviewing the exact project and volumes it removes. Isolated functional and benchmark runs own separate cleanup procedures. Use the [testing guide](../contributing/testing.md#troubleshoot-failed-functional-runs-and-clean-up) or [performance guide](performance-and-monitoring.md), not a reset of the persistent development stack. See [maintenance](../operations/maintenance.mdx) for the separate operator-owned removal boundary.
+
+## Common failures
+
+| Response | Likely cause |
+| --- | --- |
+| `401` | Missing or invalid Bearer token. |
+| `403` | Missing role, namespace assignment, production OAuth scope, or source policy permission. |
+| `400` | Invalid JSON, unknown fields, missing idempotency key, strict limit violation, or invalid/stale cursor. |
+| `409` | Invalid lifecycle transition, separation-of-duties violation, sealed version, or idempotency-key reuse. |
+| `412` | Missing or stale `If-Match`, or an exact approved input is no longer current. |
+| `422` | Representation validation, profile compatibility, or publication readiness failed. |
+| `503` | A required dependency is unavailable, the bounded product-work deadline expired, or an enabled operation has no available capacity. Use the stable problem code and `X-Request-ID` for safe log correlation; do not assume the command had no effect. |
+
+A `404` from the well-known discovery documents usually means that no snapshot is active for the requested host. Check `/readyz` separately to determine service readiness.
+
+If `make test-functional` fails, inspect the printed safe failure code and private `output/functional/run-<id>/report.json`. The report's `status`, `failureCode`, `steps` and `cleanup` distinguish completed steps, unfinished work and cleanup failure. Raw child output and Compose logs are bounded but deliberately discarded, not printed or retained in the report. A `child-failed` code therefore identifies a failed workflow command, not its underlying cause. The completed step prefix narrows where to investigate.
+
+When available, `httpFailure` adds only a closed HTTP status/category, never the response body, URL, credentials or private identifiers. See the testing guide for its limits. Missing or unfinished output is incomplete evidence. Do not edit source during a run, because identity drift fails the gate.
+
+See the [functional troubleshooting guidance](../contributing/testing.md#troubleshoot-failed-functional-runs-and-clean-up) for limits and safe cleanup. Docker daemon failures, an incompatible Compose implementation, occupied loopback ports, or overlapping local address pools can fail before product assertions run.
+
+## Local Plugin archive fixtures
+
+`make demo-check` validates the selected YAML/assets and previews inventory and unverified receipt-key additions locally. `make demo-archives-prepare` prepares private ignored TLS, immutable archive objects, the exact allowlist and local fixture binary; `make demo-archives` serves verified Plugin ZIPs on `https://127.0.0.1:18443` until interrupted. Curated selects `/catalog-discovery-tools.zip`, `/frontend-toolkit.zip` and `/web-testing-toolkit.zip`. The original expanded profile retains `/repository-essentials.zip`, `/documentation-toolkit.zip` and `/release-workflow.zip`.
+
+Existing admitted paths remain immutable. Preparation uses `DEMO_STATE_FILE` only for bounded, unverified hints from original receipts. When archives are first prepared in an existing TLS-only fixture directory, it also prepares the exact embedded original archives. This preserves their URLs. The API loader separately verifies receipt authority and retained state. `DEMO_DATA_FILE` selects preview/preparation/API inputs from one local YAML and bounded native assets.
+
+The tool serves no arbitrary local files, installs no components and writes no Catalog records. Follow [development archive configuration](../reference/configuration.mdx#development-demo-archives) for its exact local fetch route; `demo-up` keeps preparation/startup/loading explicit.
+
+## Optional real sample peers
+
+The [sample inventory guide](sample-catalog.mdx#curated-real-projects) documents the explicit `curated` profile, complete real Skill/Plugin packages and source-only or external setup requirements. `make demo-check` previews the curated default; `make demo-up` launches and loads it through the governed API. Select original minimal/expanded data explicitly for those focused fixtures. Discovery metadata never starts or authorizes a runtime.
+
+For two actual callable local examples, explicitly install the existing locked tools with `make a2a-tools-install` and `make mcp-tools-install`, run `make demo-runtimes-prepare`, then use `make compose-up LOCAL_UI=on LOCAL_DEMO_RUNTIMES=on`. This adds unchanged Hello World/Everything behind private HTTPS on loopback ports 19443/19444. `make demo-runtimes-test` explicitly runs real host-loopback SDK/Inspector exchanges and removes its ephemeral clients, leaving the selected peers running. Startup readiness does not invoke tasks/tools or populate records.
+
+No Context7/AWS request is made.
+
+`DEMO_RUNTIME_DIR`, `DEMO_A2A_PORT` and `DEMO_MCP_PORT` are local Make/launcher inputs, not backend settings. Use the same selected values for start/test/stop/down. Custom ports require matching Cards before later loading. Keep synthetic MCP client credentials in the private prepared directory, separate from Catalog tokens.
+
+Stop/down preserve Catalog data and prepared trust/key identity. The [sample guide](sample-catalog.mdx#start-and-test-the-two-local-peers) owns bounded runtime state, privacy, prerequisite, custom-port and explicit cleanup details.
+
+A completed seeder rerun performs no authoring commands. Authenticated evidence reads still append the service's required `evidence.version_revision.read` audit events. Read-only does not mean zero audit records. Earlier audit/history remains immutable.
+
+Compose startup also emits required `identity.membership_provisioned` bootstrap audits. Compare seeder authoring actions separately from both access and startup audit classes.
+
+For stop/down/inspection or deliberate reset of a separately selected project, keep the same `COMPOSE_PROJECT`, `CATALOG_COMPOSE_SUBNET`, archive directory/IP and UI/archive selections. Maintenance receives the explicit subnet but no runtime credentials. `compose-down` preserves volumes; `compose-reset` destroys only the explicitly selected project's data and is appropriate only for disposable fixtures or separately authorized resets.
+
+### Qualify a disposable sample Catalog
+
+With the existing UI, A2A and MCP tools installed, run `make test-demo-catalog` alone. It runs the documented preview/start/load workflow against a unique owned PostgreSQL/API/UI/archive project, checks all four kinds and namespaces in Chromium, and invokes the two local peers using Cards read from the Catalog. It also tests YAML-only extension, prior evidence and unrelated-release preservation, archive-off reruns and peer restart. Its copied YAML, private keys, receipt and services are cleaned on exit.
+
+The retained developer environment stays untouched. See the [qualification guide](../../../../../test/demo/README.md#complete-curated-developer-workflow) for prerequisites, reports and scope limits.

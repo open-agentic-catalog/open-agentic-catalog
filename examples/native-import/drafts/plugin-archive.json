@@ -1,0 +1,18 @@
+{
+  "format": "open-agentic-catalog-draft-v1",
+  "kind": "plugin",
+  "canonicalIdentifier": "urn:example:reusable:plugin-archive",
+  "version": "0.1.0",
+  "representations": [
+    {
+      "role": "primary",
+      "mediaType": "application/agent-plugins+zip",
+      "profileId": "",
+      "input": {
+        "mode": "plugin-archive",
+        "url": "https://packages.example.com/review-tools.zip",
+        "expectedDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      }
+    }
+  ]
+}

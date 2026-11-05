@@ -1,0 +1,40 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="welcome-deployment-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1395" role="img" aria-labelledby="welcome-deployment-title welcome-deployment-desc">
+  <title id="welcome-deployment-title">Logical applications and data in a PostgreSQL deployment</title>
+  <desc id="welcome-deployment-desc">The optional React client executes in the browser and calls the optional Go UI host. The UI host serves assets, manages sign-in and forwards to one API. Other clients call the API directly. The Catalog service boundary contains separate API and worker processes and logical PostgreSQL state, not an OCI image or host. API and worker coordinate through Jobs and outbox records, not RPC. The configured OIDC issuer and optional embedding provider are external. UI and model providers have no Catalog database access.</desc>
+  <defs><marker id="welcome-deployment-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <rect class="svg-boundary" x="48" y="640" width="544" height="470" rx="18" />
+  <text class="svg-kicker" x="64" y="666">CATALOG SERVICE</text>
+  <path class="svg-connector" d="M320 144 V230" marker-end="url(#welcome-deployment-arrow)" />
+  <text class="svg-small" x="338" y="193">Same-origin HTTP</text>
+  <path class="svg-connector" d="M60 300 H30 V730 H60" marker-end="url(#welcome-deployment-arrow)" />
+  <text class="svg-small" x="40" y="620">UI forwarding</text>
+  <path class="svg-connector" d="M460 354 V430" marker-end="url(#welcome-deployment-arrow)" />
+  <text class="svg-small" x="480" y="402">Sign in</text>
+  <path class="svg-connector" d="M180 554 V680" marker-end="url(#welcome-deployment-arrow)" />
+  <text class="svg-small" x="198" y="620">Control API</text>
+  <path class="svg-connector" d="M300 730 H320 V600 H460 V554" marker-end="url(#welcome-deployment-arrow)" />
+  <text class="svg-small" x="338" y="589">Verify tokens</text>
+  <path class="svg-connector svg-connector-authority" d="M180 804 V940" marker-end="url(#welcome-deployment-arrow)" />
+  <path class="svg-connector svg-connector-authority" d="M460 804 V940" marker-end="url(#welcome-deployment-arrow)" />
+  <text class="svg-small" x="208" y="887">Separate DB logins</text>
+  <path class="svg-connector" d="M60 780 H18 V1270 H60" marker-end="url(#welcome-deployment-arrow)" />
+  <text class="svg-small" x="60" y="1160">API queries</text>
+  <path class="svg-connector" d="M580 780 H622 V1270 H580" marker-end="url(#welcome-deployment-arrow)" />
+  <text class="svg-small" x="380" y="1160">Worker batches</text>
+  <DiagramCard x={60} y={20} width={520} title={"React client in the browser"} lines={["Browse, author and administer", "Same-origin requests to the UI host"]} kicker={"BROWSER; OPTIONAL"} tone={"optional"} />
+  <DiagramCard x={60} y={230} width={520} title={"Catalog UI Go host"} lines={["Serve assets and sessions", "OIDC when configured; forward to one API"]} kicker={"GO HOST; OPTIONAL"} tone={"optional"} />
+  <DiagramCard x={60} y={430} width={240} title={"CLI, SDKs and IDE"} lines={["Control API clients", "Stdio MCP via catalogctl"]} kicker={"CLIENT PROCESSES"} />
+  <DiagramCard x={340} y={430} width={240} title={"OIDC provider"} lines={["Configured issuer", "UI login; API checks"]} kicker={"EXTERNAL SYSTEM"} />
+  <DiagramCard x={60} y={680} width={240} title={"API process"} lines={["Commands and discovery", "Optional HTTP MCP"]} kicker={"PROCESS"} tone={"core"} />
+  <DiagramCard x={340} y={680} width={240} title={"Worker process"} lines={["Jobs, indexing and outbox", "No product HTTP surface"]} kicker={"PROCESS"} tone={"core"} />
+  <DiagramCard x={60} y={940} width={520} title={"PostgreSQL 18 + pgcrypto"} lines={["Catalog records, leased Jobs and outbox", "Optional pgvector holds derived vectors"]} kicker={"LOGICAL DATA STORE"} tone={"authority"} />
+  <DiagramCard x={60} y={1210} width={520} title={"Embedding provider"} lines={["API queries; worker metadata batches", "No Catalog database access"]} kicker={"EXTERNAL; OPTIONAL"} tone={"optional"} />
+  <text class="svg-small" x="20" y="1375">Boxes: logical applications or data. No hosting or image boundaries.</text>
+</svg>
+</div>

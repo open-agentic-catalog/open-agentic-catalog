@@ -1,0 +1,17 @@
+{
+  "repository": "agentskills/agentskills",
+  "revision": "69ef37e9424c0a7ea9dd2293b559e43ec8176379",
+  "version": "0.1.0",
+  "files": {
+    "LICENSE": "993da3f8d330d69108e521636555f7783ef81d46b904394c59ec5ff651331fe5",
+    "skills-ref/README.md": "23945a45bd15d18d7da3652cd4ea6ea66950db464613c4810d7026bd0921eb9f",
+    "skills-ref/pyproject.toml": "4333dea52ff4a4fe87f96e5a25f2517a57127bbabb09cb30f3d9057da77a5967",
+    "skills-ref/src/skills_ref/__init__.py": "a3da705c4847ac19c016f67e3a6c56a94e160986a823d148c21dca4c9b312b4a",
+    "skills-ref/src/skills_ref/cli.py": "cdcc2cc418cac2e47340455b406e39a73c0906d6184e0920d12e8c341ce5b139",
+    "skills-ref/src/skills_ref/errors.py": "5780d314db735400c3959d20ed19a8c59445786d35a1a1b7cf368f01576d91f4",
+    "skills-ref/src/skills_ref/models.py": "c6645fcfc04c78e773657856e8c6058e43951ce283e9b303ca721df1acac6a7b",
+    "skills-ref/src/skills_ref/parser.py": "9a74c9a90eb217b82bec27570332eab74547acfbee2973c0a8bcd23f6c7bc211",
+    "skills-ref/src/skills_ref/prompt.py": "8ed90a61685b84050a8fde32e63d5f3f04c205b05bfc5f8ef4bb2f101cc9cf15",
+    "skills-ref/src/skills_ref/validator.py": "b5ee3d8537c83c959c31c2cb080a5227646ede5aea545f1ac835ed3c4645f6c5"
+  }
+}

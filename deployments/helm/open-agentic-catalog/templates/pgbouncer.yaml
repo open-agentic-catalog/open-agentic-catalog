@@ -1,0 +1,149 @@
+{{- if .Values.pgbouncer.enabled }}
+{{- $p := .Values.pgbouncer }}
+{{- range $role := list .Values.databaseRoles.api .Values.databaseRoles.worker }}
+{{- if not (regexMatch "^[a-zA-Z_][a-zA-Z0-9_]*$" $role) }}
+{{- fail "PgBouncer database role names must be simple SQL identifiers" }}
+{{- end }}
+{{- end }}
+{{- if lt (int $p.maxClientConnections) (add (int $p.apiPoolSize) (int $p.workerPoolSize)) }}
+{{- fail "PgBouncer maxClientConnections must cover both role pool capacities" }}
+{{- end }}
+{{- $name := include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "pgbouncer") }}
+{{- $config := include "open-agentic-catalog.pgbouncerConfig" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+data:
+  pgbouncer.ini: |
+{{ $config | indent 4 }}
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "open-agentic-catalog.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+  ports: [{name: postgres, port: 6432, targetPort: postgres}]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      {{- include "open-agentic-catalog.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: pgbouncer
+  template:
+    metadata:
+      labels:
+        {{- include "open-agentic-catalog.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: pgbouncer
+      annotations:
+        checksum/config: {{ printf "%s\n%s\n%s\n%s" $config $p.authSecret $p.tlsSecret $p.upstreamCAConfigMap | sha256sum | quote }}
+    spec:
+      serviceAccountName: {{ $name | quote }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.podDNSOptions }}
+      dnsConfig:
+        options: {{- toYaml . | nindent 10 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {runAsNonRoot: true, runAsUser: 70, runAsGroup: 70, fsGroup: 70, seccompProfile: {type: RuntimeDefault}}
+      terminationGracePeriodSeconds: 30
+      containers:
+        - name: pgbouncer
+          image: {{ $p.image | quote }}
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/bin/pgbouncer"]
+          args: ["/etc/pgbouncer/config/pgbouncer.ini"]
+          ports: [{name: postgres, containerPort: 6432}]
+          startupProbe: {tcpSocket: {port: postgres}, periodSeconds: 2, failureThreshold: 30}
+          readinessProbe: {tcpSocket: {port: postgres}, periodSeconds: 5, timeoutSeconds: 2}
+          livenessProbe: {tcpSocket: {port: postgres}, periodSeconds: 10, timeoutSeconds: 2}
+          resources: {{- toYaml $p.resources | nindent 12 }}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+          volumeMounts:
+            - {name: config, mountPath: /etc/pgbouncer/config, readOnly: true}
+            - {name: auth, mountPath: /etc/pgbouncer/auth, readOnly: true}
+            - {name: tls, mountPath: /etc/pgbouncer/tls, readOnly: true}
+            - {name: trust, mountPath: /etc/pgbouncer/trust, readOnly: true}
+      volumes:
+        - name: config
+          configMap: {name: {{ $name | quote }}}
+        - name: auth
+          secret:
+            secretName: {{ $p.authSecret | quote }}
+            defaultMode: 0440
+            items: [{key: userlist.txt, path: userlist.txt}]
+        - name: tls
+          secret:
+            secretName: {{ $p.tlsSecret | quote }}
+            defaultMode: 0440
+            items: [{key: tls.crt, path: tls.crt}, {key: tls.key, path: tls.key}]
+        - name: trust
+          configMap:
+            name: {{ $p.upstreamCAConfigMap | quote }}
+            items: [{key: ca.pem, path: ca.pem}]
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pgbouncer
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "open-agentic-catalog.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: pgbouncer
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "open-agentic-catalog.selectorLabels" . | nindent 14 }}
+            matchExpressions:
+              - {key: app.kubernetes.io/component, operator: In, values: [api, worker]}
+      ports: [{protocol: TCP, port: 6432}]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to: {{- toYaml $p.writerEgress | nindent 8 }}
+      ports: [{protocol: TCP, port: {{ $p.upstream.port }}}]
+{{- end }}

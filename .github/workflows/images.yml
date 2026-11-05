@@ -1,0 +1,223 @@
+name: Images and charts
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_artifacts:
+        description: Upload selected reports only when the maintainer explicitly enables it
+        type: boolean
+        default: false
+      scan:
+        description: Scan each exact local image for High and Critical findings
+        type: boolean
+        default: false
+      release_candidate:
+        description: Require clean source at the exact vVERSION tag (no publication)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: images-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CATALOG_ENV_FILE: /dev/null
+  DEV_PYTHON: python3.12
+  PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONOPTIMIZE: '0'
+  GOTELEMETRY: 'off'
+  ASTRO_TELEMETRY_DISABLED: '1'
+  NPM_CONFIG_AUDIT: 'false'
+
+jobs:
+  images:
+    name: ${{ matrix.product }} / linux/${{ matrix.arch }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        product: [backend, ui]
+        arch: [amd64, arm64]
+    env:
+      PRODUCT: ${{ matrix.product }}
+      ARCH: ${{ matrix.arch }}
+      CONTAINER_PLATFORM: linux/${{ matrix.arch }}
+      IMAGE: open-agentic-catalog-ci:${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+      UI_IMAGE: open-agentic-catalog-ui-ci:${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arch }}
+      ARTIFACT_OUTPUT: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/images/${{ matrix.product }}/${{ matrix.arch }}
+    steps:
+      - name: Check out the complete source history
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check runner capacity and system prerequisites
+        run: python3.12 -B test/ci/tools.py preflight --profile images
+      - name: Install the reviewed image toolchain
+        run: python3.12 -B test/ci/tools.py install --profile images
+      - name: Install locked Python development tools
+        run: make dev-tools-install
+      - name: Check application version metadata
+        run: make version-check
+      - name: Require the exact release tag and clean source
+        if: inputs.release_candidate
+        run: make release-check
+      - name: Build and inspect the selected image
+        id: build
+        run: |
+          set -euo pipefail
+          case "$PRODUCT/$ARCH" in
+            backend/amd64) make container-verify ;;
+            backend/arm64)
+              make container-build
+              make container-inspect
+              ;;
+            ui/amd64|ui/arm64)
+              make ui-container-build
+              make ui-container-inspect
+              ;;
+            *) printf '%s\n' 'Unsupported fixed image selection.' >&2; exit 2 ;;
+          esac
+      - name: Export notices and exact-image SPDX inventory
+        id: inventory
+        run: |
+          set -euo pipefail
+          case "$PRODUCT" in
+            backend)
+              make licenses ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT/licenses"
+              make sbom ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT/sbom"
+              ;;
+            ui) make ui-sbom ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT/sbom" ;;
+            *) printf '%s\n' 'Unsupported fixed image product.' >&2; exit 2 ;;
+          esac
+      - name: Refresh the advisory database for the selected scan
+        if: inputs.scan
+        run: trivy image --download-db-only
+      - name: Scan the same local image without registry fallback
+        id: scan
+        if: inputs.scan
+        run: |
+          set -euo pipefail
+          case "$PRODUCT" in
+            backend) make container-scan ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT/scan" ;;
+            ui) make ui-container-scan ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT/scan" ;;
+            *) printf '%s\n' 'Unsupported fixed image product.' >&2; exit 2 ;;
+          esac
+      - name: Reject changes outside ignored build output
+        if: always() && steps.checkout.outcome == 'success'
+        run: |
+          set -euo pipefail
+          git diff --quiet -- || { printf '%s\n' 'Unexpected unstaged source changes.' >&2; exit 1; }
+          git diff --cached --quiet -- || { printf '%s\n' 'Unexpected staged source changes.' >&2; exit 1; }
+          test -z "$(git ls-files --others --exclude-standard)" || { printf '%s\n' 'Unexpected non-ignored files.' >&2; exit 1; }
+      - name: Summarize image checks
+        if: always() && steps.checkout.outcome == 'success'
+        env:
+          BUILD_OUTCOME: ${{ steps.build.outcome || 'not_run' }}
+          INVENTORY_OUTCOME: ${{ steps.inventory.outcome || 'not_run' }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome || 'not_run' }}
+          STATUS_AT_SUMMARY: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_OUTPUT/reports"
+          {
+            printf 'Checkout: %s\nProduct: %s\nPlatform: linux/%s\n' "$(git rev-parse HEAD)" "$PRODUCT" "$ARCH"
+            printf 'Status at summary: %s\nBuild and inspection: %s\nInventory: %s\nScan: %s\n' "$STATUS_AT_SUMMARY" "$BUILD_OUTCOME" "$INVENTORY_OUTCOME" "$SCAN_OUTCOME"
+            if [[ "$BUILD_OUTCOME" == success ]]; then
+              selected_image="$IMAGE"
+              if [[ "$PRODUCT" == ui ]]; then selected_image="$UI_IMAGE"; fi
+              docker image inspect --format 'Local image ID: {{.Id}}; version: {{index .Config.Labels "org.opencontainers.image.version"}}; source state: {{index .Config.Labels "io.open-agentic-catalog.source-state"}}' "$selected_image"
+            fi
+            printf '%s\n' 'No image was pushed or published.'
+            if [[ "$PRODUCT/$ARCH" == backend/amd64 && "$BUILD_OUTCOME" == success ]]; then
+              printf '%s\n' 'The native backend check completed both version commands.'
+            else
+              printf '%s\n' 'No complete native runtime qualification is established for this image by this job.'
+            fi
+            printf '%s\n' 'Packaged browser tests rebuild their own fixture images; they do not qualify this image as a release candidate.'
+            printf '%s\n' 'Forced cancellation can interrupt scoped cleanup; cancelled work is incomplete.'
+          } > "$ARTIFACT_OUTPUT/reports/summary.txt"
+          cat "$ARTIFACT_OUTPUT/reports/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain only public metadata and SPDX inventory
+        if: ${{ (always() && steps.checkout.outcome == 'success') && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: images-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.product }}-${{ matrix.arch }}
+          path: |
+            ${{ env.ARTIFACT_OUTPUT }}/reports/summary.txt
+            ${{ env.ARTIFACT_OUTPUT }}/sbom/*.spdx.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  charts:
+    name: Application and monitoring charts
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      ARTIFACT_OUTPUT: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/charts
+    steps:
+      - name: Check out the complete source history
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check runner capacity and system prerequisites
+        run: python3.12 -B test/ci/tools.py preflight --profile charts
+      - name: Install the reviewed chart toolchain
+        run: python3.12 -B test/ci/tools.py install --profile charts
+      - name: Install locked Python development tools
+        run: make dev-tools-install
+      - name: Check application version metadata
+        run: make version-check
+      - name: Require the exact release tag and clean source
+        if: inputs.release_candidate
+        run: make release-check
+      - name: Validate both charts without a cluster
+        id: check
+        run: make deploy-check
+      - name: Package both charts into a fresh destination
+        id: package
+        run: make helm-package
+      - name: Reject changes outside ignored build output
+        if: always() && steps.checkout.outcome == 'success'
+        run: |
+          set -euo pipefail
+          git diff --quiet -- || { printf '%s\n' 'Unexpected unstaged source changes.' >&2; exit 1; }
+          git diff --cached --quiet -- || { printf '%s\n' 'Unexpected staged source changes.' >&2; exit 1; }
+          test -z "$(git ls-files --others --exclude-standard)" || { printf '%s\n' 'Unexpected non-ignored files.' >&2; exit 1; }
+      - name: Summarize chart checks and packages
+        if: always() && steps.checkout.outcome == 'success'
+        env:
+          CHECK_OUTCOME: ${{ steps.check.outcome || 'not_run' }}
+          PACKAGE_OUTCOME: ${{ steps.package.outcome || 'not_run' }}
+          STATUS_AT_SUMMARY: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$ARTIFACT_OUTPUT/reports"
+          {
+            printf 'Checkout: %s\nStatus at summary: %s\nChart checks: %s\nPackaging: %s\n' "$(git rev-parse HEAD)" "$STATUS_AT_SUMMARY" "$CHECK_OUTCOME" "$PACKAGE_OUTCOME"
+            printf '%s\n' 'Validation is cluster-free. Nothing was deployed or published.'
+            printf '%s\n' 'Release checks do not verify tag signatures or establish exact-image runtime qualification.'
+          } > "$ARTIFACT_OUTPUT/reports/summary.txt"
+          cat "$ARTIFACT_OUTPUT/reports/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain the chart packages and public summary
+        if: ${{ (always() && steps.checkout.outcome == 'success') && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: charts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.ARTIFACT_OUTPUT }}/*.tgz
+            ${{ env.ARTIFACT_OUTPUT }}/reports/summary.txt
+          retention-days: 7
+          if-no-files-found: warn

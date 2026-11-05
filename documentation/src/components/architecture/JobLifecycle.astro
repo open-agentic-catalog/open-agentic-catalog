@@ -1,0 +1,39 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="job-lifecycle-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1116" role="img" aria-labelledby="job-lifecycle-title job-lifecycle-desc">
+  <title id="job-lifecycle-title">Job attempts, cancellation and manual retry</title>
+  <desc id="job-lifecycle-desc">Queued and waiting Jobs can be claimed as running work. A running attempt commits success, classified failure, bounded retry waiting, exhaustion or cooperative cancellation under its current claim. Queued or waiting cancellation is immediate; running cancellation only requests a stop and does not undo side effects. Expired claims can be recovered, while stale workers cannot commit. Manual retry of a failed or dead_letter Job creates a separate queued child Job. A request to cancel a terminal Job does not change its state.</desc>
+  <defs><marker id="job-lifecycle-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 95 V165" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="332" y="122">Claim</text>
+  <path class="svg-connector" d="M320 263 V298 H180 V333" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="192" y="290">Retryable</text>
+  <path class="svg-connector" d="M60 394 H12 V149 H320 V165" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="38" y="309">Due</text>
+  <path class="svg-connector" d="M320 263 V298 H460 V333" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="480" y="319">Complete</text>
+  <path class="svg-connector" d="M320 95 V119 H22 V478 H180 V524" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="38" y="500">Cancel queued</text>
+  <path class="svg-connector" d="M180 454 V524" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="192" y="481">Cancel waiting</text>
+  <path class="svg-connector" d="M320 263 V317 H32 V516 H180 V524" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="240" y="505">Stop acknowledged</text>
+  <path class="svg-connector" d="M320 263 V287 H628 V462 H460 V524" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="340" y="452">Terminal failure</text>
+  <path class="svg-connector" d="M460 645 V703 H320 V738" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="330" y="695">Manual retry</text>
+  <DiagramCard x={60} y={20} width={520} title={"queued"} tone="core" lines={["Admitted, not yet claimed"]} />
+  <DiagramCard x={60} y={165} width={520} title={"running"} lines={["Worker owns the current claim", "Expired claims can be recovered"]} />
+  <DiagramCard x={60} y={333} width={240} title={"waiting"} lines={["Same Job, scheduled retry", "Claim again when", "delay is due"]} />
+  <DiagramCard x={340} y={333} width={240} title={"succeeded"} tone="authority" lines={["Completion committed", "under the exact claim"]} />
+  <DiagramCard x={60} y={524} width={240} title={"cancelled"} tone="warning" lines={["Queued/waiting: immediate", "Running: cooperative stop", "Stop does not", "undo side effects"]} />
+  <DiagramCard x={340} y={524} width={240} title={"failed / dead_letter"} tone="warning" lines={["Terminal failure or", "exhausted attempts", "Retain terminal outcome"]} />
+  <DiagramCard x={60} y={738} width={520} title={"New queued child Job"} tone="core" lines={["Authorized manual retry with a", "reason: failed / dead_letter only", "Keep the parent's history and result intact"]} />
+  <DiagramCard x={60} y={929} width={520} title={"Terminal states do not reopen"} tone="warning" lines={["Stale workers cannot commit completion", "A request to cancel a terminal Job creates audit evidence", "without changing its state", "Succeeded and cancelled Jobs cannot be retried", "Job result and source snapshot state are separate"]} />
+
+</svg>
+</div>

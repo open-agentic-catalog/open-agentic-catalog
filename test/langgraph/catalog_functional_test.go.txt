@@ -1,0 +1,68 @@
+//go:build functional
+
+package clientcompat_test
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata"
+)
+
+func TestLangGraphSDKExample(t *testing.T) {
+	f := newFixture(t)
+	actor := f.actor("admin")
+	ns, err := f.service.CreateNamespace(actor, catalog.CreateNamespaceInput{Slug: "langgraph", DisplayName: "LangGraph fixture"})
+	must(t, err)
+	publisher, err := f.service.CreatePublisher(actor, catalog.CreatePublisherInput{DisplayName: "Fixture Publisher", Domains: []string{"demo.catalog.example.com"}})
+	must(t, err)
+	_, err = f.service.ApprovePublisherPublicationDomain(actor, publisher.ID, "demo.catalog.example.com", "Owned fixture", publisher.Revision)
+	must(t, err)
+	releases := []string{}
+	for _, source := range demodata.DefaultPlan("minimal", "").Resources {
+		if source.Resource.State != "published" {
+			continue
+		}
+		copies := 1
+		if source.Resource.Kind == catalog.KindSkill {
+			copies = 11
+		}
+		for n := range copies {
+			identifier := strings.TrimSuffix(source.Resource.Identifier, source.Resource.Key) + fmt.Sprintf("%s-%d", source.Resource.Key, n)
+			resource, err := f.service.CreateResource(actor, catalog.CreateResourceInput{NamespaceID: ns.ID, Kind: source.Resource.Kind, CanonicalIdentifier: identifier})
+			must(t, err)
+			_, revision, _, err := f.service.CreateVersion(actor, resource.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: []catalog.RepresentationInput{source.Representation}})
+			must(t, err)
+			listing, err := f.service.CreateListing(actor, catalog.CreateListingInput{NamespaceID: ns.ID, ResourceID: resource.ID})
+			must(t, err)
+			listing, _, err = f.service.CreateListingRevision(actor, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, DisplayName: fmt.Sprintf("Web testing %s %02d", source.Resource.Kind, n), Description: "Developer web testing metadata", PublisherID: publisher.ID, Visibility: catalog.VisibilityTenant, License: "Apache-2.0"}, listing.Revision)
+			must(t, err)
+			submission, err := f.service.Submit(actor, listing.ID)
+			must(t, err)
+			_, _, err = f.service.DecideSubmission(f.actor("reviewer"), submission.ID, "approve", "Reviewed fixture", submission.Revision)
+			must(t, err)
+			listing, err = f.service.GetListing(actor, listing.ID)
+			must(t, err)
+			_, release, _, err := f.service.Publish(actor, listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision)
+			must(t, err)
+			releases = append(releases, release.ID)
+		}
+	}
+	expected, _ := json.Marshal(map[string]any{"namespaceId": ns.ID, "releaseIds": releases})
+	ctx, cancel := context.WithTimeout(context.Background(), 6*time.Minute)
+	defer cancel()
+	command := exec.CommandContext(ctx, os.Getenv("CATALOG_LANGGRAPH_PYTHON"), "-B", os.Getenv("CATALOG_LANGGRAPH_WORKFLOW"), f.server.URL, string(expected))
+	command.Env = os.Environ()
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("LangGraph example qualification failed: %v\n%s", err, output)
+	}
+	t.Log(string(output))
+}

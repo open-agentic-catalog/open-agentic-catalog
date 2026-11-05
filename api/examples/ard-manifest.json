@@ -1,0 +1,39 @@
+{
+  "entries": [
+    {
+      "@context": ["https://agenticresourcediscovery.org/context/v1", {"dcterms": "http://purl.org/dc/terms/"}],
+      "@id": "urn:air:catalog.example.com:payments:invoice-resolution-agent",
+      "identifier": "urn:air:catalog.example.com:payments:invoice-resolution-agent",
+      "displayName": "Invoice resolution agent",
+      "type": "application/a2a-agent-card+json",
+      "data": {
+        "name": "Invoice resolution agent",
+        "description": "Resolves invoice exceptions",
+        "version": "1.0.0",
+        "supportedInterfaces": [
+          {"url": "https://agents.example.com/invoice-resolution", "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}
+        ],
+        "capabilities": {},
+        "defaultInputModes": ["application/json"],
+        "defaultOutputModes": ["application/json"],
+        "skills": [
+          {
+            "id": "resolve-invoices",
+            "name": "Resolve invoices",
+            "description": "Resolves invoice exceptions",
+            "tags": ["finance", "invoices"]
+          }
+        ]
+      },
+      "representativeQueries": [
+        "Resolve a disputed invoice",
+        "Investigate an invoice payment exception"
+      ],
+      "description": "Resolve invoice exceptions across connected finance systems.",
+      "tags": ["finance", "invoices"],
+      "version": "1.0.0",
+      "metadata": {"license": "Apache-2.0"},
+      "http://purl.org/dc/terms/subject": ["finance", "invoices"]
+    }
+  ]
+}

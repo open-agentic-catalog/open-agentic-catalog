@@ -1,0 +1,170 @@
+---
+title: "Design principles"
+---
+
+import TargetContext from "../../../components/architecture/TargetContext.astro";
+import RevisionLifecycle from "../../../components/architecture/RevisionLifecycle.astro";
+import SourceIngestion from "../../../components/architecture/SourceIngestion.astro";
+
+The Catalog separates governed resource identity, immutable evidence, discovery and execution. These principles govern changes to the service; the [architecture overview](overview.mdx) introduces the running system and the [decision records](decisions/index.md) explain the alternatives and consequences.
+
+## Operational simplicity and least surprise
+
+Deploy the Catalog with familiar application practices. Select a build, supply validated configuration and credentials, then apply schema changes through the supported deployment procedure. Check startup, readiness and shutdown. The Catalog must not take over infrastructure management. The [deployment guide](../operations/deployment.mdx) describes the supported procedures.
+
+Apply [twelve-factor principles](https://12factor.net/) where they support this service boundary:
+
+- Use reproducible builds with declared dependencies.
+- Supply configuration externally. Mounted secret files and private trust bundles are also supported.
+- Keep processes replaceable and durable state external.
+- Let the deployment collect logs.
+
+Process-local caches and sessions follow their documented lifetime and replica rules. They must not become authoritative domain state.
+
+| Responsibility | Owner |
+| --- | --- |
+| PostgreSQL replication, election, promotion, old-writer fencing and writer routing | Deployment's database infrastructure. |
+| Backup storage/scheduling, capacity, orchestration and operational objectives | Deployment operator. |
+| Safe database connections, bounded requests, transactions and application recovery | Catalog and its existing driver/pool. |
+| Domain retries, idempotency, Job leases and retained evidence | Catalog's owning domain components. |
+| Configuration validation, safe diagnostics, health and graceful shutdown | Catalog; the deployment supplies inputs and collects signals. |
+
+After a database writer fails, the database platform supplies a writable replacement. Catalog reconnects through its configured writer endpoint or supported multi-host connection settings. It becomes ready when required access works and resumes safe work. Catalog does not discover cluster topology, elect or promote a primary, or prevent split-brain operation.
+
+Loss of readiness during an outage must not trigger a liveness restart loop. Invalid startup configuration, unsafe database authority and fatal process failures still fail explicitly. See [writer routing and failover](../operations/deployment.mdx#postgresql-writer-routing-and-failover).
+
+## Standard mechanisms and explicit configuration
+
+Prefer existing Go libraries, PostgreSQL guarantees, HTTP contracts and deployment tools before adding a custom mechanism. Reuse the component that owns the behavior. Do not add a second framework or provider interface without a real caller and implementation. A new dependency needs a concrete benefit and security/license review.
+
+Configuration has sensible defaults, strict validation, explicit precedence and a documented activation or restart boundary. Expose operational budgets that operators need to tune. Do not expose every internal implementation choice. Disabled optional features require no unused provider or secret.
+
+The deployment supplies environment variables and files; Catalog requires no configuration service or secret manager. Service logs go to stdout and CLI diagnostics to stderr. The deployment owns collection and rotation. See [configuration](../reference/configuration.mdx) and [observability](../operations/observability.mdx) for exact settings and output rules.
+
+## Safe and bounded recovery
+
+Choose one responsible layer for each retry. Reuse database driver/pool reconnection before adding application loops. Safely retryable application work uses capped exponential backoff, random jitter where appropriate, cancellation and documented budgets. Bound attempts or elapsed time.
+
+Connection establishment, readiness checks, interactive requests and durable Job scheduling have different policies. A durable Job may continue through bounded persisted attempts after the HTTP request ends. Do not stack retry loops or retry permanent authentication/configuration failures. Do not extend an interactive operation beyond its deadline. Keep server retry hints within the applicable budget.
+
+The [retry settings](../reference/configuration.mdx#durable-job-retry-policy) describe current policies. There is no universal database retry setting.
+
+Reconnection is not proof that a failed write never committed. Preserve exact-key command replay, atomic transaction boundaries and lease fencing. When the outcome cannot be established safely, return the documented bounded failure and use the [interrupted-command repair procedure](../operations/idempotency-repair.mdx); do not quietly resubmit the mutation with a new key. Recoverable background work and optional-provider fallback must preserve audit, notification and authorization guarantees.
+
+## Small changes supported by evidence
+
+Start from the current implementation and a concrete user or operator need. Make the smallest complete change, including failure behavior, tests and documentation. Complexity scores, uncovered lines and speculative integrations alone do not justify a new subsystem. Measure performance before adding indexes, caches or concurrency controls. Record changed architecture decisions in an ADR; this page does not override accepted decisions.
+
+Verify behavior at the boundary being claimed. Isolated units test decisions and timing arithmetic. Process, database and network tests establish recovery across those interfaces. A controlled standby promotion qualifies selected application behavior, not a shipped database controller or lossless asynchronous replication.
+
+Run disruptive fixtures with explicit ownership and cleanup. Avoid competing workloads during performance measurements. The [testing strategy](../contributing/testing.md) defines the harnesses and evidence limits. The same principles apply to governance, security, standards and durable state.
+
+## Service boundaries
+
+One Go codebase provides independently runnable API and worker roles backed by PostgreSQL. The optional UI is a separate client and has no database authority. API clients, IDEs and automation use the same authenticated contracts rather than writing Catalog tables.
+
+This target view includes conditional integrations; it is not a map of an installed deployment. Use the [logical runtime view](deployment.mdx#logical-applications-and-data) for the implemented PostgreSQL topology.
+
+<TargetContext />
+
+PostgreSQL owns metadata, bounded exact standards documents, immutable revisions, publication snapshots, audit and durable work. Core exact, lexical, filtered and faceted discovery requires no vector provider or external search service. Git and OCI references identify externally owned source and runtime artifacts. Complete Plugin packages remain external HTTPS archives; Catalog retains inspection evidence, not the archive itself.
+
+Discovery does not grant trust, approval, installation, deployment or invocation authority. The Catalog does not execute Agent, MCP, Skill or Plugin components. A downstream client must make its own authorization and execution decisions.
+
+The diagram separates core services from optional capabilities. [Hybrid search](../operations/hybrid-search.mdx) uses one configured embedding endpoint plus pgvector. Optional [ANS registration checks](security.mdx#optional-ans-registration-verification) use operator public keys and bounded public evidence; results remain private. External artwork delivery is implemented without managed storage. Managed media storage and software assessment remain unavailable and fail startup if enabled. Broad trust and legal rights remain unassessed.
+
+## Identity, revisions and review
+
+A Resource identifies one logical Agent, MCP Server, Skill or Plugin. A ResourceVersion names a version; its immutable VersionRevisions capture candidate content. ListingRevisions carry separately versioned presentation and discovery metadata. A ReviewSubmission binds one exact content revision, listing revision and validation result. Approval seals the version label to that content, and a ListingRelease records the approved tuple.
+
+<RevisionLifecycle />
+
+The following rules prevent apparently harmless edits from changing already reviewed meaning:
+
+- Resource identifiers are unique within their tenant; version labels are unique within a Resource. When external identities collide, the Catalog keeps each observation with its source attribution.
+- Content and listing corrections append new revisions. A subsequent validation run does not rewrite the evidence attached to an existing submission or release.
+- Approval and publication are separate permissions and transitions. A contributor cannot approve their own submission.
+- A listing's current pointer names its own published or deprecated release. Retired, superseded and revoked releases remain history rather than ordinary discovery results.
+- Visibility does not bypass review. Public visibility alone neither activates a public snapshot nor grants anonymous access to retained documents.
+- Removal of an upstream source does not mutate an adopted local Resource. Adoption retains exact observation, source revision, snapshot and digest provenance and still starts a draft governed workflow.
+
+The [domain model](domain.mdx) owns entity relationships, exact visibility behavior, representation retention and state transitions. The [authoring guide](../guides/local-development.mdx) describes the corresponding client workflow.
+
+## Tenant and transaction safety
+
+JWT verification establishes identity. Current Catalog membership and scoped permissions establish authority. OAuth scopes may narrow that authority but cannot create it. A token-supplied role, group or internal tenant UUID is not a Catalog grant. Public discovery instead uses the exact configured host, tenant and audience, with token-to-tenant matching on authenticated hosts.
+
+Every tenant-owned lookup, relationship and mutation preserves its tenant predicate. PostgreSQL enforces forced RLS for the API role. Workers use a distinct cross-tenant operational role for bounded claim and maintenance selection; every follow-up operation still names the exact tenant. Runtime roles authenticate directly with their exact grants, cannot assume a stronger role and never run migrations. See [database identities](../operations/database-roles.md).
+
+A mutating command serializes its scoped idempotency key across replicas. Its domain writes, audit, independently classified outbox records and exact replay response commit atomically. Audit-only actions do not manufacture notifications. Every replay rechecks current authentication, authorization and disclosure. Revision changes also require optimistic concurrency, so replay protection is not a substitute for `If-Match`.
+
+External retrieval and other potentially slow preparation happen outside interactive database transactions. Preparation and SQL work use cooperative request deadlines. Cleanup has a separate bound and continues if the request is canceled. It safely finishes or abandons the transaction without starting new business work. Recovery must not guess whether an uncertain command committed. The [command path](components.mdx#a-command-through-the-code) and [idempotency repair procedure](../operations/idempotency-repair.mdx) describe execution and the narrow repair boundary.
+
+## Standards and evidence
+
+The canonical model is not a copy of a draft discovery schema. Each adapter interprets one pinned format and preserves exact input, profile identity and findings alongside its normalized projection. Unknown external properties and unsupported kinds remain evidence; preservation does not imply native authoring support.
+
+Structural validity, compatibility, completeness, publisher authority, cryptographic trust, rights, admission, freshness and relevance are separate results. Structural Trust Manifest checks do not verify signatures; broad trust and rights remain `not_assessed`. The optional [ANS registration verifier](security.mdx#optional-ans-registration-verification) separately checks selected registration evidence against operator keys. Review approval cannot substitute for these checks or establish artifact safety.
+
+ARD and AI Catalog use different document and extension contracts. MCP Registry metadata and the experimental MCP Server Card are different representations. Agent Plugins defines a directory format, not an installer or an ARD media-type registration. Publication uses the mapping of the selected output profile rather than inventing a format name.
+
+Pinned inputs retain their exact upstream revision, licenses and checksums. A profile update creates a new reviewed interpretation and compatibility evidence; it never silently rewrites stored observations or active snapshot bytes. Test relevant old and candidate fixtures before changing the selected profile. Parallel incompatible public profiles need distinct reviewed hosts or Registry bases rather than silently changing the meaning of one URL.
+
+See [standards and known differences](../reference/standards.mdx), [pinned profiles](../../../../../schemas/PROFILES.md) and [Plugin delivery and inspection](../guides/agent-plugins.mdx) for supported versions, format exceptions and limits.
+
+## Bounded discovery and federation
+
+Administrator-approved source configuration controls retrieval mode, item scope, indexed/live/referral participation, audiences and query disclosure. Deployment egress policy is a separate ceiling. Ordinary query callers cannot add URLs, choose a topology or broaden the configured source scope.
+
+Source inspection establishes exact endpoints and their independently observed capabilities before connection. A Search endpoint does not imply a List endpoint; source-profile selection follows retained transport and inspection evidence, not a convenient field name or a guessed sibling URL.
+
+<SourceIngestion />
+
+An indexed synchronization activates one complete membership snapshot atomically. An incomplete run retains findings and the last complete view. Enumeration completeness is distinct from withdrawal authority: a complete direct manifest can prove absence, but the pinned ARD paginated List has no cross-page snapshot guarantee and cannot prove deletion merely because a member was not seen.
+
+Conditional retrieval reuses only exact retained bytes bound to the source revision, URL, selected profile, request identity, policy and credential revision. A `304` is not a newly downloaded document. It cannot suppress independent nested-document or remote-context refresh. Failed context resolution makes a required traversal incomplete rather than withdrawing previous membership.
+
+Local and indexed queries apply current authorization, source policy, filters, ordering and bounds before page hydration. Search projections are rebuildable, never authority for a revoked release or disallowed observation. Source scope changes apply to current reads and adoption even before another synchronization. Identity grouping preserves conflicting source evidence and prefers an eligible local governed result without silently adopting external content.
+
+Generation-bound cursors may require a restart when data changes; they do not hold a database snapshot across requests. Every page rechecks authorization. Live federation remains bounded by approved topology, fan-out, hops, requests, result size and deadline. A successful local result survives an upstream failure with safe partial-result diagnostics. No cached or partial result can expand disclosure.
+
+Scores express relevance, not trust, popularity, commercial priority or approval. Exact identity and deterministic lexical behavior remain independently usable. Optional [hybrid search](decisions/0011-search-and-embedding-tiers.md) combines lexical and semantic matches without granting execution or publication authority.
+
+The [federation architecture](federation.mdx), [client integration guide](../guides/integrating.mdx) and [search architecture](domain.mdx#search-architecture) own interface-specific reconciliation, filter and pagination behavior.
+
+## Publication and safe delivery
+
+Catalog release publication, discovery candidate generation and snapshot activation are separate steps. Publishing a release makes an approved listing current. Candidate generation builds an immutable host-bound bundle containing the ARD, AI Catalog, Registry and permitted document views; activation then exposes that validated bundle.
+
+- Candidate generation reads one consistent, database-bounded eligible set. It validates profile output and aggregate work before storing any candidate; overflow is an error, not silent truncation.
+- Activation and rollback recheck current eligibility using the same bounds and atomically switch the host's active pointer with audit and notification evidence.
+- Public routes read only the active snapshot and its permitted document references, never drafts or mutable authoring tables. A known artifact ID or digest is not an access grant.
+- External delivery must remain credential-free and match reviewed bytes at the required verification points. Drift records new evidence; it cannot change a sealed digest in place.
+- A release or domain transition that invalidates an active member withdraws the affected whole host bundle atomically. A replacement requires another validated activation; a stale retained snapshot is not silently restored.
+- HTTP digests identify exact served bytes. They do not imply a signature, publisher authenticity or artifact safety. Cache revalidation and withdrawal bounds apply even though retained content is immutable.
+
+The [publication architecture](publication.mdx) describes eligibility, audience isolation, caching, rollback and external-reference handling. See the [API reference](../../../../../api/README.md) for exact routes and wire examples.
+
+## Security and optional integrations
+
+Untrusted URLs, DNS answers, redirects, archives and documents require independent validation. Catalog-controlled sources, artifacts, contexts and webhook destinations use the hardened fetch boundary. The configured OIDC issuer and trace collector have separate endpoint-bound transports and trust inputs; neither is a tenant-selected content destination.
+
+Archive inspection is bounded and non-executing. Secrets enter through deployment inputs and remain absent from source documents, public output, logs, traces, audit facts and errors. Credential bindings are opaque and scoped to the permitted origin; rotation must not authorize another destination. Public roots, private CA inputs, webhook encryption/signing and cursor keys retain separate purposes.
+
+Optional webhooks consume classified transactional-outbox notifications after commit. Delivery is at least once and unordered, with claim-fenced persistence, signing and bounded retry. Receivers verify freshness/signatures and deduplicate; the Catalog does not promise exactly-once external side effects. Disabled delivery requires no key or receiver and does not affect readiness.
+
+Metrics, best-effort traces and durable audit are different evidence channels. Metric labels must be low-cardinality; logs and traces may use the documented correlation identifiers but must not contain private documents, unrestricted queries or secrets. Trace export has bounded queues and shutdown and cannot become an audit store or readiness dependency. Prometheus/Grafana remains an optional companion, not a requirement of the application chart.
+
+The [security architecture](security.mdx#threats-and-principal-controls) contains the threat/control overview; the [security runbook](../operations/security.md) maps it to implemented tests. Follow [webhook operations](../operations/webhooks.mdx) and [observability](../operations/observability.mdx) for enabled integrations.
+
+## Evolution, recovery and verification
+
+Numbered migrations are forward-only, embedded and checksum-verified. One schema-owner operation holds the migration/reconciliation lock and applies the exact API and worker privilege manifests. A committed migration followed by failed reconciliation leaves runtimes stopped until the problem is corrected. There is no automatic application-startup migration authority.
+
+There is no released predecessor to preserve under the [first-release baseline](decisions/0017-first-release-baseline.md). Reject incompatible development state without inventing history or deleting data. Future upgrades must account for actually supported versions, queued payloads, retained evidence and any explicit drain boundary; this does not require speculative old-client aliases or a mixed-version release matrix.
+
+Health checks distinguish liveness, readiness and optional-component degradation. API and worker runtime connections require a usable PostgreSQL writer. Graceful shutdown stops admission or claims, drains within a bound and leaves unfinished work recoverable. Correctness across replicas depends on database transactions, leases and command serialization, not sticky routing or process leadership.
+
+Recovery verifies immutable state, publication safety, role grants, audit evidence and outbound-side-effect state before resuming traffic. Rebuild only derived search data. Restore self-consistency cannot prove recovery-point provenance or completeness; separately trusted backup and audit evidence remains necessary. Backup schedules, database HA, capacity and availability objectives are deployment choices, not Catalog controllers.
+
+The [testing strategy](../contributing/testing.md) owns test layers, Make target selection and coverage accounting. The [build guide](../contributing/build-and-release.md), [persistence architecture](persistence.md) and [backup/restore procedure](../operations/backup-restore.mdx) cover packaging, schema evolution and recovery. Add a dependency, background job, provider abstraction or persistent coordination mechanism only for a concrete requirement that existing bounded operations cannot satisfy.

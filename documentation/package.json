@@ -1,0 +1,41 @@
+{
+  "name": "catalog-documentation",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "Mihai Criveti",
+  "engines": {
+    "node": ">=22.19.0 <23"
+  },
+  "packageManager": "npm@10.9.9",
+  "scripts": {
+    "lint": "node node_modules/eslint/bin/eslint.js --config eslint.config.mjs --no-config-lookup --no-inline-config --no-cache --no-fix --max-warnings 0 \"**/*.mjs\"",
+    "build": "node scripts/prepare.mjs && astro build && node scripts/bundle.mjs",
+    "preview": "node scripts/preview.mjs",
+    "test:unit": "node --test scripts/*.unit.test.mjs",
+    "check": "npm run lint && npm run check:astro && node --test scripts/*.test.mjs && node scripts/check.mjs",
+    "check:astro": "node scripts/astro-check.mjs"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "7.3.2",
+    "@astrojs/starlight": "0.42.6",
+    "astro": "7.3.8",
+    "starlight-openapi": "0.27.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@eslint/js": "10.0.1",
+    "eslint": "10.12.0",
+    "github-slugger": "2.0.0",
+    "globals": "17.13.0",
+    "parse5": "8.0.1",
+    "playwright": "1.64.0",
+    "typescript": "5.9.3",
+    "yaml": "2.9.1"
+  },
+  "overrides": {
+    "form-data": "4.0.6",
+    "@expressive-code/core": "0.44.3"
+  }
+}

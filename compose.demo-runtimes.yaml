@@ -1,0 +1,99 @@
+# Explicit owned development peers. No image, command or mount comes from sample YAML.
+services:
+  demo-agent:
+    image: ${DEMO_A2A_IMAGE:?Install and verify the locked A2A tools}
+    pull_policy: never
+    user: "${DEMO_RUNTIME_UID:?Select the non-root input owner}:${DEMO_RUNTIME_GID:?Select the input group}"
+    command: ["/deployment/agent_runtime.py"]
+    volumes:
+      - type: bind
+        source: ./test/demo/agent_runtime.py
+        target: /deployment/agent_runtime.py
+        read_only: true
+      - type: bind
+        source: ${DEMO_RUNTIME_DIR:-./output/demo/runtimes}/agent
+        target: /private
+        read_only: true
+    ports:
+      - "127.0.0.1:${DEMO_A2A_PORT:-19443}:9443"
+    networks: [demo-runtimes]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 2
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+    environment: &demo-proxy-free
+      HTTP_PROXY: ""
+      HTTPS_PROXY: ""
+      ALL_PROXY: ""
+      NO_PROXY: ""
+      http_proxy: ""
+      https_proxy: ""
+      all_proxy: ""
+      no_proxy: ""
+    logging: &demo-bounded-logs
+      driver: local
+      options:
+        max-size: 1m
+        max-file: "1"
+        compress: "false"
+
+  demo-mcp:
+    image: ${DEMO_MCP_IMAGE:?Install and verify the locked MCP tools}
+    pull_policy: never
+    user: "${DEMO_RUNTIME_UID}:${DEMO_RUNTIME_GID}"
+    entrypoint: ["/deployment/mcpfixture"]
+    command: ["serve-demo"]
+    volumes:
+      - type: bind
+        source: ${DEMO_RUNTIME_DIR:-./output/demo/runtimes}/mcpfixture
+        target: /deployment/mcpfixture
+        read_only: true
+      - type: bind
+        source: ${DEMO_RUNTIME_DIR:-./output/demo/runtimes}/mcp
+        target: /private
+        read_only: true
+    ports:
+      - "127.0.0.1:${DEMO_MCP_PORT:-19444}:9443"
+    networks: [demo-runtimes]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 1
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+    environment: *demo-proxy-free
+    logging: *demo-bounded-logs
+    healthcheck:
+      test: [CMD, /deployment/mcpfixture, probe]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  demo-everything:
+    image: ${DEMO_MCP_IMAGE}
+    pull_policy: never
+    user: "${DEMO_RUNTIME_UID}:${DEMO_RUNTIME_GID}"
+    command: ["/tools/node_modules/@modelcontextprotocol/server-everything/dist/index.js", streamableHttp]
+    network_mode: service:demo-mcp
+    depends_on:
+      demo-mcp:
+        condition: service_started
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 2
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=32m"]
+    environment: *demo-proxy-free
+    logging: *demo-bounded-logs
+
+networks:
+  demo-runtimes:
+    driver: bridge
+    driver_opts:
+      com.docker.network.bridge.enable_ip_masquerade: "false"

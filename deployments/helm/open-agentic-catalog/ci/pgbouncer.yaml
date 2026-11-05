@@ -1,0 +1,11 @@
+# Rendering input; all Secrets and CA ConfigMaps are externally supplied.
+databaseTrustBundleConfigMap: database-ca
+pgbouncer:
+  enabled: true
+  upstream: {host: postgres.database.svc.cluster.local, port: 5432, database: catalog}
+  authSecret: pooler-auth
+  tlsSecret: pooler-tls
+  upstreamCAConfigMap: database-ca
+  writerEgress:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: database}}
+      podSelector: {matchLabels: {app: postgres}}

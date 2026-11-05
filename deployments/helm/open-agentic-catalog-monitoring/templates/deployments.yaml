@@ -1,0 +1,154 @@
+{{- if .Values.enabled }}
+{{- $root := . -}}
+{{- range $component := list "prometheus" "grafana" }}
+{{- $settings := index $root.Values $component }}
+{{- $prometheus := eq $component "prometheus" }}
+{{- $port := ternary 9090 3000 $prometheus }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "catalog-monitoring.name" $root }}-{{ $component }}
+  namespace: {{ $root.Release.Namespace | quote }}
+  labels:
+    {{- include "catalog-monitoring.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  replicas: 1
+  # One writer per local data directory; no RWO overlap during upgrades.
+  strategy: {type: Recreate}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: open-agentic-catalog-monitoring
+      app.kubernetes.io/instance: {{ $root.Release.Name | quote }}
+      app.kubernetes.io/component: {{ $component }}
+  template:
+    metadata:
+      labels:
+        {{- include "catalog-monitoring.labels" $root | nindent 8 }}
+        app.kubernetes.io/component: {{ $component }}
+      annotations:
+        checksum/config: {{ include (print $root.Template.BasePath "/configmap.yaml") $root | sha256sum | quote }}
+    spec:
+      serviceAccountName: {{ include "catalog-monitoring.name" $root }}-{{ $component }}
+      automountServiceAccountToken: {{ $prometheus }}
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 30
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+        {{- with $root.Values.podSecurityContext }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: {{ $component }}
+          image: {{ include "catalog-monitoring.image" (dict "root" $root "component" $component) | quote }}
+          imagePullPolicy: IfNotPresent
+          {{- if $prometheus }}
+          args:
+            - --config.file=/etc/catalog-monitoring/prometheus.yaml
+            - --storage.tsdb.path=/prometheus
+            - {{ printf "--storage.tsdb.retention.time=%s" $settings.retentionTime | quote }}
+            - {{ printf "--storage.tsdb.retention.size=%s" $settings.retentionSize | quote }}
+            - --web.listen-address=0.0.0.0:9090
+            - --query.timeout=10s
+            - --query.max-concurrency=4
+            - --query.max-samples=1000000
+            - --web.max-connections=32
+            - --log.level=warn
+          {{- else }}
+          env:
+            - {name: GF_PATHS_CONFIG, value: /etc/catalog-monitoring/grafana.ini}
+            - {name: GF_PATHS_DATA, value: /var/lib/grafana}
+            - {name: GF_PATHS_LOGS, value: /tmp/logs}
+            - {name: GF_PATHS_PROVISIONING, value: /etc/grafana/provisioning}
+          {{- end }}
+          ports: [{name: http, containerPort: {{ $port }}}]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: [ALL]}
+          resources:
+            {{- toYaml $settings.resources | nindent 12 }}
+          startupProbe:
+            httpGet: {path: {{ ternary "/-/ready" "/api/health" $prometheus }}, port: http}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: {{ ternary "/-/ready" "/api/health" $prometheus }}, port: http}
+            periodSeconds: 10
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet: {path: {{ ternary "/-/healthy" "/api/health" $prometheus }}, port: http}
+            periodSeconds: 15
+            timeoutSeconds: 3
+          volumeMounts:
+            - {name: config, mountPath: /etc/catalog-monitoring, readOnly: true}
+            - {name: data, mountPath: {{ ternary "/prometheus" "/var/lib/grafana" $prometheus }}}
+            - {name: tmp, mountPath: /tmp}
+            {{- if not $prometheus }}
+            - {name: admin, mountPath: /run/secrets, readOnly: true}
+            - {name: dashboard, mountPath: /etc/grafana/catalog-dashboards, readOnly: true}
+            - {name: datasource, mountPath: /etc/grafana/provisioning/datasources, readOnly: true}
+            - {name: provider, mountPath: /etc/grafana/provisioning/dashboards, readOnly: true}
+            - {name: empty, mountPath: /etc/grafana/provisioning/alerting, readOnly: true}
+            - {name: empty, mountPath: /etc/grafana/provisioning/plugins, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "catalog-monitoring.name" $root }}
+            items:
+              - {key: {{ ternary "prometheus.yaml" "grafana.ini" $prometheus }}, path: {{ ternary "prometheus.yaml" "grafana.ini" $prometheus }}}
+        - name: data
+          {{- if $settings.storage.existingClaim }}
+          persistentVolumeClaim: {claimName: {{ $settings.storage.existingClaim | quote }}}
+          {{- else }}
+          emptyDir: {sizeLimit: {{ $settings.storage.emptyDirSizeLimit | quote }}}
+          {{- end }}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+        {{- if not $prometheus }}
+        - name: admin
+          secret:
+            secretName: {{ $root.Values.grafana.adminSecret.name | quote }}
+            items:
+              - {key: {{ $root.Values.grafana.adminSecret.userKey | quote }}, path: admin_user}
+              - {key: {{ $root.Values.grafana.adminSecret.passwordKey | quote }}, path: admin_password}
+        - name: dashboard
+          configMap: {name: {{ include "catalog-monitoring.name" $root }}-dashboard}
+        - name: datasource
+          configMap:
+            name: {{ include "catalog-monitoring.name" $root }}
+            items: [{key: datasource.yaml, path: catalog.yaml}]
+        - name: provider
+          configMap:
+            name: {{ include "catalog-monitoring.name" $root }}
+            items: [{key: dashboards.yaml, path: catalog.yaml}]
+        - name: empty
+          configMap:
+            name: {{ include "catalog-monitoring.name" $root }}
+            items: [{key: empty.yaml, path: empty.yaml}]
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "catalog-monitoring.name" $root }}-{{ $component }}
+  namespace: {{ $root.Release.Namespace | quote }}
+  labels:
+    {{- include "catalog-monitoring.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: open-agentic-catalog-monitoring
+    app.kubernetes.io/instance: {{ $root.Release.Name | quote }}
+    app.kubernetes.io/component: {{ $component }}
+  ports: [{name: http, port: {{ $port }}, targetPort: http}]
+{{- end }}
+{{- end }}

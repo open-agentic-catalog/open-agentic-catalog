@@ -1,0 +1,662 @@
+[
+  {
+    "id": "invoice-task",
+    "split": "tune",
+    "family": "invoice",
+    "text": "Which resource can spot a vendor charging more than we agreed to pay?",
+    "relevant": {
+      "invoice-agent": 2,
+      "invoice-mcp_server": 2,
+      "invoice-skill": 2,
+      "invoice-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "invoice-kind",
+    "split": "tune",
+    "family": "invoice",
+    "text": "Find help checking bills against ordered goods.",
+    "kind": "skill",
+    "relevant": {
+      "invoice-skill": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "calendar-task",
+    "split": "tune",
+    "family": "calendar",
+    "text": "Find an opening when the whole team is free.",
+    "relevant": {
+      "calendar-agent": 2,
+      "calendar-mcp_server": 2,
+      "calendar-skill": 2,
+      "calendar-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "calendar-kind",
+    "split": "tune",
+    "family": "calendar",
+    "text": "Who can help arrange a call across different time zones?",
+    "kind": "mcp_server",
+    "relevant": {
+      "calendar-mcp_server": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "translation-task",
+    "split": "tune",
+    "family": "translation",
+    "text": "Turn our installation guide into Spanish without losing terminology.",
+    "relevant": {
+      "translation-agent": 2,
+      "translation-mcp_server": 2,
+      "translation-skill": 2,
+      "translation-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "translation-kind",
+    "split": "tune",
+    "family": "translation",
+    "text": "Make the device handbook readable to Spanish customers.",
+    "kind": "agent",
+    "relevant": {
+      "translation-agent": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "log-analysis-task",
+    "split": "tune",
+    "family": "log-analysis",
+    "text": "Find out why requests started failing from the error messages.",
+    "relevant": {
+      "log-analysis-agent": 2,
+      "log-analysis-mcp_server": 2,
+      "log-analysis-skill": 2,
+      "log-analysis-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "log-analysis-kind",
+    "split": "tune",
+    "family": "log-analysis",
+    "text": "Help investigate repeating exceptions in our service.",
+    "kind": "agent",
+    "relevant": {
+      "log-analysis-agent": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "inventory-task",
+    "split": "tune",
+    "family": "inventory",
+    "text": "Warn me about goods we may run out of next month.",
+    "relevant": {
+      "inventory-agent": 2,
+      "inventory-mcp_server": 2,
+      "inventory-skill": 2,
+      "inventory-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "inventory-kind",
+    "split": "tune",
+    "family": "inventory",
+    "text": "Predict which products need replenishing soon.",
+    "kind": "plugin",
+    "relevant": {
+      "inventory-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "redaction-task",
+    "split": "tune",
+    "family": "redaction",
+    "text": "Remove identifying details before we send a transcript outside the company.",
+    "relevant": {
+      "redaction-agent": 2,
+      "redaction-mcp_server": 2,
+      "redaction-skill": 2,
+      "redaction-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "redaction-kind",
+    "split": "tune",
+    "family": "redaction",
+    "text": "Hide customer contact information in these conversations.",
+    "kind": "skill",
+    "relevant": {
+      "redaction-skill": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "contract-task",
+    "split": "test",
+    "family": "contract",
+    "text": "Show where this agreement says how to end it.",
+    "relevant": {
+      "contract-agent": 2,
+      "contract-mcp_server": 2,
+      "contract-skill": 2,
+      "contract-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "contract-kind",
+    "split": "test",
+    "family": "contract",
+    "text": "Find terms that automatically extend a supplier agreement.",
+    "kind": "skill",
+    "relevant": {
+      "contract-skill": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "accessibility-task",
+    "split": "test",
+    "family": "accessibility",
+    "text": "Find parts of a web page that are hard to use without a mouse.",
+    "relevant": {
+      "accessibility-agent": 2,
+      "accessibility-mcp_server": 2,
+      "accessibility-skill": 2,
+      "accessibility-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "accessibility-kind",
+    "split": "test",
+    "family": "accessibility",
+    "text": "Check whether controls are understandable to screen-reader users.",
+    "kind": "mcp_server",
+    "relevant": {
+      "accessibility-mcp_server": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "sql-task",
+    "split": "test",
+    "family": "sql",
+    "text": "Get records from an approved relational view without changing anything.",
+    "relevant": {
+      "sql-agent": 2,
+      "sql-mcp_server": 2,
+      "sql-skill": 2,
+      "sql-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "sql-kind",
+    "split": "test",
+    "family": "sql",
+    "text": "Read data from PostgreSQL without modifying it.",
+    "kind": "agent",
+    "relevant": {
+      "sql-agent": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "release-notes-task",
+    "split": "test",
+    "family": "release-notes",
+    "text": "Turn the latest merged changes into an announcement for users.",
+    "relevant": {
+      "release-notes-agent": 2,
+      "release-notes-mcp_server": 2,
+      "release-notes-skill": 2,
+      "release-notes-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "release-notes-kind",
+    "split": "test",
+    "family": "release-notes",
+    "text": "Draft a summary of what changed in our new software version.",
+    "kind": "agent",
+    "relevant": {
+      "release-notes-agent": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "duplicate-task",
+    "split": "test",
+    "family": "duplicate",
+    "text": "Find repeated entries for the same customer in our address book.",
+    "relevant": {
+      "duplicate-agent": 2,
+      "duplicate-mcp_server": 2,
+      "duplicate-skill": 2,
+      "duplicate-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "duplicate-kind",
+    "split": "test",
+    "family": "duplicate",
+    "text": "Suggest which CRM profiles might describe the same person.",
+    "kind": "plugin",
+    "relevant": {
+      "duplicate-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "shipment-task",
+    "split": "test",
+    "family": "shipment",
+    "text": "Where is my parcel and why hasn't it arrived?",
+    "relevant": {
+      "shipment-agent": 2,
+      "shipment-mcp_server": 2,
+      "shipment-skill": 2,
+      "shipment-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "shipment-kind",
+    "split": "test",
+    "family": "shipment",
+    "text": "Report progress for a package tracking number.",
+    "kind": "skill",
+    "relevant": {
+      "shipment-skill": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "expenses-task",
+    "split": "test",
+    "family": "expenses",
+    "text": "Check whether an employee's travel claim follows company rules.",
+    "relevant": {
+      "expenses-agent": 2,
+      "expenses-mcp_server": 2,
+      "expenses-skill": 2,
+      "expenses-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "expenses-kind",
+    "split": "test",
+    "family": "expenses",
+    "text": "Find reimbursement requests with missing proof of purchase.",
+    "kind": "mcp_server",
+    "relevant": {
+      "expenses-mcp_server": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "dependencies-task",
+    "split": "test",
+    "family": "dependencies",
+    "text": "Tell me whether the libraries we use have known published flaws.",
+    "relevant": {
+      "dependencies-agent": 2,
+      "dependencies-mcp_server": 2,
+      "dependencies-skill": 2,
+      "dependencies-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "dependencies-kind",
+    "split": "test",
+    "family": "dependencies",
+    "text": "Check our package versions against security advisories.",
+    "kind": "plugin",
+    "relevant": {
+      "dependencies-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "support-task",
+    "split": "test",
+    "family": "support",
+    "text": "Send incoming help requests to the right team.",
+    "relevant": {
+      "support-agent": 2,
+      "support-mcp_server": 2,
+      "support-skill": 2,
+      "support-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "support-kind",
+    "split": "test",
+    "family": "support",
+    "text": "Sort customer problems by urgency and affected product.",
+    "kind": "skill",
+    "relevant": {
+      "support-skill": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "csv-task",
+    "split": "test",
+    "family": "csv",
+    "text": "Point out bad rows and missing values in a spreadsheet export.",
+    "relevant": {
+      "csv-agent": 2,
+      "csv-mcp_server": 2,
+      "csv-skill": 2,
+      "csv-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "csv-kind",
+    "split": "test",
+    "family": "csv",
+    "text": "Check a comma-separated file for malformed fields.",
+    "kind": "mcp_server",
+    "relevant": {
+      "csv-mcp_server": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "meeting-task",
+    "split": "test",
+    "family": "meeting",
+    "text": "Who promised to do what in these meeting notes?",
+    "relevant": {
+      "meeting-agent": 2,
+      "meeting-mcp_server": 2,
+      "meeting-skill": 2,
+      "meeting-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "meeting-kind",
+    "split": "test",
+    "family": "meeting",
+    "text": "Turn discussion notes into follow-up tasks with deadlines.",
+    "kind": "agent",
+    "relevant": {
+      "meeting-agent": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "currency-task",
+    "split": "test",
+    "family": "currency",
+    "text": "How much was a euro worth in dollars on a previous date?",
+    "relevant": {
+      "currency-agent": 2,
+      "currency-mcp_server": 2,
+      "currency-skill": 2,
+      "currency-plugin": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "currency-kind",
+    "split": "test",
+    "family": "currency",
+    "text": "Convert a historical amount using the rate from that day.",
+    "kind": "agent",
+    "relevant": {
+      "currency-agent": 2
+    },
+    "rationale": "The described capability directly answers this intent; scope filters apply before scoring."
+  },
+  {
+    "id": "exact-0",
+    "split": "tune",
+    "family": "invoice",
+    "text": "urn:air:catalog.example.test:demo:invoice-skill",
+    "exact": true,
+    "relevant": {
+      "invoice-skill": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-1",
+    "split": "tune",
+    "family": "calendar",
+    "text": "urn:air:catalog.example.test:demo:calendar-skill",
+    "exact": true,
+    "relevant": {
+      "calendar-skill": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-2",
+    "split": "tune",
+    "family": "translation",
+    "text": "urn:air:catalog.example.test:demo:translation-agent",
+    "exact": true,
+    "relevant": {
+      "translation-agent": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-3",
+    "split": "tune",
+    "family": "log-analysis",
+    "text": "urn:air:catalog.example.test:demo:log-analysis-plugin",
+    "exact": true,
+    "relevant": {
+      "log-analysis-plugin": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-4",
+    "split": "test",
+    "family": "contract",
+    "text": "urn:air:catalog.example.test:demo:contract-skill",
+    "exact": true,
+    "relevant": {
+      "contract-skill": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-5",
+    "split": "test",
+    "family": "accessibility",
+    "text": "urn:air:catalog.example.test:demo:accessibility-skill",
+    "exact": true,
+    "relevant": {
+      "accessibility-skill": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-6",
+    "split": "test",
+    "family": "sql",
+    "text": "urn:air:catalog.example.test:demo:sql-agent",
+    "exact": true,
+    "relevant": {
+      "sql-agent": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-7",
+    "split": "test",
+    "family": "release-notes",
+    "text": "urn:air:catalog.example.test:demo:release-notes-plugin",
+    "exact": true,
+    "relevant": {
+      "release-notes-plugin": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-8",
+    "split": "test",
+    "family": "duplicate",
+    "text": "urn:air:catalog.example.test:demo:duplicate-skill",
+    "exact": true,
+    "relevant": {
+      "duplicate-skill": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-9",
+    "split": "test",
+    "family": "shipment",
+    "text": "urn:air:catalog.example.test:demo:shipment-skill",
+    "exact": true,
+    "relevant": {
+      "shipment-skill": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-10",
+    "split": "test",
+    "family": "expenses",
+    "text": "urn:air:catalog.example.test:demo:expenses-agent",
+    "exact": true,
+    "relevant": {
+      "expenses-agent": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "exact-11",
+    "split": "test",
+    "family": "dependencies",
+    "text": "urn:air:catalog.example.test:demo:dependencies-plugin",
+    "exact": true,
+    "relevant": {
+      "dependencies-plugin": 2
+    },
+    "rationale": "Only the exact identifier is relevant."
+  },
+  {
+    "id": "no-answer-0",
+    "split": "tune",
+    "family": "no-answer",
+    "text": "Predict the winning numbers for next week's lottery.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-1",
+    "split": "tune",
+    "family": "no-answer",
+    "text": "Repair a broken washing machine remotely.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-2",
+    "split": "tune",
+    "family": "no-answer",
+    "text": "Book an airline ticket and issue a boarding pass.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-3",
+    "split": "tune",
+    "family": "no-answer",
+    "text": "Generate an original musical soundtrack.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-4",
+    "split": "test",
+    "family": "no-answer",
+    "text": "Execute INSERT and DELETE statements against production tables.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-5",
+    "split": "test",
+    "family": "no-answer",
+    "text": "Represent me in court during a criminal trial.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-6",
+    "split": "test",
+    "family": "no-answer",
+    "text": "Generate a new photograph of a fictional product.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-7",
+    "split": "test",
+    "family": "no-answer",
+    "text": "Predict rainfall for the next six months.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-8",
+    "split": "test",
+    "family": "no-answer",
+    "text": "Place a foreign exchange trade automatically.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-9",
+    "split": "test",
+    "family": "no-answer",
+    "text": "Merge customer accounts automatically without review.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-10",
+    "split": "test",
+    "family": "no-answer",
+    "text": "Perform a live penetration test by exploiting remote servers.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  },
+  {
+    "id": "no-answer-11",
+    "split": "test",
+    "family": "no-answer",
+    "text": "File my personal income tax return with the government.",
+    "relevant": {},
+    "rationale": "No corpus resource provides the requested capability."
+  }
+]

@@ -1,0 +1,1 @@
+{"$schema":"https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json","description":"Describes read-only repository exploration tools.","name":"com.example/repository-mcp","remotes":[{"supportedProtocolVersions":["2025-11-25"],"type":"streamable-http","url":"https://mcp.example.com/repository-mcp"}],"title":"Repository explorer MCP Server","version":"1.0.0"}

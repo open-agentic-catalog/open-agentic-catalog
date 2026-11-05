@@ -1,0 +1,11 @@
+/mcp-scan-receiver
+*.test
+coverage*.out
+/reports/
+/private/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db

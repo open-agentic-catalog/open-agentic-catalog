@@ -1,0 +1,290 @@
+name: Qualified release candidates
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_artifacts:
+        description: Explicitly enable the exact candidate handoff between hosted jobs
+        type: boolean
+        default: false
+      publish:
+        description: Maintainer enables protected registry and release-asset delivery
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CATALOG_ENV_FILE: /dev/null
+  GOTELEMETRY: 'off'
+  DEV_PYTHON: python3.12
+  PYTHONDONTWRITEBYTECODE: '1'
+  NPM_CONFIG_AUDIT: 'false'
+  ASTRO_TELEMETRY_DISABLED: '1'
+
+jobs:
+  policy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      key: ${{ steps.identity.outputs.key }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Admit the explicit exact-tag handoff
+        env:
+          UPLOAD: ${{ inputs.upload_artifacts }}
+        run: |
+          [[ -z "${ACT:-}" && "$UPLOAD" == true ]] || { printf '%s\n' 'Use local candidate commands under act; hosted handoff requires explicit upload consent.' >&2; exit 2; }
+          python3.12 -B test/ci/tools.py install --profile unit
+          make version-check
+          make release-check
+      - id: identity
+        env:
+          KEY: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: printf 'key=%s\n' "$KEY" >> "$GITHUB_OUTPUT"
+  source:
+    needs: policy
+    uses: ./.github/workflows/quality.yml
+    with:
+      suite: all
+  clients:
+    needs: policy
+    uses: ./.github/workflows/clients.yml
+    with:
+      language: all
+      upload_artifacts: ${{ inputs.upload_artifacts }}
+  security:
+    needs: policy
+    uses: ./.github/workflows/extended.yml
+    with:
+      suite: source-security
+  candidates:
+    needs: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        product: [backend, ui]
+        arch: [amd64, arm64]
+    env:
+      PRODUCT: ${{ matrix.product }}
+      CONTAINER_PLATFORM: linux/${{ matrix.arch }}
+      IMAGE: open-agentic-catalog:candidate-${{ needs.policy.outputs.key }}-${{ matrix.arch }}
+      UI_IMAGE: open-agentic-catalog-ui:candidate-${{ needs.policy.outputs.key }}-${{ matrix.arch }}
+      ARTIFACT_OUTPUT: output/release/${{ matrix.product }}-${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - run: python3.12 -B test/ci/tools.py install --profile images
+      - run: make dev-tools-install
+      - run: make version-check
+      - run: make release-check
+      - name: Build each platform candidate once
+        run: |
+          case "$PRODUCT" in
+            backend) make container-build ;;
+            ui) make ui-container-build ;;
+            *) exit 2 ;;
+          esac
+      - name: Inspect and inventory the exact built image
+        run: |
+          mkdir -p "$ARTIFACT_OUTPUT"
+          case "$PRODUCT" in
+            backend)
+              make --silent container-inspect > "$ARTIFACT_OUTPUT/inspection.json"
+              make licenses ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT/licenses"
+              make sbom ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT/sbom"
+              ;;
+            ui)
+              make --silent ui-container-inspect > "$ARTIFACT_OUTPUT/inspection.json"
+              make ui-sbom ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT/sbom"
+              ;;
+          esac
+      - name: Scan the same local candidate
+        run: |
+          trivy image --download-db-only
+          case "$PRODUCT" in
+            backend) make container-scan ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT-scan-private" ;;
+            ui) make ui-container-scan ARTIFACT_OUTPUT="$ARTIFACT_OUTPUT-scan-private" ;;
+          esac
+      - name: Save the qualified image and bounded evidence
+        run: |
+          selected_image="$IMAGE"
+          if [[ "$PRODUCT" == ui ]]; then selected_image="$UI_IMAGE"; fi
+          python3.12 -B test/ci/candidate.py seal --directory "$ARTIFACT_OUTPUT" --image "$selected_image" --product "$PRODUCT" --platform "$CONTAINER_PLATFORM" --scan-directory "$ARTIFACT_OUTPUT-scan-private"
+      - name: Transfer only this candidate
+        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: candidate-${{ needs.policy.outputs.key }}-${{ matrix.product }}-${{ matrix.arch }}
+          retention-days: 7
+          if-no-files-found: error
+          path: ${{ env.ARTIFACT_OUTPUT }}/
+  charts:
+    needs: policy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ARTIFACT_OUTPUT: output/release/charts
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - run: python3.12 -B test/ci/tools.py install --profile charts
+      - run: make dev-tools-install
+      - run: make version-check
+      - run: make release-check
+      - run: make deploy-check
+      - run: make helm-package
+      - run: python3.12 -B test/ci/release_delivery.py charts --directory "$ARTIFACT_OUTPUT"
+      - name: Transfer the qualified charts
+        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-charts-${{ needs.policy.outputs.key }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            output/release/charts/*.tgz
+            output/release/charts/qualification.json
+  runtime:
+    needs: [policy, candidates]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        suite: [api, ui-compose, ui-oidc]
+    env:
+      SUITE: ${{ matrix.suite }}
+      CATALOG_CANDIDATE_BACKEND: output/release/backend/candidate.json
+      CATALOG_CANDIDATE_UI: output/release/ui/candidate.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: candidate-${{ needs.policy.outputs.key }}-backend-amd64
+          path: output/release/backend
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: candidate-${{ needs.policy.outputs.key }}-ui-amd64
+          path: output/release/ui
+      - run: python3.12 -B test/ci/tools.py install --profile functional-ui
+      - run: make dev-tools-install
+      - run: make ui-install
+      - run: make ui-browser-install
+      - working-directory: catalog-ui
+        run: node node_modules/@playwright/test/cli.js install-deps chromium
+      - name: Load and admit the exact candidates
+        run: python3.12 -B test/ci/candidate.py load --backend "$CATALOG_CANDIDATE_BACKEND" --ui "$CATALOG_CANDIDATE_UI" > /dev/null
+      - name: Run the ordinary journeys with the retained images
+        run: |
+          case "$SUITE" in
+            api) make -j1 test-functional-default-off ;;
+            ui-compose) make test-ui-compose ;;
+            ui-oidc) make test-ui-oidc ;;
+            *) exit 2 ;;
+          esac
+      - name: Bind successful runtime and cleanup to these candidates
+        run: >-
+          python3.12 -B test/ci/release_delivery.py runtime-result --suite "$SUITE"
+          --backend "$CATALOG_CANDIDATE_BACKEND" --ui "$CATALOG_CANDIDATE_UI"
+          --output "output/release/runtime-$SUITE.json"
+      - name: Transfer the runtime result
+        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-runtime-${{ needs.policy.outputs.key }}-${{ matrix.suite }}
+          retention-days: 7
+          if-no-files-found: error
+          path: output/release/runtime-${{ matrix.suite }}.json
+  qualify:
+    needs: [policy, source, security, clients, candidates, charts, runtime]
+    if: ${{ always() && needs.policy.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RESULTS: >-
+        {"source":"${{ needs.source.result }}","security":"${{ needs.security.result }}","clients":"${{ needs.clients.result }}",
+        "candidates":"${{ needs.candidates.result }}","charts":"${{ needs.charts.result }}","runtime":"${{ needs.runtime.result }}"}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Require all selected jobs
+        run: python3.12 -B test/ci/candidate.py results --results "$RESULTS" --output output/release/results.json
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          path: output/release/inputs
+          # Current run only; no token or other run identifier is accepted.
+          pattern: '*'
+      - name: Assemble exact source, package and runtime evidence
+        run: python3.12 -B test/ci/release_delivery.py assemble --directory output/release/inputs --results "$RESULTS" --output output/release/qualified
+      - name: Transfer the completed release set
+        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: qualified-release-${{ needs.policy.outputs.key }}
+          retention-days: 7
+          if-no-files-found: error
+          path: output/release/qualified/
+  deliver:
+    needs: [policy, qualify]
+    if: ${{ inputs.publish && needs.policy.result == 'success' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: release
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: qualified-release-${{ needs.policy.outputs.key }}
+          path: output/release/delivery
+      - name: Authenticate the maintainer delivery job
+        env:
+          TOKEN: ${{ github.token }}
+          ACTOR: ${{ github.actor }}
+        run: printf '%s' "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+      - name: Deliver the retained artifacts without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PUBLISH: 'true'
+        run: python3.12 -B test/ci/release_delivery.py publish --directory output/release/delivery
+      - name: Report completed and partial delivery
+        if: ${{ always() }}
+        run: |
+          if [[ -f output/release/delivery/delivery-result.json ]]; then
+            cat output/release/delivery/delivery-result.json >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '%s\n' 'Delivery did not start. No complete publication is claimed.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Remove registry credentials from the job
+        if: ${{ always() }}
+        run: docker logout ghcr.io

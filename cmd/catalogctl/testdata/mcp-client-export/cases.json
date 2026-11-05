@@ -1,0 +1,302 @@
+[
+  {
+    "name": "registry-streamable-http",
+    "profile": "mcp-registry-server-1.8.1-f52dc85",
+    "mediaType": "application/vnd.mcp.server+json",
+    "releaseId": "00000000-0000-7000-8000-000000000001",
+    "remote": 1,
+    "document": {
+      "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+      "name": "org.example/server.name",
+      "description": "Synthetic metadata for offline client export tests.",
+      "version": "1.0.0",
+      "remotes": [
+        {
+          "type": "streamable-http",
+          "url": "https://mcp.example.test/mcp?route=a%2Fb&tag=one+two",
+          "headers": [
+            {
+              "name": "Authorization",
+              "isRequired": true,
+              "isSecret": true,
+              "value": "PRIVATE_HEADER",
+              "default": "PRIVATE_DEFAULT",
+              "description": "PRIVATE_DESCRIPTION"
+            },
+            {
+              "name": "X-Project",
+              "isRequired": false,
+              "value": "PRIVATE_PROJECT"
+            }
+          ],
+          "supportedProtocolVersions": [
+            "2025-06-18"
+          ]
+        }
+      ],
+      "_meta": {
+        "private": "PRIVATE_EXTENSION"
+      }
+    },
+    "expected": {
+      "mcp-vscode": {
+        "servers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/mcp?route=a%2Fb&tag=one+two",
+            "type": "http"
+          }
+        }
+      },
+      "mcp-claude-code": {
+        "mcpServers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/mcp?route=a%2Fb&tag=one+two",
+            "type": "http"
+          }
+        }
+      },
+      "mcp-cursor": {
+        "mcpServers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/mcp?route=a%2Fb&tag=one+two"
+          }
+        }
+      }
+    },
+    "omittedHeaders": [
+      {
+        "name": "Authorization",
+        "required": true
+      },
+      {
+        "name": "X-Project",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "registry-sse",
+    "profile": "mcp-registry-server-1.8.1-f52dc85",
+    "mediaType": "application/vnd.mcp.server+json",
+    "releaseId": "00000000-0000-7000-8000-000000000001",
+    "remote": 1,
+    "document": {
+      "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+      "name": "org.example/server.name",
+      "description": "Synthetic metadata for offline client export tests.",
+      "version": "1.0.0",
+      "remotes": [
+        {
+          "type": "sse",
+          "url": "https://mcp.example.test/sse?route=a%2Fb&tag=one+two",
+          "headers": [
+            {
+              "name": "Authorization",
+              "isRequired": true,
+              "isSecret": true,
+              "value": "PRIVATE_HEADER",
+              "default": "PRIVATE_DEFAULT",
+              "description": "PRIVATE_DESCRIPTION"
+            },
+            {
+              "name": "X-Project",
+              "isRequired": false,
+              "value": "PRIVATE_PROJECT"
+            }
+          ],
+          "supportedProtocolVersions": [
+            "2025-06-18"
+          ]
+        }
+      ],
+      "_meta": {
+        "private": "PRIVATE_EXTENSION"
+      }
+    },
+    "expected": {
+      "mcp-vscode": {
+        "servers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/sse?route=a%2Fb&tag=one+two",
+            "type": "sse"
+          }
+        }
+      },
+      "mcp-claude-code": {
+        "mcpServers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/sse?route=a%2Fb&tag=one+two",
+            "type": "sse"
+          }
+        }
+      },
+      "mcp-cursor": {
+        "mcpServers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/sse?route=a%2Fb&tag=one+two"
+          }
+        }
+      }
+    },
+    "omittedHeaders": [
+      {
+        "name": "Authorization",
+        "required": true
+      },
+      {
+        "name": "X-Project",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "card-streamable-http",
+    "profile": "mcp-server-card-v1-experimental-526201b",
+    "mediaType": "application/mcp-server-card+json",
+    "releaseId": "00000000-0000-7000-8000-000000000001",
+    "remote": 1,
+    "document": {
+      "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+      "name": "org.example/server.name",
+      "description": "Synthetic metadata for offline client export tests.",
+      "version": "1.0.0",
+      "remotes": [
+        {
+          "type": "streamable-http",
+          "url": "https://mcp.example.test/mcp?route=a%2Fb&tag=one+two",
+          "headers": [
+            {
+              "name": "Authorization",
+              "isRequired": true,
+              "isSecret": true,
+              "value": "PRIVATE_HEADER",
+              "default": "PRIVATE_DEFAULT",
+              "description": "PRIVATE_DESCRIPTION"
+            },
+            {
+              "name": "X-Project",
+              "isRequired": false,
+              "value": "PRIVATE_PROJECT"
+            }
+          ],
+          "supportedProtocolVersions": [
+            "2025-06-18"
+          ]
+        }
+      ],
+      "_meta": {
+        "private": "PRIVATE_EXTENSION"
+      }
+    },
+    "expected": {
+      "mcp-vscode": {
+        "servers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/mcp?route=a%2Fb&tag=one+two",
+            "type": "http"
+          }
+        }
+      },
+      "mcp-claude-code": {
+        "mcpServers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/mcp?route=a%2Fb&tag=one+two",
+            "type": "http"
+          }
+        }
+      },
+      "mcp-cursor": {
+        "mcpServers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/mcp?route=a%2Fb&tag=one+two"
+          }
+        }
+      }
+    },
+    "omittedHeaders": [
+      {
+        "name": "Authorization",
+        "required": true
+      },
+      {
+        "name": "X-Project",
+        "required": false
+      }
+    ]
+  },
+  {
+    "name": "card-sse",
+    "profile": "mcp-server-card-v1-experimental-526201b",
+    "mediaType": "application/mcp-server-card+json",
+    "releaseId": "00000000-0000-7000-8000-000000000001",
+    "remote": 1,
+    "document": {
+      "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+      "name": "org.example/server.name",
+      "description": "Synthetic metadata for offline client export tests.",
+      "version": "1.0.0",
+      "remotes": [
+        {
+          "type": "sse",
+          "url": "https://mcp.example.test/sse?route=a%2Fb&tag=one+two",
+          "headers": [
+            {
+              "name": "Authorization",
+              "isRequired": true,
+              "isSecret": true,
+              "value": "PRIVATE_HEADER",
+              "default": "PRIVATE_DEFAULT",
+              "description": "PRIVATE_DESCRIPTION"
+            },
+            {
+              "name": "X-Project",
+              "isRequired": false,
+              "value": "PRIVATE_PROJECT"
+            }
+          ],
+          "supportedProtocolVersions": [
+            "2025-06-18"
+          ]
+        }
+      ],
+      "_meta": {
+        "private": "PRIVATE_EXTENSION"
+      }
+    },
+    "expected": {
+      "mcp-vscode": {
+        "servers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/sse?route=a%2Fb&tag=one+two",
+            "type": "sse"
+          }
+        }
+      },
+      "mcp-claude-code": {
+        "mcpServers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/sse?route=a%2Fb&tag=one+two",
+            "type": "sse"
+          }
+        }
+      },
+      "mcp-cursor": {
+        "mcpServers": {
+          "catalog-00000000-0000-7000-8000-000000000001": {
+            "url": "https://mcp.example.test/sse?route=a%2Fb&tag=one+two"
+          }
+        }
+      }
+    },
+    "omittedHeaders": [
+      {
+        "name": "Authorization",
+        "required": true
+      },
+      {
+        "name": "X-Project",
+        "required": false
+      }
+    ]
+  }
+]

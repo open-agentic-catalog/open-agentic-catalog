@@ -1,0 +1,30 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="trace-causality-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 855" role="img" aria-labelledby="trace-causality-title trace-causality-desc">
+  <title id="trace-causality-title">Trace links across durable work and worker replicas</title>
+  <desc id="trace-causality-desc">An API operation in trace A creates a Job or relevant outbox row. The row retains the private context of that operation's span.
+
+  Each worker attempt starts a new trace, illustrated by B and C, and links to that original context. A retry or replacement worker links its new trace to the original API span. The previous attempt is not its parent. No shared process memory or sticky routing is needed. Work created without a trace context has no cause to reconstruct, and outbound federation or webhook requests receive no propagated tracing headers.</desc>
+  <defs><marker id="trace-causality-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 141 V211" marker-end="url(#trace-causality-arrow)" />
+  <text class="svg-small" x="332" y="168">Commit</text>
+  <path class="svg-connector" d="M320 309 V344 H180 V379" marker-end="url(#trace-causality-arrow)" />
+  <text class="svg-small" x="192" y="336">Lease attempt 1</text>
+  <path class="svg-connector" d="M320 309 V344 H460 V379" marker-end="url(#trace-causality-arrow)" />
+  <text class="svg-small" x="472" y="336">Lease retry</text>
+  <path class="svg-connector svg-connector-reference" d="M180 572 V626 H12 V8 H320 V20" marker-end="url(#trace-causality-arrow)" />
+  <text class="svg-small" x="38" y="596">Span link to A</text>
+  <path class="svg-connector svg-connector-reference" d="M460 549 V596 H628 V8 H320 V20" marker-end="url(#trace-causality-arrow)" />
+  <text class="svg-small" x="340" y="626">Span link to A</text>
+  <DiagramCard x={60} y={20} width={520} title={"API creating operation: trace A"} tone="core" lines={["HTTP and local child spans", "Capture private creating-span", "context on Job/outbox creation"]} />
+  <DiagramCard x={60} y={211} width={520} title={"PostgreSQL Job or relevant outbox row"} tone="authority" lines={["Retain the original creating-span context", "Durable lease coordinates every attempt"]} />
+  <DiagramCard x={60} y={379} width={240} title={["Worker attempt 1:", "trace B"]} lines={["New trace with", "local children", "Span link to cause A", "Not a child", "continuation of A"]} />
+  <DiagramCard x={340} y={379} width={240} title={["Worker retry: trace", "C"]} lines={["New trace with", "local children", "Still links to cause A", "Not parented by attempt B"]} />
+  <DiagramCard x={60} y={642} width={520} title={["Same retained cause; distinct attempt", "traces"]} tone="warning" lines={["No shared process memory or sticky routing is needed", "Untraced or older work has no cause", "to reconstruct; sampling may omit A", "Federation, artifact and webhook", "requests carry no external trace headers"]} />
+
+</svg>
+</div>

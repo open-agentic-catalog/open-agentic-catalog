@@ -1,0 +1,38 @@
+# Disposable local viewer: no remote sampling, Zipkin, gRPC receiver or profiler.
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [jaeger_storage_exporter]
+  telemetry:
+    logs:
+      level: warn
+    metrics:
+      level: none
+extensions:
+  jaeger_storage:
+    backends:
+      local:
+        memory:
+          max_traces: 5000
+  jaeger_query:
+    storage:
+      traces: local
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 384
+    spike_limit_mib: 64
+  batch:
+    send_batch_size: 256
+    send_batch_max_size: 512
+exporters:
+  jaeger_storage_exporter:
+    trace_storage: local

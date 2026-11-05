@@ -1,0 +1,29 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="source-lifecycle-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1123" role="img" aria-labelledby="source-lifecycle-title source-lifecycle-desc">
+  <title id="source-lifecycle-title">Federation source onboarding and revision lifecycle</title>
+  <desc id="source-lifecycle-desc">An actor with source inspection and management permissions inspects a source, then connects it using unexpired evidence. The active immutable revision can be tested or synchronized. Before activating a configuration revision, the actor must preview its effects and supply the current ETag and exact preview digest.</desc>
+  <defs><marker id="arrow-source" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 118 V188" marker-end="url(#arrow-source)" />
+  <path class="svg-connector svg-connector-core" d="M320 286 V356" marker-end="url(#arrow-source)" />
+  <path class="svg-connector svg-connector-authority" d="M320 431 V466 H180 V501" marker-end="url(#arrow-source)" />
+  <path class="svg-connector svg-connector-authority" d="M320 431 V466 H460 V501" marker-end="url(#arrow-source)" />
+  <path class="svg-connector" d="M320 431 V485 H628 V676 H320 V692" marker-end="url(#arrow-source)" />
+  <path class="svg-connector" d="M320 767 V837" marker-end="url(#arrow-source)" />
+  <path class="svg-connector svg-connector-authority" d="M320 935 V989 H12 V340 H320 V356" marker-end="url(#arrow-source)" />
+  <text class="svg-small" x="38" y="813">New active revision</text>
+  <DiagramCard x={60} y={20} width={520} title={"1. Inspect destination"} lines={["Explicit URL or bounded well-known discovery", "Remote read creates expiring evidence"]} />
+  <DiagramCard x={60} y={188} width={520} title={"2. Connect the inspected source"} tone="core" lines={["Administrator binds endpoint, route and credential binding", "Select scope, mode, audience and referral policy"]} />
+  <DiagramCard x={60} y={356} width={520} title={"3. Active immutable revision"} tone="authority" lines={["Exact source policy, topology, credential binding and ETag"]} />
+  <DiagramCard x={60} y={501} width={240} title={"Test source"} lines={["Bounded policy,", "credential and", "capability check"]} />
+  <DiagramCard x={340} y={501} width={240} title={"Synchronize"} lines={["Durable Job", "Uses the active revision"]} />
+  <DiagramCard x={60} y={692} width={520} title={"Preview a configuration change"} tone="warning" lines={["Inspect consequences and retain the exact preview digest"]} />
+  <DiagramCard x={60} y={837} width={520} title={"PATCH with If-Match"} tone="core" lines={["Supply the current ETag and exact preview digest", "Create a new active immutable revision"]} />
+  <DiagramCard x={60} y={1005} width={520} title={"Administrators control source topology"} tone="warning" lines={["They can pause, resume or remove sources.", "Ordinary clients cannot select topology."]} />
+
+</svg>
+</div>

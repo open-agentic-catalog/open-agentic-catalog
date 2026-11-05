@@ -1,0 +1,53 @@
+/* This stylesheet belongs only to the invocation-owned PDF print document. */
+@page { size: A4; margin: 16mm 14mm 18mm; }
+:root { color-scheme: light; --sl-color-bg: #fff; --sl-color-text: #171717; }
+html, body.pdf-book { display: block !important; margin: 0; padding: 0; background: #fff !important; color: #171717 !important; }
+body.pdf-book { font-family: sans-serif; font-size: 10pt; line-height: 1.45; }
+.pdf-book *, .pdf-book *::before, .pdf-book *::after { animation: none !important; transition: none !important; box-sizing: border-box; }
+.pdf-cover, .pdf-contents, .pdf-chapter, .pdf-notices { break-before: page; }
+.pdf-cover { break-before: auto; }
+.pdf-book .sl-markdown-content { width: auto !important; max-width: none !important; margin: 0; padding: 0; }
+.pdf-book h1, .pdf-book h2, .pdf-book h3, .pdf-book h4, .pdf-book summary, .pdf-panel-label { break-after: avoid; }
+.pdf-book h1 { font-size: 21pt; line-height: 1.2; }
+.pdf-book h2 { font-size: 16pt; }
+.pdf-book h3 { font-size: 13pt; }
+.pdf-book h4, .pdf-book h5, .pdf-book h6 { font-size: 11pt; }
+.pdf-book a { color: #164e80; text-decoration: underline; }
+.pdf-book table { display: table !important; table-layout: fixed; width: 100% !important; max-width: 100% !important; font-size: 8.5pt; }
+.pdf-book thead { display: table-header-group; }
+.pdf-book tr { break-inside: avoid; }
+.pdf-book th, .pdf-book td { padding: 5pt; overflow-wrap: anywhere; }
+.pdf-book pre, .pdf-book code { white-space: pre-wrap !important; overflow-wrap: anywhere !important; word-break: normal; }
+.pdf-book pre { font-size: 8pt; max-height: none !important; height: auto !important; overflow: visible !important; break-inside: auto; }
+.pdf-book code { font-family: monospace; }
+.pdf-book .expressive-code .line { white-space: pre-wrap !important; }
+.pdf-book .expressive-code, .pdf-book .frame { min-width: 0 !important; max-width: 100% !important; overflow: visible !important; }
+.pdf-book .catalog-architecture { overflow: visible !important; min-width: 0 !important; max-width: 100% !important; break-inside: avoid; }
+.pdf-book svg.architecture-svg { display: block; width: 100% !important; min-width: 0 !important; max-width: 100% !important; height: auto !important; max-height: 240mm; }
+.pdf-book img { max-width: 100%; height: auto; max-height: 230mm; object-fit: contain; break-inside: avoid; }
+.pdf-book p:has(img) { break-inside: avoid; break-after: avoid; }
+.pdf-book details { display: block !important; }
+.pdf-book .pdf-panel, .pdf-book [role="tabpanel"] { display: block !important; visibility: visible !important; height: auto !important; max-height: none !important; overflow: visible !important; }
+.pdf-book .pdf-panel-label { font-size: 10pt; margin: 12pt 0 6pt; }
+.pdf-book .pdf-contents ol { columns: 1; }
+.pdf-book .pdf-contents li { break-inside: avoid; margin: 2pt 0; }
+.pdf-book .pdf-download { color: inherit; text-decoration: none; }
+.pdf-book .pdf-download small { font-size: 8pt; overflow-wrap: anywhere; }
+.pdf-book .heading-link, .pdf-book .anchor-link, .pdf-book .copy, .pdf-book button { display: none !important; }
+.pdf-book .pdf-notices pre { font-size: 7pt; }
+/* Nested API subgrids are screen layouts. Stack retained schema fields in print. */
+.pdf-book .sl-openapi-keys, .pdf-book .sl-openapi-key { display: block !important; }
+.pdf-book .sl-openapi-key { border-top: 1px solid #ddd; padding-block: 5pt; }
+.pdf-book .sl-openapi-key > * { min-width: 0; overflow-wrap: anywhere; }
+.pdf-book .expressive-code, .pdf-book figure, .pdf-book .starlight-aside { break-inside: auto; }
+/* Static disclosures avoid browser accordion groups and deep interactive layout. */
+.pdf-book .pdf-disclosure { padding-inline-start: 2pt; border-inline-start: 1px solid #ddd; margin-block: 5pt; }
+.pdf-book .pdf-summary { font-weight: 600; margin-block: 5pt; break-after: avoid; }
+/* Preserve spaces at heading wraps in Chromium's generated outline titles. */
+.pdf-book :is(h1, h2, h3, h4, h5, h6) { white-space: break-spaces; }
+/* Flex code containers can lose wrapped lines when Chromium fragments pages. */
+.pdf-book pre, .pdf-book pre > code { display: block !important; flex: none !important; overflow: visible !important; height: auto !important; max-height: none !important; }
+.pdf-book .pdf-code, .pdf-book .pdf-code-frame { display: block; break-inside: auto; overflow: visible; margin: 10pt 0; }
+.pdf-book .pdf-code-frame figcaption { font-size: 8pt; font-weight: 600; margin-bottom: 4pt; break-after: avoid; }
+.pdf-book .pdf-code pre { padding: 7pt; border: 1px solid #ddd; border-radius: 0; background: #f6f7f9; }
+.pdf-book pre > code { font-size: inherit !important; line-height: inherit !important; }

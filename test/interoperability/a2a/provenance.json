@@ -1,0 +1,16 @@
+{
+  "sdk": {
+    "version": "1.2.2",
+    "repository": "a2aproject/a2a-python",
+    "revision": "2f9e44af243df5c7c7a3da361c8d095324bcd5e3",
+    "source_sha256": "d1894783a792ba3d112564b5bfca4d08246dd78b1218211e89ae7214a99c00c1",
+    "wheel_sha256": "f2aa9692f3e3034f58ebff501e091d43affa416878c734fd63016ae0b8ea8c66"
+  },
+  "executor": {
+    "repository": "a2aproject/a2a-samples",
+    "revision": "6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3",
+    "path": "samples/python/agents/helloworld/agent_executor.py",
+    "sha256": "4ca9015d8a626fb141c619e6dd81027550b2d154eeeb993106c972d627e71ae6",
+    "declared_sdk": "1.1.0"
+  }
+}

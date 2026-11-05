@@ -1,0 +1,76 @@
+---
+title: "System context"
+---
+
+import SystemContext from "../../../components/architecture/SystemContext.astro";
+import { CardGrid, LinkCard } from "@astrojs/starlight/components";
+
+The Catalog governs resource authoring, immutable evidence, review, publication, discovery and federation. Clients use its API and discovery formats. Other systems execute resources under separate authorization.
+
+Catalog entries describe Agents, MCP Servers, Skills and Plugins. Discovery does not run them. People use the optional browser UI, command-line tools, IDE clients or other API consumers.
+
+This [system-context view](https://c4model.com/diagrams/system-context) shows the Catalog as one software system. Solid arrows show requests to or from that system. The purple dashed arrow records Git or OCI references; it does not represent a fetch. Approved HTTPS retrieval can acquire peer metadata, documents and supported package archives.
+
+<SystemContext />
+
+In OIDC mode, clients sign in with the configured identity provider. The Catalog verifies signed access tokens; it does not issue production identities. The [logical applications and data](deployment.mdx#logical-applications-and-data) view shows the UI, backend processes and data store behind this system boundary.
+
+## The non-negotiable boundaries
+
+### Discovery is metadata
+
+A result does not grant approval, installation, deployment, connection, invocation, or runtime authorization.
+
+### Sealed evidence is retained
+
+Immutable revisions, validation runs, terminal review decisions, snapshots, observation occurrences, adoption provenance, and audit preserve exact decisions.
+
+### External calls are controlled
+
+Every outbound HTTP request to a Catalog-selected or resource-declared destination uses the hardened fetch boundary. OIDC uses a separate verifier pinned to one configured issuer.
+
+### Tenant checks are layered
+
+Authentication, current scoped permissions, exact host mapping and PostgreSQL row-level security (RLS) are separate checks.
+
+### PostgreSQL is authoritative
+
+Derived search data, embeddings, caches, and delivery schedules that can be rebuilt never replace PostgreSQL-retained outbox or delivery evidence. S3 is not a second metadata database.
+
+### Optional capabilities
+
+[Hybrid search](deployment.mdx#optional-embedding-service-boundary) is disabled by default. When enabled, API and worker roles call one separately configured embedding endpoint and store derived vectors in PostgreSQL with pgvector. Core search remains usable without either optional dependency. Managed media, software assessment and advanced trust remain unavailable.
+
+## What the service owns
+
+| Boundary | Catalog responsibility | Outside the service |
+| --- | --- | --- |
+| API identity | Validate signed JWTs, resolve a tenant, and apply Catalog memberships and roles. | Token issuance, consent and password policy belong to the identity provider. The optional UI host manages its own browser login and session. |
+| Resources | Govern identity, versions, representations, listings, review, releases, and provenance. | Agent, MCP, Skill or Plugin execution and runtime provisioning. |
+| Artifacts | Retain bounded standards documents and immutable external handoff evidence. | OCI registry operation, Git hosting, automatic install or deployment. |
+| Discovery | Provide authenticated Catalog browse and search, plus immutable host- and audience-scoped snapshots and Registry responses. | Consumer trust decisions and permission to invoke a result. |
+| Federation | Inspect, constrain, fetch, validate, retain, reconcile, and attribute approved sources. | Arbitrary caller-selected URLs, automatic source adoption, open web crawling. |
+| Operations | Safe limits, health, drain, audit, durable work, and restore-safe behavior. | Replica count, PostgreSQL high availability, backup schedules, regions, service objectives, recovery objectives and on-call support. |
+
+### Target architecture
+
+The [design principles and conditional context](design.mdx#service-boundaries) distinguish required invariants from conditional integrations. Optional hybrid search is implemented and disabled by default; managed-media storage, software assessment and advanced trust remain unavailable. See [configuration](../reference/configuration.mdx) for supported settings and optional features.
+
+## Continue exploring
+
+Read the logical view first, then the backend layers and the relevant deployment environment. The [C4 distinction between applications and deployment](https://c4model.com/diagrams/container) helps separate software responsibilities from infrastructure placement.
+
+<CardGrid>
+  <LinkCard title="Logical applications and data" description="See the browser client, UI host, API, worker and Catalog data store." href={`${import.meta.env.BASE_URL}architecture/deployment/#logical-applications-and-data`} />
+  <LinkCard title="Backend layers and components" description="See source dependencies, domain ports and runtime calls." href={`${import.meta.env.BASE_URL}architecture/components/`} />
+  <LinkCard title="Compose environment" description="See the local containers, loopback ports and startup order." href={`${import.meta.env.BASE_URL}architecture/deployment/#docker-compose`} />
+  <LinkCard title="Helm environment" description="See chart workloads, optional routing and external infrastructure." href={`${import.meta.env.BASE_URL}architecture/deployment/#kubernetes-through-helm`} />
+  <LinkCard title="Governed lifecycle" description="Follow a resource from authoring through review, release, and discovery." href={`${import.meta.env.BASE_URL}architecture/domain/`} />
+  <LinkCard title="Federation process" description="Follow an administrator-approved source from inspection to bounded search." href={`${import.meta.env.BASE_URL}architecture/federation/`} />
+  <LinkCard title="Standards and interoperability" description="Understand pinned formats, local governance and external observations." href={`${import.meta.env.BASE_URL}reference/standards/`} />
+  <LinkCard title="Architecture decisions" description="Review the rationale, alternatives and consequences behind these boundaries." href={`${import.meta.env.BASE_URL}architecture/decisions/`} />
+</CardGrid>
+
+For request processing and sign-in, follow the [command path](components.mdx#a-command-through-the-code) and [UI login flow](catalog-ui.mdx#login-and-browser-security). [Security architecture](security.mdx) covers identity and outbound controls.
+
+Use [publication](publication.mdx), [federation](federation.mdx) and [durable work](operations.mdx) for cross-process workflows. [Observability](../operations/observability.mdx) explains telemetry; [backup and restore](../operations/backup-restore.mdx) explains recovery.

@@ -1,0 +1,89 @@
+---
+title: "Idempotency repair"
+---
+
+import CommandRepair from "../../../components/architecture/CommandRepair.astro";
+
+Command protocol v2 commits the command's tenant database writes, audit records, outbox records and exact HTTP response in one transaction. Webhook administration uses this boundary too. An external test send cannot be rolled back.
+
+The API first commits a short pending reservation to prevent concurrent execution across replicas. It holds a PostgreSQL advisory lock throughout the command. The shared transaction starts only when needed, so external preparation, including federation fetches, stays outside an interactive database transaction.
+
+If the API process or connection disappears before commit, PostgreSQL rolls back the transaction and releases its advisory lock. The v2 reservation remains pending. Together, these facts prove that the command mutation did not commit. Repair releases this interrupted reservation so the same request can execute again.
+
+If the transaction committed, its retained response committed too. The next identical authorized request replays that response without repair. This guarantee covers Catalog database mutations. It does not make external preparation or at-least-once webhook delivery happen exactly once.
+
+The database requires command protocol v2. Repair and command execution reject unsupported development protocols without conversion or automatic deletion.
+
+## Authority and safety
+
+Use the exact compatible release image and the operator-controlled schema-owner DSN. The tool rejects API and worker database roles and applies tenant row-level security (RLS). It never prints the client idempotency key. Output contains one-way SHA-256 key and principal-binding digests, the opaque reservation UUID and safe command metadata. The principal binding is reported as `authorizationDigest`.
+
+List and plan do not change the reservation. Apply requires the unchanged version-2 plan digest and reason. It reacquires the command advisory lock, rechecks the row, and commits the release with its audit event. Repair creates no outbox row and has no webhook dependency.
+
+Do not repair a live command, including one intentionally paused or drained. An `active` plan is ineligible. A v2 `interrupted` plan can be eligible before replay expiry. Eligibility depends on the free advisory lock and transaction guarantee, not elapsed time.
+
+After a PostgreSQL writer change, fence the old writer before repair. Establish that the original request has ended. Advisory locks are not replicated, so a free lock on the new writer does not prove the old execution stopped. Repair examines only state retained by the new database. It cannot recover acknowledged commits lost during asynchronous replication.
+
+Use `make test-postgres-failover` to check retained pending repair and completed-response replay without restarting Catalog.
+
+## Release an interrupted command reservation
+
+<CommandRepair />
+
+Prove that the old execution ended before applying repair. An active or uncertain request is not eligible. After an ambiguous apply, inspect a fresh plan and retained audit evidence before any command retry.
+
+Follow the sequence below to release one proven interrupted command. A failed shared transaction cannot retain a successful command response. An ambiguous client result does not prove success or authorize repair. Inspect the retained reservation and plan first. See the [testing guide](../contributing/testing.md#test-boundaries) for the separate packaged interruption and replay checks.
+
+1. Record the incident, tenant UUID, service version, request ID when available, and why the original execution is known to have ended, through process termination or loss of its database session. For writer changes, also establish that the old writer is fenced. Use a concise non-secret repair reason because it becomes durable audit evidence and appears in operator output.
+1. Use the migration or repair configuration and schema-owner DSN to list at most 100 safe pending targets for exactly one tenant.
+
+    ```sh
+    catalogctl repair idempotency list --config config/postgres.json --tenant 00000000-0000-7000-8000-000000000001 --limit 50
+    ```
+
+    The maintained Make wrapper uses `CATALOG_MIGRATION_DATABASE_DSN` and accepts the incident target only for this invocation. It deliberately does not inherit runtime configuration overrides:
+
+    ```sh
+    make repair-idempotency-list REPAIR_TENANT_ID=00000000-0000-7000-8000-000000000001 REPAIR_LIMIT=50
+    ```
+
+1. Select one opaque reservation UUID and create a reason-bearing dry-run plan.
+
+    ```sh
+    catalogctl repair idempotency plan --config config/postgres.json --tenant 00000000-0000-7000-8000-000000000001 --reservation 00000000-0000-7000-8000-000000000002 --reason "API pod terminated during the recorded request"
+    ```
+
+    ```sh
+    make repair-idempotency-plan REPAIR_TENANT_ID=00000000-0000-7000-8000-000000000001 REPAIR_RESERVATION_ID=00000000-0000-7000-8000-000000000002 REPAIR_REASON='API pod terminated during the recorded request'
+    ```
+
+1. Review `version`, `state`, `active`, `eligible`, tenant, actor, route, request digest, authorization digest, key digest, timestamps, refusal text, and `planDigest`. Stop if the version is not `catalog.idempotency-repair/v2`, the state is not `interrupted`, or `eligible` is false.
+1. Apply the unchanged plan with the same tenant, reservation, and reason plus its exact digest.
+
+    ```sh
+    catalogctl repair idempotency apply --config config/postgres.json --tenant 00000000-0000-7000-8000-000000000001 --reservation 00000000-0000-7000-8000-000000000002 --reason "API pod terminated during the recorded request" --plan-digest sha256:REVIEWED_DIGEST
+    ```
+
+    ```sh
+    make repair-idempotency-apply REPAIR_TENANT_ID=00000000-0000-7000-8000-000000000001 REPAIR_RESERVATION_ID=00000000-0000-7000-8000-000000000002 REPAIR_REASON='API pod terminated during the recorded request' REPAIR_PLAN_DIGEST=sha256:REVIEWED_DIGEST
+    ```
+
+1. Retain the returned database actor, audit event ID, and release time in the incident record.
+1. Retry the original method, path, query, `If-Match`, media type, body, actor, tenant and idempotency key. A changed request within the replay window returns `409 IDEMPOTENCY_KEY_REUSED`. The stored `authorizationDigest` binds the tenant and stable command principal; it is not a digest of current role assignments. Current permission checks and OAuth ceilings still apply. Losing required authority prevents execution or replay, while an unrelated policy change does not by itself invalidate the command binding.
+
+    A current released v2 row requires the original request and principal digests, then assigns a fresh reservation identity. After stored expiry, another authorized request can replace the released binding without waiting for housekeeping.
+1. Verify the response, target state and audit event. Confirm no new repair outbox row exists. Confirm exactly one domain effect. Run focused PostgreSQL integration and smoke gates against disposable test data when repair was part of an incident; neither is a read-only check of the repaired deployment. Smoke creates records and activates a public snapshot. Validate the actual repair through authorized state and audit reads, and require explicit operator approval for any additional mutation of shared or production data.
+
+An apply timeout, lost database connection, or advisory-lock cleanup error can make the CLI result ambiguous even though PostgreSQL preserved atomicity. Do not apply the stale plan again blindly. Re-plan the same tenant and reservation. Check whether it is now `released`. Find the unique `idempotency.reservation_released` audit record. Correlate its tenant, reservation ID, reason, database principal and release time before retrying the original command.
+
+The repair audit event deliberately does not retain the plan digest because repair preserves its target row and can recover state by that opaque reservation identity. Automatic housekeeping is a separate operation: after replay expiry it may reclaim the released row without a human-review plan or audit receipt. A new request may also atomically replace that expired released binding first; both paths preserve the same expiry contract.
+
+## Rollout and rollback boundary
+
+The commands above use the current `catalog.idempotency-repair/v2` plan and result contract and require no webhook setting. Generate a fresh plan with the exact compatible binary and apply only its unchanged reviewed digest. Repair creates audit evidence but no outbox record. The plan format version and the database command protocol are distinct contracts; neither creates a supported predecessor-version conversion path.
+
+The database supports only current command protocol v2. Older numbered migrations remain immutable schema history, not a mixed-version deployment contract. Unsupported retained development records are rejected without conversion or deletion. Repair rejects unsupported protocols too. Packaged tests check current-protocol interruption, plan refusal, release and retry; they do not weaken schema checks to accept predecessor rows.
+
+Run `make test-pgbouncer PGBOUNCER_WRITER_LOSS=abrupt` for the owned pooled-writer recovery test. It checks active-plan refusal, interrupted repair, stale-plan refusal and replay under current permissions. The fixture uses disposable PostgreSQL servers and leaves retained databases unchanged.
+
+Stop API and worker writers before applying contract migrations, use schema-owner migration plan/apply and exact privilege reconciliation, then start matching binaries. If unsupported development state blocks migration, keep writers stopped and follow the [upgrade and failed-migration procedure](maintenance.mdx#upgrade-and-failed-migration): explicitly select a fresh disposable database or obtain owner direction for retained data. Do not automatically reset, backfill or delete it. Earlier committed migrations remain applied if a later migration refuses. Numbered migrations are forward-only, and rolling back to an old pre-release binary is not a supported recovery path.

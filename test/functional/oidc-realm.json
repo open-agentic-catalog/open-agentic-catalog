@@ -1,0 +1,9 @@
+{
+  "realm": "catalog",
+  "enabled": true,
+  "sslRequired": "all",
+  "registrationAllowed": false,
+  "resetPasswordAllowed": false,
+  "accessTokenLifespan": 300,
+  "clients": []
+}

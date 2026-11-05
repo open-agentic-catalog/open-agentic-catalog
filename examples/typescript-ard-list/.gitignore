@@ -1,0 +1,12 @@
+/node_modules/
+/package-lock.json
+.env
+.env.*
+!.env.example
+/catalog-token
+/*.pem
+/*.key
+/private/
+*.log
+.DS_Store
+Thumbs.db

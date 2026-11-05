@@ -1,0 +1,19 @@
+# Isolated destination for the semantic restore preparation. No runtime starts here.
+services:
+  restored:
+    profiles: [semantic-restore]
+    image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: catalog
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, catalog, -d, postgres]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    volumes:
+      - semantic-restored:/var/lib/postgresql
+    restart: "no"
+volumes:
+  semantic-restored:

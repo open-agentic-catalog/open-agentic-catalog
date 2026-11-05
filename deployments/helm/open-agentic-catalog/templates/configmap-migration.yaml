@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "migration") | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+data:
+  CATALOG_ENVIRONMENT: {{ index .Values.configEnv "CATALOG_ENVIRONMENT" | quote }}
+  CATALOG_LOG_LEVEL: {{ index .Values.configEnv "CATALOG_LOG_LEVEL" | quote }}
+  CATALOG_LOG_FORMAT: {{ index .Values.configEnv "CATALOG_LOG_FORMAT" | quote }}
+  CATALOG_PROFILE: {{ index .Values.configEnv "CATALOG_PROFILE" | quote }}
+  CATALOG_SERVICE_NAME: {{ index .Values.configEnv "CATALOG_SERVICE_NAME" | quote }}
+  CATALOG_DATABASE_DRIVER: {{ index .Values.configEnv "CATALOG_DATABASE_DRIVER" | quote }}
+  {{- with index .Values.configEnv "CATALOG_DATABASE_MAX_CONNECTIONS" }}
+  CATALOG_DATABASE_MAX_CONNECTIONS: {{ . | quote }}
+  {{- end }}
+  {{- with index .Values.configEnv "CATALOG_DATABASE_MAX_CONN_LIFETIME" }}
+  CATALOG_DATABASE_MAX_CONN_LIFETIME: {{ . | quote }}
+  {{- end }}
+  {{- with index .Values.configEnv "CATALOG_DATABASE_MAX_CONN_IDLE_TIME" }}
+  CATALOG_DATABASE_MAX_CONN_IDLE_TIME: {{ . | quote }}
+  {{- end }}
+  {{- with index .Values.configEnv "CATALOG_DATABASE_HEALTH_CHECK_PERIOD" }}
+  CATALOG_DATABASE_HEALTH_CHECK_PERIOD: {{ . | quote }}
+  {{- end }}

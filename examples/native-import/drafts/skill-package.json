@@ -1,0 +1,17 @@
+{
+  "format": "open-agentic-catalog-draft-v1",
+  "kind": "skill",
+  "canonicalIdentifier": "urn:example:reusable:skill-package",
+  "version": "0.1.0",
+  "representations": [
+    {
+      "role": "primary",
+      "mediaType": "application/agent-skills+zip",
+      "profileId": "",
+      "input": {
+        "mode": "skill-package",
+        "handoff": "{\"git\": {\"repository\": \"https://git.example.com/catalog/skills.git\", \"commit\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\", \"directory\": \"review-notes\"}}"
+      }
+    }
+  ]
+}

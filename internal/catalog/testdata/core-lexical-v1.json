@@ -1,0 +1,47 @@
+{
+  "documents": [
+    {"Identifier":"urn:air:catalog.example.com:finance:invoice-resolution","DisplayName":"Invoice resolution agent","Description":"Reconcile supplier invoice exceptions","Tags":["finance","integration"],"RepresentativeQueries":["Resolve a supplier payment exception"]},
+    {"Identifier":"urn:air:catalog.example.com:finance:unicode","DisplayName":"CAF\u00c9 \u0130 \u03a3 \ua7ce","Description":"Units \u00b2 and \u2167 \ud81b\udea0","Tags":["unicode"],"RepresentativeQueries":[]},
+    {"Identifier":"urn:air:catalog.example.com:finance:common","DisplayName":"Common common","Description":"Common common","Tags":["common","common"],"RepresentativeQueries":["common common","common"]}
+  ],
+  "cases": [
+    {"name":"empty browse","document":0,"query":"","score":0},
+    {"name":"whitespace browse","document":0,"query":" \t\u00a0 ","score":0},
+    {"name":"exact AIR","document":0,"query":"URN:AIR:CATALOG.EXAMPLE.COM:finance:invoice-resolution","score":100},
+    {"name":"name and identifier","document":0,"query":"invoice resolution","score":65},
+    {"name":"representative query","document":0,"query":"supplier payment","score":55},
+    {"name":"description","document":0,"query":"supplier exceptions","score":50},
+    {"name":"tags","document":0,"query":"finance integration","score":45},
+    {"name":"identifier terms","document":0,"query":"finance resolution","score":45},
+    {"name":"terms across fields","document":0,"query":"agent integration","score":40},
+    {"name":"missing term","document":0,"query":"invoice warehouse","score":0},
+    {"name":"not a substring","document":0,"query":"voice","score":0},
+    {"name":"punctuation only","document":0,"query":"--- !!!","score":0},
+    {"name":"repeated terms and punctuation","document":0,"query":"INVOICE, invoice; resolution","score":65},
+    {"name":"pipe is not OR","document":0,"query":"invoice | warehouse","score":0},
+    {"name":"exclamation is not NOT","document":0,"query":"invoice !resolution","score":65},
+    {"name":"quotes do not require a phrase","document":0,"query":"\"resolution invoice\"","score":65},
+    {"name":"asterisk is not prefix matching","document":0,"query":"inv*","score":0},
+    {"name":"no stemming","document":0,"query":"invoices","score":0},
+    {"name":"Unicode whitespace","document":0,"query":"invoice\u00a0resolution","score":65},
+    {"name":"accented case","document":1,"query":"caf\u00e9","score":60},
+    {"name":"simple dotted I","document":1,"query":"i","score":60},
+    {"name":"Greek simple case","document":1,"query":"\u03c3","score":60},
+    {"name":"Unicode 17 Latin case","document":1,"query":"\ua7cf","score":60},
+    {"name":"Unicode 17 Beria Erfe case","document":1,"query":"\ud81b\udebb","score":50},
+    {"name":"superscript number","document":1,"query":"\u00b2","score":50},
+    {"name":"letter number","document":1,"query":"\u2177","score":50},
+    {"name":"no compatibility folding","document":1,"query":"2","score":0},
+    {"name":"no accent folding","document":1,"query":"cafe","score":0},
+    {"name":"no Unicode composition","document":1,"query":"cafe\u0301","score":0},
+    {"name":"all field weights without frequency boost","document":2,"query":"common common","score":95},
+    {"name":"exact identifier outranks all field weights","document":2,"query":"urn:air:catalog.example.com:finance:common","score":100}
+  ],
+  "ordering": [
+    {"name":"A Y","sortName":"a y"},
+    {"name":"a  y","sortName":"a y"},
+    {"name":"A\u00a0Z","sortName":"a z"},
+    {"name":"B","sortName":"b"},
+    {"name":"\u0130","sortName":"i"}
+  ]
+}

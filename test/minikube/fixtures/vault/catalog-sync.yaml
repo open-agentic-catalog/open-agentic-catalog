@@ -1,0 +1,182 @@
+# External provider resources. Apply to the selected Catalog namespace.
+# Replace the Vault address and review authentication settings.
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultConnection
+metadata:
+  name: catalog-vault
+spec:
+  address: https://vault.vault.svc:8200
+  caCertSecretRef: catalog-vault-ca
+  timeout: 5s
+  skipTLSVerify: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: catalog-vault-runtime
+automountServiceAccountToken: false
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: catalog-vault-runtime
+spec:
+  vaultConnectionRef: catalog-vault
+  method: kubernetes
+  mount: kubernetes
+  kubernetes:
+    role: catalog-runtime
+    serviceAccount: catalog-vault-runtime
+    audiences:
+      - vault
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: catalog-vault-owner
+automountServiceAccountToken: false
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: catalog-vault-owner
+spec:
+  vaultConnectionRef: catalog-vault
+  method: kubernetes
+  mount: kubernetes
+  kubernetes:
+    role: catalog-owner
+    serviceAccount: catalog-vault-owner
+    audiences:
+      - vault
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: catalog-api-database
+spec:
+  vaultAuthRef: catalog-vault-runtime
+  type: kv-v2
+  mount: catalog
+  path: catalog-api-database
+  refreshAfter: 5s
+  hmacSecretData: true
+  destination:
+    create: true
+    overwrite: false
+    name: catalog-api-database
+    transformation:
+      excludeRaw: true
+      excludes:
+        - .*
+      templates:
+        vault-kv-version:
+          text: '{{ get .Metadata "version" }}'
+        dsn:
+          text: '{{ get .Secrets "dsn" }}'
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: catalog-worker-database
+spec:
+  vaultAuthRef: catalog-vault-runtime
+  type: kv-v2
+  mount: catalog
+  path: catalog-worker-database
+  refreshAfter: 5s
+  hmacSecretData: true
+  destination:
+    create: true
+    overwrite: false
+    name: catalog-worker-database
+    transformation:
+      excludeRaw: true
+      excludes:
+        - .*
+      templates:
+        vault-kv-version:
+          text: '{{ get .Metadata "version" }}'
+        dsn:
+          text: '{{ get .Secrets "dsn" }}'
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: catalog-migration-database
+spec:
+  vaultAuthRef: catalog-vault-owner
+  type: kv-v2
+  mount: catalog
+  path: catalog-migration-database
+  refreshAfter: 5s
+  hmacSecretData: true
+  destination:
+    create: true
+    overwrite: false
+    name: catalog-migration-database
+    transformation:
+      excludeRaw: true
+      excludes:
+        - .*
+      templates:
+        vault-kv-version:
+          text: '{{ get .Metadata "version" }}'
+        dsn:
+          text: '{{ get .Secrets "dsn" }}'
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: catalog-cursor-signing
+spec:
+  vaultAuthRef: catalog-vault-runtime
+  type: kv-v2
+  mount: catalog
+  path: catalog-cursor-signing
+  refreshAfter: 5s
+  hmacSecretData: true
+  destination:
+    create: true
+    overwrite: false
+    name: catalog-cursor-signing
+    transformation:
+      excludeRaw: true
+      excludes:
+        - .*
+      templates:
+        vault-kv-version:
+          text: '{{ get .Metadata "version" }}'
+        key:
+          text: '{{ get .Secrets "key" }}'
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: catalog-vault-source
+spec:
+  vaultAuthRef: catalog-vault-runtime
+  type: kv-v2
+  mount: catalog
+  path: catalog-vault-source
+  refreshAfter: 5s
+  hmacSecretData: true
+  destination:
+    create: true
+    overwrite: false
+    name: catalog-vault-source
+    transformation:
+      excludeRaw: true
+      excludes:
+        - .*
+      templates:
+        vault-kv-version:
+          text: '{{ get .Metadata "version" }}'
+        bearer.token:
+          text: '{{ get .Secrets "token" }}'
+        bearer.json:
+          text: >-
+            {{ dict "schemaVersion" 1 "tenantId" (get .Secrets "tenantId")
+            "revision" (printf "%s-kv-%v" (get .Secrets "epoch") (get .Metadata "version"))
+            "origin" (get .Secrets "origin")
+            "type" "bearer" "secretFile" "bearer.token" | toJson }}

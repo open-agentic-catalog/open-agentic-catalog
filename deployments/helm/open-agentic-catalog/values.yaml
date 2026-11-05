@@ -1,0 +1,325 @@
+# Optional session pooler. DSN Secrets are explicitly routed by the operator.
+# Owner operations always connect directly. See README for TLS and capacities.
+databaseTrustBundleConfigMap: ""  # existing ConfigMap with ca.pem
+pgbouncer:
+  enabled: false
+  image: edoburu/pgbouncer:v1.26.0-p0@sha256:b17551c776ef7e5769ef80b956d20f85e2fd25dd8912d31d58f782aad495b711
+  replicas: 1
+  poolMode: session
+  upstream:
+    host: ""
+    port: 5432
+    database: catalog
+  authSecret: ""  # existing Secret, userlist.txt; only API and worker
+  tlsSecret: ""  # existing Secret, tls.crt and tls.key for this Service
+  upstreamCAConfigMap: ""  # existing ConfigMap, ca.pem
+  apiPoolSize: 60
+  workerPoolSize: 60
+  maxClientConnections: 160
+  queryWaitTimeoutSeconds: 10
+  serverConnectTimeoutSeconds: 5
+  serverIdleTimeoutSeconds: 60
+  # Explicit PostgreSQL NetworkPolicy peers (selectors or ipBlock), required.
+  writerEgress: []
+  resources:
+    requests: {cpu: 100m, memory: 64Mi}
+    limits: {cpu: 1000m, memory: 256Mi}
+
+image:
+  repository: open-agentic-catalog
+  tag: ""
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Optional hybrid search. Supply one existing embedding endpoint and provision
+# pgvector before enabling. No model service is deployed by this chart.
+semanticSearch:
+  enabled: false
+  endpoint: ""
+  model: ""
+  profileRevision: ""
+  dimensions: 384
+  similarityCutoff: 0.5
+  queryTimeout: 2s
+  batchTimeout: 10s
+  queryConcurrency: 4
+  batchConcurrency: 1
+  batchSize: 16
+  maxInputBytes: 8192
+  excludedTenants: []
+  # Optional existing Secret mounted only in enabled API/worker Pods.
+  # tokenFile/caFile, when set, refer to files under this mount.
+  existingSecret: ""
+  tokenFile: ""
+  caFile: ""
+
+# Optional independent browser host. No UI resources or credentials when disabled.
+ui:
+  enabled: false
+  image:
+    repository: open-agentic-catalog-ui
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  # Existing Secret: keys.json plus client-secret (OIDC) or users.json (local tests).
+  existingSecret: ""
+  # Optional ConfigMaps, each containing ca.pem. Trust remains transport-specific.
+  apiCAConfigMap: ""
+  issuerCAConfigMap: ""
+  podAnnotations: {}
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+  config:
+    # Independent UI startup logger. Changes roll UI Pods only; no hot reload.
+    # Levels: debug|info|warn|error. Formats: text|json. Collection is external.
+    logLevel: info
+    logFormat: text
+    environment: production
+    origin: ""
+    basePath: ""
+    # Empty upstream selects this release's API Service.
+    upstream: ""
+    cookieName: catalog-ui
+    sessionSeconds: 3600
+    # Independent UI transport budgets, each 1 byte-64 MiB. Changes roll UI Pods.
+    # Larger backend request admission does not automatically change these.
+    requestBytes: 2097152
+    responseBytes: 16777216
+    timeoutSeconds: 60
+    authMode: oidc
+    issuer: ""
+    clientId: ""
+    scopes: []
+    # Empty uses the bundled /docs/ manual. Optional credential-free HTTPS override.
+    # Changes roll UI Pods; external availability never controls readiness.
+    documentationUrl: ""
+  ingress:
+    # Helm hook and retention annotations are reserved.
+    enabled: false
+    className: ""
+    annotations: {}
+    host: ""
+    tlsSecretName: ""
+  # When enabled, add ingress-controller peers and issuer egress explicitly.
+  # Defaults allow UI -> this release's API and cluster DNS only.
+  networkPolicy:
+    enabled: false
+    ingress: []
+    extraEgress: []
+
+# Optional Kubernetes resolver options for chart-managed Pods.
+podDNSOptions: []
+
+terminationGracePeriodSeconds: 40
+
+api:
+  # Optional TLS ingress for HTTP MCP only. Requires CATALOG_MCP_ENABLED=true.
+  # The host must match CATALOG_PUBLIC_BASE_URL. No rewrite annotations.
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    host: ""
+    tlsSecretName: ""
+  replicas: 2
+  topologySpread:
+    enabled: false
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+
+worker:
+  replicas: 2
+  topologySpread:
+    enabled: false
+    topologyKey: kubernetes.io/hostname
+    whenUnsatisfiable: DoNotSchedule
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "2", memory: 1Gi}
+
+migration:
+  activeDeadlineSeconds: 900
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  podAnnotations: {}
+  resources:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: 500m, memory: 256Mi}
+
+databaseRoles:
+  api: catalog_api
+  worker: catalog_worker
+
+service:
+  type: ClusterIP
+  port: 8080
+  annotations: {}
+
+# Separate tokenless identities let operators attach role-specific policy or workload identity.
+# A chart-managed migration account exists only for the migration hook lifecycle.
+# Names must be distinct from each other and from the generated UI account when enabled.
+# Backend names must differ from enabled UI and PgBouncer account names.
+serviceAccounts:
+  api:
+    create: true
+    name: ""
+    annotations: {}
+  worker:
+    create: true
+    name: ""
+    annotations: {}
+  migration:
+    create: true
+    name: ""
+    annotations: {}
+
+secrets:
+  apiDatabase:
+    name: open-agentic-catalog-api-database
+    key: dsn
+  workerDatabase:
+    name: open-agentic-catalog-worker-database
+    key: dsn
+  migrationDatabase:
+    name: open-agentic-catalog-migration-database
+    key: dsn
+  webhookEncryption: null
+  federationCredentials: null
+  # Optional existing Secret, mounted read-only at /etc/open-agentic-catalog/tracing in
+  # API and worker Pods only when CATALOG_TRACING enables trace export.
+  tracingInputs: null
+  cursorSigning:
+    name: open-agentic-catalog-cursor-signing
+    key: key
+
+auth:
+  # Existing ConfigMap with one ca.pem key, mounted only by the API.
+  trustBundleConfigMap: ""
+
+webhooks:
+  # Optional existing ConfigMap containing policy.json and its private CA files.
+  # Projected into both roles only when webhooks are enabled.
+  egressConfigMap: ""
+
+federation:
+  policy:
+    existingConfigMap: ""
+    key: policy.json
+    document: |-
+      {
+        "schemaVersion": 1,
+        "policyId": "helm-default-deny",
+        "revision": 1,
+        "public": {"mode": "allowlist", "origins": []}
+      }
+  trustBundleConfigMap: ""
+
+# Operator annotations for API and worker Pods; checksum/* keys listed in the
+# schema are chart-owned rollout identities and cannot be overridden.
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+configEnv:
+  # Local development fixture routing is unavailable in this chart.
+  CATALOG_DEMO_ARCHIVES: '{}'
+  CATALOG_TRACING: '{"enabled":false}'
+  CATALOG_ENVIRONMENT: production
+  # Shared API/worker and migration settings. Changes roll API/worker Pods.
+  # Levels: debug|info|warn|error. Formats: text|json. Collection is external.
+  CATALOG_LOG_LEVEL: info
+  CATALOG_LOG_FORMAT: text
+  CATALOG_PROFILE: production
+  CATALOG_SERVICE_NAME: open-agentic-catalog
+  CATALOG_HTTP_ADDRESS: 0.0.0.0:8080
+  CATALOG_PUBLIC_BASE_URL: https://catalog.example.com
+  CATALOG_HTTP_READ_TIMEOUT: 10s
+  CATALOG_HTTP_REQUEST_TIMEOUT: 10s
+  CATALOG_HTTP_WRITE_TIMEOUT: 30s
+  CATALOG_HTTP_IDLE_TIMEOUT: 60s
+  CATALOG_HTTP_SHUTDOWN_TIMEOUT: 20s
+  # Request admission only: 1 KiB-64 MiB; not an API response limit.
+  CATALOG_HTTP_MAX_BODY_BYTES: "2097152"
+  # Explicitly permits cross-tenant process statistics for current tenant administrators.
+  CATALOG_HTTP_SERVICE_ACTIVITY_ENABLED: "false"
+  # New diagnostics per array: 1-512 findings and 1024-262144 JSON bytes.
+  # Retained evidence reads and replay keep their own contracts.
+  CATALOG_VALIDATION_MAX_FINDINGS: "128"
+  CATALOG_VALIDATION_MAX_DIAGNOSTIC_BYTES: "65536"
+  CATALOG_DATABASE_DRIVER: postgres
+  CATALOG_DATABASE_MAX_CONNECTIONS: "20"
+  # Positive Go durations, applied per pool at startup; updates roll API/worker Pods.
+  CATALOG_DATABASE_MAX_CONN_LIFETIME: "30m"
+  CATALOG_DATABASE_MAX_CONN_IDLE_TIME: "5m"
+  CATALOG_DATABASE_HEALTH_CHECK_PERIOD: "30s"
+  CATALOG_AUTH_MODE: oidc
+  CATALOG_AUTH_ISSUER: https://identity.example.com
+  CATALOG_AUTH_AUDIENCE: open-agentic-catalog
+  CATALOG_AUTH_TENANCY_MODE: dedicated
+  CATALOG_AUTH_DEDICATED_TENANT_ID: 00000000-0000-7000-8000-000000000001
+  CATALOG_AUTH_ENFORCE_SCOPES: "false"
+  # Shared creation limit and automatic jitter cap for API/worker Job producers.
+  CATALOG_JOBS_MAX_ATTEMPTS: "5"
+  CATALOG_JOBS_RETRY_CEILING: 1h
+  CATALOG_WORKER_POLL_INTERVAL: 250ms
+  # Failure restart windows are separate from healthy polling.
+  CATALOG_WORKER_DEPENDENCY_RETRY_INITIAL_DELAY: 1s
+  CATALOG_WORKER_DEPENDENCY_RETRY_CEILING: 30s
+  CATALOG_WORKER_LEASE_DURATION: 30s
+  CATALOG_WORKER_CONCURRENCY: "16"
+  CATALOG_WORKER_SOURCE_MAINTENANCE_INTERVAL: 15m
+  # Routine cleanup cadence and minimum eligibility periods; existing markers are immutable.
+  CATALOG_WORKER_HOUSEKEEPING_INTERVAL: 5m
+  CATALOG_WORKER_TERMINAL_JOB_RETENTION: 168h
+  CATALOG_WORKER_ACKNOWLEDGED_OUTBOX_RETENTION: 24h
+  # Worker-only listener used by kubelet probes and in-cluster metrics scraping.
+  CATALOG_WORKER_OPERATIONS_ADDRESS: 0.0.0.0:9090
+  CATALOG_FEDERATION_REQUEST_TIMEOUT: 2s
+  CATALOG_FEDERATION_MAX_RESPONSE_BYTES: "10485760"
+  CATALOG_FEDERATION_MAX_REDIRECTS: "3"
+  # Includes the first live Search page. Opt in to 3 for bounded continuation.
+  CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE: "1"
+  CATALOG_FEDERATION_MAX_FANOUT: "3"
+  CATALOG_FEDERATION_MAX_HOPS: "2"
+  CATALOG_FEDERATION_POLICY_FILE: /etc/open-agentic-catalog/federation/policy/policy.json
+  CATALOG_DISCOVERY_HOSTS: '[{"host":"catalog.example.com","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"catalog.example.com"}]'
+  CATALOG_PUBLICATION_ARD_PROFILE: ard-0.91-aa3e598
+  CATALOG_PUBLICATION_AI_CATALOG_PROFILE: ai-catalog-1.0-b062278
+  CATALOG_WEBHOOKS_ENABLED: "false"
+  CATALOG_WEBHOOKS_MAX_ATTEMPTS: "5"
+  CATALOG_WEBHOOKS_RETRY_CEILING: 1h
+  CATALOG_WEBHOOKS_TIMEOUT: 10s
+  CATALOG_WEBHOOKS_POLL_INTERVAL: 500ms
+  # Keep this disabled; use the typed semanticSearch values above to enable.
+  CATALOG_SEMANTIC_SEARCH: '{"enabled":false}'
+  # Shared summaries also require audience opt-in and each human's consent.
+  CATALOG_RATINGS_SHARING_ENABLED: "false"
+  CATALOG_RATINGS_MINIMUM_SHARED_COUNT: "5"
+  # Optional Publisher DNS TXT verification; no provider or resolver is deployed.
+  CATALOG_PUBLISHER_DOMAIN_VERIFICATION: '{"mode":"disabled"}'
+  # Optional ANS verification: separately mounted public keys and exact egress.
+  CATALOG_TRUST_VERIFICATION: '{"enabled":false}'
+  # Optional presentation: exact origins narrow the federation policy; no uploads.
+  CATALOG_LISTING_MEDIA: '{"allowedOrigins":[]}'
+  CATALOG_MANAGED_MEDIA_ENABLED: "false"
+  CATALOG_SOFTWARE_ASSESSMENT_ENABLED: "false"
+  CATALOG_CREDENTIAL_RESOLUTION_ENABLED: "false"
+
+# Optional public ANS verification keys, never TLS roots or private credentials.
+# Mounted only into enabled API/worker Pods, not migration or UI workloads.
+trustVerification:
+  publicKeysConfigMap: ""

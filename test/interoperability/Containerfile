@@ -1,0 +1,14 @@
+# Test-only HF CLI environment, never part of the Catalog runtime image.
+FROM python:3.13.17-slim-bookworm@sha256:e32be0e55814a08977501ca863271d9bd02443710db8f2afaf8372e2c4508530
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 UV_PYTHON_DOWNLOADS=never
+WORKDIR /client
+COPY tools.txt /tools.txt
+RUN pip install --no-cache-dir --require-hashes -r /tools.txt
+COPY source/ ./
+# Build tools are separately locked: frozen uv.lock alone does not pin Hatchling.
+RUN uv export --frozen --no-dev --no-emit-project --format requirements-txt -o /dependencies.txt && \
+    pip install --no-cache-dir --require-hashes -r /dependencies.txt && \
+    pip install --no-cache-dir --no-deps --no-build-isolation . && \
+    pip check
+USER 65532:65532
+ENTRYPOINT ["hf-discover"]

@@ -1,0 +1,32 @@
+# Local environments and Python bytecode
+.venv/
+__pycache__/
+*.py[cod]
+
+# Package output and generated package metadata
+/build/
+/dist/
+*.egg-info/
+
+# Local coverage and Python tool caches
+/.coverage
+/.coverage.*
+/coverage/
+/htmlcov/
+/.mypy_cache/
+/.pytest_cache/
+/.ruff_cache/
+
+# Local environment files and diagnostic logs
+.env
+.env.*
+!.env.example
+*.log
+
+# Local editor and OS files; shared editor settings remain source
+/.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

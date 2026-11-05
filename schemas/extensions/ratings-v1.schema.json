@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/open-agentic-catalog/open-agentic-catalog/schemas/ratings/v1",
+  "$anchor": "summary",
+  "title": "Catalog consented rating summary",
+  "description": "Optional publisher claim. Receivers also enforce its 2 KiB size, enclosing identity and count/sum arithmetic.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["reporter", "identifier", "versionPresent", "minimum", "maximum", "count", "sum", "measuredAt"],
+  "properties": {
+    "reporter": {"type": "string", "format": "uri", "pattern": "^https://", "maxLength": 512},
+    "identifier": {"type": "string", "pattern": "^urn:air:", "maxLength": 512},
+    "versionPresent": {"type": "boolean"},
+    "version": {"type": "string", "maxLength": 128},
+    "minimum": {"const": 1},
+    "maximum": {"const": 5},
+    "count": {"type": "integer", "minimum": 1, "maximum": 1801439850948198},
+    "sum": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "measuredAt": {"type": "string", "format": "date-time", "pattern": "Z$"}
+  }
+}

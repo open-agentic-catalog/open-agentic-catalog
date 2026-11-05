@@ -1,0 +1,100 @@
+{
+  "publisherDomainVerification": {"mode":"disabled", "challengeTTL":"24h", "proofMaxAge":"720h", "lookupTimeout":"5s"},
+  "demoArchives": {},
+  "logLevel": "info",
+  "logFormat": "text",
+  "tracing": {"enabled": false},
+  "environment": "production",
+  "profile": "production",
+  "serviceName": "open-agentic-catalog",
+  "validation": {
+    "maxFindings": 128,
+    "maxDiagnosticBytes": 65536
+  },
+  "mcp": {"enabled": false, "allowedOrigins": [], "maxToolBytes": 262144, "maxConcurrency": 4},
+  "http": {
+    "serviceActivityEnabled": false,
+    "address": "0.0.0.0:8080",
+    "publicBaseUrl": "https://catalog.example.com",
+    "readTimeout": "10s",
+    "requestTimeout": "10s",
+    "writeTimeout": "30s",
+    "idleTimeout": "60s",
+    "shutdownTimeout": "20s",
+    "maxBodyBytes": 2097152,
+    "corsOrigins": ["https://console.example.com"]
+  },
+  "database": {
+    "driver": "postgres",
+    "dsn": "postgres://catalog_api@postgres.example.com/catalog?sslmode=verify-full",
+    "maxConnections": 20,
+    "maxConnLifetime": "30m",
+    "maxConnIdleTime": "5m",
+    "healthCheckPeriod": "30s",
+    "migrateOnStart": false
+  },
+  "auth": {
+    "mode": "oidc",
+    "issuer": "https://identity.example.com",
+    "trustBundleFile": "",
+    "audience": "open-agentic-catalog",
+    "tenancyMode": "dedicated",
+    "dedicatedTenantId": "00000000-0000-7000-8000-000000000001",
+    "enforceScopes": false
+  },
+  "jobs": {"maxAttempts": 5, "retryCeiling": "1h"},
+  "worker": {
+    "dependencyRetryInitialDelay": "1s",
+    "dependencyRetryCeiling": "30s",
+    "pollInterval": "250ms",
+    "leaseDuration": "30s",
+    "concurrency": 16,
+    "sourceMaintenanceInterval": "15m",
+    "housekeepingInterval": "5m",
+    "terminalJobRetention": "168h",
+    "acknowledgedOutboxRetention": "24h",
+    "operationsAddress": "0.0.0.0:9090"
+  },
+  "federation": {
+    "requestTimeout": "2s",
+    "maxResponseBytes": 10485760,
+    "maxRedirects": 3,
+    "maxFanout": 3,
+    "maxLivePagesPerSource": 1,
+    "maxHops": 2
+  },
+  "discovery": {
+    "hosts": [
+      {
+        "host": "catalog.example.com",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "mode": "anonymous",
+        "publisherDomain": "catalog.example.com"
+      },
+      {
+        "host": "catalog.internal.example.com",
+        "tenantId": "00000000-0000-7000-8000-000000000001",
+        "mode": "authenticated",
+        "publisherDomain": "catalog.example.com"
+      }
+    ]
+  },
+  "publication": {
+    "ardProfile": "ard-0.91-aa3e598",
+    "aiCatalogProfile": "ai-catalog-1.0-b062278"
+  },
+  "webhooks": {
+    "policyFile": "",
+    "enabled": false,
+    "maxAttempts": 5,
+    "retryCeiling": "1h",
+    "timeout": "10s",
+    "pollInterval": "500ms"
+  },
+  "semanticSearch": {"enabled": false},
+  "trustVerification": {"enabled": false},
+  "listingMedia": {"allowedOrigins": []},
+  "managedMedia": {"enabled": false},
+  "softwareAssessment": {"enabled": false},
+  "credentialResolution": {"enabled": false}
+}

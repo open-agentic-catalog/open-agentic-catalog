@@ -1,0 +1,21 @@
+# Private-trust overlay for the isolated OIDC functional scenario.
+services:
+  federation-fixture:
+    command: ["serve", "--directory", "/fixture", "--oidc-address", ":8443", "--oidc-issuer", "https://federation-fixture:8443", "--oidc-jwks", "/fixture/oidc-jwks.json"]
+  api:
+    # Environment-only configuration avoids retaining development token maps.
+    command: ["api"]
+    environment:
+      CATALOG_ENVIRONMENT: test
+      CATALOG_PROFILE: oidc-trust
+      CATALOG_AUTH_MODE: oidc
+      CATALOG_AUTH_ISSUER: https://federation-fixture:8443
+      CATALOG_AUTH_AUDIENCE: open-agentic-catalog
+      CATALOG_AUTH_TENANCY_MODE: dedicated
+      CATALOG_AUTH_DEDICATED_TENANT_ID: 00000000-0000-7000-8000-000000000001
+      CATALOG_AUTH_TRUST_BUNDLE_FILE: /etc/open-agentic-catalog/oidc/trust/functional-ca.pem
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?functional fixture directory is required}/trust
+        target: /etc/open-agentic-catalog/oidc/trust
+        read_only: true

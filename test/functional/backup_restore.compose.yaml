@@ -1,0 +1,51 @@
+# Invocation-owned logical restore. No product migration or provisioning runs here.
+services:
+  peer-archives:
+    image: ${IMAGE:?}
+    pull_policy: never
+    user: "${CATALOG_FUNCTIONAL_ARCHIVE_UID:?}:${CATALOG_FUNCTIONAL_ARCHIVE_GID:?}"
+    entrypoint: [/fixture/demo-archives]
+    command: [--directory, /fixture/archives, --address, "0.0.0.0:8443", --fixture-ip, "${CATALOG_FUNCTIONAL_ARCHIVE_IP:?}"]
+    volumes:
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/demo-archives:/fixture/demo-archives:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives:/fixture/archives:ro
+    networks:
+      default:
+        ipv4_address: ${CATALOG_FUNCTIONAL_ARCHIVE_IP:?}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  restored:
+    profiles: [backup-restore]
+    image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: catalog
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, catalog, -d, postgres]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    volumes:
+      - backup-restored:/var/lib/postgresql
+    restart: "no"
+  api:
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_api:catalog-api@${CATALOG_FUNCTIONAL_BACKUP_DATABASE:-postgres}:5432/catalog?sslmode=disable
+      # Keep the initial and restored API's reported fallback identical.
+      CATALOG_WORKER_SOURCE_MAINTENANCE_INTERVAL: 1h
+      CATALOG_DEMO_ARCHIVES: '{"origin":"https://${CATALOG_FUNCTIONAL_ARCHIVE_IP:?}:8443","trustBundleFile":"/config/archives-cert.pem","allowlistFile":"/config/archives-allowlist.json"}'
+    volumes:
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/cert.pem:/config/archives-cert.pem:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/allowlist.json:/config/archives-allowlist.json:ro
+  worker:
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_worker:catalog-worker@${CATALOG_FUNCTIONAL_BACKUP_DATABASE:-postgres}:5432/catalog?sslmode=disable
+      CATALOG_WORKER_SOURCE_MAINTENANCE_INTERVAL: 1h
+      CATALOG_DEMO_ARCHIVES: '{"origin":"https://${CATALOG_FUNCTIONAL_ARCHIVE_IP:?}:8443","trustBundleFile":"/config/archives-cert.pem","allowlistFile":"/config/archives-allowlist.json"}'
+    volumes:
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/cert.pem:/config/archives-cert.pem:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/allowlist.json:/config/archives-allowlist.json:ro
+volumes:
+  backup-restored:

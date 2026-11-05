@@ -1,0 +1,294 @@
+---
+title: "Run with Docker and PostgreSQL"
+description: "Run separate Catalog API and worker containers against your PostgreSQL database without Compose or Kubernetes."
+---
+
+import { FileTree } from "@astrojs/starlight/components";
+
+Run the Catalog image against an operator-supplied PostgreSQL database with this procedure. Docker Compose and Kubernetes are not required. For a temporary Catalog without a database, use the [Docker memory quickstart](../guides/local-development.mdx#start-the-service).
+
+The examples use Bash, Docker Engine on Linux and a non-root host account. They publish the development API only on loopback. Production requires the changes in [production deployment](#production-deployment).
+
+## Prepare an image and database
+
+Use a reviewed image already available to your Docker engine. The image contains `catalogd` and `catalogctl`; it contains no configuration or credentials. Running it needs no host Go, Python or Node.js.
+
+To build from a checkout, install Make, Python 3.12+, Git and Docker with BuildKit. Run from the repository root:
+
+```sh
+CATALOG_IMAGE=open-agentic-catalog:docker-local
+make container-build CONTAINER_PLATFORM=linux/amd64 IMAGE="$CATALOG_IMAGE" CATALOG_ENV_FILE=/dev/null
+```
+
+Select `linux/arm64` on an ARM64 host. The Go compiler runs inside the build image. Explicit platform selection avoids host Go architecture detection. The command builds locally and does not publish an image. See [build and release](../contributing/build-and-release.md) for build identity and artifact inspection.
+
+For a supplied image, set `CATALOG_IMAGE` to its selected local tag or digest instead. Acquire that exact artifact through your release process before continuing; the commands below use `--pull=never`.
+
+Provide PostgreSQL 18 with UTF8 encoding and permission for the owner to install `pgcrypto`. Core Catalog features do not require `pgvector`. Optional [hybrid search](hybrid-search.mdx) has separate requirements.
+
+Ask the database administrator to provision a dedicated Catalog database and three distinct login identities. The following SQL illustrates a new isolated database. Do not run it against an existing installation or place passwords in the script:
+
+```sql
+CREATE ROLE catalog_owner LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION BYPASSRLS;
+CREATE ROLE catalog_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE ROLE catalog_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION BYPASSRLS;
+CREATE DATABASE catalog OWNER catalog_owner ENCODING 'UTF8' TEMPLATE template0;
+GRANT CONNECT ON DATABASE catalog TO catalog_api, catalog_worker;
+```
+
+Provision passwords, certificates or other database login credentials separately. Neither runtime identity may own the database/schema or have a database-role membership in either direction. The owner needs access across forced row-level security for migrations and identity provisioning. It also needs authority to reconcile extension-function grants; role creation alone does not supply that authority. The owner applies migrations and exact grants; do not add handwritten table grants. Confirm provider support for worker `BYPASSRLS` and owner extension/grant authority. See [database roles](database-roles.md) for the complete contract.
+
+Have the administrator complete [non-superuser owner preparation](database-roles.md#prepare-an-isolated-non-superuser-owner) in the selected database before continuing. A trusted `pgcrypto` installation can leave functions owned by the bootstrap superuser. The owner needs authority over these function grants as well as the Catalog schema.
+
+## Prepare configuration and file inputs
+
+Keep this Bash terminal open for the remaining commands. Stop on any failed command; the sequence enables Bash error checks. Select an unused host port and unused container/network names. Prepare inputs outside the checkout:
+
+```sh
+set -euo pipefail
+umask 077
+CATALOG_INPUTS="$HOME/.local/share/open-agentic-catalog/docker-local"
+CATALOG_NETWORK=catalog-docker-local
+CATALOG_API_CONTAINER=catalog-docker-api
+CATALOG_WORKER_CONTAINER=catalog-docker-worker
+CATALOG_PORT=18081
+CATALOG_UID=$(id -u)
+CATALOG_GID=$(id -g)
+test "$CATALOG_UID" -ne 0
+mkdir -p "$CATALOG_INPUTS"
+test ! -e "$CATALOG_INPUTS/config.json"
+cp config/postgres.json "$CATALOG_INPUTS/config.json"
+```
+
+For an existing input directory, review its contents instead of overwriting files. Without a checkout, save the [PostgreSQL development profile](../../../../../config/postgres.json) as `config.json` in that directory.
+
+The development profile accepts test identities such as `local-admin`. It is not a production authentication configuration. Its discovery host is `127.0.0.1`; use that exact hostname for the example API URL. The database DSN will come from a mounted file and override the sample DSN.
+
+Create three private files named `owner.dsn`, `api.dsn` and `worker.dsn` through your credential provisioning process. Each file contains one connection string, optionally followed by one newline. Use its exact role and database hostname. Percent-encode reserved characters in URI passwords. Do not put secrets in shell history or the shared JSON profile.
+
+For example, an API connection string has this shape; replace every placeholder:
+
+```text
+postgres://catalog_api:PERCENT_ENCODED_PASSWORD@db.example.net:5432/catalog?sslmode=verify-full&sslrootcert=/config/db-ca.pem
+```
+
+Save the database CA certificate as `db-ca.pem` alongside the configuration. The commands mount this public trust file into each database consumer. The certificate must validate the exact database hostname. Do not replace `verify-full` with disabled verification for an external database.
+
+Keep secret files readable only by their intended owner. These local examples run containers with your non-root UID/GID so private host files remain readable. The image normally uses UID/GID `65532:65532`; production deployments can retain that identity and arrange equivalent scoped file permissions. Do not make secrets world-readable. SELinux or user-namespace mappings can require additional host mount setup.
+
+## Send settings to Docker
+
+:::note[Docker and Make use different file syntax]
+A file that works with Make can have a different meaning in Docker. Pass only the settings intended for this container.
+:::
+
+Docker does not automatically read `.env`, and the Catalog binaries do not read it either. Use [Docker environment options](https://docs.docker.com/reference/cli/docker/container/run/#set-environment-variables--e---env---env-file) to pass selected settings.
+
+Create a non-secret Docker environment file:
+
+```sh title="Create runtime.env"
+cat > "$CATALOG_INPUTS/runtime.env" <<EOF
+CATALOG_HTTP_ADDRESS=0.0.0.0:8080
+CATALOG_PUBLIC_BASE_URL=http://127.0.0.1:$CATALOG_PORT
+CATALOG_WORKER_OPERATIONS_ADDRESS=0.0.0.0:9090
+CATALOG_LOG_LEVEL=info
+CATALOG_LOG_FORMAT=text
+EOF
+```
+
+| Docker option | Effect |
+| --- | --- |
+| `--env-file "$CATALOG_INPUTS/runtime.env"` | Pass the file's settings to the container. |
+| `-e CATALOG_LOG_LEVEL=debug` | Set one value explicitly; it overrides the same name from `--env-file`. |
+| `-e CATALOG_LOG_LEVEL` | Forward that one variable from the Docker client's exported environment. Export it first; Docker does not forward the whole host environment. |
+| `-e CATALOG_DATABASE_DSN_FILE=/run/secrets/database.dsn` | Select a file inside the container. Also mount the intended credential at that path. |
+
+Use one `KEY=value` assignment per line in a Docker env file. Put comments on separate lines. Do not add `export`, surrounding quotes, inline comments, shell commands or `${VARIABLE}` expressions. Docker run does not perform Compose-style value interpolation. JSON overrides must remain one unquoted line of valid JSON.
+
+You can use `--env-file .env` when that file deliberately follows Docker's syntax and contains only settings intended for this container. Do not pass the repository's Make `.env` wholesale. It can contain host paths, development tokens or workflow settings that are wrong inside a container. Keep owner, API and worker credentials separate. Use mounted-file settings for secrets; direct secret environment values can appear in container inspection.
+
+Environment overrides take precedence over the JSON baseline. Strict role-specific validation still applies. `-e NAME` does not set a shell variable from a file; it forwards an already exported value. File paths in settings refer to container paths, not host paths. See the [configuration reference](../reference/configuration.mdx#configuration-delivery-and-precedence) for supported names.
+
+Existing container settings do not change when you edit an env file. Recreate the affected container with the reviewed inputs. `docker restart` retains the original environment. Mounted configuration and secret files are read at startup; follow [credential rotation](maintenance.mdx#rotate-credentials-and-trust) for their specific replacement rules.
+
+The host's `config.json` defines backend settings, `runtime.env` holds non-secret overrides and `db-ca.pem` supplies database trust. Each role has a separate credential file: `owner.dsn`, `api.dsn` or `worker.dsn`.
+
+This illustrative tree uses the host directory selected by `CATALOG_INPUTS`. It does not show a checked-in package or container directory. Keep each credential private; the commands below mount only the intended role's file.
+
+<FileTree>
+
+- $CATALOG_INPUTS/
+  - config.json
+  - runtime.env
+  - db-ca.pem
+  - owner.dsn
+  - api.dsn
+  - worker.dsn
+
+</FileTree>
+
+## Establish database connectivity
+
+Create a network for these containers:
+
+```sh
+docker network create "$CATALOG_NETWORK"
+```
+
+An external database must be reachable from that network. A [user-defined bridge](https://docs.docker.com/engine/network/drivers/bridge/) also resolves names of containers attached to it. For an owned local PostgreSQL container, attach it to this network and use its network alias in all three DSNs. Do not attach unrelated containers.
+
+`localhost` inside a container refers to that container. For a database on the Linux host, add `--add-host host.docker.internal=host-gateway` to each database-consuming command. Use a hostname and route accepted by PostgreSQL and its TLS certificate. The host-gateway mapping does not change PostgreSQL listener or authentication rules.
+
+## Validate, migrate and provision identities
+
+Keep API and worker containers stopped during schema changes. Run these commands with the selected target image. Define a temporary owner-command helper to reuse the scoped mounts:
+
+```sh
+catalog_owner() {
+  docker run --rm --pull=never --init --read-only \
+    --user "$CATALOG_UID:$CATALOG_GID" --network "$CATALOG_NETWORK" \
+    --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 \
+    --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+    --env-file "$CATALOG_INPUTS/runtime.env" \
+    -e CATALOG_DATABASE_DSN_FILE=/run/secrets/database.dsn \
+    --mount "type=bind,src=$CATALOG_INPUTS/config.json,dst=/config/config.json,readonly" \
+    --mount "type=bind,src=$CATALOG_INPUTS/db-ca.pem,dst=/config/db-ca.pem,readonly" \
+    --mount "type=bind,src=$CATALOG_INPUTS/owner.dsn,dst=/run/secrets/database.dsn,readonly" \
+    --entrypoint /usr/local/bin/catalogctl "$CATALOG_IMAGE" "$@"
+}
+catalog_owner config validate --config /config/config.json --role migration
+catalog_owner migrate plan --config /config/config.json
+catalog_owner migrate apply --config /config/config.json --api-role catalog_api --worker-role catalog_worker
+catalog_owner identity provision-development --config /config/config.json
+```
+
+Configuration validation checks settings, not database connectivity. Migration planning connects to the database. Apply must report compliant `runtimePrivileges` for both roles. If migration or grant reconciliation fails, keep runtimes stopped, correct the reported problem and retry. Application startup never applies migrations.
+
+Development provisioning reads the configured test identities and records their Catalog assignments. Repeating it preserves valid existing identities. Production uses [explicit administrator provisioning](#production-deployment), not this development command.
+
+## Start separate API and worker containers
+
+Run each role with its own database file. The following API validation and startup commands use the same settings and mounts:
+
+```sh
+catalog_api() {
+  docker run --pull=never --init --read-only \
+    --user "$CATALOG_UID:$CATALOG_GID" --network "$CATALOG_NETWORK" \
+    --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 \
+    --stop-timeout 40 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+    --env-file "$CATALOG_INPUTS/runtime.env" \
+    -e CATALOG_DATABASE_DSN_FILE=/run/secrets/database.dsn \
+    --mount "type=bind,src=$CATALOG_INPUTS/config.json,dst=/config/config.json,readonly" \
+    --mount "type=bind,src=$CATALOG_INPUTS/db-ca.pem,dst=/config/db-ca.pem,readonly" \
+    --mount "type=bind,src=$CATALOG_INPUTS/api.dsn,dst=/run/secrets/database.dsn,readonly" "$@"
+}
+catalog_api --rm --entrypoint /usr/local/bin/catalogctl "$CATALOG_IMAGE" config validate --config /config/config.json --role api
+catalog_api -d --name "$CATALOG_API_CONTAINER" -p "127.0.0.1:$CATALOG_PORT:8080" "$CATALOG_IMAGE" api --config /config/config.json
+```
+
+Start the worker with no published port:
+
+```sh
+catalog_worker() {
+  docker run --pull=never --init --read-only \
+    --user "$CATALOG_UID:$CATALOG_GID" --network "$CATALOG_NETWORK" \
+    --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 \
+    --stop-timeout 40 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+    --env-file "$CATALOG_INPUTS/runtime.env" \
+    -e CATALOG_DATABASE_DSN_FILE=/run/secrets/database.dsn \
+    --mount "type=bind,src=$CATALOG_INPUTS/config.json,dst=/config/config.json,readonly" \
+    --mount "type=bind,src=$CATALOG_INPUTS/db-ca.pem,dst=/config/db-ca.pem,readonly" \
+    --mount "type=bind,src=$CATALOG_INPUTS/worker.dsn,dst=/run/secrets/database.dsn,readonly" "$@"
+}
+catalog_worker --rm --entrypoint /usr/local/bin/catalogctl "$CATALOG_IMAGE" config validate --config /config/config.json --role worker
+catalog_worker -d --name "$CATALOG_WORKER_CONTAINER" "$CATALOG_IMAGE" worker --config /config/config.json
+```
+
+The helper functions are shell shortcuts for the displayed Docker commands. They do not start another manager or pass owner credentials to a runtime. Container names must be unused; inspect a collision rather than deleting an existing container.
+
+The API listens on all container interfaces so Docker can forward its loopback host port. Worker operations remain unpublished on the host. Containers on the same bridge can still reach them; limit network membership and use operator network controls where stronger isolation is required.
+
+The image contains no shell or curl. Execute its shipped `catalogctl probe` directly instead of a shell-based health command. The 40-second Docker stop timeout exceeds the default 20-second application drain. Increase it when changing the application shutdown budget.
+
+## Verify the running service
+
+Wait for both roles to become ready. Retry a startup probe for a bounded period; inspect logs if readiness does not arrive:
+
+```sh
+docker exec "$CATALOG_API_CONTAINER" /usr/local/bin/catalogctl probe --url http://127.0.0.1:8080/readyz
+docker exec "$CATALOG_WORKER_CONTAINER" /usr/local/bin/catalogctl probe --url http://127.0.0.1:9090/readyz
+curl -fsS "http://127.0.0.1:$CATALOG_PORT/version"
+curl -fsS -H 'Authorization: Bearer local-admin' "http://127.0.0.1:$CATALOG_PORT/api/v1/capabilities"
+```
+
+Check the expected build identity and successful authenticated response. Liveness alone does not establish database readiness. Startup does not load samples. Use the [API walkthrough](../guides/local-development.mdx#verify-a-local-run) with this selected port and disposable data; sample loading remains an explicit development action.
+
+For a disposable development database, the optional `docker exec "$CATALOG_API_CONTAINER" /usr/local/bin/catalogctl smoke --base-url http://127.0.0.1:8080` runs the governed walkthrough through this container's API. It creates and publishes records; do not use it as a production health check. This shipped CLI needs no host Go.
+
+View role-specific logs:
+
+```sh
+docker logs --tail 100 "$CATALOG_API_CONTAINER"
+docker logs --tail 100 "$CATALOG_WORKER_CONTAINER"
+```
+
+Service logs go to stdout. Configure their level and text/JSON format through the selected inputs. Docker or your log collector owns capture and rotation; see [observability](observability.mdx#logs-and-trace-correlation).
+
+## Production deployment
+
+Replace the development profile with a reviewed copy of the [production example](../../../../../config/production.example.json). Configure the real public URL, discovery hosts, issuer, audience and tenant mapping. Keep TLS database verification, exact roles and separate owner commands. The example values are placeholders.
+
+Remove or replace the development `CATALOG_PUBLIC_BASE_URL` in `$CATALOG_INPUTS/runtime.env`. If you remove it, set the intended HTTPS origin in `config.json`. The environment value overrides JSON. Revalidate the owner inputs with `catalog_owner config validate --config /config/config.json --role migration`. Repeat API and worker validation after adding their required secret mounts below. Static validation does not establish connectivity, authentication or deployment readiness.
+
+Supply `CATALOG_CURSOR_SIGNING_KEY_FILE` to API and worker. Mount the same private file into both helpers at its selected container path. It must contain base64 for exactly 32 random bytes. Do not mount that key into the owner command. Add private issuer trust only to the API when required. Follow the [configuration reference](../reference/configuration.mdx#environment-overrides) for these file contracts.
+
+After provisioning `cursor.key` in the protected input directory, add these flags to both runtime helpers before `"$@"`:
+
+```text
+-e CATALOG_CURSOR_SIGNING_KEY_FILE=/run/secrets/cursor.key \
+--mount "type=bind,src=$CATALOG_INPUTS/cursor.key,dst=/run/secrets/cursor.key,readonly" \
+```
+
+Do not also set `CATALOG_CURSOR_SIGNING_KEY`; direct and file inputs are mutually exclusive. Shared keys must remain stable across restarts and replicas. If enabling webhooks, supply their separate encryption key and outbound policy through the documented [webhook setup](webhooks.mdx).
+
+Provision the initial administrator through the schema owner. Replace the tenant, issuer, subject, operator and reason with attributable deployment inputs:
+
+```sh
+catalog_owner identity provision --config /config/config.json \
+  --tenant 00000000-0000-7000-8000-000000000001 --tenant-name "Example tenant" \
+  --issuer https://identity.example.com --tenancy-mode dedicated \
+  --subject initial-admin --roles tenant_admin \
+  --operator release-operator --reason "Initial tenant bootstrap"
+```
+
+Register and verify production access tokens through your external issuer. Replace the development bearer check with an authorized production read. Use [authentication and sign-in](sign-in.md) for issuer, realm and browser requirements. Production refuses `provision-development`.
+
+Place the API behind your reviewed HTTPS ingress or reverse proxy. `http.publicBaseUrl` describes its external URL; it does not enable TLS on the listener. Configure supervision, resource limits, egress, monitoring and backup through your infrastructure. Docker restart policies respond to process exits; a readiness failure alone does not restart a container. Keep required database outages out of liveness restart loops.
+
+The optional UI uses its own image, JSON configuration, session keys and OIDC client. It has no database credential. Follow [UI host configuration](../reference/ui-host-configuration.md#host-configuration) and [UI deployment](deployment.mdx#optional-catalog-ui); backend env files do not configure the UI. A UI readiness probe alone does not prove sign-in or API access.
+
+## Stop, upgrade and remove containers
+
+Stop these exact containers, API first, then worker:
+
+```sh
+docker stop "$CATALOG_API_CONTAINER"
+docker stop "$CATALOG_WORKER_CONTAINER"
+```
+
+For an ordinary restart with unchanged settings, start the worker and API again, then repeat both readiness checks:
+
+```sh
+docker start "$CATALOG_WORKER_CONTAINER" "$CATALOG_API_CONTAINER"
+```
+
+For a release upgrade, qualify a backup first. Drain all API/worker replicas and remove their stopped containers. Select the new image and reviewed inputs. Run its owner-only plan/apply and any required repair while runtimes remain stopped. Recreate both roles, then verify readiness, version and retained data. Do not treat an older image as an automatic SQL rollback. Follow [upgrade failure recovery](maintenance.mdx#upgrade-and-failed-migration).
+
+To remove the stopped example containers and its unused network:
+
+```sh
+docker rm "$CATALOG_API_CONTAINER" "$CATALOG_WORKER_CONTAINER"
+docker network rm "$CATALOG_NETWORK"
+```
+
+Detach an owned local database container first if you attached one. These commands do not delete the external database, its volume or the input files. Keep protected keys and retained data until your approved retention/removal procedure permits deletion. Do not use global Docker prune or reset commands for this installation.

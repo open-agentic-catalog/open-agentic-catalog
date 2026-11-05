@@ -1,0 +1,40 @@
+{
+  "name": "Dice Agent",
+  "description": "Adapted deployment descriptor for the upstream REST dice Agent; configure TLS locally before using this interface.",
+  "version": "1.0.0",
+  "documentationUrl": "https://github.com/a2aproject/a2a-samples/tree/6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3/samples/python/agents/dice_agent_rest",
+  "supportedInterfaces": [
+    {
+      "url": "https://127.0.0.1:19445/",
+      "protocolBinding": "HTTP+JSON",
+      "protocolVersion": "0.3"
+    }
+  ],
+  "capabilities": {
+    "streaming": true
+  },
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "skills": [
+    {
+      "id": "f56cab88-3fe9-47ec-ba6e-86a13c9f1f74",
+      "name": "Roll Dice",
+      "description": "Roll an N-sided die",
+      "tags": [
+        "dice"
+      ]
+    },
+    {
+      "id": "33856129-d686-4a54-9c6e-fffffec3561b",
+      "name": "Prime Detector",
+      "description": "Detect primes in a supplied list",
+      "tags": [
+        "prime"
+      ]
+    }
+  ]
+}

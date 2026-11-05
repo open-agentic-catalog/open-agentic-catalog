@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["enabled", "target", "imagePullSecrets", "podSecurityContext", "prometheus", "grafana"],
+  "allOf": [{
+    "if": {"properties": {"enabled": {"const": true}}},
+    "then": {"properties": {
+      "target": {"properties": {
+        "release": {"$ref": "#/definitions/name"},
+        "deploymentLabel": {"minLength": 1}
+      }},
+      "grafana": {"properties": {"adminSecret": {"properties": {"name": {"$ref": "#/definitions/resourceName"}}}}}
+    }}
+  }],
+  "properties": {
+    "enabled": {"type": "boolean"},
+    "target": {
+      "type": "object", "additionalProperties": false,
+      "required": ["namespace", "release", "deploymentLabel"],
+      "properties": {
+        "namespace": {"$ref": "#/definitions/optionalName"},
+        "release": {"$ref": "#/definitions/optionalName"},
+        "deploymentLabel": {"type": "string", "pattern": "^$|^[a-zA-Z0-9][a-zA-Z0-9_./:-]{0,127}$"}
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array", "maxItems": 8, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["name"],
+        "properties": {"name": {"$ref": "#/definitions/resourceName"}}
+      }
+    },
+    "podSecurityContext": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "runAsUser": {"type": ["integer", "null"], "minimum": 1},
+        "runAsGroup": {"type": ["integer", "null"], "minimum": 1},
+        "fsGroup": {"type": ["integer", "null"], "minimum": 1}
+      }
+    },
+    "prometheus": {
+      "type": "object", "additionalProperties": false,
+      "required": ["image", "scrapeIntervalSeconds", "scrapeTimeoutSeconds", "retentionTime", "retentionSize", "storage", "resources"],
+      "properties": {
+        "image": {"$ref": "#/definitions/image"},
+        "scrapeIntervalSeconds": {"type": "integer", "minimum": 5, "maximum": 300},
+        "scrapeTimeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 30},
+        "retentionTime": {"type": "string", "pattern": "^[1-9][0-9]{0,3}[hd]$"},
+        "retentionSize": {"type": "string", "pattern": "^[1-9][0-9]{0,5}(MB|GB|TB)$"},
+        "storage": {"$ref": "#/definitions/storage"},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    },
+    "grafana": {
+      "type": "object", "additionalProperties": false,
+      "required": ["image", "adminSecret", "storage", "resources"],
+      "properties": {
+        "image": {"$ref": "#/definitions/image"},
+        "adminSecret": {
+          "type": "object", "additionalProperties": false, "required": ["name", "userKey", "passwordKey"],
+          "properties": {
+            "name": {"$ref": "#/definitions/optionalResourceName"},
+            "userKey": {"$ref": "#/definitions/secretKey"},
+            "passwordKey": {"$ref": "#/definitions/secretKey"}
+          }
+        },
+        "storage": {"$ref": "#/definitions/storage"},
+        "resources": {"$ref": "#/definitions/resources"}
+      }
+    }
+  },
+  "definitions": {
+    "name": {"type": "string", "maxLength": 63, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+    "optionalName": {"type": "string", "maxLength": 63, "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+    "resourceName": {"type": "string", "maxLength": 253, "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"},
+    "optionalResourceName": {"anyOf": [{"const": ""}, {"$ref": "#/definitions/resourceName"}]},
+    "secretKey": {"type": "string", "maxLength": 253, "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]*$"},
+    "image": {"type": "string", "maxLength": 512, "pattern": "^$|^[a-zA-Z0-9][a-zA-Z0-9._:/-]*@sha256:[a-f0-9]{64}$", "not": {"pattern": ":latest@"}},
+    "storage": {
+      "type": "object", "additionalProperties": false, "required": ["existingClaim", "emptyDirSizeLimit"],
+      "properties": {
+        "existingClaim": {"$ref": "#/definitions/optionalResourceName"},
+        "emptyDirSizeLimit": {"type": "string", "pattern": "^[1-9][0-9]{0,5}(Mi|Gi|Ti)$"}
+      }
+    },
+    "resources": {
+      "type": "object", "additionalProperties": false, "required": ["requests", "limits"],
+      "properties": {"requests": {"$ref": "#/definitions/quantities"}, "limits": {"$ref": "#/definitions/quantities"}}
+    },
+    "quantities": {
+      "type": "object", "additionalProperties": false, "required": ["cpu", "memory"],
+      "properties": {
+        "cpu": {"type": "string", "pattern": "^[1-9][0-9]{0,5}m?$"},
+        "memory": {"type": "string", "pattern": "^[1-9][0-9]{0,5}(Mi|Gi)$"}
+      }
+    }
+  }
+}

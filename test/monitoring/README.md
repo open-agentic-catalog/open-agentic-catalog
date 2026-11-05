@@ -1,0 +1,16 @@
+# Monitoring workflow tests
+
+These files maintain optional Compose monitoring, companion-chart packaging/lifecycle wrappers and dashboard-query checks. Provisioned assets remain authoritative under [deployments/monitoring/](../../deployments/monitoring/README.md); application metric definitions live in [internal/platform/observability/](../../internal/platform/observability).
+
+| Files | Purpose |
+| --- | --- |
+| [launcher.py](launcher.py) | Validated monitoring/UI/webhook selection, Compose ownership, retained-stack lifecycle and narrowly scoped monitoring reset. Local webhooks default on without creating receivers; explicit runtime settings take precedence. Builds finish before services stop; API drains before worker during recreation. |
+| [queries.py](queries.py) | Dashboard expression extraction and validation using controlled query inputs. |
+| [helm.py](helm.py), [test_unit_helm.py](test_unit_helm.py) | Deterministic standalone companion-chart packaging and explicitly scoped Helm lifecycle/access commands. No cluster access is required for unit tests. |
+| `test_*.py`, [launcher_functional_test.go](launcher_functional_test.go) | Launcher and query safety regressions; the Go wrapper runs the Python tests in the default suite. |
+
+Run `go test -tags=functional ./test/monitoring -shuffle=on -count=1` for focused service-free tests. `make test-tooling-unit` runs the native Python units, including query inventory and extraction, without executing PromQL. `make test-monitoring` uses the [performance supervisor](../performance/README.md) to exercise metrics, Prometheus collection and Grafana provisioning in an owned disposable stack.
+
+It requires exact configured local API/worker targets, an authorized retained-content read during collector outage, and newer underlying application sample timestamps from both targets after restart. Its pinned Prometheus `promtool` evaluates the actual dashboard expressions against synthetic series, including counter resets, deployment/role isolation, unavailable versus idle data, weighted retry means, local embedding admission, classified API refusals, trace-export batch failures and failed/stale replicas. It does not replace a built-dashboard browser check after Grafana image, interaction or presentation changes. Check login, Role selectors, missing observations, import to a new UID and updates to an owned UID. Preserve provisioned and unrelated dashboards during import checks.
+
+The [performance and monitoring guide](../../documentation/src/content/docs/guides/performance-and-monitoring.md) owns live commands, interpretation and safe cleanup. Its [Grafana walkthrough](../../documentation/src/content/docs/guides/performance-and-monitoring.md#read-the-grafana-dashboard) explains navigation and panels. The [screenshot procedure](../../documentation/assets/monitoring/README.md) uses a separate temporary project; this test target always cleans up its own stack. Preserve unavailable-versus-zero semantics and installation/role scoping. Do not replace missing series with unconditional zero, duplicate dashboard expressions as a second authority, contact another project's monitoring or delete PostgreSQL during monitoring-only reset.

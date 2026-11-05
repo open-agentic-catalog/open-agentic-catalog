@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/open-agentic-catalog/open-agentic-catalog/schemas/artwork/v1",
+  "$anchor": "descriptor",
+  "title": "Catalog optional artwork descriptor version 1",
+  "description": "Sealed publisher presentation metadata. This service extension is not an ARD resource type, rights verification or permission to fetch. Runtime encoded-byte, pixel-product and configurable limits also apply.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion"],
+  "properties": {
+    "schemaVersion": {"const": 1},
+    "icon": {
+      "allOf": [
+        {"$ref": "#/$defs/asset"},
+        {"properties": {"size": {"maximum": 1048576}, "width": {"maximum": 1024}, "height": {"maximum": 1024}}}
+      ]
+    },
+    "screenshots": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/asset"}}
+  },
+  "$defs": {
+    "url": {"type": "string", "minLength": 1, "maxLength": 2048, "format": "uri", "pattern": "^https://"},
+    "rights": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["basis", "attribution"],
+      "properties": {
+        "basis": {"enum": ["owned", "licensed", "permission"]},
+        "attribution": {"type": "string", "minLength": 1, "maxLength": 1024},
+        "reference": {"$ref": "#/$defs/url"}
+      }
+    },
+    "assetInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "alt", "rights"],
+      "properties": {
+        "url": {"$ref": "#/$defs/url"},
+        "alt": {"type": "string", "minLength": 1, "maxLength": 256},
+        "caption": {"type": "string", "maxLength": 512},
+        "rights": {"$ref": "#/$defs/rights"}
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion"],
+      "properties": {
+        "schemaVersion": {"const": 1},
+        "icon": {"$ref": "#/$defs/assetInput"},
+        "screenshots": {"type": "array", "maxItems": 8, "items": {"$ref": "#/$defs/assetInput"}}
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "alt", "rights", "digest", "mediaType", "size", "width", "height", "rightsAssessment"],
+      "properties": {
+        "url": {"$ref": "#/$defs/url"},
+        "alt": {"type": "string", "minLength": 1, "maxLength": 256},
+        "caption": {"type": "string", "maxLength": 512},
+        "rights": {"$ref": "#/$defs/rights"},
+        "digest": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+        "mediaType": {"enum": ["image/png", "image/jpeg"]},
+        "size": {"type": "integer", "minimum": 1, "maximum": 2097152},
+        "width": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "height": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "rightsAssessment": {"const": "not_assessed"}
+      }
+    }
+  }
+}

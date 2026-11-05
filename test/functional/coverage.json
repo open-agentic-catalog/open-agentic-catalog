@@ -1,0 +1,2019 @@
+{
+  "formatVersion": 1,
+  "scenarios": [
+    {
+      "id": "catalog-control-mcp",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:mcp serve"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/mcp_functional_test.go",
+          "symbol": "TestMCPStdioAgainstCatalog"
+        },
+        {
+          "path": "cmd/catalogctl/mcp_functional_test.go",
+          "symbol": "TestMCPStdioFrameRefusal"
+        },
+        {
+          "path": "cmd/catalogctl/mcp_functional_test.go",
+          "symbol": "TestMCPStdioCancellationAndTermination"
+        },
+        {
+          "path": "internal/platform/catalogmcp/server_functional_test.go",
+          "symbol": "TestServePrivateTLSCredentialSnapshotAndCancellation"
+        },
+        {
+          "path": "internal/platform/catalogmcp/server_functional_test.go",
+          "symbol": "TestServeIndexedSelectionRefusalsAndEOF"
+        },
+        {
+          "path": "internal/platform/catalogmcp/server_functional_test.go",
+          "symbol": "TestServeDiscoveryToolsRefuseUnsafeResponses"
+        },
+        {
+          "path": "internal/platform/catalogmcp/server_test.go",
+          "symbol": "TestToolBoundsAndSafeFailures"
+        }
+      ],
+      "reason": "The compiled stdio command and official Go SDK exercise owned local Catalog fixtures. Independent-client qualification uses the separate test-interoperability-mcp-catalog target. This is not packaged Compose coverage.",
+      "success": "Initialize, list six static tools, traverse exact four-kind local releases, count local facets and page current access with metadata-only output.",
+      "rejection": "Refuse malformed arguments, oversized input/results and current permission loss without mutations or credential disclosure.",
+      "recovery": "Observe namespace-only grants and revocation in the same session; request cancellation leaves it usable. SIGTERM drains pending HTTP work and exits unsuccessfully; EOF closes the owned command successfully.",
+      "gaps": []
+    },
+    {
+      "id": "catalog-control-mcp-http",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:callCatalogMCP",
+        "http:preflightCatalogMCP",
+        "http:refuseCatalogMCPStream",
+        "http:refuseCatalogMCPSessionDeletion",
+        "http:getCatalogMCPOAuthMetadata",
+        "http:headCatalogMCPOAuthMetadata",
+        "http:preflightCatalogMCPOAuthMetadata"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/mcp_functional_test.go",
+          "symbol": "TestMCPHTTPActualCatalogBothProtocolsAndOAuthScopes"
+        },
+        {
+          "path": "internal/platform/httpserver/mcp_functional_test.go",
+          "symbol": "TestMCPHTTPAdmissionFailuresDoNotRead"
+        },
+        {
+          "path": "internal/platform/httpserver/mcp_functional_test.go",
+          "symbol": "TestMCPHTTPCancellationOverloadPanicAndCallerIsolation"
+        },
+        {
+          "path": "internal/platform/httpserver/mcp_functional_test.go",
+          "symbol": "TestMCPHTTPDependencyRefusalsDeadlineAndDisabledRoutes"
+        },
+        {
+          "path": "internal/platform/httpserver/mcp_functional_test.go",
+          "symbol": "TestMCPHTTPCurrentMembershipRevocationWithoutSession"
+        },
+        {
+          "path": "internal/platform/httpserver/mcp_functional_test.go",
+          "symbol": "TestMCPHTTPSimultaneousCallerIsolationAndShutdown"
+        }
+      ],
+      "reason": "Real owned loopback HTTP and composed memory Catalog qualify both protocol versions. Packaged issuer/ingress qualification and independent modern clients remain N-140 Batches 3-4.",
+      "success": "Six tools, static inventory, modern discovery/direct calls, legacy handshake and notification, canonical public resource metadata.",
+      "rejection": "Scope/authentication/origin/header/protocol/parser/byte/method refusal; dependency outages stay distinct from invalid tokens.",
+      "recovery": "Request cancellation, deadline and panic remain local; concurrency slots recover and current membership revocation applies without sessions.",
+      "gaps": []
+    },
+    {
+      "id": "human-resource-ratings",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:readRating",
+        "http:submitRating",
+        "http:listOwnRatings",
+        "http:listRatingInbox",
+        "http:getRating",
+        "http:withdrawRating",
+        "http:removeRating",
+        "http:permitRating",
+        "http:getRatingSharing",
+        "http:setRatingSharing"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/database/ratings_integration_test.go",
+          "symbol": "TestPostgresRatingsTwoAPIsLifecycleAndIsolation"
+        },
+        {
+          "path": "internal/platform/httpserver/ratings_test.go",
+          "symbol": "TestLiveRatingProofCannotTransferOrOutliveAuthority"
+        }
+      ],
+      "reason": "Real PostgreSQL and two local HTTP APIs qualify the complete opinion lifecycle; isolated proofs reject transferred or stale live authority. The logical backup fixture also restores nonempty opinion, history, consent and sharing state, checks exact API readbacks and rejects nonowner/cross-tenant reads. The complete packaged authority matrix remains unqualified.",
+      "success": "Create, read, edit, page, moderate, withdraw and share consented exact-version opinions.",
+      "rejection": "Reject other tenants, nonowners, machine opinions, stale revisions and changed visibility or source authority.",
+      "recovery": "Cross-API exact-key replay returns minimal acknowledgements without restoring removed opinions.",
+      "gaps": []
+    },
+    {
+      "id": "semantic-reindex",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:reindexCatalog",
+        "catalogctl:remote reindex"
+      ],
+      "evidence": [
+        {
+          "path": "test/embeddings/semantic.py"
+        },
+        {
+          "path": "cmd/catalogctl/remote_reindex_functional_test.go",
+          "symbol": "TestRemoteReindexCommand"
+        }
+      ],
+      "reason": "Optional indexing uses the existing tenant-admin, idempotency and Job boundaries; a focused owned model/Compose gate supplements the default-off aggregate.",
+      "success": "Enqueue and complete current control and public-snapshot indexing without changing published metadata.",
+      "rejection": "Reject reader administration and invalid command inputs without provider or database authority in clients.",
+      "recovery": "Replay returns the original accepted Job; provider outage leaves keyword search available and recovery resumes hybrid retrieval.",
+      "gaps": []
+    },
+    {
+      "id": "private-feedback",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listOwnFeedback",
+        "http:listFeedbackInbox",
+        "http:getFeedback",
+        "http:createFeedback",
+        "http:editFeedback",
+        "http:addressFeedback",
+        "http:reopenFeedback",
+        "http:withdrawFeedback",
+        "http:removeFeedback"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/feedback.py"
+        },
+        {
+          "path": "internal/platform/httpserver/feedback_functional_test.go",
+          "symbol": "TestHTTPFeedbackWorkflowAndPrivateReplay"
+        },
+        {
+          "path": "internal/platform/database/feedback_integration_test.go",
+          "symbol": "TestPostgresFeedbackLifecycleIsolationAndConcurrentServices"
+        },
+        {
+          "path": "catalog-ui/tests/browser/feedback.spec.ts"
+        }
+      ],
+      "reason": "Private feedback uses ordinary API/UI workflows and separate feedback revisions. Packaged calls validate exact release context and text-free durable replay; unit/HTTP and PostgreSQL suites cover authorization, bounds and competing services.",
+      "success": "Create, read and edit contextual private feedback; administrator inbox/address/reopen and submitter withdrawal or administrator removal persist the expected current state.",
+      "rejection": "Reject other-tenant reads, non-admin inbox access, stale ETags, forged context and invalid bodies; feedback remains outside publication and discovery.",
+      "recovery": "Replay exact command acknowledgements without restoring removed text; conflicting edits require a fresh read.",
+      "gaps": []
+    },
+    {
+      "id": "current-access",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:getCurrentAccess"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "test/functional/oidc.py"
+        },
+        {
+          "path": "internal/platform/httpserver/self_test.go",
+          "symbol": "TestSelfAccessWithoutProductRoles"
+        },
+        {
+          "path": "internal/identity/self_permissions_test.go",
+          "symbol": "TestSelfPermissionHintsAreScopedCurrentAndDetached"
+        }
+      ],
+      "reason": "Packaged development and OIDC callers read current membership, grants and scope ceilings through the API. Cursor permutations retain lower-level coverage; browser interaction remains I-11.",
+      "success": "Return current identity, policy revision, finite effective permission hints and scope ceilings plus one bounded namespace permission page without requiring a product permission.",
+      "rejection": "Reject absent authentication, unknown or duplicate query parameters, invalid limits and cursors bound to another actor.",
+      "recovery": "Restart pagination after current authorization changes invalidate an earlier cursor.",
+      "gaps": []
+    },
+    {
+      "id": "authoring-history-reads",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listResourceVersions",
+        "http:listVersionRevisions",
+        "http:listResourceListings",
+        "http:listListingRevisions",
+        "http:listListingReleases",
+        "http:listReviewSubmissions",
+        "http:getReviewSubmissionEvidence",
+        "http:getIndexedCatalogRecord"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
+        },
+        {
+          "path": "internal/catalog/history_test.go",
+          "symbol": "TestAuthoringHistoriesBoundPagesAndIsolation"
+        },
+        {
+          "path": "internal/catalog/indexed_test.go",
+          "symbol": "TestIndexedLookupIdentityAndDisclosure"
+        },
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPFederationLifecycleAndEvidence"
+        },
+        {
+          "path": "internal/platform/database/postgres_integration_test.go",
+          "symbol": "TestPostgresDurabilityRLSLeasesAndStores"
+        }
+      ],
+      "reason": "Packaged reads verify history pagination and exact content, retained submission evidence after revalidation, tenant isolation and indexed bookmark eligibility. Detailed parser/authorization matrices remain at lower layers; browser workflows remain I-11.",
+      "success": "Enumerate tenant/parent-scoped history and filter the review inbox; retrieve the exact evidence bound to a submission.",
+      "rejection": "Reject invalid pages, missing Reader access, cross-tenant parents and unbound evidence.",
+      "recovery": "Continue with authorization-bound cursors; reload after permissions change.",
+      "gaps": []
+    },
+    {
+      "id": "seed-demo-cli",
+      "disposition": "development-only",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:seed-demo"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/seed_demo_functional_test.go",
+          "symbol": "TestDemoFreshAndReadOnlyRerun"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_expanded_functional_test.go",
+          "symbol": "TestExpandedDemoFreshExtensionAndRerun"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_expanded_functional_test.go",
+          "symbol": "TestExpandedDemoFreshRecoveryWithoutCommandReplay"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_expanded_functional_test.go",
+          "symbol": "TestExpandedDemoOwnedCompose"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_functional_test.go",
+          "symbol": "TestDemoMalformedInventoryPreventsWrites"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_functional_test.go",
+          "symbol": "TestDemoReceiptValidationBeforeRequests"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_functional_test.go",
+          "symbol": "TestDemoRejectsInconsistentDiscovery"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_functional_test.go",
+          "symbol": "TestDemoRefusesEditedAndMissingState"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_functional_test.go",
+          "symbol": "TestDemoInterruptedSetupAndReceiptPublicationFailure"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_functional_test.go",
+          "symbol": "TestDemoTargetsReceiptsAndTransportFailClosed"
+        },
+        {
+          "path": "cmd/catalogctl/seed_demo_test.go",
+          "symbol": "TestDemoTargetAndReceiptFailures"
+        }
+      ],
+      "reason": "Opt-in developer fixture command, not a production operator or aggregate packaged scenario. Local functional tests preserve the minimal five-record control and qualify expanded fourteen-record population/recovery; explicitly selected owned Compose tests verify real persistence and reader projections.",
+      "success": "Create twelve independently reviewed releases across four kinds and two namespaces, preserving the original draft/pending controls and retained receipt; verify bounded reader and public projections.",
+      "rejection": "Refuse unsafe targets, changed or partial data, invalid receipts and unsuccessful bounded HTTP requests without exposing response bodies.",
+      "recovery": "Unchanged reruns perform no mutations. Expanded progress reconciles uncertain outcomes through authoritative reads without retained idempotency responses; minimal fixtures retain their existing explicit partial-setup refusal.",
+      "gaps": []
+    },
+    {
+      "id": "remote-cli",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:remote capabilities",
+        "catalogctl:remote search",
+        "catalogctl:remote record",
+        "catalogctl:remote job"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/remote_functional_test.go",
+          "symbol": "TestRemoteAgainstCatalog"
+        },
+        {
+          "path": "cmd/catalogctl/remote_functional_test.go",
+          "symbol": "TestRemoteTLSRedirectsAndFiles"
+        },
+        {
+          "path": "test/functional/operators.py"
+        }
+      ],
+      "reason": "The existing owned operator journey invokes all four shipped read-only commands; focused tests cover transport, argument, contract and output adversaries.",
+      "success": "Retrieve capabilities, paginated Search, exact release records and retained cancelled/failed Job state with request metadata and no database configuration.",
+      "rejection": "Reject cross-tenant reads, invalid inputs, untrusted TLS, redirects, ambiguous/oversized responses and terminal-control injection.",
+      "recovery": "A failed Job remains a successful status read; HTTP/transport failures exit nonzero without partial success output or automatic retry. Users explicitly retry requests and restart invalidated Search cursors.",
+      "gaps": []
+    },
+    {
+      "id": "service-activity",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:getServiceActivity"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/service_activity_functional_test.go",
+          "symbol": "TestServiceActivityRealHTTPGateAndCounting"
+        },
+        {
+          "path": "internal/platform/httpserver/service_activity_test.go",
+          "symbol": "TestActivityCurrentPermissionAndOAuthAdmission"
+        },
+        {
+          "path": "internal/platform/httpserver/service_activity_policy_test.go",
+          "symbol": "TestActivityRechecksPolicyAndFailsClosed"
+        },
+        {
+          "path": "catalog-ui/tests/browser/activity.spec.ts"
+        },
+        {
+          "path": "catalog-ui/src/views/activity-overview.test.tsx"
+        },
+        {
+          "path": "internal/platform/httpserver/service_activity_population_functional_test.go",
+          "symbol": "TestServiceActivityRealTrafficPartitionsAndCombinedListeners"
+        },
+        {
+          "path": "internal/platform/httpserver/service_activity_authority_functional_test.go",
+          "symbol": "TestServiceActivityRealCurrentMembershipAndAssignmentRevocation"
+        },
+        {
+          "path": "internal/platform/httpserver/service_activity_authority_functional_test.go",
+          "symbol": "TestServiceActivityReadCreatesNoRetainedAuditOrOutbox"
+        }
+      ],
+      "reason": "Owned HTTP tests cover default-off routing, current admission and count changes. Real native browser journeys verify exact displayed deltas at root/subpath. This is not packaged Compose activity coverage.",
+      "success": "Read a schema-valid bounded sample with enabled deployment disclosure, current administration permission and the enforced OAuth scope.",
+      "rejection": "Refuse disabled routing, missing authentication, readers, missing scope, undeclared selectors and invalid request bodies without disclosing counters.",
+      "recovery": "Each read rechecks current policy. UI failures and visibility changes pause polling; current access/client epochs fence obsolete samples. Explicit reload resumes reads.",
+      "gaps": []
+    },
+    {
+      "id": "api-health",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:getLiveness",
+        "http:getReadiness",
+        "http:getVersion",
+        "http:getMetrics",
+        "http:getCapabilities",
+        "http:getServiceInformation"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/smoke.go",
+          "symbol": "executeSmoke"
+        },
+        {
+          "path": "Makefile"
+        },
+        {
+          "path": "internal/platform/httpserver/guardrails_functional_test.go"
+        },
+        {
+          "path": "test/functional/contracts/main.go",
+          "symbol": "run"
+        },
+        {
+          "path": "test/performance/runner.py"
+        },
+        {
+          "path": "test/functional/deadline.py"
+        },
+        {
+          "path": "test/functional/contracts/main.go"
+        },
+        {
+          "path": "internal/platform/httpserver/middleware_test.go"
+        },
+        {
+          "path": "internal/platform/runtime/process_information_functional_test.go",
+          "symbol": "TestProcessInformationRuntimeRolesAndRestarts"
+        }
+      ],
+      "reason": "Packaged status/schema, bounded drain/error replay and PostgreSQL recovery assertions share the existing middleware rejection matrix; no endpoint-by-fault duplication.",
+      "success": "Observe process-only liveness, dependency readiness, build identity, bounded metrics and honest capabilities.",
+      "rejection": "Reject unauthorized capability reads and unsafe request shapes without exposing internals.",
+      "recovery": "Readiness fails during drain or read-only/dead PostgreSQL; liveness remains up and readiness recovers.",
+      "gaps": []
+    },
+    {
+      "id": "served-openapi",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:getControlOpenAPI"
+      ],
+      "evidence": [
+        {
+          "path": "Makefile"
+        },
+        {
+          "path": "test/minikube/scenario.go"
+        },
+        {
+          "path": "api/openapi_test.go",
+          "symbol": "TestControlOpenAPIIsValidAndOperationIDsAreUnique"
+        }
+      ],
+      "reason": "Compose byte-compares served OpenAPI and checks build identity; O-05 also compares the contract. This proves contract serving, not schema validation of every functional response. File validity and shared HTTP rejection remain lower-level.",
+      "success": "Serve the exact checked-in OpenAPI bytes for the running build.",
+      "rejection": "Shared route and method rejection is owned by HTTP contract tests, not a new OpenAPI-specific scenario.",
+      "recovery": "O-05 reconfiguration verifies retained build identity; OpenAPI has no mutable state.",
+      "gaps": []
+    },
+    {
+      "id": "membership-smoke",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listMemberships",
+        "http:getMembership",
+        "http:suspendMembership",
+        "http:reactivateMembership",
+        "http:offboardMembership",
+        "http:grantRoleAssignment",
+        "http:getMembershipAccess"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/smoke.go",
+          "symbol": "executeSmoke"
+        },
+        {
+          "path": "cmd/catalogctl/smoke.go",
+          "symbol": "smokeExerciseMembershipAdministration"
+        },
+        {
+          "path": "test/functional/oidc.py"
+        },
+        {
+          "path": "test/minikube/scenario.go"
+        },
+        {
+          "path": "internal/platform/authn/authn_functional_test.go"
+        },
+        {
+          "path": "internal/platform/database/postgres_membership_test.go"
+        },
+        {
+          "path": "internal/platform/httpserver/access_directories_functional_test.go",
+          "symbol": "TestAccessDirectoryFiltersAndMemberContributionHTTPContracts"
+        }
+      ],
+      "reason": "Independent HTTPS service-account dedicated/shared mappings and revoked access join existing controlled Minikube human subjects. Claim, scope, cursor and final-administrator permutations remain in named verifier/database tests; no password or browser flow is required.",
+      "success": "Grant and read a membership, traverse bounded pages, filter its exact identity, inspect bounded direct/group contributions, suspend/reactivate/offboard and verify revoked access.",
+      "rejection": "Deny cross-tenant reads and invalid or stale transitions; roles must not come from token claims.",
+      "recovery": "Same-key requests replay the retained lifecycle across complete stack recreation.",
+      "gaps": []
+    },
+    {
+      "id": "administration-smoke",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listNamespaces",
+        "http:createNamespace",
+        "http:updateNamespace",
+        "http:createPublisher",
+        "http:updatePublisher",
+        "http:approvePublisherPublicationDomain"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/smoke.go",
+          "symbol": "executeSmoke"
+        },
+        {
+          "path": "test/functional/deadline.py"
+        },
+        {
+          "path": "test/functional/contracts/main.go",
+          "symbol": "run"
+        },
+        {
+          "path": "test/functional/journeys.py"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
+        }
+      ],
+      "reason": "Owned namespace create/update/readback/stale/replay/audit checks reject changed-body and changed-If-Match reuse without replacing the retained response. They join shipped namespace/Publisher smoke and shared lower-level pagination/authorization tests.",
+      "success": "Create/update namespace and Publisher with current ETags; approve the publication domain.",
+      "rejection": "Reject removal of an approved domain through ordinary update; preserve safe timeout and revision failures.",
+      "recovery": "Replay mutations after recreation; drain retains the exact timeout response and a new key can succeed.",
+      "gaps": []
+    },
+    {
+      "id": "administration-gaps",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listRoleAssignments",
+        "http:revokeRoleAssignment",
+        "http:getNamespace",
+        "http:listPublishers",
+        "http:getPublisher",
+        "http:listResources"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/admin_handler_pagination_functional_test.go",
+          "symbol": "TestAdministrationHandlersResumeEveryDatabaseBoundList"
+        },
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/platform/database/postgres_integration_test.go",
+          "symbol": "TestPostgresDurabilityRLSLeasesAndStores"
+        }
+      ],
+      "reason": "Core journey reads Publishers, denies cached success after scoped contributor revocation, restores exact replay without duplicate creation when the grant returns, and deletes the unused Resource; credential-phase recreation is followed by a fresh revoked-authority denial. Shared cursor and last-grant matrices remain below packaging.",
+      "success": "Read exact administered records, traverse bounded lists and revoke an existing role.",
+      "rejection": "Prove revoked authority and tenant isolation, stale revisions and cursor binding.",
+      "recovery": "After restart, revocation and retained records must agree with the committed command.",
+      "gaps": []
+    },
+    {
+      "id": "governance-smoke",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:createResource",
+        "http:getResource",
+        "http:deleteResource",
+        "http:createResourceVersion",
+        "http:getResourceVersion",
+        "http:getVersionRevision",
+        "http:validateVersionRevision",
+        "http:createCatalogListing",
+        "http:createListingRevision",
+        "http:submitListingForReview",
+        "http:approveReviewSubmission",
+        "http:publishCatalogListing",
+        "http:getArtifactContent"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/smoke.go",
+          "symbol": "executeSmoke"
+        },
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/catalog/service_test.go",
+          "symbol": "TestGovernedLifecycleForAllSupportedKinds"
+        },
+        {
+          "path": "internal/catalog/service_guardrails_test.go",
+          "symbol": "TestHTTPSRepresentationsBindExactBytesRenewAndRequireRevisionOnDrift"
+        },
+        {
+          "path": "internal/platform/database/postgres_integration_test.go",
+          "symbol": "TestPostgresDurabilityRLSLeasesAndStores"
+        },
+        {
+          "path": "internal/platform/httpserver/plugin_functional_test.go",
+          "symbol": "TestHTTPPluginArchiveContractReplayAndDisclosure"
+        },
+        {
+          "path": "internal/platform/database/plugin_integration_test.go",
+          "symbol": "TestPostgresPluginInspectionRoundTripAndIsolation"
+        },
+        {
+          "path": "internal/publication/plugin_test.go",
+          "symbol": "TestPluginDiscoveryPreservesArchiveIdentityInBothProfiles"
+        }
+      ],
+      "reason": "Three-kind packaged smoke plus archive/handoff, changed immutable revision and exact readback. Plugin resource creation, replay, isolation, invalid checksum/private URL admission and draft deletion also run in the container core journey. Positive Plugin archives use owned-TLS HTTP contracts, exact-role PostgreSQL review/release/search and independent in-process peer discovery/adoption tests. PostgreSQL revalidation persists drift/recovery evidence without rewriting inspection or approved evidence. Production public archive routing has no private fixture exception.",
+      "success": "Create Agent, MCP Server and Skill resources in packaged smoke, validate bounded representations, independently approve and publish; create and delete an unpublished Plugin draft. Positive Plugin archive lifecycle variants are covered by the named HTTP, PostgreSQL and publication tests, not the packaged smoke dataset.",
+      "rejection": "Reject self-approval and cross-tenant resource reads; deleted draft/version/revision reads must be absent. Packaged invalid Skill frontmatter retains blocked evidence without partial inventory or archive bytes; repeated submission fails with 422 and creates no review records or listing changes. Plugin null, empty, malformed and non-string checksums fail with 400; private archive URLs fail with 422 without persisting a version.",
+      "recovery": "Recreated processes replay the same IDs, documents, validation and publication results. Packaged failed-Skill revalidation remains blocked; corrective version and listing revisions proceed through review and publication while preserving failed history and rejecting stale appends. A corrected candidate cannot silently retarget a listing bound to invalid evidence. PostgreSQL Plugin tests retain original inspection and approved evidence across checksum drift/recovery, reject sealed-version and stale-revision writes, and persist a changed archive under a new draft version without changing the published revision.",
+      "gaps": []
+    },
+    {
+      "id": "governance-transitions",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:createVersionRevision",
+        "http:getCatalogListing",
+        "http:getListingRevision",
+        "http:getReviewSubmission",
+        "http:requestReviewChanges",
+        "http:rejectReviewSubmission",
+        "http:getListingRelease",
+        "http:deprecateListingRelease",
+        "http:retireListingRelease",
+        "http:supersedeListingRelease",
+        "http:revokeListingRelease",
+        "http:revokePublisherPublicationDomain"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
+        },
+        {
+          "path": "internal/platform/httpserver/guardrails_functional_test.go",
+          "symbol": "TestHTTPPublicationAndPublicDiscoveryRoundTrip"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/platform/database/postgres_integration_test.go",
+          "symbol": "TestPostgresDurabilityRLSLeasesAndStores"
+        }
+      ],
+      "reason": "Packaged review changes/rejection, release deprecation/supersession/retirement/revocation and publisher-domain withdrawal assert persisted state, exact replay and classified audit. Post-recreation checkpoint verifies release state and public absence; lower-level tests own the complete transition matrix.",
+      "success": "Read immutable evidence, append revisions, request changes/reject review and exercise release lifecycle plus domain revocation.",
+      "rejection": "Reject stale or terminal transitions and invalid deletion; do not mutate sealed history.",
+      "recovery": "Retain transitions after restart and withdraw affected active public snapshots atomically.",
+      "gaps": []
+    },
+    {
+      "id": "catalog-search-smoke",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:searchCatalog"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/smoke.go",
+          "symbol": "executeSmoke"
+        },
+        {
+          "path": "test/functional/federation.py"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/catalog/unified_search_test.go",
+          "symbol": "TestUnifiedCatalogSearchMergesDurableResultsAndDoesNotContinueLiveResults"
+        },
+        {
+          "path": "internal/platform/database/postgres_integration_test.go",
+          "symbol": "TestPostgresDurabilityRLSLeasesAndStores"
+        },
+        {
+          "path": "test/functional/peers.py"
+        }
+      ],
+      "reason": "Packaged local/indexed/live merge, filtered signed continuation and partial failure/recovery share named lower-level authority, generation, fanout and page-bound tests.",
+      "success": "Return authorized local and indexed records with deterministic ranking, filtering and bounded cursors.",
+      "rejection": "Exclude another tenant and namespace-private records without grants; reject tampered cursors.",
+      "recovery": "Repeated or continued searches must respect generation changes and retained source state.",
+      "gaps": []
+    },
+    {
+      "id": "catalog-read-gaps",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:browseCatalog",
+        "http:getCatalogRecord",
+        "http:exploreCatalog"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/platform/database/postgres_integration_test.go",
+          "symbol": "TestPostgresDurabilityRLSLeasesAndStores"
+        }
+      ],
+      "reason": "The three-kind packaged seed is browsed one record per page, matched by exact release lookup and faceted; cross-tenant and cursor tampering fail. Existing recreation replays the same seed before these checks.",
+      "success": "Browse, read exact records and facet authorized results.",
+      "rejection": "Deny cross-tenant/private records and malformed query/cursor input.",
+      "recovery": "Retained records and facets remain consistent after process recreation.",
+      "gaps": []
+    },
+    {
+      "id": "publication-smoke",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:buildPublicationSnapshot",
+        "http:activatePublicationSnapshot"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/smoke.go",
+          "symbol": "executeSmoke"
+        },
+        {
+          "path": "test/functional/restore.sh"
+        },
+        {
+          "path": "test/functional/backup_restore.py"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/publication/audit_evidence_test.go",
+          "symbol": "TestPublicationLifecycleSeparatesAuditOnlyCandidateFromPublicTransitions"
+        },
+        {
+          "path": "internal/platform/database/postgres_integration_test.go",
+          "symbol": "TestPostgresDurabilityRLSLeasesAndStores"
+        },
+        {
+          "path": "test/functional/peers.py"
+        }
+      ],
+      "reason": "Packaged candidate/activation replay, safety withdrawal and public validators join exact PostgreSQL atomicity and lower-level eligibility/event classification tests.",
+      "success": "Build and activate an eligible immutable audience-scoped snapshot.",
+      "rejection": "Reject ineligible or stale activation and preserve active state on failed construction.",
+      "recovery": "Preserve document identity and exact activation replay through restart and restore preflight.",
+      "gaps": []
+    },
+    {
+      "id": "publication-history",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listPublicationHosts",
+        "http:listPublicationSnapshots",
+        "http:getPublicationSnapshot",
+        "http:rollbackPublicationSnapshot",
+        "http:unpublishCatalog"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/guardrails_functional_test.go",
+          "symbol": "TestHTTPPublicationAndPublicDiscoveryRoundTrip"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "internal/publication/manager_guardrails_test.go",
+          "symbol": "TestPublicationSnapshotLifecycleAndArtifactAllowlist"
+        },
+        {
+          "path": "internal/platform/database/postgres_integration_test.go",
+          "symbol": "TestPostgresDurabilityRLSLeasesAndStores"
+        }
+      ],
+      "reason": "Packaged bounded history, exact snapshot, rollback and unpublish assert audit and public validators; subsequent lifecycle withdrawal and post-recreation public absence prove durable removal. Full stale/host/eligibility combinations remain in the owning tests.",
+      "success": "Read bounded history, roll back an eligible snapshot and explicitly unpublish.",
+      "rejection": "Reject invalid rollback eligibility, stale revisions and wrong tenant/host.",
+      "recovery": "Retired and restored state and public absence must survive restart without rewriting snapshots.",
+      "gaps": []
+    },
+    {
+      "id": "public-discovery",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:getARDManifest",
+        "http:getAICatalog",
+        "http:searchARDRegistry",
+        "http:exploreARDRegistry",
+        "http:listARDRegistryEntries",
+        "http:getPublicArtifact"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/smoke.go",
+          "symbol": "executeSmoke"
+        },
+        {
+          "path": "Makefile"
+        },
+        {
+          "path": "internal/platform/httpserver/ard_conformance_functional_test.go",
+          "symbol": "TestARDAutoSearchTraversesEveryLocalResultAndQueriesLiveOnce"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "test/functional/oidc.py"
+        },
+        {
+          "path": "internal/federation/controlled_federation_test.go"
+        },
+        {
+          "path": "test/functional/peers.py"
+        }
+      ],
+      "reason": "Anonymous conformance plus authenticated none/referrals/auto traversal, local continuation, live failure headers and independent-token host/cache isolation. Exact-local collision, hop, fanout and loop matrices remain in named controlled tests because they add no separate process or transport boundary.",
+      "success": "Serve active profile-specific snapshots, exact public document bytes, Search/Explore/List and validators.",
+      "rejection": "No drafts, private evidence, token-widened anonymous scope or ambiguous host selection.",
+      "recovery": "Snapshots and validators persist; failed/partial source work cannot withdraw the last complete view.",
+      "gaps": []
+    },
+    {
+      "id": "source-sync-smoke",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:inspectFederationSource",
+        "http:connectFederationSource",
+        "http:getFederationSource",
+        "http:syncFederationSource",
+        "http:listFederationSourceSnapshots",
+        "http:listObservations",
+        "http:listObservationOccurrences",
+        "http:getJob"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/federation.py"
+        },
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPFederationLifecycleAndEvidence"
+        },
+        {
+          "path": "test/minikube/topology.go"
+        },
+        {
+          "path": "test/functional/credentials.py"
+        },
+        {
+          "path": "internal/platform/fetcher/router_functional_test.go"
+        },
+        {
+          "path": "test/functional/contracts/main.go"
+        },
+        {
+          "path": "test/functional/peers.py"
+        }
+      ],
+      "reason": "Owned private HTTPS Registry List traversal/conditional retry and API/worker bearer, API-key and mTLS mounts, rotation and revocation. Origin/redirect/credential-race permutations remain in the real-TLS router tests. The opt-in peer profile joins two independent Catalog deployments over their real published hybrid manifest, including update/removal, failure preservation, recovery and source credentials.",
+      "success": "Inspect/connect a Registry, sync and read bounded snapshots, observations, occurrences and the resulting Job.",
+      "rejection": "Refuse changed/invalid source evidence and preserve the last complete view on partial failure.",
+      "recovery": "Retry after fixture recovery; O-05 proves worker lease takeover and deduplication.",
+      "gaps": []
+    },
+    {
+      "id": "source-administration",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:getFederationSourceInspection",
+        "http:listFederationSources",
+        "http:updateFederationSource",
+        "http:removeFederationSource",
+        "http:previewFederationSourceChange",
+        "http:testFederationSource",
+        "http:pauseFederationSource",
+        "http:resumeFederationSource",
+        "http:getFederationSourceSnapshot",
+        "http:getObservationGroup",
+        "http:getRawObservation",
+        "http:adoptObservation",
+        "http:searchObservations",
+        "http:liveFederatedSearch",
+        "http:listJobs",
+        "http:cancelJob",
+        "http:retryJob"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPFederationLifecycleAndEvidence"
+        },
+        {
+          "path": "internal/platform/httpserver/admin_handler_pagination_functional_test.go",
+          "symbol": "TestObservationSearchResumesItsBodyBoundCursor"
+        },
+        {
+          "path": "test/functional/core.py"
+        },
+        {
+          "path": "test/functional/operators.py"
+        },
+        {
+          "path": "internal/platform/database/postgres_integration_test.go",
+          "symbol": "TestPostgresDurabilityRLSLeasesAndStores"
+        }
+      ],
+      "reason": "Owned source inspection/test/preview/update/pause/resume/removal, raw/group/occurrence evidence and private adoption; queued cancellation, upstream refusal and successful manual Job retry. Current-protocol orphan recovery and post-recreation provenance checks join exact PostgreSQL/RLS/lease matrices.",
+      "success": "Preview/apply source changes, pause/resume/remove safely, read exact evidence, adopt a private draft and operate Jobs.",
+      "rejection": "Preserve source-admin plus contributor authorization, tenant boundaries, current occurrence checks and terminal Job rules.",
+      "recovery": "Retain source intent and adoption provenance; interrupted work resolves through leases and exact replay.",
+      "gaps": []
+    },
+    {
+      "id": "audit-export",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listAuditEvents",
+        "http:exportAuditEvents"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/audit.py"
+        },
+        {
+          "path": "test/functional/restore.sh"
+        },
+        {
+          "path": "internal/platform/httpserver/admin_handler_pagination_functional_test.go",
+          "symbol": "TestAuditCursorBindsEveryNormalizedFilter"
+        },
+        {
+          "path": "internal/audit/audit_test.go"
+        }
+      ],
+      "reason": "The bounded container export/replay/restored comparison binds API exchanges to method-aware schemas. Cursor/overflow/hostile-file permutations remain in the owning bounded API/export tests.",
+      "success": "Export a bounded selected range with deterministic manifest and required access evidence.",
+      "rejection": "Reject missing ranges, insufficient roles and cross-tenant access.",
+      "recovery": "Replay produces no extra export event; isolated comparison verifies the retained range.",
+      "gaps": []
+    },
+    {
+      "id": "optional-webhooks",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:listWebhooks",
+        "http:createWebhook",
+        "http:getWebhook",
+        "http:updateWebhook",
+        "http:disableWebhook",
+        "http:rotateWebhookSecret",
+        "http:testWebhook",
+        "http:listWebhookDeliveries",
+        "http:getWebhookReconciliation"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/webhooks_functional_test.go",
+          "symbol": "TestHTTPWebhookLifecycleAndTenantIsolation"
+        },
+        {
+          "path": "internal/webhook/webhook_test.go"
+        },
+        {
+          "path": "internal/platform/database/webhook_audit_integration_test.go",
+          "symbol": "TestPostgresWebhookAuditsCommitWithStateAndProtectPrivateReads"
+        },
+        {
+          "path": "internal/platform/database/webhook_claim_integration_test.go",
+          "symbol": "TestWebhookReplacementWorkerCommitsWhileOriginalSendIsPaused"
+        },
+        {
+          "path": "internal/platform/database/webhook_claim_integration_test.go",
+          "symbol": "TestWebhookClaimExpiryAfterDatabaseLockWait"
+        },
+        {
+          "path": "internal/platform/database/webhook_claim_integration_test.go",
+          "symbol": "TestWebhookHTTPSPostgresRetryAndAcknowledgementRecovery"
+        },
+        {
+          "path": "internal/platform/database/webhook_claim_coverage_integration_test.go",
+          "symbol": "TestWebhookClaimPersistenceFailuresPreserveEvidence"
+        },
+        {
+          "path": "internal/platform/database/webhook_claim_coverage_integration_test.go",
+          "symbol": "TestWebhookEndpointRejectedWritesAreAtomic"
+        },
+        {
+          "path": "internal/webhook/coverage_test.go",
+          "symbol": "TestDispatcherSchedulesInFutureAfterOutcomePersistencePause"
+        },
+        {
+          "path": "internal/platform/webhooksender/policy_functional_test.go"
+        },
+        {
+          "path": "test/functional/webhooks.py"
+        },
+        {
+          "path": "test/functional/publication_report.py"
+        },
+        {
+          "path": "test/minikube/webhooks.go",
+          "symbol": "verifyWebhooks"
+        },
+        {
+          "path": "internal/platform/database/webhook_notification_integration_test.go"
+        },
+        {
+          "path": "internal/platform/database/webhook_housekeeping_integration_test.go"
+        },
+        {
+          "path": "test/functional/response_contract.py"
+        },
+        {
+          "path": "test/functional/contracts/main.go"
+        }
+      ],
+      "reason": "The thirteen-case enabled-webhook profile validates API exchanges by method, route, status and media type. It covers delivery, keys, capacity, retention and the real publication-report receiver.",
+      "success": "Prove signed HTTPS delivery, lifecycle, retry classification and bounded evidence.",
+      "rejection": "Deny tenant leaks, unsafe destinations, bad keys and invalid transitions; disabled routes stay absent.",
+      "recovery": "Qualify duplicate delivery, key replacement, rollout, lease recovery and retention.",
+      "gaps": []
+    },
+    {
+      "id": "worker-health",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "worker:GET /startupz",
+        "worker:GET /livez",
+        "worker:GET /readyz"
+      ],
+      "evidence": [
+        {
+          "path": "Makefile"
+        },
+        {
+          "path": "test/minikube/scenario.go"
+        },
+        {
+          "path": "internal/platform/operations/server_test.go",
+          "symbol": "TestWorkerOperationsHealthLifecycleAndIsolation"
+        },
+        {
+          "path": "test/functional/operations.py"
+        }
+      ],
+      "reason": "Existing private shipped probes cover startup/liveness/readiness through drain, read-only sessions and dependency loss/recovery; fixed listener method/query/isolation negatives remain in the operations tests.",
+      "success": "Observe startup, process liveness and role-specific PostgreSQL readiness on the separate listener.",
+      "rejection": "Reject invalid operations queries; never expose product routes on this listener.",
+      "recovery": "Readiness tracks drain, read-only sessions and dependency recovery without liveness restart loops.",
+      "gaps": []
+    },
+    {
+      "id": "worker-observability",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "worker:GET /status",
+        "worker:GET /metrics",
+        "worker:GET /version"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/webhooks.py"
+        },
+        {
+          "path": "internal/platform/operations/server_test.go",
+          "symbol": "TestWorkerOperationsHealthLifecycleAndIsolation"
+        },
+        {
+          "path": "test/performance/runner.py"
+        },
+        {
+          "path": "test/minikube/instrumentation.go",
+          "symbol": "verifyInstrumentation"
+        },
+        {
+          "path": "test/functional/operations.py"
+        }
+      ],
+      "reason": "Private loopback-only status/version assertions bind build, fixed fields and dependency recovery; existing metrics and F-08 receiver degradation cover their distinct boundaries. Listener rejection/redaction and metric reset semantics remain in their owning tests.",
+      "success": "Read safe fixed component state, bounded metrics and the worker build identity.",
+      "rejection": "Reject invalid queries/methods; expose no secrets, high-cardinality labels or product APIs.",
+      "recovery": "Observe degradation/recovery and counters across a deliberate worker restart.",
+      "gaps": []
+    },
+    {
+      "id": "process-topology",
+      "disposition": "minikube",
+      "status": "covered",
+      "surfaces": [
+        "catalogd:api",
+        "catalogd:worker"
+      ],
+      "evidence": [
+        {
+          "path": "test/minikube/topology.go"
+        },
+        {
+          "path": "test/minikube/scenario.go"
+        },
+        {
+          "path": "test/functional/housekeeping.sh"
+        },
+        {
+          "path": "test/functional/oidc-trust.compose.yaml"
+        },
+        {
+          "path": "internal/platform/runtime/runtime_test.go"
+        },
+        {
+          "path": "internal/platform/runtime/runtime_functional_test.go"
+        }
+      ],
+      "reason": "Compose covers role startup, drain, recreation and housekeeping. Minikube tests cover replicas, lease takeover, NetworkPolicy and node loss.",
+      "success": "Run separate exact API/worker roles, bounded housekeeping, source/Job/outbox loops and tokenless Kubernetes identities.",
+      "rejection": "Reject unsafe roles, invalid enabled capabilities and untrusted/missing issuer trust.",
+      "recovery": "Exercise cross-replica replay, Pod loss, drain, lease recovery, node loss and safe housekeeping.",
+      "gaps": []
+    },
+    {
+      "id": "development-process",
+      "disposition": "development-only",
+      "status": "covered",
+      "surfaces": [
+        "catalogd:all"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogd/main_test.go"
+        },
+        {
+          "path": "internal/platform/runtime/runtime_test.go"
+        },
+        {
+          "path": "internal/platform/runtime/runtime_functional_test.go"
+        }
+      ],
+      "reason": "The combined role is deliberately in-memory development only; PostgreSQL production uses separate roles.",
+      "success": "Compose the development API and worker loops over the same in-memory state.",
+      "rejection": "Reject PostgreSQL combined-role configuration and invalid roles.",
+      "recovery": "Graceful cancellation is required; durable restart is not a claim for the memory-only role.",
+      "gaps": []
+    },
+    {
+      "id": "binary-help-version",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "catalogd:help",
+        "catalogd:version",
+        "catalogctl:help",
+        "catalogctl:version"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestTopLevelHelpVersionAndUnknownCommand"
+        },
+        {
+          "path": "cmd/catalogd/main_test.go"
+        },
+        {
+          "path": "Makefile"
+        }
+      ],
+      "reason": "Static help/alias handling has no persistence or transport composition; container-verify separately checks both built version commands.",
+      "success": "Canonical help and version commands and documented aliases report the expected build.",
+      "rejection": "Unknown top-level command and malformed invocation are rejected by command tests.",
+      "recovery": "No mutable state or recovery requirement; candidate binary inspection remains O-07.",
+      "gaps": []
+    },
+    {
+      "id": "static-operator-files",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:config validate",
+        "catalogctl:audit verify-export",
+        "catalogctl:audit bind-manifest",
+        "catalogctl:trust verify-bundle"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestAuditExportVerifierCommandsAreBoundedAndNetworkFree"
+        },
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestStaticConfigurationValidationRejectsPostgresCombinedRoleWithoutConnecting"
+        },
+        {
+          "path": "cmd/catalogctl/trust_test.go",
+          "symbol": "TestOfflineTrustCommand"
+        },
+        {
+          "path": "cmd/catalogctl/trust_functional_test.go",
+          "symbol": "TestTrustBundleCLIProcess"
+        }
+      ],
+      "reason": "These operations process bounded local files/configuration without persistent mutation or network; command tests own the distinct behavior, while binary packaging is separately verified.",
+      "success": "Validate strict role configuration and bounded audit-file consistency and recovery-point binding. Offline ANS verification checks authentic signed evidence at an explicit assessment time.",
+      "rejection": "Reject malformed, duplicate-key, oversized or mismatched files and invalid role configuration.",
+      "recovery": "Repeat the same file operation deterministically; no database or daemon recovery is applicable.",
+      "gaps": []
+    },
+    {
+      "id": "native-release-export",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:exportVersionRevisionDraft",
+        "catalogctl:export",
+        "catalogctl:export preview",
+        "catalogctl:export batch"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/draft_export_test.go",
+          "symbol": "TestDraftExportRetainedTextAndAudits"
+        },
+        {
+          "path": "internal/platform/httpserver/draft_export_test.go",
+          "symbol": "TestDraftExportRefusesBeforeAttachment"
+        },
+        {
+          "path": "cmd/catalogctl/export_draft_functional_test.go",
+          "symbol": "TestExportDraftCLIEndToEnd"
+        },
+        {
+          "path": "cmd/catalogctl/export_test.go",
+          "symbol": "TestExportInlineRawSelectionAndDigestScopes"
+        },
+        {
+          "path": "cmd/catalogctl/export_test.go",
+          "symbol": "TestExportReferencesRetainInspectionWithoutFetching"
+        },
+        {
+          "path": "cmd/catalogctl/export_transport_test.go",
+          "symbol": "TestExportArtifactIntegrityBoundsAndCleanup"
+        },
+        {
+          "path": "cmd/catalogctl/export_functional_test.go",
+          "symbol": "TestExportCLIEndToEnd"
+        },
+        {
+          "path": "cmd/catalogctl/export_functional_test.go",
+          "symbol": "TestExportLocalTLSFaultsAndDeadline"
+        },
+        {
+          "path": "cmd/catalogctl/export_batch_test.go",
+          "symbol": "TestExportPreviewPagingAndBounds"
+        },
+        {
+          "path": "cmd/catalogctl/export_batch_test.go",
+          "symbol": "TestExportBatchPartialFailureAndSharedDocuments"
+        },
+        {
+          "path": "cmd/catalogctl/export_functional_test.go",
+          "symbol": "TestExportBatchCancellationRetainsReport"
+        },
+        {
+          "path": "test/functional/export_integration_test.go",
+          "symbol": "qualifyProcessExport"
+        }
+      ],
+      "reason": "Units qualify exact identities, current permission, required audits, local-only paging, limits, lossless text, private files and artifact integrity. The compiled CLI qualifies native and reusable exports for all four kinds against an owned Catalog. PostgreSQL process tests verify delivered jsonb precision, exact reusable-file reads, separate digests and explicit native re-import. The packaged Compose runner has no export phase.",
+      "success": "Save a selected native representation or a reusable file with all representations and optional exact Listing metadata. Preserve native text and separate digest scopes. Freeze bounded local selections before batch reads; deduplicate exact releases only.",
+      "rejection": "Refuse conflicting selections, changed origins/identities, malformed pages, repeated cursors, over-limit responses, ambiguous representations, mismatched integrity, permission loss, unsafe output paths and overwrites.",
+      "recovery": "Record complete, reference-only, denied, failed and unattempted outcomes. Preserve earlier successful files and a bounded final report after cancellation. Missing completion markers identify interrupted output; retries use a new directory. Incomplete selections stay incomplete. No automatic network retry or Catalog mutation occurs.",
+      "gaps": []
+    },
+    {
+      "id": "native-draft-preview",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:import preview",
+        "catalogctl:import apply",
+        "catalogctl:import resume"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/import_test.go",
+          "symbol": "TestImportPreviewRequestShapesAndLosslessValues"
+        },
+        {
+          "path": "cmd/catalogctl/import_test.go",
+          "symbol": "TestImportSkillDirectoryPreservesInventoryAndDoesNotExecute"
+        },
+        {
+          "path": "cmd/catalogctl/import_functional_test.go",
+          "symbol": "TestImportPreviewCLIProcess"
+        },
+        {
+          "path": "cmd/catalogctl/import_apply_test.go",
+          "symbol": "TestImportPreparedSequenceWithControlledTransport"
+        },
+        {
+          "path": "cmd/catalogctl/import_apply_functional_test.go",
+          "symbol": "TestImportApplyHTTPRecoveryAtEveryStep"
+        },
+        {
+          "path": "cmd/catalogctl/import_apply_functional_test.go",
+          "symbol": "TestImportApplyCLIProcessFourKinds"
+        },
+        {
+          "path": "cmd/catalogctl/import_batch_test.go",
+          "symbol": "TestImportBatchBoundsAndWholeIntent"
+        },
+        {
+          "path": "cmd/catalogctl/import_batch_test.go",
+          "symbol": "TestImportBatchLocalFailureBeforeRemoteWork"
+        },
+        {
+          "path": "cmd/catalogctl/import_batch_functional_test.go",
+          "symbol": "TestImportBatchHTTPRecoveryAtLaterSteps"
+        },
+        {
+          "path": "cmd/catalogctl/import_batch_functional_test.go",
+          "symbol": "TestImportBatchCancellationPreservesEarlierProgress"
+        },
+        {
+          "path": "cmd/catalogctl/import_batch_functional_test.go",
+          "symbol": "TestImportBatchResumeRequiresRetainedPrefixReads"
+        },
+        {
+          "path": "test/functional/import_integration_test.go",
+          "symbol": "qualifyProcessImport"
+        }
+      ],
+      "reason": "Isolated request/receipt/batch units and actual HTTP/CLI-process controls qualify ordered import. A compiled CLI uses the real memory-backed API for all four kinds, complete Skill evidence and owned HTTPS Plugin retrieval/refusal. The owned PostgreSQL process gate qualifies two related cross-namespace drafts, committed response loss, cross-process exact replay and numeric extension retention; the packaged Compose runner has no import phase.",
+      "success": "Preserve exact native data and complete Skill packages; create one to 64 ordered drafts through four existing commands per item and verify exact retained IDs.",
+      "rejection": "Reject ambiguous controls, unsafe paths/packages, malformed native content and encoded-size overflow; produce safe diagnostics and a nonzero exit status.",
+      "recovery": "Resume unchanged input with original keys within the conservative replay window; completed reruns send no writes. Refuse changed principal/whole-manifest input, expired replay, collisions and stale ETags. Stop each invocation on pending responses and preserve the original key.",
+      "gaps": []
+    },
+    {
+      "id": "migration-and-restore",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:migrate plan",
+        "catalogctl:migrate apply",
+        "catalogctl:restore verify",
+        "catalogctl:repair search-projections",
+        "catalogctl:audit compare-restore",
+        "catalogctl:profiles verify"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/backup_restore.py"
+        },
+        {
+          "path": "test/functional/restore.sh"
+        },
+        {
+          "path": "compose.yaml"
+        },
+        {
+          "path": "test/minikube/scenario.go"
+        }
+      ],
+      "reason": "The packaged migration/operator boundary is already exercised; exact grant/eligibility matrices stay in PostgreSQL integration tests.",
+      "success": "Fresh/repeated migration, checksum/profile verification, bounded restore traversal, drift repair and restored audit comparison.",
+      "rejection": "Refuse unknown migrations, invalid retained snapshots and mismatched restore evidence without changing active state.",
+      "recovery": "The focused backup profile restores into fresh PostgreSQL, compares every fixture table and both tenant audit ranges before runtime startup, then proves retained reads/replay and Job/webhook recovery with the source database stopped. Plugin inspection and private saved items must match with the archive server stopped. Separate corruption cases repair only selected derived state before re-verification.",
+      "gaps": []
+    },
+    {
+      "id": "identity-provisioning",
+      "disposition": "minikube",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:identity provision"
+      ],
+      "evidence": [
+        {
+          "path": "test/minikube/resources.go"
+        },
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestIdentityProvisioningPlanningIsDeterministicAndNetworkFree"
+        },
+        {
+          "path": "test/functional/oidc.py"
+        },
+        {
+          "path": "test/minikube/scenario.go"
+        },
+        {
+          "path": "internal/platform/database/identity_provision_test.go"
+        }
+      ],
+      "reason": "The shipped operator provisions and repeat-checks exact real-provider subjects in dedicated/shared modes. Existing Minikube human provisioning and lower-level invalid-input/authority checks complete the actor-kind boundary without a login flow.",
+      "success": "Provision exact realm, tenant, human/service membership and role bindings.",
+      "rejection": "Reject invalid mappings, issuer mismatches and unauthorized grants.",
+      "recovery": "Repeat provisioning safely over retained state without widening authority.",
+      "gaps": []
+    },
+    {
+      "id": "development-provisioning",
+      "disposition": "development-only",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:identity provision-development",
+        "catalogctl:bootstrap"
+      ],
+      "evidence": [
+        {
+          "path": "compose.yaml"
+        },
+        {
+          "path": "cmd/catalogctl/main_functional_test.go",
+          "symbol": "TestLocalOperatorCommandsAndArgumentFailures"
+        },
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestLocalOperatorArgumentFailures"
+        },
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestIdentityProvisioningPlanningIsDeterministicAndNetworkFree"
+        }
+      ],
+      "reason": "Development provisioning runs in Compose; bootstrap is an explicitly development-only convenience tested in process, not production identity onboarding.",
+      "success": "Provision configured development principals and bootstrap initial metadata.",
+      "rejection": "Reject absent development authority and invalid provisioning inputs.",
+      "recovery": "Compose safely repeats development provisioning; in-memory bootstrap does not claim durable recovery.",
+      "gaps": []
+    },
+    {
+      "id": "identity-realm-operations",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:identity realms list",
+        "catalogctl:identity realms suspend",
+        "catalogctl:identity realms reactivate"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestIdentityRealmAdministrationPlanningIsBoundedAndNetworkFree"
+        },
+        {
+          "path": "test/functional/oidc.py"
+        },
+        {
+          "path": "internal/platform/database/postgres_membership_test.go",
+          "symbol": "TestIdentityRealmTransactionHelpersEnforceShutdownInterlocks"
+        }
+      ],
+      "reason": "The real-provider journey uses shipped list/suspend/reactivate commands with exact revisions, stale refusal, retained readback and token denial/recovery. The final-realm/publication shutdown interlock remains in named real-database tests; do not disable the test operator to duplicate that matrix.",
+      "success": "Page realms and suspend/reactivate exact revisions with operator attribution.",
+      "rejection": "Refuse stale revisions and unsafe final-realm suspension while discovery remains active.",
+      "recovery": "Repeat safe commands and verify realm/publication interlocks after runtime restart.",
+      "gaps": []
+    },
+    {
+      "id": "idempotency-repair",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:repair idempotency list",
+        "catalogctl:repair idempotency plan",
+        "catalogctl:repair idempotency apply"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/database/idempotency_integration_test.go",
+          "symbol": "TestAtomicCommandCrashRecoveryAndRepair"
+        },
+        {
+          "path": "internal/platform/database/idempotency_repair_test.go",
+          "symbol": "TestIdempotencyRepairPlanClassifiesOnlyInactiveProtocolTwoPendingRows"
+        },
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestRepairCommandRequiresReviewedBoundedArgumentsBeforeOpeningDatabase"
+        },
+        {
+          "path": "test/functional/operators.py"
+        }
+      ],
+      "reason": "An owned API process is interrupted behind a bounded namespace lock; shipped list/plan/apply rejects wrong/stale digests, releases only its exact protocol-v2 orphan, then permits the original command and exact replay with one audit. Active/completed/cross-tenant and unsupported-protocol matrices remain in the database tests.",
+      "success": "Inventory, plan and release an exact orphaned protocol-v2 reservation.",
+      "rejection": "Refuse stale plans, active or already completed/released reservations and another tenant. Unsupported protocols are rejected by current schema and repair unit tests, not a packaged predecessor-compatibility scenario.",
+      "recovery": "Re-plan after release, refuse a stale second apply without duplicate audit, then retry the original current-protocol command and verify one retained domain effect and replay.",
+      "gaps": []
+    },
+    {
+      "id": "webhook-key-maintenance",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:repair webhook-secrets"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/webhook_secrets_test.go",
+          "symbol": "TestWebhookMaintenanceKeyFilesAndCommandValidation"
+        },
+        {
+          "path": "internal/platform/database/webhook_reencrypt_integration_test.go",
+          "symbol": "TestWebhookReencryptionMaintenanceResumesWithoutChangingHistory"
+        },
+        {
+          "path": "internal/platform/database/webhook_reencrypt_integration_test.go",
+          "symbol": "TestWebhookReencryptionRollsBackOnAuditFailure"
+        },
+        {
+          "path": "test/functional/webhooks.py"
+        }
+      ],
+      "reason": "The owned enabled profile runs the shipped stopped-runtime replacement command, verifies repeat safety and old-backup key requirements, then restarts both roles and proves signed delivery. Exact key/batch interruption, authority, plaintext preservation and rollback matrices remain in focused CLI/PostgreSQL tests.",
+      "success": "Verify and re-encrypt current and overlapping signing material without changing endpoint revisions or creating notifications.",
+      "rejection": "Reject runtime identities, malformed keys, unsafe arguments and invalid retained secrets; audit failure rolls back the batch.",
+      "recovery": "Repeat committed batches safely and resume from their cursor while both roles remain stopped.",
+      "gaps": []
+    },
+    {
+      "id": "operator-diagnostics",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:diagnostics"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestDiagnosticWorkLimitsMatchRuntimeEnforcement"
+        },
+        {
+          "path": "cmd/catalogctl/main_functional_test.go",
+          "symbol": "TestLocalOperatorCommandsAndArgumentFailures"
+        },
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestLocalOperatorArgumentFailures"
+        },
+        {
+          "path": "test/functional/operations.py"
+        },
+        {
+          "path": "cmd/catalogctl/main_test.go"
+        }
+      ],
+      "reason": "Shipped API/worker diagnostics assert fixed build/role/schema fields and redaction; private runtime status covers actual dependency degradation/recovery. Static CLI/configuration rejection permutations remain below packaging.",
+      "success": "Run bounded API and worker diagnostics with redacted effective limits, role and dependency facts.",
+      "rejection": "Reject unsafe role/configuration inputs and leak no DSN, credentials or private documents.",
+      "recovery": "Show dependency degradation and recovery through the existing packaged fault fixture.",
+      "gaps": []
+    },
+    {
+      "id": "health-probe-command",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:probe"
+      ],
+      "evidence": [
+        {
+          "path": "compose.yaml"
+        },
+        {
+          "path": "Makefile"
+        },
+        {
+          "path": "cmd/catalogctl/main_functional_test.go",
+          "symbol": "TestLoopbackHealthProbeIsBounded"
+        },
+        {
+          "path": "cmd/catalogctl/main_test.go",
+          "symbol": "TestLoopbackHealthProbeInputFailures"
+        }
+      ],
+      "reason": "Both container health checks invoke the shipped probe, and command tests own target restriction and response bounds.",
+      "success": "Probe exact loopback startup/liveness/readiness endpoints and expected status.",
+      "rejection": "Refuse remote targets, unsupported paths/statuses, redirects and over-limit responses.",
+      "recovery": "Compose dependency/read-only/restart scenarios exercise both expected healthy and unready results.",
+      "gaps": []
+    },
+    {
+      "id": "smoke-command",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:smoke"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/smoke.go",
+          "symbol": "executeSmoke"
+        },
+        {
+          "path": "cmd/catalogctl/smoke_functional_test.go",
+          "symbol": "TestSmokeExercisesRunningService"
+        },
+        {
+          "path": "Makefile"
+        }
+      ],
+      "reason": "Compose executes the shipped catalogctl smoke binary inside the owned API container, retains safe aggregate evidence, and repeats the exact normalized result across full recreation. Minikube retains its separate host-side smoke client.",
+      "success": "Run the bounded author-to-discovery workflow using the shipped operator command.",
+      "rejection": "Reject unsafe targets and assert tenant, review and draft-deletion denials.",
+      "recovery": "Same-key complete workflow must replay the same retained result after process recreation.",
+      "gaps": []
+    },
+    {
+      "id": "authorization-administration",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:listPermissionDescriptors",
+        "http:checkCurrentPermissions",
+        "http:listCurrentAccess",
+        "http:listRoleDefinitions",
+        "http:createRoleDefinition",
+        "http:getRoleDefinition",
+        "http:updateRoleDefinition",
+        "http:archiveRoleDefinition",
+        "http:listAccessGroups",
+        "http:createAccessGroup",
+        "http:getAccessGroup",
+        "http:updateAccessGroup",
+        "http:suspendAccessGroup",
+        "http:reactivateAccessGroup",
+        "http:archiveAccessGroup",
+        "http:listRoleImpact",
+        "http:listAccessGroupMembers",
+        "http:addAccessGroupMember",
+        "http:revokeAccessGroupMember",
+        "http:listAccessAssignments",
+        "http:grantAccessAssignment",
+        "http:revokeAccessAssignment"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/authorization_administration_functional_test.go",
+          "symbol": "TestAuthorizationAdministrationHTTPContractsAndReplay"
+        },
+        {
+          "path": "internal/platform/httpserver/authorization_administration_functional_test.go",
+          "symbol": "TestAuthorizationAdministrationRejectsUntrustedBodies"
+        },
+        {
+          "path": "internal/platform/database/authorization_administration_integration_test.go",
+          "symbol": "TestPostgresAuthorizationAdministrationRealmIsolationAndSchemaGuards"
+        },
+        {
+          "path": "test/functional/process_integration_test.go",
+          "symbol": "TestPostgresProcesses"
+        },
+        {
+          "path": "internal/platform/database/authorization_administration_integration_test.go",
+          "symbol": "TestPostgresAuthorizationAdministrationRestoreGroupMembership"
+        }
+      ],
+      "reason": "Synchronous current-administrator APIs and bounded own permission views use current action/scope admission. HTTP/PostgreSQL and real-process fixtures own the complete administration matrix; packaged recovery additionally verifies retained custom roles, group paths and revoked assignments.",
+      "success": "Role/group/member/assignment creation, exact role replacement, paginated impact and own summaries with response-schema checks and replay.",
+      "rejection": "Unknown/reserved fields, malformed JSON, incomplete permissions, missing/stale If-Match, cross-tenant/realm targets and unsafe SQL transitions.",
+      "recovery": "Audit failure rollback, reversible suspension, terminal offboarding, revoke-before-archive, serialized group removal, group-only restore integrity and durable replay across API restart with current-authority denial after revocation.",
+      "gaps": []
+    },
+    {
+      "id": "listing-artwork",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:readArtwork",
+        "http:getArtworkOverride",
+        "http:setArtworkOverride",
+        "http:listArtworkOverrideHistory"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
+        },
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPFederationLifecycleAndEvidence"
+        },
+        {
+          "path": "internal/integration/artwork_functional_test.go",
+          "symbol": "TestOwnedCatalogPeerArtworkSnapshotAndAdministrativePresentation"
+        }
+      ],
+      "reason": "Optional image origins require explicit admission; owned local HTTP/TLS and PostgreSQL tests qualify the boundary without enabling image egress in default packaged profiles.",
+      "success": "Seal local artwork before revision persistence; deliver indexed/live overrides, exchange ARD and AI Catalog descriptors, and page immutable override history.",
+      "rejection": "Refuse stale authority, wrong tenant, malformed images and changed digests; suppress slots without failing resource discovery.",
+      "recovery": "Completed command replay does not refetch images; reset resumes inherited artwork and refreshed live results replace expired authority.",
+      "gaps": []
+    },
+    {
+      "id": "private-source-trust-assessments",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:requestTrustAssessment",
+        "http:getTrustAssessment",
+        "catalogctl:remote trust-request",
+        "catalogctl:remote trust-result"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/trust_functional_test.go",
+          "symbol": "TestTrustHTTPAdmissionReplayAndPrivateRead"
+        },
+        {
+          "path": "internal/platform/runtime/trust_functional_test.go",
+          "symbol": "TestTrustWorkerRetainsPrivateEvidenceAndAudit"
+        },
+        {
+          "path": "internal/platform/database/trust_integration_test.go",
+          "symbol": "TestPostgresTrustJobAtomicityFencesAndRetention"
+        },
+        {
+          "path": "cmd/catalogctl/remote_functional_test.go",
+          "symbol": "TestRemoteTrustCommandTransport"
+        }
+      ],
+      "reason": "The optional private assessment uses bounded local fixtures and exact-role PostgreSQL tests. Native ANS deployment qualification belongs to F-02 Batch 4.",
+      "success": "An exact selected entry queues one durable Job and retains original signed bytes with atomic audit evidence.",
+      "rejection": "Tenant, permission, digest, source, policy, lease and cancellation checks prevent disclosure or completion.",
+      "recovery": "Transient evidence outages retry the same Job; disabled and stale results remain historical.",
+      "gaps": []
+    },
+    {
+      "id": "human-cli-oidc",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:auth login",
+        "catalogctl:auth status",
+        "catalogctl:auth logout"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/cliauth/auth_test.go",
+          "symbol": "TestCredentialStorageLifecycle"
+        },
+        {
+          "path": "internal/platform/cliauth/login_functional_test.go",
+          "symbol": "TestLoginActualPKCEAndRotatingRefresh"
+        },
+        {
+          "path": "internal/platform/cliauth/login_functional_test.go",
+          "symbol": "TestLoginRejectsIssuerAndIdentityFaults"
+        },
+        {
+          "path": "internal/platform/cliauth/login_functional_test.go",
+          "symbol": "TestRefreshFailsClosedWithoutChangingFile"
+        },
+        {
+          "path": "cmd/catalogctl/auth_functional_test.go",
+          "symbol": "TestAuthActualCommandStatusLogoutAndNoMutationReplay"
+        },
+        {
+          "path": "catalog-ui/scripts/cli-oidc-journey.mjs"
+        }
+      ],
+      "reason": "Units qualify private storage, callback admission and explicit credential-source selection. Local functional tests use signed issuer exchanges and real membership resolution. The separate test-ui-oidc browser gate qualifies the rebuilt CLI image against local Keycloak and PostgreSQL; this is not coverage from the standard packaged Compose report.",
+      "success": "Acquire public-client Authorization Code/S256 PKCE credentials for a Catalog-accepted human and explicitly select them for remote commands. Inspect local status and remove local credentials.",
+      "rejection": "Reject forged or duplicate callbacks, incorrect issuer/client/nonce/identity, missing membership, ID-token substitution, unsafe files and mixed bearer sources. Suppress private provider diagnostics.",
+      "recovery": "Serialize and atomically replace rotating refresh tokens before a request; retain identity and origin binding. No stale-token fallback or automatic command replay after 401. Cancellation closes the callback listener.",
+      "gaps": []
+    },
+    {
+      "id": "tenant-settings",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:getTenantSettings",
+        "http:setTenantSettings"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/tenant_settings_functional_test.go",
+          "symbol": "TestTenantSettingsHTTPContractsReplayAndIsolation"
+        },
+        {
+          "path": "internal/platform/database/tenant_settings_integration_test.go",
+          "symbol": "TestPostgresTenantSettingsPolicyIsolationAndAuditRollback"
+        },
+        {
+          "path": "test/functional/tenant_settings_integration_test.go",
+          "symbol": "qualifyProcessTenantSettings"
+        }
+      ],
+      "reason": "Local HTTP and exact-role PostgreSQL tests own validation, RLS, lock admission and audit rollback. The selected native two-API/two-worker gate, populated-settings backup/restore and packaged UI gate qualify shared policy, recovery and exact command replay. These explicit gates are separate from the three standard packaged API reports.",
+      "success": "Read inherited policy, save bounded overrides and reset with exact validators.",
+      "rejection": "Deny stale, malformed, foreign-tenant and unauthorized commands without writes.",
+      "recovery": "Retry an exact command and preserve retained work after policy changes.",
+      "gaps": []
+    },
+    {
+      "id": "personal-work-and-library",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:listPersonalWork",
+        "http:listPersonalItems",
+        "http:getPersonalItem",
+        "http:createPersonalItem",
+        "http:updatePersonalItem",
+        "http:deletePersonalItem",
+        "http:resolvePersonalItem"
+      ],
+      "evidence": [
+        {
+          "path": "test/functional/backup_restore.py"
+        },
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
+        },
+        {
+          "path": "internal/platform/httpserver/server_functional_test.go",
+          "symbol": "TestHTTPFederationLifecycleAndEvidence"
+        },
+        {
+          "path": "internal/platform/httpserver/personal_functional_test.go",
+          "symbol": "TestHTTPPersonalLibraryReplayRevisionAndCursorIsolation"
+        },
+        {
+          "path": "internal/platform/httpserver/personal_functional_test.go",
+          "symbol": "TestHTTPPersonalClosedBodiesAndBounds"
+        },
+        {
+          "path": "internal/platform/httpserver/personal_functional_test.go",
+          "symbol": "TestHTTPPersonalScopeProjectionAndAdmission"
+        },
+        {
+          "path": "internal/platform/database/personal_integration_test.go",
+          "symbol": "TestPostgresPersonalLibraryOwnershipQuotaAndAtomicAudit"
+        },
+        {
+          "path": "internal/platform/database/personal_integration_test.go",
+          "symbol": "TestPostgresMyWorkExactAttributionAndQueues"
+        }
+      ],
+      "reason": "Owned HTTP and PostgreSQL fixtures qualify this family. The optional backup profile adds create/get recovery and owner denial, not every personal operation. Browser and issuer qualification remain separate.",
+      "success": "Persist private exact references and validated criteria; list bounded caller-owned work and saved items.",
+      "rejection": "Reject another owner, stale revisions, malformed criteria and missing personal.write; exclude previously released approvals.",
+      "recovery": "Reopen persisted items through a fresh store; preserve the old item on required audit failure and serialize the owner quota.",
+      "gaps": []
+    },
+    {
+      "id": "publisher-domain-verification",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:getPublisherDomainVerification",
+        "http:getPublisherDomainChallenge",
+        "http:issuePublisherDomainChallenge",
+        "http:checkPublisherDomainVerification",
+        "http:clearPublisherDomainVerification"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/publisher_verification_contract_functional_test.go",
+          "symbol": "TestHTTPPublisherVerificationContractAndReplay"
+        },
+        {
+          "path": "internal/platform/httpserver/publisher_verification_contract_functional_test.go",
+          "symbol": "TestHTTPPublisherVerificationRechecksCurrentAuthorityAfterDNS"
+        },
+        {
+          "path": "catalog-ui/tests/browser/publisher-verification.spec.ts"
+        },
+        {
+          "path": "internal/platform/database/publisher_verification_fences_integration_test.go",
+          "symbol": "TestPostgresPublisherVerificationTenantAndConcurrentFences"
+        },
+        {
+          "path": "catalog-ui/scripts/publisher-verification-journey.mjs"
+        }
+      ],
+      "reason": "HTTP, DNS, PostgreSQL and browser fixtures cover this family. The dedicated test-ui-compose gate owns enabled DNS with packaged API/worker/UI; generic functional profiles do not enable it.",
+      "success": "Read status, issue instructions, record proof, renew and clear without changing publication approval.",
+      "rejection": "Reject missing permissions, scopes, stale tags, expired challenges and authority revoked during DNS.",
+      "recovery": "Replay completed commands without another lookup, including after replacement, clearing or domain removal. Read current status separately.",
+      "gaps": []
+    },
+    {
+      "id": "catalog-content-overview",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:getResourceOverview",
+        "http:getReleaseOverview",
+        "http:getNamespaceOverview",
+        "http:getPublisherOverview",
+        "http:getIndexedOverview",
+        "http:getReviewOverview",
+        "http:getPublicationOverview",
+        "http:getSourceOverview",
+        "http:getJobOverview",
+        "http:getWebhookEndpointOverview",
+        "http:getWebhookDeliveryOverview",
+        "http:getAdministrationOverview",
+        "http:getFeedbackOverview",
+        "http:getRatingOverview"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/overview_functional_test.go",
+          "symbol": "TestOverviewHTTPContractAndPrivateAdmission"
+        },
+        {
+          "path": "internal/platform/httpserver/overview_functional_test.go",
+          "symbol": "TestOverviewHTTPEnforcesTokenScopesAndCurrentPermissions"
+        },
+        {
+          "path": "catalog-ui/scripts/packaged-test.mjs"
+        },
+        {
+          "path": "internal/platform/httpserver/collection_authorization_functional_test.go",
+          "symbol": "TestScopedDirectoryHTTPPagesAndRevocation"
+        },
+        {
+          "path": "internal/platform/database/overview_integration_test.go",
+          "symbol": "TestPostgresOverviewLocalCeilingAndIndependentReleasePopulation"
+        },
+        {
+          "path": "internal/platform/database/overview_integration_test.go",
+          "symbol": "TestPostgresIndexedOverviewBoundsContributionsBeforeDeduplication"
+        },
+        {
+          "path": "internal/platform/database/collection_authorization_integration_test.go",
+          "symbol": "TestPostgresScopedCollectionsAndPolicyContinuation"
+        },
+        {
+          "path": "internal/platform/database/review_overview_integration_test.go",
+          "symbol": "TestPostgresReviewOverviewAndUnreleasedQueueFollowRealLifecycle"
+        },
+        {
+          "path": "internal/platform/database/review_overview_integration_test.go",
+          "symbol": "TestPostgresPublicationOverviewUsesConfiguredHostSet"
+        },
+        {
+          "path": "internal/platform/database/operations_overview_integration_test.go",
+          "symbol": "TestPostgresSourceOverviewRetainsHistoryAcrossFailureAndRevision"
+        },
+        {
+          "path": "internal/platform/database/operations_overview_integration_test.go",
+          "symbol": "TestPostgresJobOverviewMatchesFamilyTargetsAndDueWork"
+        },
+        {
+          "path": "catalog-ui/tests/browser/overview.spec.ts"
+        },
+        {
+          "path": "internal/platform/runtime/overview_functional_test.go",
+          "symbol": "TestComposedMemoryOverviewKeepsJobStoreReadMethods"
+        }
+      ],
+      "reason": "Focused HTTP and PostgreSQL fixtures qualify the summaries. Owned browser workflows check exact review links, charts and configured publication metadata.",
+      "success": "Read current authorized Resources, Listing releases, directories and distinct indexed records without hydrated documents or external calls.",
+      "rejection": "Refuse missing authentication, denied tenant permissions, missing OAuth scopes and unknown query parameters. Preserve failed reads and projection repair refusals.",
+      "recovery": "Refresh after grant revocation; keep independent panels usable after one read fails. Show limited counts without an incomplete distribution or an invented identity lower bound.",
+      "gaps": []
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+# Preparation-only PostgreSQL fixture. Never use retained database volumes.
+x-postgres: &postgres
+  image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+  restart: "no"
+  mem_limit: 512m
+  cpus: 1
+  security_opt: [no-new-privileges:true]
+
+services:
+  source:
+    <<: *postgres
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: ${CATALOG_PITR_PASSWORD:?}
+    entrypoint: [bash, -ec]
+    command:
+      - |
+        install -d -m 700 -o postgres -g postgres /archive
+        exec docker-entrypoint.sh postgres \
+          -c wal_level=replica -c archive_mode=on -c hba_file=/fixture/pg_hba.conf \
+          -c 'archive_command=/bin/sh /fixture/archive.sh %p %f' \
+          -c max_wal_senders=3 -c max_replication_slots=1 \
+          -c max_wal_size=64MB -c min_wal_size=32MB \
+          -c shared_buffers=16MB -c max_connections=10
+    volumes:
+      - pitr-source:/var/lib/postgresql
+      - pitr-archive:/archive
+      - type: bind
+        source: ./pitr_archive.sh
+        target: /fixture/archive.sh
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./pitr_pg_hba.conf
+        target: /fixture/pg_hba.conf
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ../../deployments/postgres/init.sql
+        target: /docker-entrypoint-initdb.d/010-catalog-roles.sql
+        read_only: true
+        bind: {create_host_path: false}
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, catalog, -d, catalog]
+      interval: 1s
+      timeout: 2s
+      retries: 45
+  tools:
+    <<: *postgres
+    profiles: [tools]
+    entrypoint: []
+    # Keep memory-backed volumes mounted between bounded preparation commands.
+    command: [sleep, infinity]
+    environment:
+      PGHOST: source
+      PGUSER: catalog
+      PGDATABASE: catalog
+      PGPASSWORD: ${CATALOG_PITR_PASSWORD:?}
+      PGCONNECT_TIMEOUT: "3"
+    volumes:
+      - pitr-backup:/backup
+      - pitr-archive:/archive:ro
+      - pitr-restored:/restored
+      - ${CATALOG_PITR_INPUTS:?}:/inputs:ro
+  restored:
+    <<: *postgres
+    profiles: [restore]
+    # Stage only in Batch 1. Never start this service from the preparation target.
+    user: postgres
+    environment:
+      PGDATA: /var/lib/postgresql/data
+    entrypoint: [postgres]
+    command: [-D, /var/lib/postgresql/data]
+    volumes:
+      - pitr-restored:/var/lib/postgresql
+      - pitr-archive:/archive:ro
+
+networks:
+  default:
+    internal: true
+
+# Hard memory-backed filesystem limits prevent a broken archiver filling disk.
+volumes:
+  pitr-source:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=512m"}
+  pitr-backup:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=512m"}
+  pitr-archive:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=128m"}
+  pitr-restored:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=512m"}

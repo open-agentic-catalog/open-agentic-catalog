@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+  "name": "mcp-servers/everything",
+  "version": "2.0.0",
+  "description": "Unchanged Everything package 2026.8.31; locally wrapped HTTPS deployment, echo only.",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://127.0.0.1:19444/mcp",
+      "supportedProtocolVersions": [
+        "2025-11-25"
+      ],
+      "headers": [
+        {
+          "name": "X-MCP-Test-Key",
+          "description": "Read separately from the private local demo client input. Never use a Catalog token.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

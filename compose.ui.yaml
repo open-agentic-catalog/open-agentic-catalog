@@ -1,0 +1,35 @@
+# Optional loopback-only development UI. The launcher generates these inputs.
+services:
+  ui:
+    image: ${UI_IMAGE:-open-agentic-catalog-ui:dev}
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: catalog-ui/Containerfile
+      target: runtime
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-unknown}
+        SOURCE_STATE: ${SOURCE_STATE:-unknown}
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${CATALOG_UI_PORT:-4180}:8080"
+    volumes:
+      - type: bind
+        source: ${CATALOG_UI_INPUT_DIRECTORY:?Use make compose-up LOCAL_UI=on}
+        target: /config
+        read_only: true
+        bind:
+          create_host_path: false
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 20s
+    healthcheck:
+      test: [CMD, /usr/local/bin/catalog-ui, --probe]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s

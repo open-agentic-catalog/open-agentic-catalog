@@ -1,0 +1,177 @@
+{
+  "description": "Author, independently review, publish, and expose one public Agent. IDs shown in later requests stand for values returned by earlier requests.",
+  "prerequisites": [
+    "Use a disposable service with config/local.json development identities and the configured anonymous 127.0.0.1 discovery host bound to catalog.example.com. Development tokens are not production credentials.",
+    "Start with an unused default namespace slug and Agent canonical identifier. This workflow creates records and replaces the active public discovery snapshot.",
+    "Replace placeholder IDs and If-Match instructions with the IDs and ETags returned by preceding operations. Use a new idempotency key for each new command, retaining the same key and request for retries."
+  ],
+  "requests": [
+    {
+      "name": "Create namespace",
+      "actor": "local-admin",
+      "method": "POST",
+      "path": "/api/v1/namespaces",
+      "idempotencyKey": "walkthrough-namespace-1",
+      "body": {"slug": "default", "displayName": "Default"},
+      "save": {"namespaceId": "00000000-0000-7000-8000-000000000010"}
+    },
+    {
+      "name": "Create publisher",
+      "actor": "local-admin",
+      "method": "POST",
+      "path": "/api/v1/publishers",
+      "idempotencyKey": "walkthrough-publisher-1",
+      "body": {"displayName": "Example", "domains": ["catalog.example.com"]},
+      "save": {"publisherId": "00000000-0000-7000-8000-000000000011"}
+    },
+    {
+      "name": "Approve publisher publication domain",
+      "actor": "local-admin",
+      "method": "POST",
+      "path": "/api/v1/publishers/00000000-0000-7000-8000-000000000011/publication-domains/catalog.example.com:approve",
+      "idempotencyKey": "walkthrough-publisher-publication-domain-approve-1",
+      "ifMatch": "\"rev-1\"",
+      "body": {"reason": "Approved this declared domain for public Catalog publication"}
+    },
+    {
+      "name": "Create Agent resource",
+      "actor": "local-contributor",
+      "method": "POST",
+      "path": "/api/v1/resources",
+      "idempotencyKey": "walkthrough-resource-1",
+      "body": {
+        "namespaceId": "00000000-0000-7000-8000-000000000010",
+        "canonicalIdentifier": "urn:air:catalog.example.com:default:order-exception-agent",
+        "kind": "agent"
+      },
+      "save": {"resourceId": "00000000-0000-7000-8000-000000000012"}
+    },
+    {
+      "name": "Create Agent version",
+      "actor": "local-contributor",
+      "method": "POST",
+      "path": "/api/v1/resources/00000000-0000-7000-8000-000000000012/versions",
+      "idempotencyKey": "walkthrough-version-1",
+      "body": {
+        "version": "1.0.0",
+        "representations": [
+          {
+            "role": "primary",
+            "mediaType": "application/a2a-agent-card+json",
+            "data": {
+              "name": "Order exception agent",
+              "description": "Resolves delayed and blocked customer orders.",
+              "version": "1.0.0",
+              "supportedInterfaces": [
+                {
+                  "url": "https://agents.example.com/order-exceptions",
+                  "protocolBinding": "JSONRPC",
+                  "protocolVersion": "1.0"
+                }
+              ],
+              "capabilities": {},
+              "defaultInputModes": ["application/json"],
+              "defaultOutputModes": ["application/json"],
+              "skills": [
+                {
+                  "id": "resolve-order-exceptions",
+                  "name": "Resolve order exceptions",
+                  "description": "Resolves delayed and blocked customer orders",
+                  "tags": ["orders"]
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "save": {"versionRevisionId": "00000000-0000-7000-8000-000000000013"}
+    },
+    {
+      "name": "Revalidate exact Agent version revision",
+      "actor": "local-contributor",
+      "method": "POST",
+      "path": "/api/v1/version-revisions/00000000-0000-7000-8000-000000000013:validate",
+      "idempotencyKey": "walkthrough-version-validation-1",
+      "body": {}
+    },
+    {
+      "name": "Create Catalog listing",
+      "actor": "local-contributor",
+      "method": "POST",
+      "path": "/api/v1/catalog-listings",
+      "idempotencyKey": "walkthrough-listing-1",
+      "body": {
+        "namespaceId": "00000000-0000-7000-8000-000000000010",
+        "resourceId": "00000000-0000-7000-8000-000000000012"
+      },
+      "save": {"listingId": "00000000-0000-7000-8000-000000000014"}
+    },
+    {
+      "name": "Create public listing revision",
+      "actor": "local-contributor",
+      "method": "POST",
+      "path": "/api/v1/catalog-listings/00000000-0000-7000-8000-000000000014/revisions",
+      "idempotencyKey": "walkthrough-listing-revision-1",
+      "ifMatch": "\"rev-1\"",
+      "body": {
+        "versionRevisionId": "00000000-0000-7000-8000-000000000013",
+        "displayName": "Order exception agent",
+        "description": "Investigates blocked orders and coordinates the next action.",
+        "tags": ["orders", "operations"],
+        "categories": ["order management"],
+        "representativeQueries": [
+          "Resolve a blocked customer order",
+          "Investigate why an order is delayed"
+        ],
+        "publisherId": "00000000-0000-7000-8000-000000000011",
+        "license": "Apache-2.0",
+        "visibility": "public"
+      }
+    },
+    {
+      "name": "Submit exact revision for review",
+      "actor": "local-contributor",
+      "method": "POST",
+      "path": "/api/v1/catalog-listings/00000000-0000-7000-8000-000000000014/submissions",
+      "idempotencyKey": "walkthrough-submission-1",
+      "body": {},
+      "save": {"submissionId": "00000000-0000-7000-8000-000000000015"}
+    },
+    {
+      "name": "Approve as a different actor",
+      "actor": "local-reviewer",
+      "method": "POST",
+      "path": "/api/v1/review-submissions/00000000-0000-7000-8000-000000000015:approve",
+      "idempotencyKey": "walkthrough-approval-1",
+      "ifMatch": "\"rev-1\"",
+      "body": {"reason": "Independent review completed"}
+    },
+    {
+      "name": "Publish approved listing",
+      "actor": "local-publisher",
+      "method": "POST",
+      "path": "/api/v1/catalog-listings/00000000-0000-7000-8000-000000000014:publish",
+      "idempotencyKey": "walkthrough-publish-1",
+      "ifMatch": "use the current listing ETag",
+      "body": {"submissionId": "00000000-0000-7000-8000-000000000015"}
+    },
+    {
+      "name": "Build public discovery candidate",
+      "actor": "local-publisher",
+      "method": "POST",
+      "path": "/api/v1/publication/snapshots",
+      "idempotencyKey": "walkthrough-snapshot-1",
+      "body": {"host": "127.0.0.1"},
+      "save": {"snapshotId": "00000000-0000-7000-8000-000000000016"}
+    },
+    {
+      "name": "Activate public discovery snapshot",
+      "actor": "local-publisher",
+      "method": "POST",
+      "path": "/api/v1/publication/snapshots/00000000-0000-7000-8000-000000000016:activate",
+      "idempotencyKey": "walkthrough-snapshot-activate-1",
+      "ifMatch": "use the candidate ETag",
+      "body": {"host": "127.0.0.1", "reason": "Activate the reviewed public discovery snapshot"}
+    }
+  ]
+}

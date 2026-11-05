@@ -1,0 +1,31 @@
+{
+  "name": "Local Hello World Agent",
+  "description": "Unchanged upstream Hello World executor behind local HTTPS SDK 1.1.5 routes.",
+  "version": "1.0.0",
+  "documentationUrl": "https://github.com/a2aproject/a2a-samples/tree/6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3/samples/python/agents/helloworld",
+  "supportedInterfaces": [
+    {
+      "url": "https://127.0.0.1:19443/",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    }
+  ],
+  "capabilities": {},
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "skills": [
+    {
+      "id": "echo_bot",
+      "name": "Echo Bot",
+      "description": "Acknowledge supplied text",
+      "tags": [
+        "a2a",
+        "echo-example"
+      ]
+    }
+  ]
+}

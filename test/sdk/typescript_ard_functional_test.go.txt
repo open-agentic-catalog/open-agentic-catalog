@@ -1,0 +1,459 @@
+//go:build functional
+
+package clientcompat_test
+
+import (
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"math/rand/v2"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/adapter"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/authn"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/httpserver"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/id"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/idempotency"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/publication"
+)
+
+// These claims exercise the existing OAuth ceiling, not JWT/OIDC verification.
+type ardExampleScopes struct{ authn.Authenticator }
+
+func (a ardExampleScopes) Authenticate(ctx context.Context, token string) (identity.Actor, error) {
+	actor, err := a.Authenticator.Authenticate(ctx, token)
+	if err == nil && token != "ard-no-scope" {
+		actor.Claims = map[string]string{"scope:catalog.read": "true"}
+	}
+	return actor, err
+}
+
+func TestTypeScriptARDExample(t *testing.T) {
+	f := newFixture(t)
+	ctx, stop := context.WithTimeout(t.Context(), time.Minute)
+	defer stop()
+	users := map[string]config.DevelopmentUser{
+		"ard-discovery-secret": {Subject: "discovery", TenantID: tenant, RoleTemplates: []string{"discovery_reader"}},
+		"ard-no-scope":         {Subject: "no-scope", TenantID: tenant, RoleTemplates: []string{"discovery_reader"}},
+		"ard-reader":           {Subject: "reader", TenantID: tenant, RoleTemplates: []string{"reader"}},
+		"ard-foreign":          {Subject: "foreign", TenantID: otherTenant, RoleTemplates: []string{"discovery_reader"}},
+	}
+	var seeds []identity.Seed
+	for _, user := range users {
+		seeds = append(seeds, identity.Seed{TenantID: user.TenantID, Issuer: authn.DevelopmentIssuer, Subject: user.Subject, ActorType: identity.ActorHuman, RoleTemplates: user.RoleTemplates})
+	}
+	identities, err := identity.NewMemoryStore(seeds)
+	must(t, err)
+	auth, err := authn.New(ctx, config.Auth{Mode: "development", DevelopmentTokens: users}, identities)
+	must(t, err)
+	auth = ardExampleScopes{auth}
+	c := clock.NewFake(f.now)
+	key := sha256.Sum256([]byte("typescript-ard-example"))
+	var mu sync.Mutex
+	mode, requests := "anonymous", 0
+	var observed, cancelled chan struct{}
+	var handlers map[string]http.Handler
+	var public *publication.Manager
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		defer mu.Unlock()
+		requests++
+		if r.Method != http.MethodGet || r.URL.Path != "/ard/v1/agents" {
+			t.Error("example requested a private, entry or runtime URL")
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		q := r.URL.Query()
+		if q.Get("orderBy") != "displayName" || q.Get("pageSize") != "1" {
+			t.Error("example changed its List criteria")
+		}
+		for name := range q {
+			if name != "pageSize" && name != "orderBy" && name != "pageToken" {
+				t.Error("example sent an unexpected query input")
+			}
+		}
+		if mode == "private-error" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = io.WriteString(w, `{"errorCode":"SERVICE_UNAVAILABLE","message":"private-error-sentinel"}`)
+			return
+		}
+		if mode == "cancel" || mode == "timeout" {
+			if observed != nil {
+				close(observed)
+				observed = nil
+			}
+			<-r.Context().Done()
+			if cancelled != nil {
+				close(cancelled)
+				cancelled = nil
+			}
+			return
+		}
+		if mode == "expired" && q.Get("pageToken") != "" {
+			c.Advance(16 * time.Minute)
+		}
+		if mode == "activation" && q.Get("pageToken") != "" {
+			candidate, buildErr := public.BuildCandidate(f.actor("admin"), tenant)
+			if buildErr != nil {
+				t.Error(buildErr)
+				w.WriteHeader(500)
+				return
+			}
+			if _, activateErr := public.Activate(f.actor("admin"), tenant, candidate.ID, "Activate a different generation"); activateErr != nil {
+				t.Error(activateErr)
+				w.WriteHeader(500)
+				return
+			}
+		}
+		if raw, ok := map[string]string{
+			"empty":           `{"items":[],"total":0}`,
+			"malformed":       `{"items":`,
+			"missing":         `{"items":[]}`,
+			"null":            `{"items":null,"total":0}`,
+			"wrong":           `{"items":[],"total":"0"}`,
+			"null-token":      `{"items":[],"total":0,"pageToken":null}`,
+			"empty-continued": `{"items":[],"total":0,"pageToken":"next"}`,
+		}[mode]; ok {
+			if mode == "empty-continued" && q.Get("pageToken") != "" {
+				raw = `{"items":[],"total":0}`
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, raw)
+			return
+		}
+		h := handlers[mode]
+		if h == nil {
+			h = handlers["anonymous"]
+		}
+		h.ServeHTTP(w, r)
+	}))
+	// Match the browser fixture's private range. Host ephemeral ports can include
+	// ports that native Fetch refuses before making a connection.
+	must(t, server.Listener.Close())
+	var listener net.Listener
+	for range 100 {
+		reserved, reserveErr := (&net.ListenConfig{}).Listen(ctx, "tcp", fmt.Sprintf("127.0.0.1:%d", 49152+rand.IntN(16384)))
+		if errors.Is(reserveErr, syscall.EADDRINUSE) {
+			continue
+		}
+		must(t, reserveErr)
+		listener = reserved
+		break
+	}
+	if listener == nil {
+		t.Fatal("cannot reserve an owned private-range listener")
+	}
+	server.Listener = listener
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	t.Logf("Owned ARD HTTPS listener: %s", server.URL)
+	directory := t.TempDir()
+	ca := filepath.Join(directory, "ca.pem")
+	must(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600))
+	publisher, err := f.service.CreatePublisher(f.actor("admin"), catalog.CreatePublisherInput{DisplayName: "Example publisher", Domains: []string{"catalog.example.com"}})
+	must(t, err)
+	_, err = f.service.ApprovePublisherPublicationDomain(f.actor("admin"), publisher.ID, "catalog.example.com", "Owned discovery fixture", publisher.Revision)
+	must(t, err)
+	namespace, err := f.service.CreateNamespace(f.actor("admin"), catalog.CreateNamespaceInput{Slug: "ard-example", DisplayName: "ARD example"})
+	must(t, err)
+	var draftID string
+	for index := range 4 {
+		resource, createErr := f.service.CreateResource(f.actor("admin"), catalog.CreateResourceInput{NamespaceID: namespace.ID, Kind: catalog.KindAgent, CanonicalIdentifier: fmt.Sprintf("urn:air:catalog.example.com:example:agent%d", index)})
+		must(t, createErr)
+		card := json.RawMessage(fmt.Sprintf(`{"name":"Agent %d","description":"Owned fixture","version":"1.0.0","supportedInterfaces":[{"url":%q,"protocolBinding":"JSONRPC","protocolVersion":"1.0"}],"capabilities":{},"defaultInputModes":["text/plain"],"defaultOutputModes":["text/plain"],"skills":[{"id":"weather","name":"Weather","description":"Weather fixture","tags":["weather"]}]}`, index, server.URL+"/runtime-must-not-be-called"))
+		_, revision, evidence, createErr := f.service.CreateVersion(f.actor("admin"), resource.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: []catalog.RepresentationInput{{Role: catalog.RepresentationPrimary, MediaType: adapter.MediaA2AAgentCard, Data: card}}})
+		must(t, createErr)
+		if evidence.State != catalog.EvidenceComplete {
+			t.Fatalf("positive Agent fixture invalid: %v", evidence.Findings)
+		}
+		if index == 3 {
+			draftID = resource.ID
+			continue
+		}
+		listing, createErr := f.service.CreateListing(f.actor("admin"), catalog.CreateListingInput{NamespaceID: namespace.ID, ResourceID: resource.ID})
+		must(t, createErr)
+		listing, _, createErr = f.service.CreateListingRevision(f.actor("admin"), listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, PublisherID: publisher.ID, DisplayName: fmt.Sprintf("Published agent %d", index), Description: "Public SDK fixture", Visibility: catalog.VisibilityPublic, RepresentativeQueries: []string{"Find weather forecasts", "Discover weather agents"}}, listing.Revision)
+		must(t, createErr)
+		submission, createErr := f.service.Submit(f.actor("admin"), listing.ID)
+		must(t, createErr)
+		_, _, createErr = f.service.DecideSubmission(f.actor("reviewer"), submission.ID, "approve", "Independent fixture review", submission.Revision)
+		must(t, createErr)
+		listing, createErr = f.service.GetListing(f.actor("admin"), listing.ID)
+		must(t, createErr)
+		_, _, _, createErr = f.service.Publish(f.actor("admin"), listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision)
+		must(t, createErr)
+	}
+	manager := func(audience publication.Audience, active bool) *publication.Manager {
+		t.Helper()
+		m, createErr := publication.NewManager(publication.Options{Records: f.service, Store: publication.NewMemoryStore(), Clock: c, IDs: id.Generator{}, BaseURL: server.URL, Host: "127.0.0.1", PublisherDomain: "catalog.example.com", Audience: audience, ARDProfile: "ard-test", AICatalogProfile: "ai-test", CursorKey: key[:]})
+		must(t, createErr)
+		if active {
+			snapshot, buildErr := m.BuildCandidate(f.actor("admin"), tenant)
+			must(t, buildErr)
+			_, buildErr = m.Activate(f.actor("admin"), tenant, snapshot.ID, "Activate owned SDK fixture")
+			must(t, buildErr)
+		}
+		return m
+	}
+	public = manager(publication.AudienceAnonymous, true)
+	private := manager(publication.AudienceAuthenticated, true)
+	handlers = map[string]http.Handler{}
+	for name, binding := range map[string][]httpserver.DiscoveryHost{
+		"anonymous": {{Host: "127.0.0.1", TenantID: tenant, Mode: httpserver.DiscoveryAnonymous, PublisherDomain: "catalog.example.com", Publication: public}},
+		"private":   {{Host: "127.0.0.1", TenantID: tenant, Mode: httpserver.DiscoveryAuthenticated, PublisherDomain: "catalog.example.com", Publication: private}},
+		"inactive":  {{Host: "127.0.0.1", TenantID: tenant, Mode: httpserver.DiscoveryAnonymous, PublisherDomain: "catalog.example.com", Publication: manager(publication.AudienceAnonymous, false)}},
+		"disabled":  {{Host: "127.0.0.1", TenantID: tenant, Mode: httpserver.DiscoveryDisabled, PublisherDomain: "catalog.example.com"}},
+		"unknown":   {},
+	} {
+		h, createErr := httpserver.New(httpserver.Dependencies{Catalog: f.service, Identity: f.identity, Federation: f.federation, Jobs: f.jobs, Authenticator: auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: responseLimit, RequestTimeout: time.Second, CursorKey: key[:], Now: c.Now, EnforceOAuthScopes: true, DiscoveryHosts: binding})
+		must(t, createErr)
+		handlers[name] = h.Handler()
+	}
+	// The successful discovery credential has no private Resource-read permission.
+	request := httptest.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/api/v1/resources/"+draftID, nil)
+	request.Header.Set("Authorization", "Bearer ard-discovery-secret")
+	recorder := httptest.NewRecorder()
+	handlers["private"].ServeHTTP(recorder, request)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("discovery-only credential can read private Resources: %d", recorder.Code)
+	}
+
+	run := func(t *testing.T, selected, token string, trusted bool, flags ...string) ([]map[string]any, int) {
+		t.Helper()
+		mu.Lock()
+		mode, requests = selected, 0
+		mu.Unlock()
+		args := []string{os.Getenv("CATALOG_ARD_EXAMPLE"), "--origin", server.URL, "--page-size", "1", "--max-pages", "10"}
+		if token != "" {
+			path := filepath.Join(directory, "token")
+			must(t, os.WriteFile(path, []byte(token), 0600))
+			args = append(args, "--token-file", path)
+		}
+		commandContext := ctx
+		if selected == "fifo" {
+			path := filepath.Join(directory, "token-fifo")
+			must(t, syscall.Mkfifo(path, 0600))
+			args = append(args, "--token-file", path)
+			var cancel context.CancelFunc
+			commandContext, cancel = context.WithTimeout(ctx, 3*time.Second)
+			defer cancel()
+		}
+		args = append(args, flags...)
+		// #nosec G204 -- The SDK gate supplies the owned pinned runtime and copied example.
+		command := exec.CommandContext(commandContext, os.Getenv("CATALOG_SDK_NODE"), args...)
+		command.Env = append(os.Environ(), "NODE_EXTRA_CA_CERTS=")
+		if trusted {
+			command.Env = append(command.Env, "NODE_EXTRA_CA_CERTS="+ca)
+		}
+		var stdout, stderr bytes.Buffer
+		command.Stdout, command.Stderr = &stdout, &stderr
+		var runErr error
+		if selected == "cancel" {
+			received, ended := make(chan struct{}), make(chan struct{})
+			mu.Lock()
+			observed, cancelled = received, ended
+			mu.Unlock()
+			must(t, command.Start())
+			select {
+			case <-received:
+			case <-ctx.Done():
+				t.Fatal("cancellation request not observed")
+			}
+			must(t, command.Process.Signal(os.Interrupt))
+			runErr = command.Wait()
+			select {
+			case <-ended:
+			case <-ctx.Done():
+				t.Fatal("HTTP cancellation not observed")
+			}
+		} else {
+			runErr = command.Run()
+		}
+		exit := 0
+		if runErr != nil {
+			if failure, ok := runErr.(*exec.ExitError); ok {
+				exit = failure.ExitCode()
+			} else {
+				t.Fatal("example process failed to execute")
+			}
+		}
+		for _, privateText := range []string{"ard-discovery-secret", "ard-no-scope", "private-error-sentinel", "supportedInterfaces", "runtime-must-not-be-called", draftID, "agent3"} {
+			if strings.Contains(stdout.String()+stderr.String(), privateText) {
+				t.Fatal("example disclosed credentials, draft content or native evidence")
+			}
+		}
+		var lines []map[string]any
+		for _, raw := range bytes.Split(bytes.TrimSpace(stdout.Bytes()), []byte("\n")) {
+			var value map[string]any
+			if json.Unmarshal(raw, &value) != nil {
+				t.Fatalf("example output is not JSON lines: %q", raw)
+			}
+			lines = append(lines, value)
+		}
+		if len(lines) == 0 || lines[len(lines)-1]["kind"] != "summary" {
+			t.Fatal("missing final traversal status")
+		}
+		return lines, exit
+	}
+	for _, selected := range []string{"anonymous", "private"} {
+		t.Run(selected, func(t *testing.T) {
+			token := ""
+			if selected == "private" {
+				token = "ard-discovery-secret"
+			}
+			lines, exit := run(t, selected, token, true)
+			summary := lines[len(lines)-1]
+			if exit != 0 || len(lines) != 4 || summary["complete"] != true || summary["resourceEntries"] != float64(3) || summary["registryEntriesSkipped"] != float64(1) || summary["reportedTotal"] != float64(4) {
+				t.Fatalf("published-only traversal failed: %d %#v", exit, summary)
+			}
+			want := map[string]string{}
+			for index := range 3 {
+				want[fmt.Sprintf("urn:air:catalog.example.com:example:agent%d", index)] = fmt.Sprintf("Published agent %d", index)
+			}
+			for _, entry := range lines[:len(lines)-1] {
+				identifier, ok := entry["identifier"].(string)
+				name, exists := want[identifier]
+				if !ok || !exists || len(entry) != 4 || entry["kind"] != "entry" || entry["displayName"] != name || entry["type"] != "application/a2a-agent-card+json" {
+					t.Fatal("published entry metadata differs from the prepared releases")
+				}
+				delete(want, identifier)
+			}
+			if len(want) != 0 || summary["pages"] != float64(4) {
+				t.Fatal("traversal omitted published entries")
+			}
+		})
+	}
+	t.Run("budget", func(t *testing.T) {
+		lines, exit := run(t, "anonymous", "", true, "--max-pages", "1")
+		if exit != 2 || lines[len(lines)-1]["complete"] != false {
+			t.Fatal("page budget reported completion")
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if requests != 1 {
+			t.Fatal("page budget sent extra requests")
+		}
+	})
+	for _, selected := range []string{"empty", "empty-continued"} {
+		t.Run(selected, func(t *testing.T) {
+			lines, exit := run(t, selected, "", true)
+			if exit != 0 || len(lines) != 1 || lines[0]["resourceEntries"] != float64(0) {
+				t.Fatal("empty List traversal failed")
+			}
+		})
+	}
+	for _, selected := range []string{"malformed", "missing", "null", "wrong", "null-token", "inactive", "disabled", "unknown", "expired", "activation"} {
+		t.Run(selected, func(t *testing.T) {
+			lines, exit := run(t, selected, "", true)
+			if exit != 1 || lines[len(lines)-1]["complete"] != false {
+				t.Fatalf("failed traversal became complete: %s", selected)
+			}
+			if selected == "expired" || selected == "activation" {
+				if lines[len(lines)-1]["status"] != float64(http.StatusBadRequest) {
+					t.Fatal("continuation failed outside the intended guard")
+				}
+				mu.Lock()
+				defer mu.Unlock()
+				if requests != 2 {
+					t.Fatal("continuation failure automatically restarted")
+				}
+			}
+			if selected == "inactive" || selected == "disabled" || selected == "unknown" {
+				if lines[len(lines)-1]["status"] != float64(http.StatusNotFound) {
+					t.Fatal("host refusal has the wrong status")
+				}
+			}
+		})
+	}
+	for _, token := range []string{"", "ard-reader", "ard-no-scope", "ard-foreign"} {
+		t.Run("denied-"+token, func(t *testing.T) {
+			lines, exit := run(t, "private", token, true)
+			if exit != 1 || lines[len(lines)-1]["complete"] != false {
+				t.Fatal("denied discovery became complete")
+			}
+			want := http.StatusForbidden
+			if token == "" {
+				want = http.StatusUnauthorized
+			}
+			if lines[len(lines)-1]["status"] != float64(want) {
+				t.Fatal("access failed outside the intended permission or scope guard")
+			}
+		})
+	}
+	t.Run("untrusted-CA", func(t *testing.T) {
+		_, exit := run(t, "anonymous", "", false)
+		if exit != 1 {
+			t.Fatal("untrusted TLS succeeded")
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if requests != 0 {
+			t.Fatal("untrusted TLS reached HTTP")
+		}
+	})
+	t.Run("nonregular-token-file", func(t *testing.T) {
+		_, exit := run(t, "fifo", "", true, "--timeout-ms", "1000")
+		if exit != 1 {
+			t.Fatal("nonregular credential file blocked process exit")
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if requests != 0 {
+			t.Fatal("nonregular credential reached HTTP")
+		}
+	})
+	for _, selected := range []string{"timeout", "cancel"} {
+		t.Run(selected, func(t *testing.T) {
+			lines, exit := run(t, selected, "", true, "--timeout-ms", "1000")
+			if exit != 1 || lines[len(lines)-1]["complete"] != false {
+				t.Fatal("interrupted traversal became complete")
+			}
+			want := "cancelled"
+			if selected == "timeout" {
+				want = "deadline_exceeded"
+			}
+			if lines[len(lines)-1]["reason"] != want {
+				t.Fatal("interruption failed outside the intended cancellation guard")
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if requests != 1 {
+				t.Fatal("interruption did not cancel its one HTTP request")
+			}
+		})
+	}
+	t.Run("private-error-body", func(t *testing.T) {
+		lines, exit := run(t, "private-error", "", true)
+		summary := lines[len(lines)-1]
+		if exit != 1 || len(lines) != 1 || summary["complete"] != false || summary["reason"] != "http_error" || summary["status"] != float64(http.StatusServiceUnavailable) {
+			t.Fatal("private HTTP failure lost its safe status")
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		if requests != 1 {
+			t.Fatal("private HTTP failure was retried")
+		}
+	})
+	t.Log("Actual TypeScript entrypoint: published-only anonymous/authenticated List, budget, malformed fields, expiry, generation change, TLS, cancellation and denial passed")
+}

@@ -1,0 +1,28 @@
+{
+  "sources": {
+    "src/api/commands.ts": "d51ece05e31b8388553caf0312f8361cf389d055789f6d8f7931b77cdc27d11c",
+    "src/views/code-document.ts": "3d337c6e5bc52c16cf8fde23824ca5da6f432a2797a05e8f2e2268f3832ace47"
+  },
+  "counts": {
+    "src/api/commands.ts": 58,
+    "src/views/code-document.ts": 153
+  },
+  "survivors": {
+    "f62c30f866b6d0fdb9e6b41418f132ff4a12cb0533d2cf5e9874927f95cb5fcc": "Unreachable fallback: every valid JSON value contains at least one lexer match.",
+    "5322a3e16c00fe145d92598c785bc2f62aaf34b4acd77d98096d4f7199ecea25": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "de4f6ba972545b5c3e33bdb5ed7bb60bad0ef9be559d0ded56da9513b9228f53": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "9df696615de2b72de94a399fcc4105eb9043f33032bf89aa18aad985d68b19be": "Equivalent for validated tokens: only string tokens start or end with a quote.",
+    "197c735305e93764d7eb0553e8967eb5d3eb6be5ac7bed3c17a464da79d876ca": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "ecfb95d46e09c3dfa0722c8b598c7b61665613703b6bdb1a037cc4bb12053e97": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "d8200a73005376fbe9e7ddd67a4e25acdce4e8e25f3d630b33ae3c6cec39a56a": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "58a80a73dff450086b17c86f2304609e0b77483a13a591ca1666ec40f6c752db": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "f131303d2d1612d8699775c33cec398e52d7e071eac1913580a595b7293cb77a": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "23a89f879ef8f1c92b56a867a5fd1ef4628a4e0420f19e94b59564d1e6227940": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "50a9afe3e2476a39af5d5d1ecb892e657aea282db831a06b039e4914c9770563": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "361f70eca13f97fe06d5e0c66354b5159a1aaf085fda32df2524ffc283267836": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "1bde35d109b6c5ef2b6086e832b5a2f52e7f246ee550cc0deb65f1a61a635fbd": "Equivalent after JSON.parse and complete lexical tokenization: removing this anchor or redundant neighboring-token guard cannot change a valid token.",
+    "2d0bbb7cbcf3e9deb1c6492a4a0063f47cacdefd81cc9f4086fb8d92691010b7": "Reviewed residual: changes the conservative formatting-work estimate, not literal fidelity. Existing over-expansion rejection remains caught; no exact public acceptance promise is made for this internal estimate. This mutant is not counted as caught or equivalent.",
+    "7cad9026aa9c2181d2c38c8dff135812bec505d62e707d9b8f08e4498976eb46": "Reviewed residual: changes the conservative formatting-work estimate, not literal fidelity. Existing over-expansion rejection remains caught; no exact public acceptance promise is made for this internal estimate. This mutant is not counted as caught or equivalent.",
+    "185c5889458982b774bc1688e65fa6ba83e8917df855c26be15fb7f3558de60d": "Equivalent separator grouping: empty split parts are filtered before domain deduplication."
+  }
+}

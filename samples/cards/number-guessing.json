@@ -1,0 +1,31 @@
+{
+  "name": "AgentAlice",
+  "description": "Adapted local HTTPS descriptor for the upstream number evaluator; start the separate legacy game before use.",
+  "version": "1.0.0",
+  "documentationUrl": "https://github.com/a2aproject/a2a-samples/tree/6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3/samples/python/agents/number_guessing_game",
+  "supportedInterfaces": [
+    {
+      "url": "https://127.0.0.1:19446/a2a/v1",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "0.3"
+    }
+  ],
+  "capabilities": {},
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "skills": [
+    {
+      "id": "number_guess_evaluator",
+      "name": "Number Guess Evaluator",
+      "description": "Evaluates guesses against the secret number with higher/lower/correct guidance.",
+      "tags": [
+        "game",
+        "demo"
+      ]
+    }
+  ]
+}

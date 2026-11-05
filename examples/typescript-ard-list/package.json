@@ -1,0 +1,12 @@
+{
+  "name": "catalog-ard-list-example",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.mts"
+  },
+  "engines": {
+    "node": ">=22.23.4 <23 || >=24.20.0 <25"
+  }
+}

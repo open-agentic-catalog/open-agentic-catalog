@@ -1,0 +1,18 @@
+# Local Cargo builds and coverage profiles
+/target/
+*.profraw
+*.profdata
+
+# Local environment files and diagnostic logs
+.env
+.env.*
+!.env.example
+*.log
+
+# Local editor and OS files; shared editor settings remain source
+/.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

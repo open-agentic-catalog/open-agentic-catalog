@@ -1,0 +1,278 @@
+//go:build functional
+
+package clientcompat_test
+
+import (
+	"bytes"
+	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"io"
+	"log/slog"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/authn"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/httpserver"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/id"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/idempotency"
+)
+
+// Claims test the existing OAuth ceiling; JWT verification stays in its own campaign.
+type pythonServiceScopes struct{ authn.Authenticator }
+
+func (a pythonServiceScopes) Authenticate(ctx context.Context, token string) (identity.Actor, error) {
+	actor, err := a.Authenticator.Authenticate(ctx, token)
+	if err == nil && token != "service-no-scope-private-sentinel" {
+		actor.Claims = map[string]string{"scope:catalog.read": "true"}
+	}
+	return actor, err
+}
+
+func TestPythonSDKServiceRead(t *testing.T) {
+	f := newFixture(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
+	defer cancel()
+	const namespace = "00000000-0000-7000-8000-000000000077"
+	users := map[string]config.DevelopmentUser{
+		"service-reader-private-sentinel":    {Subject: "automation-reader", TenantID: tenant, ActorType: identity.ActorService, RoleTemplates: []string{"reader"}},
+		"service-no-scope-private-sentinel":  {Subject: "automation-no-scope", TenantID: tenant, ActorType: identity.ActorService, RoleTemplates: []string{"reader"}},
+		"service-no-reader-private-sentinel": {Subject: "automation-no-reader", TenantID: tenant, ActorType: identity.ActorService, RoleTemplates: []string{"service_client"}},
+		"service-namespace-private-sentinel": {Subject: "automation-namespace", TenantID: tenant, ActorType: identity.ActorService, RoleTemplates: []string{"service_client"}, Namespaces: map[string][]identity.Role{namespace: {identity.RoleReader}}},
+		"human-reader-private-sentinel":      {Subject: "human-reader", TenantID: tenant, ActorType: identity.ActorHuman, RoleTemplates: []string{"reader"}},
+	}
+	var seeds []identity.Seed
+	for _, user := range users {
+		seeds = append(seeds, identity.Seed{TenantID: user.TenantID, Issuer: authn.DevelopmentIssuer, Subject: user.Subject, ActorType: user.ActorType, RoleTemplates: user.RoleTemplates, Namespaces: user.Namespaces})
+	}
+	store, err := identity.NewMemoryStore(seeds)
+	must(t, err)
+	key := sha256.Sum256([]byte("python-service-read"))
+	identities, err := identity.NewService(identity.ServiceOptions{Store: store, Clock: clock.NewFake(f.now), IDs: id.Generator{}, CursorKey: key[:]})
+	must(t, err)
+	auth, err := authn.New(ctx, config.Auth{Mode: "development", DevelopmentTokens: users}, store)
+	must(t, err)
+	handler, err := httpserver.New(httpserver.Dependencies{Catalog: f.service, Identity: identities, Federation: f.federation, Jobs: f.jobs, Authenticator: pythonServiceScopes{auth}, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: responseLimit, RequestTimeout: time.Second, CursorKey: key[:], Now: func() time.Time { return f.now }, EnforceOAuthScopes: true})
+	must(t, err)
+	var mu sync.Mutex
+	var paths []string
+	var statuses []int
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/me" {
+			if r.Method != http.MethodGet || r.URL.RawQuery != "" {
+				t.Error("service script changed its tenant-wide identity check")
+			}
+		} else if r.URL.Path == "/api/v1/catalog/search" {
+			body, readErr := io.ReadAll(io.LimitReader(r.Body, 4096))
+			if readErr != nil {
+				t.Error("cannot inspect the owned Search request")
+			}
+			var input map[string]any
+			if json.Unmarshal(body, &input) != nil || r.Method != http.MethodPost || !reflect.DeepEqual(input, map[string]any{"origins": []any{"local"}, "limit": float64(10)}) {
+				t.Error("service script changed its bounded local Search")
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+		} else {
+			t.Error("service script requested an unexpected API")
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		reply := httptest.NewRecorder()
+		handler.Handler().ServeHTTP(reply, r)
+		if r.URL.Path == "/api/v1/catalog/search" && reply.Code == http.StatusForbidden {
+			// Synthetic private detail verifies the script's output boundary.
+			var problem map[string]any
+			if json.Unmarshal(reply.Body.Bytes(), &problem) != nil {
+				t.Error("cannot decode the native refusal")
+				w.WriteHeader(500)
+				return
+			}
+			problem["detail"] = "private-response-sentinel"
+			raw, encodeErr := json.Marshal(problem)
+			if encodeErr != nil {
+				t.Error("cannot encode the owned refusal")
+				w.WriteHeader(500)
+				return
+			}
+			reply.Body.Reset()
+			_, _ = reply.Body.Write(raw)
+			reply.Header().Del("Content-Length")
+		}
+		mu.Lock()
+		paths = append(paths, r.URL.Path)
+		statuses = append(statuses, reply.Code)
+		mu.Unlock()
+		for name, values := range reply.Header() {
+			w.Header()[name] = values
+		}
+		w.WriteHeader(reply.Code)
+		_, _ = w.Write(reply.Body.Bytes())
+	}))
+	t.Cleanup(server.Close)
+	directory := t.TempDir()
+	ca := filepath.Join(directory, "ca.pem")
+	must(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600))
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	must(t, err)
+	certificate := &x509.Certificate{SerialNumber: big.NewInt(42), Subject: pkix.Name{CommonName: "Unrelated owned SDK test CA"}, NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign}
+	der, err := x509.CreateCertificate(rand.Reader, certificate, certificate, public, private)
+	must(t, err)
+	unrelated := filepath.Join(directory, "unrelated-ca.pem")
+	must(t, os.WriteFile(unrelated, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0600))
+	for _, test := range []struct {
+		name, token, input string
+		wantStatuses       []int
+		success            bool
+	}{
+		{"success", "service-reader-private-sentinel", "", []int{200, 200}, true},
+		{"wrong-subject", "service-reader-private-sentinel", "wrong-subject", []int{200}, false},
+		{"human-identity", "human-reader-private-sentinel", "", []int{200}, false},
+		{"no-reader", "service-no-reader-private-sentinel", "", []int{200}, false},
+		{"namespace-only-reader", "service-namespace-private-sentinel", "", []int{200}, false},
+		{"missing-scope", "service-no-scope-private-sentinel", "", []int{200, 403}, false},
+		{"untrusted-ca", "service-reader-private-sentinel", "untrusted-ca", nil, false},
+		{"invalid-ca", "service-reader-private-sentinel", "invalid-ca", nil, false},
+		{"missing-ca", "service-reader-private-sentinel", "missing-ca", nil, false},
+		{"missing-token", "service-reader-private-sentinel", "missing-token", nil, false},
+		{"empty-token", "service-reader-private-sentinel", "empty-token", nil, false},
+		{"invalid-token", "service-reader-private-sentinel", "invalid-token", nil, false},
+		{"missing-claims", "service-reader-private-sentinel", "missing-claims", nil, false},
+		{"malformed-claims", "service-reader-private-sentinel", "malformed-claims", nil, false},
+		{"missing-subject", "service-reader-private-sentinel", "missing-subject", nil, false},
+		{"null-subject", "service-reader-private-sentinel", "null-subject", nil, false},
+		{"non-string-subject", "service-reader-private-sentinel", "non-string-subject", nil, false},
+		{"empty-subject", "service-reader-private-sentinel", "empty-subject", nil, false},
+		{"null-claims", "service-reader-private-sentinel", "null-claims", nil, false},
+		{"array-claims", "service-reader-private-sentinel", "array-claims", nil, false},
+		{"plain-http", "service-reader-private-sentinel", "plain-http", nil, false},
+		{"nested-claims", "service-reader-private-sentinel", "nested-claims", nil, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			mu.Lock()
+			paths, statuses = nil, nil
+			mu.Unlock()
+			inputs := t.TempDir()
+			tokenFile, claimsFile := filepath.Join(inputs, "token"), filepath.Join(inputs, "claims.json")
+			must(t, os.WriteFile(tokenFile, []byte(test.token), 0600))
+			claims, marshalErr := json.Marshal(map[string]string{"subject": users[test.token].Subject})
+			must(t, marshalErr)
+			must(t, os.WriteFile(claimsFile, claims, 0600))
+			trust := ca
+			origin := server.URL
+			switch test.input {
+			case "wrong-subject":
+				must(t, os.WriteFile(claimsFile, []byte(`{"subject":"different-automation"}`), 0600))
+			case "untrusted-ca":
+				trust = unrelated
+			case "invalid-ca":
+				trust = filepath.Join(inputs, "invalid-ca.pem")
+				must(t, os.WriteFile(trust, []byte("invalid PEM"), 0600))
+			case "missing-ca":
+				trust = filepath.Join(inputs, "missing-ca.pem")
+			case "missing-token":
+				tokenFile = filepath.Join(inputs, "missing-token")
+			case "empty-token":
+				must(t, os.WriteFile(tokenFile, nil, 0600))
+			case "invalid-token":
+				must(t, os.WriteFile(tokenFile, []byte("private-token-sentinel\nheader: value"), 0600))
+			case "missing-claims":
+				claimsFile = filepath.Join(inputs, "missing-claims.json")
+			case "malformed-claims":
+				must(t, os.WriteFile(claimsFile, []byte(`{"private-claims-sentinel":`), 0600))
+			case "missing-subject":
+				must(t, os.WriteFile(claimsFile, []byte(`{}`), 0600))
+			case "null-subject":
+				must(t, os.WriteFile(claimsFile, []byte(`{"subject":null}`), 0600))
+			case "non-string-subject":
+				must(t, os.WriteFile(claimsFile, []byte(`{"subject":42}`), 0600))
+			case "empty-subject":
+				must(t, os.WriteFile(claimsFile, []byte(`{"subject":""}`), 0600))
+			case "null-claims":
+				must(t, os.WriteFile(claimsFile, []byte(`null`), 0600))
+			case "array-claims":
+				must(t, os.WriteFile(claimsFile, []byte(`[]`), 0600))
+			case "plain-http":
+				origin = "http://" + server.Listener.Addr().String()
+			case "nested-claims":
+				must(t, os.WriteFile(claimsFile, []byte(strings.Repeat("[", 10000)+"0"+strings.Repeat("]", 10000)), 0600))
+			}
+			// #nosec G204 -- The gate supplies the recorded Python and exact checked-in script.
+			command := exec.CommandContext(ctx, os.Getenv("CATALOG_SDK_PYTHON"), "-I", "-B", os.Getenv("CATALOG_SDK_SERVICE_READ"), "--origin", origin, "--token-file", tokenFile, "--claims-file", claimsFile, "--ca-file", trust)
+			command.Dir = inputs
+			output, runErr := command.CombinedOutput()
+			for _, secret := range []string{test.token, "private-token-sentinel", "private-claims-sentinel", "private-response-sentinel"} {
+				if bytes.Contains(output, []byte(secret)) {
+					t.Fatal("service script disclosed a private input")
+				}
+			}
+			if test.success {
+				if runErr != nil || string(output) != "Python SDK verified the service identity and read local Catalog metadata\n" {
+					t.Fatalf("service Reader positive control failed: %v\n%s", runErr, output)
+				}
+			} else {
+				var failure *exec.ExitError
+				if !errors.As(runErr, &failure) || failure.ExitCode() != 1 {
+					t.Fatal("service refusal did not exit with status 1")
+				}
+				if bytes.Contains(output, []byte("Traceback")) {
+					t.Fatal("service refusal emitted an unhandled traceback")
+				}
+				message := "Cannot read the service token or expected subject from the input files"
+				switch test.name {
+				case "wrong-subject", "human-identity":
+					message = "The API did not accept the expected service identity"
+				case "no-reader", "namespace-only-reader":
+					message = "The service has no current Reader permission"
+				case "missing-scope":
+					message = "The local metadata read failed"
+				case "untrusted-ca":
+					message = "The Catalog read failed: transport_failed"
+				case "invalid-ca", "missing-ca":
+					message = "The Catalog read failed: invalid_tls_configuration"
+				case "invalid-token":
+					message = "The Catalog read failed: invalid_token"
+				case "plain-http":
+					message = "The Catalog read failed: invalid_configuration"
+				}
+				if string(output) != message+"\n" {
+					t.Fatalf("service refusal reached a different guard: %s", output)
+				}
+			}
+			if test.input == "plain-http" && !bytes.Contains(output, []byte("invalid_configuration")) {
+				t.Fatal("HTTP origin failed outside the required TLS guard")
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if !reflect.DeepEqual(statuses, test.wantStatuses) {
+				t.Fatalf("unexpected API statuses: got %v, want %v", statuses, test.wantStatuses)
+			}
+			for index, path := range paths {
+				expected := "/api/v1/me"
+				if index == 1 {
+					expected = "/api/v1/catalog/search"
+				}
+				if path != expected {
+					t.Fatal("identity checks did not precede Search")
+				}
+			}
+		})
+	}
+}

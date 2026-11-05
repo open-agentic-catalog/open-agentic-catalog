@@ -1,0 +1,17 @@
+{
+  "format": "open-agentic-catalog-draft-v1",
+  "kind": "skill",
+  "canonicalIdentifier": "urn:example:reusable:skill",
+  "version": "0.1.0",
+  "representations": [
+    {
+      "role": "primary",
+      "mediaType": "application/agent-skills+md",
+      "profileId": "",
+      "input": {
+        "mode": "content",
+        "text": "---\nname: review-notes\ndescription: Prepares short notes for a change review.\n---\n\n# Review notes\n\nRead the supplied change description.\nList the affected components.\nList the checks that the change needs.\nRecord any unanswered questions.\n"
+      }
+    }
+  ]
+}

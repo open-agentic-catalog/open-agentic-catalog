@@ -1,0 +1,24 @@
+---
+interface Props {
+  x: number;
+  y: number;
+  width: number;
+  title: string | string[];
+  lines?: string[];
+  kicker?: string;
+  tone?: 'core' | 'authority' | 'warning' | 'optional' | 'external' | 'target';
+}
+
+const { x, y, width, title, lines = [], kicker, tone } = Astro.props;
+const headings = Array.isArray(title) ? title : [title];
+const headingY = kicker ? 56 : 30;
+const copyY = headingY + headings.length * 26;
+const height = copyY + lines.length * 23 - (lines.length ? 4 : 10);
+---
+
+<g transform={`translate(${x} ${y})`}>
+  <rect class={tone ? `svg-node-${tone}` : 'svg-node'} width={width} height={height} rx="14" />
+  {kicker && <text class="svg-kicker" x="16" y="24">{kicker}</text>}
+  {headings.map((line, i) => <text class="svg-title" x="16" y={headingY + i * 26}>{line}</text>)}
+  {lines.map((line, i) => <text class="svg-copy" x="16" y={copyY + i * 23}>{line}</text>)}
+</g>

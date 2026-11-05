@@ -1,0 +1,899 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["image", "imagePullSecrets", "terminationGracePeriodSeconds", "api", "worker", "migration", "databaseRoles", "service", "serviceAccounts", "secrets", "federation", "configEnv"],
+  "properties": {
+    "podDNSOptions": {"type":"array","maxItems":16,"uniqueItems":true,"items":{"type":"object","additionalProperties":false,"required":["name"],"properties":{"name":{"type":"string","minLength":1,"maxLength":63,"pattern":"^[a-z0-9][a-z0-9-]*$"},"value":{"type":"string","maxLength":255,"pattern":"^[^\\r\\n]*$"}}}},
+    "trustVerification": {"type": "object", "additionalProperties": false, "required": ["publicKeysConfigMap"], "properties": {"publicKeysConfigMap": {"type": "string", "maxLength": 253, "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"}}},
+    "databaseTrustBundleConfigMap": {"type": "string", "pattern": "^([a-z0-9]([-a-z0-9.]*[a-z0-9])?)?$",
+          "maxLength": 253},
+    "pgbouncer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "image",
+        "replicas",
+        "poolMode",
+        "upstream",
+        "authSecret",
+        "tlsSecret",
+        "upstreamCAConfigMap",
+        "apiPoolSize",
+        "workerPoolSize",
+        "maxClientConnections",
+        "queryWaitTimeoutSeconds",
+        "serverConnectTimeoutSeconds",
+        "serverIdleTimeoutSeconds",
+        "writerEgress",
+        "resources"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9./:_-]+@sha256:[0-9a-f]{64}$"
+        },
+        "replicas": {
+          "const": 1
+        },
+        "poolMode": {
+          "const": "session"
+        },
+        "upstream": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "host",
+            "port",
+            "database"
+          ],
+          "properties": {
+            "host": {
+              "type": "string",
+              "pattern": "^[a-zA-Z0-9.:-]*$",
+              "maxLength": 253
+            },
+            "port": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 65535
+            },
+            "database": {
+              "type": "string",
+              "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+              "maxLength": 63
+            }
+          }
+        },
+        "authSecret": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9.]*[a-z0-9])?)?$",
+          "maxLength": 253
+        },
+        "tlsSecret": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9.]*[a-z0-9])?)?$",
+          "maxLength": 253
+        },
+        "upstreamCAConfigMap": {
+          "type": "string",
+          "pattern": "^([a-z0-9]([-a-z0-9.]*[a-z0-9])?)?$",
+          "maxLength": 253
+        },
+        "apiPoolSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "workerPoolSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "maxClientConnections": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 20000
+        },
+        "queryWaitTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "serverConnectTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        },
+        "serverIdleTimeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 3600
+        },
+        "writerEgress": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "minProperties": 1,
+            "properties": {
+              "namespaceSelector": {
+                "type": "object"
+              },
+              "podSelector": {
+                "type": "object"
+              },
+              "ipBlock": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "cidr"
+                ],
+                "properties": {
+                  "cidr": {
+                    "type": "string"
+                  },
+                  "except": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "enabled": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "authSecret": {
+                "minLength": 1
+              },
+              "tlsSecret": {
+                "minLength": 1
+              },
+              "upstreamCAConfigMap": {
+                "minLength": 1
+              },
+              "upstream": {
+                "properties": {
+                  "host": {
+                    "minLength": 1
+                  }
+                }
+              },
+              "writerEgress": {
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "semanticSearch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "endpoint": {"type": "string", "maxLength": 2048},
+        "model": {"type": "string", "maxLength": 256},
+        "responseModel": {"type": "string", "maxLength": 256},
+        "profileRevision": {"type": "string", "maxLength": 128},
+        "dimensions": {"type": "integer", "minimum": 1, "maximum": 4096},
+        "requestedDimensions": {"type": "integer", "minimum": 0, "maximum": 4096},
+        "similarityCutoff": {"type": "number", "minimum": -1, "maximum": 1},
+        "queryTimeout": {"type": "string", "pattern": "^[0-9]+(ms|s)$"},
+        "batchTimeout": {"type": "string", "pattern": "^[0-9]+s$"},
+        "queryConcurrency": {"type": "integer", "minimum": 1, "maximum": 32},
+        "batchConcurrency": {"type": "integer", "minimum": 1, "maximum": 8},
+        "batchSize": {"type": "integer", "minimum": 1, "maximum": 32},
+        "maxInputBytes": {"type": "integer", "minimum": 64, "maximum": 32768},
+        "queryPrefix": {"type": "string", "maxLength": 1024},
+        "documentPrefix": {"type": "string", "maxLength": 1024},
+        "excludedTenants": {"type": "array", "maxItems": 256, "uniqueItems": true, "items": {"type": "string", "format": "uuid"}},
+        "allowHttp": {"type": "boolean"},
+        "allowedAddressPrefixes": {"type": "array", "maxItems": 16, "items": {"type": "string"}},
+        "existingSecret": {"type": "string"},
+        "tokenFile": {"type": "string", "pattern": "^(/etc/open-agentic-catalog/embeddings/[a-zA-Z0-9._-]+)?$"},
+        "caFile": {"type": "string", "pattern": "^(/etc/open-agentic-catalog/embeddings/[a-zA-Z0-9._-]+)?$"}
+      },
+      "allOf": [{"if": {"properties": {"enabled": {"const": true}}}, "then": {
+        "required": ["endpoint", "model", "profileRevision", "dimensions"],
+        "properties": {"endpoint": {"minLength": 1}, "model": {"minLength": 1}, "profileRevision": {"minLength": 1}}
+      }}]
+    },
+    "ui": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "$ref": "#/properties/image"
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "existingSecret": {
+          "type": "string"
+        },
+        "apiCAConfigMap": {
+          "type": "string"
+        },
+        "issuerCAConfigMap": {
+          "type": "string"
+        },
+        "podAnnotations": {
+          "$ref": "#/definitions/stringMap"
+        },
+        "resources": {
+          "type": "object"
+        },
+        "config": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "logLevel": {"description": "UI startup minimum severity; independent of backend logging. Changes roll UI Pods.", "enum": ["debug", "info", "warn", "error"]},
+            "logFormat": {"description": "UI startup output format. Service logs use stdout; collection and rotation are external.", "enum": ["text", "json"]},
+            "environment": {
+              "enum": [
+                "production",
+                "development"
+              ]
+            },
+            "origin": {
+              "type": "string",
+              "pattern": "^(|https?://[^/?#@]+)$"
+            },
+            "basePath": {
+              "type": "string",
+              "pattern": "^(|(/[a-zA-Z0-9_-]+)+)$",
+              "not": {"pattern": "^/docs(?:/|$)"}
+            },
+            "upstream": {
+              "type": "string",
+              "pattern": "^(|https?://[^/?#@]+)$"
+            },
+            "cookieName": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,47}$"
+            },
+            "sessionSeconds": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 28800
+            },
+            "requestBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864,
+              "description": "UI request forwarding ceiling in bytes; default 2097152. Independent of backend admission. Changes roll UI Pods."
+            },
+            "responseBytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 67108864,
+              "description": "UI upstream response ceiling in bytes; default 16777216. Over-limit responses fail rather than truncate. Changes roll UI Pods."
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 300
+            },
+            "authMode": {
+              "enum": [
+                "oidc",
+                "development"
+              ]
+            },
+            "issuer": {
+              "type": "string"
+            },
+            "clientId": {
+              "type": "string"
+            },
+            "scopes": {
+              "type": "array",
+              "maxItems": 16,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "pattern": "^\\S+$",
+                "not": {
+                  "enum": [
+                    "openid",
+                    "offline_access"
+                  ]
+                }
+              }
+            },
+            "documentationUrl": {
+              "type": "string",
+              "pattern": "^(|https://[^?#@]+)$"
+            }
+          },
+          "required": [
+            "logLevel",
+            "logFormat",
+            "environment",
+            "origin",
+            "basePath",
+            "upstream",
+            "cookieName",
+            "sessionSeconds",
+            "requestBytes",
+            "responseBytes",
+            "timeoutSeconds",
+            "authMode",
+            "issuer",
+            "clientId",
+            "scopes",
+            "documentationUrl"
+          ]
+        },
+        "ingress": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "className": {
+              "type": "string"
+            },
+            "annotations": {
+              "$ref": "#/definitions/resourceAnnotationMap"
+            },
+            "host": {
+              "type": "string"
+            },
+            "tlsSecretName": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "enabled",
+            "className",
+            "annotations",
+            "host",
+            "tlsSecretName"
+          ]
+        },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "ingress": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "extraEgress": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          },
+          "required": [
+            "enabled",
+            "ingress",
+            "extraEgress"
+          ]
+        }
+      },
+      "required": [
+        "enabled",
+        "image",
+        "replicas",
+        "existingSecret",
+        "apiCAConfigMap",
+        "issuerCAConfigMap",
+        "podAnnotations",
+        "resources",
+        "config",
+        "ingress",
+        "networkPolicy"
+      ]
+    },
+    "nameOverride": {
+      "type": "string",
+      "description": "Override the base name; generated names must remain distinct from other enabled resources.",
+      "maxLength": 63,
+      "pattern": "^(?:|[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)$"
+    },
+    "fullnameOverride": {
+      "type": "string",
+      "description": "Override the full name; rendering rejects collisions with generated enabled-resource names.",
+      "maxLength": 63,
+      "pattern": "^(?:|[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)$"
+    },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "digest", "pullPolicy"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1},
+        "tag": {"type": "string"},
+        "digest": {"type": "string", "pattern": "^(?:|sha256:[a-f0-9]{64})$"},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {"name": {"$ref": "#/definitions/kubernetesName"}}
+      }
+    },
+    "terminationGracePeriodSeconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "api": {
+      "type": "object", "additionalProperties": false,
+      "required": ["replicas", "topologySpread", "podDisruptionBudget", "resources", "ingress"],
+      "properties": {
+        "replicas": {"type": "integer", "minimum": 1},
+        "topologySpread": {"$ref": "#/definitions/topologySpread"},
+        "podDisruptionBudget": {"$ref": "#/definitions/podDisruptionBudget"},
+        "resources": {"type": "object"},
+        "ingress": {
+          "type": "object", "additionalProperties": false,
+          "required": ["enabled", "className", "annotations", "host", "tlsSecretName"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "className": {"type": "string", "maxLength": 253},
+            "annotations": {"$ref": "#/definitions/resourceAnnotationMap"},
+            "host": {"oneOf": [{"const": ""}, {"$ref": "#/definitions/kubernetesName"}]},
+            "tlsSecretName": {"oneOf": [{"const": ""}, {"$ref": "#/definitions/kubernetesName"}]}
+          }
+        }
+      }
+    },
+    "worker": {"$ref": "#/definitions/workload"},
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["activeDeadlineSeconds", "backoffLimit", "ttlSecondsAfterFinished", "podAnnotations", "resources"],
+      "properties": {
+        "activeDeadlineSeconds": {"type": "integer", "minimum": 1, "maximum": 86400},
+        "backoffLimit": {"type": "integer", "minimum": 0, "maximum": 10},
+        "ttlSecondsAfterFinished": {"type": "integer", "minimum": 0, "maximum": 604800},
+        "podAnnotations": {"$ref": "#/definitions/stringMap"},
+        "resources": {"type": "object"}
+      }
+    },
+    "databaseRoles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["api", "worker"],
+      "properties": {
+        "api": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^\\S+$"},
+        "worker": {"type": "string", "minLength": 1, "maxLength": 63, "pattern": "^\\S+$"}
+      }
+    },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "port", "annotations"],
+      "properties": {
+        "type": {"enum": ["ClusterIP", "NodePort", "LoadBalancer"]},
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "annotations": {"$ref": "#/definitions/resourceAnnotationMap"}
+      }
+    },
+    "serviceAccounts": {
+      "type": "object",
+      "description": "API, worker and migration names must be distinct, including from the generated UI ServiceAccount when UI is enabled. Templates enforce cross-value identity checks.",
+      "additionalProperties": false,
+      "required": ["api", "worker", "migration"],
+      "properties": {
+        "api": {"$ref": "#/definitions/serviceAccount"},
+        "worker": {"$ref": "#/definitions/serviceAccount"},
+        "migration": {"$ref": "#/definitions/serviceAccount"}
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["apiDatabase", "workerDatabase", "migrationDatabase", "cursorSigning"],
+      "properties": {
+        "apiDatabase": {"$ref": "#/definitions/secretReference"},
+        "workerDatabase": {"$ref": "#/definitions/secretReference"},
+        "migrationDatabase": {"$ref": "#/definitions/secretReference"},
+        "cursorSigning": {"$ref": "#/definitions/secretReference"},
+        "tracingInputs": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"$ref": "#/definitions/kubernetesName"}}}
+          ]
+        },
+        "webhookEncryption": {
+          "oneOf": [
+            {"type": "null"},
+            {"$ref": "#/definitions/secretReference"}
+          ]
+        },
+        "federationCredentials": {
+          "oneOf": [
+            {"type": "null"},
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name"],
+              "properties": {"name": {"$ref": "#/definitions/kubernetesName"}}
+            }
+          ]
+        }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trustBundleConfigMap"],
+      "properties": {
+        "trustBundleConfigMap": {
+          "oneOf": [{"const": ""}, {"$ref": "#/definitions/kubernetesName"}]
+        }
+      }
+    },
+    "webhooks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["egressConfigMap"],
+      "properties": {
+        "egressConfigMap": {"oneOf": [{"const": ""}, {"$ref": "#/definitions/kubernetesName"}]}
+      }
+    },
+    "federation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policy", "trustBundleConfigMap"],
+      "properties": {
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["existingConfigMap", "key", "document"],
+          "properties": {
+            "existingConfigMap": {
+              "oneOf": [
+                {"const": ""},
+                {"$ref": "#/definitions/kubernetesName"}
+              ]
+            },
+            "key": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[A-Za-z0-9._-]+$"},
+            "document": {"type": "string", "maxLength": 1048576}
+          },
+          "allOf": [
+            {
+              "if": {"properties": {"existingConfigMap": {"maxLength": 0}}},
+              "then": {"properties": {"document": {"minLength": 2}}}
+            }
+          ]
+        },
+        "trustBundleConfigMap": {
+          "oneOf": [
+            {"const": ""},
+            {"$ref": "#/definitions/kubernetesName"}
+          ]
+        }
+      }
+    },
+    "podAnnotations": {"$ref": "#/definitions/podAnnotationMap"},
+    "nodeSelector": {"$ref": "#/definitions/stringMap"},
+    "tolerations": {"type": "array"},
+    "affinity": {"type": "object"},
+    "configEnv": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "CATALOG_ENVIRONMENT",
+        "CATALOG_LOG_LEVEL",
+        "CATALOG_LOG_FORMAT",
+        "CATALOG_PROFILE",
+        "CATALOG_SERVICE_NAME",
+        "CATALOG_HTTP_ADDRESS",
+        "CATALOG_PUBLIC_BASE_URL",
+        "CATALOG_HTTP_REQUEST_TIMEOUT",
+        "CATALOG_DATABASE_DRIVER",
+        "CATALOG_AUTH_MODE",
+        "CATALOG_AUTH_ISSUER",
+        "CATALOG_AUTH_AUDIENCE",
+        "CATALOG_AUTH_TENANCY_MODE",
+        "CATALOG_FEDERATION_POLICY_FILE",
+        "CATALOG_DISCOVERY_HOSTS",
+        "CATALOG_WORKER_HOUSEKEEPING_INTERVAL",
+        "CATALOG_WORKER_TERMINAL_JOB_RETENTION",
+        "CATALOG_WORKER_ACKNOWLEDGED_OUTBOX_RETENTION",
+        "CATALOG_WORKER_OPERATIONS_ADDRESS",
+        "CATALOG_WEBHOOKS_ENABLED",
+        "CATALOG_SEMANTIC_SEARCH",
+        "CATALOG_RATINGS_SHARING_ENABLED",
+        "CATALOG_RATINGS_MINIMUM_SHARED_COUNT",
+        "CATALOG_TRUST_VERIFICATION",
+        "CATALOG_PUBLISHER_DOMAIN_VERIFICATION",
+        "CATALOG_LISTING_MEDIA",
+        "CATALOG_MANAGED_MEDIA_ENABLED",
+        "CATALOG_SOFTWARE_ASSESSMENT_ENABLED",
+        "CATALOG_CREDENTIAL_RESOLUTION_ENABLED"
+      ],
+      "properties": {
+        "CATALOG_ENVIRONMENT": {"enum": ["development", "test", "production"]},
+        "CATALOG_LOG_LEVEL": {"description": "Backend startup minimum severity, shared by API, worker and migration configuration. Changes roll API/worker Pods.", "enum": ["debug", "info", "warn", "error"]},
+        "CATALOG_LOG_FORMAT": {"description": "Backend startup output format. Service logs use stdout; CLI results and terminal errors retain their own stream contracts.", "enum": ["text", "json"]},
+        "CATALOG_PROFILE": {"type": "string", "minLength": 1},
+        "CATALOG_SERVICE_NAME": {"type": "string", "minLength": 1},
+        "CATALOG_DEMO_ARCHIVES": {"type": "string", "enum": ["{}"]},
+        "CATALOG_TRACING": {"type": "string", "minLength": 2, "maxLength": 16384, "description": "Closed JSON object with a boolean enabled field. Enabled files under the tracing mount require secrets.tracingInputs."},
+        "CATALOG_HTTP_ADDRESS": {"const": "0.0.0.0:8080"},
+        "CATALOG_PUBLIC_BASE_URL": {"type": "string", "minLength": 1},
+        "CATALOG_HTTP_READ_TIMEOUT": {"type": "string", "minLength": 1},
+        "CATALOG_HTTP_REQUEST_TIMEOUT": {"type": "string", "minLength": 1},
+        "CATALOG_HTTP_WRITE_TIMEOUT": {"type": "string", "minLength": 1},
+        "CATALOG_HTTP_IDLE_TIMEOUT": {"type": "string", "minLength": 1},
+        "CATALOG_HTTP_SHUTDOWN_TIMEOUT": {"type": "string", "minLength": 1},
+        "CATALOG_VALIDATION_MAX_FINDINGS": {"type": "string", "pattern": "^([1-9]|[1-9][0-9]|[1-4][0-9]{2}|50[0-9]|51[0-2])$", "description": "Findings per newly generated array, including the exhaustion finding; default 128, range 1-512. Retained evidence is unchanged. Changes roll API and worker Pods."},
+        "CATALOG_VALIDATION_MAX_DIAGNOSTIC_BYTES": {"type": "string", "pattern": "^[0-9]{4,6}$", "description": "Compact JSON bytes per newly generated findings array; default 65536. Templates and runtime validate 1024-262144. Changes roll API and worker Pods."},
+        "CATALOG_HTTP_SERVICE_ACTIVITY_ENABLED": {"type": "string", "enum": ["true", "false"], "description": "Default-off API activity read. Enabling shares process-wide traffic across tenants with current administrators. Changes require API restart."},
+        "CATALOG_HTTP_MAX_BODY_BYTES": {"type": "string", "pattern": "^[0-9]+$", "description": "Backend request admission in bytes; default 2097152, runtime range 1024-67108864. Not a response limit or UI setting. Changes roll API and worker Pods."},
+        "CATALOG_MCP_ENABLED": {"type": "string", "enum": ["true", "false"]},
+        "CATALOG_MCP_MAX_TOOL_BYTES": {"type": "string", "pattern": "^[0-9]+$"},
+        "CATALOG_MCP_MAX_CONCURRENCY": {"type": "string", "pattern": "^[0-9]+$"},
+        "CATALOG_MCP_ALLOWED_ORIGINS": {"type": "string", "minLength": 2},
+        "CATALOG_HTTP_CORS_ORIGINS": {"type": "string", "minLength": 1},
+        "CATALOG_DATABASE_DRIVER": {"const": "postgres"},
+        "CATALOG_DATABASE_MAX_CONNECTIONS": {"type": "string", "pattern": "^[0-9]+$"},
+        "CATALOG_DATABASE_MAX_CONN_LIFETIME": {"type": "string", "minLength": 1, "description": "Positive Go duration; default 30m. Runtime validates positivity and representability. Overrides the corresponding DSN pool parameter. Changes roll API and worker Pods."},
+        "CATALOG_DATABASE_MAX_CONN_IDLE_TIME": {"type": "string", "minLength": 1, "description": "Positive Go duration; default 5m. Runtime validates positivity and representability. Overrides the corresponding DSN pool parameter. Changes roll API and worker Pods."},
+        "CATALOG_DATABASE_HEALTH_CHECK_PERIOD": {"type": "string", "minLength": 1, "description": "Positive Go duration; default 30s. Runtime validates positivity and representability. Overrides the corresponding DSN pool parameter. Changes roll API and worker Pods."},
+        "CATALOG_AUTH_MODE": {"const": "oidc"},
+        "CATALOG_AUTH_ISSUER": {"type": "string", "minLength": 1, "maxLength": 2048},
+        "CATALOG_AUTH_AUDIENCE": {"type": "string", "minLength": 1, "maxLength": 512},
+        "CATALOG_AUTH_TENANCY_MODE": {"enum": ["dedicated", "shared"]},
+        "CATALOG_AUTH_DEDICATED_TENANT_ID": {
+          "oneOf": [
+            {"type": "string", "pattern": "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$"},
+            {"type": "null"}
+          ]
+        },
+        "CATALOG_AUTH_ORGANIZATION_CLAIM": {
+          "oneOf": [
+            {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_.:-]+$"},
+            {"type": "null"}
+          ]
+        },
+        "CATALOG_AUTH_ENFORCE_SCOPES": {"enum": ["true", "false"]},
+        "CATALOG_JOBS_MAX_ATTEMPTS": {"type": "string", "pattern": "^(?:[1-9]|1[0-9]|20)$"},
+        "CATALOG_JOBS_RETRY_CEILING": {"type": "string", "minLength": 1},
+        "CATALOG_WORKER_POLL_INTERVAL": {"type": "string", "minLength": 1},
+        "CATALOG_WORKER_DEPENDENCY_RETRY_INITIAL_DELAY": {"type": "string", "minLength": 1},
+        "CATALOG_WORKER_DEPENDENCY_RETRY_CEILING": {"type": "string", "minLength": 1},
+        "CATALOG_WORKER_LEASE_DURATION": {"type": "string", "minLength": 1},
+        "CATALOG_WORKER_CONCURRENCY": {"type": "string", "pattern": "^[0-9]+$"},
+        "CATALOG_WORKER_SOURCE_MAINTENANCE_INTERVAL": {"type": "string", "minLength": 1},
+        "CATALOG_WORKER_HOUSEKEEPING_INTERVAL": {"type": "string", "minLength": 1},
+        "CATALOG_WORKER_TERMINAL_JOB_RETENTION": {"type": "string", "minLength": 1},
+        "CATALOG_WORKER_ACKNOWLEDGED_OUTBOX_RETENTION": {"type": "string", "minLength": 1},
+        "CATALOG_WORKER_OPERATIONS_ADDRESS": {"const": "0.0.0.0:9090"},
+        "CATALOG_FEDERATION_REQUEST_TIMEOUT": {"type": "string", "minLength": 1},
+        "CATALOG_FEDERATION_MAX_RESPONSE_BYTES": {"type": "string", "pattern": "^[0-9]+$"},
+        "CATALOG_FEDERATION_MAX_REDIRECTS": {"type": "string", "pattern": "^[0-9]+$"},
+        "CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE": {"type": "string", "pattern": "^[1-5]$"},
+        "CATALOG_FEDERATION_MAX_FANOUT": {"type": "string", "pattern": "^(?:[1-9]|1[0-2])$"},
+        "CATALOG_FEDERATION_MAX_HOPS": {"type": "string", "pattern": "^[0-2]$"},
+        "CATALOG_FEDERATION_POLICY_FILE": {"const": "/etc/open-agentic-catalog/federation/policy/policy.json"},
+        "CATALOG_DISCOVERY_HOSTS": {"type": "string", "minLength": 2, "maxLength": 65536},
+        "CATALOG_PUBLICATION_ARD_PROFILE": {"const": "ard-0.91-aa3e598"},
+        "CATALOG_PUBLICATION_AI_CATALOG_PROFILE": {"const": "ai-catalog-1.0-b062278"},
+        "CATALOG_WEBHOOKS_ENABLED": {"enum": ["true", "false"]},
+        "CATALOG_WEBHOOKS_MAX_ATTEMPTS": {"type": "string", "pattern": "^[0-9]+$"},
+        "CATALOG_WEBHOOKS_RETRY_CEILING": {"type": "string", "minLength": 1},
+        "CATALOG_WEBHOOKS_POLICY_FILE": {"type": "string", "minLength": 1},
+        "CATALOG_WEBHOOKS_TIMEOUT": {"type": "string", "minLength": 1},
+        "CATALOG_WEBHOOKS_POLL_INTERVAL": {"type": "string", "minLength": 1},
+        "CATALOG_SEMANTIC_SEARCH": {"const": "{\"enabled\":false}", "description": "Use the dedicated semanticSearch values for enabled deployments; generic environment overrides keep it disabled."},
+        "CATALOG_RATINGS_SHARING_ENABLED": {"type":"string", "enum":["true","false"]},
+        "CATALOG_RATINGS_MINIMUM_SHARED_COUNT": {"type":"string", "pattern":"^(?:[5-9]|[1-9][0-9]{1,2}|1000)$"},
+        "CATALOG_TRUST_VERIFICATION": {"type":"string", "minLength":2, "maxLength":65536, "description":"Closed default-off ANS authority policy and evidence budgets. Public keys are separate from TLS roots."},
+        "CATALOG_PUBLISHER_DOMAIN_VERIFICATION": {"type":"string", "minLength":2, "maxLength":4096, "description":"Closed default-off DNS TXT verification policy for Publishers."},
+        "CATALOG_LISTING_MEDIA": {"type":"string", "minLength":2, "maxLength":32768, "description":"Closed listing media JSON: exact origin/profile bindings and bounded work limits; empty allowedOrigins denies fetching."},
+        "CATALOG_MANAGED_MEDIA_ENABLED": {"enum": ["true", "false"]},
+        "CATALOG_SOFTWARE_ASSESSMENT_ENABLED": {"enum": ["true", "false"]},
+        "CATALOG_CREDENTIAL_RESOLUTION_ENABLED": {"enum": ["true", "false"]},
+        "CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY": {"const": "/etc/open-agentic-catalog/federation/credentials"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"CATALOG_AUTH_TENANCY_MODE": {"const": "dedicated"}}},
+          "then": {
+            "required": ["CATALOG_AUTH_DEDICATED_TENANT_ID"],
+            "properties": {
+              "CATALOG_AUTH_DEDICATED_TENANT_ID": {"type": "string", "pattern": "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"CATALOG_AUTH_TENANCY_MODE": {"const": "shared"}}},
+          "then": {
+            "required": ["CATALOG_AUTH_ORGANIZATION_CLAIM"],
+            "properties": {
+              "CATALOG_AUTH_ORGANIZATION_CLAIM": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_.:-]+$"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"CATALOG_CREDENTIAL_RESOLUTION_ENABLED": {"const": "true"}}},
+          "then": {"required": ["CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY"]},
+          "else": {"not": {"required": ["CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY"]}}
+        }
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "configEnv": {
+            "properties": {"CATALOG_WEBHOOKS_ENABLED": {"const": "true"}}
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "secrets": {
+            "required": ["webhookEncryption"],
+            "properties": {"webhookEncryption": {"type": "object"}}
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "configEnv": {
+            "properties": {"CATALOG_CREDENTIAL_RESOLUTION_ENABLED": {"const": "true"}}
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "secrets": {
+            "required": ["federationCredentials"],
+            "properties": {"federationCredentials": {"type": "object"}}
+          }
+        }
+      }
+    }
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["replicas", "topologySpread", "podDisruptionBudget", "resources"],
+      "properties": {
+        "replicas": {"type": "integer", "minimum": 1},
+        "topologySpread": {"$ref": "#/definitions/topologySpread"},
+        "podDisruptionBudget": {"$ref": "#/definitions/podDisruptionBudget"},
+        "resources": {"type": "object"}
+      }
+    },
+    "topologySpread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "topologyKey", "whenUnsatisfiable"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "topologyKey": {"type": "string", "minLength": 1, "maxLength": 317, "pattern": "^(?:[a-z0-9](?:[-a-z0-9.]*[a-z0-9])?/)?[A-Za-z0-9](?:[-A-Za-z0-9_.]*[A-Za-z0-9])?$"},
+        "whenUnsatisfiable": {"enum": ["DoNotSchedule", "ScheduleAnyway"]}
+      }
+    },
+    "podDisruptionBudget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "maxUnavailable"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "maxUnavailable": {
+          "oneOf": [
+            {"type": "integer", "minimum": 0},
+            {"type": "string", "pattern": "^(?:100|[0-9]{1,2})%$"}
+          ]
+        }
+      }
+    },
+    "stringMap": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "podAnnotationMap": {
+      "type": "object",
+      "propertyNames": {
+        "not": {"enum": ["checksum/config", "checksum/federation-policy", "checksum/webhook-egress", "checksum/database-trust-reference"]}
+      },
+      "additionalProperties": {"type": "string"}
+    },
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create", "name", "annotations"],
+      "properties": {
+        "create": {"type": "boolean"},
+        "name": {
+          "oneOf": [
+            {"const": ""},
+            {"$ref": "#/definitions/kubernetesName"}
+          ]
+        },
+        "annotations": {"$ref": "#/definitions/resourceAnnotationMap"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"create": {"const": false}}},
+          "then": {"properties": {"name": {"minLength": 1}}}
+        }
+      ]
+    },
+    "resourceAnnotationMap": {
+      "type": "object",
+      "propertyNames": {
+        "not": {
+          "enum": ["helm.sh/hook", "helm.sh/hook-weight", "helm.sh/hook-delete-policy", "helm.sh/resource-policy"]
+        }
+      },
+      "additionalProperties": {"type": "string"}
+    },
+    "kubernetesName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "pattern": "^[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?(?:\\.[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?)*$"
+    },
+    "secretReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "key"],
+      "properties": {
+        "name": {"$ref": "#/definitions/kubernetesName"},
+        "key": {"$ref": "#/definitions/configKey"}
+      }
+    },
+    "configKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 253,
+      "pattern": "^[A-Za-z0-9._-]+$"
+    }
+  }
+}

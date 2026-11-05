@@ -1,0 +1,105 @@
+@layer components {
+  .resource-card .catalog-presentation {
+    grid-template-columns: 6rem minmax(0, 1fr);
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .catalog-presentation .namespace-filter {
+    display: inline-flex;
+    min-height: 28px;
+    min-width: 0;
+    max-width: 100%;
+    padding: 3px 8px;
+    border-radius: 6px;
+    background: var(--subtle);
+    color: var(--text);
+    font-size: var(--font-meta);
+    font-weight: 500;
+    overflow-wrap: anywhere;
+    text-align: left;
+    justify-content: flex-start;
+  }
+  .catalog-presentation .namespace-filter:hover {
+    background: var(--accent-soft);
+    border-color: var(--accent);
+  }
+  .resource-card .card-badges .badge,
+  .resource-card .card-badges .state-badge,
+  .catalog-table .badge,
+  .catalog-table .state-badge {
+    min-height: 24px;
+    padding: 2px 7px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    line-height: 1.5;
+    font-size: var(--font-meta);
+    align-items: center;
+  }
+  .resource-card .card-badges .catalog-kind-badge,
+  .catalog-table .catalog-kind-badge,
+  .resource-card .card-badges .state-badge,
+  .catalog-table .state-badge {
+    border-color: transparent;
+  }
+  .catalog-order {
+    min-width: 0;
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: var(--font-meta);
+  }
+  .catalog-order select {
+    width: auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .catalog-table td {
+    vertical-align: top;
+    padding-top: 14px;
+    padding-bottom: 14px;
+  }
+  .catalog-table .table-resource {
+    align-items: flex-start;
+  }
+  .catalog-table .catalog-presentation {
+    margin: 6px 0 0;
+    align-items: center;
+  }
+  .catalog-sort-heading {
+    min-height: 32px;
+    padding: 4px 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+  }
+  .catalog-sort-heading:hover,
+  .catalog-table th[aria-sort="ascending"],
+  .catalog-table th[aria-sort="descending"] {
+    color: var(--accent-ink);
+  }
+  @media (pointer: coarse) {
+    .catalog-presentation .namespace-filter,
+    .catalog-sort-heading {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+  @media (max-width: 600px) {
+    .catalog-order {
+      flex: 1 1 100%;
+    }
+    .catalog-order select {
+      flex: 1;
+    }
+    .search-guidance {
+      margin-block: 8px;
+    }
+  }
+}

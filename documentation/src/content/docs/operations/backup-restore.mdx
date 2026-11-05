@@ -1,0 +1,377 @@
+---
+title: "Backup and restore runbook"
+---
+
+import { Steps } from "@astrojs/starlight/components";
+
+import RestoreVerification from "../../../components/architecture/RestoreVerification.astro";
+
+Restore the complete database with matching configuration and separately protected keys. Verify it before enabling API traffic, source synchronization or webhook delivery. Use an isolated destination with its own database and credentials. Do not prepare a shared database with repository reset or benchmark commands.
+
+## Test backup and restore locally
+
+### Compose
+
+From the repository root, with Docker/Compose, Go, Python 3 and curl available, run:
+
+```sh
+make test-backup-restore
+```
+
+The target builds Catalog and fixture images, populates a temporary database, and takes a logical backup. It restores into a second fresh PostgreSQL instance and verifies both tenants before starting the restored API and worker. It then checks retained data, command replay, queued work and signed webhook delivery while the original database stays stopped. Backup tools run inside containers, so no existing Catalog or host PostgreSQL installation is needed. Keep source files unchanged throughout the run.
+
+This opt-in test is separate from `make test-functional`. It accepts no existing database and does not use persistent development Compose data. It checks a logical backup round trip. It does not qualify managed snapshots, WAL archives or point-in-time recovery.
+
+The target prints its report path under `output/functional/run-<id>/`. A pass requires all assertions and independently checked cleanup. Cleanup runs after success or failure. It removes only the invocation's containers, volumes, temporary dump and audit files, keys and image aliases. Shared upstream images remain cached.
+
+If `cleanup` is not `passed`, investigate that run's remaining resources. Do not use `make compose-reset` or broad container cleanup. See the [testing guide](../contributing/testing.md#test-boundaries) for limits and diagnostics.
+
+### Minikube
+
+Install the [maintained Minikube prerequisites](deployment.mdx#maintained-local-minikube-verification), then run:
+
+```sh
+make test-minikube-backup-restore
+```
+
+This target creates its own cluster and installs the application chart. It populates the Catalog, stops API and worker Pods, and restores a full logical backup into a second PostgreSQL instance. The instances use distinct persistent volumes. It checks the migration plan, exact grants, all table counts/digests and every verification page for both tenants.
+
+The original database stays stopped while the restored Helm deployment starts. Retained reads, public bytes/ETag, local Search, command replay and tenant isolation must pass. The test does not rerun smoke to recreate data. It uses no existing cluster, database or credentials.
+
+The target prints its JSON report after cleanup. A failed check or cleanup fails the command. Its temporary dump stays inside the fixture Pod. The backup Job removes it after success or a command failure. Cluster cleanup removes the Pod's temporary storage after interruption.
+
+The Compose drill also checks audit manifests bound to the recovery point, queued work and signed webhook delivery. These logical-dump drills do not test physical backups, WAL/PITR or production backup services.
+
+### Prepare a physical backup and WAL archive
+
+A physical backup copies the files for a PostgreSQL cluster. The write-ahead log (WAL) records database changes. Point-in-time recovery (PITR) replays WAL up to a selected recovery point.
+
+To check the local physical-backup setup, run:
+
+```sh
+make test-postgres-pitr-prepare
+```
+
+This opt-in target requires Docker Engine, Docker Compose and Python 3. It uses an isolated PostgreSQL 18 source with no published port. It takes and verifies a physical cluster backup, then confirms that later WAL reaches the archive. It stages explicit recovery settings and checks that damaged backup data fails verification. It does not start the recovery destination or restore a populated Catalog.
+
+The target removes its private containers and memory-backed volumes after each run. Source, backup and destination volumes each have a 512 MiB limit; the WAL archive has a 128 MiB limit. Reports remain under ignored `output/functional/run-<id>/` paths. A pass requires all preparation checks and successful cleanup. See the [test harness](../../../../../test/functional/README.md#postgresql-backup-and-wal-preparation) for limits and report fields.
+
+This setup check does not qualify point-in-time recovery. Use the complete drill below to test recovery and restored Catalog behavior.
+
+### Test recovery to an earlier PostgreSQL point
+
+From the repository root, run:
+
+```sh
+make test-postgres-pitr
+```
+
+Use the [packaged functional prerequisites](../../../../../test/functional/README.md). The target builds the current Catalog and creates disposable databases and local peers. It uses no retained Compose data. Published ports bind to loopback, and the fixture's fetch policy permits only its test peers.
+
+The test takes a physical backup, creates a Namespace through the API, and records a named PostgreSQL restore point. It then creates a second Namespace and changes existing ratings. After the required WAL reaches the archive, it stops the original database.
+
+A separate restore copy has one required WAL segment removed. PostgreSQL must fail before reaching the target, with application traffic still disabled. The intact copy must pause at the exact named point. The first Namespace must exist; the second must be absent. Earlier rating values must also return. Named points avoid dependence on the WSL host clock.
+
+The drill verifies the source timeline and cluster identity before completing recovery onto a new timeline. It then checks all tenants, table digests, exact roles and matching audit evidence. Restored API checks cover permissions, retained public bytes/ETag and command replay. Only afterward does the worker resume queued work and signed delivery to local peers.
+
+The command prints its report path under `output/functional/run-<id>/`. Passing requires all recovery assertions and independently checked cleanup. Private backup files, archive copies, keys and containers are removed after the run. See the [historical-recovery harness](../../../../../test/functional/README.md#postgresql-historical-recovery) for limits and failure diagnostics.
+
+This tests the local PostgreSQL procedure. Operators still select and test their production backup storage, scheduling, retention, key recovery and recovery objectives.
+
+## Backup contract
+
+### Choose a backup method and retain its prerequisites
+
+Choose PostgreSQL-native or managed-provider backup tools. PostgreSQL 18 documents [logical dumps](https://www.postgresql.org/docs/18/app-pgdump.html), [backup methods](https://www.postgresql.org/docs/18/backup.html) and [continuous archiving with point-in-time recovery](https://www.postgresql.org/docs/18/continuous-archiving.html).
+
+A logical dump exports one database. It does not provide WAL-based point-in-time recovery or export cluster roles and global objects. Physical recovery requires its base backup and complete WAL archive chain, or the provider's qualified equivalent. A healthy standby is not a backup.
+
+Record the exact database and service versions, migration checksums, profile digest and non-secret effective configuration. Include outbound policy, the complete tenant inventory, backup identifier and protected credential or key versions. Record how to restore or provision the schema owner, exact runtime identities, extensions and privilege manifests.
+
+The backup identity must cover all tenants and required objects without adding runtime authority. Do not back up only API-visible tables: forced RLS and tenant scoping make that incomplete. Protect backup files and transport with deployment encryption and access controls. Compression is not encryption.
+
+`make test-backup-restore` checks a complete logical backup into fresh PostgreSQL 18, all-tenant verification and recovered API/worker behavior. It also compares saved tenant overrides and their validators, and preserves the queued Job budget. Use the sequence below to develop a logical backup procedure. Qualify managed snapshots and WAL recovery separately. Stop if completeness, ownership, role definitions, historical webhook keys or recovery-point provenance cannot be established.
+
+### Recovery inventory and ownership
+
+Keep an access-controlled recovery inventory outside the database archive, bound to the same recovery point. It records identities and protected storage references, not plaintext secrets.
+
+| Input | What to retain or provision |
+| --- | --- |
+| Authoritative PostgreSQL data | Every Catalog table and tenant, including settings, memberships, source records, retained documents, immutable history, audit, command reservations and notification state. Do not export only visible Catalog listings. |
+| Deployment configuration | Exact image/build, role-specific configuration, outbound policies, public-host/audience mappings, issuer settings, trust roots and scoped mounts. Deployment configuration is distinct from tenant settings stored in PostgreSQL. Restore saved tenant overrides with the data, then review them before reopening traffic. |
+| Protected keys and credentials | Recoverable matching key versions and their protected references, including historical webhook decryption material. Use the [credential and trust inventory](maintenance.mdx#rotate-credentials-and-trust); never replace a key arbitrarily over retained ciphertext. |
+| PostgreSQL prerequisites | Compatible PostgreSQL and extensions, schema owner, exact runtime role attributes/grants, migration ledger/checksums, database ownership, encoding/locale, ACLs and database-specific settings. A single-database dump does not provision the cluster. |
+| External dependencies | Git/OCI/HTTPS artifact locators, publisher availability and applicable deployment-owned artifact backups. Metadata retention is not a backup of external packages. |
+| Derived state | Include derived tables in the complete backup too. Rebuild only through the supported bounded repair/reindex paths when verification establishes a need; do not omit them on the assumption that they are disposable. |
+
+The operator chooses and tests the backup method, schedule, retention, encryption, access controls, failure alerts and drill frequency. Set these against the deployment's recovery point objective (RPO) and recovery time objective (RTO). Catalog supplies verification and repair procedures. It does not schedule backups or certify a provider's recovery guarantees.
+
+### Restore a replacement deployment or create an isolated clone
+
+:::caution[Keep the restore isolated]
+A restored database can contain production destinations and pending deliveries. Block production traffic before starting cloned processes.
+:::
+
+For a **replacement**, fence the old writer before enabling the restored deployment. Review stale clients and both API and worker connections so two authoritative deployments cannot accept divergent writes or send duplicate notifications.
+
+For an **isolated clone drill**, production need not stay stopped throughout the drill. Use a separate database, restricted identities and private access. Block production ingress and outbound destinations before starting cloned processes. Coordinate a period without ordinary writes when comparing independently bound audit manifests.
+
+The local restore drills stop their source database to verify that recovery uses the restored database. This does not require stopping production throughout an isolated clone drill.
+
+Review retained Jobs, outbox rows, source and webhook destinations, public mappings, memberships, issuer settings, browser session authority and matching keys. Network controls must isolate the clone without rewriting immutable snapshots, audit records, documents or destinations. Protect decryption keys. Valid restored rows must not give the drill production session authority or permit production sends.
+
+Start only reviewed roles and allowed local peers. Observe both source and receiver counters before enabling work. Catalog has no automatic clone mode.
+
+### Select source and restore connections
+
+Check each command's host, port, database and identity against the protected deployment inventory. Use separate source and destination connections. Do not reuse a production connection for restore commands.
+
+Connect directly to PostgreSQL for backup and recovery commands. Do not route schema-owner commands through PgBouncer. See the [database identity requirements](database-roles.md#connection-pooling-boundary).
+
+The PostgreSQL examples below run inside the selected database container and use its local socket. For remote databases, supply explicit host and port options. Review inherited PostgreSQL connection settings, including `PGHOST`, `PGPORT`, `PGSERVICE` and `PGSERVICEFILE`. Use a protected password file or the deployment's credential mechanism. Do not put passwords on command lines.
+
+Catalog environment overrides take precedence over `--config`. This applies to migration, restore verification, audit comparison and repair commands. When `restore.json` supplies the DSN, unset inherited `CATALOG_DATABASE_DSN` and `CATALOG_DATABASE_DSN_FILE`. Alternatively, set only `CATALOG_DATABASE_DSN_FILE` to a protected file for the restored database. Keep `database.driver` set to `postgres`. See [configuration delivery and precedence](../reference/configuration.mdx#configuration-delivery-and-precedence).
+
+Keep credentials out of terminal output and reports. Select the schema-owner identity for migration and grant reconciliation; do not substitute the API or worker identity.
+
+### Tested logical backup sequence
+
+The Compose drill uses these command forms on separate source and destination instances. The shown database and identity names belong to its disposable fixture. Select appropriate identities, connections and protected paths for a deployment. The backup identity must see all forced-RLS rows. Do not use API/worker identities, table or tenant filters, or `--enable-row-security` for a complete backup.
+
+<Steps>
+
+1. Record the expected tenant inventory, build, migrations, profile, database ownership/settings, configuration and protected key inputs. Stop ordinary writes and worker activity before capturing recovery-bound audit manifests. Complete only the controlled audit exports, with their evidence outside the compared ranges. Then stop the API.
+
+   PostgreSQL can make consistent logical dumps while writers run. That does not bind a separate audit export to the same committed state.
+2. On the source, create the full custom-format archive in a private directory:
+
+   ```sh
+   umask 077
+   pg_dump --username catalog --dbname catalog --format=custom --file catalog.dump
+   ```
+
+3. Transfer the archive through protected storage/transport and verify its digest. Keep the matching webhook encryption key separate. Compression does not encrypt the dump. Keep restored API/worker processes stopped and source/receiver traffic blocked.
+4. On the empty destination, provision the schema owner and exact API/worker role definitions before restoring their object grants. A single-database dump excludes cluster roles. Create the database from `template0`, then restore into that explicit database:
+
+   ```sh
+   createdb --username catalog --template template0 --owner catalog catalog
+   pg_restore --username catalog --dbname catalog --single-transaction catalog.dump
+   ```
+
+   The fixture uses one transaction so an SQL error fails the restore atomically. Do not use `--clean` against an existing database. Do not let `--create` choose the target from the archive. Preserve object ownership and access control lists (ACLs).
+
+   Account separately for extensions, database-level grants, locale, encoding and database-specific settings. The test provisions its fixed role/connect grants and compares these settings. It does not import arbitrary global objects. Review transaction size and tools separately for large restores. See [pg_dump](https://www.postgresql.org/docs/18/app-pgdump.html) and [pg_restore](https://www.postgresql.org/docs/18/app-pgrestore.html).
+5. With the matching Catalog build, require `catalogctl migrate plan` to show the complete unchanged ledger with no pending migrations. Do not bootstrap or migrate an empty database before archive loading. Run `migrate apply` only after the exact plan succeeds to reconcile the runtime grants, then verify the profile bundle. A same-build round trip must not need a new migration or repair to hide missing state.
+6. Follow the all-tenant verification and audit comparison below before any runtime starts. The test additionally compares every fixture table's row count and content digest before and after restoration and verification. A complete clean round trip has no integrity or repairable findings; review retained work separately.
+7. After reviewing current configuration, keys and permitted side effects, start the API against the restored database and verify retained authorized reads, tenant isolation, public bytes/ETag and representative Search. Resume workers only when retained work and possible duplicate deliveries have been reviewed. The fixture requires every table to remain unchanged across unaudited reads and exact response-byte replay, validates namespace and public-document ETags, and proves one queued Job and signed delivery to its owned receiver while the original database remains stopped; it never reruns mutating smoke to recreate missing records.
+
+</Steps>
+
+The [local test](#test-backup-and-restore-locally) uses synthetic published Agent, MCP and Skill records, two tenants, indexed observations, feedback, snapshots and completed commands. It includes live and cleared feedback, queued work and retained webhook keys and events. All-table comparison does not mean every lifecycle variant is populated. Optional semantic state has separate qualification. Choose deployment backup retention and drill frequency independently.
+
+The fixture also restores one inspected, unpublished Plugin, one saved search and one saved resource reference. Plugin documents and inventory must match the original reads, with the archive server stopped. Both saved items must retain their exact contents, revisions, timestamps and owner-only access. Plugin revision reads create audit evidence. The fixture checks those reads after the unchanged-table and exact-replay checks. The test does not back up archive bytes or qualify availability of deployment-owned external packages.
+
+### Retained Catalog state
+
+PostgreSQL retains authoritative Catalog metadata, bounded documents, exact validation bytes and external retrieval evidence. It also retains Skill inventories and assessments, immutable Git/OCI handoff locators, and exact Plugin manifests, component documents and inventory. Plugin evidence binds the external archive digest and size.
+
+Include validation runs, lifecycle state, audit, Jobs, outbox rows, source observations, publication snapshots, command reservations and webhook evidence. Git, OCI and approved HTTPS locations remain authoritative for external source and release artifacts. Catalog does not retain transient Skill or Plugin archive bytes. A Plugin inspection cannot recreate a missing publisher archive. Back up those packages through their owners' storage procedures. See [Plugin retention and revalidation](../guides/agent-plugins.mdx#verify-package-bytes-and-revalidate-a-plugin).
+
+Managed media is unavailable, so the supported deployment has no media provider to back up. Bind the recovery point to exact service, migration, profile, outbound-policy and key versions.
+
+Restore tenant notification counters with the database. Reconciliation checkpoints can move backward to the recovery point. Receivers must refresh current authorized state and cannot assume historical replay.
+
+Restore delivery cleanup markers unchanged. Verification rejects markers on unfinished-parent recipients, arbitrary orphans or invalid synthetic bindings. Exact terminal synthetic tests intentionally need no outbox parent. Keep sends disabled until logical integrity and key verification pass. The webhook fixture checks old-backup encryption-key requirements, not production physical backup or point-in-time recovery.
+
+SRE selects and operates PostgreSQL backup, point-in-time recovery, encryption, retention, replication, and restore cadence for the deployment. Back up configuration and opaque secret or credential references through their owning platform; never export plaintext signing, database, source, or webhook secrets into the database backup.
+
+Replication and failover do not replace backups. A standby can reproduce operator error, corruption or unwanted deletion. Asynchronous promotion can lose acknowledged writes that have not reached it.
+
+`make test-postgres-failover` checks Catalog recovery after physical promotion from a known replicated baseline. It does not qualify an operator's HA system or guarantee lossless replication. Qualify the actual backup system with an isolated restore to a selected recovery point. Neither test chooses a universal RPO, RTO, backup schedule or HA product.
+
+After a writer change, Catalog opens new read/write connections and workers recover expired retained leases. A completed response retained by the new writer can replay. A retained unfinished reservation requires [idempotency repair](idempotency-repair.mdx).
+
+Fence the old writer and establish that the original request ended before repair. PostgreSQL advisory locks belong to one server and are not replicated. A missing reservation cannot prove an acknowledged write survived. See the [writer-recovery tests](../contributing/testing.md#test-boundaries).
+
+Only current command and retained-evidence formats are supported under [ADR-0017](../architecture/decisions/0017-first-release-baseline.md). There is no object bridge, document-link backfill or supported predecessor format. Incompatible development state is rejected without conversion or deletion. Preserve existing state unless its owner explicitly approves its exact disposition.
+
+Restore exact Skill archive digests and sizes, normalized inventories and immutable handoff locators. Older readers and pre-release formats have no supported rollback contract. Follow ADR-0017 and preserve incompatible development state until its owner approves a disposition.
+
+Restore nullable validation-run expiry, ordered run history, EvidenceSet rows, ReviewSubmission bindings, audit and outbox together. Missing validation runs are integrity failures. Do not manufacture them from another evidence projection. Current EvidenceSet rows have no redundant expiry column.
+
+Current `catalog-validation-v7` evidence binds external delivery URLs, retained documents, retrieval aggregates and actual validation-run expiry. Creation times use PostgreSQL microseconds so digests reproduce after restore. Earlier validation profiles are unsupported.
+
+Do not fetch a URL to reconstruct missing retrieval evidence; its bytes or policy can have changed. A current-format run under an inactive policy remains history. Revalidate through the approved route before a new review or publication.
+
+Restore exact observation bytes, identity and normalized digests, immutable occurrences, source revisions, snapshots and adoption provenance together. Missing provenance is an integrity failure, not a compatibility warning. Unsupported entries can lack a normalized representation but must retain exact raw evidence. Do not reconstruct an occurrence from the current source.
+
+Restore derived observation search fields and tenant search generations with the database. They are rebuildable, not authoritative evidence. Use bounded [search projection repair](search-projection-repair.mdx) when an observation has normalized bytes but lacks a current projection. Do not invent normalization for unsupported observations. Repair advances the generation and invalidates outstanding search cursors.
+
+Restore membership state and revision, retained roles, namespace grants, audit and outbox evidence together. Include role definitions and permissions, groups and direct members, direct/group assignments and tenant authorization revisions. Review active access and retained revocations against the trusted recovery point before opening traffic. A restore can revive authority revoked after that point; reconcile those revocations explicitly. Do not manufacture missing policy by provisioning defaults.
+
+Restore each tombstone with its canonical identifier, creator, deletion actor, reason, time and complete resource aggregate. Include versions, representations, listings and documents. Current reads must keep the aggregate and its documents inaccessible. A tombstone is neither hard deletion nor privacy erasure. Do not reuse its canonical identifier.
+
+Restore source revisions, snapshots, observations, occurrences, retrieval documents and states, immutable attempts, maintenance markers and Jobs from one recovery point. These include context-sensitive identities and exact Registry-page occurrence locations. Do not reconstruct missing evidence from a current upstream response. Keep URLs, validators and source bytes inside the protected database boundary, outside support exports.
+
+Losing reusable validator state forces later unconditional retrieval. Losing immutable attempts, occurrence bindings or document bytes destroys provenance and is not a supported partial restore. A missing admission marker can make synchronization due sooner. Live-Job uniqueness still prevents concurrent duplicate work. Do not edit markers to manufacture a schedule.
+
+Restore each outbox row's `is_internal` classification unchanged. Do not infer or change it from the event type. Internal and unknown events remain non-deliverable after restore. Administration indexes are rebuildable, not evidence.
+
+Restore the full schema under the dedicated owner. Create exact API and worker roles with required attributes and no incoming or outgoing memberships. Keep runtimes and outbound paths stopped. Run `catalogctl migrate apply --config restore.json --api-role <api-role> --worker-role <worker-role>` after the exact migration plan succeeds. Even without pending migrations, it reconciles Catalog, `pgcrypto`, direct `PUBLIC` and future-object privileges. Require both manifests to be compliant.
+
+Verify exact same-tenant parent references for current revisions, releases, validation runs and source snapshots. Current releases must be active and backed by approved submissions; current source snapshots must be complete. Preserve immutable evidence and terminal or monotonic guards. Do not disable constraints or triggers to hide inconsistencies. Investigate completeness, select another recovery point or use separately reviewed repair that preserves evidence.
+
+Audit requires format version 1 with complete attribution. Restore audit events and reconcile the [current privilege manifest](database-roles.md). Follow the [audit runbook](audit.md) for filters, deterministic exports, offline verification and exact restored-range comparison. Comparison requires a separately trusted manifest bound externally to this recovery point during one period without ordinary writes.
+
+The partial `(tenant_id, id)` index selects normalized observations with incomplete derived search fields. It supports a bounded post-repair existence check and grants no extra runtime authority. Repair reports `processed`, `hasMore` and `complete`. It does not compute an exact remaining count.
+
+Restore same-tenant inspection-use links and Job, delivery and outbox cleanup markers exactly. Used inspections remain retained; expired unused inspections can be reclaimed. Do not recalculate `cleanup_after` from current configuration. Each marker records the prospective policy when first marked. Keep runtimes stopped so housekeeping cannot delete eligible rows before verification.
+
+Restore `dispatch_after`, retry schedules and delivery state unchanged. Do not clear delays to force immediate delivery or use an older worker that ignores them. Only the schema owner can re-encrypt endpoint ciphertext without changing identity or signing history. Applying a migration does not re-encrypt retained rows.
+
+The database has no deployment key identifier or online key ring. Retain the key associated with each backup separately. Keep both key inputs for backups captured during partial replacement. In an isolated restore, stop all send-capable processes and verify every tenant's signing material. Complete or reverse partial replacement before resuming matching binaries.
+
+Follow [webhook key replacement](webhooks.mdx#deployment-encryption-key-replacement) for repeatable batches and rollback. The enabled-webhook fixture checks old-backup keys and partial replacement recovery. This logical/key test does not qualify production point-in-time recovery.
+
+## Verify an isolated database restore
+
+The diagram summarizes the verification gates below. Keep the restored database quiescent across all tenant/page checks; a successful restore command or verifier exit code does not authorize traffic.
+
+<RestoreVerification />
+
+1. Restore PostgreSQL into an isolated network with outbound webhooks, federation, and public ingress disabled. Managed media is not implemented and has no qualified recovery procedure.
+2. Create the exact restricted runtime roles and deploy the exact compatible migration binary only. Run `catalogctl migrate plan` before the first schema or grant mutation. The planner rejects changed checksums and applied versions absent from the embedded bundle. Only after that exact plan succeeds, run `catalogctl migrate apply` as the dedicated schema owner with both role names. Keep API and worker stopped until both exact privilege reports are compliant.
+3. Run `catalogctl profiles verify` and compare the reported bundle digest with the backup manifest.
+4. Use the external expected-tenant inventory to run `catalogctl restore verify` for every tenant. Start each tenant without a cursor. Retain every report. Pass each continuation unchanged with the same recovery label, roles and limit. Continue until `traversal` is `complete`. Require a gap-free chain with no `class: integrity` finding on any page.
+
+   A zero exit means the bounded check emitted a valid report. Review every repairable and operational finding. If recovery evidence includes a separately trusted audit manifest bound to this point, run `catalogctl audit compare-restore` before repair. Structural export-file validation is insufficient. Do not clone, pull, fetch, decrypt endpoint secrets or test external references during logical verification.
+5. Inspect lease timestamps and leave lease columns unchanged during isolated verification. There is no general lease-repair command; after configuration and outbound controls are reviewed and compatible workers are deliberately restarted, normal claim logic recovers expired Job and outbox leases. Never mark an uncertain webhook event published merely to empty a queue.
+6. Run `catalogctl repair search-projections` in row-bounded update batches only for a tenant whose complete verification chain reports search-projection drift. Continue while `hasMore` is true and require the terminal result to report `complete: true`, then rerun a full no-cursor verification chain and repeat representative exact, lexical, filter, facet, and cursor checks. If hybrid search is enabled, restore its optional schema and exact privileges before starting enabled runtimes. Workers automatically rebuild missing or stale derived generations; administrator reindex is available for deliberate rebuilding. Verify hybrid retrieval and safe keyword fallback using the [hybrid-search recovery procedure](hybrid-search.mdx#indexing-and-recovery). Managed media remains unavailable.
+7. Reapply the reviewed deployment configuration and record the effective housekeeping cadence plus terminal-Job and acknowledged-outbox retention. Keep API and worker runtimes stopped so neither current background work nor automatic housekeeping can alter state merely to make the restore look current; complete integrity and recovery-point verification first.
+8. Keep outbound webhook delivery and public ingress blocked until duplicate-delivery and active-snapshot consequences have been reviewed. Preserve the retained publication state; do not unpublish or activate a replacement snapshot just to isolate the restore.
+9. Require all of these results before approval:
+
+   - Compliant migration and role reports.
+   - The expected profile digest.
+   - A complete, gap-free chain for every expected tenant, without an integrity finding.
+   - A documented disposition for every operational warning.
+   - Complete verification after any repair.
+   - Exact audit comparison when a separately trusted recovery-point manifest exists.
+
+   For enabled webhooks, supply the encryption key matching the backup. Resolve partial key replacement through stopped-runtime maintenance. The logical verifier does not decrypt secrets. Record the recovery point, elapsed phases, failures and any loss.
+
+   Obtain explicit operator approval before restoring reviewed ingress, egress and runtime configuration. Verify both roles' readiness and authorized read-only state. Monitor duplicate-delivery and publication consequences. Do not automatically run mutating smoke against restored production data.
+
+SRE selects the drill frequency. A completed infrastructure restore still needs tenant isolation, document and retrieval-evidence integrity, Skill inventory consistency and external-reference checks. It also needs derived search verification, publication checks and safe outbound behavior.
+
+For a production acceptance drill, commit named markers before and after the requested recovery point. The isolated restore must contain the earlier marker and omit the later one. Record the backup identity, requested and achieved point, PostgreSQL and candidate versions, elapsed phases and missing data. Record every failed or incomplete check.
+
+A promoted replica cannot replace this drill. PostgreSQL startup does not authorize public ingress or egress. Catalog images and charts neither select nor validate the operator's backup mechanism.
+
+## Isolated logical-integrity verifier
+
+`catalogctl restore verify` checks one bounded page for one explicit tenant in a named isolated restore. It does not take backups, probe health, discover tenants or test external dependencies. A valid report does not authorize traffic.
+
+| Check | What it proves | What it deliberately does not prove |
+| --- | --- | --- |
+| Migration and schema metadata | The embedded migration ledger has no missing, changed, pending, or unknown version; required PostgreSQL and extension metadata, forced RLS, the exact policy set and definitions including verified identity-realm resolution, and critical constraint and lifecycle-trigger identities, definitions, validation, and enabled state match the reviewed inventory. All required constraints must be validated. | That a backup is authentic, complete, or from the named recovery point. |
+| Named runtime roles | API and worker attributes, memberships, and effective grants match the embedded manifest without changing them. | Password validity, direct runtime connectivity, or behavioral RLS denial; normal startup and PostgreSQL integration tests prove those separately. |
+| Tenant retained state | Bounded current records and retained evidence satisfy owning application validators for semantics, digests, aggregates, payloads, and references not already guaranteed by validated database constraints. | That historical snapshots satisfy today's deployment policy. |
+| Derived and operational state | Search-projection drift is repairable, while expired leases or interrupted reservations are identified for normal recovery or focused review. | Permission to change authoritative history, clear uncertain work, or execute a repair automatically. |
+| Audit comparison | The separately trusted manifest exactly matches the restored range when both were externally bound to one quiesced recovery point. | Database-owner tamper evidence from the database or embedded export digest alone. |
+
+The verifier uses migration-role configuration and a connection that permits read-only verification. Use a bounded non-secret recovery-point label. Each invocation runs one repeatable-read, read-only transaction with explicit tenant context and a one-minute bound. Selected rows, decoded bytes, findings, output and cursors have finite limits.
+
+Indexed keyset traversal binds continuation to the recovery label, tenant, roles, schema/check-set versions, page limit, stage and last position. The report separates traversal from page-local integrity: a continued page can contain invalid data. Collect findings from every page. The cursor rejects malformed or changed inputs but is neither an authorization token nor tamper evidence.
+
+A complete qualification starts without a cursor and ends at `traversal: complete`, with no missing page. Keep the database quiescent throughout. Separate invocations cannot share one repeatable-read snapshot.
+
+For direct use, follow the [connection checks](#select-source-and-restore-connections) and select a migration-role configuration for the isolated restore. Run the command once per page:
+
+```sh
+catalogctl restore verify --config restore.json --tenant '<tenant-uuid>' --recovery-point '<non-secret-label>' --api-role catalog_api --worker-role catalog_worker --limit 100
+catalogctl restore verify --config restore.json --tenant '<tenant-uuid>' --recovery-point '<non-secret-label>' --api-role catalog_api --worker-role catalog_worker --limit 100 --cursor '<preceding-continuation>'
+```
+
+`make restore-verify` selects its connection through `CATALOG_MIGRATION_DATABASE_DSN`, which overrides the JSON DSN. Its default targets the local development database. Set that operator input explicitly for the isolated restore. Keep credentials in a protected Make input file selected through `CATALOG_ENV_FILE`, outside the repository.
+
+Set `CATALOG_POSTGRES_CONFIG_FILE`, `CATALOG_DATABASE_API_ROLE` and `CATALOG_DATABASE_WORKER_ROLE` to the reviewed restore inputs. Set `RESTORE_TENANT_ID` and `RESTORE_RECOVERY_POINT` for each tenant. Use `RESTORE_VERIFY_LIMIT` to select the page limit. For later pages, set `RESTORE_CURSOR` to the exact preceding continuation. The direct CLI commands above also support protected DSN files without the Make wrapper.
+
+The command exits nonzero when it cannot produce a trustworthy bounded report. Causes include invalid arguments, connection/query failure, cancellation or exceeded limits. Detected schema, role, tenant or data drift appears in a successful JSON report. It can report `traversal: blocked` when row traversal is unsafe. Inspect and retain the report; a zero exit status does not prove qualification.
+
+Interpret each report using both status fields and every finding:
+
+| Result | Meaning | Required action |
+| --- | --- | --- |
+| `traversal: continued` | This page reached its row bound before all stages were visited. | Retain the report and pass its exact `continuation` into the next invocation with every binding input unchanged. |
+| `traversal: complete` | Every verification stage was visited for this tenant. | Treat this only as the end of one tenant's gap-free report chain, then evaluate integrity and all findings. |
+| `traversal: blocked` | A schema, role, or tenant precondition made retained-row traversal unsafe. | Keep traffic stopped. Resolve the reported prerequisite. Then restart the verification chain without a cursor. |
+| `integrity: valid` | This page contains no `class: integrity` finding. | Still review every repairable and operational warning; this field alone is not qualification. |
+| `integrity: invalid` | This page contains at least one current integrity failure. | Keep traffic stopped and investigate the exact finding; do not hide it by cleanup or candidate generation. |
+| `class: repairable` | Rebuildable derived state differs from authoritative evidence. | Run only the named bounded repair after read-only evidence checks, then repeat the full tenant chain. |
+| `class: operational` | Recoverable coordination state needs operator review. | Follow the owning lease, replay, delivery, or recovery procedure without rewriting governed history. |
+
+The recovery-point label is an opaque correlation value. It does not prove database provenance, complete tenant coverage, stopped writers or blocked ingress and egress. Backup tools retain the authoritative backup and tenant inventory. Network controls enforce isolation. The operator owns these prerequisites.
+
+Schema checks verify exact guards, definitions, enabled state and validated constraints. Validated foreign keys and checks avoid repeated joins for every row. Missing documents, noncurrent validation profiles, incomplete occurrence provenance and unversioned audit records are integrity failures. Missing derived fields on valid normalized observations are repairable drift.
+
+Tenant checks cover application-only identity, inspections, previews and source snapshots against exact immutable retrieval attempts. They also check private retrieval bytes and policy, occurrences, deliveries, publication documents, payloads, digests and derived fields. They do not duplicate validated relational constraints.
+
+Authoritative invariant failures are integrity findings. Derived search drift is repairable; lease, administrator-availability, replay and actionable-work findings require operational review. Publication checks retained structure, host-bound references, artifact inventory and digests, not current eligibility. Only actionable Jobs and unacknowledged public outbox rows require current executable/public payload contracts. Webhook reference checks do not decrypt secrets or prove receiver connectivity or signature acceptance.
+
+Run the exact migration plan before any mutation. Apply intended migrations and reconcile grants. Complete read-only verification and recovery-point audit comparison before repair. Repair only reported derived search drift with the bounded command, then restart each tenant's verification chain without a cursor.
+
+An invalid active snapshot stops qualification. Investigate it, select another recovery point or obtain separately reviewed repair that preserves evidence. A new candidate does not erase the failure. Preserve a structurally valid active snapshot.
+
+If separate policy review finds a missing or stale valid snapshot, build a normal candidate through an operator-only authenticated API path. Do not activate it automatically. Keep public ingress, live federation, synchronization, ordinary worker claims and webhooks disabled. If construction must revalidate external representations, temporarily permit only their exact reviewed origins. Close egress before reviewing the candidate.
+
+Keep ordinary writers stopped while capturing the audit manifest and database recovery point. Record their shared external recovery-point identifier and provenance. Export audit and replay rows must fall outside the compared range. A cutoff alone is insufficient: a concurrent transaction can commit an earlier audit timestamp after the export snapshot.
+
+Do not compare unrelated recovery points; valid differences can resemble corruption. File validation proves only structural self-consistency. Without matching provenance and a separately trusted manifest or selected immutable external log, a restore cannot prove an owner preserved all historical audit rows.
+
+## Optional semantic state
+
+Include optional semantic schema, vectors and referenced Jobs/source records in the same database backup. Provision the compatible extension before restore, then validate exact grants with semantic setup selected. Restore model/profile configuration separately; credentials remain deployment secrets.
+
+The verifier accepts the exact optional semantic schema and checks its checksum, ownership, RLS policies, constraints and guard trigger. It does not assess vector quality or restore model configuration.
+
+Start workers only after normal restore verification. Indexing Jobs rebuild missing or stale generations while keyword search remains available. An explicit administrator reindex can replace derived state without changing published documents. See [hybrid-search recovery](hybrid-search.mdx#indexing-and-recovery).
+
+For the local semantic restore test, run `make embeddings-install`, then `make test-semantic-restore`. The focused fixture uses the pinned MiniLM model and three sample releases. It restores a separate database with the source stopped. It checks retained semantic tables, exact runtime privileges and all tenant verification pages before runtime startup. It cleans its private dump and disposable infrastructure afterward.
+
+The restored API first answers exact semantic queries while both workers remain stopped. The test checks administrator and Reader results, denied users and cross-tenant reads. It then starts the restored worker and requests an administrator reindex through the API. The completed Job must account for all three releases and supply the active generation. Search results, resource records, publication documents and ETags must remain unchanged.
+
+Use `make test-semantic-restore-prepare` to stop after database verification. That shorter check does not start restored runtimes or test an index rebuild. Neither target tests model changes, production backup scheduling or point-in-time recovery.
+
+## Private feedback state
+
+Back up and restore `item_feedback` with the rest of PostgreSQL, not as a separate export. Restore verification checks retained resource/version associations and terminal text clearing without returning private text. The maintained backup scenario verifies both a retained submission and a removed submission after restoring into fresh PostgreSQL. Restoring an older recovery point can restore text that was withdrawn later; application withdrawal is not backup erasure.
+
+## Ratings and sharing consent
+
+Include `rating_targets`, `item_ratings`, `item_rating_revisions` and `rating_sharing` in the complete database backup. Use the same all-tenant restore verification procedure; ratings need no separate export or restore command.
+
+The verifier checks exact target identities, current opinions against their retained revision history, aggregate counts and sums, and sharing host/audience values. Its findings exclude individual scores and user identities. A `RESTORE_RATING_INVALID` finding is an integrity failure. Keep traffic disabled while you investigate it. Do not reset opinions, consent, totals or revision history to hide a finding.
+
+An older recovery point can restore opinions, consent and audience sharing choices that changed later. Review restored sharing before reopening discovery traffic. Use existing [withdrawal](../guides/ratings.mdx#edit-withdraw-and-moderate) and [sharing controls](../guides/ratings.mdx#share-aggregate-summaries) when a change is required. Existing immutable snapshots can retain earlier summaries; follow the normal publication controls instead of rewriting their bytes.
+
+The logical-backup drill creates four opinions on one exact VersionRevision, including an edit, withdrawal and moderator removal. It captures current records, ETags, consent, aggregate totals, sharing settings and seven history rows before backup. The fixture keeps individual values in a private file; reports retain digests.
+
+The drill compares the complete tables before it starts the restored API. It then checks exact owner records, aggregates, moderator access and rejected reads by other users and tenants. Workers stay stopped until these checks pass.
+
+After the dump, the source receives a withdrawal, a moderation decision, a consent change and a sharing change. The restored database must retain the earlier values and seven history rows. Missing or changed expectations fail qualification. Isolated tests check invalid findings without changing immutable database rows. Physical backups and point-in-time recovery still need separate deployment qualification.
+
+## Indexed declaration projections
+
+Restore verification checks the indexed license/category projection against retained normalized bytes. It distinguishes unavailable declarations from an empty topic array. An outdated projection marker requires the [bounded search repair](search-projection-repair.mdx). A current marker with inconsistent fields is a separate integrity finding; investigate it before selecting a reviewed repair. Restore verification does not fetch a source or rewrite evidence. Check set 4 includes these checks and the projection bytes in its read budget.
+
+## Private saved items
+
+Back up `personal_items` with the Catalog database. Restore check set 7 verifies bounded item shapes, human membership/realm ownership, revision chronology and the per-owner quota. It reports fixed findings and item IDs without labels or query text. Stale target access and source generations do not invalidate a saved preference. Restore verification never repairs or substitutes its target.
+
+Apply the [current migrations and exact grants](database-roles.md) through the schema-owner maintenance workflow before restarting runtimes. Saved-item removal deletes that selected row; ordinary audit, idempotency and backup retention remain separate. An older backup can restore previously removed preferences. This feature does not establish compliance retention or backup erasure guarantees.
+
+### Restore Publisher verification evidence
+
+Include `publisher_domain_verifications` in the full database backup. Restore check set 7 checks exact Publisher/domain binding and challenge, proof and check timestamps. Reports contain record IDs and fixed findings. They do not contain challenge values or DNS responses. Restoration does not query DNS or renew proof. Use the normal drained, schema-owner migration procedure before verification.

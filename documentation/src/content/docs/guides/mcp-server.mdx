@@ -1,0 +1,418 @@
+---
+title: Catalog MCP server
+description: Connect an assistant to Catalog search and resource metadata through read-only MCP tools.
+---
+
+import CatalogMCPConnections from "../../../components/architecture/CatalogMCPConnections.astro";
+
+Connect an assistant or IDE to Open Agentic Catalog through its [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server. Six read-only tools provide search, local facets, selected records, capabilities and your current access.
+
+Use the optional [HTTP endpoint](#connect-over-http) or run `catalogctl mcp serve` locally. For stdio, your MCP host starts the command and communicates through standard input/output. The command calls one configured Catalog API with your credentials.
+
+<CatalogMCPConnections />
+
+Arrows show requests. The local command supplies its configured API token; an HTTP MCP host sends its own token directly to the API.
+
+## How stdio connects
+
+1. Your assistant or IDE starts a local `catalogctl mcp serve` process.
+2. The process sends authenticated requests to the configured Catalog API.
+3. The API checks your current permissions and returns authorized metadata.
+
+The API can run locally or on another machine. The MCP process needs no database access, worker, UI or backend configuration file. Clients that require a remote MCP URL can use the API's `/mcp` endpoint, which is disabled by default. It shares these tools and permissions.
+
+This server searches the Catalog. MCP Servers listed in the Catalog are separate resources with their own connection details and credentials. The Catalog MCP server does not connect to them or invoke their tools.
+
+Use the [ContextForge guide](contextforge.mdx) to test gateway access to these tools. It also covers discovering and using a separately published virtual server.
+
+Use an [SDK](../../../../../sdk/README.md) or the HTTP API for authoring, administration and other operations. The [assistant discovery Skill](assistant-discovery.md) provides a separate shell-based workflow. These Control API tools do not implement the optional ARD Registry MCP wrapper.
+
+## Set up your MCP host
+
+### Prepare the binary and credentials
+
+Build the commands from a repository checkout:
+
+```sh
+make build
+./bin/catalogctl mcp serve --help
+```
+
+See [build prerequisites](local-development.mdx#start-the-service) before the build. `make build` creates `bin/catalogctl`; it does not install the binary on your `PATH` or start the API.
+
+Supply a bearer token for an active Catalog identity. Store it in a protected regular file readable by the MCP process. Use a token with only the permissions you need. Production tokens come from your configured identity provider; the MCP command does not perform login, issue tokens or refresh them.
+
+Select the API origin, such as `https://catalog.example.com`. Do not include a path, trailing slash, credentials, query or fragment. Use the API listener, not the optional UI address or an ARD Registry URL.
+
+### Configure the host
+
+For a host that accepts an `mcpServers` configuration, add:
+
+```json
+{
+  "mcpServers": {
+    "catalog": {
+      "command": "/absolute/path/to/bin/catalogctl",
+      "args": [
+        "mcp", "serve",
+        "--base-url", "https://catalog.example.com",
+        "--token-file", "/run/secrets/catalog-access-token"
+      ]
+    }
+  }
+}
+```
+
+Replace the paths and origin with values available to the host process. Configuration filenames and registration steps depend on your host. Use its local stdio server option.
+
+Add `"--ca-file", "/run/secrets/catalog-roots.pem"` to `args` when the API uses a private certificate authority. Omit this option when the system roots trust the API certificate. TLS verification remains enabled.
+
+Restart or reconnect the host's Catalog MCP process. Check that its tool list contains the six [Catalog tools](#available-tools). Call `catalog_control_capabilities` and `catalog_control_access` with `{}`, then try a local search. A successful capabilities call confirms connectivity, but does not establish permission to search.
+
+Do not put the token value in command arguments or committed configuration. The command loads its token and CA file once. Restart the MCP process after either file changes.
+
+### Try a local development Catalog
+
+Start and populate a Catalog through the [local quickstart](local-development.mdx#start-the-service). For an API on the same machine, use this host configuration:
+
+```json
+{
+  "mcpServers": {
+    "catalog": {
+      "command": "/absolute/path/to/bin/catalogctl",
+      "args": [
+        "mcp", "serve",
+        "--base-url", "http://127.0.0.1:8080"
+      ],
+      "env": {
+        "CATALOG_REMOTE_TOKEN": "local-reader"
+      }
+    }
+  }
+}
+```
+
+The `local-reader` value is a synthetic development credential. Use it only with a Catalog configured for local development authentication. HTTP is accepted only for literal loopback IPs, such as `127.0.0.1` or `[::1]`; `http://localhost` is rejected.
+
+The address is relative to the MCP process. A process inside another container or virtual machine has its own loopback interface. Use an approved HTTPS API origin for a remote connection.
+
+## Connect over HTTP
+
+Enable `mcp.enabled` on the API process. Connect your MCP host to the configured public API origin plus `/mcp`. The worker and UI session proxy do not serve this endpoint. Each request uses the caller's Bearer token and current Catalog membership.
+
+For a disposable local Catalog, start the existing launcher with the explicit setting:
+
+```sh
+CATALOG_MCP_ENABLED=true make run
+```
+
+Use `http://127.0.0.1:8080/mcp` with that local profile. For a manual legacy-protocol check, send one authenticated request:
+
+```sh
+curl --fail-with-body http://127.0.0.1:8080/mcp \
+  -H 'Authorization: Bearer local-reader' \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'MCP-Protocol-Version: 2025-11-25' \
+  --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+```
+
+The synthetic `local-reader` credential is for local development only. Production uses the existing OIDC access-token verifier and configured Catalog audience. The MCP handler does not forward this token to another API or resource.
+
+### Call a tool with the current protocol
+
+Use curl with the enabled API origin and an authorized reader credential. Prepare a protected curl header file through [credential conversion](../operations/oidc-keycloak.md#prepare-private-http-credentials). The file contains `Authorization: Bearer ...`, not a bare token or login JSON.
+
+Set `MCP_API_ORIGIN` and `MCP_HEADERS_FILE` to your values. Optionally set `MCP_CA_FILE` for a private API CA. Keep certificate and hostname verification enabled.
+
+```sh
+MCP_API_ORIGIN=${MCP_API_ORIGIN:-https://catalog.example.com}
+MCP_HEADERS_FILE=${MCP_HEADERS_FILE:?Select a protected curl header file}
+mcp_http() {
+  if [ -n "${MCP_CA_FILE:-}" ]; then
+    set -- --cacert "$MCP_CA_FILE" "$@"
+  fi
+  curl --fail-with-body --silent --show-error \
+    --connect-timeout 5 --max-time 30 \
+    --header "@$MCP_HEADERS_FILE" "$@"
+}
+mcp_http "$MCP_API_ORIGIN/mcp" \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H 'MCP-Protocol-Version: 2026-07-28' \
+  -H 'MCP-Method: tools/call' \
+  -H 'MCP-Name: catalog_control_search' \
+  --data-binary @- <<'JSON'
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "name": "catalog_control_search",
+    "arguments": {"text": "weather", "origins": ["local"], "limit": 5},
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {"name": "catalog-reader", "version": "1"},
+      "io.modelcontextprotocol/clientCapabilities": {}
+    }
+  }
+}
+JSON
+```
+
+Replace `weather` with suitable search text. An empty successful result is valid. This request needs no initialization or session identifier.
+
+HTTP `401` rejects missing or invalid credentials. HTTP `403` can reject an insufficient OAuth scope. Protocol errors use the JSON-RPC `error` member. A tool refusal can return HTTP `200` with `result.isError: true`. Check both the HTTP status and the protocol result before using returned data. A successful Search result contains the page under `result.structuredContent.data`; its text content carries the same JSON.
+
+### Protocol and browser behavior
+
+The endpoint supports `2026-07-28` per-request metadata and `2025-11-25` legacy initialization. Modern clients can call tools directly, without initialization or discovery. They must supply the protocol metadata and matching `MCP-Protocol-Version`, `MCP-Method` and applicable `MCP-Name` headers. Legacy initialization can omit the version header; later requests require it. An unsupported legacy initialization negotiates a supported legacy version. Unsupported modern versions receive a protocol error.
+
+Replies are finite JSON. There are no session IDs, retained sessions, standalone GET streams or subscriptions. GET and DELETE return 405 with `Allow`. Accepted legacy initialized notifications return 202 with an empty body. Only discovery, tool listing, tool calls, initialization, initialized notifications and ping are admitted. Disabled routes return 404.
+
+Requests without `Origin` can use Bearer authentication. A present `Origin` must exactly match `http.publicBaseUrl` or `mcp.allowedOrigins`. Invalid, `null`, wildcard and unapproved origins fail. Credential-free preflight permits only selected methods and headers. Cookies do not authenticate MCP requests. The policy does not change global Control API CORS.
+
+### OAuth discovery and permissions
+
+With OIDC authentication, public resource metadata is available at `/.well-known/oauth-protected-resource/mcp`. The resource identifier is the configured public origin plus `/mcp`. Authentication challenges identify the same metadata URL. Request Host and forwarding headers do not change either URL.
+
+Pre-register the MCP client at your external issuer. Map the MCP resource identifier to the existing Catalog token audience. Clients send this resource identifier in authorization and token requests. Use a separate public OAuth client for an installed MCP host. Require S256 PKCE and register its exact callback URL. A public client has no client secret. A server-side client can use the issuer's supported confidential-client configuration. Do not reuse the UI client, its secret or its session cookies.
+
+Configure the issuer to include the existing Catalog audience in access tokens for this resource. The resource URL and audience are different identifiers. For example, `https://catalog.example.com/mcp` can map to audience `open-agentic-catalog`. Do not assume that an issuer automatically maps the `resource` parameter. With Keycloak, configure an access-token audience mapper and optional `catalog.read` scope. Do not add this audience to ID tokens.
+
+The issuer and client own Authorization Code/PKCE, consent and refresh. Catalog does not register clients, issue tokens or refresh them. Development authentication does not advertise an OAuth issuer.
+
+Protocol discovery, tool listing, capabilities and self-access require active membership but no additional `catalog.read` scope. Search, Explore and exact resource reads require `catalog.read` when OAuth scopes are enforced. Existing exact resource and federation permissions still apply. Missing or invalid tokens receive 401. Insufficient OAuth scope receives 403 with a scope challenge. Issuer or membership-store outages receive a safe dependency failure. Other read refusals return safe tool errors without exposing private existence.
+
+### HTTP limits and diagnostics
+
+| Setting or limit | Default | Rule |
+| --- | --- | --- |
+| `mcp.enabled` | `false` | API-only activation. Restart after changes. |
+| `mcp.allowedOrigins` | `[]` | Up to 64 exact additional origins; HTTPS in production. The configured public origin is always admitted. |
+| `mcp.maxToolBytes` | 262144 | Complete encoded tool result; 1024 to 1048576 bytes. |
+| `mcp.maxConcurrency` | 4 | One slot per protocol request; 1 to 16. When all slots are in use, requests return 503 with retry guidance. |
+| `http.requestTimeout` | `10s` | Existing API deadline, configurable from 1 to 20 seconds. |
+| Request body | 256 KiB | Tighter of this limit and `http.maxBodyBytes`; chunked requests have the same bound. |
+| Tool arguments | 64 KiB | Fixed ceiling, with closed tool-specific schemas. |
+| Non-tool response | 256 KiB | Complete protocol discovery, definition inventory or error. |
+| Complete HTTP response | Tool budget plus 256 KiB | Overflow fails as a whole. No truncated results or invented cursor. |
+
+See the [configuration reference](../reference/configuration.mdx#optional-http-mcp) for environment inputs. These HTTP settings do not change stdio flags. Private responses use `Cache-Control: no-store`. Request cancellation and deadlines apply to both protocol versions. Panics are contained within the request. Other callers remain independent.
+
+The `open_agentic_catalog_mcp_requests_total` counter separates protocol completion, rejection, tool error, failure, cancellation and overload. Existing Search measurements still record domain reads once. Debug logs use fixed operation/outcome fields and correlation IDs. Diagnostics exclude tokens, tool arguments and raw SDK errors. Your ingress or gateway owns sustained per-client rate limits.
+
+Do not set `MCPGODEBUG` compatibility overrides. Make launchers clear this SDK input, and enabled HTTP startup rejects a nonempty value. The SDK reads it during package initialization; application validation cannot contain malformed SDK initialization input.
+
+### Deploy and qualify HTTP access
+
+Use the [optional MCP Helm ingress](../../../../../deployments/helm/open-agentic-catalog/README.md#read-only-mcp-runtime-inputs) or your existing TLS reverse proxy. Route both MCP paths to the API Service without rewrites. Preserve the request's Host, Origin, Bearer and MCP headers. The UI can use a different host or subpath. The SDK's localhost protection remains enabled; do not bypass it with `MCPGODEBUG`. Route public-host requests to the API's private Service address. A proxy that connects to loopback must use the literal loopback Host. Public Host headers on a loopback connection are refused; forwarding headers cannot override this guard. The configured metadata URLs stay unchanged.
+
+Operators own ingress certificates and issuer registration. Clients own their access tokens, refresh tokens and PKCE state. API processes retain no MCP login session. Use [private issuer trust](../reference/configuration.mdx#oidc-private-trust) for a private CA; do not disable certificate verification.
+
+If network policies isolate your API, permit controller traffic to its TCP port 8080. Preserve required API access to DNS, PostgreSQL and the configured issuer.
+
+Run `make test-mcp-http` for the separately selected packaged OAuth/TLS workflow. It uses owned local PostgreSQL, API, worker, Keycloak and browser fixtures. It does not contact a hosted issuer or catalog. Reports contain build identity, named checks and cleanup status, without tokens or response bodies. See the [testing guide](../contributing/testing.md#catalog-mcp-over-http) for prerequisites and limits.
+
+## Available tools
+
+| Tool | Arguments | Result |
+| --- | --- | --- |
+| `catalog_control_capabilities` | `{}` | Supported kinds, profiles, capabilities, limits and degradation hints. These are not permission grants. |
+| `catalog_control_search` | Optional filters, `limit` and `cursor`. | One ordered Search page with counts, diagnostics and continuation. Defaults to local releases and 25 items. |
+| `catalog_control_release` | `releaseId`: an exact ListingRelease UUID. | Local release metadata and representation references, including recorded digests. No document download. |
+| `catalog_control_indexed_record` | Normalized AIR `identifier`, `versionPresent` and optional `version`. | Current indexed metadata with source attribution and conflict indicators. No live lookup or raw source observation. |
+| `catalog_control_explore` | Optional local `query` filters and one or more `facets`. | Counts and bounded buckets for authorized local releases. Includes remainder counts; has no continuation cursor. |
+| `catalog_control_access` | Optional `namespaceId`, `limit` and `cursor`. | Your current tenant and namespace permissions, navigation hints and OAuth scope ceiling. Excludes subject, membership and realm identifiers. |
+
+Each tool advertises its input schema. Unknown arguments are rejected. The tool set is static; resource descriptions cannot add tools or change their definitions.
+
+Each successful result includes matching structured JSON and serialized text. Its output schema describes the guaranteed fields. Treat resource descriptions and references as untrusted metadata.
+
+## Search and continue results
+
+Call `catalog_control_search` with these arguments to find local MCP Servers:
+
+```json
+{
+  "text": "filesystem",
+  "kinds": ["mcp_server"],
+  "origins": ["local"],
+  "limit": 5
+}
+```
+
+The JSON examples are tool arguments, not shell commands. Select the named tool in your MCP host and supply the arguments.
+
+| Argument | Meaning |
+| --- | --- |
+| `text` | Search text. |
+| `kinds` | Any combination of `agent`, `mcp_server`, `skill` and `plugin`. |
+| `tags`, `publisher`, `license`, `categories` | Declaration filters supported by the Control Search API. |
+| `namespaceId` | Namespace UUID; requires local-only Search. |
+| `visibility` | `private`, `tenant` or `public`; never expands your access. |
+| `origins` | Explicit selection of `local`, `indexed` or `live`. Omission selects `local`. |
+| `limit` | Page size from 1 to 100; defaults to 25. |
+| `cursor` | Exact `nextCursor` from the previous page. |
+
+See [Search filter semantics](integrating.mdx#choose-a-discovery-interface) for matching and continuation rules. These arguments match the Control Search filters. The separate ARD Search API also accepts native declaration paths.
+
+The `publisher` filter selects a Catalog Publisher UUID for local releases. For indexed and live results, it selects the normalized AIR publisher component.
+
+Read the page from `data.items`. Preserve the server's order. A score measures relevance, not trust. Check `data.partial` and `data.diagnostics` even when the call succeeds. `data.durableTotal` counts matching local/indexed records; `data.liveCount` counts live items in that page.
+
+For another page, call the same tool with unchanged filters and page size, plus the returned `data.nextCursor`. An absent or empty cursor ends the traversal. Do not infer completion from the number of items. The MCP server does not enumerate pages, retry requests or restart invalid cursors automatically.
+
+Live results cover a bounded window of at most 50 candidates. A continuation that needs live results repeats the approved peer traversal and query disclosure. Hybrid Search returns local and indexed results before live results. A temporary replay failure can permit retry with the same cursor; an invalid or expired cursor requires a fresh search. Follow the API's [pagination rules](../reference/api-conventions.md#pagination-and-search-consistency).
+
+## Explore local facets
+
+Call `catalog_control_explore` to count metadata across the local releases that you can read:
+
+```json
+{
+  "query": {"kinds": ["mcp_server"]},
+  "facets": [
+    {"field": "tag", "limit": 10, "minCount": 1},
+    {"field": "namespace", "limit": 10}
+  ]
+}
+```
+
+The optional `query` accepts the local Search filters: text, namespace, kinds, tags, publisher, license, categories and visibility. It does not accept origins, page limits or cursors. Indexed and live resources do not contribute to these counts.
+
+Select unique facet fields from `kind`, `visibility`, `publisher`, `tag`, `category`, `namespace`, `trustState` and `source`. Each facet accepts a bucket limit from 1 to 100, with a default of 20. `minCount` is a nonnegative minimum bucket count.
+
+Read `data.matched` for the number of matching releases. Read each field under `data.facets` for its ordered buckets. `otherCount`, when present, sums counts for matching buckets outside that bounded list. A release can have several tags, so tag counts can exceed the number of releases.
+
+Explore has no continuation cursor. Change the filters or bucket limit to inspect another subset. Preserve returned tier, profile and fallback evidence when you present these counts.
+
+## Check your current access
+
+Call `catalog_control_access` with `{}` for tenant permissions and the first namespace page. To inspect one namespace, use:
+
+```json
+{
+  "namespaceId": "00000000-0000-7000-8000-000000000001",
+  "limit": 20
+}
+```
+
+Replace the example UUID with your namespace. `permissions` applies tenant-wide. Each `namespaceGrants` row reports effective permissions for that namespace. `availablePermissions` means an action is available somewhere; `availablePermissionsUse` is always `navigation_only`. It cannot authorize an action in a selected namespace.
+
+When `scopeEnforcement` is true, `scopes` also limits which API operations your token can use. Permission hints do not override this ceiling. The API still checks current permissions on each resource read.
+
+Namespace pages default to 20 rows and allow 1 to 100. Continue with the exact `nextCursor`, unchanged namespace filter and unchanged limit. Cursors are bounded to 2,048 bytes and bound to your current authorization. Restart the traversal if your permissions change. This tool does not enumerate other users or administrator assignments.
+
+## Inspect a selected record
+
+For a local Search item, pass `data.items[n].local.release.id` to `catalog_control_release`:
+
+```json
+{
+  "releaseId": "00000000-0000-7000-8000-000000000001"
+}
+```
+
+Replace the example UUID with the selected release's ID. Do not use its Resource UUID, AIR identifier or `local:`-prefixed Search ID. The result describes that release and its representation references. It does not return native document bytes, Skill instructions or Plugin contents. Use [native export](../reference/commands.md#export-a-native-document) when you need a separately authorized document download.
+
+For an indexed Search item, pass its exact `identifier`, `versionPresent` and, when present, `version` to `catalog_control_indexed_record`:
+
+```json
+{
+  "identifier": "urn:air:example.com:agents:weather",
+  "versionPresent": true,
+  "version": "1.0.0"
+}
+```
+
+Replace the identifier and version with the selected item's values. Use `"versionPresent": false` and omit `version` for an unversioned entry. An explicitly empty version uses `"versionPresent": true, "version": ""`; it differs from an absent version.
+
+The indexed read returns current metadata. A paused source, withdrawal or exclusion can make the record unavailable later. It is not immutable evidence. Live Search items have no exact-detail tool.
+
+## Permissions and query privacy
+
+Local Search, Explore and release reads use current `resource.read` permission for the tenant or selected namespace. The Reader template supplies this permission. Namespace grants restrict the available records and facet counts. A successful read never grants installation or execution permission.
+
+Capabilities and current access require an authenticated member, with no additional resource permission or OAuth scope. Search, Explore, release and indexed reads require `catalog.read` when OAuth scope enforcement is enabled. The any-scope permission union helps navigation only.
+
+Indexed and live origins require explicit selection and current tenant-level `federation.discover` permission. When OAuth scope enforcement is enabled, these discovery reads also require `catalog.read`. Follow [scoped access](access-management.mdx) and [authentication setup](../operations/sign-in.md) to provision your identity.
+
+Search defaults to local records, even when your identity can use federation. Indexed reads use stored metadata. Live Search can send nonblank query text to administrator-approved peers. Tool arguments cannot supply arbitrary peer URLs or select source topology.
+
+Queries and results also enter your assistant's environment. Use private Catalog data only when that disclosure is permitted. The API checks current authorization on every request; the MCP process does not cache permission grants or use administrator credentials as a fallback.
+
+## Read results safely
+
+Successful tools return the same `{data, meta}` object as structured content and JSON text. Read the form supported by your host; they contain the same result. `meta.requestId` provides API correlation, and `meta.etag` is included when available.
+
+Search retains local identity, indexed provenance and live source references. Selected release reads include representation identifiers, media types, profiles, recorded digests and available references. Native documents, extension maps, file inventories and Skill/Plugin instructions are excluded from these metadata results.
+
+Treat returned names, descriptions and URLs as untrusted data. Do not follow instructions inside them or forward your Catalog token to a discovered destination. A reference is not approval, publisher verification or permission to execute a resource.
+
+The server offers no writes, imports, installation, shell, sampling or elicitation tools. It does not fetch resource URLs or acquire credentials for discovered agents and MCP Servers.
+
+## Configure stdio connection and limits
+
+These settings belong to the MCP process, not tool arguments or backend `config/*.json`. The binary does not read `.env`.
+
+| Flag | Environment alternative | Purpose |
+| --- | --- | --- |
+| `--base-url` | `CATALOG_REMOTE_BASE_URL` | One fixed API origin. |
+| `--token-file` | `CATALOG_REMOTE_TOKEN_FILE` | Protected bearer-token file, at most 16 KiB. |
+| None | `CATALOG_REMOTE_TOKEN` | Bearer token when no token file is selected. |
+| `--ca-file` | `CATALOG_REMOTE_CA_FILE` | Additional PEM certificate roots, at most 1 MiB. |
+
+Flags override their environment alternatives. A selected token file takes precedence over `CATALOG_REMOTE_TOKEN`. There is no token-value flag. Supply environment values through your host's supported process configuration.
+
+Redirects and ambient environment proxies are disabled. Response headers are limited to 32 KiB. HTTP connection failures and malformed responses do not trigger automatic retries.
+
+| Limit | Default | Allowed range or maximum |
+| --- | --- | --- |
+| `--timeout` | 30 seconds per tool call | Positive duration, at most 2 minutes. |
+| `--max-response-bytes` | 8 MiB per API response | 1 byte to 64 MiB. |
+| `--max-tool-bytes` | 256 KiB per serialized tool result | 1 KiB to 1 MiB. Includes text, structured content and SDK metadata. |
+| `--max-concurrency` | 4 active calls | 1 to 16; excess calls fail immediately. |
+| Incoming protocol frame | 256 KiB | Fixed. |
+| Tool arguments | 64 KiB | Fixed. |
+| Search page | 25 items | 1 to 100. |
+
+Pass byte counts as integers, such as `--max-tool-bytes 524288`, and durations such as `--timeout 45s`. If a complete result exceeds the tool limit, no partial page or cursor is returned. Reduce the page size or narrow the filters before increasing an operational limit.
+
+Stdout contains only MCP protocol messages. Safe command diagnostics go to stderr. Do not wrap the process with commands that print banners or merge stderr into stdout.
+
+The server reports the embedded application version during the protocol exchange. MCP protocol revision and application version are separate. Independent-client qualification covers stdio and HTTP with `2025-11-25` and `2026-07-28`. This does not establish compatibility with every MCP host.
+
+Clean end-of-input exits successfully. Process cancellation or protocol failure exits unsuccessfully. Cancelling one call cancels its API request and leaves the session usable. SIGINT, SIGTERM or a fatal owned panic cancels active work before shutdown.
+
+## Troubleshoot
+
+Tool failures set MCP `isError: true` and return a fixed diagnostic without raw dependency details.
+
+| Symptom or tool code | Action |
+| --- | --- |
+| Host cannot start the server | Check the absolute binary path, execution permission and host-visible secret paths. Read stderr. |
+| Invalid API origin | Use an origin without a path or trailing slash. Use HTTPS except for literal loopback development addresses. |
+| `invalid_arguments` | Follow the advertised schema. Check UUIDs, origin/namespace combinations and version presence. No API request was sent. |
+| `api_denied` | Check token validity, membership, scoped permission and any required OAuth scope. Restart after token rotation. |
+| Search succeeds with no items | Check publication, filters and current access. Capabilities do not establish permission to read resources. |
+| `api_not_found` | Confirm the exact identity is still available to this caller. Do not substitute a different release automatically. |
+| `api_failure` | Check API connectivity, timeouts, TLS roots, redirects and the API response budget. No retry occurs automatically. |
+| `invalid_response` | Check API compatibility. Malformed fields or reflected credentials are rejected. |
+| `output_limit` | Reduce the Search page or narrow filters. No incomplete page or continuation was returned. |
+| `busy` | Wait for an active call to finish before another explicit attempt. |
+| `cancelled` | Check caller cancellation and the configured deadline. |
+| `internal_error` | The process stopped safely after an owned panic. Investigate service diagnostics before reconnecting. |
+
+## Verify the integration
+
+Confirm the six tools in your host, read capabilities and access, search local releases and inspect one selected release. Check local facet counts and continue paged reads with unchanged arguments. Select indexed or live origins only when their permissions and query disclosure are intended.
+
+Maintainers can run the separate local interoperability qualification:
+
+```sh
+make mcp-catalog-tools-install
+make test-interoperability-mcp-catalog
+```
+
+Install tools explicitly, then run the qualification alone. It uses a locked official Python MCP client, both protocol versions and disposable local Catalog/source fixtures. A PostgreSQL matrix verifies two API replicas and restart continuation. It does not test against public catalogs. See [MCP test layers and fixture ownership](../contributing/testing.md#catalog-control-tools-over-stdio) for unit, local functional and independent-client coverage.

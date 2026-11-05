@@ -1,0 +1,470 @@
+---
+title: "PostgreSQL roles"
+---
+
+## Required database identities
+
+Use three separate database identities in production:
+
+- API: `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT NOBYPASSRLS`, with no database-role membership in either direction. Authenticate the connection directly as this identity. Do not assume it from another session. Row-level security (RLS) supplies the tenant boundary after the service sets `app.tenant_id` transaction-locally. The exact Catalog-schema manifest permits only the column-level reads, inserts and updates, narrow idempotency delete, and lexical-search function execution used by API workflows.
+- Worker: `LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT BYPASSRLS`, with no database-role membership in either direction. Authenticate the connection directly as this identity. Do not assume it from another session. The exact Catalog-schema manifest permits only leased Job and outbox work, federation synchronization, immutable publication candidate insertion, enabled-webhook delivery, bounded housekeeping, and the worker-owned columns those workflows need.
+
+  It cannot activate, retire, restore, or unpublish a publication snapshot. Bounded global Job and outbox candidate selection plus bounded housekeeping are its deliberate cross-tenant boundaries; claimed-work follow-up operations use the tenant returned by the claim, while housekeeping joins always include the exact tenant key. Protect this identity as a privileged cross-tenant service credential.
+- Migrator, identity provisioner and realm operator, and repair operator: an operator-controlled identity that directly owns the application schema, or owns its dedicated database when PostgreSQL binds the `public` schema to `pg_database_owner`. It needs access across forced row-level security, through `BYPASSRLS` or equivalent administrator authority, and authority to reconcile extension-function grants. It is used only by migration, initial identity provisioning, identity-realm administration, and reviewed repair jobs and is never supplied to API or worker pods. Identity provisioning, realm administration, and the current focused repairs require the effective role to own their tables so an API or worker DSN cannot authorize them accidentally.
+
+Operators can choose managed or self-operated PostgreSQL. Both must meet the same security requirements. Confirm PostgreSQL 18, required extensions, direct API/worker identities including worker `BYPASSRLS`, absence of role memberships and migration-owner extension/grant authority before selecting a service. A provider that forbids a required operation is incompatible.
+
+Do not bypass verification or use a privileged shared runtime identity. A shared Kubernetes cluster or PostgreSQL server does not require sharing the Catalog database/schema owner with another application. The local bootstrap is a disposable example, not an instruction to change a shared production database; the database administrator must provide equivalent isolated ownership and review application-visible extension grants for effects on other users.
+
+### Prepare an isolated non-superuser owner
+
+A non-superuser schema owner needs `BYPASSRLS` for owner commands that access protected Catalog rows. Owning a table does not bypass its forced row-level security. Keep this operator credential separate from both runtimes.
+
+Extension ownership alone does not supply function-grant authority. PostgreSQL can install a trusted extension for a non-superuser while its functions remain owned by the bootstrap superuser. See [CREATE EXTENSION](https://www.postgresql.org/docs/18/sql-createextension.html). Without additional preparation, exact privilege reconciliation can fail after migrations commit.
+
+For a new dedicated database with owner `catalog_owner`, a database administrator can prepare `pgcrypto` as follows. Connect directly to that selected Catalog database with administrator authority. The role must already own the database or target schema. This example uses `public` and changes only `pgcrypto` function ownership in this database:
+
+```sql
+SET ROLE catalog_owner;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+RESET ROLE;
+DO $$
+DECLARE
+  owned_function record;
+BEGIN
+  FOR owned_function IN
+    SELECT namespace.nspname, procedure.proname,
+           pg_catalog.pg_get_function_identity_arguments(procedure.oid) AS arguments
+      FROM pg_catalog.pg_proc procedure
+      JOIN pg_catalog.pg_namespace namespace ON namespace.oid = procedure.pronamespace
+      JOIN pg_catalog.pg_depend dependency
+        ON dependency.classid = 'pg_catalog.pg_proc'::pg_catalog.regclass
+       AND dependency.objid = procedure.oid AND dependency.deptype = 'e'
+      JOIN pg_catalog.pg_extension extension ON extension.oid = dependency.refobjid
+     WHERE dependency.refclassid = 'pg_catalog.pg_extension'::pg_catalog.regclass
+       AND extension.extname = 'pgcrypto' AND namespace.nspname = 'public'
+  LOOP
+    EXECUTE format('ALTER FUNCTION %I.%I(%s) OWNER TO %I',
+                   owned_function.nspname, owned_function.proname,
+                   owned_function.arguments, 'catalog_owner');
+  END LOOP;
+END $$;
+```
+
+This does not grant runtime access. `catalogctl migrate apply` still owns the exact API/worker grant reconciliation. Adapt the owner/schema only after reviewing the actual isolated database. Do not use this as a bulk ownership change for shared extensions or another application's database. Additional visible extensions require equivalent reviewed grant authority. A provider that forbids the required setup is incompatible; do not weaken runtime admission.
+
+## Exact grants and extension access
+
+The checked-in bootstrap creates the two restricted local roles, grants database connection and schema use, and deliberately grants no table-wide DML or future-table authority. Version 27 of the manifest in `internal/platform/database/privileges.go` is the sole service-owned Catalog-schema grant inventory. Every current table and column defaults to no access. The manifest explicitly enables each API or worker operation.
+
+It grants no delegation option or sequence authority. The API receives core lexical query, sort-name, token and vector functions. The worker receives the token and lexical-vector functions needed for observation ingestion. Provisioned semantic tables add only the reviewed pgvector conversion, dimension/norm checks and API cosine comparison.
+
+Both roles can read the derived observation vector-version marker; only the projection trigger assigns it. Reconciliation also cancels PostgreSQL's role-global default `PUBLIC EXECUTE` for future functions. A newly added table, column, sequence, or function therefore remains unavailable until its owning change deliberately updates the manifest and tests.
+
+Installed extensions remain a separate boundary from Catalog-owned functions. Reconciliation revokes `PUBLIC` and both runtime roles from every `pgcrypto` function, every non-PL/pgSQL extension function installed into `pg_catalog`, and every function owned by an extension in another schema that either runtime can use, including pgvector in the maintained local environment. It does not alter an unrelated extension hidden in a schema neither runtime can use. Within `pgcrypto`, it grants only `digest(bytea, text)` to API and worker and `digest(text, text)` to API.
+
+Provisioned semantic tables enable a separate exact pgvector manifest for each runtime role. Reconciliation grants no pgvector execution when the semantic tables are absent. The grants remain required while those tables exist, even when semantic search is disabled. Runtime inspection rejects unlisted executable extension functions, delegation and direct `PUBLIC` grants.
+
+Reconciliation grants only `USAGE`, never `CREATE`, for separate application-visible `pgcrypto` or pgvector schemas. PostgreSQL's built-in PL/pgSQL handlers in `pg_catalog` remain outside this application-function inventory.
+
+## Apply migrations and verify runtime authority
+
+Run `catalogctl migrate apply` as the dedicated schema-owning migration identity with the exact deployment-selected role names. Both runtime roles must differ from each other and from that current migration identity. One session advisory lock covers role preflight, all migrations and privilege reconciliation. Migrations and reconciliation use separate transactions.
+
+Each forward migration commits through the migration runner. Reconciliation then removes runtime and effective PUBLIC authority for schemas, tables, sequences and Catalog functions. It removes unsafe role-global and schema-specific owner defaults. It installs the exact manifest and returns a bounded report for both roles.
+
+Repeating the command with no pending migration is the supported privilege repair and drift-reconciliation operation.
+
+```sh
+catalogctl migrate apply --config config/production.example.json --api-role catalog_api --worker-role catalog_worker
+```
+
+Role names must be distinct, contain 1 through 63 non-whitespace bytes, and contain no NUL. The defaults are `catalog_api` and `catalog_worker`; set `databaseRoles.api` and `databaseRoles.worker` in Helm or `CATALOG_DATABASE_API_ROLE` and `CATALOG_DATABASE_WORKER_ROLE` for the Make migration workflow when a deployment uses other names. These names select existing database roles and are not credentials or runtime configuration. The API and worker DSNs must authenticate directly as those exact roles. Connecting as a schema owner or other stronger identity and setting `role` is rejected because that session can reset its role.
+
+Runtime startup independently checks these requirements against the same manifest:
+
+- `session_user` equals `current_user`.
+- The role has LOGIN and the exact required attributes.
+- The role has no incoming or outgoing memberships.
+- The schema permits `USAGE` without `CREATE`.
+- Future-object defaults match the required restrictions.
+- Every effective Catalog table, column, sequence and function privilege matches.
+- No grant option is available.
+- `pgcrypto` permits only the exact digest functions.
+- Provisioned semantic tables require the role's exact pgvector grants, even when semantic search is disabled.
+- Unlisted application-visible extension functions are denied.
+
+ It checks direct `PUBLIC` grants on Catalog objects and application-visible extension functions independently so a redundant public grant cannot hide behind equivalent effective access. It fails closed on missing access as well as excess access. These checks detect manual drift and unsafe new schema authority. They do not govern cluster-wide roles, database ownership, `CONNECT`, `TEMPORARY`, replication policy, TLS or credential issuance. SRE must scope those database-level capabilities to the deployment. Do not make either runtime a database or schema owner.
+
+The integration suite creates equivalent API and worker roles. It verifies exact reconciliation, startup drift rejection, safe future-object defaults and the complete positive repository workflows. Negative checks deny migration-ledger/identity reads, cross-role writes and worker publication-state changes. They deny pgvector functions without provisioned semantic tables and runtime schema/sequence creation.
+
+They also verify forced-RLS isolation. Direct schema-owner adversarial tests also prove that immutable rows, terminal states, monotonic fields, lifecycle revisions, submission evidence, mutable current pointers, publication row-to-document metadata, and publication activation ordering cannot be silently rewritten or linked to the wrong same-tenant parent. The migration-000015 insert guard accepts PostgreSQL inline JSON and exact PostgreSQL document links but rejects new artifact-only or URL-only compatibility rows; inspected external-reference-only Skill packages are the intentional document-free shape. Representation history has no owner enrichment exception after migration 000022; the redundant artifact column is removed.
+
+Migration 000018 tests bounded multi-replica housekeeping, exact eligibility and retained negative states, tenant-inclusive inspection use and retry-parent serialization, prospective immutable markers, worker denial of private replay and inspection content, and API denial of cleanup-only marker reads.
+
+## Migration drain and provisioning requirements
+
+The current runtime privilege manifest v27 is required by both runtime roles. Optional semantic tables receive column-explicit grants only when installed; merely installing pgvector does not grant its arithmetic functions. These grants follow the installed schema, not the runtime enablement flag, and remain required if semantic search is disabled after provisioning. API access is read-only, worker vectors and memberships are insert-only apart from derived-state deletion, and generation updates are limited to state and update time.
+
+Migrations 000029 and 000030 materialize six local search fields and five indexed ranking vectors. Drain both roles before applying them and reconciling current grants; allow for table rewrites/locks on Resources, ListingRevisions and observations. The API gains read-only projection columns. Both roles execute the array-normalization helper: the API for authoring, the worker for ingestion.
+
+Neither can write generated fields directly, and the worker has no read grant on them. PostgreSQL maintains the fields automatically without a separate repair job. Original metadata and sealed digests are unchanged. Migration 000031 adds the immutable Plugin inspection column: the API may insert and read it, and the worker may read it, but neither may update it.
+
+Migration 000039 adds optional license/category fields and a projection version marker. The API can read all three; the worker can read only the marker. Both roles can execute the three declaration helpers required by the ingestion trigger. Neither role can insert or update these derived columns. After migration and grant reconciliation, run the [bounded owner repair](search-projection-repair.mdx) for each tenant before restarting runtimes.
+
+Keep runtimes stopped after an apply/reconciliation failure and repair forward before starting matching binaries; an older exact-manifest binary cannot be rolled back onto this schema.
+
+Migration 000027 requires UTF8 encoding and installs Unicode token/sort normalization with exact helper grants. When crossing it, drain both roles, apply the pending migrations and current manifest, then run the [bounded search-projection repair](search-projection-repair.mdx) for every tenant before starting matching binaries. Existing indexed vectors are marked outdated, not rewritten inside that migration. Search rejects incomplete projections until repaired. With Helm, perform these operator commands while both Deployments remain at zero, then deploy through the [coordinated release workflow](maintenance.mdx#coordinated-release-deployment). The hook alone does not run the repair.
+
+Migration 000026 adds optional `causal_trace` columns to Jobs and outbox events, bounded to canonical nonzero W3C identifiers and a sampled bit. Invoker-only guards reject updates even by the migration owner. Manifest v11 grants exact insert columns to both producers, Job reads and worker outbox reads; API outbox reads and audit authority do not expand. Stop both roles before applying and reconciling v11, then start matching binaries.
+
+Existing rows remain null, with no backfill. A restart or rollback to an older binary is not supported across the exact-manifest change; repair forward or restore a separately qualified pre-change backup with its matching binaries. Restore qualification checks the new constraints and exact immutable trigger definitions.
+
+Migration 000015 is not compatible with overlapping old mutation-serving binaries. Before applying it, stop and drain every old API and worker, confirm the selected roles exist with the required attributes, and plan the migration against the schema-owner DSN. The migration rejects existing cross-parent current pointers or invalid retained relationships. It safely clears only stale previous-attempt error fields from an interrupted running Job, leaving its state, attempt, lease, progress, input, and reclaim behavior intact.
+
+If migration apply commits the schema but privilege reconciliation fails, keep runtimes stopped, fix the reported role, membership, schema, or grant problem, and rerun the same command until both `runtimePrivileges` reports are compliant. Then start only the matching new API and worker. Do not roll an old mutation-serving binary back across this contract point; roll forward, or restore both application and database to a reviewed earlier recovery point.
+
+Migration 000016 introduced bounded audit and investigation indexes. Migration 000022 removes its obsolete inventory and requires current version-1 attribution without rewriting historical records. Workers retain only their classified audit inserts and no audit-read authority. Use the [audit runbook](audit.md) for investigation, export and restore comparison.
+
+Migration 000018 introduced inspection-use links and bounded housekeeping grants. The current manifest preserves tenant-inclusive locking and exact replay/preview/inspection eligibility reads, marker updates and guarded deletes without private replay content, inspection documents or audit reads. Migration 000022 removes only the obsolete inspection tracking-version distinction. Used inspections remain immutable and retained; see the [housekeeping runbook](housekeeping.md).
+
+The role attributes and database connection below are illustrative. `LOGIN` makes the example usable by a DSN whose external password, certificate, or workload-identity mapping is provisioned separately; the service does not prescribe or embed that credential. The migration command owns Catalog-schema usage and object grants; do not maintain a second handwritten table-grant list:
+
+```sql
+CREATE ROLE catalog_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT NOBYPASSRLS;
+CREATE ROLE catalog_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOINHERIT BYPASSRLS;
+
+GRANT CONNECT ON DATABASE catalog TO catalog_api, catalog_worker;
+GRANT USAGE ON SCHEMA public TO catalog_api, catalog_worker;
+```
+
+Do not grant table-wide DML, runtime default privileges, schema creation, sequence access, trigger management, migration-ledger access, tenant-bootstrap access, either direction of database-role membership, or `BYPASSRLS` to the API identity. Do not reuse or share the Catalog migrator identity with a runtime or another application's schema owner: PostgreSQL's secure future-function default is role-global. Login, token issuance, certificate, password, database `CONNECT` and `TEMPORARY`, and cluster policy belong to the platform identity system; Catalog memberships and roles remain Catalog-owned records. Run the real PostgreSQL integration gate against the exact supported major and retain the successful migration output with release evidence.
+
+Migration 000019 adds the worker-only `outbox_events.dispatch_after` scheduling column under manifest v5. API authority is unchanged. Drain older API and worker binaries, apply the migration and reconcile both exact manifests, then start matching binaries; an older worker would ignore deferral. The worker can set a bounded future dispatch time only while relinquishing its pending event lease, and it cannot rewrite event payloads or acknowledged history. Fresh and upgraded PostgreSQL 18 role, migration, dispatch, and restore-inventory tests cover this boundary.
+
+Migration 000020 adds only the table-owner exception for re-encrypting webhook ciphertext while preserving every other endpoint field. It adds no runtime authority and retains manifest v5. The [webhook maintenance procedure](webhooks.mdx#deployment-encryption-key-replacement) requires both roles stopped and uses a bounded audited operator command; API and worker identities cannot use the exception.
+
+## Initial Catalog identity provisioning
+
+Apply all pending migrations and reconcile the current API and worker privileges before starting the API. Then use the schema owner to create the tenant, exact issuer realm, initial active membership, global role assignments, and audit plus outbox evidence in one transaction:
+
+```sh
+catalogctl identity provision --config config/production.example.json --tenant 00000000-0000-7000-8000-000000000001 --tenant-name "Example tenant" --issuer https://identity.example.com --tenancy-mode dedicated --subject initial-admin --roles tenant_admin --operator release-operator --reason "Initial tenant bootstrap"
+```
+
+The command requires at least the `tenant_admin` role for the initial subject. `--actor-type` is `human` by default and may be `service`; `--roles` is a comma-separated set of global Catalog roles. Shared mode requires `--tenancy-mode shared --external-organization <exact-value>`. Repeat invocation with the same mapping is safe and returns the existing realm, membership, and active assignments; a conflicting tenant display name, realm mapping, actor type, or suspended record fails closed. Supply the real schema-owner DSN through `CATALOG_DATABASE_DSN` or its mounted-file form rather than committing it to the JSON example.
+
+## Tenant membership administration
+
+After the first administrator can authenticate, use `POST /api/v1/role-assignments`, `GET /api/v1/role-assignments`, and `POST /api/v1/role-assignments/{assignmentId}:revoke` for ordinary tenant role administration. These operations require current tenant-scoped `access.manage`. The Tenant Administrator template includes this permission. Mutations require idempotency and an audit reason; revocation also requires `If-Match`.
+
+A grant creates or reuses the subject membership only in the administrator's exact authenticated realm; clients cannot select another realm. Namespace grants accept only reader, contributor, reviewer, or publisher roles for an existing exact namespace. The service preserves role history, emits audit and outbox evidence atomically, and refuses to revoke the final active tenant administrator.
+
+Use `GET /api/v1/memberships?limit=<1-100>&cursor=<opaque>` and `GET /api/v1/memberships/{membershipId}` for tenant-scoped administration reads. Suspend, reactivate, or permanently offboard an exact membership with `POST /api/v1/memberships/{membershipId}:suspend`, `:reactivate`, or `:offboard`; each command requires current tenant-scoped `access.manage`, `tenant.admin` when scope enforcement is enabled, `Idempotency-Key`, `If-Match`, and a bounded reason. Suspension keeps grants inactive without rewriting them, reactivation requires the exact realm to remain active, and offboarding is terminal and atomically revokes every active role assignment and namespace membership. Role and membership changes take the same tenant administration lock, so concurrent commands cannot remove the final active Tenant Administrator.
+
+## Identity-realm administration
+
+Identity-realm control remains a schema-owner operation because an authenticated bearer must not disable or select its own trust boundary. List one bounded page, then use the returned revision for a reason-bearing transition:
+
+```sh
+catalogctl identity realms list --config config/production.example.json --tenant 00000000-0000-7000-8000-000000000001 --limit 50
+catalogctl identity realms suspend --config config/production.example.json --tenant 00000000-0000-7000-8000-000000000001 --realm 00000000-0000-7000-8000-000000000010 --revision 1 --operator release-operator --reason "Emergency access suspension"
+catalogctl identity realms reactivate --config config/production.example.json --tenant 00000000-0000-7000-8000-000000000001 --realm 00000000-0000-7000-8000-000000000010 --revision 2 --operator release-operator --reason "Reviewed access restoration"
+```
+
+The command reads the exact selected configuration and refuses to suspend the final active realm while any configured host for that tenant is enabled or any active publication snapshot remains. For total suspension, first unpublish every host through the normal authorized publication command, deploy and verify the configuration with every tenant host disabled, and only then run the realm command. Publication activation and rollback also fail while no realm is active, so a later configuration mistake cannot create a new active snapshot. Reactivation restores identity resolution only; it does not re-enable a host, restore an offboarded membership, or activate a publication snapshot. These are focused controls, not tenant deletion or a general tenant control plane, and ad hoc SQL is not a substitute.
+
+Compose uses the same owner-only boundary in a development-only one-shot `provision` service. It reads the fixed development token definitions from `config/postgres.json`, creates equivalent durable Catalog memberships, and must complete after migration before API and worker containers start. The in-memory profile seeds the same identity model without an operator process.
+
+Development provisioning normalizes aliases before connecting and writes each principal's global and exact-namespace grants atomically. Namespaces must already exist in the selected tenant; the command never creates one or widens its role to tenant scope. Unknown or foreign references roll back that principal's membership, grants and success evidence. Configuration conflicts are refused before any principal transaction. Repeated provisioning preserves active grant references, adds configured missing grants and retains unrelated policy and revoked history. It can explicitly regrant a previously revoked configured role. Follow the [fresh/retained assignment comparison](../guides/access-management.mdx#development-provisioning-and-retained-grants) before changing an existing development environment; ordinary startup is not policy reconciliation. No additional migration or runtime privilege is required.
+
+Use the [idempotency repair runbook](idempotency-repair.mdx) for interrupted command reservations. Do not use the migrator credential for ordinary diagnostics, bootstrap, smoke, or service runtime.
+
+## Current schema baseline and drain requirements
+
+The following migration-specific rules explain retained security boundaries, not the complete current migration inventory. Inspect all pending migrations with `catalogctl migrate plan` from the selected image and reconcile its current manifests with `catalogctl migrate apply`; do not stop at one of the historical versions below. Follow the [release sequence](deployment.mdx#release-sequence) for later migrations and required repair before restarting.
+
+Migration 000021 removes protocol-v1 command storage and contracts idempotency privileges under runtime privilege manifest v6. It refuses a database containing obsolete command protocols without converting or deleting any rows. Stop both runtime roles, review the migration plan, apply with the schema owner, reconcile both exact manifests, and restart only matching current binaries.
+
+Migration 000022 contracts the current evidence baseline under manifest v7: no document bridge column, JSONB observation fallback, legacy audit inventory, dummy validation expiry, or old inspection-tracking marker remains. Workers may update observation freshness and last-seen time, not enrich retained evidence. Incompatible development records are refused without conversion or deletion; use an explicitly selected fresh database for an unsupported development baseline. All final-schema constraints are validated.
+
+Migration 000023 adds prospective webhook-delivery markers, exact cleanup indexes and a parent-aware lifecycle/delete guard. Migration 000024 adds forced-RLS `webhook_notification_state` and bounded public-outbox admission. Migration 000025 corrects its write authority: runtime identities can create temporary triggers, so trigger depth alone is not authorization. Manifest v10 removes all API/worker state INSERT/UPDATE/DELETE grants while retaining exact reads.
+
+Only `admit_webhook_notification` and `record_webhook_delivery_loss` execute as their migration/table owner; they are fixed trigger-only functions with no PUBLIC or runtime EXECUTE, a pinned `pg_catalog` search path, schema-qualified relations and explicit tenant predicates. No arbitrary SQL, caller-selected relation, public function API, role membership, RLS exemption or shared database TEMP revocation is introduced. All other lifecycle functions remain invoker-only. API outbox reads remain limited to `tenant_id`, `is_internal` and `published_at`, never payload, identifier or lease data.
+
+Worker delivery cleanup retains its marker read/update and guarded delete; API cannot read that marker. Stop and drain both roles before applying through 000025 and reconciling manifest v10, then start matching binaries. Restore verification requires the two exact definer exceptions and their table-owner identity, and rejects execution-property drift.
+
+## Replica and dependency budget
+
+Complete this worksheet before changing replicas, pool sizes or dependency limits. Use the selected deployment's constraints and effective configuration. A connection ceiling does not identify an optimal pool size or establish throughput capacity.
+
+### Record the deployment limits
+
+| Input | Record for the selected deployment |
+| --- | --- |
+| API, worker and UI | Desired replicas, maximum replicas, rollout surge and an explicit maximum of overlapping terminating processes for each role. Include old revisions and other releases sharing the writer. |
+| Each database client | Effective `database.maxConnections`, process count and destination. Include operator commands that construct runtime pools, not only Pods. UI has no database pool. |
+| PostgreSQL writer | Actual `max_connections`, `superuser_reserved_connections` and `reserved_connections`. Record other applications using the same server. |
+| Direct clients | Owner/migration tools, backups, monitoring and other clients, including parallel backup connections. Give each a finite allocation. |
+| Fault headroom | Spare capacity for reconnect overlap, delayed connection cleanup and operational work outside normal pool occupancy. Record its owner and alert threshold. |
+| PgBouncer, when selected | Instance count, per-role backend caps, total backend cap, client limit, wait/connect/idle deadlines and the process file-descriptor limit. |
+| Dependencies and processes | CPU/memory limits, incoming request admission, Job slots, provider quotas, source/webhook work and all relevant deadlines. Use the work-limit table below. |
+
+Read the selected writer through an authorized operator connection:
+
+```sql
+SHOW max_connections;
+SHOW superuser_reserved_connections;
+SHOW reserved_connections;
+```
+
+These [PostgreSQL settings](https://www.postgresql.org/docs/18/runtime-config-connection.html#RUNTIME-CONFIG-CONNECTION-SETTINGS) define the server limit and reserved slots. Do not count those reserves as ordinary runtime capacity. Catalog runtime roles cannot gain access through membership of `pg_use_reserved_connections`.
+
+### Calculate before admitting more processes
+
+Use the resolved pool maximum when `database.maxConnections` is zero. Zero preserves the DSN/pgx limit; it does not disable connections.
+
+Use these quantities for every role and deployment that shares the writer:
+
+```text
+live_processes = maximum_replicas + surge_processes + terminating_overlap
+role_pool_ceiling = live_processes * pool_maximum
+ordinary_capacity = max_connections - superuser_reserved_connections - reserved_connections
+
+Direct PostgreSQL:
+  sum(role_pool_ceiling) + direct_clients + fault_headroom <= ordinary_capacity
+
+One session pooler:
+  sum(role_backend_caps) + direct_clients + fault_headroom <= ordinary_capacity
+```
+
+Include runtime pools that bypass PgBouncer in `direct_clients`. A backend cap limits only connections through its selected pooler.
+
+Round percentage surge upward for the selected maximum replica count. Kubernetes can retain [terminating Pods beyond replicas plus surge](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#rolling-update-deployment). A grace period limits shutdown time; it does not limit how many processes overlap. Without a finite termination-overlap assumption, this worksheet has no finite rollout result.
+
+For one rollout, a conservative overlap allowance includes the entire old replica set. Finish all old processes before another rollout or scale operation uses that allowance again. Include simultaneous scale-down or replacement elsewhere, or stop admission until it drains. Count processes on unreachable nodes until infrastructure fences them.
+
+Inspect actual Pod state and writer sessions; do not rely only on ready-replica counts. The chart does not enforce this operational bound or provide an autoscaler. Follow the [coordinated maintenance procedure](maintenance.mdx#coordinated-release-deployment) when a release requires a full drain.
+
+Reject a plan that exceeds the selected capacity. An intentionally undersized pool needs a separate finite queue/starvation scenario and recovery criteria. Do not raise PostgreSQL limits or change production defaults to make a local test pass.
+
+### Direct PostgreSQL example
+
+This example assumes a writer allocation of 120 connections, with 3 superuser reserves and 7 additional reserved slots. Ordinary capacity is therefore 110. These are illustrative deployment constraints, not settings inferred from a workstation.
+
+Only one rollout per role can overlap. No further rollout or scale operation starts until its old processes exit. The terminating allowance includes each role's complete old maximum replica set.
+
+| Role | Desired | Maximum | Surge | Terminating allowance | Maximum live | Pool per process | Pool ceiling |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| API | 2 | 3 | 1 | 3 | 7 | 6 | 42 |
+| Worker | 1 | 2 | 1 | 2 | 5 | 6 | 30 |
+| UI | 1 | 2 | 1 | 2 | 5 | None | 0 |
+
+Allocate 6 ordinary connections to one operator pool, 2 to backups, 2 to monitoring and 6 to other clients. Operator commands use the configured pool maximum too. This allocation permits one operator pool of six, with no concurrent operator pool. Set explicit limits on other clients and backup parallelism. The worksheet does not enforce these allocations.
+
+```text
+Application pools: 42 + 30 = 72
+Other clients:     6 + 2 + 2 + 6 = 16
+Fault headroom:    22
+Ordinary total:    72 + 16 + 22 = 110
+Server total:     110 + 3 + 7 = 120
+```
+
+The operator assigns 72 ordinary slots to API/worker pools. The remaining 22 ordinary slots provide fault headroom after all listed clients fit. Six connections per process fit that allocation across twelve possible API/worker processes. This arithmetic does not prove that six connections satisfy the selected workload's deadlines. Check pool waits, heartbeat progress, CPU/memory and request latency before accepting the allocation.
+
+For the application chart, the shared pool setting and the illustrative worker-slot choice are:
+
+```yaml
+api:
+  replicas: 2
+worker:
+  replicas: 1
+ui:
+  replicas: 1
+configEnv:
+  CATALOG_DATABASE_MAX_CONNECTIONS: "6"
+  CATALOG_WORKER_CONCURRENCY: "2"
+```
+
+The maximum replica counts are operator constraints outside these desired counts. Worker concurrency two allocates ten possible Job executions across five live workers. It is not a claim that each Job uses exactly one database connection. Heartbeats, outbox dispatch and maintenance share each worker's pool.
+
+### Session-pool example
+
+Keep the same process and PostgreSQL allocations. The example requires one live pooler, including replacement. Overlapping external poolers need the sum of their backend caps. Use one session-mode pooler with 42 API backends, 30 worker backends and 96 client slots. These capacity settings supplement the [required routing and TLS inputs](#enable-and-route-explicitly):
+
+```yaml
+pgbouncer:
+  apiPoolSize: 42
+  workerPoolSize: 30
+  maxClientConnections: 96
+  queryWaitTimeoutSeconds: 3
+  serverConnectTimeoutSeconds: 2
+```
+
+The chart sets `max_db_connections=72`, separate user caps and `reserve_pool_size=0`. The writer calculation remains `72 + 16 + 22 = 110`. UI, owner and backup connections do not enter the runtime pooler.
+
+The 96 client slots provide 72 slots for the computed application pools and 24 spare frontend slots. With all 72 backends assigned, at most 24 further clients fit. During an upstream outage, all 96 clients could wait.
+
+The selected three-second [query wait](https://www.pgbouncer.org/config.html#query_wait_timeout) disconnects clients that cannot obtain a backend in time. It leaves time within the example's ten-second API work deadline. The two-second connect deadline is a separate setup allowance, not an extra retry or a completion guarantee.
+
+[PgBouncer file-descriptor demand](https://www.pgbouncer.org/config.html#max_client_conn) includes frontend and backend sockets. Here, `96 + 72 + 16 = 184` allows sixteen additional descriptors for listeners and process overhead. Verify a process soft limit of at least 256 for this example. The additional descriptor margin is not extra PostgreSQL capacity.
+
+Warm pgx sessions keep their assigned backends in session mode. A client limit is not a limit on application requests waiting inside pgx. A smaller backend cap can starve another process while idle sessions retain backends. Reject that reduced allocation unless finite waiting and recovery are the explicit test scenario.
+
+### Record the other work and deadline budgets
+
+Use effective startup values and current tenant overrides. The following scopes explain what to count; the [configuration reference](../reference/configuration.mdx) owns supported inputs and ranges.
+
+| Work or limit | Current scope and worksheet entry |
+| --- | --- |
+| Database pool maximum | Application default 12; chart default 20, shared by API and worker. Record the selected value for every pool and direct operator process. |
+| API HTTP | No general request-concurrency gate. Record upstream admission and caller concurrency separately. Default work deadline 10s, write timeout 30s, shutdown timeout 20s; chart termination grace is 40s. |
+| UI host | One fixed gate of 32 for admitted auth/forwarding/host requests; busy admission returns 503 without a waiting queue. Static content is separate. Five live UI processes permit up to 160 shared admitted requests, not 160 for each route. Chart upstream timeout is 60s; record issuer and API limits separately. |
+| HTTP MCP, when enabled | `mcp.maxConcurrency` defaults to 4 per API process, with no waiting queue. Seven live APIs allow up to 28 protocol requests. They share existing API pools and the HTTP work deadline. |
+| Job execution | Worker concurrency defaults to 4 in the application and 16 in the chart; the example selects 2. Multiply execution slots by live workers. Do not multiply the shared durable Job queue or its age by worker count. |
+| Job timing | Default lease 30s, poll interval 250ms, maximum attempts 5 and retry ceiling 1h. Heartbeats run at `min(lease/3, 5s)` and renew active leases; a lease is not a total Job timeout. Retry jitter and bounded upstream delay hints remain separate from a completion deadline. |
+| Worker dependency restart | Default backoff window 1s to 30s. This is separate from healthy polling and Job retry spacing. |
+| Embedding provider, when enabled | Query concurrency defaults to 4 per API; batch concurrency to 1 per worker. The example permits up to 28 query calls plus 5 batches. Compare that total with the provider's deployment-wide quota. Query/batch deadlines default to 2s/10s and include admission waits. Batch size defaults to 16. Disabled semantic search makes no provider calls. |
+| Live discovery | Defaults: fanout 3, hops 2 and one page per source, with a 2s fetch/live-query deadline. These are per-query limits, not a fleet-wide outbound cap. Record concurrent Search callers and each source's agreed capacity. |
+| Source synchronization | Uses Job slots with separate acquisition bounds: 32 fetches, 10000 entries, 64 MiB decoded data and a 30s enumeration deadline. Automatic maintenance admits at most 64 nonterminal automatic source-sync Jobs per tenant across the shared store. This is not a cap on all manual Jobs. |
+| Webhook delivery, when enabled | One serial dispatcher per worker; it claims one outbox event and selects up to eight recipients per batch. Five live workers permit five dispatcher sends, not forty parallel sends. API test sends are separate. Defaults: timeout 10s, attempts 5, retry ceiling 1h and polling 500ms. Delivery timeout must remain below the worker lease. |
+| Background maintenance | Housekeeping and source maintenance run alongside Jobs and webhook dispatch. Record their pool demand and cadence; defaults are 5m and 15m respectively. Their shared retained records are not duplicated per worker. |
+| Memory, CPU and transport | Record per-Pod requests/limits, body/response bounds, actual buffered payloads and issuer/source/provider quotas. Database and request gates do not establish a safe memory or CPU allocation. |
+
+Use representative request and payload measurements to choose pool sizes and execution slots. Observe pool acquisition waits/cancellations, Job queue age, lease renewals, dependency errors, CPU/memory and latency together. A successful small test does not qualify larger replicas, payloads or provider quotas.
+
+The owned replica fixture uses three API and three worker processes, pools of eight and one Job slot per worker. Its 48 steady-state pool slots and 600-request mixed batches with six clients are test settings. The owned pooler fixture instead uses pools of four, two replicas per role, backend caps of sixteen per role and 48 clients. The replica scenario also checks [bounded queue pressure and client cancellation](../contributing/testing.md#replica-integrity-and-short-load). These fixtures do not choose production defaults or establish the example's terminating-process bound.
+
+## Connection pooling boundary
+
+Optional PgBouncer uses **session pooling for both API and worker**. Direct PostgreSQL remains the default. Commands hold session advisory locks across several short transactions, so transaction/statement pooling is unsupported even when prepared statements work. Runtime connection admission rejects advertised non-session `pgbouncer.pool_mode` before SQL work; absent status permits direct PostgreSQL but does not qualify an older/external pooler.
+
+Drain and reconnect before changing a pooler's mode. PostgreSQL 18 writer admission, exact startup role/grant inspection, UTC and pgx statement caching remain enabled. Readiness checks database usability, not the complete privilege manifest or just a pooler listener.
+
+The application chart can deploy one private pooler using `pgbouncer.enabled=true`; it does not install PostgreSQL, create users, rewrite Secrets or manage database failover. One replica with `Recreate` replacement avoids overlapping instances and ambiguous cancellation routing. Accept a brief outage during replacement. API/worker replicas and their distinct login identities remain independent.
+
+Migrations, privilege reconciliation, bootstrap, repair, backup and restore inspection always use a direct database DSN. Exclude the owner from the pooler authentication file. The optional UI receives neither database credentials nor database trust inputs.
+
+### Enable and route explicitly
+
+Provision existing Secret and ConfigMap inputs before installation and its migration hook. `ci/pgbouncer.yaml` is a rendering example, not a production preset. Review the current chart values and select the actual writer's private endpoint and NetworkPolicy peers.
+
+```yaml
+databaseTrustBundleConfigMap: catalog-database-ca
+pgbouncer:
+  enabled: true
+  upstream: {host: postgres.database.svc.cluster.local, port: 5432, database: catalog}
+  authSecret: catalog-pooler-auth
+  tlsSecret: catalog-pooler-tls
+  upstreamCAConfigMap: postgres-server-ca
+  apiPoolSize: 60
+  workerPoolSize: 60
+  maxClientConnections: 160
+  writerEgress:
+    - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: database}}
+      podSelector: {matchLabels: {app: postgres}}
+```
+
+Keep `secrets.apiDatabase`, `secrets.workerDatabase` and `secrets.migrationDatabase` references distinct. Put each runtime's own username/password in its existing protected DSN, pointing to `<fullname>-pgbouncer:6432/catalog` when the managed pooler is selected. The owner DSN still points directly to the writer. All three use `sslmode=verify-full` and, with private trust, `sslrootcert=/etc/open-agentic-catalog/database/ca.pem`.
+
+That CA ConfigMap contains only `ca.pem`, can contain both reviewed chains, and is mounted read-only in API, worker and the direct migration hook. It remains optional for direct/public-root deployments. A separate qualified external session pooler can be selected through DSNs without enabling chart resources.
+
+The pooler TLS Secret contains `tls.crt` and `tls.key`, with certificate SANs covering its exact Service hostname used by clients. The upstream CA ConfigMap contains `ca.pem` for the separately verified PostgreSQL endpoint. The chart requires client TLS and configures upstream `verify-full`; the client must independently verify the pooler. The pooler authentication Secret contains `userlist.txt` with only the two runtime users. SCRAM authentication accepts externally supplied protected plaintext runtime passwords, or **identical PostgreSQL SCRAM verifiers** under PgBouncer's passthrough prerequisites: SCRAM client login, no forced backend username, and the same salt/iterations/verifier, not merely the same password. No `auth_query`, elevated authentication helper, common backend identity or runtime pooler administration is configured.
+
+The chart bypasses the image's configuration-generating entrypoint, runs `/usr/bin/pgbouncer` as numeric UID/GID 70 with tokenless identity, read-only filesystem and dropped capabilities, and mounts only explicit inputs. It references the reviewed PgBouncer 1.26.0 image by multi-platform digest; the image is separate from Catalog and retains its own third-party licenses. The pooler has a private ClusterIP Service and a NetworkPolicy permitting only the release's API/worker Pods, DNS and the explicitly selected writer peers. Operators must supply an enforcing CNI and any matching API/worker/upstream database policies. Listener probes show pooler availability; Catalog readiness establishes whether its required database role is usable.
+
+### Size and configure the pools
+
+| Chart value | Default | Meaning |
+| --- | --- | --- |
+| `pgbouncer.poolMode` / `replicas` | `session` / `1` | Fixed supported topology; other values are rejected. |
+| `upstream.host` / `port` / `database` | empty / `5432` / `catalog` | One explicit writer endpoint and database; no wildcard or forced user. |
+| `apiPoolSize` / `workerPoolSize` | `60` / `60` | Separate maximum backend connections for each runtime login. |
+| `maxClientConnections` | `160` | Total pooler clients, including bounded waiting clients; must cover both backend budgets. |
+| `queryWaitTimeoutSeconds` | `10` | Maximum wait for a backend; accepted range 1-60 seconds. |
+| `serverConnectTimeoutSeconds` | `5` | Upstream connection deadline; accepted range 1-60 seconds. |
+| `serverIdleTimeoutSeconds` | `60` | Idle backend release; accepted range 1-3600 seconds. |
+| `authSecret` / `tlsSecret` / `upstreamCAConfigMap` | empty | Required externally managed authentication, server key/certificate and writer trust when enabled. |
+| `writerEgress` | empty | Required explicit writer NetworkPolicy peers; port follows `upstream.port`. |
+| `image` / `resources` | digest pin / bounded requests and limits | Reviewed separate image and operator-sized resources. |
+
+Session pooling **does not multiplex warm idle pgx sessions**. Returning a connection to the application's pgx pool keeps its pooler client and backend reserved. Use the [replica and dependency worksheet](#replica-and-dependency-budget) to include every live process. Two replicas, one surge and pools of twenty use 60 slots per role before any terminating-process overlap. That number is not a complete rollout ceiling.
+
+The default pooler can use 120 PostgreSQL backends and therefore needs a writer configured with more than that plus operator headroom; it is not an automatic safe fit for PostgreSQL's default `max_connections`. Reserve-pool connections are disabled and the total database limit equals both role budgets. A smaller cap can starve another replica while idle clients hold capacity. There is no promised connection reduction or performance gain.
+
+Only INI-safe hostname/database/role shapes are admitted. PgBouncer role and database names must use simple ASCII SQL identifiers. Direct PostgreSQL accepts additional role-name forms that this chart's generated INI does not support. Leave startup parameter handling strict. PostgreSQL 18 `search_path`, UTC and cached protocol statements are qualified.
+
+Untracked startup parameters such as `statement_timeout` fail visibly; set timeout defaults with reviewed `ALTER ROLE ... IN DATABASE ... SET` operations instead. Never add `ignore_startup_parameters=options` or silently disable pgx caching to make a connection succeed.
+
+### Maintenance and recovery
+
+After writer promotion, verify that fresh SQL sessions work for both runtime roles before starting replacement processes. API readiness checks the API pool. The worker pool can still retain a failed login. Allow for the configured PgBouncer login retry interval within the deployment readiness budget.
+
+The database infrastructure owns writer selection/promotion and the stable writer endpoint. Do not give the pooler an undifferentiated primary/standby host list: it may retain a read-only backend after the original writer returns. Catalog refuses read-only admission rather than making a read-only server writable. During a database/pooler outage, liveness stays healthy, readiness fails and the existing bounded application recovery resumes after the correct writer is available.
+
+Do not add transparent mutation retries; an unknown commit requires exact idempotent replay or supported pending-command repair. Cancellation is bounded, and the existing 500 ms fallback may close a client rather than preserve its connection. Session disconnect/reset must release backend locks before reuse.
+
+Configuration or input-reference changes roll the pooler; selected database CA reference changes roll API/worker. Helm cannot hash unread external Secret/ConfigMap contents. For credential/trust content replacement, coordinate an explicit runtime drain/reconnect and pooler replacement after inputs are provisioned, retaining a valid overlap where required. Do not assume `PAUSE`, `RECONNECT` or a live file reload transparently moves existing sessions.
+
+Use the ordinary scoped credential and maintenance procedures. To disable the component, first return runtime DSN Secrets to the direct writer, drain/restart the affected runtimes, and remove the component through the [coordinated release workflow](maintenance.mdx#coordinated-release-deployment). Deleting the pooler before rerouting its clients breaks their connections.
+
+Use existing Catalog dependency/request/worker metrics and operator-controlled PgBouncer `SHOW POOLS`/`SHOW STATS` access when separately provisioned. Runtime users have no admin/statistics role and the chart exposes no public administration endpoint, exporter or monitoring dependency. `make test-pgbouncer` and `make test-minikube-pgbouncer` provide separately selected local qualification; follow the [testing guide](../contributing/testing.md#pgbouncer-qualification) for prerequisites, owned cleanup and evidence.
+
+### Replace database server certificates
+
+Check each new key pair, certificate chain and server purpose before activation. Check the validity period and subject alternative names (SANs). Record the public leaf fingerprints. A leaf is the server's certificate. Keep hostname verification enabled on both TLS hops. Database clients continue to authenticate with their existing passwords.
+
+| Phase | Required action | Verification |
+| --- | --- | --- |
+| Same-CA renewal | Drain clients before activating the renewed leaves and replacing the pooler. Restart the affected API/worker processes. | Fresh connections serve the renewed leaves. Exact roles, a useful API read and worker progress succeed. |
+| CA overlap | Install the applicable old/new bundle in each consumer. Replace startup-loaded consumers before switching peer certificates. | Valid old chains still work through fresh connections. |
+| Successor leaves | Drain clients again. Coordinate PostgreSQL activation with the database operator. Replace the single pooler and restart the affected runtimes. | Both hops serve the selected leaves. New PostgreSQL sessions work through the exact API and worker logins. |
+| Old-CA retirement | Remove predecessor trust after every selected peer serves its successor. Replace the affected consumers again. | Fresh connections reject valid old chains and accept the current chains. |
+
+API/worker clients verify the pooler's certificate. PgBouncer verifies the PostgreSQL certificate through `server_tls_ca_file`. Direct owner clients verify PostgreSQL separately. Supply the applicable public trust to each consumer. Keep the owner outside pooler authentication.
+
+A new frontend connection can reuse an old PostgreSQL session. Record both served fingerprints and fresh backend identities during maintenance. A copied file, a TCP probe or a warm readiness response does not prove certificate activation. Existing sessions can continue after trust files change.
+
+The disposable `make test-pgbouncer` drill tests this sequence through actual API/worker processes. It restarts PostgreSQL and recreates one pooler to force fresh sessions. The separate `make test-minikube-pgbouncer` drill tests projected Kubernetes inputs and deliberate Pod replacement. Follow the [database maintenance procedure](maintenance.mdx#optional-pgbouncer-maintenance) for drains, input delivery and recovery.
+
+If fresh connections fail, keep the affected runtimes stopped. Inspect the served leaf, matching key, SAN, trust bundle and role credentials. Resume only with currently accepted inputs. Do not restore a retired or compromised CA as a backup recovery key.
+
+### Activate projected database certificates in Kubernetes
+
+The chart references existing Secrets and ConfigMaps. Changing their contents under the same name does not change the Pod template. A mounted file can change while the process continues to use its original certificate or trust. Projection and activation are separate checks.
+
+1. Save the reviewed replica counts and identify each affected Pod, Secret and ConfigMap.
+2. Pause external reconcilers and autoscalers for this maintenance window.
+3. Deliver the CA overlap bundle to API, worker, migration and pooler consumers.
+4. Verify the projected public bundle before replacing consumers.
+5. Stop API Pods, then worker Pods, then the single pooler.
+6. Wait for those Pods and their database sessions to disappear.
+7. Activate PostgreSQL's new certificate through the database operator's procedure.
+8. Start the single pooler, then restore the reviewed API and worker counts.
+9. Verify both served leaves, fresh backend sessions, exact roles, retained API reads and a completed worker Job.
+10. Remove old trust only after all selected peers use the current CA.
+11. Repeat the affected consumer replacement and fresh connection checks.
+
+For same-CA renewal, retain the existing CA bundle. For a trust-only change, PostgreSQL does not need a certificate restart. A future migration Job reads the current bundle when it starts. Direct owner commands require their own current trust.
+
+The selected Minikube drill hashes projected public files and records Pod UIDs before activation. It then checks CA overlap, successor leaves and old-CA removal. API and worker Pods use the pooler; owner SQL remains direct. The local protocol drill separately checks valid old-chain endpoints after trust retirement. Neither drill promises uninterrupted service during replacement.
+
+## Private feedback privileges
+
+Migrations 000032 and 000033 add `item_feedback` and its pinned invoker-rights guard. Manifest v16 introduced the API column-explicit reads/inserts and updates only to category, comment, response, state, revision and update time. No delete, immutable-context update or worker access is granted. Tenant RLS and same-tenant membership/resource/revision relationships remain mandatory. Drain runtimes, apply migrations and reconcile both manifests before starting matching binaries.
+
+### Migration 000034 authorization core
+
+Drain API and worker before applying migration 000034 and reconciling manifest v18; only matching binaries may restart. It initializes one tenant authorization row and 13 immutable built-in templates per retained/new tenant and binds retained role assignments to same-tenant definitions. It refuses active scoped assignments missing their active legacy namespace gate. Investigate that inconsistency rather than resetting data or relaxing guards. API authority includes exact reads of the three new tables and revision-only updates required by invoker-rights authority triggers; workers receive neither. Built-ins cannot be modified, deleted or supplemented through ordinary writes.
+
+Schema-owner provisioning and realm transitions participate in the authorization fence before other Catalog locks. Missing retained authorization state fails permission evaluation and restore qualification; do not reinitialize its revision as repair. Migration 000035 adds custom-role/group administration; migration 000036 adds domain command replay authority. Current scoped collection/search selection, browser administration and retained recovery policy use the same authorization boundary. See [authorization qualification](../contributing/testing.md#authorization-qualification) for the maintained tests and limits.
+
+### Migration 000035 authorization administration
+
+Manifest v19 adds custom-role metadata, guarded permission-set deletion and same-realm group/member administration. API grants remain column-explicit; built-in keys/identity and history deletion are unavailable. Workers receive no role/group administration rights. Drain runtimes, apply forward migrations and reconcile both manifests using the schema owner before matching binaries restart. The same tenant authorization fence protects these changes and command-response completion. Domain action/scope enforcement and scoped collection selection both use current retained policy; browser permissions remain presentation hints.
+
+### Migration 000036 replay authority
+
+Manifest v20 adds only exact API reads/writes for bounded server-owned `replay_authorization`; workers receive no policy administration or replay-authority grant. Stop/drain runtimes before cutover. Migration refuses unexpired reservations and unfinished unreleased work even after expiry. Wait for completed replay windows to expire, inspect interruption and use the supported focused schema-owner repair where justified, then rerun migration/reconciliation.
+
+Do not delete reservations or relax the gate. Stable command keys bind tenant, realm and membership; replay independently admits original actions against current authority before returning private bytes. An unrelated policy revision does not reexecute a command; lost authority refuses disclosure. Exact runtime startup checks remain required.

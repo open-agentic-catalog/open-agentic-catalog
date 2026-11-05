@@ -1,0 +1,31 @@
+global:
+  scrape_interval: 10s
+  scrape_timeout: 4s
+  evaluation_interval: 10s
+scrape_configs:
+  - job_name: catalog-api
+    scrape_protocols: [PrometheusText0.0.4]
+    body_size_limit: 1MB
+    sample_limit: 10000
+    target_limit: 8
+    label_limit: 12
+    label_name_length_limit: 100
+    label_value_length_limit: 200
+    static_configs:
+      - targets: [api:8080]
+        labels:
+          catalog_deployment: local
+          catalog_role: api
+  - job_name: catalog-worker
+    scrape_protocols: [PrometheusText0.0.4]
+    body_size_limit: 1MB
+    sample_limit: 10000
+    target_limit: 8
+    label_limit: 12
+    label_name_length_limit: 100
+    label_value_length_limit: 200
+    static_configs:
+      - targets: [worker:9090]
+        labels:
+          catalog_deployment: local
+          catalog_role: worker

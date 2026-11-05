@@ -1,0 +1,16 @@
+format: 1
+resources:
+  - key: registry-documents
+    namespaceId: 00000000-0000-7000-8000-000000000010
+    canonicalIdentifier: urn:air:catalog.example.com:mcp:registry-documents
+    kind: mcp_server
+    version: "0.1.0"
+    listing:
+      publisherId: 00000000-0000-7000-8000-000000000020
+      displayName: Documentation search
+      description: Search supplied documentation.
+      visibility: private
+    representations:
+      - role: primary
+        mediaType: application/vnd.mcp.server+json
+        dataFile: server.json

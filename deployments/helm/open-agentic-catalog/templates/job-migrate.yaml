@@ -1,0 +1,69 @@
+{{- include "open-agentic-catalog.validate" . }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "migrate") | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  ttlSecondsAfterFinished: {{ .Values.migration.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "open-agentic-catalog.labels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+      {{- with .Values.migration.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "open-agentic-catalog.serviceAccountName" (dict "root" . "role" "migration") | quote }}
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.podDNSOptions }}
+      dnsConfig:
+        options: {{- toYaml . | nindent 10 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: migrate
+          image: {{ include "open-agentic-catalog.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          command: ["/usr/local/bin/catalogctl", "migrate", "apply"]
+          args: ["--api-role", {{ .Values.databaseRoles.api | quote }}, "--worker-role", {{ .Values.databaseRoles.worker | quote }}{{ if .Values.semanticSearch.enabled }}, "--semantic"{{ end }}]
+          envFrom:
+            - configMapRef: {name: {{ include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "migration") | quote }}}
+          env:
+            - name: CATALOG_DATABASE_DSN
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.migrationDatabase.name | quote }}, key: {{ .Values.secrets.migrationDatabase.key | quote }}}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+          resources: {{- toYaml .Values.migration.resources | nindent 12 }}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            {{- if .Values.databaseTrustBundleConfigMap }}
+            - {name: database-trust, mountPath: /etc/open-agentic-catalog/database, readOnly: true}
+            {{- end }}
+      volumes:
+        {{- if .Values.databaseTrustBundleConfigMap }}
+        - name: database-trust
+          configMap:
+            name: {{ .Values.databaseTrustBundleConfigMap | quote }}
+            items: [{key: ca.pem, path: ca.pem}]
+        {{- end }}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}

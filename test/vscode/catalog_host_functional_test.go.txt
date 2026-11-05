@@ -1,0 +1,644 @@
+//go:build functional
+
+package clientcompat_test
+
+import (
+	"archive/zip"
+	"bytes"
+	"context"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
+	"fmt"
+	"log/slog"
+	"net"
+	"net/http"
+	"net/http/cgi"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"sync/atomic"
+	"syscall"
+	"testing"
+	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/adapter"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/httpserver"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/id"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/idempotency"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/publication"
+)
+
+// Filter only disposable fixture listeners, before publishing their URLs.
+// This host can allocate Fetch-reserved ports through listen(0).
+func vscodeUnstarted(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+	for range 32 {
+		server := httptest.NewUnstartedServer(handler)
+		if server.Listener.Addr().(*net.TCPAddr).Port >= 16384 {
+			return server
+		}
+		server.Close()
+	}
+	t.Fatal("no Fetch-compatible loopback fixture port within startup bound")
+	return nil
+}
+
+func vscodeTLS(t *testing.T, handler http.Handler) *httptest.Server {
+	t.Helper()
+	server := vscodeUnstarted(t, handler)
+	server.StartTLS()
+	return server
+}
+
+// This fixed port supplies only owned Plugin archive bytes to the real validator.
+// It cannot contact the Internet or establish production fetch-policy coverage.
+type vscodeArchive struct {
+	bodies map[string][]byte
+	now    time.Time
+}
+
+func (f vscodeArchive) PolicyDigest() string { return "sha256:" + strings.Repeat("a", 64) }
+func (f vscodeArchive) FetchExternalRepresentation(_ context.Context, r catalog.ExternalRepresentationFetchRequest) (catalog.ExternalRepresentationFetchResult, error) {
+	body, ok := f.bodies[r.URL]
+	if !ok {
+		return catalog.ExternalRepresentationFetchResult{}, catalog.E(catalog.CodeInvalidArgument, "unexpected fixture URL")
+	}
+	digest := sha256.Sum256(body)
+	return catalog.ExternalRepresentationFetchResult{RequestedURL: r.URL, FinalURL: r.URL, Status: 200, MediaType: catalog.PluginMediaZIP, Body: append([]byte(nil), body...), ContentDigest: "sha256:" + hex.EncodeToString(digest[:]), PolicyID: "owned", PolicyRevision: 1, PolicyDigest: f.PolicyDigest(), RetrievedAt: f.now}, nil
+}
+func vscodeSeed(t *testing.T, mcpURL, a2aURL, sentinel string, skill catalog.RepresentationInput, plugins map[string][]byte, pluginURLs []string) *fixture {
+	return vscodeSeedLabels(t, mcpURL, a2aURL, sentinel, skill, plugins, pluginURLs, false)
+}
+func vscodeSeedLabels(t *testing.T, mcpURL, a2aURL, sentinel string, skill catalog.RepresentationInput, plugins map[string][]byte, pluginURLs []string, guide bool) *fixture {
+	f := newFixtureWithFetcher(t, vscodeArchive{plugins, time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)})
+	if f.server.Listener.Addr().(*net.TCPAddr).Port < 16384 {
+		previous := f.server
+		previous.Close()
+		f.server = vscodeUnstarted(t, previous.Config.Handler)
+		f.server.Start()
+		t.Cleanup(f.server.Close)
+	}
+	actor := f.actor("admin")
+	ns, err := f.service.CreateNamespace(actor, catalog.CreateNamespaceInput{Slug: "vscode", DisplayName: "VS Code samples"})
+	must(t, err)
+	_, err = f.identity.GrantRole(actor, identity.GrantRoleInput{Subject: "scoped", ActorType: identity.ActorHuman, Role: identity.RoleReader, NamespaceID: ns.ID, Reason: "Owned scoped qualification"}, "vscode-scope")
+	must(t, err)
+	publisherName := "Owned publisher"
+	if guide {
+		publisherName = "Sample publisher"
+	}
+	pub, err := f.service.CreatePublisher(actor, catalog.CreatePublisherInput{DisplayName: publisherName, Domains: []string{"catalog.example.com"}})
+	must(t, err)
+	_, err = f.service.ApprovePublisherPublicationDomain(actor, pub.ID, "catalog.example.com", "Owned publication", pub.Revision)
+	must(t, err)
+	for index, kind := range []catalog.Kind{catalog.KindAgent, catalog.KindMCPServer, catalog.KindSkill, catalog.KindPlugin} {
+		resource, err := f.service.CreateResource(actor, catalog.CreateResourceInput{NamespaceID: ns.ID, Kind: kind, CanonicalIdentifier: "urn:air:catalog.example.com:vscode:" + string(kind)})
+		must(t, err)
+		media := []string{adapter.MediaA2AAgentCard, adapter.MediaMCPServerCard, adapter.MediaSkillMarkdown, catalog.PluginMediaZIP}[index]
+		input := catalog.RepresentationInput{Role: catalog.RepresentationPrimary, MediaType: media}
+		switch kind {
+		case catalog.KindAgent:
+			input.Data = json.RawMessage(`{"name":"Owned Agent","description":"Owned discovery","version":"1.0.0","supportedInterfaces":[{"url":"` + a2aURL + `/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}],"capabilities":{"streaming":true,"extensions":[{"uri":"https://owned.invalid/future","params":{"large":9007199254740993}}]},"defaultInputModes":["text/plain"],"defaultOutputModes":["text/plain"],"skills":[{"id":"owned","name":"Owned","description":"Owned fixture","tags":["owned"]}]}`)
+			if guide {
+				input.Data = json.RawMessage(`{"name":"Hello World Agent","description":"Practice a local A2A text conversation.","version":"1.0.0","supportedInterfaces":[{"url":"` + a2aURL + `/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}],"capabilities":{"streaming":true},"defaultInputModes":["text/plain"],"defaultOutputModes":["text/plain"],"skills":[{"id":"hello","name":"Greeting","description":"Reply to a greeting.","tags":["sample"]}]}`)
+			}
+		case catalog.KindMCPServer:
+			input.Data = json.RawMessage(`{"$schema":"https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json","name":"com.example/owned-mcp","description":"Owned discovery","version":"1.0.0","remotes":[{"type":"streamable-http","url":"` + mcpURL + `","headers":[{"name":"Authorization","isSecret":true,"isRequired":true}]}]}`)
+		case catalog.KindSkill:
+			input.Content = "---\nname: owned-skill\ndescription: Owned discovery.\n---\nRead this owned instruction."
+		case catalog.KindPlugin:
+			input.URL = pluginURLs[0]
+		}
+		inputs := []catalog.RepresentationInput{input}
+		if kind == catalog.KindPlugin {
+			inputs = append(inputs, catalog.RepresentationInput{Role: catalog.RepresentationDistribution, MediaType: catalog.PluginMediaZIP, URL: pluginURLs[1]})
+		}
+		if kind == catalog.KindSkill {
+			inputs = append(inputs, skill)
+		}
+		if kind == catalog.KindMCPServer {
+			data, marshalErr := json.Marshal(map[string]any{"name": "com.example/owned-stdio", "description": "Owned offline npm fixture", "version": "1.0.0", "packages": []any{map[string]any{"registryType": "npm", "identifier": "catalog-owned-mcp", "version": "1.0.0", "transport": map[string]any{"type": "stdio"}, "environmentVariables": []any{map[string]any{"name": "OWNED_MCP_SENTINEL", "value": sentinel}, map[string]any{"name": "OWNED_MCP_TOKEN", "isSecret": true, "isRequired": true}}}}})
+			must(t, marshalErr)
+			inputs = append(inputs, catalog.RepresentationInput{Role: catalog.RepresentationMetadata, MediaType: adapter.MediaMCPRegistry, Data: data})
+		}
+		_, revision, evidence, err := f.service.CreateVersion(actor, resource.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: inputs})
+		must(t, err)
+		if evidence.State != catalog.EvidenceComplete {
+			t.Fatalf("%s evidence: %+v", kind, evidence.Findings)
+		}
+		listing, err := f.service.CreateListing(actor, catalog.CreateListingInput{NamespaceID: ns.ID, ResourceID: resource.ID})
+		must(t, err)
+		name := "Owned " + string(kind) + " " + strings.Repeat("W", 96) + "🙂 label"
+		description := "<script>hostile()</script> Owned resource"
+		if index == 0 {
+			name += "\ncontinued"
+			description += "\f"
+		}
+		description += " with a naturally wrapped description."
+		tags := []string{"owned", strings.Repeat("t", 80), "line\nbreak"}
+		if guide {
+			name = []string{"Hello World Agent", "Text tools MCP Server", "Repository review Skill", "Review toolkit Plugin"}[index]
+			description = []string{"Practice an A2A text conversation with a local greeting agent.", "Inspect a declared text-tool endpoint before native MCP approval.", "Review a complete repository instruction package and its immutable source.", "Install a review toolkit disabled, then inspect its native components."}[index]
+			tags = []string{"sample", "tools"}
+		}
+		_, _, err = f.service.CreateListingRevision(actor, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, DisplayName: name, Description: description, PublisherID: pub.ID, Visibility: catalog.VisibilityPublic, Tags: tags, Categories: []string{"tools"}, License: "MIT", RepresentativeQueries: []string{"find owned resource", "browse catalog sample"}}, listing.Revision)
+		must(t, err)
+		submission, err := f.service.Submit(actor, listing.ID)
+		must(t, err)
+		_, _, err = f.service.DecideSubmission(f.actor("reviewer"), submission.ID, "approve", "Owned review", submission.Revision)
+		must(t, err)
+		listing, err = f.service.GetListing(actor, listing.ID)
+		must(t, err)
+		_, _, _, err = f.service.Publish(actor, listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision)
+		must(t, err)
+	}
+	return f
+}
+
+// The guide capture is selected separately. It cannot replace or sanitize the
+// hostile metadata, literal-text and no-execution checks in TestVSCodeCatalogHost.
+func TestVSCodeGuideScreenshots(t *testing.T) {
+	var mcpCalls atomic.Int32
+	mcp := vscodeTLS(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mcpCalls.Add(1)
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(mcp.Close)
+	t.Cleanup(func() {
+		if mcpCalls.Load() != 0 {
+			t.Errorf("MCP selection invoked its target %d times", mcpCalls.Load())
+		}
+	})
+	skill, _, _ := vscodeSkill(t)
+	plugins, pluginURLs := vscodeGuidePlugins(t)
+	a2aURL := vscodeA2A(t, mcp)
+	f := vscodeSeedLabels(t, mcp.URL+"/mcp", a2aURL, "not-executed", skill, plugins, pluginURLs, true)
+	ca := filepath.Join(t.TempDir(), "guide-ca.pem")
+	must(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: mcp.Certificate().Raw}), 0600))
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "xvfb-run", "-a", "--server-args=-screen 0 1600x1200x24", os.Getenv("CATALOG_SDK_NODE"), os.Getenv("CATALOG_SDK_WORKFLOW"), f.server.URL)
+	command.Env = append(os.Environ(), "CATALOG_VSCODE_A2A="+a2aURL, "CATALOG_VSCODE_PUBLIC_CA="+ca)
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	command.Cancel = func() error { return syscall.Kill(-command.Process.Pid, syscall.SIGKILL) }
+	defer func() {
+		if command.Process != nil {
+			_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		}
+	}()
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Guide screenshot capture: %v\n%s", err, output)
+	}
+	t.Log(string(output))
+}
+
+func vscodeGuidePlugins(t *testing.T) (map[string][]byte, []string) {
+	t.Helper()
+	bodies := map[string][]byte{}
+	var downloads atomic.Int32
+	var peer *httptest.Server
+	peer = vscodeTLS(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			t.Error("Catalog credential reached guide archive peer")
+			w.WriteHeader(403)
+			return
+		}
+		body, ok := bodies[peer.URL+r.URL.Path]
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		downloads.Add(1)
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(func() {
+		peer.Close()
+		if downloads.Load() != 1 {
+			t.Errorf("Guide Plugin downloads: %d, want one actual disabled installation", downloads.Load())
+		}
+	})
+	var urls []string
+	for index := range 2 {
+		var archive bytes.Buffer
+		writer := zip.NewWriter(&archive)
+		for _, file := range []struct{ path, text string }{
+			{"plugin.json", `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"review.toolkit","description":"Review toolkit instructions"}`},
+			{"skills/review/SKILL.md", "---\nname: review\ndescription: Review a repository change.\n---\nCheck the change and report your findings."},
+			{"readme.txt", fmt.Sprintf("Review toolkit package %d", index)},
+		} {
+			header := &zip.FileHeader{Name: file.path, Method: zip.Deflate}
+			header.SetMode(0644)
+			out, err := writer.CreateHeader(header)
+			must(t, err)
+			_, err = out.Write([]byte(file.text))
+			must(t, err)
+		}
+		must(t, writer.Close())
+		url := peer.URL + fmt.Sprintf("/review-%d.zip", index)
+		bodies[url] = archive.Bytes()
+		urls = append(urls, url)
+	}
+	return bodies, urls
+}
+func vscodePublication(t *testing.T, f *fixture, authenticated bool) *httptest.Server {
+	server := vscodeUnstarted(t, nil)
+	host := server.Listener.Addr().String()
+	mode, audience := httpserver.DiscoveryAnonymous, publication.AudienceAnonymous
+	if authenticated {
+		mode, audience = httpserver.DiscoveryAuthenticated, publication.AudienceAuthenticated
+	}
+	c := clock.NewFake(f.now)
+	key := sha256.Sum256([]byte("owned-vscode-publication"))
+	manager, err := publication.NewManager(publication.Options{Records: f.service, Store: publication.NewMemoryStore(), Clock: c, IDs: id.Generator{}, BaseURL: "https://" + host, Host: "127.0.0.1", Audience: audience, PublisherDomain: "catalog.example.com", ARDProfile: "ard-test", AICatalogProfile: "ai-test", CursorKey: key[:]})
+	must(t, err)
+	snapshot, err := manager.BuildCandidate(f.actor("admin"), tenant)
+	must(t, err)
+	_, err = manager.Activate(f.actor("admin"), tenant, snapshot.ID, "Owned browser qualification")
+	must(t, err)
+	h, err := httpserver.New(httpserver.Dependencies{Catalog: f.service, Identity: f.identity, Federation: f.federation, Jobs: f.jobs, Authenticator: f.auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: responseLimit, RequestTimeout: time.Second, CursorKey: key[:], Now: c.Now, DiscoveryHosts: []httpserver.DiscoveryHost{{Host: "127.0.0.1", TenantID: tenant, Mode: mode, PublisherDomain: "catalog.example.com", Publication: manager}}})
+	must(t, err)
+	server.Config.Handler = h.Handler()
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	return server
+}
+func TestVSCodeCatalogHost(t *testing.T) {
+	var calls atomic.Int32
+	mcp := vscodeTLS(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer owned-mcp-secret" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		var request struct {
+			ID     json.RawMessage `json:"id"`
+			Method string          `json:"method"`
+			Params json.RawMessage `json:"params"`
+		}
+		if json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024*1024)).Decode(&request) != nil {
+			w.WriteHeader(400)
+			return
+		}
+		if len(request.ID) == 0 {
+			w.WriteHeader(202)
+			return
+		}
+		var result any
+		switch request.Method {
+		case "initialize":
+			result = map[string]any{"protocolVersion": "2025-11-25", "capabilities": map[string]any{"tools": map[string]any{}}, "serverInfo": map[string]any{"name": "owned-https", "version": "1.0.0"}}
+		case "tools/list":
+			result = map[string]any{"tools": []any{map[string]any{"name": "owned_https_echo", "description": "Harmless owned HTTPS echo", "inputSchema": map[string]any{"type": "object", "properties": map[string]any{}}, "annotations": map[string]any{"readOnlyHint": true}}}}
+		case "tools/call":
+			calls.Add(1)
+			result = map[string]any{"content": []any{map[string]any{"type": "text", "text": "owned HTTPS native invocation"}}}
+		default:
+			w.WriteHeader(400)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"jsonrpc": "2.0", "id": request.ID, "result": result})
+	}))
+	t.Cleanup(mcp.Close)
+	sentinel := filepath.Join(t.TempDir(), "stdio-events")
+	skill, packagePeer, packageJSON := vscodeSkill(t)
+	plugins, pluginURLs, pluginSentinels := vscodePlugins(t)
+	a2aURL := vscodeA2A(t, mcp)
+	f := vscodeSeed(t, mcp.URL+"/mcp", a2aURL, sentinel, skill, plugins, pluginURLs)
+	public, private := vscodePublication(t, f, false), vscodePublication(t, f, true)
+	ca := filepath.Join(t.TempDir(), "publication-ca.pem")
+	must(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: public.Certificate().Raw}), 0600))
+	peerKey := filepath.Join(filepath.Dir(ca), "owned-peer-key.pem")
+	keyDER, err := x509.MarshalPKCS8PrivateKey(public.TLS.Certificates[0].PrivateKey)
+	must(t, err)
+	must(t, os.WriteFile(peerKey, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: keyDER}), 0600))
+	ctx, cancel := context.WithTimeout(context.Background(), 420*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "xvfb-run", "-a", os.Getenv("CATALOG_SDK_NODE"), os.Getenv("CATALOG_SDK_WORKFLOW"), f.server.URL)
+	command.Env = append(os.Environ(), "CATALOG_VSCODE_PUBLIC="+public.URL, "CATALOG_VSCODE_PRIVATE="+private.URL, "CATALOG_VSCODE_PUBLIC_CA="+ca, "CATALOG_VSCODE_STDIO_SENTINEL="+sentinel, "CATALOG_VSCODE_SKILL_INPUT="+packageJSON, "CATALOG_VSCODE_PACKAGE_PEER="+packagePeer.URL, "CATALOG_VSCODE_PLUGIN_SENTINELS="+pluginSentinels, "CATALOG_VSCODE_A2A="+a2aURL)
+	command.Env = append(command.Env, "CATALOG_VSCODE_DOCUMENT_KEY="+peerKey)
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	command.Cancel = func() error { return syscall.Kill(-command.Process.Pid, syscall.SIGKILL) }
+	defer func() {
+		if command.Process != nil {
+			_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		}
+	}()
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Packaged VS Code Catalog fixture: %v\n%s", err, output)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("Native HTTPS calls: %d", calls.Load())
+	}
+	stdio, err := os.ReadFile(sentinel)
+	must(t, err)
+	if string(stdio) != "started\ncalled\n" {
+		t.Fatalf("Unexpected native stdio events: %q", stdio)
+	}
+	t.Log(string(output))
+}
+
+func vscodeA2A(t *testing.T, tlsPeer *httptest.Server) string {
+	t.Helper()
+	root := t.TempDir()
+	ready := filepath.Join(root, "ready.json")
+	cert, key := filepath.Join(root, "cert.pem"), filepath.Join(root, "key.pem")
+	must(t, os.WriteFile(cert, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsPeer.Certificate().Raw}), 0600))
+	private, err := x509.MarshalPKCS8PrivateKey(tlsPeer.TLS.Certificates[0].PrivateKey)
+	must(t, err)
+	must(t, os.WriteFile(key, pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: private}), 0600))
+	logFile, err := os.OpenFile(filepath.Join(root, "peer.log"), os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0600)
+	must(t, err)
+	command := exec.Command(os.Getenv("CATALOG_SDK_NODE"), filepath.Join(filepath.Dir(os.Getenv("CATALOG_SDK_WORKFLOW")), "a2a-peer.mjs"), ready, cert, key)
+	command.Stdout, command.Stderr = logFile, logFile
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	must(t, command.Start())
+	t.Cleanup(func() {
+		_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		_ = command.Wait()
+		_ = logFile.Close()
+	})
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) {
+		data, readErr := os.ReadFile(ready)
+		if readErr == nil {
+			var value struct {
+				Origin string `json:"origin"`
+			}
+			must(t, json.Unmarshal(data, &value))
+			return value.Origin
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	data, _ := os.ReadFile(filepath.Join(root, "peer.log"))
+	t.Fatalf("Owned A2A peer startup deadline: %s", data)
+	return ""
+}
+
+// Real smart HTTPS Git and OCI distribution protocol controls, owned by this fixture.
+// No package script, Git hook, smudge filter or submodule is executed.
+func vscodeSkill(t *testing.T) (catalog.RepresentationInput, *httptest.Server, string) {
+	t.Helper()
+	root := t.TempDir()
+	repo := filepath.Join(root, "source")
+	must(t, os.Mkdir(repo, 0700))
+	git := func(args ...string) string {
+		command := exec.Command("git", args...)
+		command.Dir = repo
+		command.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + root, "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null", "GIT_AUTHOR_NAME=Owned", "GIT_AUTHOR_EMAIL=owned@example.invalid", "GIT_COMMITTER_NAME=Owned", "GIT_COMMITTER_EMAIL=owned@example.invalid"}
+		output, err := command.CombinedOutput()
+		if err != nil {
+			t.Fatalf("Owned Git setup: %v %s", err, output)
+		}
+		return strings.TrimSpace(string(output))
+	}
+	git("init", "--initial-branch=main")
+	type entry struct {
+		path, body string
+		mode       os.FileMode
+	}
+	entries := []entry{
+		{"owned-skill/SKILL.md", "---\nname: owned-skill\ndescription: Owned discovery.\n---\nRead this owned instruction.", 0644},
+		{"owned-skill/references/help.txt", "Supporting file.", 0644},
+		{"owned-skill/scripts/never-run.sh", "#!/bin/sh\nexit 91\n", 0755},
+	}
+	var archive bytes.Buffer
+	writer := zip.NewWriter(&archive)
+	for _, e := range entries {
+		path := filepath.Join(repo, "skills", e.path)
+		must(t, os.MkdirAll(filepath.Dir(path), 0700))
+		must(t, os.WriteFile(path, []byte(e.body), e.mode))
+		header := &zip.FileHeader{Name: e.path, Method: zip.Deflate}
+		header.SetMode(e.mode)
+		out, err := writer.CreateHeader(header)
+		must(t, err)
+		_, err = out.Write([]byte(e.body))
+		must(t, err)
+	}
+	must(t, writer.Close())
+	git("add", ".")
+	git("commit", "-m", "owned exact package")
+	commit := git("rev-parse", "HEAD")
+	// The moving branch differs from the selected commit; clients must not follow it.
+	must(t, os.WriteFile(filepath.Join(repo, "skills/owned-skill/SKILL.md"), []byte("wrong moving branch"), 0600))
+	git("add", ".")
+	git("commit", "-m", "moving branch must not be installed")
+	git("clone", "--bare", repo, filepath.Join(root, "owned.git"))
+	git("clone", "--bare", repo, filepath.Join(root, "private.git"))
+	backend := filepath.Join(git("--exec-path"), "git-http-backend")
+	digest := func(b []byte) string { h := sha256.Sum256(b); return fmt.Sprintf("sha256:%x", h) }
+	body := archive.Bytes()
+	manifest, err := json.Marshal(map[string]any{"schemaVersion": 2, "mediaType": "application/vnd.oci.image.manifest.v1+json", "config": map[string]any{"mediaType": "application/vnd.oci.empty.v1+json", "digest": digest([]byte("{}")), "size": 2}, "layers": []any{map[string]any{"mediaType": adapter.MediaSkillZIP, "digest": digest(body), "size": len(body)}}})
+	must(t, err)
+	mux := http.NewServeMux()
+	gitHandler := &cgi.Handler{Path: backend, Root: "/", Env: []string{"GIT_PROJECT_ROOT=" + root, "GIT_HTTP_EXPORT_ALL=1", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL=/dev/null"}}
+	mux.Handle("/owned.git/", gitHandler)
+	mux.Handle("/private.git/", gitHandler)
+	var credentialLeak atomic.Bool
+	mux.HandleFunc("/v2/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			credentialLeak.Store(true)
+			w.WriteHeader(403)
+			return
+		}
+		if r.URL.Path == "/v2/" {
+			w.Header().Set("Docker-Distribution-API-Version", "registry/2.0")
+			w.WriteHeader(200)
+			return
+		}
+		var value []byte
+		var media, id string
+		switch r.URL.Path {
+		case "/v2/skills/owned/manifests/" + digest(manifest):
+			value = manifest
+			media = "application/vnd.oci.image.manifest.v1+json"
+			id = digest(manifest)
+		case "/v2/skills/owned/blobs/" + digest(body):
+			value = body
+			media = adapter.MediaSkillZIP
+			id = digest(body)
+		default:
+			w.WriteHeader(404)
+			return
+		}
+		w.Header().Set("Content-Type", media)
+		w.Header().Set("Content-Length", strconv.Itoa(len(value)))
+		w.Header().Set("Docker-Content-Digest", id)
+		if r.Method != "HEAD" {
+			_, _ = w.Write(value)
+		}
+	})
+	peer := vscodeTLS(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		if strings.HasPrefix(r.URL.Path, "/private-slow.git/") {
+			user, password, ok := r.BasicAuth()
+			if !ok || user != "package-user" || password != "package-secret" {
+				w.WriteHeader(401)
+				return
+			}
+			select {
+			case <-r.Context().Done():
+			case <-time.After(5 * time.Second):
+			}
+			w.WriteHeader(408)
+			return
+		}
+		if r.URL.Path == "/owned-token" {
+			user, password, ok := r.BasicAuth()
+			if !ok || user != "package-user" || password != "package-secret" || r.URL.Query().Get("scope") != "repository:bearer/owned:pull" || r.URL.Query().Get("service") != "owned" {
+				w.WriteHeader(403)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"owned-registry-token"}`))
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/v2/bearer/owned/") || strings.HasPrefix(r.URL.Path, "/v2/realm-other/owned/") {
+			if r.Header.Get("Authorization") != "Bearer owned-registry-token" {
+				realm := "https://" + r.Host + "/owned-token"
+				if strings.Contains(r.URL.Path, "realm-other") {
+					realm = "https://other.invalid/owned-token"
+				}
+				w.Header().Set("WWW-Authenticate", `Bearer realm="`+realm+`",service="owned",scope="repository:bearer/owned:pull"`)
+				w.WriteHeader(401)
+				return
+			}
+			r.Header.Del("Authorization")
+			r.URL.Path = strings.Replace(r.URL.Path, "/v2/bearer/owned/", "/v2/skills/owned/", 1)
+		}
+		if strings.HasPrefix(r.URL.Path, "/private.git/") || strings.HasPrefix(r.URL.Path, "/v2/private/owned/") {
+			user, password, ok := r.BasicAuth()
+			if !ok || user != "package-user" || password != "package-secret" {
+				w.WriteHeader(401)
+				return
+			}
+			r.Header.Del("Authorization")
+			r.URL.Path = strings.Replace(r.URL.Path, "/v2/private/owned/", "/v2/skills/owned/", 1)
+		}
+		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			credentialLeak.Store(true)
+			w.WriteHeader(403)
+			return
+		}
+		mux.ServeHTTP(w, r)
+	}))
+	t.Cleanup(func() {
+		peer.Close()
+		if credentialLeak.Load() {
+			t.Error("Catalog credential reached package peer")
+		}
+	})
+	caPath := filepath.Join(root, "source-ca.pem")
+	must(t, os.WriteFile(caPath, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: peer.Certificate().Raw}), 0600))
+	git("init", "--bare", filepath.Join(root, "direct"))
+	git("-c", "http.sslCAInfo="+caPath, "--git-dir="+filepath.Join(root, "direct"), "fetch", "--depth=1", peer.URL+"/owned.git", commit)
+	input := catalog.RepresentationInput{Role: catalog.RepresentationDistribution, MediaType: adapter.MediaSkillZIP, PackageData: body, Handoff: &catalog.SkillHandoff{Git: &catalog.GitHandoffReference{Repository: peer.URL + "/owned.git", Commit: commit, Directory: "skills/owned-skill"}, OCI: &catalog.OCIHandoffReference{Reference: strings.TrimPrefix(peer.URL, "https://") + "/skills/owned@" + digest(manifest)}}}
+	config := filepath.Join(root, "registry.json")
+	must(t, os.WriteFile(config, []byte(`{"auths":{}}`), 0600))
+	direct := exec.Command(os.Getenv("CATALOG_VSCODE_ORAS"), "manifest", "fetch", "--ca-file", caPath, "--registry-config", config, input.Handoff.OCI.Reference)
+	output, directErr := direct.CombinedOutput()
+	if directErr != nil {
+		t.Fatalf("Owned OCI direct control: %v %s", directErr, output)
+	}
+	if digest(output) != digest(manifest) {
+		t.Fatal("OCI direct manifest identity differs")
+	}
+	raw, err := json.Marshal(input)
+	must(t, err)
+	// Include an independently built expected inventory for direct acquisition controls.
+	var files []map[string]any
+	for _, e := range entries {
+		files = append(files, map[string]any{"path": e.path, "size": len(e.body), "digest": digest([]byte(e.body)), "executable": e.mode&0111 != 0})
+	}
+	var representation map[string]any
+	must(t, json.Unmarshal(raw, &representation))
+	delete(representation, "packageData")
+	representation["validationState"] = "valid"
+	representation["contentDigest"] = digest(body)
+	representation["size"] = len(body)
+	representation["package"] = map[string]any{"structureState": "passed", "rootDirectory": "owned-skill", "fileCount": len(files), "expandedSize": len(entries[0].body) + len(entries[1].body) + len(entries[2].body), "files": files}
+	raw, err = json.Marshal(representation)
+	must(t, err)
+	path := filepath.Join(root, "package.json")
+	must(t, os.WriteFile(path, raw, 0600))
+	return input, peer, path
+}
+
+// Two exact inspected variants exercise disabled replacement, including a wrapper root.
+func vscodePlugins(t *testing.T) (map[string][]byte, []string, string) {
+	t.Helper()
+	sentinels := t.TempDir()
+	bodies := map[string][]byte{}
+	var calls atomic.Int32
+	peer := vscodeTLS(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			t.Error("Catalog credential reached Plugin archive peer")
+			w.WriteHeader(403)
+			return
+		}
+		body, ok := bodies[r.URL.Path]
+		if !ok {
+			w.WriteHeader(404)
+			return
+		}
+		calls.Add(1)
+		w.Header().Set("Content-Type", "application/zip")
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(func() {
+		peer.Close()
+		if calls.Load() != 2 {
+			t.Errorf("Plugin archive downloads: %d, want exactly two (browse/no-op must not download)", calls.Load())
+		}
+	})
+	var urls []string
+	result := map[string][]byte{}
+	for index, prefix := range []string{"", "different-wrapper/"} {
+		manifest := `{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"owned.tools","description":"Owned Plugin"}`
+		hooks, err := json.Marshal(map[string]any{"hooks": map[string]any{"UserPromptSubmit": []any{map[string]any{"type": "command", "command": "printf unexpected > " + filepath.Join(sentinels, "hook")}}}})
+		must(t, err)
+		mcp, err := json.Marshal(map[string]any{"$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json", "mcpServers": map[string]any{"owned-plugin-sentinel": map[string]any{"type": "stdio", "command": "node", "args": []string{"-e", "require('node:fs').writeFileSync(" + strconv.Quote(filepath.Join(sentinels, "mcp")) + ", 'unexpected')"}}}})
+		must(t, err)
+		files := map[string]string{"plugin.json": manifest, "skills/owned-plugin-skill/SKILL.md": "---\nname: owned-plugin-skill\ndescription: Harmless Plugin skill.\n---\nRead these owned Plugin instructions.", "readme.txt": fmt.Sprintf("Owned variant %d", index), "com.github.copilot/hooks/hooks.json": string(hooks), "mcp.json": string(mcp)}
+		paths := []string{"plugin.json", "skills/owned-plugin-skill/SKILL.md", "readme.txt", "com.github.copilot/hooks/hooks.json", "mcp.json"}
+		for document := 0; document < 80; document++ {
+			// Keep the original native-loading control visible before the
+			// additional rows in VS Code's virtualized component list.
+			name := fmt.Sprintf("zz-owned-extra-%02d", document)
+			path := "skills/" + name + "/SKILL.md"
+			files[path] = "---\nname: " + name + "\ndescription: Owned inspection fixture.\n---\nExact retained document " + name + "."
+			paths = append(paths, path)
+		}
+		var archive bytes.Buffer
+		writer := zip.NewWriter(&archive)
+		for _, path := range paths {
+			header := &zip.FileHeader{Name: prefix + path, Method: zip.Deflate}
+			header.SetMode(0644)
+			out, err := writer.CreateHeader(header)
+			must(t, err)
+			_, err = out.Write([]byte(files[path]))
+			must(t, err)
+		}
+		must(t, writer.Close())
+		path := fmt.Sprintf("/plugin-%d.zip", index)
+		bodies[path] = archive.Bytes()
+		result[peer.URL+path] = archive.Bytes()
+		urls = append(urls, peer.URL+path)
+	}
+	return result, urls, sentinels
+}

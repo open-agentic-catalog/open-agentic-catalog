@@ -1,0 +1,10 @@
+{
+  "actor": "00000000-0000-7000-8000-000000000042",
+  "action": "resource.created",
+  "requestId": "incident-review-20260903",
+  "targetType": "resource",
+  "targetId": "00000000-0000-7000-8000-000000000043",
+  "occurredFrom": "2026-09-03T09:00:00Z",
+  "occurredBefore": "2026-09-03T10:00:00Z",
+  "reason": "Review the bounded incident interval"
+}

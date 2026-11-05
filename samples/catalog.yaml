@@ -1,0 +1,927 @@
+# One inventory; original minimal/expanded profiles stay unchanged. Curated is the developer default; original profiles remain explicit.
+dataset: catalog-demo
+format: 1
+namespaces:
+  - displayName: Catalog demo
+    key: catalog-demo-v1
+  - displayName: IDE plugins
+    key: ide-plugins
+profiles:
+  artwork:
+    - artwork-fixture
+  expanded:
+    - order-agent
+    - order-mcp
+    - order-skill
+    - draft-agent
+    - pending-mcp
+    - documentation-agent
+    - release-agent
+    - repository-mcp
+    - documentation-mcp
+    - review-skill
+    - release-skill
+    - repository-essentials
+    - documentation-toolkit
+    - release-workflow
+  minimal:
+    - order-agent
+    - order-mcp
+    - order-skill
+    - draft-agent
+    - pending-mcp
+  curated:
+    - hello-world
+    - dice-rest
+    - number-guessing
+    - everything
+    - filesystem
+    - memory
+    - frontend-design
+    - brand-guidelines
+    - webapp-testing
+    - catalog-discovery-tools
+    - frontend-toolkit
+    - web-testing-toolkit
+    - draft-agent
+    - pending-mcp
+publishers:
+  - displayName: Demo Publisher
+    domains:
+      - demo.catalog.example.com
+    key: demo
+resources:
+  - description: Investigates blocked orders and coordinates the next approved action.
+    identifier: urn:air:demo.catalog.example.com:demo:order-agent
+    key: order-agent
+    kind: agent
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Order exception Agent
+        - Find order tools in the catalog demo
+      tags:
+        - agent
+        - catalog-demo-v1
+        - orders
+      visibility: public
+    name: Order exception Agent
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      file: cards/order-agent.json
+      mediaType: application/a2a-agent-card+json
+    state: published
+    version: 1.0.0
+  - description: Finds documentation and explains repository conventions.
+    identifier: urn:air:demo.catalog.example.com:demo:documentation-agent
+    key: documentation-agent
+    kind: agent
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Documentation guide Agent
+        - Finds documentation and explains repository conventions.
+      tags:
+        - agent
+        - catalog-demo
+        - catalog-demo-v1
+        - documentation
+      visibility: public
+    name: Documentation guide Agent
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      file: cards/documentation-agent.json
+      mediaType: application/a2a-agent-card+json
+    state: published
+    version: 1.0.0
+  - description: Reviews release evidence and recommends readiness checks.
+    identifier: urn:air:demo.catalog.example.com:demo:release-agent
+    key: release-agent
+    kind: agent
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Release review Agent
+        - Reviews release evidence and recommends readiness checks.
+      tags:
+        - agent
+        - catalog-demo
+        - catalog-demo-v1
+        - release
+      visibility: public
+    name: Release review Agent
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      file: cards/release-agent.json
+      mediaType: application/a2a-agent-card+json
+    state: published
+    version: 1.0.0
+  - description: Connects governed order and fulfillment tools for development workflows.
+    identifier: urn:air:demo.catalog.example.com:demo:order-mcp
+    key: order-mcp
+    kind: mcp_server
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Order integration MCP Server
+        - Find order tools in the catalog demo
+      tags:
+        - catalog-demo-v1
+        - mcp_server
+        - orders
+      visibility: public
+    name: Order integration MCP Server
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      file: cards/order-mcp.json
+      mediaType: application/mcp-server-card+json
+    state: published
+    version: 1.0.0
+  - description: Describes read-only repository exploration tools.
+    identifier: urn:air:demo.catalog.example.com:demo:repository-mcp
+    key: repository-mcp
+    kind: mcp_server
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Repository explorer MCP Server
+        - Describes read-only repository exploration tools.
+      tags:
+        - catalog-demo
+        - catalog-demo-v1
+        - mcp_server
+        - repository
+      visibility: public
+    name: Repository explorer MCP Server
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      file: cards/repository-mcp.json
+      mediaType: application/mcp-server-card+json
+    state: published
+    version: 1.0.0
+  - description: Describes documentation search tools.
+    identifier: urn:air:demo.catalog.example.com:demo:documentation-mcp
+    key: documentation-mcp
+    kind: mcp_server
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Documentation search MCP Server
+        - Describes documentation search tools.
+      tags:
+        - catalog-demo
+        - catalog-demo-v1
+        - documentation
+        - mcp_server
+      visibility: public
+    name: Documentation search MCP Server
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      file: cards/documentation-mcp.json
+      mediaType: application/mcp-server-card+json
+    state: published
+    version: 1.0.0
+  - description: Provides a repeatable workflow for triaging an order exception.
+    identifier: urn:air:demo.catalog.example.com:demo:order-skill
+    key: order-skill
+    kind: skill
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Triage order exception Skill
+        - Find order tools in the catalog demo
+      tags:
+        - catalog-demo-v1
+        - orders
+        - skill
+      visibility: public
+    name: Triage order exception Skill
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      inline: '---
+
+        name: triage-order-exception
+
+        description: Triage an order exception and recommend the next action.
+
+        license: Apache-2.0
+
+        ---
+
+
+        # Instructions
+
+
+        Inspect the order evidence, identify the blocking condition, and recommend the next approved action.
+
+'
+      mediaType: application/agent-skills+md
+    state: published
+    version: 1.0.0
+  - description: Guides evidence-based review of code changes.
+    identifier: urn:air:demo.catalog.example.com:demo:review-skill
+    key: review-skill
+    kind: skill
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Review code changes Skill
+        - Guides evidence-based review of code changes.
+      tags:
+        - catalog-demo
+        - catalog-demo-v1
+        - review
+        - skill
+      visibility: public
+    name: Review code changes Skill
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      inline: '---
+
+        name: review-skill
+
+        description: Guides evidence-based review of code changes.
+
+        license: Apache-2.0
+
+        ---
+
+
+        # Instructions
+
+
+        Read the supplied evidence and summarize the next review step. Do not execute or install anything.
+
+'
+      mediaType: application/agent-skills+md
+    state: published
+    version: 1.0.0
+  - description: Guides preparation of clear release notes.
+    identifier: urn:air:demo.catalog.example.com:demo:release-skill
+    key: release-skill
+    kind: skill
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Prepare release notes Skill
+        - Guides preparation of clear release notes.
+      tags:
+        - catalog-demo
+        - catalog-demo-v1
+        - release
+        - skill
+      visibility: public
+    name: Prepare release notes Skill
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      inline: '---
+
+        name: release-skill
+
+        description: Guides preparation of clear release notes.
+
+        license: Apache-2.0
+
+        ---
+
+
+        # Instructions
+
+
+        Read the supplied evidence and summarize the next review step. Do not execute or install anything.
+
+'
+      mediaType: application/agent-skills+md
+    state: published
+    version: 1.0.0
+  - description: Bundles an inert repository-review Skill.
+    identifier: urn:air:demo.catalog.example.com:ide-plugins:repository-essentials
+    key: repository-essentials
+    kind: plugin
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Repository essentials Plugin
+        - Bundles an inert repository-review Skill.
+      tags:
+        - catalog-demo-v1
+        - ide-plugins
+        - plugin
+        - repository
+      visibility: public
+    name: Repository essentials Plugin
+    namespace: ide-plugins
+    origin: synthetic
+    publisher: demo
+    representation:
+      mediaType: application/agent-plugins+zip
+      packageDirectory: packages/repository-essentials
+    state: published
+    version: 1.0.0
+  - description: Bundles documentation MCP connection metadata.
+    identifier: urn:air:demo.catalog.example.com:ide-plugins:documentation-toolkit
+    key: documentation-toolkit
+    kind: plugin
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Documentation toolkit Plugin
+        - Bundles documentation MCP connection metadata.
+      tags:
+        - catalog-demo-v1
+        - documentation
+        - ide-plugins
+        - plugin
+      visibility: public
+    name: Documentation toolkit Plugin
+    namespace: ide-plugins
+    origin: synthetic
+    publisher: demo
+    representation:
+      mediaType: application/agent-plugins+zip
+      packageDirectory: packages/documentation-toolkit
+    state: published
+    version: 1.0.0
+  - description: Bundles release guidance, MCP metadata and an inert client extension.
+    identifier: urn:air:demo.catalog.example.com:ide-plugins:release-workflow
+    key: release-workflow
+    kind: plugin
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Release workflow Plugin
+        - Bundles release guidance, MCP metadata and an inert client extension.
+      tags:
+        - catalog-demo-v1
+        - ide-plugins
+        - plugin
+        - release
+      visibility: public
+    name: Release workflow Plugin
+    namespace: ide-plugins
+    origin: synthetic
+    publisher: demo
+    representation:
+      mediaType: application/agent-plugins+zip
+      packageDirectory: packages/release-workflow
+    state: published
+    version: 1.0.0
+  - description: Investigates blocked orders and coordinates the next approved action.
+    identifier: urn:air:demo.catalog.example.com:demo:draft-agent
+    key: draft-agent
+    kind: agent
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find Draft order Agent
+        - Find order tools in the catalog demo
+      tags:
+        - agent
+        - catalog-demo-v1
+        - orders
+      visibility: public
+    name: Draft order Agent
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      file: cards/order-agent.json
+      mediaType: application/a2a-agent-card+json
+    state: draft
+    version: 1.0.0
+  - description: Connects governed order and fulfillment tools for development workflows.
+    identifier: urn:air:demo.catalog.example.com:demo:pending-mcp
+    key: pending-mcp
+    kind: mcp_server
+    listing:
+      license: Apache-2.0
+      representativeQueries:
+        - Find MCP Server awaiting review
+        - Find order tools in the catalog demo
+      tags:
+        - catalog-demo-v1
+        - mcp_server
+        - orders
+      visibility: public
+    name: MCP Server awaiting review
+    namespace: catalog-demo-v1
+    origin: synthetic
+    publisher: demo
+    representation:
+      file: cards/order-mcp.json
+      mediaType: application/mcp-server-card+json
+    state: pending_review
+    version: 1.0.0
+  - key: hello-world
+    kind: agent
+    name: A2A Hello World
+    description: Returns a deterministic greeting. Requires the optional local demo runtime; see samples/README.md for setup.
+    namespace: catalog-demo-v1
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:demo:hello-world
+    version: 1.0.0
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, examples]
+      license: Apache-2.0
+      tags:
+        - agent
+        - catalog-curated
+        - local-client
+      representativeQueries:
+        - Find A2A Hello World
+        - Find setup instructions and prerequisites for A2A Hello World
+      visibility: public
+      documentationUrl: https://github.com/a2aproject/a2a-samples/tree/6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3/samples/python/agents/helloworld
+    representation:
+      mediaType: application/a2a-agent-card+json
+      file: cards/hello-world.json
+    provenance:
+      source: https://github.com/a2aproject/a2a-samples/tree/6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3/samples/python/agents/helloworld
+      revision: 6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3
+      path: samples/python/agents/helloworld
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: local-client
+      prerequisites:
+        - Explicit locked A2A tools installation
+        - Owned private TLS; no model or Catalog token
+  - key: dice-rest
+    kind: agent
+    name: A2A Dice REST
+    description: Rolls dice and checks prime numbers. Requires separate Python 3.11, Google model and HTTPS setup; the demo does not start it.
+    namespace: catalog-demo-v1
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:demo:dice-rest
+    version: 1.0.0
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, examples]
+      license: Apache-2.0
+      tags:
+        - agent
+        - catalog-curated
+        - source-reviewed
+      representativeQueries:
+        - Find A2A Dice REST
+        - Find setup instructions and prerequisites for A2A Dice REST
+      visibility: public
+      documentationUrl: https://github.com/a2aproject/a2a-samples/tree/6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3/samples/python/agents/dice_agent_rest
+    representation:
+      mediaType: application/a2a-agent-card+json
+      file: cards/dice-rest.json
+    provenance:
+      source: https://github.com/a2aproject/a2a-samples/tree/6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3/samples/python/agents/dice_agent_rest
+      revision: 6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3
+      path: samples/python/agents/dice_agent_rest
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: source-reviewed
+      prerequisites:
+        - Python 3.11+, pinned upstream uv.lock
+        - Own Google model credentials/Vertex setup and separately configured HTTPS
+  - key: number-guessing
+    kind: agent
+    name: A2A Number Guessing
+    description: Evaluates guesses in a three-agent number game. Requires separate Python, SDK 0.3.0 and TLS setup; no model key. The demo does not start it.
+    namespace: catalog-demo-v1
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:demo:number-guessing
+    version: 1.0.0
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, examples]
+      license: Apache-2.0
+      tags:
+        - agent
+        - catalog-curated
+        - source-reviewed
+      representativeQueries:
+        - Find A2A Number Guessing
+        - Find setup instructions and prerequisites for A2A Number Guessing
+      visibility: public
+      documentationUrl: https://github.com/a2aproject/a2a-samples/tree/6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3/samples/python/agents/number_guessing_game
+    representation:
+      mediaType: application/a2a-agent-card+json
+      file: cards/number-guessing.json
+    provenance:
+      source: https://github.com/a2aproject/a2a-samples/tree/6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3/samples/python/agents/number_guessing_game
+      revision: 6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3
+      path: samples/python/agents/number_guessing_game
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: source-reviewed
+      prerequisites:
+        - Python 3.10+, a2a-sdk 0.3.0, uvicorn 0.35.0
+        - Separate three-Agent game and HTTPS termination; legacy client required
+  - key: everything
+    kind: mcp_server
+    name: MCP Everything
+    description: Provides an echo tool through the optional local demo runtime. Requires a prepared client key and CA; see samples/README.md.
+    namespace: catalog-demo-v1
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:demo:everything
+    version: 2.0.0
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, testing]
+      license: Apache-2.0 AND MIT
+      tags:
+        - catalog-curated
+        - local-client
+        - mcp_server
+      representativeQueries:
+        - Find MCP Everything
+        - Find setup instructions and prerequisites for MCP Everything
+      visibility: public
+      documentationUrl: https://github.com/modelcontextprotocol/servers/tree/a40bc270fb5ece62673f8a1196f57116d885c5eb/src/everything
+    representation:
+      mediaType: application/mcp-server-card+json
+      file: cards/everything.json
+    provenance:
+      source: https://github.com/modelcontextprotocol/servers/tree/a40bc270fb5ece62673f8a1196f57116d885c5eb/src/everything
+      revision: a40bc270fb5ece62673f8a1196f57116d885c5eb
+      path: src/everything
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: local-client
+      prerequisites:
+        - Explicit locked MCP tools installation
+        - Separate synthetic MCP key and private CA; only echo permitted
+  - key: frontend-design
+    kind: skill
+    name: Frontend Design
+    description: Builds distinctive web interfaces. Includes the complete upstream Skill package; requires a separately configured client and model.
+    namespace: catalog-demo-v1
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:demo:frontend-design
+    version: source-8a1541c4
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, design]
+      license: Apache-2.0
+      tags:
+        - catalog-curated
+        - package-validated
+        - skill
+      representativeQueries:
+        - Find Frontend Design
+        - Find setup instructions and prerequisites for Frontend Design
+      visibility: public
+      documentationUrl: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/frontend-design
+    representation:
+      mediaType: application/agent-skills+zip
+      packageDirectory: upstream/skills/frontend-design
+      handoff:
+        git:
+          repository: https://github.com/anthropics/skills
+          commit: 8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4
+          directory: skills/frontend-design
+    provenance:
+      source: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/frontend-design
+      revision: 8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4
+      path: skills/frontend-design
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: package-validated
+      prerequisites:
+        - Skill-capable client; manually copy complete package
+        - Model/client credentials supplied separately
+  - key: brand-guidelines
+    kind: skill
+    name: Anthropic Brand Guidelines
+    description: Applies Anthropic brand colors and typography to documents. Includes the complete upstream Skill package; requires a configured client and model.
+    namespace: catalog-demo-v1
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:demo:brand-guidelines
+    version: source-8a1541c4
+    state: published
+    origin: adapted
+    listing:
+      categories: [design, documentation]
+      license: Apache-2.0
+      tags:
+        - catalog-curated
+        - package-validated
+        - skill
+      representativeQueries:
+        - Find Anthropic Brand Guidelines
+        - Find setup instructions and prerequisites for Anthropic Brand Guidelines
+      visibility: public
+      documentationUrl: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/brand-guidelines
+    representation:
+      mediaType: application/agent-skills+zip
+      packageDirectory: upstream/skills/brand-guidelines
+      handoff:
+        git:
+          repository: https://github.com/anthropics/skills
+          commit: 8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4
+          directory: skills/brand-guidelines
+    provenance:
+      source: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/brand-guidelines
+      revision: 8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4
+      path: skills/brand-guidelines
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: package-validated
+      prerequisites:
+        - Skill-capable client; manually copy complete package
+        - Model/client credentials supplied separately
+  - key: webapp-testing
+    kind: skill
+    name: Web Application Testing
+    description: Tests local web applications with Playwright. Requires a Skill-capable client, Python, Playwright and an installed browser.
+    namespace: catalog-demo-v1
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:demo:webapp-testing
+    version: source-8a1541c4
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, testing]
+      license: Apache-2.0
+      tags:
+        - catalog-curated
+        - package-validated
+        - skill
+      representativeQueries:
+        - Find Web Application Testing
+        - Find setup instructions and prerequisites for Web Application Testing
+      visibility: public
+      documentationUrl: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/webapp-testing
+    representation:
+      mediaType: application/agent-skills+zip
+      packageDirectory: upstream/skills/webapp-testing
+      handoff:
+        git:
+          repository: https://github.com/anthropics/skills
+          commit: 8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4
+          directory: skills/webapp-testing
+    provenance:
+      source: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/webapp-testing
+      revision: 8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4
+      path: skills/webapp-testing
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: package-validated
+      prerequisites:
+        - Skill-capable client; manually copy complete package
+        - Model/client credentials supplied separately; Python, Playwright and browser for webapp-testing
+  - key: catalog-discovery-tools
+    kind: plugin
+    name: Catalog Discovery Tools
+    description: Locally curated instructions for finding Catalog resources with catalogctl. Requires a compatible Plugin client and separate Catalog credentials.
+    namespace: ide-plugins
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:ide-plugins:catalog-discovery-tools
+    version: 1.0.0
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, discovery]
+      license: Apache-2.0
+      tags:
+        - catalog-curated
+        - package-validated
+        - plugin
+      representativeQueries:
+        - Find Catalog Discovery Tools
+        - Find setup instructions and prerequisites for Catalog Discovery Tools
+      visibility: public
+      documentationUrl: https://agentskills.io/specification
+    representation:
+      mediaType: application/agent-plugins+zip
+      files:
+        plugin.json:
+          file: packages/catalog-discovery-tools/plugin.json
+        NOTICE.txt:
+          file: packages/catalog-discovery-tools/NOTICE.txt
+        skills/catalog-discovery/LICENSE:
+          file: first-party/catalog-discovery/LICENSE
+        skills/catalog-discovery/README.md:
+          file: first-party/catalog-discovery/README.md
+        skills/catalog-discovery/SKILL.md:
+          file: first-party/catalog-discovery/SKILL.md
+        skills/catalog-discovery/references/README.md:
+          file: first-party/catalog-discovery/references/README.md
+        skills/catalog-discovery/references/results.md:
+          file: first-party/catalog-discovery/references/results.md
+    provenance:
+      source: local:examples/client-skills/catalog-discovery
+      revision: local-working-tree
+      path: examples/client-skills/catalog-discovery
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: package-validated
+      prerequisites:
+        - Installed catalogctl with read-only remote commands
+        - Separate Catalog Reader token/client environment
+        - Agent Plugins 1.0.0-compatible client; manual loading
+  - key: frontend-toolkit
+    kind: plugin
+    name: Frontend Toolkit
+    description: Locally curated bundle of frontend design and brand guideline Skills. Load manually in a compatible Plugin client with a configured model.
+    namespace: ide-plugins
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:ide-plugins:frontend-toolkit
+    version: 1.0.0
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, design]
+      license: Apache-2.0
+      tags:
+        - catalog-curated
+        - package-validated
+        - plugin
+      representativeQueries:
+        - Find Frontend Toolkit
+        - Find setup instructions and prerequisites for Frontend Toolkit
+      visibility: public
+      documentationUrl: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/frontend-design
+    representation:
+      mediaType: application/agent-plugins+zip
+      files:
+        plugin.json:
+          file: packages/frontend-toolkit/plugin.json
+        NOTICE.txt:
+          file: packages/frontend-toolkit/NOTICE.txt
+        skills/frontend-design/LICENSE.txt:
+          file: upstream/skills/frontend-design/LICENSE.txt
+        skills/frontend-design/SKILL.md:
+          file: upstream/skills/frontend-design/SKILL.md
+        mcp.json:
+          file: packages/frontend-toolkit/mcp.json
+    provenance:
+      source: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/frontend-design
+      revision: 8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4
+      path: skills/frontend-design
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: package-validated
+      prerequisites:
+        - Agent Plugins 1.0.0-compatible client; manual loading
+        - Own model/client setup
+        - External Context7 access only when explicitly enabled in the client
+  - key: web-testing-toolkit
+    kind: plugin
+    name: Web Testing Toolkit
+    description: Locally curated bundle of the web application testing Skill. Requires a compatible Plugin client, Python, Playwright and an installed browser.
+    namespace: ide-plugins
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:ide-plugins:web-testing-toolkit
+    version: 1.0.0
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, testing]
+      license: Apache-2.0
+      tags:
+        - catalog-curated
+        - package-validated
+        - plugin
+      representativeQueries:
+        - Find Web Testing Toolkit
+        - Find setup instructions and prerequisites for Web Testing Toolkit
+      visibility: public
+      documentationUrl: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/webapp-testing
+    representation:
+      mediaType: application/agent-plugins+zip
+      files:
+        plugin.json:
+          file: packages/web-testing-toolkit/plugin.json
+        NOTICE.txt:
+          file: packages/web-testing-toolkit/NOTICE.txt
+        skills/webapp-testing/LICENSE.txt:
+          file: upstream/skills/webapp-testing/LICENSE.txt
+        skills/webapp-testing/SKILL.md:
+          file: upstream/skills/webapp-testing/SKILL.md
+        skills/webapp-testing/examples/console_logging.py:
+          file: upstream/skills/webapp-testing/examples/console_logging.py
+        skills/webapp-testing/examples/element_discovery.py:
+          file: upstream/skills/webapp-testing/examples/element_discovery.py
+        skills/webapp-testing/examples/static_html_automation.py:
+          file: upstream/skills/webapp-testing/examples/static_html_automation.py
+        skills/webapp-testing/scripts/with_server.py:
+          file: upstream/skills/webapp-testing/scripts/with_server.py
+    provenance:
+      source: https://github.com/anthropics/skills/tree/8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4/skills/webapp-testing
+      revision: 8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4
+      path: skills/webapp-testing
+      attribution: Local Catalog curator; upstream authors retain ownership and notices.
+      qualification: package-validated
+      prerequisites:
+        - Agent Plugins 1.0.0-compatible client; manual loading
+        - Own model/client setup; Python/Playwright/browser
+  - key: filesystem
+    kind: mcp_server
+    name: MCP Filesystem
+    description: Reads and edits files through MCP over stdio. Restrict the client to a disposable directory; see samples/README.md for setup.
+    namespace: catalog-demo-v1
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:demo:filesystem
+    version: 0.2.0
+    state: published
+    origin: adapted
+    listing:
+      categories: [development, data]
+      license: Apache-2.0 AND MIT
+      tags:
+        - catalog-curated
+        - mcp_server
+        - source-reviewed
+      representativeQueries:
+        - Find MCP Filesystem
+        - Find setup instructions and prerequisites for MCP Filesystem
+      visibility: public
+      documentationUrl: https://github.com/modelcontextprotocol/servers/tree/a40bc270fb5ece62673f8a1196f57116d885c5eb/src/filesystem
+    representation:
+      mediaType: application/mcp-server-card+json
+      file: cards/filesystem.json
+    provenance:
+      source: https://github.com/modelcontextprotocol/servers/tree/a40bc270fb5ece62673f8a1196f57116d885c5eb/src/filesystem
+      revision: a40bc270fb5ece62673f8a1196f57116d885c5eb
+      path: src/filesystem
+      attribution: Local descriptor curator; MCP reference server contributors.
+      qualification: source-reviewed
+      prerequisites:
+        - Node.js 22+; manually install exact @modelcontextprotocol/server-filesystem@2026.8.31
+        - Supply an explicit disposable allowed directory; never your home or Catalog secrets
+  - key: memory
+    kind: mcp_server
+    name: MCP Memory
+    description: Stores and queries a memory graph through MCP over stdio. Use a disposable memory file; see samples/README.md for setup.
+    namespace: catalog-demo-v1
+    publisher: demo
+    identifier: urn:air:demo.catalog.example.com:demo:memory
+    version: 0.6.3
+    state: published
+    origin: adapted
+    listing:
+      categories: [data, productivity]
+      license: Apache-2.0 AND MIT
+      tags:
+        - catalog-curated
+        - mcp_server
+        - source-reviewed
+      representativeQueries:
+        - Find MCP Memory
+        - Find setup instructions and prerequisites for MCP Memory
+      visibility: public
+      documentationUrl: https://github.com/modelcontextprotocol/servers/tree/a40bc270fb5ece62673f8a1196f57116d885c5eb/src/memory
+    representation:
+      mediaType: application/mcp-server-card+json
+      file: cards/memory.json
+    provenance:
+      source: https://github.com/modelcontextprotocol/servers/tree/a40bc270fb5ece62673f8a1196f57116d885c5eb/src/memory
+      revision: a40bc270fb5ece62673f8a1196f57116d885c5eb
+      path: src/memory
+      attribution: Local descriptor curator; MCP reference server contributors.
+      qualification: source-reviewed
+      prerequisites:
+        - Node.js 22+; manually install exact @modelcontextprotocol/server-memory@2026.8.31
+        - Supply a disposable MEMORY_FILE_PATH, not retained private state
+  - description: Synthetic owned artwork fixture for explicit local media qualification.
+    identifier: urn:air:demo.catalog.example.com:demo:artwork-fixture
+    key: artwork-fixture
+    kind: agent
+    name: Artwork fixture Agent
+    namespace: catalog-demo-v1
+    publisher: demo
+    version: 1.0.0
+    state: published
+    origin: synthetic
+    listing:
+      license: CC0-1.0
+      visibility: public
+      tags: [agent, artwork, synthetic-fixture]
+      representativeQueries: [Find the artwork fixture Agent, Demonstrate owned listing artwork]
+      artwork:
+        schemaVersion: 1
+        icon:
+          url: https://127.0.0.1:18443/artwork-icon.png
+          alt: Blue and gold geometric Catalog fixture
+          rights: {basis: owned, attribution: Open Agentic Catalog synthetic fixture, reference: 'https://creativecommons.org/publicdomain/zero/1.0/'}
+        screenshots:
+          - url: https://127.0.0.1:18443/artwork-screen.jpg
+            alt: Synthetic blue and gold listing preview
+            caption: Owned fixture image; no application or third-party content.
+            rights: {basis: owned, attribution: Open Agentic Catalog synthetic fixture, reference: 'https://creativecommons.org/publicdomain/zero/1.0/'}
+    representation:
+      mediaType: application/a2a-agent-card+json
+      file: cards/artwork-agent.json
+revision: '3'

@@ -1,0 +1,24 @@
+[package]
+name = "open-agentic-catalog"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "Apache-2.0"
+description = "Typed, bounded asynchronous client for Open Agentic Catalog"
+readme = "README.md"
+publish = false
+include = ["src/**", "examples/**", "Cargo.toml", "Cargo.lock", "README.md", "LICENSE", "NOTICE"]
+
+[dependencies]
+base64 = "0.23.1"
+bytes = { version = "1.12.1", features = ["serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["query", "rustls"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["arbitrary_precision", "raw_value"] }
+tokio = { version = "1.53.3", features = ["time"] }
+url = { version = "2.5.8", features = ["serde"] }
+uuid = { version = "1.26.1", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { version = "1.53.3", features = ["macros", "rt-multi-thread", "test-util", "sync"] }

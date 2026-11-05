@@ -1,0 +1,19 @@
+# Render-only OIDC example; inputs reference existing deployment-owned Secrets.
+ui:
+  enabled: true
+  replicas: 2
+  existingSecret: catalog-ui-session
+  apiCAConfigMap: catalog-ui-api-ca
+  issuerCAConfigMap: catalog-ui-issuer-ca
+  config:
+    origin: https://browse.example.com
+    basePath: /catalog
+    issuer: https://identity.example.com
+    clientId: catalog-browser
+    scopes: [catalog.read]
+  ingress:
+    enabled: true
+    host: browse.example.com
+    tlsSecretName: catalog-ui-tls
+  networkPolicy:
+    enabled: true

@@ -1,0 +1,47 @@
+---
+title: Testing pyramid and quality map
+---
+
+import TestingPyramid from "../../../components/architecture/TestingPyramid.astro";
+
+Start with isolated code tests, then check the real boundaries a change can affect. Keep decision and validation cases in fast unit tests. Use functional tests for HTTP, processes, PostgreSQL, browsers and deployed workloads when a fake cannot establish correctness.
+
+<TestingPyramid />
+
+The pyramid shows preferred emphasis. It does not show measured test counts, timing or coverage. Higher layers add real boundaries and setup. They do not replace lower layers. Install prerequisites explicitly for each selected check. The [testing strategy](testing.md) explains commands, fixtures, limits and reports.
+
+## Read the layers
+
+1. **Isolated units:** check decisions, validation, transformations and failure handling with controlled inputs. Normal Go compilation is allowed. A fixture that starts a server, subprocess, application binary, database or browser makes the case functional. Run each unit Make target separately. Documentation and API-tooling Node units have separate native selections.
+2. **Local functional:** check real HTTP/TLS, tooling subprocesses and composed memory-backed workflows. `test-functional-local` includes Go units and local functional cases. It uses no real PostgreSQL. `test-ui` separately includes frontend checks, units, host/tooling tests and local Playwright journeys.
+3. **PostgreSQL integration:** check actual SQL, migrations, role privileges, tenant isolation, transactions and locking. `test-process-postgres` adds real CLI/API/worker executables. Select `test-pgbouncer` separately for session pooling, TLS, cancellation and recovery. `test-minikube-pgbouncer` adds chart and network enforcement. Fake transactions cannot establish these behaviors.
+4. **Packaged end-to-end:** check built API/worker/operator processes with PostgreSQL in owned Compose stacks. Packaged browser profiles check the UI against those services. The OIDC profile adds a real test issuer. Select peer, tracing, semantic or recovery profiles when those boundaries change.
+5. **Deployment qualification:** check image properties, chart rendering and schemas, then select owned Minikube scenarios for Kubernetes behavior. Static rendering cannot establish cluster readiness, disruption recovery or network enforcement. Operators separately qualify their infrastructure and changed deployment inputs.
+
+[Playwright](https://playwright.dev/docs/intro) drives browsers in local and packaged functional layers. Those journeys include accessibility assertions. Select `ui-visual` separately for visual comparison.
+
+Properties, fuzzing, mutation, race detection, deterministic `testing/synctest` scheduling and the focused Gobra proof strengthen selected contracts. They are techniques within the layers, not additional pyramid levels.
+
+## Select checks for each stage of a change
+
+| Stage | Source and lint checks | Behavioral evidence to select |
+| --- | --- | --- |
+| While editing | Focused formatting, type and lint targets for the edited language; [optional staged checks](testing.md#optional-pre-commit-checks) inspect staged secrets, JSON/YAML, Go formatting and whitespace without changing files. | Focused owning tests, including successful controls, rejection cases and forbidden side effects. Add a minimized regression for a demonstrated defect. |
+| Review the completed change | `make check` covers the shared Go/repository/API source gates. Add `ui-check` for UI and `docs-site-check` for reader-site changes. The latter also runs native tooling tests and root/subpath builds. | Complete affected unit selections, then local functional/race/coverage checks through `verify` for Go work. Use `test-ui` for UI work; it already includes `ui-check`, so avoid repeating unchanged gates. |
+| Cross a real boundary | Reuse passing source checks when the source is unchanged. SQL/migration and role contracts need real tests; deployment changes add `helm-check`, `deploy-check` and relevant image checks. Dependency/security changes use the separate vulnerability, license and lockfile gates. | Select PostgreSQL, packaged workflows, browser login, conformance, interoperability, ZAP, recovery, performance or Minikube according to the changed contract. Install tools explicitly and use owned fixtures. |
+| Hand off the result | Confirm the final diff, documentation, source identities, selected gate results and cleanup. Recheck affected gates after fixes. Optional Sonar analysis supplements review; its default quality gate is report-only. | Record what actually passed, failed or was not run, with separate coverage denominators and unresolved limits. A broad aggregate or green percentage does not certify an untested deployment. |
+
+Select these checks during development and review. They do not define an automatic CI pipeline. `check` and `verify` omit frontend, database, browser, deployment and performance gates that require explicit selection. The [test-boundary matrix](testing.md#test-boundaries) and [evidence-selection rules](testing.md#selecting-evidence) define each scope. Run expensive packaged and browser environments sequentially. Finish source edits before a run that records source identity, and check its cleanup result.
+
+## Select checks for specific risks
+
+| Concern | Maintained evidence and where to start |
+| --- | --- |
+| Inputs and state transitions | [Writing tests](testing.md#writing-tests), [Go properties](testing.md#structured-go-properties), [mutation](testing.md#mutation-testing-and-assertion-strength) and [frontend properties/mutation](testing.md#frontend-properties-and-mutation). Use independent expected behavior, boundary values and failure-state assertions; do not copy an implementation's mistake into its test. |
+| Concurrency and selected arithmetic | Race checks, deterministic worker units and the [focused Gobra proof](testing.md#focused-formal-verification). The proof covers Job retry arithmetic, not whole-service correctness or statement coverage. |
+| Wire formats and clients | [OpenAPI validation](testing.md#api-validation), [JSON Schema and ARD conformance](testing.md#schema-validation-and-ard-conformance), [Schemathesis](testing.md#generated-api-testing), [generated Go-client compatibility](testing.md#generated-go-client-compatibility), [SDK package qualification](testing.md#combined-sdk-qualification) and [pinned independent client qualification](testing.md#independent-hugging-face-interoperability). Schema validity and successful client interoperability establish different contracts. |
+| Security and resilience | [Dependency checks](../reference/dependencies.md), [scoped ZAP scans](testing.md#scoped-dynamic-security-scans), [transport/limit/recovery assertions](testing.md#real-transport-and-recovery-assertions), and [backup/restore qualification](../operations/backup-restore.mdx). Keep curated authorization, tenant, SSRF and retained-state checks even when scanners pass. |
+| Performance and relevance | [Benchmarks and load](testing.md#performance-tests-and-benchmarks), [benchmark comparison](testing.md#benchmark-comparison), [search relevance](testing.md#local-search-relevance-evaluation) and [performance operations](../guides/performance-and-monitoring.md). Measure against matching source/environment baselines; a latency result does not replace correctness. |
+| Coverage and review | [Coverage accounting](testing.md#coverage-accounting) separates Go statements, frontend components, browser execution and API-operation obligations. Combine only compatible reports through their maintained targets. [SonarQube](testing.md#optional-local-sonarqube-dashboard) imports selected evidence but does not run the tests or prove report freshness. |
+
+Choose a concrete risk and the smallest layer that can establish its behavior. Add real-boundary evidence where shared assumptions in fakes could hide a defect. Preserve existing assertions. Review mutation survivors and scanner findings against the code. Fix confirmed defects and rerun affected checks.

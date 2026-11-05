@@ -1,0 +1,59 @@
+services:
+  api:
+    networks: [default, monitoring]
+  worker:
+    networks: [default, monitoring]
+  prometheus:
+    image: ${CATALOG_MONITORING_PROMETHEUS_IMAGE:?Use the Catalog monitoring launcher}
+    user: "65534:65534"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.5
+    mem_limit: 512m
+    pids_limit: 128
+    command:
+      - --config.file=/etc/prometheus/prometheus.yaml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${CATALOG_MONITORING_RETENTION_HOURS:-6}h
+      - --storage.tsdb.retention.size=${CATALOG_MONITORING_RETENTION_MB:-512}MB
+      - --query.timeout=10s
+      - --query.max-concurrency=4
+      - --query.max-samples=1000000
+      - --web.max-connections=32
+      - --log.level=warn
+    networks: [monitoring]
+    ports: ["127.0.0.1:${CATALOG_MONITORING_PROMETHEUS_PORT:-19090}:9090"]
+    volumes:
+      - ./deployments/monitoring/prometheus.yaml:/etc/prometheus/prometheus.yaml:ro
+      - monitoring-prometheus:/prometheus
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+  grafana:
+    image: ${CATALOG_MONITORING_GRAFANA_IMAGE:?Use the Catalog monitoring launcher}
+    user: "472:472"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    cpus: 0.5
+    mem_limit: 512m
+    pids_limit: 128
+    networks: [monitoring]
+    ports: ["127.0.0.1:${CATALOG_MONITORING_GRAFANA_PORT:-13000}:3000"]
+    volumes:
+      - ./deployments/monitoring/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ./deployments/monitoring/provisioning:/etc/grafana/provisioning:ro
+      - ./deployments/monitoring/dashboards:/etc/grafana/catalog-dashboards:ro
+      - monitoring-grafana:/var/lib/grafana
+    secrets: [grafana_password]
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+secrets:
+  grafana_password:
+    file: ${CATALOG_MONITORING_SECRET_FILE:?Use the Catalog monitoring launcher}
+networks:
+  # Docker does not publish host ports for a solely internal-network container.
+  # This project-scoped bridge exposes only the explicit loopback UI bindings;
+  # external reporting, updates and plugin downloads are disabled separately.
+  monitoring: {}
+volumes:
+  monitoring-prometheus:
+  monitoring-grafana:

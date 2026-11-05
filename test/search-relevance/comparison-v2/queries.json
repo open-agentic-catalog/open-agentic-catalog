@@ -1,0 +1,1197 @@
+[
+  {
+    "id": "v2-invoice-task",
+    "split": "tune",
+    "family": "invoice",
+    "intentFamily": "invoice",
+    "category": "task",
+    "text": "Find a helper that reconciles a supplier bill with the goods we actually received.",
+    "relevant": {
+      "invoice-agent": 2,
+      "invoice-mcp_server": 2,
+      "invoice-skill": 2,
+      "invoice-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-invoice-short",
+    "split": "tune",
+    "family": "invoice",
+    "intentFamily": "invoice",
+    "category": "short",
+    "text": "Invoice",
+    "relevant": {
+      "invoice-agent": 2,
+      "invoice-mcp_server": 2,
+      "invoice-skill": 2,
+      "invoice-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-invoice-filtered",
+    "split": "tune",
+    "family": "invoice",
+    "intentFamily": "invoice",
+    "category": "filtered",
+    "text": "Check ordered quantities against billed amounts.",
+    "kind": "agent",
+    "relevant": {
+      "invoice-agent": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-calendar-task",
+    "split": "tune",
+    "family": "calendar",
+    "intentFamily": "calendar",
+    "category": "task",
+    "text": "When could colleagues in Dublin and Seattle both attend a call?",
+    "relevant": {
+      "calendar-agent": 2,
+      "calendar-mcp_server": 2,
+      "calendar-skill": 2,
+      "calendar-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-calendar-short",
+    "split": "tune",
+    "family": "calendar",
+    "intentFamily": "calendar",
+    "category": "short",
+    "text": "Calendar",
+    "relevant": {
+      "calendar-agent": 2,
+      "calendar-mcp_server": 2,
+      "calendar-skill": 2,
+      "calendar-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-calendar-filtered",
+    "split": "tune",
+    "family": "calendar",
+    "intentFamily": "calendar",
+    "category": "filtered",
+    "text": "Suggest a slot in everybody's free time.",
+    "kind": "mcp_server",
+    "relevant": {
+      "calendar-mcp_server": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-translation-task",
+    "split": "tune",
+    "family": "translation",
+    "intentFamily": "translation",
+    "category": "task",
+    "text": "Convert an English hardware handbook to Spanish while keeping the specialist vocabulary.",
+    "relevant": {
+      "translation-agent": 2,
+      "translation-mcp_server": 2,
+      "translation-skill": 2,
+      "translation-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-translation-short",
+    "split": "tune",
+    "family": "translation",
+    "intentFamily": "translation",
+    "category": "short",
+    "text": "Technical translation",
+    "relevant": {
+      "translation-agent": 2,
+      "translation-mcp_server": 2,
+      "translation-skill": 2,
+      "translation-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-translation-filtered",
+    "split": "tune",
+    "family": "translation",
+    "intentFamily": "translation",
+    "category": "filtered",
+    "text": "Change the language of the user manual without changing its meaning.",
+    "kind": "skill",
+    "relevant": {
+      "translation-skill": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-log-analysis-task",
+    "split": "tune",
+    "family": "log-analysis",
+    "intentFamily": "log-analysis",
+    "category": "task",
+    "text": "Requests started failing; group the error traces to help explain why.",
+    "relevant": {
+      "log-analysis-agent": 2,
+      "log-analysis-mcp_server": 2,
+      "log-analysis-skill": 2,
+      "log-analysis-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-log-analysis-short",
+    "split": "tune",
+    "family": "log-analysis",
+    "intentFamily": "log-analysis",
+    "category": "short",
+    "text": "Application log",
+    "relevant": {
+      "log-analysis-agent": 2,
+      "log-analysis-mcp_server": 2,
+      "log-analysis-skill": 2,
+      "log-analysis-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-log-analysis-filtered",
+    "split": "tune",
+    "family": "log-analysis",
+    "intentFamily": "log-analysis",
+    "category": "filtered",
+    "text": "Diagnose a service incident from the recorded errors.",
+    "kind": "plugin",
+    "relevant": {
+      "log-analysis-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-inventory-task",
+    "split": "tune",
+    "family": "inventory",
+    "intentFamily": "inventory",
+    "category": "task",
+    "text": "Which products will we run short of before the next delivery?",
+    "relevant": {
+      "inventory-agent": 2,
+      "inventory-mcp_server": 2,
+      "inventory-skill": 2,
+      "inventory-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-inventory-short",
+    "split": "tune",
+    "family": "inventory",
+    "intentFamily": "inventory",
+    "category": "short",
+    "text": "Inventory",
+    "relevant": {
+      "inventory-agent": 2,
+      "inventory-mcp_server": 2,
+      "inventory-skill": 2,
+      "inventory-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-inventory-filtered",
+    "split": "tune",
+    "family": "inventory",
+    "intentFamily": "inventory",
+    "category": "filtered",
+    "text": "Predict replenishment needs using earlier sales.",
+    "kind": "agent",
+    "relevant": {
+      "inventory-agent": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-redaction-task",
+    "split": "tune",
+    "family": "redaction",
+    "intentFamily": "redaction",
+    "category": "task",
+    "text": "Remove identifying contact details from a customer conversation before I circulate it.",
+    "relevant": {
+      "redaction-agent": 2,
+      "redaction-mcp_server": 2,
+      "redaction-skill": 2,
+      "redaction-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-redaction-short",
+    "split": "tune",
+    "family": "redaction",
+    "intentFamily": "redaction",
+    "category": "short",
+    "text": "Personal data",
+    "relevant": {
+      "redaction-agent": 2,
+      "redaction-mcp_server": 2,
+      "redaction-skill": 2,
+      "redaction-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-redaction-filtered",
+    "split": "tune",
+    "family": "redaction",
+    "intentFamily": "redaction",
+    "category": "filtered",
+    "text": "Mask people's names and telephone numbers in a transcript.",
+    "kind": "mcp_server",
+    "relevant": {
+      "redaction-mcp_server": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-sql-task",
+    "split": "tune",
+    "family": "sql",
+    "intentFamily": "sql",
+    "category": "task",
+    "text": "Fetch a table of results from approved relational views without making changes.",
+    "relevant": {
+      "sql-agent": 2,
+      "sql-mcp_server": 2,
+      "sql-skill": 2,
+      "sql-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-sql-short",
+    "split": "tune",
+    "family": "sql",
+    "intentFamily": "sql",
+    "category": "short",
+    "text": "Read-only database",
+    "relevant": {
+      "sql-agent": 2,
+      "sql-mcp_server": 2,
+      "sql-skill": 2,
+      "sql-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-sql-filtered",
+    "split": "tune",
+    "family": "sql",
+    "intentFamily": "sql",
+    "category": "filtered",
+    "text": "Inspect permitted database views using SELECT.",
+    "kind": "skill",
+    "relevant": {
+      "sql-skill": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-duplicate-task",
+    "split": "tune",
+    "family": "duplicate",
+    "intentFamily": "duplicate",
+    "category": "task",
+    "text": "Suggest which customer accounts might belong to the same person, leaving the decision to me.",
+    "relevant": {
+      "duplicate-agent": 2,
+      "duplicate-mcp_server": 2,
+      "duplicate-skill": 2,
+      "duplicate-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-duplicate-short",
+    "split": "tune",
+    "family": "duplicate",
+    "intentFamily": "duplicate",
+    "category": "short",
+    "text": "Duplicate customer",
+    "relevant": {
+      "duplicate-agent": 2,
+      "duplicate-mcp_server": 2,
+      "duplicate-skill": 2,
+      "duplicate-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-duplicate-filtered",
+    "split": "tune",
+    "family": "duplicate",
+    "intentFamily": "duplicate",
+    "category": "filtered",
+    "text": "Flag matching CRM contacts for human review.",
+    "kind": "plugin",
+    "relevant": {
+      "duplicate-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-expenses-task",
+    "split": "tune",
+    "family": "expenses",
+    "intentFamily": "expenses",
+    "category": "task",
+    "text": "Check whether my travel reimbursement includes the receipts our policy requires.",
+    "relevant": {
+      "expenses-agent": 2,
+      "expenses-mcp_server": 2,
+      "expenses-skill": 2,
+      "expenses-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-expenses-short",
+    "split": "tune",
+    "family": "expenses",
+    "intentFamily": "expenses",
+    "category": "short",
+    "text": "Expense policy",
+    "relevant": {
+      "expenses-agent": 2,
+      "expenses-mcp_server": 2,
+      "expenses-skill": 2,
+      "expenses-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-expenses-filtered",
+    "split": "tune",
+    "family": "expenses",
+    "intentFamily": "expenses",
+    "category": "filtered",
+    "text": "Flag meal claims that exceed company limits.",
+    "kind": "agent",
+    "relevant": {
+      "expenses-agent": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-currency-task",
+    "split": "tune",
+    "family": "currency",
+    "intentFamily": "currency",
+    "category": "task",
+    "text": "What was this euro amount worth in dollars on a previous date?",
+    "relevant": {
+      "currency-agent": 2,
+      "currency-mcp_server": 2,
+      "currency-skill": 2,
+      "currency-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-currency-short",
+    "split": "tune",
+    "family": "currency",
+    "intentFamily": "currency",
+    "category": "short",
+    "text": "Currency conversion",
+    "relevant": {
+      "currency-agent": 2,
+      "currency-mcp_server": 2,
+      "currency-skill": 2,
+      "currency-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-currency-filtered",
+    "split": "tune",
+    "family": "currency",
+    "intentFamily": "currency",
+    "category": "filtered",
+    "text": "Calculate a past currency conversion using historical rates.",
+    "kind": "mcp_server",
+    "relevant": {
+      "currency-mcp_server": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-weather-task",
+    "split": "test",
+    "family": "weather",
+    "intentFamily": "weather",
+    "category": "task",
+    "text": "Show recorded temperatures from an observation station for last winter.",
+    "relevant": {
+      "weather-agent": 2,
+      "weather-mcp_server": 2,
+      "weather-skill": 2,
+      "weather-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-weather-short",
+    "split": "test",
+    "family": "weather",
+    "intentFamily": "weather",
+    "category": "short",
+    "text": "Historical weather",
+    "relevant": {
+      "weather-agent": 2,
+      "weather-mcp_server": 2,
+      "weather-skill": 2,
+      "weather-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-weather-filtered",
+    "split": "test",
+    "family": "weather",
+    "intentFamily": "weather",
+    "category": "filtered",
+    "text": "Retrieve earlier rainfall observations for a named station.",
+    "kind": "skill",
+    "relevant": {
+      "weather-skill": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-images-task",
+    "split": "test",
+    "family": "images",
+    "intentFamily": "images",
+    "category": "task",
+    "text": "Tag the colors and objects visible in my existing merchandise photographs.",
+    "relevant": {
+      "images-agent": 2,
+      "images-mcp_server": 2,
+      "images-skill": 2,
+      "images-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-images-short",
+    "split": "test",
+    "family": "images",
+    "intentFamily": "images",
+    "category": "short",
+    "text": "Product image",
+    "relevant": {
+      "images-agent": 2,
+      "images-mcp_server": 2,
+      "images-skill": 2,
+      "images-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-images-filtered",
+    "split": "test",
+    "family": "images",
+    "intentFamily": "images",
+    "category": "filtered",
+    "text": "Describe objects in supplied product pictures using labels.",
+    "kind": "plugin",
+    "relevant": {
+      "images-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-contract-task",
+    "split": "test",
+    "family": "contract",
+    "intentFamily": "contract",
+    "category": "task",
+    "text": "Find when a commercial agreement renews and highlight unusual liability terms.",
+    "relevant": {
+      "contract-agent": 2,
+      "contract-mcp_server": 2,
+      "contract-skill": 2,
+      "contract-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-contract-short",
+    "split": "test",
+    "family": "contract",
+    "intentFamily": "contract",
+    "category": "short",
+    "text": "Contract clause",
+    "relevant": {
+      "contract-agent": 2,
+      "contract-mcp_server": 2,
+      "contract-skill": 2,
+      "contract-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-contract-filtered",
+    "split": "test",
+    "family": "contract",
+    "intentFamily": "contract",
+    "category": "filtered",
+    "text": "Review termination provisions in a supplied agreement.",
+    "kind": "agent",
+    "relevant": {
+      "contract-agent": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-accessibility-task",
+    "split": "test",
+    "family": "accessibility",
+    "intentFamily": "accessibility",
+    "category": "task",
+    "text": "Find HTML controls that a keyboard-only visitor cannot reach or identify.",
+    "relevant": {
+      "accessibility-agent": 2,
+      "accessibility-mcp_server": 2,
+      "accessibility-skill": 2,
+      "accessibility-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-accessibility-short",
+    "split": "test",
+    "family": "accessibility",
+    "intentFamily": "accessibility",
+    "category": "short",
+    "text": "Web accessibility",
+    "relevant": {
+      "accessibility-agent": 2,
+      "accessibility-mcp_server": 2,
+      "accessibility-skill": 2,
+      "accessibility-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-accessibility-filtered",
+    "split": "test",
+    "family": "accessibility",
+    "intentFamily": "accessibility",
+    "category": "filtered",
+    "text": "Review accessible labels and contrast in supplied markup.",
+    "kind": "mcp_server",
+    "relevant": {
+      "accessibility-mcp_server": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-release-notes-task",
+    "split": "test",
+    "family": "release-notes",
+    "intentFamily": "release-notes",
+    "category": "task",
+    "text": "Turn merged engineering changes into a concise customer-facing update.",
+    "relevant": {
+      "release-notes-agent": 2,
+      "release-notes-mcp_server": 2,
+      "release-notes-skill": 2,
+      "release-notes-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-release-notes-short",
+    "split": "test",
+    "family": "release-notes",
+    "intentFamily": "release-notes",
+    "category": "short",
+    "text": "Release note",
+    "relevant": {
+      "release-notes-agent": 2,
+      "release-notes-mcp_server": 2,
+      "release-notes-skill": 2,
+      "release-notes-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-release-notes-filtered",
+    "split": "test",
+    "family": "release-notes",
+    "intentFamily": "release-notes",
+    "category": "filtered",
+    "text": "Draft a summary of shipped fixes and upgrade considerations.",
+    "kind": "skill",
+    "relevant": {
+      "release-notes-skill": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-shipment-task",
+    "split": "test",
+    "family": "shipment",
+    "intentFamily": "shipment",
+    "category": "task",
+    "text": "Explain the latest carrier scans and expected arrival of a delayed parcel.",
+    "relevant": {
+      "shipment-agent": 2,
+      "shipment-mcp_server": 2,
+      "shipment-skill": 2,
+      "shipment-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-shipment-short",
+    "split": "test",
+    "family": "shipment",
+    "intentFamily": "shipment",
+    "category": "short",
+    "text": "Shipment",
+    "relevant": {
+      "shipment-agent": 2,
+      "shipment-mcp_server": 2,
+      "shipment-skill": 2,
+      "shipment-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-shipment-filtered",
+    "split": "test",
+    "family": "shipment",
+    "intentFamily": "shipment",
+    "category": "filtered",
+    "text": "Look up a parcel's delivery progress using its tracking number.",
+    "kind": "plugin",
+    "relevant": {
+      "shipment-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-dependencies-task",
+    "split": "test",
+    "family": "dependencies",
+    "intentFamily": "dependencies",
+    "category": "task",
+    "text": "Identify known affected package versions in an inventory using advisory records.",
+    "relevant": {
+      "dependencies-agent": 2,
+      "dependencies-mcp_server": 2,
+      "dependencies-skill": 2,
+      "dependencies-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-dependencies-short",
+    "split": "test",
+    "family": "dependencies",
+    "intentFamily": "dependencies",
+    "category": "short",
+    "text": "Dependency vulnerability",
+    "relevant": {
+      "dependencies-agent": 2,
+      "dependencies-mcp_server": 2,
+      "dependencies-skill": 2,
+      "dependencies-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-dependencies-filtered",
+    "split": "test",
+    "family": "dependencies",
+    "intentFamily": "dependencies",
+    "category": "filtered",
+    "text": "Match listed software dependencies to known security advisories.",
+    "kind": "agent",
+    "relevant": {
+      "dependencies-agent": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-support-task",
+    "split": "test",
+    "family": "support",
+    "intentFamily": "support",
+    "category": "task",
+    "text": "Which product support queue should receive this urgent customer issue?",
+    "relevant": {
+      "support-agent": 2,
+      "support-mcp_server": 2,
+      "support-skill": 2,
+      "support-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-support-short",
+    "split": "test",
+    "family": "support",
+    "intentFamily": "support",
+    "category": "short",
+    "text": "Support ticket",
+    "relevant": {
+      "support-agent": 2,
+      "support-mcp_server": 2,
+      "support-skill": 2,
+      "support-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-support-filtered",
+    "split": "test",
+    "family": "support",
+    "intentFamily": "support",
+    "category": "filtered",
+    "text": "Classify incoming issues by urgency and product.",
+    "kind": "mcp_server",
+    "relevant": {
+      "support-mcp_server": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-csv-task",
+    "split": "test",
+    "family": "csv",
+    "intentFamily": "csv",
+    "category": "task",
+    "text": "Identify spreadsheet rows whose values violate declared column types or uniqueness.",
+    "relevant": {
+      "csv-agent": 2,
+      "csv-mcp_server": 2,
+      "csv-skill": 2,
+      "csv-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-csv-short",
+    "split": "test",
+    "family": "csv",
+    "intentFamily": "csv",
+    "category": "short",
+    "text": "CSV quality",
+    "relevant": {
+      "csv-agent": 2,
+      "csv-mcp_server": 2,
+      "csv-skill": 2,
+      "csv-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-csv-filtered",
+    "split": "test",
+    "family": "csv",
+    "intentFamily": "csv",
+    "category": "filtered",
+    "text": "Report missing required cells and repeated identifiers in a CSV.",
+    "kind": "skill",
+    "relevant": {
+      "csv-skill": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-meeting-task",
+    "split": "test",
+    "family": "meeting",
+    "intentFamily": "meeting",
+    "category": "task",
+    "text": "Pull assigned actions and deadlines out of the notes from our discussion.",
+    "relevant": {
+      "meeting-agent": 2,
+      "meeting-mcp_server": 2,
+      "meeting-skill": 2,
+      "meeting-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-meeting-short",
+    "split": "test",
+    "family": "meeting",
+    "intentFamily": "meeting",
+    "category": "short",
+    "text": "Meeting action",
+    "relevant": {
+      "meeting-agent": 2,
+      "meeting-mcp_server": 2,
+      "meeting-skill": 2,
+      "meeting-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-meeting-filtered",
+    "split": "test",
+    "family": "meeting",
+    "intentFamily": "meeting",
+    "category": "filtered",
+    "text": "Extract decisions and assignees from meeting minutes.",
+    "kind": "plugin",
+    "relevant": {
+      "meeting-plugin": 2
+    },
+    "rationale": "The resource description explicitly supplies this capability; kind and public scope restrict eligible identities."
+  },
+  {
+    "id": "v2-sql-absent",
+    "split": "tune",
+    "family": "no-answer",
+    "intentFamily": "sql",
+    "category": "hard-negative",
+    "text": "Run a database migration that changes the table schema.",
+    "relevant": {},
+    "rationale": "The SQL resources prohibit schema changes."
+  },
+  {
+    "id": "v2-duplicate-absent",
+    "split": "tune",
+    "family": "no-answer",
+    "intentFamily": "duplicate",
+    "category": "hard-negative",
+    "text": "Merge matching CRM contacts immediately without asking for approval.",
+    "relevant": {},
+    "rationale": "Duplicate detection suggests candidates and never merges automatically."
+  },
+  {
+    "id": "v2-currency-absent",
+    "split": "tune",
+    "family": "no-answer",
+    "intentFamily": "currency",
+    "category": "hard-negative",
+    "text": "Execute a foreign exchange trade to hedge my balance.",
+    "relevant": {},
+    "rationale": "The currency resources retrieve historical rates and do not trade."
+  },
+  {
+    "id": "v2-translation-absent",
+    "split": "tune",
+    "family": "no-answer",
+    "intentFamily": "translation",
+    "category": "hard-negative",
+    "text": "Translate my English manual into Japanese.",
+    "relevant": {},
+    "rationale": "Translation is explicitly between English and Spanish, not Japanese."
+  },
+  {
+    "id": "v2-radio-absent",
+    "split": "tune",
+    "family": "no-answer",
+    "intentFamily": "radio",
+    "category": "unrelated",
+    "text": "Transmit a message over a shortwave radio.",
+    "relevant": {},
+    "rationale": "No radio transmission capability is present."
+  },
+  {
+    "id": "v2-bread-absent",
+    "split": "tune",
+    "family": "no-answer",
+    "intentFamily": "bread",
+    "category": "unrelated",
+    "text": "Knead and bake a sourdough loaf.",
+    "relevant": {},
+    "rationale": "No physical food preparation capability is present."
+  },
+  {
+    "id": "v2-weather-absent",
+    "split": "test",
+    "family": "no-answer",
+    "intentFamily": "weather",
+    "category": "hard-negative",
+    "text": "Forecast tomorrow's rainfall at the observation station.",
+    "relevant": {},
+    "rationale": "Weather resources provide past observations and exclude forecasts."
+  },
+  {
+    "id": "v2-images-absent",
+    "split": "test",
+    "family": "no-answer",
+    "intentFamily": "images",
+    "category": "hard-negative",
+    "text": "Generate new product photographs from a written description.",
+    "relevant": {},
+    "rationale": "Image labeling resources explicitly do not generate images."
+  },
+  {
+    "id": "v2-contract-absent",
+    "split": "test",
+    "family": "no-answer",
+    "intentFamily": "contract",
+    "category": "hard-negative",
+    "text": "Represent my company in court in a contract dispute.",
+    "relevant": {},
+    "rationale": "Contract review resources exclude legal representation."
+  },
+  {
+    "id": "v2-dependencies-absent",
+    "split": "test",
+    "family": "no-answer",
+    "intentFamily": "dependencies",
+    "category": "hard-negative",
+    "text": "Run the unknown program in a sandbox and observe its behavior.",
+    "relevant": {},
+    "rationale": "Dependency matching uses an inventory and advisories, not dynamic execution."
+  },
+  {
+    "id": "v2-astronomy-absent",
+    "split": "test",
+    "family": "no-answer",
+    "intentFamily": "astronomy",
+    "category": "unrelated",
+    "text": "Steer a radio telescope toward a newly discovered comet.",
+    "relevant": {},
+    "rationale": "No telescope control capability is present."
+  },
+  {
+    "id": "v2-medicine-absent",
+    "split": "test",
+    "family": "no-answer",
+    "intentFamily": "medicine",
+    "category": "unrelated",
+    "text": "Perform a blood test and prescribe medication.",
+    "relevant": {},
+    "rationale": "No clinical diagnosis or treatment capability is present."
+  },
+  {
+    "id": "v2-invoice-partial",
+    "split": "tune",
+    "family": "invoice",
+    "intentFamily": "invoice",
+    "category": "partial",
+    "text": "Help with finance paperwork.",
+    "relevant": {
+      "invoice-agent": 1,
+      "invoice-mcp_server": 1,
+      "invoice-skill": 1,
+      "invoice-plugin": 1,
+      "expenses-agent": 1,
+      "expenses-mcp_server": 1,
+      "expenses-skill": 1,
+      "expenses-plugin": 1
+    },
+    "rationale": "Ambiguous finance paperwork can reasonably involve invoice reconciliation or expense checks; neither is an exact intent match."
+  },
+  {
+    "id": "v2-calendar-partial",
+    "split": "tune",
+    "family": "calendar",
+    "intentFamily": "calendar",
+    "category": "partial",
+    "text": "Help prepare a meeting invitation.",
+    "relevant": {
+      "calendar-agent": 1,
+      "calendar-mcp_server": 1,
+      "calendar-skill": 1,
+      "calendar-plugin": 1
+    },
+    "rationale": "Availability suggestions support preparation but do not send an invitation."
+  },
+  {
+    "id": "v2-inventory-partial",
+    "split": "tune",
+    "family": "inventory",
+    "intentFamily": "inventory",
+    "category": "partial",
+    "text": "Help plan a procurement budget.",
+    "relevant": {
+      "inventory-agent": 1,
+      "inventory-mcp_server": 1,
+      "inventory-skill": 1,
+      "inventory-plugin": 1,
+      "invoice-agent": 1,
+      "invoice-mcp_server": 1,
+      "invoice-skill": 1,
+      "invoice-plugin": 1
+    },
+    "rationale": "Stock demand and invoice discrepancies offer partial support, not budget planning."
+  },
+  {
+    "id": "v2-release-notes-partial",
+    "split": "test",
+    "family": "release-notes",
+    "intentFamily": "release-notes",
+    "category": "partial",
+    "text": "Help write a project update.",
+    "relevant": {
+      "release-notes-agent": 1,
+      "release-notes-mcp_server": 1,
+      "release-notes-skill": 1,
+      "release-notes-plugin": 1,
+      "meeting-agent": 1,
+      "meeting-mcp_server": 1,
+      "meeting-skill": 1,
+      "meeting-plugin": 1
+    },
+    "rationale": "Release summaries and meeting actions are plausible partial inputs to an ambiguous project update."
+  },
+  {
+    "id": "v2-shipment-partial",
+    "split": "test",
+    "family": "shipment",
+    "intentFamily": "shipment",
+    "category": "partial",
+    "text": "Help draft a reply about a late package.",
+    "relevant": {
+      "shipment-agent": 1,
+      "shipment-mcp_server": 1,
+      "shipment-skill": 1,
+      "shipment-plugin": 1
+    },
+    "rationale": "Tracking information supports a reply but does not itself draft or send correspondence."
+  },
+  {
+    "id": "v2-csv-partial",
+    "split": "test",
+    "family": "csv",
+    "intentFamily": "csv",
+    "category": "partial",
+    "text": "Help prepare a dataset for analysis.",
+    "relevant": {
+      "csv-agent": 1,
+      "csv-mcp_server": 1,
+      "csv-skill": 1,
+      "csv-plugin": 1
+    },
+    "rationale": "Data validation supports preparation but does not perform all analysis or cleaning."
+  },
+  {
+    "id": "v2-invoice-exact",
+    "split": "tune",
+    "family": "invoice",
+    "intentFamily": "invoice",
+    "category": "exact",
+    "kind": "agent",
+    "exact": true,
+    "text": "urn:air:catalog.example.test:demo:invoice-agent",
+    "relevant": {
+      "invoice-agent": 2
+    },
+    "rationale": "Exact identifier lookup must preserve the specified resource's precedence."
+  },
+  {
+    "id": "v2-calendar-exact",
+    "split": "tune",
+    "family": "calendar",
+    "intentFamily": "calendar",
+    "category": "exact",
+    "kind": "mcp_server",
+    "exact": true,
+    "text": "urn:air:catalog.example.test:demo:calendar-mcp_server",
+    "relevant": {
+      "calendar-mcp_server": 2
+    },
+    "rationale": "Exact identifier lookup must preserve the specified resource's precedence."
+  },
+  {
+    "id": "v2-sql-exact",
+    "split": "tune",
+    "family": "sql",
+    "intentFamily": "sql",
+    "category": "exact",
+    "kind": "skill",
+    "exact": true,
+    "text": "urn:air:catalog.example.test:demo:sql-skill",
+    "relevant": {
+      "sql-skill": 2
+    },
+    "rationale": "Exact identifier lookup must preserve the specified resource's precedence."
+  },
+  {
+    "id": "v2-duplicate-exact",
+    "split": "tune",
+    "family": "duplicate",
+    "intentFamily": "duplicate",
+    "category": "exact",
+    "kind": "plugin",
+    "exact": true,
+    "text": "urn:air:catalog.example.test:demo:duplicate-plugin",
+    "relevant": {
+      "duplicate-plugin": 2
+    },
+    "rationale": "Exact identifier lookup must preserve the specified resource's precedence."
+  },
+  {
+    "id": "v2-weather-exact",
+    "split": "test",
+    "family": "weather",
+    "intentFamily": "weather",
+    "category": "exact",
+    "kind": "agent",
+    "exact": true,
+    "text": "urn:air:catalog.example.test:demo:weather-agent",
+    "relevant": {
+      "weather-agent": 2
+    },
+    "rationale": "Exact identifier lookup must preserve the specified resource's precedence."
+  },
+  {
+    "id": "v2-images-exact",
+    "split": "test",
+    "family": "images",
+    "intentFamily": "images",
+    "category": "exact",
+    "kind": "mcp_server",
+    "exact": true,
+    "text": "urn:air:catalog.example.test:demo:images-mcp_server",
+    "relevant": {
+      "images-mcp_server": 2
+    },
+    "rationale": "Exact identifier lookup must preserve the specified resource's precedence."
+  },
+  {
+    "id": "v2-contract-exact",
+    "split": "test",
+    "family": "contract",
+    "intentFamily": "contract",
+    "category": "exact",
+    "kind": "skill",
+    "exact": true,
+    "text": "urn:air:catalog.example.test:demo:contract-skill",
+    "relevant": {
+      "contract-skill": 2
+    },
+    "rationale": "Exact identifier lookup must preserve the specified resource's precedence."
+  },
+  {
+    "id": "v2-dependencies-exact",
+    "split": "test",
+    "family": "dependencies",
+    "intentFamily": "dependencies",
+    "category": "exact",
+    "kind": "plugin",
+    "exact": true,
+    "text": "urn:air:catalog.example.test:demo:dependencies-plugin",
+    "relevant": {
+      "dependencies-plugin": 2
+    },
+    "rationale": "Exact identifier lookup must preserve the specified resource's precedence."
+  }
+]
+

@@ -1,0 +1,244 @@
+x-runtime: &runtime
+  image: ${CATALOG_TUTORIAL_BACKEND_IMAGE:?prepare the tutorial inputs first}
+  pull_policy: never
+  read_only: true
+  init: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [tutorial]
+
+x-database: &database
+  image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+  entrypoint: [/bin/sh, -ec]
+  command:
+    - |
+      cp /tls/server-key.pem /run/catalog-server.key
+      chown postgres:postgres /run/catalog-server.key
+      chmod 600 /run/catalog-server.key
+      exec docker-entrypoint.sh postgres -c ssl=on -c ssl_cert_file=/tls/server.pem -c ssl_key_file=/run/catalog-server.key -c hba_file=/inputs/pg_hba.conf
+  healthcheck:
+    test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U postgres"]
+    interval: 2s
+    timeout: 2s
+    retries: 30
+  networks: [tutorial]
+  security_opt: [no-new-privileges:true]
+
+x-ui: &ui
+  image: ${CATALOG_TUTORIAL_UI_IMAGE:?prepare the tutorial inputs first}
+  pull_policy: never
+  command: [--config, /inputs/ui.json]
+  read_only: true
+  init: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  networks: [tutorial]
+  healthcheck:
+    test: [CMD, /usr/local/bin/catalog-ui, --probe]
+    interval: 5s
+    timeout: 3s
+    retries: 12
+
+services:
+  postgres-a:
+    <<: *database
+    environment:
+      POSTGRES_DB: catalog_a
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /inputs/postgres-password
+    volumes:
+      - postgres-a:/var/lib/postgresql
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/postgres-password:/inputs/postgres-password:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/bootstrap.sql:/docker-entrypoint-initdb.d/010-catalog.sql:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/pg_hba.conf:/inputs/pg_hba.conf:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/postgres-a.pem:/tls/server.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/postgres-a-key.pem:/tls/server-key.pem:ro
+  postgres-b:
+    <<: *database
+    environment:
+      POSTGRES_DB: catalog_b
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD_FILE: /inputs/postgres-password
+    volumes:
+      - postgres-b:/var/lib/postgresql
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/postgres-password:/inputs/postgres-password:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/bootstrap.sql:/docker-entrypoint-initdb.d/010-catalog.sql:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/pg_hba.conf:/inputs/pg_hba.conf:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/postgres-b.pem:/tls/server.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/postgres-b-key.pem:/tls/server-key.pem:ro
+  owner-a:
+    <<: *runtime
+    entrypoint: [/usr/local/bin/catalogctl]
+    command: [migrate, plan, --config, /inputs/a/owner.json]
+    environment:
+      CATALOG_DATABASE_DSN_FILE: /inputs/a/owner.dsn
+    volumes:
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/owner.json:/inputs/a/owner.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/owner.dsn:/inputs/a/owner.dsn:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/federation-policy.json:/inputs/a/federation-policy.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/ca.pem:/trust/ca.pem:ro
+  owner-b:
+    <<: *runtime
+    entrypoint: [/usr/local/bin/catalogctl]
+    command: [migrate, plan, --config, /inputs/b/owner.json]
+    environment:
+      CATALOG_DATABASE_DSN_FILE: /inputs/b/owner.dsn
+    volumes:
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/owner.json:/inputs/b/owner.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/owner.dsn:/inputs/b/owner.dsn:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/federation-policy.json:/inputs/b/federation-policy.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/ca.pem:/trust/ca.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/source-credentials:/credentials:ro
+  api-a:
+    <<: *runtime
+    command: [api, --config, /inputs/a/api.json]
+    depends_on:
+      postgres-a: {condition: service_healthy}
+    environment:
+      CATALOG_DATABASE_DSN_FILE: /inputs/a/api.dsn
+      CATALOG_CURSOR_SIGNING_KEY_FILE: /inputs/a/cursor.key
+    volumes:
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/api.json:/inputs/a/api.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/api.dsn:/inputs/a/api.dsn:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/cursor.key:/inputs/a/cursor.key:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/federation-policy.json:/inputs/a/federation-policy.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/ca.pem:/trust/ca.pem:ro
+    healthcheck:
+      test: [CMD, /usr/local/bin/catalogctl, probe, --url, "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  worker-a:
+    <<: *runtime
+    command: [worker, --config, /inputs/a/worker.json]
+    depends_on:
+      postgres-a: {condition: service_healthy}
+    environment:
+      CATALOG_DATABASE_DSN_FILE: /inputs/a/worker.dsn
+      CATALOG_CURSOR_SIGNING_KEY_FILE: /inputs/a/cursor.key
+    volumes:
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/worker.json:/inputs/a/worker.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/worker.dsn:/inputs/a/worker.dsn:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/cursor.key:/inputs/a/cursor.key:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/federation-policy.json:/inputs/a/federation-policy.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/ca.pem:/trust/ca.pem:ro
+    healthcheck:
+      test: [CMD, /usr/local/bin/catalogctl, probe, --url, "http://127.0.0.1:9090/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  api-b:
+    <<: *runtime
+    command: [api, --config, /inputs/b/api.json]
+    depends_on:
+      postgres-b: {condition: service_healthy}
+    environment:
+      CATALOG_DATABASE_DSN_FILE: /inputs/b/api.dsn
+      CATALOG_CURSOR_SIGNING_KEY_FILE: /inputs/b/cursor.key
+    volumes:
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/api.json:/inputs/b/api.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/api.dsn:/inputs/b/api.dsn:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/cursor.key:/inputs/b/cursor.key:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/federation-policy.json:/inputs/b/federation-policy.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/source-credentials:/credentials:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/ca.pem:/trust/ca.pem:ro
+    healthcheck:
+      test: [CMD, /usr/local/bin/catalogctl, probe, --url, "http://127.0.0.1:8080/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  worker-b:
+    <<: *runtime
+    command: [worker, --config, /inputs/b/worker.json]
+    depends_on:
+      postgres-b: {condition: service_healthy}
+    environment:
+      CATALOG_DATABASE_DSN_FILE: /inputs/b/worker.dsn
+      CATALOG_CURSOR_SIGNING_KEY_FILE: /inputs/b/cursor.key
+    volumes:
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/worker.json:/inputs/b/worker.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/worker.dsn:/inputs/b/worker.dsn:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/cursor.key:/inputs/b/cursor.key:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/federation-policy.json:/inputs/b/federation-policy.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/source-credentials:/credentials:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/ca.pem:/trust/ca.pem:ro
+    healthcheck:
+      test: [CMD, /usr/local/bin/catalogctl, probe, --url, "http://127.0.0.1:9090/readyz"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  ui-a:
+    <<: *ui
+    volumes:
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/ui.json:/inputs/ui.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/ui-client-secret:/inputs/a/ui-client-secret:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/a/ui-keys.json:/inputs/a/ui-keys.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/ca.pem:/trust/ca.pem:ro
+  ui-b:
+    <<: *ui
+    volumes:
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/ui.json:/inputs/ui.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/ui-client-secret:/inputs/b/ui-client-secret:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/b/ui-keys.json:/inputs/b/ui-keys.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/ca.pem:/trust/ca.pem:ro
+  identity:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b
+    entrypoint: [/bin/bash, -ec]
+    command:
+      - |
+        export KC_BOOTSTRAP_ADMIN_USERNAME=bootstrap-admin
+        export KC_BOOTSTRAP_ADMIN_PASSWORD="$$(cat /inputs/bootstrap-password)"
+        exec /opt/keycloak/bin/kc.sh start-dev --import-realm --http-enabled=false --https-port=8447 --hostname=https://identity.test:8447 --https-certificate-file=/tls/identity.pem --https-certificate-key-file=/tls/identity-key.pem
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports: ["127.0.0.1:8447:8447"]
+    networks:
+      tutorial:
+        aliases: [identity.test]
+    volumes:
+      - identity:/opt/keycloak/data
+      - ${CATALOG_TUTORIAL_DIRECTORY}/bootstrap-password:/inputs/bootstrap-password:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/catalog-realm.json:/opt/keycloak/data/import/catalog-realm.json:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/identity.pem:/tls/identity.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/identity-key.pem:/tls/identity-key.pem:ro
+  frontend:
+    image: ${CATALOG_TUTORIAL_FRONTEND_IMAGE}
+    build:
+      context: ${CATALOG_TUTORIAL_SOURCE}
+      dockerfile: Containerfile
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "127.0.0.1:8443:8443"
+      - "127.0.0.1:8445:8445"
+      - "127.0.0.1:9443:9443"
+      - "127.0.0.1:9445:9445"
+    networks:
+      tutorial:
+        ipv4_address: ${CATALOG_TUTORIAL_FRONTEND_ADDRESS}
+        aliases: [catalog-a.test, catalog-b.test, browse-a.test, browse-b.test]
+    volumes:
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/catalog-a.pem:/tls/catalog-a.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/catalog-a-key.pem:/tls/catalog-a-key.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/catalog-b.pem:/tls/catalog-b.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/catalog-b-key.pem:/tls/catalog-b-key.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/browse-a.pem:/tls/browse-a.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/browse-a-key.pem:/tls/browse-a-key.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/browse-b.pem:/tls/browse-b.pem:ro
+      - ${CATALOG_TUTORIAL_DIRECTORY}/trust/browse-b-key.pem:/tls/browse-b-key.pem:ro
+
+volumes:
+  postgres-a:
+  postgres-b:
+  identity:
+
+networks:
+  tutorial:
+    ipam:
+      config:
+        - subnet: ${CATALOG_TUTORIAL_SUBNET}

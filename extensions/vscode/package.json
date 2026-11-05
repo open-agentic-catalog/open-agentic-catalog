@@ -1,0 +1,754 @@
+{
+  "name": "open-agentic-catalog",
+  "displayName": "Open Agentic Catalog",
+  "description": "Discover resources through your Open Agentic Catalog",
+  "version": "0.1.0",
+  "publisher": "open-agentic-catalog",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "vscode": "^1.139.1",
+    "node": ">=24.20.0 <25"
+  },
+  "packageManager": "npm@11.19.1",
+  "categories": [
+    "Other"
+  ],
+  "extensionKind": [
+    "workspace"
+  ],
+  "main": "./dist/extension.cjs",
+  "activationEvents": [
+    "onUri"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": {
+      "supported": true
+    }
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "openAgenticCatalog.connect",
+        "title": "Catalog: Select Connection",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "openAgenticCatalog.addConnection",
+        "title": "Catalog: Add Connection",
+        "icon": "$(add)"
+      },
+      {
+        "command": "openAgenticCatalog.editConnection",
+        "title": "Catalog: Edit Connection",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "openAgenticCatalog.account",
+        "title": "Catalog: Account and Connection",
+        "icon": "$(account)"
+      },
+      {
+        "command": "openAgenticCatalog.transportSettings",
+        "title": "Catalog: Transport Settings",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "openAgenticCatalog.copyDiagnostics",
+        "title": "Catalog: Copy Connection Diagnostics",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "openAgenticCatalog.forgetMcpCredentials",
+        "title": "Catalog: Forget All MCP Target Credentials",
+        "icon": "$(key)"
+      },
+      {
+        "command": "openAgenticCatalog.recoverLogin",
+        "title": "Catalog: Recover Catalog Login",
+        "icon": "$(history)"
+      },
+      {
+        "command": "openAgenticCatalog.testConnection",
+        "title": "Catalog: Test Connection",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "openAgenticCatalog.signIn",
+        "title": "Catalog: Sign In",
+        "icon": "$(sign-in)",
+        "enablement": "openAgenticCatalog.connection != none && openAgenticCatalog.connection != anonymous && openAgenticCatalog.connection != signing_in"
+      },
+      {
+        "command": "openAgenticCatalog.signOut",
+        "title": "Catalog: Sign Out",
+        "icon": "$(sign-out)",
+        "enablement": "openAgenticCatalog.connection != none && openAgenticCatalog.connection != anonymous"
+      },
+      {
+        "command": "openAgenticCatalog.removeConnection",
+        "title": "Catalog: Remove Connection",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "openAgenticCatalog.help",
+        "title": "Catalog: Help (Offline)",
+        "icon": "$(question)"
+      },
+      {
+        "command": "openAgenticCatalog.open",
+        "title": "Catalog: Open Catalog",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "openAgenticCatalog.refresh",
+        "title": "Catalog: Load First Page / Restart Search",
+        "icon": "$(refresh)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy"
+      },
+      {
+        "command": "openAgenticCatalog.search",
+        "title": "Catalog: Search",
+        "icon": "$(search)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy"
+      },
+      {
+        "command": "openAgenticCatalog.filterKind",
+        "title": "Catalog: Filter Resource Kind",
+        "icon": "$(filter)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy"
+      },
+      {
+        "command": "openAgenticCatalog.detail",
+        "title": "Catalog: Inspect Exact Resource",
+        "icon": "$(inspect)"
+      },
+      {
+        "command": "openAgenticCatalog.reopen",
+        "title": "Catalog: Open Saved Reference",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "openAgenticCatalog.settings",
+        "title": "Catalog: Connection Settings",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "openAgenticCatalog.useMcp",
+        "title": "Catalog: Use Selected MCP Server",
+        "icon": "$(server)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy && openAgenticCatalog.selectedKind == mcp_server && isWorkspaceTrusted"
+      },
+      {
+        "command": "openAgenticCatalog.removeMcp",
+        "title": "Catalog: Remove MCP Selection",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "openAgenticCatalog.installSkill",
+        "title": "Catalog: Install Selected Skill",
+        "icon": "$(book)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy && openAgenticCatalog.selectedKind == skill && isWorkspaceTrusted"
+      },
+      {
+        "command": "openAgenticCatalog.removeSkill",
+        "title": "Catalog: Remove Installed Skill",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "openAgenticCatalog.recoverSkill",
+        "title": "Catalog: Recover Interrupted Skill Operation",
+        "icon": "$(history)"
+      },
+      {
+        "command": "openAgenticCatalog.installPlugin",
+        "title": "Catalog: Install Selected Plugin Disabled",
+        "icon": "$(extensions)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy && openAgenticCatalog.selectedKind == plugin && isWorkspaceTrusted"
+      },
+      {
+        "command": "openAgenticCatalog.activatePlugin",
+        "title": "Catalog: Activate Selected Plugin",
+        "icon": "$(play)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy && openAgenticCatalog.selectedKind == plugin && isWorkspaceTrusted"
+      },
+      {
+        "command": "openAgenticCatalog.disablePlugin",
+        "title": "Catalog: Disable Installed Plugin",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "openAgenticCatalog.removePlugin",
+        "title": "Catalog: Remove Installed Plugin",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "openAgenticCatalog.recoverPlugin",
+        "title": "Catalog: Recover Interrupted Plugin Operation",
+        "icon": "$(history)"
+      },
+      {
+        "command": "openAgenticCatalog.talkAgent",
+        "title": "Catalog: Talk to Selected Agent",
+        "icon": "$(robot)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy && openAgenticCatalog.selectedKind == agent && isWorkspaceTrusted"
+      },
+      {
+        "command": "openAgenticCatalog.nextPage",
+        "title": "Catalog: Next Page / Retry Continuation",
+        "icon": "$(chevron-right)",
+        "enablement": "openAgenticCatalog.next && !openAgenticCatalog.busy"
+      },
+      {
+        "command": "openAgenticCatalog.cancelRead",
+        "title": "Catalog: Cancel Catalog Read",
+        "icon": "$(close)",
+        "enablement": "openAgenticCatalog.busy"
+      },
+      {
+        "command": "openAgenticCatalog.openReference",
+        "title": "Catalog: Open Copied Exact Reference",
+        "icon": "$(go-to-file)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy"
+      },
+      {
+        "command": "openAgenticCatalog.removeReference",
+        "title": "Catalog: Remove Saved Reference",
+        "icon": "$(trash)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy"
+      },
+      {
+        "command": "openAgenticCatalog.forgetReferences",
+        "title": "Catalog: Forget Local Saved References",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "openAgenticCatalog.refreshTools",
+        "title": "Catalog: Refresh My Tools",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "openAgenticCatalog.revealTool",
+        "title": "Catalog: Reveal Owned Package in Explorer",
+        "icon": "$(folder-opened)",
+        "enablement": "isWorkspaceTrusted"
+      },
+      {
+        "command": "openAgenticCatalog.comparePackage",
+        "title": "Catalog: Compare Selected Package Inventory",
+        "icon": "$(git-compare)",
+        "enablement": "openAgenticCatalog.canBrowse && !openAgenticCatalog.busy && isWorkspaceTrusted && (openAgenticCatalog.selectedKind == skill || openAgenticCatalog.selectedKind == plugin)"
+      },
+      {
+        "command": "openAgenticCatalog.combinedFilters",
+        "title": "Catalog: Combine Discovery Filters",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "openAgenticCatalog.rate",
+        "title": "Catalog: Rate Selected Local Release",
+        "icon": "$(star)"
+      },
+      {
+        "command": "openAgenticCatalog.feedback",
+        "title": "Catalog: Send Private Item Feedback",
+        "icon": "$(comment)"
+      },
+      {
+        "command": "openAgenticCatalog.myRatings",
+        "title": "Catalog: My Ratings",
+        "icon": "$(star)"
+      },
+      {
+        "command": "openAgenticCatalog.myFeedback",
+        "title": "Catalog: My Private Feedback",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "openAgenticCatalog.recoverOpinion",
+        "title": "Catalog: Recover Opinion Command",
+        "icon": "$(history)"
+      },
+      {
+        "command": "openAgenticCatalog.savedMcp",
+        "title": "Catalog: Saved MCP References",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "openAgenticCatalog.forgetMcpReferences",
+        "title": "Catalog: Forget All MCP References",
+        "icon": "$(bookmark)"
+      },
+      {
+        "command": "openAgenticCatalog.packageCredentials",
+        "title": "Catalog: Manage Package Source Credentials",
+        "icon": "$(key)"
+      },
+      {
+        "command": "openAgenticCatalog.forgetPackageCredentials",
+        "title": "Catalog: Forget All Package Source Credentials",
+        "icon": "$(key)"
+      }
+    ],
+    "configuration": {
+      "title": "Open Agentic Catalog",
+      "properties": {
+        "openAgenticCatalog.connections": {
+          "type": "array",
+          "default": [],
+          "scope": "machine",
+          "description": "Named connections on this execution host. Credentials belong in SecretStorage. Use Catalog: Add Connection or edit these user/remote settings.",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "label",
+              "origin",
+              "mode",
+              "auth"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "origin": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "control",
+                  "published"
+                ]
+              },
+              "auth": {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "oidc",
+                  "anonymous"
+                ]
+              },
+              "allowLoopbackHTTP": {
+                "type": "boolean",
+                "default": false
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 120000,
+                "default": 30000
+              },
+              "requestBytes": {
+                "type": "integer",
+                "minimum": 1024,
+                "maximum": 16777216,
+                "default": 16777216
+              },
+              "responseBytes": {
+                "type": "integer",
+                "minimum": 1024,
+                "maximum": 33554432,
+                "default": 8388608
+              },
+              "headerBytes": {
+                "type": "integer",
+                "minimum": 1024,
+                "maximum": 65536,
+                "default": 32768
+              },
+              "caFile": {
+                "type": "string",
+                "description": "Optional absolute PEM trust file on this extension host. System public roots remain trusted."
+              },
+              "proxyURL": {
+                "type": "string",
+                "description": "Optional credential-free HTTP(S) proxy origin. No workspace or ambient proxy override is used."
+              },
+              "oidc": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "issuer",
+                  "clientId",
+                  "audience",
+                  "scopes"
+                ],
+                "properties": {
+                  "issuer": {
+                    "type": "string"
+                  },
+                  "clientId": {
+                    "type": "string"
+                  },
+                  "audience": {
+                    "type": "string"
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "maxItems": 20
+                  },
+                  "refresh": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        "openAgenticCatalog.packageTools": {
+          "type": "object",
+          "scope": "machine",
+          "default": {},
+          "additionalProperties": false,
+          "description": "Optional Git/ORAS executables and separate package TLS trust on this execution host. Anonymous HTTPS only; no Catalog credentials or workspace overrides.",
+          "properties": {
+            "gitPath": {
+              "type": "string",
+              "description": "Absolute Git executable; defaults to git on PATH."
+            },
+            "orasPath": {
+              "type": "string",
+              "description": "Absolute ORAS executable; defaults to oras on PATH."
+            },
+            "caFile": {
+              "type": "string",
+              "description": "Optional absolute package-source PEM CA file, separate from Catalog trust."
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 300000,
+              "default": 60000
+            }
+          }
+        },
+        "openAgenticCatalog.a2a": {
+          "type": "object",
+          "scope": "machine",
+          "default": {},
+          "additionalProperties": false,
+          "description": "Separate A2A target transport settings. No workspace overrides or Catalog credentials. Restart the conversation after changes.",
+          "properties": {
+            "allowLoopbackHTTP": {
+              "type": "boolean",
+              "default": false
+            },
+            "caFile": {
+              "type": "string",
+              "description": "Absolute A2A target PEM trust file, separate from Catalog trust."
+            },
+            "proxyURL": {
+              "type": "string",
+              "description": "Credential-free HTTP(S) proxy origin, separate from Catalog proxy."
+            },
+            "timeoutMs": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 120000,
+              "default": 30000
+            },
+            "streamTimeoutMs": {
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 300000,
+              "default": 120000
+            }
+          }
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "openAgenticCatalog",
+          "title": "Open Agentic Catalog",
+          "icon": "media/catalog.svg"
+        }
+      ]
+    },
+    "views": {
+      "openAgenticCatalog": [
+        {
+          "id": "openAgenticCatalog.catalog",
+          "name": "Catalog",
+          "icon": "media/catalog.svg"
+        },
+        {
+          "id": "openAgenticCatalog.tools",
+          "name": "My tools",
+          "icon": "media/catalog.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "openAgenticCatalog.catalog",
+        "when": "openAgenticCatalog.phase == no_connection",
+        "contents": "Add or select a Catalog connection. Setup also works without a trusted workspace.\n[Add connection](command:openAgenticCatalog.addConnection)\n[Select connection](command:openAgenticCatalog.connect)\n[Sign-in help](command:openAgenticCatalog.help?%5B%22connection%22%5D)"
+      },
+      {
+        "view": "openAgenticCatalog.catalog",
+        "when": "openAgenticCatalog.phase == signed_out",
+        "contents": "The selected Catalog needs sign-in.\n[Sign in](command:openAgenticCatalog.signIn)\n[Test connection](command:openAgenticCatalog.testConnection)\n[Select connection](command:openAgenticCatalog.connect)\n[Sign-in help](command:openAgenticCatalog.help?%5B%22connection%22%5D)"
+      },
+      {
+        "view": "openAgenticCatalog.catalog",
+        "when": "openAgenticCatalog.phase != no_connection && openAgenticCatalog.phase != signed_out",
+        "contents": "Use the view status for read results, failures and continuation guidance.\n[Load first page / restart](command:openAgenticCatalog.refresh)\n[Open filters and cards](command:openAgenticCatalog.open)\n[Search and filter help](command:openAgenticCatalog.help?%5B%22catalog%22%5D)"
+      },
+      {
+        "view": "openAgenticCatalog.tools",
+        "contents": "No local tools are selected or installed. Choosing a trusted workspace alone does not select a resource. Inspect a Catalog resource first, then explicitly register an MCP server or install a complete Skill or disabled Plugin. Native approvals still apply. Local removal and recovery commands work offline.\n[Open Catalog](command:openAgenticCatalog.open)\n[Manage workspace trust](command:workbench.trust.manage)\n[My tools help](command:openAgenticCatalog.help?%5B%22tools%22%5D)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "openAgenticCatalog.open",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "navigation@0"
+        },
+        {
+          "command": "openAgenticCatalog.refresh",
+          "when": "view == openAgenticCatalog.catalog && openAgenticCatalog.canBrowse && !openAgenticCatalog.busy",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openAgenticCatalog.nextPage",
+          "when": "view == openAgenticCatalog.catalog && openAgenticCatalog.next && !openAgenticCatalog.busy",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openAgenticCatalog.cancelRead",
+          "when": "view == openAgenticCatalog.catalog && openAgenticCatalog.busy",
+          "group": "navigation@2"
+        },
+        {
+          "command": "openAgenticCatalog.search",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "1_search@1"
+        },
+        {
+          "command": "openAgenticCatalog.filterKind",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "1_search@2"
+        },
+        {
+          "command": "openAgenticCatalog.connect",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "2_account@0"
+        },
+        {
+          "command": "openAgenticCatalog.addConnection",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "2_account@1"
+        },
+        {
+          "command": "openAgenticCatalog.account",
+          "when": "view == openAgenticCatalog.catalog && openAgenticCatalog.connection != none",
+          "group": "2_account@2"
+        },
+        {
+          "command": "openAgenticCatalog.signIn",
+          "when": "view == openAgenticCatalog.catalog && openAgenticCatalog.connection == signed_out",
+          "group": "2_account@3"
+        },
+        {
+          "command": "openAgenticCatalog.signOut",
+          "when": "view == openAgenticCatalog.catalog && openAgenticCatalog.canBrowse && openAgenticCatalog.connection != anonymous",
+          "group": "2_account@4"
+        },
+        {
+          "command": "openAgenticCatalog.testConnection",
+          "when": "view == openAgenticCatalog.catalog && openAgenticCatalog.connection != none",
+          "group": "2_account@5"
+        },
+        {
+          "command": "openAgenticCatalog.settings",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "3_settings@0"
+        },
+        {
+          "command": "openAgenticCatalog.help",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "3_settings@1"
+        },
+        {
+          "command": "openAgenticCatalog.open",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "navigation@0"
+        },
+        {
+          "command": "openAgenticCatalog.removeMcp",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "1_manage@1"
+        },
+        {
+          "command": "openAgenticCatalog.removeSkill",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "1_manage@2"
+        },
+        {
+          "command": "openAgenticCatalog.disablePlugin",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "1_manage@3"
+        },
+        {
+          "command": "openAgenticCatalog.removePlugin",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "1_manage@4"
+        },
+        {
+          "command": "openAgenticCatalog.recoverSkill",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "2_recovery@1"
+        },
+        {
+          "command": "openAgenticCatalog.recoverPlugin",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "2_recovery@2"
+        },
+        {
+          "command": "openAgenticCatalog.help",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "3_help@1"
+        },
+        {
+          "command": "openAgenticCatalog.refreshTools",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openAgenticCatalog.openReference",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "3_inspect@1"
+        },
+        {
+          "command": "openAgenticCatalog.forgetReferences",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "3_inspect@2"
+        },
+        {
+          "command": "openAgenticCatalog.comparePackage",
+          "when": "view == openAgenticCatalog.catalog",
+          "group": "3_inspect@3"
+        },
+        {
+          "command": "openAgenticCatalog.savedMcp",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "navigation@1"
+        },
+        {
+          "command": "openAgenticCatalog.packageCredentials",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "1_credentials@1"
+        },
+        {
+          "command": "openAgenticCatalog.forgetPackageCredentials",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "1_credentials@2"
+        },
+        {
+          "command": "openAgenticCatalog.forgetMcpReferences",
+          "when": "view == openAgenticCatalog.tools",
+          "group": "1_references@1"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "openAgenticCatalog.detail",
+          "when": "view == openAgenticCatalog.catalog && viewItem == catalogResource",
+          "group": "inline@1"
+        },
+        {
+          "command": "openAgenticCatalog.removeMcp",
+          "when": "view == openAgenticCatalog.tools && viewItem == catalogMcpSelection",
+          "group": "inline"
+        },
+        {
+          "command": "openAgenticCatalog.removeSkill",
+          "when": "view == openAgenticCatalog.tools && viewItem == catalogInstalledSkill",
+          "group": "inline"
+        },
+        {
+          "command": "openAgenticCatalog.disablePlugin",
+          "when": "view == openAgenticCatalog.tools && viewItem == catalogInstalledPlugin",
+          "group": "1_manage@1"
+        },
+        {
+          "command": "openAgenticCatalog.removePlugin",
+          "when": "view == openAgenticCatalog.tools && viewItem == catalogInstalledPlugin",
+          "group": "1_manage@2"
+        },
+        {
+          "command": "openAgenticCatalog.removeReference",
+          "when": "view == openAgenticCatalog.catalog && viewItem == catalogBookmark",
+          "group": "inline@2"
+        },
+        {
+          "command": "openAgenticCatalog.revealTool",
+          "when": "view == openAgenticCatalog.tools && (viewItem == catalogInstalledSkill || viewItem == catalogInstalledPlugin)",
+          "group": "3_inspect@1"
+        }
+      ]
+    },
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "openAgenticCatalog.selectedMcp",
+        "label": "Selected Catalog MCP servers"
+      }
+    ]
+  },
+  "dependencies": {
+    "@a2a-js/sdk": "1.3.0",
+    "@open-agentic-catalog/client": "file:../../output/artifacts/sdk/typescript/open-agentic-catalog-client-0.1.0.tgz",
+    "jose": "6.2.12",
+    "undici": "8.12.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "22.20.5",
+    "@types/vscode": "1.138.0",
+    "@vscode/test-electron": "3.1.0",
+    "@vscode/vsce": "4.0.0",
+    "esbuild": "0.28.2",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
+    "prettier": "3.9.9",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.71.1"
+  },
+  "overrides": {
+    "js-yaml": "4.3.2"
+  },
+  "icon": "media/catalog-icon.png",
+  "keywords": [
+    "agents",
+    "catalog",
+    "mcp",
+    "skills",
+    "a2a"
+  ],
+  "scripts": {
+    "build": "python3 -B tooling/runner.py build",
+    "watch": "python3 -B tooling/runner.py watch",
+    "check": "python3 -B tooling/runner.py check",
+    "package": "python3 -B tooling/runner.py package"
+  }
+}

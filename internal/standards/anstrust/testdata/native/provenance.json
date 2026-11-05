@@ -1,0 +1,179 @@
+{
+  "status": "captured",
+  "capturedAt": "2026-10-09T14:31:25.519973+00:00",
+  "inputs": {
+    "artifacts_sha256": "d33059cc469a1ed7de961e06bb34792ad15d9524eade5330b5490356b275ddd7",
+    "binaries": {
+      "finder": {
+        "sha256": "68026805ebaa635ce90b6cc5de7b9714970649530d5d7da95524bd0822a20325",
+        "version": "ans-finder qualification (85f16728a6b7444d6a9522daf01b6090a5e32e72) built source-pinned"
+      },
+      "ra": {
+        "sha256": "d9aefb39b7a0e7b7b126b91681000c3e872a3dfb3cd3f7e0c6fada711bfaba37",
+        "version": "ans-ra qualification (85f16728a6b7444d6a9522daf01b6090a5e32e72) built source-pinned"
+      },
+      "tl": {
+        "sha256": "8037a064ea431959e152d2b3d6829710a2cde1167ec751aebf017a92ac3c69ea",
+        "version": "ans-tl qualification (85f16728a6b7444d6a9522daf01b6090a5e32e72) built source-pinned"
+      }
+    },
+    "images": {
+      "native": {
+        "id": "sha256:55df5a75d215d28fead09bf88891510b40f3cd7c6d7690524317f2212e7afe8d",
+        "reference": "open-agentic-catalog:ans-85f16728a6b7"
+      }
+    },
+    "inputs_sha256": "fbb974fd6297dc6de49a10b81e2b533b8b0bf5c8d267d57c9fac51c83bd2376f",
+    "revision": "85f16728a6b7444d6a9522daf01b6090a5e32e72",
+    "source_sha256": "ddb07c9dfc28749c0d59f7fdb910d5314144c8aa3af77980f129def7037da80a"
+  },
+  "fixtures": [
+    {
+      "file": "v1.json",
+      "schemaVersion": "V1",
+      "agentId": "09337a2c-828a-40b8-853d-b087842c9430",
+      "sha256": "67edf6fa12bdbcbd7c38307f39fa4ab2901402352df4d3f5829003f83e71ea97",
+      "expected": {
+        "signatures": "valid",
+        "inclusion": "valid",
+        "target": "valid",
+        "status": "ACTIVE"
+      }
+    },
+    {
+      "file": "v2.json",
+      "schemaVersion": "V2",
+      "agentId": "f72a0d78-1ce9-4311-9d3c-43d6b6df610a",
+      "sha256": "f2aa518fa57b895023746e5242043bef53f83b09ec23b31f0c3f63611039b3cc",
+      "expected": {
+        "signatures": "valid",
+        "inclusion": "valid",
+        "target": "valid",
+        "status": "ACTIVE"
+      }
+    }
+  ],
+  "requests": [
+    {
+      "peer": "ra",
+      "path": "/v1/agents/register",
+      "status": 202,
+      "sha256": "7126c83074b1bb363e3fa883991dca25a0316a83edfae3e3d50a42be843ffd48"
+    },
+    {
+      "peer": "ra",
+      "path": "/v1/agents/09337a2c-828a-40b8-853d-b087842c9430/verify-acme",
+      "status": 202,
+      "sha256": "c6e51cfd69bb9a57b3c4cf14c6b88c517895b59d35c48438c897e557b82e0fdc"
+    },
+    {
+      "peer": "ra",
+      "path": "/v1/agents/09337a2c-828a-40b8-853d-b087842c9430/verify-dns",
+      "status": 202,
+      "sha256": "88e3eada1fb7a1dd4095050954e3d2201bcaaa797ed938c13bfaf4dbd00a5962"
+    },
+    {
+      "peer": "ra",
+      "path": "/v2/ans/agents",
+      "status": 202,
+      "sha256": "4c5acb7d66a482dda93e6f5f03f2526d99cc9913286d999770ee34bf4bb119aa"
+    },
+    {
+      "peer": "ra",
+      "path": "/v2/ans/agents/f72a0d78-1ce9-4311-9d3c-43d6b6df610a/verify-acme",
+      "status": 202,
+      "sha256": "d8327214ebf93b58d2e8cac19c776e96c63d3ad79c5686917e093f1067f721f7"
+    },
+    {
+      "peer": "ra",
+      "path": "/v2/ans/agents/f72a0d78-1ce9-4311-9d3c-43d6b6df610a/verify-dns",
+      "status": 202,
+      "sha256": "045754af80da0230a1b6a37b55007b38741cc9f6f944ad2dd59901d52e4b1a1a"
+    },
+    {
+      "peer": "ra",
+      "path": "/v1/agents/events?limit=100",
+      "status": 200,
+      "sha256": "b7cf9fc083d98ad254e2ec1c2502427963bd29b831a3838d1814920426706d7a"
+    },
+    {
+      "peer": "tl",
+      "path": "/v1/log/checkpoint",
+      "status": 200,
+      "sha256": "0eac5669a81cde05e7edb3ebfe06ac588a78c1c2f5cfdc84029753a893e834a9"
+    },
+    {
+      "peer": "tl",
+      "path": "/v1/log/checkpoint",
+      "status": 200,
+      "sha256": "830d2ec93c7a302f717e4259e1cf37c9395ee6fa7494bf944bb689aa7a05d659"
+    },
+    {
+      "peer": "finder",
+      "path": "/v1/search",
+      "status": 200,
+      "sha256": "312a16b8410b437fd39e103fe36ea64920601d7871b8fe4f7776bb6108911d08"
+    },
+    {
+      "peer": "tl",
+      "path": "/v1/agents/09337a2c-828a-40b8-853d-b087842c9430/receipt",
+      "status": 200,
+      "sha256": "b101355376bed5effc829f42c2eef5980dd06f87f590d77e718a67a29c1ed92c"
+    },
+    {
+      "peer": "tl",
+      "path": "/checkpoint",
+      "status": 200,
+      "sha256": "510d1b8df6afc0bb2e183b503ed81602b9ec584ee19a3c6240b182100721bebe"
+    },
+    {
+      "peer": "tl",
+      "path": "/v1/log/checkpoint/history?fromSize=2&toSize=2&limit=1",
+      "status": 200,
+      "sha256": "2a71e356b532769992cbab8c8bafb6dc86d126a5bca4300d259a5047ecc3c0d9"
+    },
+    {
+      "peer": "tl",
+      "path": "/v1/agents/09337a2c-828a-40b8-853d-b087842c9430/status-token",
+      "status": 200,
+      "sha256": "d129aad21ea7ec71a661d629610d14757f9a888eafc85c928388908281ccab97"
+    },
+    {
+      "peer": "finder",
+      "path": "/v1/search",
+      "status": 200,
+      "sha256": "250a97e605ccc127d0b54b8d69907118ccd5d0a3352b27819891e2dc8c5b4046"
+    },
+    {
+      "peer": "finder",
+      "path": "/v1/search",
+      "status": 200,
+      "sha256": "320112e1d2dbaffc77c540e04894b7a3db16676946cb60e59eaf3f9f1a4abc5e"
+    },
+    {
+      "peer": "tl",
+      "path": "/v1/agents/f72a0d78-1ce9-4311-9d3c-43d6b6df610a/receipt",
+      "status": 200,
+      "sha256": "68ae14cbf11e8416bee9255f945943ad805f3e6757cb000f3edd09d121214a7c"
+    },
+    {
+      "peer": "tl",
+      "path": "/checkpoint",
+      "status": 200,
+      "sha256": "510d1b8df6afc0bb2e183b503ed81602b9ec584ee19a3c6240b182100721bebe"
+    },
+    {
+      "peer": "tl",
+      "path": "/v1/log/checkpoint/history?fromSize=2&toSize=2&limit=1",
+      "status": 200,
+      "sha256": "2a71e356b532769992cbab8c8bafb6dc86d126a5bca4300d259a5047ecc3c0d9"
+    },
+    {
+      "peer": "tl",
+      "path": "/v1/agents/f72a0d78-1ce9-4311-9d3c-43d6b6df610a/status-token",
+      "status": 200,
+      "sha256": "bc8c7e4034209bbd6ebee846974a181db7338f188f05922e0f73024d5dcf20de"
+    }
+  ],
+  "scope": "synthetic local registration; no public domain-ownership proof"
+}

@@ -1,0 +1,87 @@
+name: Contribution checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: contributions-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selection:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      plan: ${{ steps.select.outputs.plan }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: select
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -z "$BASE" || "$BASE" == 0000000000000000000000000000000000000000 ]]; then
+            # Manual/initial push selects every maintained conditional gate.
+            plan='{"ui":true,"docs":true,"languages":["go","python","typescript","rust"]}'
+          else
+            plan="$(python3 -B test/ci/admission.py select --base "$BASE")"
+          fi
+          printf 'plan=%s\n' "$plan" >> "$GITHUB_OUTPUT"
+  baseline:
+    name: Source lint
+    uses: ./.github/workflows/quality.yml
+    with:
+      suite: lint
+  unit:
+    name: Isolated units
+    uses: ./.github/workflows/quality.yml
+    with:
+      suite: unit
+  ui:
+    needs: selection
+    if: ${{ fromJSON(needs.selection.outputs.plan).ui }}
+    uses: ./.github/workflows/quality.yml
+    with:
+      suite: ui
+  docs:
+    needs: selection
+    if: ${{ fromJSON(needs.selection.outputs.plan).docs }}
+    uses: ./.github/workflows/quality.yml
+    with:
+      suite: docs
+  clients:
+    needs: selection
+    if: ${{ fromJSON(needs.selection.outputs.plan).languages[0] != null }}
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        language: ${{ fromJSON(needs.selection.outputs.plan).languages }}
+    uses: ./.github/workflows/clients.yml
+    with:
+      language: ${{ matrix.language }}
+  complete:
+    name: Contribution checks complete
+    needs: [selection, baseline, unit, ui, docs, clients]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Require every selected check
+        env:
+          PLAN: ${{ needs.selection.outputs.plan }}
+          RESULTS: >-
+            {"baseline":"${{ needs.baseline.result }}","unit":"${{ needs.unit.result }}",
+            "ui":"${{ needs.ui.result }}","docs":"${{ needs.docs.result }}","clients":"${{ needs.clients.result }}"}
+        run: python3 -B test/ci/admission.py outcomes --plan "$PLAN" --results "$RESULTS" >> "$GITHUB_STEP_SUMMARY"

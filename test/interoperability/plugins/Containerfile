@@ -1,0 +1,10 @@
+# Test-only unchanged portable Plugin loader; never an application dependency.
+FROM python:3.13.17-slim-bookworm@sha256:e32be0e55814a08977501ca863271d9bd02443710db8f2afaf8372e2c4508530
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 HOME=/tmp/home OH_PERSISTENCE_DIR=/tmp/openhands OPENHANDS_SUPPRESS_BANNER=1 LITELLM_LOCAL_MODEL_COST_MAP=true
+COPY requirements.txt /tools/requirements.txt
+RUN pip install --no-cache-dir --only-binary=:all: --require-hashes -r /tools/requirements.txt
+COPY source /tools/source
+RUN pip install --no-cache-dir --no-deps --no-build-isolation /tools/source/openhands-sdk && pip check \
+    && pip uninstall --yes pip
+USER 65532:65532
+ENTRYPOINT ["python", "-B"]

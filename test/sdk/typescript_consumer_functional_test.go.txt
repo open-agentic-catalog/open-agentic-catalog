@@ -1,0 +1,28 @@
+//go:build functional
+
+package clientcompat_test
+
+import (
+	"context"
+	"encoding/json"
+	"os"
+	"os/exec"
+	"testing"
+	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jobs"
+)
+
+func TestTypeScriptSDKCatalogWorkflow(t *testing.T) {
+	f := newFixture(t)
+	_, _, err := f.jobStore.Enqueue(context.Background(), jobs.Job{ID: "00000000-0000-7000-8000-000000000090", TenantID: tenant, Kind: "publication.generate", Actor: "admin", PayloadVersion: 1, Payload: json.RawMessage(`{"host":"catalog.example.com"}`), State: jobs.StateFailed, NotBefore: f.now, AttemptLimit: 3, DeduplicationKey: "typescript-prepared", CreatedAt: f.now, UpdatedAt: f.now})
+	must(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, os.Getenv("CATALOG_SDK_NODE"), os.Getenv("CATALOG_SDK_WORKFLOW"), f.server.URL)
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("JavaScript Catalog workflow: %v\n%s", err, output)
+	}
+	t.Log(string(output))
+}

@@ -1,0 +1,482 @@
+[
+  {
+    "source": "extensions/vscode/README.md",
+    "route": "guides/vscode",
+    "projection": true
+  },
+  {
+    "source": "documentation/src/content/docs/guides/mcp-server.mdx",
+    "route": "guides/mcp-server"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/mcp-scanner.mdx",
+    "route": "guides/mcp-scanner"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/contextforge.mdx",
+    "route": "guides/contextforge"
+  },
+  {
+    "source": "examples/langgraph/README.md",
+    "route": "guides/langgraph-agent",
+    "projection": true
+  },
+  {
+    "source": "examples/rust-catalog-report/README.md",
+    "route": "guides/rust-catalog-report",
+    "projection": true
+  },
+  {
+    "source": "examples/publication-report/README.md",
+    "route": "guides/go-publication-report",
+    "projection": true
+  },
+  {
+    "source": "examples/typescript-ard-list/README.md",
+    "route": "guides/typescript-ard-list",
+    "projection": true
+  },
+  {
+    "source": "sdk/README.md",
+    "route": "sdk/overview",
+    "projection": true
+  },
+  {
+    "source": "sdk/go/README.md",
+    "route": "sdk/go",
+    "projection": true
+  },
+  {
+    "source": "sdk/python/README.md",
+    "route": "sdk/python",
+    "projection": true
+  },
+  {
+    "source": "sdk/typescript/README.md",
+    "route": "sdk/typescript",
+    "projection": true
+  },
+  {
+    "source": "sdk/rust/README.md",
+    "route": "sdk/rust",
+    "projection": true
+  },
+  {
+    "source": "documentation/src/content/docs/operations/docker.mdx",
+    "route": "operations/docker"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/ibm-code-engine.mdx",
+    "route": "operations/ibm-code-engine"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/azure-container-apps.mdx",
+    "route": "operations/azure-container-apps"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/google-cloud-run.mdx",
+    "route": "operations/google-cloud-run"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/federation.mdx",
+    "route": "operations/federation"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/access-management.mdx",
+    "route": "guides/access-management"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/sign-in.md",
+    "route": "operations/sign-in"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/oidc-keycloak.md",
+    "route": "operations/oidc-keycloak"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/oidc-entra.md",
+    "route": "operations/oidc-entra"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/oidc-auth0.md",
+    "route": "operations/oidc-auth0"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/oidc-okta.md",
+    "route": "operations/oidc-okta"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/oidc-ibm-security-verify.md",
+    "route": "operations/oidc-ibm-security-verify"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/oidc-cognito.md",
+    "route": "operations/oidc-cognito"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/publishing.mdx",
+    "route": "guides/publishing"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/resource-authoring.mdx",
+    "route": "guides/resource-authoring"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/draft-transfer.mdx",
+    "route": "guides/draft-transfer"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/hybrid-search.mdx",
+    "route": "operations/hybrid-search"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/feedback.mdx",
+    "route": "guides/feedback"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/agent-plugins.mdx",
+    "route": "guides/agent-plugins"
+  },
+  {
+    "source": "documentation/src/content/docs/contributing/build-and-release.md",
+    "route": "contributing/build-and-release"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/concepts.md",
+    "route": "guides/concepts"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/catalog-ui.mdx",
+    "route": "guides/catalog-ui"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/overview.md",
+    "route": "operations/overview"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/local-development.mdx",
+    "route": "guides/local-development"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/performance-and-monitoring.md",
+    "route": "guides/performance-and-monitoring"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/audit.md",
+    "route": "operations/audit"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/backup-restore.mdx",
+    "route": "operations/backup-restore"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/database-roles.md",
+    "route": "operations/database-roles"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/deployment.mdx",
+    "route": "operations/deployment"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/vault.md",
+    "route": "operations/vault"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/helm-monitoring.md",
+    "route": "operations/helm-monitoring"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/housekeeping.md",
+    "route": "operations/housekeeping"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/idempotency-repair.mdx",
+    "route": "operations/idempotency-repair"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/incident-response.md",
+    "route": "operations/incident-response"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/observability.mdx",
+    "route": "operations/observability"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/search-projection-repair.mdx",
+    "route": "operations/search-projection-repair"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/security.md",
+    "route": "operations/security"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/webhooks.mdx",
+    "route": "operations/webhooks"
+  },
+  {
+    "source": "documentation/src/content/docs/reference/api-conventions.md",
+    "route": "reference/api-conventions"
+  },
+  {
+    "source": "documentation/src/content/docs/reference/configuration.mdx",
+    "route": "reference/configuration"
+  },
+  {
+    "source": "documentation/src/content/docs/reference/glossary.md",
+    "route": "reference/glossary"
+  },
+  {
+    "source": "documentation/src/content/docs/reference/standards.mdx",
+    "route": "reference/standards"
+  },
+  {
+    "source": "documentation/src/content/docs/contributing/testing-map.mdx",
+    "route": "contributing/testing-map"
+  },
+  {
+    "source": "documentation/src/content/docs/contributing/testing.md",
+    "route": "contributing/testing"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/design.mdx",
+    "route": "architecture/design"
+  },
+  {
+    "source": "schemas/PROFILES.md",
+    "route": "reference/profiles",
+    "projection": true
+  },
+  {
+    "source": "api/README.md",
+    "route": "reference/api-assets",
+    "projection": true
+  },
+  {
+    "source": "deployments/helm/open-agentic-catalog/README.md",
+    "route": "reference/helm",
+    "projection": true
+  },
+  {
+    "source": "examples/webhookreceiver/README.md",
+    "route": "reference/receiver-example",
+    "projection": true
+  },
+  {
+    "source": "CONTRIBUTING.md",
+    "route": "contributing/workflow",
+    "projection": true
+  },
+  {
+    "source": "SECURITY.md",
+    "route": "reference/reporting-security",
+    "projection": true
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0001-deployment-portability-and-support-boundary.md",
+    "route": "architecture/decisions/0001-deployment-portability-and-support-boundary"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0003-runtime-packaging-and-local-test-environments.md",
+    "route": "architecture/decisions/0003-runtime-packaging-and-local-test-environments"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0004-postgresql-topology-and-provider-neutrality.md",
+    "route": "architecture/decisions/0004-postgresql-topology-and-provider-neutrality"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0005-object-storage-modes.md",
+    "route": "architecture/decisions/0005-object-storage-modes"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0006-identity-and-tenancy.md",
+    "route": "architecture/decisions/0006-identity-and-tenancy"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0007-secrets-and-credential-resolution.md",
+    "route": "architecture/decisions/0007-secrets-and-credential-resolution"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0008-federated-source-connectivity.md",
+    "route": "architecture/decisions/0008-federated-source-connectivity"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0009-public-and-private-discovery.md",
+    "route": "architecture/decisions/0009-public-and-private-discovery"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0010-federation-execution-modes.md",
+    "route": "architecture/decisions/0010-federation-execution-modes"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0011-search-and-embedding-tiers.md",
+    "route": "architecture/decisions/0011-search-and-embedding-tiers"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0012-event-delivery.md",
+    "route": "architecture/decisions/0012-event-delivery"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0013-audit-evidence-and-verification.md",
+    "route": "architecture/decisions/0013-audit-evidence-and-verification"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0014-bounded-synchronous-work.md",
+    "route": "architecture/decisions/0014-bounded-synchronous-work"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0015-operational-housekeeping-and-retention.md",
+    "route": "architecture/decisions/0015-operational-housekeeping-and-retention"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0016-static-documentation-with-starlight.md",
+    "route": "architecture/decisions/0016-static-documentation-with-starlight"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0017-first-release-baseline.md",
+    "route": "architecture/decisions/0017-first-release-baseline"
+  },
+  {
+    "source": "documentation/src/content/docs/index.mdx",
+    "route": ""
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/overview.mdx",
+    "route": "architecture/overview"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/integrating.mdx",
+    "route": "guides/integrating"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/assistant-discovery.md",
+    "route": "guides/assistant-discovery"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/maintenance.mdx",
+    "route": "operations/maintenance"
+  },
+  {
+    "source": "documentation/src/content/docs/operations/troubleshooting.md",
+    "route": "operations/troubleshooting"
+  },
+  {
+    "source": "documentation/src/content/docs/reference/commands.md",
+    "route": "reference/commands"
+  },
+  {
+    "source": "documentation/src/content/docs/contributing/documentation.mdx",
+    "route": "contributing/documentation"
+  },
+  {
+    "source": "documentation/src/content/docs/reference/dependencies.md",
+    "route": "reference/dependencies"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/api-surfaces.md",
+    "route": "architecture/api-surfaces"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/catalog-ui.mdx",
+    "route": "architecture/catalog-ui"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/components.mdx",
+    "route": "architecture/components"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/deployment.mdx",
+    "route": "architecture/deployment"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/domain.mdx",
+    "route": "architecture/domain"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/federation.mdx",
+    "route": "architecture/federation"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/operations.mdx",
+    "route": "architecture/operations"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/persistence.md",
+    "route": "architecture/persistence"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/publication.mdx",
+    "route": "architecture/publication"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/security.mdx",
+    "route": "architecture/security"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0019-native-agent-plugin-packages.md",
+    "route": "architecture/decisions/0019-native-agent-plugin-packages"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0018-optional-catalog-browser-client.md",
+    "route": "architecture/decisions/0018-optional-catalog-browser-client"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0020-private-item-feedback.md",
+    "route": "architecture/decisions/0020-private-item-feedback"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0021-logging-observability-and-audit.md",
+    "route": "architecture/decisions/0021-logging-observability-and-audit"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0022-local-postgresql-authorization.md",
+    "route": "architecture/decisions/0022-local-postgresql-authorization"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/index.md",
+    "route": "architecture/decisions"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/ratings.mdx",
+    "route": "guides/ratings"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0023-human-resource-ratings.md",
+    "route": "architecture/decisions/0023-human-resource-ratings"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0024-optional-ans-registration-verification.md",
+    "route": "architecture/decisions/0024-optional-ans-registration-verification"
+  },
+  {
+    "source": "documentation/src/content/docs/architecture/decisions/0025-tenant-operational-settings.md",
+    "route": "architecture/decisions/0025-tenant-operational-settings"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/two-catalog-federation.mdx",
+    "route": "guides/two-catalog-federation"
+  },
+  {
+    "source": "documentation/src/content/docs/reference/ui-host-configuration.md",
+    "route": "reference/ui-host-configuration"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/sample-catalog.mdx",
+    "route": "guides/sample-catalog"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/reader-quickstart.mdx",
+    "route": "guides/reader-quickstart"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/search-cookbook.mdx",
+    "route": "guides/search-cookbook"
+  },
+  {
+    "source": "documentation/src/content/docs/guides/understand-results.mdx",
+    "route": "guides/understand-results"
+  },
+  {
+    "source": "documentation/src/content/docs/contributing/make-targets.md",
+    "route": "contributing/make-targets"
+  }
+]

@@ -1,0 +1,8 @@
+.tools/
+__pycache__/
+*.py[cod]
+.coverage
+*.log
+.env
+.env.*
+!.env.example

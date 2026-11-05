@@ -1,0 +1,16 @@
+ARG BASE=scratch
+# The local runner setup supplies BASE as an exact reviewed digest.
+# hadolint ignore=DL3006
+FROM ${BASE}
+
+USER 0:0
+ARG LOCAL_UID
+ARG LOCAL_GID
+RUN if [ "$(id -g ubuntu)" != "$LOCAL_GID" ]; then groupmod --gid "$LOCAL_GID" ubuntu; fi \
+    && if [ "$(id -u ubuntu)" != "$LOCAL_UID" ]; then usermod --uid "$LOCAL_UID" ubuntu; fi \
+    && usermod --gid "$LOCAL_GID" ubuntu \
+    && chown "$LOCAL_UID:$LOCAL_GID" /home/ubuntu \
+    && printf 'ubuntu ALL=(ALL) NOPASSWD: ALL\n' > /etc/sudoers.d/catalog-local \
+    && chmod 0440 /etc/sudoers.d/catalog-local
+USER ${LOCAL_UID}:${LOCAL_GID}
+ENV HOME=/home/ubuntu

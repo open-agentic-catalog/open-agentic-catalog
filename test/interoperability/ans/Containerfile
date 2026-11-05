@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1.28.0@sha256:bb22d9815c728170f72750f4e5b0d672e06176142e1d602c7e66c050100b7e5b
+# Independent test tools only. Installation acquires modules; compilation stays offline.
+FROM docker.io/library/golang:1.27.3-alpine3.24@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS build
+WORKDIR /src
+ENV GOTOOLCHAIN=local CGO_ENABLED=0
+COPY modules /go/pkg/mod
+COPY source ./
+ARG REVISION
+RUN --network=none go mod verify && mkdir -p /artifacts/licenses && \
+    cp /usr/local/go/LICENSE /artifacts/GO-LICENSE && \
+    go list -mod=readonly -m -json all > /artifacts/modules.json && \
+    go list -mod=readonly -deps -json ./cmd/ans-ra ./cmd/ans-tl ./cmd/ans-finder > /artifacts/packages.json && \
+    find /go/pkg/mod -type f \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'NOTICE*' \) -exec cp --parents '{}' /artifacts/licenses/ ';' && \
+    for name in ra tl finder; do \
+      go build -mod=readonly -trimpath -buildvcs=false -ldflags="-s -w -buildid= -X main.version=qualification -X main.commit=${REVISION} -X main.date=source-pinned" -o /artifacts/ans-${name} ./cmd/ans-${name}; \
+      go version -m /artifacts/ans-${name} > /artifacts/ans-${name}.build; \
+    done
+FROM scratch AS artifacts
+COPY --from=build /artifacts /
+FROM scratch AS runtime
+COPY --from=build --chmod=0555 /artifacts/ans-ra /artifacts/ans-tl /artifacts/ans-finder /
+USER 65532:65532
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/ans-finder"]

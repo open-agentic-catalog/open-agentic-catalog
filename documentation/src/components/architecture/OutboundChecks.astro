@@ -1,0 +1,32 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="outbound-checks-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1314" role="img" aria-labelledby="outbound-checks-title outbound-checks-desc">
+  <title id="outbound-checks-title">Checks on a controlled outbound request</title>
+  <desc id="outbound-checks-desc">A fetcher request must pass URL and exact-origin policy, complete DNS-answer checks and pinned routing before it opens a connection. TLS verifies the hostname and chain. Response reads have byte, decompression and deadline bounds. An allowed redirect starts the checks again for the next destination without forwarding credentials across origins. Webhooks do not follow redirects. OIDC uses its separate configured-issuer verifier.</desc>
+  <defs><marker id="outbound-checks-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 118 V188" marker-end="url(#outbound-checks-arrow)" />
+  <path class="svg-connector" d="M320 286 V356" marker-end="url(#outbound-checks-arrow)" />
+  <path class="svg-connector" d="M320 454 V524" marker-end="url(#outbound-checks-arrow)" />
+  <path class="svg-connector" d="M320 622 V692" marker-end="url(#outbound-checks-arrow)" />
+  <path class="svg-connector" d="M320 790 V860" marker-end="url(#outbound-checks-arrow)" />
+  <path class="svg-connector" d="M580 909 H628 V8 H320 V20" marker-end="url(#outbound-checks-arrow)" />
+  <text class="svg-small" x="475" y="836">Recheck next URL</text>
+  <path class="svg-connector" d="M320 118 V172 H12 V982 H320 V1028" marker-end="url(#outbound-checks-arrow)" />
+  <text class="svg-small" x="38" y="1004">Invalid URL / origin</text>
+  <path class="svg-connector" d="M320 286 V340 H22 V1020 H320 V1028" marker-end="url(#outbound-checks-arrow)" />
+  <text class="svg-small" x="340" y="1004">Forbidden answer</text>
+  <DiagramCard x={60} y={20} width={520} title={"URL and exact-origin policy"} lines={["Normalize the destination", "Select scoped route and credentials"]} />
+  <DiagramCard x={60} y={188} width={520} title={"Complete DNS-answer check"} lines={["Reject any forbidden address", "Check the selected route policy"]} />
+  <DiagramCard x={60} y={356} width={520} title={"Pinned connection"} lines={["Connect to an address that passed the checks", "Do not repeat DNS resolution without checks"]} />
+  <DiagramCard x={60} y={524} width={520} title={"TLS verification"} tone="authority" lines={["Verify the hostname and certificate chain", "Use scoped private trust when configured"]} />
+  <DiagramCard x={60} y={692} width={520} title={"Bounded response"} lines={["Byte, decompression and deadline limits", "Safe status and digest evidence"]} />
+  <DiagramCard x={60} y={860} width={520} title={"Allowed redirect only"} lines={["Repeat all checks for the next URL", "Do not forward credentials across origins"]} />
+  <DiagramCard x={60} y={1028} width={520} title={"Refuse before contact"} tone="warning" lines={["Invalid URL/origin or forbidden", "DNS answer blocks the connection"]} />
+  <DiagramCard x={60} y={1196} width={520} title={"Consumer rules can be narrower"} tone="warning" lines={["Webhooks refuse redirects", "OIDC uses the separate configured-issuer verifier"]} />
+
+</svg>
+</div>

@@ -1,0 +1,249 @@
+---
+title: Catalog UI architecture
+---
+
+import BrowserSession from "../../../components/architecture/BrowserSession.astro";
+import UILayout from "../../../components/architecture/UILayout.astro";
+
+The optional Catalog UI is a separate browser client and Go web host. The API remains authoritative for tenancy, roles and domain transitions. [ADR-0018](decisions/0018-optional-catalog-browser-client.md) records the architecture choice and alternatives; the [user guide](../guides/catalog-ui.mdx) explains the implemented screens, and the [testing guide](../contributing/testing.md#optional-browser-client) explains browser verification.
+
+## Interaction design
+
+The lazy Overview page reads seven independent Content summaries. Its Operations tab adds bounded Source, Job, endpoint and production delivery summaries. Existing capability reads supply index status and webhook availability. Notification counters retain their existing contract. It renders only the selected tab. Source-only access does not require `catalog.read`. Catalog, federation and publication repositories select authorized metadata before fixed limits. Reviews use retained timestamps for age bands, daily activity and elapsed decision medians. Publication metadata covers the configured host set in one bounded read. The browser does not assemble totals from paginated records. Each panel retains its own observation time and read error. Permission changes clear private summaries. Resource tiles use the existing kind palette and exact counts. Operational distributions use accessible lists and decorative bars. Content, Operations and Administration use manual refresh without a browser cache or chart dependency. See [the Content overview](../guides/catalog-ui.mdx#read-the-content-overview) for count definitions and limits.
+
+The optional Activity tab reads bounded process statistics after current tenant administration and deployment availability checks. It defaults to manual refresh. Visible-tab live refresh is opt-in and waits ten seconds after each completed read. Failures, hidden tabs and access changes stop automatic reads. Only compatible samples from one execution supply rates. The administrator capability read also supplies Operations panels, without duplicate requests. No collector or browser history is required. See [live API activity](../guides/catalog-ui.mdx#read-live-api-activity).
+
+The UI image includes the public static manual. The host serves it at the fixed `/docs/` path, independently of the application base path. This route reads no browser session or Catalog API state. It uses its own file inventory, cache rules and Content Security Policy. See [image delivery and verification](../contributing/build-and-release.md#optional-ui-image) for the build and trust boundary.
+
+The client uses a compact shell, resource-kind tabs, explicit Search filters, cards and tables, detail previews and full detail pages. Browsing, authoring, review and administration share components and semantic CSS tokens. Appearance supports light/dark/system themes and density preferences; keyboard navigation, visible focus, reduced motion and responsive navigation apply across workflows. Only non-sensitive appearance preferences persist in browser storage.
+
+The UI displays backend results and [human ratings](../guides/ratings.mdx). Local opinions and peer-reported summaries remain separate. Exact **Imported here** links use retained adoption evidence. The UI does not invent installation counts or trust badges. Validation, review, publisher authority and trust remain separate.
+
+Discovery offers metadata and explicit handoffs, not installation, deployment or invocation. Permissions can overlap; specialist workflows do not require selecting an exclusive persona.
+
+Record section links use fixed native fragments and current in-memory navigation; they retain no private documents or search text in history. Handoff permission hints reuse the selected namespace context, while the artifact API independently admits a currently authorized content reference. The UI repeats a live result's captured Search to refresh its rating proof or artwork receipt under current server policy. This explicit action can disclose criteria to approved sources or send text to the configured embedding provider.
+
+The sidebar orders Discover, Manage content, Operations, Administration and Help. Account in the header holds personal destinations and Sign out. The single navigation definition supplies placement, permission predicates, titles, current links and parent breadcrumbs. Personal pages use Account breadcrumbs. Each destination loads its owning view lazily.
+
+Account and Appearance are separate native disclosures. Opening either closes the other; outside pointers and focus leaving dismiss the panel. Escape restores trigger focus. Session refresh closes Account, and session loss removes it. The disclosure performs no private reads or commands.
+
+Sign out reuses draft confirmation and clears private state. It also handles recovery after deletion of the session cookie fails.
+
+Navigation groups do not grant permission. Each link checks current permission and applicable scope, preserving history, specialist and create-only access. If the self-context page is incomplete, the UI treats unlisted namespace permissions as unknown. A neutral creation entry uses the existing exact-namespace lookup rather than scanning all grant pages. Commands remain disabled until authority and required inputs are known.
+
+My access shows the current account and tenant. The UI has no tenant switcher, exclusive application modes, separate router or persistent private cache.
+
+My work uses a bounded API projection of authoring transitions and submissions attributed to the exact membership and realm. It does not scan browser inventories or raw audit history. Saved items and named searches use explicit commands against an owner-only backend library. The UI retains no private documents or durable query history; opening saved criteria stages them in memory until a fresh, consented Search. See [personal workflows](../guides/catalog-ui.mdx#my-work) for ownership, permissions and limits.
+
+Guided saved-search controls and advanced JSON share one private draft; editing and saving load no suggestions and run no Search or Explore request. Library type and literal label filters apply before server pagination. Summaries describe saved metadata without target lookups. Quick save captures a read-only exact reference, while existing detail offers deliberate replacement subject to current backend admission.
+
+An explicit personal library refresh keeps the last-loaded data and labels it. If an item readback fails, the UI preserves unsent input and blocks new updates. It keeps the captured body, key and precondition of any command with an uncertain outcome.
+
+Local previews and full records share metadata under Overview, Use this resource, and Technical details and evidence. Native metadata disclosures retain exact profiles, digests and revisions without another request. Separate rating and artwork controls use their own permissions, explicit reads and confirmed commands. Authentication and provenance warnings stay visible.
+
+Preview dismissal preserves the submitted search and restores focus when its opener remains present. Unsaved input requires discard confirmation; pending or uncertain commands keep their confirmation open. Catalog record navigation retains criteria, layout and scroll position in memory within the tab. Tag and namespace actions apply their selected filter and restart pagination. Catalog's browser history stores only a navigation number, and Back/Forward ask before discarding a draft. Ordinary document links and reload use the browser's unsaved-input warning; a new page starts a fresh search.
+
+Safe HTTPS references have an explicit no-referrer Open action, isolated from the application. Copy preserves the exact value. Authenticated retained-document downloads use the API instead of an external URL.
+
+The API reference orders groups by declared tag. It places each operation under its final tag and supports exact filtering across all tags. A responsive section index and native disclosures reuse the measured shell-header offset and lazy operation bodies. Text, method and area filters stay local; browsing never calls a documented endpoint. Operation filters remain in tab memory and never enter URLs or history state.
+
+Definitions have a separate workspace reached from the contract header or an operation reference. An independent search covers the complete index before local paging. Exact linked selection remains available outside those criteria. Schema summaries preserve composition within explicit depth, node and row budgets; complete decoded data stays available.
+
+Known section, operation and schema anchors support navigation. Each schema history entry retains its originating operation anchor, validated against the connected contract when restored. When filters hide the originating operation, returning to it requires explicit filter clearing. Unknown or removed targets offer the current indexes.
+
+Reference refresh retains one document/YAML pair through pending or failed reads. Every replacement reconciles compatible state, including unchanged API versions. The shell's existing identity/access keys discard this local state when identity or access changes.
+
+Operation summaries validate consumed authentication, parameter, body and response fields before displaying them. They preserve raw declarations, bounded local references and explicit unknown states. HTTP scheme requirement values do not become role checks or OAuth scopes. Summaries do not flatten composed schemas or prove current authorization. Supplied examples copy verbatim strings or decoded JSON through the existing clipboard control; copies contain no session credentials. Neither reference navigation nor example inspection makes a documented API or external-reference request.
+
+Previous-page navigation retains at most ten request cursors in memory and rereads each selected page. Query changes, failed reads and identity changes discard that history. Authoring forms keep a selected picker's known label, focus field-linked errors and preserve prepared commands after uncertain writes.
+
+Administration screens show summaries before complete evidence. Accepted synchronization Jobs, completed source snapshots and activated discovery snapshots are separate outcomes. Search indexing opens the existing Service section and capability read, without a global cache or extra navigation requests. Provenance, immutable review evidence and one-time webhook secrets keep their existing disclosure limits.
+
+## Client architecture
+
+[ADR-0018](decisions/0018-optional-catalog-browser-client.md) records the selected client and session boundary. Native controls cover dialogs and forms without a component library. Typed lint rejects unsafe value use in application, colocated unit, browser and configuration code. Optional request fields are omitted when absent; local draft state may explicitly hold `undefined` to clear a value. The compiler and lint checks complement the runtime consumed-field checks and backend contract tests; they do not prove full response-schema conformance.
+
+The client uses [React](https://react.dev/), strict [TypeScript](https://www.typescriptlang.org/docs/) and [Vite](https://vite.dev/guide/). TypeScript checks indexed access and exact optional properties. Browsing, authoring and administration views load lazily. Shared semantic CSS and bundled SVG icons in `src/shell/Icon.tsx` supply presentation.
+
+Search filters use a desktop panel and a native modal drawer on narrow screens. Both share one draft and explicit Apply. Category choices use one bounded Explore request for the applied query; their counts describe local releases, not peer results. Origin and permitted namespace choices share the same draft. Explore provides local Catalog facets. Its browse and count modes retain separate bounded filters, page state and drafts in memory. Explicit transfers replace only expressible applied criteria; local Catalog transfer sends no peer query. The Catalog component retains visited Explore state through same-tab detail navigation and clears it on identity/access changes. Appearance uses native `details`; previews use native `dialog`.
+
+Pinned [openapi-typescript](https://openapi-ts.dev/introduction) generates `src/api/schema.d.ts` from checked-in OpenAPI. [openapi-fetch](https://openapi-ts.dev/openapi-fetch/) supplies the typed transport. Focused tests check generation drift, colon-suffixed requests, validator headers, safe errors and stale-identity responses. Client/component/browser tests cover inherited parameters, nullable/union/extension fields, mutations and binary/JSON downloads.
+
+Generated types do not validate runtime responses. Views retain bounded page state in memory and submit Search explicitly. They do not automatically retry requests or refetch on focus.
+
+The browser validates runtime settings and host authentication responses before accepting identity hints or navigating. It checks routes, login mode, documentation links, identity, permission/scope/grant shapes and expiry. Login options must match the runtime mode. OIDC navigation keeps the host's authorization query and rejects executable schemes and embedded credentials. The host restricts issuer origins.
+
+A valid expired session is signed out. Malformed or revoked self-context during refresh clears private state. Temporary refresh outages grant no new hints. Identity cancellation rejects late authentication success and failure, including failed body parsing. These checks apply across login, logout and refresh.
+
+API consumers check nested fields used for display or decisions: pages, opaque cursors, counts, states and command results. These checks cover consumed fields, not the complete response schema. Raw evidence and downloads remain lossless. Failed parsing retains safe response diagnostics while rejecting results from an old identity.
+
+Raw text copying requires an explicit provenance flag, independent of formatting. Decoded JSON cannot acquire that flag through the shared renderer. Artifact downloads verify exact bytes and use fixed media-type filename extensions. The private ANS entry viewer reuses an audited, checksum-verified read and acquires no new evidence.
+
+Public Troubleshooting requires no product read. Its authenticated preview requests existing build facts only on demand, then projects a closed set of build fields and safe response correlation. Copying stays local; identities, private object metadata, query text, credentials and raw errors are excluded. Identity changes discard the preview.
+
+A malformed successful write has an uncertain outcome. The UI keeps the prepared command for an explicit retry with the same inputs and idempotency key.
+
+Current layout:
+
+<UILayout />
+
+Tests reside beside the API client, views and Go host. The operation-to-workflow inventory, type checks and `make test-ui` Playwright harness verify browser support. The UI has its own `Containerfile` and optional Compose/Helm wiring. `test-minikube-ui` checks deployment; `make test-ui-compose` checks built images with PostgreSQL. `make test-ui-oidc` checks human-provider login. See [browser testing](../contributing/testing.md#optional-browser-client) for assertion and coverage boundaries.
+
+The Go host serves assets, runtime settings, login/session endpoints and same-origin forwarding to one API. It has no database connection, domain repository, worker, migration authority or duplicate Catalog rules. Its Go packages share the root module. Ordinary Go tests and backend builds require no frontend bundle.
+
+Node/npm is needed for frontend development and builds, not the running container. The [UI build reference](../contributing/build-and-release.md#optional-ui-image) describes image, license and SBOM checks. Documentation uses an independent Starlight site.
+
+## Implemented browser-supporting reads
+
+Supporting reads keep saved work discoverable without browser-only IDs or audit scraping:
+
+- `GET /api/v1/me` exposes the resolved tenant, identity, finite tenant permissions, any-scope navigation hints, paginated namespace permission hints and applicable scope ceilings. It requires active authentication but no product role or coarse scope. `getCapabilities` remains the capability projection, not a permission source. Neither endpoint exposes raw claims or makes UI navigation authoritative; backend authorization remains decisive after every UI hint.
+- Resource/version/listing-scoped histories enumerate versions, revisions, listings and releases with stable UUID ordering, signed cursors and SQL limits. Authoring applies an exact canonical-identifier filter and kind in bounded server selection, with both bound into continuation. A listing/state-filtered review queue reopens submissions and independently projects permitted resource identities and names from exact submitted listing revisions. Revision pages contain metadata summaries, not per-row private document/evidence reads. Supporting database indexes preserve bounded selection without changing runtime privileges.
+- `GET /api/v1/review-submissions/{submissionId}/evidence` returns the exact evidence ID/digest/policy bound to the submission using the retained repository lookup and existing fail-closed version-read audit. It does not substitute the latest validation run. Tests cover historical revalidation, audit failures, changes-requested transitions and role-specific workflows in packaged deployments.
+- `GET /api/v1/memberships` filters exact subjects, retained state, identity type and same-tenant realm before paging. Role/group directories filter exact names and state. Role lookup also accepts an exact built-in key. All filters bind continuation; names never establish authority.
+- `GET /api/v1/access/assignments?membershipId=...` returns general direct grants, including specialist templates and custom roles. The separate eight-role projection remains supported. `GET /api/v1/memberships/{membershipId}/access` adds protected, paginated direct/group contributions with current-realm group metadata, lifecycle eligibility and explicit unavailable coverage elsewhere. Neither page calculates a complete recipient permission union or OAuth ceiling.
+- `GET /api/v1/me?namespaceId=...` resolves only the caller's selected namespace grant; no grant returns an empty list without disclosing namespace existence. Invitations and provider-user management remain outside this client.
+- Local record detail takes a ListingRelease UUID. `GET /api/v1/catalog/indexed-record` resolves an exact identifier/version-presence tuple through current reader-visible scope, tenant, projection and local-publication precedence checks. Its bounded metadata is not the administrator-only observation-group or raw-evidence response. Live entries remain transient previews with no persistent detail object or arbitrary URL fetch.
+- Publication hosts and network/credential binding references are explicit administrator inputs validated by the Catalog. The UI does not expose runtime configuration or secret inventories to populate suggestions. Add further bounded choices only if a demonstrated workflow needs them.
+
+These current pre-release `/api/v1` contracts follow ADR-0017 and preserve immutable history. Keep OpenAPI, domain/repository authorization, tenant predicates/RLS, database selection, indexes/privileges and contract/PostgreSQL tests aligned. There is no UI-only database access or generic CRUD API.
+
+Governed metadata, history and content reads require their distinct permissions at the canonical namespace. Built-in scoped workflow templates include required reads; a custom role needs explicit companions. Exact review reads project the authorized namespace and current listing concurrency revision, so review/publication does not require unrelated metadata authority. Namespace access never grants tenant-wide read access. Indexed detail distinguishes absent versions from explicit versions and checks current visibility when a bookmark is opened. Record workflow links check metadata, content and history permissions independently at the exact namespace with their OAuth ceiling. Unknown selected namespace grants use the existing bounded self-context lookup. Selected namespace labels use one independently permitted namespace read when a label is unavailable. List pages use metadata summaries; private evidence is fetched on demand rather than once per row.
+
+## Identity, permissions and administration
+
+Authentication establishes a current Catalog principal. Retained direct/group role assignments establish finite tenant or exact-namespace permissions. Enabled OAuth scopes restrict those decisions further. UI navigation is a hint; every backend request still checks current membership, policy, tenant, target and lifecycle restrictions. OIDC groups, a namespace selector and a successful sign-in grant no authority.
+
+Built-in roles are immutable templates, not a hierarchy. Contributor, Reviewer and Publisher include their workflow's companion reads; a namespace grant does not need a tenant-wide Reader grant. Custom roles explicitly include required companion permissions. Tenant-only actions cannot be assigned to a namespace. Additive assignments have no deny rule: revoking one path or suspending a group leaves other eligible paths intact. The protected Tenant Administrator template is the only way to grant `access.manage`; it cannot be delegated to a custom role or group.
+
+The Administration workspace separates Members, Roles, Groups and Access assignments. All use existing bounded APIs, current revisions, confirmation, reasons and idempotency. Custom role editing explains assignment impact and namespace compatibility; built-ins are read-only. Groups contain direct members in one realm, without nesting or upstream group mapping. Assignment and member revocation preserve retained attribution. Backend last-administrator, self-change, lifecycle and scope guards remain decisive. These screens do not issue tokens, manage identity-provider accounts or supply a separate policy engine.
+
+### Session context and navigation
+
+`GET /api/v1/me` returns the current subject, actor type and membership/realm/tenant identifiers. It also supplies tenant permissions, finite any-scope navigation hints, authorization revision, bounded namespace permissions and the recognized OAuth ceiling. Namespace hints are paginated or selected by exact namespace. It returns no bearer token, raw claims, provider directory or another member's data.
+
+This bootstrap read and capabilities require an active authenticated member, but no product role or coarse operation scope. Sources, Audit and Discovery publication use specialist permission/scope checks. They do not require the Tenant Administrator template.
+
+Typed navigation/action helpers use this context and current object state; their tests cover backend allow/deny cases. Unknown permissions are unavailable. Scope requirements are operation-specific: role administration uses `tenant.admin`, audit reads/export have distinct scopes, and Job mutations use `catalog.write`, the explicit Job action, and its actual family/target permission. A sidebar label does not imply a scope, and Tenant Administrator does not bypass scope checks.
+
+Administration is a navigation group, not a single role gate. Source, audit, publication and access-management screens use their own finite permission and OAuth-scope checks. Built-ins are convenience templates, not hardcoded UI authority. Publisher reads, creation, updates and domain approval remain separate actions. Link Jobs from their workflows; cancel/retry requires the explicit Job action and its supported family/target permission (source synchronization, ANS registration assessment, publication generation or semantic reindexing). Unknown families are unavailable. Do not send private evidence requests or aggregate counters without their independent permissions.
+
+Jobs navigation combines tenant `job.read`, an available tenant Job family and enforced `catalog.read`. Namespace-only or any-scope hints do not supply that family. Direct Job routes explain missing family access without reading records; an authorized empty page remains distinct. ANS Job controls additionally require source evidence, source management and federation discovery, with the selected Job action and enforced `catalog.write`. Source-route scopes do not replace the Job scopes.
+
+Cancellation does not test enqueue eligibility; retry eligibility remains backend-owned. Private ANS results retain their separate explicit, audited disclosure boundary.
+
+Hide unauthorized sections. Explain disabled actions when the user can see the object but lacks a permission, scope or lifecycle prerequisite. Direct links handle API denial without revealing private existence. Start in the first authorized workspace; accounts without access get sign-out and setup guidance. Do not force every account through Catalog reads.
+
+Recheck self-context after deliberate access changes and session transitions. Identity changes clear private state, prepared commands and outstanding responses. The next backend request checks Catalog membership/role removal; cookie expiry is not the enforcement boundary. Returned data cannot be recalled. Cancelling a browser request does not undo a committed command.
+
+OAuth scopes come from the signed access token. Provider policy changes require a new token or expiry; an existing JWT does not change. Preserve generic errors where the API deliberately does not distinguish unknown, suspended or offboarded membership.
+
+### Access administration workflow
+
+1. List bounded membership pages with subject, human/service classification, realm ID and active/suspended/offboarded state. Open a member to see exact details and paginated active/revoked global and namespace grants, including existing reasons and revision state. Do not invent names/emails or resolve subjects through an identity-provider directory.
+2. Offer **Grant access** for an existing member in the current realm or an explicitly entered known subject. Collect immutable provider subject, human/service type, one role, optional supported namespace and reason; show the tenant and current realm before confirmation. `POST /api/v1/role-assignments` creates a missing membership in that realm and rejects conflicting type/inactive membership. It neither creates an identity-provider account nor sends an invitation. An email is usable only if it really is the provider's subject identifier. For a member in another realm, do not reuse its subject to grant into the current realm; explain the existing realm constraint.
+3. Grant or revoke access through existing commands with their idempotency and revision preconditions. Begin with one explicit grant per action; explain tenant-wide versus exact-namespace access and protected Tenant Administrator authority. Membership suspension, reactivation and offboarding apply across the tenant, including memberships in another realm. Direct and group assignment revocations require the operator's realm; foreign-realm assignments return not found. Exact IDs do not bypass these tenant and realm checks.
+4. Distinguish reversible suspension/reactivation from terminal offboarding, which revokes assignments and retains history. Never relabel offboarding as temporary disable or offer unsupported hard deletion/reactivation. Honor backend final-administrator protection and stale-revision conflicts. Explain self-revocation/sign-out consequences before confirmation; invalidate the actor's view after a successful self-change.
+5. Keep realm creation/mapping, the first administrator and recovery when no administrator can authenticate in documented `catalogctl` operator procedures. No first-login administrator, default production password, public bootstrap route, browser migration command or shared service credential. Admin pages manage Catalog access, not provider passwords, MFA, client secrets or Kubernetes Secrets.
+
+## Login and browser security
+
+### Local test users and OIDC
+
+Startup selects either `development` or `oidc` authentication. Development mode shows **Sign in as test user** and a local-test banner. The launcher includes configured workflow specialists and other-tenant controls. UI labels describe test identities; they do not supply authority.
+
+The host maps a fixed alias to a server-configured development token. It creates a bounded session only after Catalog accepts that token. Browsers cannot submit arbitrary subjects, roles, tenants or raw bearer credentials. Backend membership, authorization, audit and separation of duties remain enforced. The UI has no password database, registration or password-reset flow.
+
+Production UI configuration rejects development login. OIDC mode rejects development-user configuration and exposes no development-login route. OIDC failure never enables local login.
+
+Only explicit development/test configuration can relax Secure cookies for a loopback HTTP origin. Normal TLS deployments keep Secure cookies. Bind Compose UI ports to loopback. Use a loopback port-forward for Minikube development login; do not expose it through public ingress.
+
+Origin/CSRF checks protect login selection, logout and cookie-authenticated commands from another site. Changing users requires sign-out and a new session. Preserve unsaved-edit warnings and clear private caches/requests. This is not administrator impersonation.
+
+Both modes use the same host/browser session mechanism after login, with a configured maximum expiry for development tokens that lack OIDC expiry. Development aliases and token mappings come from explicit local inputs, not assets, public runtime configuration or Helm values. Isolated tests create temporary session keys and minimal specialist identities rather than modifying persistent development users or running every scenario as administrator. Development-login tests do not qualify OIDC redirects, audience/scopes, provider faults or production cookie behavior; the separate OIDC gate covers that boundary.
+
+Both modes require `X-Catalog-Request: 1` on cookie-authenticated session/API requests, including read-like POST Search and audited private reads. Non-GET requests also require the configured Origin; foreign Origin and Fetch Metadata are rejected. OIDC callbacks instead validate temporary login state, nonce and PKCE. The complete local launcher uses this same Go host; the standalone Vite development server does not provide login or API forwarding.
+
+### OIDC session boundary
+
+ADR-0018 selects the implemented Go UI host as the OIDC client: it obtains the user's Catalog-audience access token and forwards requests with that identity. The browser gets an encrypted session cookie, not a token in JavaScript or local storage. The ADR records the direct-browser alternative and the consequences of the selected session design.
+
+<BrowserSession />
+
+Steps 1-6 establish an OIDC session; steps 7-8 apply to subsequent API requests in both authentication modes. Explicit development login skips the provider exchange but still requires Catalog to accept a configured test identity. It never becomes a fallback after an OIDC failure.
+
+Use maintained OIDC/OAuth libraries and Authorization Code with PKCE. Validate exact redirects/origins, state and nonce. Do not use a password grant, shared administrator token or trusted identity headers.
+
+Validate the ID token against the UI client ID as required by [OpenID Connect](https://openid.net/specs/openid-connect-core-1_0.html#IDTokenValidation). The separate access token targets the Catalog API audience. Do not reuse the API audience for ID-token validation or forward an ID token as the API bearer.
+
+Confirm Catalog access through authenticated self-context before completing login. Use the resolved identity for permission and audit-facing labels. The provider owns login, consent, password recovery and MFA. Catalog remains a token verifier under [the identity design](decisions/0006-identity-and-tenancy.md).
+
+The backend independent-provider test covers client credentials. `make test-ui-oidc` separately checks human authorization-code/PKCE login with a pinned external test provider. Keycloak remains a test tool, not a deployment dependency.
+
+Sessions use authenticated encrypted cookies and deployment-supplied shared keys. There is no Redis, UI database, sticky session or refresh token. Cookies are HttpOnly, SameSite=Lax and Secure for HTTPS. Private responses use `no-store`.
+
+Host tests check size, expiry, rotation, cross-host callbacks and cookie exchange. Browser tests check sign-out and cross-tab clearing. Packaged OIDC tests also check root/subpath HTTPS cookies, scope/membership denial, provider outage and access to saved work after you sign in again. Clearing a cookie does not revoke a stolen access token.
+
+Only the first configured key pair writes cookies; all configured pairs can read them. For rolling rotation, every replica must first accept the new pair before any replica starts writing with it. Follow the [session-key rotation procedure](../operations/maintenance.mdx#rotate-ui-session-keys), including the overlap needed for existing sessions and in-progress OIDC callbacks.
+
+Encoded session and temporary login-state cookie values are capped at 3,600 bytes. Oversized access tokens fail login rather than being truncated or split across cookies; deployments must keep provider token claims within this limit. Replicas share keys and deployment configuration, allowing callbacks and subsequent requests to reach different hosts. Reauthorization may reuse the provider's existing login, but can still prompt. Saved server drafts remain available after signing in again; unsaved browser memory is not recoverable after reauthorization.
+
+Identity-provider setup requires a confidential web client, exact callback URL, Catalog-audience JWT access tokens and provisioned Catalog membership. The [UI deployment reference](../../../../../deployments/helm/open-agentic-catalog/README.md#optional-catalog-ui) provides the settings. There is no provider-logout redirect to register, and session cookies do not cache Catalog grants. Local sign-out clears this UI's session and private state, not the provider session or an already issued JWT. Expired API requests return a safe authentication error to the client, not a login HTML redirect; reauthentication never automatically replays a mutation.
+
+Sessions and temporary login state have separate cookie purposes and expiry checks. Their deployment binding includes origin, base path, upstream, cookie name, authentication mode, issuer and client ID; changing those inputs invalidates existing cookies. Use distinct cookie names and scoped keys for separate deployments, including local UIs on different ports of the same hostname.
+
+Forward only allowed methods/paths to the operator-configured Catalog API. Reject browser-selected destinations and Host, credential or tenant overrides. Bound requests, responses and deadlines. Preserve validators, problem details and request IDs. Reject unsafe redirects and strip untrusted forwarding/cookie headers.
+
+Keep issuer and API private trust separate. Do not bypass TLS validation globally. Development identities cannot start in production or enter the static bundle.
+
+Forwarding limits must accommodate the advertised request/package limits and bounded evidence downloads, not impose one arbitrary small JSON limit on every route. Preserve empty responses, conditional reads, download bytes, content headers, retry hints and cancellation. Never forward user credentials to a returned external URL; validate any rewritten Location against the fixed upstream. Restrict SPA fallback to UI navigation: unknown API, asset and login paths must not become successful HTML pages. Cache fingerprinted static assets, but not private API/session responses; keep runtime configuration and the application entry page fresh across deployments.
+
+Treat listing text, standards JSON, Skill Markdown, URLs and downloads as untrusted. Previews disable raw HTML and automatic remote images/embeds. Constrain link schemes and referrers. Download unsafe document types rather than displaying active same-origin content. A restrictive Content Security Policy (CSP) excludes inline handlers and eval.
+
+Preserve exact downloaded audit/standards bytes and digest headers. Do not parse and reserialize evidence. Keep private queries, records, tokens and webhook secrets out of logs, analytics and persistent caches. Browser artifacts use owned synthetic fixtures and exclude real private data. Redact authentication values and one-time secrets, including in network traces.
+
+Do not place Search terms in shareable URLs by default. Deep links may carry safe view state and opaque record IDs.
+
+## Interaction reliability and limits
+
+Keep API results authoritative. Preserve exact keys, bodies and preconditions for a deliberate retry. Disable duplicate submissions and show uncertain outcomes rather than creating another command. Handle ETag conflicts with reload, comparison and deliberate resubmission. Do not overwrite a newer revision blindly.
+
+Track each validator against its mutable Resource, ResourceVersion, CatalogListing, submission or release. An immutable child ID is not an interchangeable concurrency token. Multi-step authoring keeps successfully created server drafts and identifies the failed step. It does not simulate rollback or silently delete evidence.
+
+Use explicit Save revision, Validate, Submit for review and Publish actions. Saved revisions are immutable; further edits create another revision. Do not autosave through PATCH or create a revision for each keystroke. Keep unsaved edits in component memory and warn before navigation. Reload resumes the last successful server save, not unsubmitted input.
+
+Do not rerun validation just to display a screen. Validation records evidence and can withdraw publication. Show field errors and an accessible summary, preserving input after rejection. Explain destructive consequences and required reasons before confirmation. Follow [WAI form feedback guidance](https://www.w3.org/WAI/tutorials/forms/notifications/). Use inline status and announcements, not only toasts or color.
+
+Catalog Search keeps at most ten earlier request cursors in memory for explicit Previous-page rereads, with First as the fallback. It retains no cross-page result cache. Criteria changes, restart/retry, failed reads and identity changes discard cursor history. Preview copy/download reuses its loaded full record; closing preserves the current search and focus, while same-tab local/indexed detail navigation preserves criteria, cursor, draft text, layout and scroll in the same Catalog component and rereads results on return. While mounted, Catalog selects manual browser scroll restoration before interaction and restores the previous setting on unmount. This prevents native history restoration from racing the component's saved list position; private search state remains in memory, outside history entries. Indexed detail reads use the captured route identity, including absent versus empty version, and reread on each entry. Reload, new tabs and direct links remain fresh. Session/access changes remount discovery views and discard private in-memory navigation/options; ordinary authoring links retain native unsaved-editor protection.
+
+Views use server pagination and supported ordering, cancel superseded requests and discard late responses from a previous identity. Jobs and webhook delivery status use manual refresh, not background polling. Authentication, permission, service-failure and empty-result states have separate messages; access failures trigger permission reconciliation. Generation-bound cursors require restarting the search when data changes. Explore facets are local-only, live results are partial/bounded, and a page count is not a total. There is no persistent offline catalog, service worker or client-side search index.
+
+Search runs on explicit submission; focus and reconnect events do not repeat live federation. Audited private evidence loads when opened or explicitly refreshed, not on hover or card prefetch. Failed reads offer an explicit reload rather than automatic retry. One-time webhook secrets stay in transient view state. Sign-out and identity changes, including changes in another tab, clear private state and invalidate outstanding responses.
+
+Cards/table and drawer/full-page views share data and detail components. Route-level loading keeps authoring and administration code out of the initial browse bundle. Bounded pages use semantic tables rather than a client-side copy of the Catalog. The [browser testing guide](../contributing/testing.md#optional-browser-client) describes the test layers; the separate [performance guide](../guides/performance-and-monitoring.md) covers backend scale testing.
+
+## Packaging and verification
+
+The separate UI image serves static assets from a non-root Go host. Optional Compose and Helm wiring uses independent UI configuration, probes, scoped secrets and network paths. The UI has no database access. The UI's Helm selectors include `app.kubernetes.io/component: ui` to keep UI Pods separate from API and worker Pods.
+
+Production authentication defaults to OIDC; the explicit local test profile uses development login. See the [UI build guide](../contributing/build-and-release.md#optional-ui-image) and [test strategy](../contributing/testing.md#optional-browser-client) for commands, image checks, browser layers and replica qualification. Keep the typed operation-to-workflow map and its assertions together in `catalog-ui/src/api/workflows.test.ts` rather than maintaining a second screen inventory here.
+
+## Private feedback workflows
+
+The resource feedback panel, independent My feedback page and moderator inbox use the Control API and session-bound typed client, not database access. My feedback requires human `feedback.own` access plus the `catalog.read` OAuth ceiling; it remains available after resource-read permission is revoked. The moderator inbox requires `feedback.moderate` plus the `tenant.admin` OAuth ceiling. Resource navigation links require independent read hints; the API enforces exact resource scope for context reads, and creating feedback requires a readable resource. Ownership is resolved by backend membership identity. Feedback has its own ETag and text-free command receipts; the browser reads current content, discards superseded reads and holds drafts only in component state. Published metadata and search responses do not embed private feedback. See [private feedback](../guides/feedback.mdx) and [ADR-0020](decisions/0020-private-item-feedback.md).
+
+## Release-linked display facts
+
+Local browse, Search and full-record reads share the optional bounded `CatalogPresentation` projection. Its current publisher and Listing-namespace names are presentation labels, not immutable release identity. A caller authorized for that release may read these linked labels; this does not grant `publisher.read`, its separate `publishers.read` OAuth scope, namespace-directory enumeration, domains, memberships or unrelated records. Directory endpoints keep their independent permission/scope checks. Exact IDs remain authoritative and publisher filtering retains its UUID meaning.
+
+PostgreSQL hydrates display labels only for selected tenant-scoped release IDs, inside the existing read transaction; memory mirrors that bounded projection. Explicit publisher ordering separately reads current publisher names during query selection and includes the sort value in the keyset position. PostgreSQL Publisher inserts, updates and deletes invalidate tenant Search generations, including cursors that use another order. These labels do not become immutable release evidence or public snapshot content. Directory reads retain their independent permissions, and publisher filters retain their UUID meaning.
+
+Collection reads bound listing license to 256 Unicode code points at selection, with explicit omission-for-length and the complete retained declaration still available in full detail. Display hydration and the compact license projection do not change relevance scoring or facet membership. Both lexical/hybrid and browse/Search conversions preserve the same display fields. Publication construction and its work budget exclude this mutable projection. See [publisher Search ordering](persistence.md#000046---publisher-search-ordering) for generation invalidation.
+
+Declared delivery and provider/author/native license use only recognized pinned-profile facts already loaded on preview/detail. Collection selection never reads native documents, normalized-facts maps, Plugin inventory, secret headers or extensions to populate badges. No new media proxy, external request, adapter normalized-facts format, schema migration or UI database access is introduced. The UI's SVG glyphs are bundled decorative geometry with adjacent text, not resource-controlled assets or a trust signal.
+
+## Administration summaries
+
+Overview reads access, feedback and rating metadata through three separate private APIs. Each domain owns its selection and current permission check. SQL selects at most 10,001 scalar rows per measure before aggregation. Feedback selects its oldest original submission independently. No new table, background collector or browser cache is used.
+
+The API returns no subjects, feedback text or rating targets. The browser validates consumed counts and distributions before drawing bars. Fixed directory filters use the existing guarded history navigation. Private case return context clears after access changes. Accessible lists show exact counts beside decorative bars. The membership summary uses one table.

@@ -1,0 +1,36 @@
+{
+  "entry": [
+    "src/main.tsx!",
+    "src/react-runtime.ts!",
+    "src/**/*.test.{ts,tsx}",
+    "scripts/*.test.mjs",
+    "scripts/ard-explorer-startup.mjs",
+    "tests/browser/**/*.spec.ts",
+    "scripts/{dev,dependencies,licenses,packaged-test,demo-journeys,peer-journeys,draft-transfer-journeys,contextforge-journeys,security-test,e2e-report}.mjs",
+    "playwright.config.ts",
+    "tests/coverage/*.functional.test.mjs",
+    "tests/qualification/*.functional.test.mjs",
+    "scripts/mutation.mjs"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}!",
+    "!src/**/*.test.{ts,tsx}!",
+    "scripts/**/*.mjs",
+    "tests/**/*.ts",
+    "*.{ts,mjs}",
+    "tests/coverage/*.mjs",
+    "tests/qualification/*.mjs"
+  ],
+  "playwright": {
+    "config": [],
+    "entry": ["tests/browser/**/*.spec.ts"]
+  },
+  "includeEntryExports": true,
+  "ignoreExportsUsedInFile": true,
+  "ignoreIssues": {
+    "src/api/schema.d.ts": ["exports", "types"],
+    "src/react-runtime.ts": ["exports"],
+    "playwright.config.ts": ["exports"]
+  },
+  "ignoreBinaries": ["go"]
+}

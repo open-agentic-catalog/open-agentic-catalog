@@ -1,0 +1,9 @@
+# Fixture-only image: build with the verified model directory as the context.
+# No model files or Python tooling are added to either Catalog product image.
+ARG TEI_IMAGE=ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.4@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d
+# The harness supplies the verified profile's digest-pinned image; Hadolint
+# cannot resolve that build argument. The standalone default is also pinned.
+# hadolint ignore=DL3006
+FROM ${TEI_IMAGE}
+COPY --chown=10001:10001 . /model/
+USER 10001:10001

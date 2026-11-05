@@ -1,0 +1,30 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="search-pagination-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1372" role="img" aria-labelledby="search-pagination-title search-pagination-desc">
+  <title id="search-pagination-title">Durable and bounded live Search continuation</title>
+  <desc id="search-pagination-desc">Authenticated Catalog Search reads local releases and indexed observations, closes the database transaction, then replays one unchanged bounded live window as needed. Core relevance interleaves results by deterministic score order. Hybrid results preserve durable ranks, followed by live results. Explicit Control sorts place durable results before live results. Live-only Control Search skips durable queries and embeddings.
+
+  Host-bound ARD automatic Search combines its active immutable local snapshot with the same bounded live behavior. Tokens bind current access, query, generations and verified peer evidence, with a fixed fifteen-minute expiry. Changed evidence requires restart; a temporary replay outage permits retry of the same token. No Search session or peer token is stored.</desc>
+  <defs><marker id="search-pagination-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 164 V199 H180 V234" marker-end="url(#search-pagination-arrow)" />
+  <path class="svg-connector" d="M320 164 V199 H460 V234" marker-end="url(#search-pagination-arrow)" />
+  <path class="svg-connector" d="M180 450 V520" marker-end="url(#search-pagination-arrow)" />
+  <path class="svg-connector" d="M460 450 V520" marker-end="url(#search-pagination-arrow)" />
+  <path class="svg-connector" d="M180 710 V745 H320 V780" marker-end="url(#search-pagination-arrow)" />
+  <path class="svg-connector" d="M460 687 V745 H320 V780" marker-end="url(#search-pagination-arrow)" />
+  <path class="svg-connector" d="M320 924 V994" marker-end="url(#search-pagination-arrow)" />
+  <DiagramCard x={60} y={20} width={520} title={"Every page rechecks current access"} tone="core" lines={["Keep query, filters and page size", "unchanged with a continuation token", "Tokens bind permissions, query,", "generations and verified peer evidence"]} />
+  <DiagramCard x={60} y={234} width={240} title={["Authenticated", "Control Search"]} lines={["Local releases and", "indexed observations", "Bounded PostgreSQL", "selection", "Current tenant", "and source scope"]} />
+  <DiagramCard x={340} y={234} width={240} title={["Host-bound ARD auto", "Search"]} lines={["Active immutable", "local snapshot", "Exact host mode", "and audience", "Not Control indexed", "observations"]} />
+  <DiagramCard x={60} y={520} width={240} title={"Control composition"} lines={["Close the durable", "read transaction", "before live calls", "Up to 50 live candidates", "Selected durable", "identities win collisions"]} />
+  <DiagramCard x={340} y={520} width={240} title={"ARD composition"} lines={["Up to 50 live candidates", "Keep displaced local", "matches on later pages", "Advance only for local", "matches in the response"]} />
+  <DiagramCard x={60} y={780} width={520} title={"Preserve this interface's result order"} lines={["Core relevance interleaves results by score", "Hybrid preserves durable ranks, then adds live results", "Sorted Control results put durable matches first", "Live-only Control skips durable queries and embeddings"]} />
+  <DiagramCard x={60} y={994} width={520} title={"Continue the verified window"} tone="authority" lines={["Replay peers only while live results remain", "Control uses generation-bound", "nextCursor; ARD uses bound page tokens", "There is no stored Search session or retained peer token"]} />
+  <DiagramCard x={60} y={1208} width={520} title={"Opaque tokens expire after fifteen minutes"} tone="warning" lines={["Invalid, expired or stale tokens require", "restart; access denial needs a permission fix", "Temporary replay outages allow retry of the same token", "Changed evidence requires restart"]} />
+
+</svg>
+</div>

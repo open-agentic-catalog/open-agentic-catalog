@@ -1,0 +1,4 @@
+//@ ensures 5*time.Second <= ceiling && ceiling <= time.Hour
+//@ ensures 0 < int64(ceiling)+1 && int64(ceiling)+1 <= int64(time.Hour)+1
+//@ invariant 5*time.Second <= delay && delay <= time.Hour
+//@ decreases time.Hour-delay

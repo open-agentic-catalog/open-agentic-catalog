@@ -1,0 +1,79 @@
+{
+  "platform": "linux/amd64",
+  "cutoff": "2026-10-19",
+  "approvedSecurityExceptions": {
+    "cert-manager": "v1.21.3",
+    "traefik": "v3.7.16",
+    "cmctl": "v2.6.2"
+  },
+  "charts": {
+    "cert-manager": {
+      "oci": "oci://quay.io/jetstack/charts/cert-manager",
+      "version": "v1.21.3",
+      "file": "cert-manager-v1.21.3.tgz",
+      "sha256": "9ec67938b2981d8b333af61b3fcf53e26b4f6f5deb7ccda3de4ea116bb373a17",
+      "ociDigest": "sha256:e482675aec32862d323a9218293ff7de81192337998615e4378c56498473f240"
+    },
+    "traefik": {
+      "oci": "oci://ghcr.io/traefik/helm/traefik",
+      "version": "42.0.0",
+      "file": "traefik-42.0.0.tgz",
+      "sha256": "be43ad4ff4198efa255c566f1feb9589ed89319710cfe5a568295b0cdfa1ad42",
+      "ociDigest": "sha256:779f04f7aa930daddba2aacf0f4a75c8d83cac477c00996372680b61fdf423aa"
+    }
+  },
+  "images": {
+    "controller": {
+      "reference": "quay.io/jetstack/cert-manager-controller:v1.21.3@sha256:9b262e9493ab3e0daebc2c9cfbddc6df68b9ac91afc036a759584f3d49d607e5",
+      "digest": "sha256:9b262e9493ab3e0daebc2c9cfbddc6df68b9ac91afc036a759584f3d49d607e5"
+    },
+    "webhook": {
+      "reference": "quay.io/jetstack/cert-manager-webhook:v1.21.3@sha256:fc2845cc042ab57c8b98c5ff62462d50dcd5d8d3302f9e6875cd05042ce1020b",
+      "digest": "sha256:fc2845cc042ab57c8b98c5ff62462d50dcd5d8d3302f9e6875cd05042ce1020b"
+    },
+    "cainjector": {
+      "reference": "quay.io/jetstack/cert-manager-cainjector:v1.21.3@sha256:165691f631d61931a27e4fbbb82bbed8205431d0446b3c14d170081aeff75f0a",
+      "digest": "sha256:165691f631d61931a27e4fbbb82bbed8205431d0446b3c14d170081aeff75f0a"
+    },
+    "traefik": {
+      "reference": "docker.io/library/traefik:v3.7.16@sha256:abb2b9c1b132b5b0be40d09c85bf8d3dab2a59fa0eb3aa955ab8be5efbb73de6",
+      "digest": "sha256:abb2b9c1b132b5b0be40d09c85bf8d3dab2a59fa0eb3aa955ab8be5efbb73de6"
+    }
+  },
+  "cmctl": {
+    "version": "v2.6.2",
+    "file": "cmctl_linux_amd64",
+    "sha256": "690f38f71bb5540ea98bc6a33e1ab0caad246a3c2b932a84d4671369b6736fe4",
+    "sbomSha256": "d7695b03f6fc50791fe6c9035545894323a46f1f7a51528e95834dc041bdd6be"
+  },
+  "sources": {
+    "cert-manager/cert-manager": {
+      "revision": "925c22283de556172d48d96a165dc2fa27f7a6ff",
+      "license": "Apache-2.0",
+      "file": "cert-manager-cert-manager-LICENSE",
+      "path": "LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    "cert-manager/cmctl": {
+      "revision": "1fe7c19102fe47563c7968455541db4c2a2c8bce",
+      "license": "Apache-2.0",
+      "file": "cert-manager-cmctl-LICENSE",
+      "path": "LICENSE",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    "traefik/traefik": {
+      "revision": "af6d927c51191ae1df104aaf907793386b816c28",
+      "license": "MIT",
+      "file": "traefik-traefik-LICENSE",
+      "path": "LICENSE.md",
+      "sha256": "c33e29340498ccde22ba0ab9537d6eb0aa3a2eae0dda61bb6df31df6a032fa5b"
+    },
+    "traefik/traefik-helm-chart": {
+      "revision": "09be4f439a52e31afe879878737d39cde06c002d",
+      "license": "Apache-2.0",
+      "file": "traefik-traefik-helm-chart-LICENSE",
+      "path": "LICENSE",
+      "sha256": "e3c78a37520ecbb6fdc51e51b1ad663857acb31a7bbb828fcc8068486771e7af"
+    }
+  }
+}

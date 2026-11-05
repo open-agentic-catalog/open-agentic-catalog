@@ -1,0 +1,19 @@
+{
+  "profile": "ans-registration-v1",
+  "registrationAuthority": "ans-ra-local",
+  "logOrigin": "owned-ans",
+  "evidenceOrigin": "https://tl.ans-qualification.svc.cluster.local",
+  "publisherDomains": [
+    "trust-v1.ans.test",
+    "trust-v2.ans.test"
+  ],
+  "registrationKeys": [
+    {
+      "id": "ans-ra-signer",
+      "file": "ra.pem"
+    }
+  ],
+  "logKeyFiles": [
+    "tl.pem"
+  ]
+}

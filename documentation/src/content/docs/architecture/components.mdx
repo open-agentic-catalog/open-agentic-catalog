@@ -1,0 +1,157 @@
+---
+title: "Components and command flow"
+---
+
+import Components from "../../../components/architecture/Components.astro";
+import CommandPath from "../../../components/architecture/CommandPath.astro";
+
+The backend and UI Go host share the root Go module. Separate test-tool modules and SDK packages keep their dependencies outside the service module. The Go, Python, TypeScript and Rust SDKs generate clients from Control OpenAPI. The service and CLI build independently of the SDKs. See the [SDK overview](../../../../../sdk/README.md) and [test placement and selection](../contributing/testing.md#test-placement-and-selection) for package boundaries and checks.
+
+## Read the code in four layers
+
+### Commands compose; they do not decide
+
+`cmd/catalogd` selects a process role and supervises shutdown. `cmd/catalogctl` previews native manifests and reusable JSON drafts locally, then applies or resumes drafts through the API. It exports native documents or reusable JSON files and provides read-only MCP tools, remote reads and explicit reindex/assessment requests. It also exposes bounded operator actions.
+
+API client workflows use an explicit origin and credentials without composing the service or opening PostgreSQL. Remote commands and online import/export can use an explicit human login file with serialized token refresh. MCP stdio uses its separately configured bearer credential. `internal/platform/runtime` composes services, stores, fetch policy, workers and HTTP dependencies. See the [command reference](../reference/commands.md) for each workflow's inputs and authority.
+
+### Domain packages own lifecycle rules
+
+`catalog`, `identity`, `ratings`, `feedback`, `personal`, `federation`, `publication`, `tenantsettings`, `jobs`, and `webhook` own canonical types, state transitions, safe errors, and the narrow ports their behavior requires. `personal` owns private saved-reference/search commands and bounded owner-only stores; it grants no authority over a saved target. Catalog owns the separately derived My work projection.
+
+### Translate protocols into use cases
+
+`internal/platform/httpserver` owns routing, middleware, strict decoding, authentication handoff, response encoding, and HTTP errors. It calls domain services; it does not invent lifecycle or persistence rules.
+
+`internal/platform/catalogmcp` exposes shared read-only Control tools over stdio and optional stateless HTTP. Stdio uses `internal/platform/controlclient` for origin-bound API requests, explicit credentials and bounded responses. The API's `/mcp` route uses an in-process reader with the same authorization rules. Neither transport follows resource references or executes resources. See the [MCP guide](../guides/mcp-server.mdx) for setup and limits.
+
+### Implement ports against real systems
+
+`internal/platform/database`, `fetcher`, `embeddings`, `trustevidence`, and `webhooksender` implement domain-facing contracts with PostgreSQL or controlled external systems. `trustevidence` acquires public ANS evidence through the hardened fetcher; the offline verifier under `internal/standards/anstrust` checks its exact bytes. Provider details do not leak inward.
+
+**Format packages and source assets have narrower roles.** `internal/adapter`, `internal/standards`, `internal/jsondoc`, `internal/draftfile` and generated `internal/a2apb` interpret exact formats without owning lifecycle policy. OpenAPI defines the implemented HTTP contract, including the reusable draft-file schema. Numbered migrations define forward-only database changes. Vendored schemas pin supported formats, and configuration profiles provide strict startup examples. There is no competing generated copy of these authorities.
+
+Dependencies point toward service-owned contracts. Domain packages own lifecycle rules and ports. Format packages interpret pinned representations. Platform adapters implement ports without passing HTTP, SQL, Kubernetes, cloud or provider SDK types into domain code.
+
+The boxes below show API/worker construction and Go responsibilities within the modular monolith. They are not independently deployed services. CLI API-client and database-operator commands retain their separate entry paths. Dotted arrows show construction or implementation dependencies. Solid arrows show runtime calls through domain ports or to external systems. A domain port call does not create a source dependency on its concrete adapter.
+
+OIDC uses a dedicated verifier restricted to its configured issuer. It does not use the federation fetch route. The [system context](overview.mdx) distinguishes inert Git/OCI references from supported HTTPS retrieval.
+
+<Components />
+
+For optional hybrid search, `internal/catalog` owns ranking, continuation and metadata indexing; `internal/publication` applies retrieval to public snapshots. The composition root wires the indexer into existing leased Jobs. `internal/platform/embeddings` handles bounded query/batch inference through endpoint-bound fetcher transport, while `internal/platform/database` owns vector storage, matching and generation maintenance. The model service is a separate process with no Catalog database access. See [the deployment boundary](deployment.mdx#optional-embedding-service-boundary).
+
+## Implementation style
+
+### Explicit construction
+
+Services receive options and narrow ports through constructors. `runtime.Build` is the visible composition root; hidden globals and package initialization do not choose production dependencies.
+
+### Plain Go boundaries
+
+The pinned Go toolchain uses standard [`net/http`](https://pkg.go.dev/net/http) routing and [`context.Context`](https://pkg.go.dev/context). Typed domain errors, explicit `pgx` repositories and small packages keep control flow visible without a service framework.
+
+### Interfaces on demand
+
+A port belongs beside the domain behavior that needs it and appears only when a real caller and implementation exist. The repository avoids speculative provider layers, empty target packages, and dormant abstractions.
+
+### Dependencies for deterministic tests
+
+Clocks, UUID generation, fetchers, senders, and domain-owned stores can be injected for tests. Cancellation and deadlines apply across blocking boundaries. Tests of provider behavior use the real dependency in a disposable environment.
+
+## Where a change belongs
+
+| If the behavior changes... | Start with this package | Follow the change through |
+| --- | --- | --- |
+| A Catalog lifecycle, invariant, search rule, identity decision, publication rule, source rule, Job state, audit record, public event, or webhook policy. | The applicable package under `internal/catalog`, `identity`, `publication`, `federation`, `jobs`, `audit`, `events`, or `webhook`. | Update canonical types, service behavior, narrow ports, safe errors, and focused positive and negative tests before adapting HTTP or SQL. |
+| An implemented API-listener HTTP route, field, default, authorization rule, status, header, or error. | `api/openapi/control-v1.yaml` and `internal/platform/httpserver`. | Keep route registration, strict request/response types, authorization, OpenAPI, examples, API conventions, and contract tests in one change. |
+| Persistent state, a constraint, RLS policy, role privilege, query, transaction, lease, or migration. | The owning domain port plus `internal/platform/database` and the next numbered migration. | Preserve compatibility with supported releases, not obsolete development formats, and prove migration, repository, RLS denial, role, concurrency, and repair or rollback behavior against disposable PostgreSQL 18. |
+| An Agent, MCP Server, Skill, Plugin, ARD, AI Catalog, JSON Schema, or JSON-LD rule. | `internal/adapter` or `internal/standards`, with the applicable pinned profile under `schemas`. | Preserve raw evidence, update compatibility fixtures and profile notes, verify checksums, and run the focused conformance or fuzz boundary. Never edit a vendored profile in place. |
+| A source, external representation, redirect, credential route, webhook destination, OTLP export, or other outbound HTTP behavior. | The owning domain plus the shared `internal/platform/fetcher` boundary. | Keep exact origin and network policy centralized; add DNS, IP, redirect, timeout, byte, cancellation, and disclosure tests rather than constructing a feature-local `http.Client`. |
+| Durable asynchronous work. | The owning domain and `internal/jobs`; wire the concrete handler in `internal/platform/runtime`. | Define a bounded payload and result, then prove lease ownership, heartbeat, cancellation, retry class, terminal evidence, process interruption, and idempotent side effects. |
+| A runtime setting or feature gate. | `internal/platform/config`. | Update strict parsing and validation, every affected JSON profile, the explicit environment allowlist, safe diagnostics, configuration reference, and Compose or Helm wiring where applicable. |
+| The binary, image, Compose topology, Helm chart, probe, security context, or release input. | `cmd`, `Containerfile`, `compose*.yaml`, or `deployments` as applicable. | Keep compatibility copies synchronized and add the container, functional, Helm, deployment, startup, shutdown, or upgrade evidence required by the changed boundary. |
+
+## Detailed package ownership
+
+| Component | Owns | Must not own |
+| --- | --- | --- |
+| `cmd/catalogd` and `cmd/catalogctl` | Process roles, supervision, shutdown, native and reusable JSON draft preview/apply/resume and export, human OIDC login, MCP stdio tools, remote API reads/commands and narrowly scoped operator actions. | Domain policy or application-startup migration authority. |
+| `internal/a2apb` | Generated Go binding for the exact pinned A2A protocol. | Hand-written edits or a floating protocol version. |
+| `internal/audit` | The dependency-neutral versioned audit record, execution attribution, action validation, bounded deterministic export, and verification contracts under ADR-0013. | Domain transitions, HTTP policy, SQL transactions, operational logs, or notification delivery. |
+| `internal/catalog` | Canonical types, lifecycle, search contracts, repository ports, safe errors, identifiers, and digests. | HTTP handlers, SQL details, external SDKs. |
+| `internal/artwork` | Strict artwork descriptors, bounded raster validation and transient delivery through a narrow fetch port. | Network policy, managed storage or hosting authority. |
+| `internal/events` | The implemented public event vocabulary, closed notification references, CloudEvents projection, and embedded-schema validation. | Audit policy, webhook transport, or domain state. |
+| `internal/feedback` | Private human submissions, administrator responses, immutable item context and safe text clearing. | Publication, relevance ranking or public comments. |
+| `internal/personal` | Private saved references and searches with bounded owner-only stores. | Permissions over saved targets, automatic resolution or resource execution. |
+| `internal/ratings` | Human version-specific opinions, consent, aggregates, moderation and optional publisher summaries. | Trust, safety or installation authority. |
+| `internal/safeerr` | Reviewed code-owned diagnostic messages, fixed stages and fatal owned-panic classification. | Logging, infrastructure dependencies or declaring dependency text safe. |
+| `internal/identity` | Principals, memberships, finite permissions, role/group/scoped assignments and current authorization context. | Token issuance or upstream group-to-role authority. |
+| `internal/adapter` | Native Agent, MCP Server, Skill, and Plugin detection, validation, normalization, and publication projection. | Network access or package execution. |
+| `internal/standards` | Pinned ARD, AI Catalog, JSON Schema, JSON-LD and offline ANS registration verification. | Floating upstream profiles or runtime downloads. |
+| `internal/federation` | Inspection, source configuration, synchronization, observations, topology, referrals, and live discovery. | Caller-selected arbitrary destinations. |
+| `internal/publication` | Candidate generation, eligibility, validation, activation, rollback, unpublish, and public snapshots. | Mutable-table public rendering. |
+| `internal/tenantsettings` | Typed tenant operational overrides, inheritance, validation and audited policy changes. | Deployment connectivity, credentials, trust or capability activation. |
+| `internal/jobs` | Durable work, leases, retry, cancellation, dead-letter state, and handler contracts. | A general workflow engine or secret-bearing payloads. |
+| `internal/housekeeping` | Fair bounded worker cadence and class-specific operational cleanup. | Governed-history deletion or PostgreSQL eligibility rules. |
+| `internal/webhook` | Optional endpoint lifecycle, encryption, signatures, delivery evidence, and retry semantics. | A required broker or ordered delivery guarantee. |
+| `internal/jsondoc` | Duplicate-key-safe JSON validation at untrusted boundaries. | Relaxing closed control objects. |
+| `internal/draftfile` | The bounded reusable draft-file contract, strict codec and editable Listing projection. | File I/O, network calls, native-profile validation or command authority. |
+| `internal/integration` | In-process end-to-end workflows across the composed service. | Replacing real PostgreSQL, Compose, provider, or deployment evidence. |
+| `internal/platform/authn` | Development identities and the bounded OIDC token-verification boundary. | Login, token issuance, or Catalog role authority. |
+| `internal/platform/buildinfo` | Bounded embedded version, commit and source-state projection. | Runtime Git access, startup history or artifact attestation. |
+| `internal/platform/processinfo` | One in-memory process identity, startup time and monotonic uptime for status, metrics and enabled traces. | Persistent startup history or a node registry. |
+| `internal/platform/catalogmcp` | Shared read-only Control tools, stdio and finite stateless HTTP, closed arguments, bounded projections and protocol lifecycle. | Resource execution, an ARD wrapper or retained caller sessions. |
+| `internal/platform/cliauth` | Explicit human OIDC/PKCE login, private origin/identity-bound credentials and serialized refresh. | Token issuance, runtime configuration or an implicit credential cache. |
+| `internal/platform/controlclient` | Shared origin-bound CLI HTTP transport, explicit credential files, safe envelopes and selected Search inputs. | Database authority or requests to arbitrary metadata URLs. |
+| `internal/platform/diagnostics` | Explicit process loggers, safe output projections, standard-log safety adapters and bounded observations. | Audit authority, dependency-text passthrough or log delivery guarantees. |
+| `internal/platform/config` | Strict typed configuration, explicit environment overrides, validation, and safe diagnostics. | Implicit environment mapping or secret persistence. |
+| `internal/platform/httpserver` | Routing, middleware, strict decoding, authorization handoff, response and error encoding. | Domain lifecycle policy. |
+| `internal/platform/database` | PostgreSQL repositories, tenant context, exact runtime privilege manifests, RLS, lifecycle guards, migrations, and integration boundaries. | New domain states absent a migration and owning rule. |
+| `internal/platform/embeddings` | Optional fixed-endpoint inference, query/batch limits, vector validation and provider-state reporting. | Ranking policy, indexing schedules, database authority or model hosting. |
+| `internal/platform/fetcher` | URL normalization, DNS/IP policy, TLS, redirects, time and byte limits, decoding, and evidence. | Per-feature raw `http.Client` escape hatches. |
+| `internal/platform/idempotency` | Command reservation, request and authority binding, atomic completion, replay, and repair locking. | Bypassing current authentication or domain transactions. |
+| `internal/platform/observability` | Low-cardinality metrics, fixed component state and bounded diagnostics. | Tenant dashboards, infrastructure monitoring or an audit store. |
+| `internal/platform/operations` | Private worker health, status, version and metrics listener. | Product APIs or dependency-based liveness. |
+| `internal/platform/tracing` | Optional process-owned OpenTelemetry SDK, bounded OTLP/HTTP export and private causal links. | Domain SDK dependencies, public trace fields or telemetry-dependent readiness. |
+| `internal/platform/trustevidence` | Credential-free ANS evidence acquisition through the hardened fetcher, startup authority policies and fixed request/byte bounds. | Job lifecycle, persistence or remote key discovery. |
+| `internal/platform/webhooksender` | Safe-fetcher-backed transport for optional signed HTTPS webhook delivery. | Endpoint lifecycle, event policy, or direct unbounded HTTP. |
+| `internal/platform/clock` and `internal/platform/id` | Injectable time and UUIDv7 generation for deterministic domain behavior. | Hidden process-global time or identifier state. |
+| `internal/platform/runtime` | Composition root wiring domain ports to concrete adapters and process roles. | Independent business rules. |
+| `api`, `migrations`, `schemas`, and `deployments` | Embedded contracts and examples, immutable forward migrations, pinned profiles, container compatibility assets, Compose, and Helm. | Generated shadow contracts or silently mutable upstream inputs. |
+| `sdk/go`, `sdk/python`, `sdk/typescript` and `sdk/rust` | Independent OpenAPI-generated clients and bounded consumer transports. | An application-module runtime dependency, implicit credentials or resource execution. |
+| `extensions/vscode` | SDK-based desktop discovery, inspection and explicit resource handoffs, with host-owned credentials. | Catalog administration or backend domain implementation. |
+
+## A command through the code
+
+A production mutation passes through HTTP authorization and its owning domain service. A domain-owned repository port provides PostgreSQL access. The command first reserves its idempotency key in a short transaction. External preparation then finishes before the protocol-v2 domain write transaction. That transaction commits the domain result, classified audit/outbox evidence and retained response together.
+
+<CommandPath />
+
+## Background work path
+
+Workers recover through durable leases. No correctness depends on one process surviving. For Jobs that commit domain changes, that commit precedes the later lease-owned Job outcome. These handlers must remain safe to retry after interruption between the two writes.
+
+1. **Jobs table** Queued, scheduled, deduplicated work
+
+1. **Claim lease** `FOR UPDATE SKIP LOCKED`
+
+1. **Bounded handler** Heartbeat, cancellation, safe fetch, staged evidence
+
+1. **Commit domain result** Owning transaction with audit/outbox where applicable; retry-safe side effect
+
+1. **Record Job outcome** Verify lease owner; succeeded, waiting, failed, cancelled, or dead letter
+
+ANS registration assessments stage their bounded private result and required audit record without a separate domain commit. PostgreSQL completion checks the current source and live lease, then commits the private result, succeeded Job state and required audit together. Cancellation, an expired lease or an audit failure prevents completion. A succeeded assessment Job can contain a negative or insufficient verification result. See [assessment operations](../operations/federation.mdx#request-an-ans-registration-assessment) for selection, disclosure and current applicability.
+
+## Boundary verification
+
+`make architecture-check` enforces the import and outbound-client construction rules that can be checked from source. Domain tests exercise owning rules through narrow ports; `internal/integration` composes those services with in-memory dependencies. Fake transactions and loopback fixtures support focused failure tests, but do not prove PostgreSQL SQL, RLS, locking or deployment behavior.
+
+Real database guarantees use `make test-integration`; process, persistence and transport interactions use the owned Compose and Helm scenarios. The [testing strategy](../contributing/testing.md#test-boundaries) explains target selection and coverage accounting. Follow the [contributor workflow](../../../../../CONTRIBUTING.md) for change-specific verification and documentation requirements.
+
+## Why a modular monolith fits
+
+Lifecycle, publication, audit, idempotency, and outbox transitions need one visible transaction model. Separate API and worker processes provide independent scaling without turning every domain boundary into a distributed consistency problem.
+
+See [design principles](design.mdx) for the durable evidence, transaction and federation invariants, and [local development](../guides/local-development.mdx) to run the service and exercise its API.

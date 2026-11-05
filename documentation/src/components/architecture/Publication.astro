@@ -1,0 +1,32 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="publication-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1238" role="img" aria-labelledby="publication-title publication-desc">
+  <title id="publication-title">Immutable publication pipeline</title>
+  <desc id="publication-desc">Eligible local releases form an immutable candidate with ARD, AI Catalog, Registry data, membership, exclusions, and allowed documents. Validation checks current evidence and profiles. Activation updates the active pointer in one transaction. The same transaction records publication audit evidence, a public event and the replay response. Local discovery reads the active snapshot for the exact host and audience. ARD Search can also return a bounded live window with continuation, or approved referrals under the host audience policy.</desc>
+  <defs><marker id="arrow-publication" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 118 V188" marker-end="url(#arrow-publication)" />
+  <path class="svg-connector" d="M320 286 V356" marker-end="url(#arrow-publication)" />
+  <path class="svg-connector" d="M320 431 V466 H180 V501" marker-end="url(#arrow-publication)" />
+  <text class="svg-small" x="192" y="458">Failure</text>
+  <path class="svg-connector" d="M320 431 V466 H460 V501" marker-end="url(#arrow-publication)" />
+  <text class="svg-small" x="472" y="458">Valid</text>
+  <path class="svg-connector" d="M460 622 V657 H320 V692" marker-end="url(#arrow-publication)" />
+  <path class="svg-connector" d="M320 813 V848 H180 V883" marker-end="url(#arrow-publication)" />
+  <path class="svg-connector" d="M320 813 V848 H460 V883" marker-end="url(#arrow-publication)" />
+  <path class="svg-connector" d="M320 813 V867 H12 V1058 H320 V1074" marker-end="url(#arrow-publication)" />
+  <DiagramCard x={60} y={20} width={520} title={"Eligible local releases"} lines={["Current governance, audience,", "approval and valid representation"]} />
+  <DiagramCard x={60} y={188} width={520} title={"Build an immutable candidate"} tone="core" lines={["ARD, AI Catalog and Registry data", "Retained membership, exclusions and allowed documents"]} />
+  <DiagramCard x={60} y={356} width={520} title={"Validate the exact bundle"} lines={["Profiles, digests, current evidence and domain approval"]} />
+  <DiagramCard x={60} y={501} width={240} title={"Inactive candidate"} tone="warning" lines={["Validation failure", "Active pointer", "stays unchanged"]} />
+  <DiagramCard x={340} y={501} width={240} title={"Activate atomically"} tone="authority" lines={["Pointer and history", "Audit, public event and", "exact replay response"]} />
+  <DiagramCard x={60} y={692} width={520} title={"Active immutable snapshot"} tone="authority" lines={["Exact host, mode and audience;", "exact retained document bytes", "No drafts or private evidence"]} />
+  <DiagramCard x={60} y={883} width={240} title={"Host snapshot reads"} lines={["/.well-known/*", "ARD and AI", "Catalog aliases"]} />
+  <DiagramCard x={340} y={883} width={240} title={"Allowed documents"} lines={["/public/v1/artifacts", "Snapshot allowlist only"]} />
+  <DiagramCard x={60} y={1074} width={520} title={"ARD routes: /ard/v1/*"} lines={["Search, Explore and List read the host snapshot", "Search alone can add approved live results or referrals", "Live results use a bounded", "window and verified continuation"]} />
+
+</svg>
+</div>

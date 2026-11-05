@@ -1,0 +1,9 @@
+# Test-only native auth-server layout over the exact Registry dependency closure.
+# No package resolution, source patch, model download or network build step.
+FROM public.ecr.aws/p3v1o3c6/registry@sha256:76b35aa9a690a40d4e6c8f4205109f0583ebddbba147ce9329a6e8f90e92e3ff
+USER 0:0
+COPY --chown=1000:1000 auth_server/ /app/
+COPY --chown=1000:1000 docker/auth-entrypoint.sh /app/auth-entrypoint.sh
+USER 1000:1000
+WORKDIR /app
+ENTRYPOINT ["/bin/bash", "/app/auth-entrypoint.sh"]

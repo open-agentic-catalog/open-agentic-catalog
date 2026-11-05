@@ -1,0 +1,12 @@
+# Render-only example. Operators provide the matching certificate Secret.
+api:
+  ingress:
+    enabled: true
+    className: nginx
+    host: catalog.example.com
+    tlsSecretName: catalog-mcp-tls
+configEnv:
+  CATALOG_MCP_ENABLED: "true"
+  CATALOG_MCP_ALLOWED_ORIGINS: '["https://assistant.example.com"]'
+  CATALOG_MCP_MAX_TOOL_BYTES: "16384"
+  CATALOG_MCP_MAX_CONCURRENCY: "2"

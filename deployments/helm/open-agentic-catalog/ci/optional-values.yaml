@@ -1,0 +1,25 @@
+# Example Pod resolver options, delivered through Kubernetes.
+podDNSOptions: [{name: use-vc}]
+secrets:
+  webhookEncryption:
+    name: catalog-webhook-encryption
+    key: key
+  federationCredentials:
+    name: catalog-federation-credentials
+
+federation:
+  policy:
+    existingConfigMap: catalog-federation-policy
+    key: policy.json
+  trustBundleConfigMap: catalog-federation-trust
+
+auth:
+  trustBundleConfigMap: catalog-oidc-trust
+
+configEnv:
+  CATALOG_DATABASE_MAX_CONN_LIFETIME: "45m"
+  CATALOG_DATABASE_MAX_CONN_IDLE_TIME: "3m"
+  CATALOG_DATABASE_HEALTH_CHECK_PERIOD: "15s"
+  CATALOG_WEBHOOKS_ENABLED: "true"
+  CATALOG_CREDENTIAL_RESOLUTION_ENABLED: "true"
+  CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY: /etc/open-agentic-catalog/federation/credentials

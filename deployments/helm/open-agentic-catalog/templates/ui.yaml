@@ -1,0 +1,220 @@
+{{- if .Values.ui.enabled }}
+{{- $ui := .Values.ui }}
+{{- $name := include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "ui") }}
+{{- $secret := required "ui.existingSecret is required when UI is enabled" $ui.existingSecret }}
+{{- $origin := required "ui.config.origin is required when UI is enabled" $ui.config.origin }}
+{{- $config := deepCopy $ui.config }}
+{{- if and (eq $config.environment "production") (or (ne $config.authMode "oidc") (not (hasPrefix "https://" $origin))) }}
+{{- fail "production UI requires HTTPS origin and OIDC" }}
+{{- end }}
+{{- if eq $config.authMode "development" }}
+{{- if or (ne $config.environment "development") (not (regexMatch "^https?://(127\\.0\\.0\\.1|localhost|\\[::1\\])(:[0-9]+)?$" $origin)) $config.issuer $config.clientId (gt (len $config.scopes) 0) $ui.issuerCAConfigMap $ui.ingress.enabled }}
+{{- fail "development UI login requires a loopback development origin, no ingress and no OIDC settings" }}
+{{- end }}
+{{- $_ := set $config "developmentUsersFile" "/secrets/users.json" }}
+{{- else }}
+{{- $_ := required "ui.config.issuer is required for OIDC" $config.issuer }}
+{{- $_ := required "ui.config.clientId is required for OIDC" $config.clientId }}
+{{- if and (eq $config.environment "production") (not (hasPrefix "https://" $config.issuer)) }}
+{{- fail "production UI requires an HTTPS issuer" }}
+{{- end }}
+{{- $_ := set $config "clientSecretFile" "/secrets/client-secret" }}
+{{- end }}
+{{- $_ := set $config "listen" "0.0.0.0:8080" }}
+{{- $_ := set $config "assets" "/app/assets" }}
+{{- $_ := set $config "keysFile" "/secrets/keys.json" }}
+{{- $_ := set $config "upstream" (default (printf "http://%s:%v" (include "open-agentic-catalog.fullname" .) .Values.service.port) $config.upstream) }}
+{{- if $ui.apiCAConfigMap }}
+{{- $_ := set $config "apiCAFile" "/trust/api/ca.pem" }}
+{{- end }}
+{{- if $ui.issuerCAConfigMap }}
+{{- $_ := set $config "issuerCAFile" "/trust/issuer/ca.pem" }}
+{{- end }}
+{{- $image := printf "%s:%s" $ui.image.repository (default (.Chart.AppVersion | replace "+" "_") $ui.image.tag) }}
+{{- if $ui.image.digest }}
+{{- $image = printf "%s@%s" $ui.image.repository $ui.image.digest }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+data:
+  config.json: {{ $config | toJson | quote }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+spec:
+  replicas: {{ $ui.replicas }}
+  selector:
+    matchLabels:
+      {{- include "open-agentic-catalog.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ui
+  template:
+    metadata:
+      labels:
+        {{- include "open-agentic-catalog.labels" . | nindent 8 }}
+        app.kubernetes.io/component: ui
+      annotations:
+        {{- with omit $ui.podAnnotations "checksum/ui-config" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        checksum/ui-config: {{ $config | toJson | sha256sum | quote }}
+    spec:
+      serviceAccountName: {{ $name | quote }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.podDNSOptions }}
+      dnsConfig:
+        options: {{- toYaml . | nindent 10 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 20
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: catalog-ui
+          image: {{ $image | quote }}
+          imagePullPolicy: {{ $ui.image.pullPolicy | quote }}
+          ports: [{name: http, containerPort: 8080, protocol: TCP}]
+          startupProbe: {httpGet: {path: /livez, port: http}, periodSeconds: 2, failureThreshold: 30}
+          livenessProbe: {httpGet: {path: /livez, port: http}, periodSeconds: 10, timeoutSeconds: 3}
+          readinessProbe: {httpGet: {path: /readyz, port: http}, periodSeconds: 5, timeoutSeconds: 3}
+          resources: {{- toYaml $ui.resources | nindent 12 }}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+          volumeMounts:
+            - {name: config, mountPath: /config, readOnly: true}
+            - {name: session, mountPath: /secrets, readOnly: true}
+            {{- if $ui.apiCAConfigMap }}
+            - {name: api-ca, mountPath: /trust/api, readOnly: true}
+            {{- end }}
+            {{- if $ui.issuerCAConfigMap }}
+            - {name: issuer-ca, mountPath: /trust/issuer, readOnly: true}
+            {{- end }}
+      volumes:
+        - name: config
+          configMap: {name: {{ $name | quote }}}
+        - name: session
+          secret:
+            secretName: {{ $secret | quote }}
+            defaultMode: 0444
+            items:
+              - {key: keys.json, path: keys.json}
+              {{- if eq $config.authMode "development" }}
+              - {key: users.json, path: users.json}
+              {{- else }}
+              - {key: client-secret, path: client-secret}
+              {{- end }}
+        {{- if $ui.apiCAConfigMap }}
+        - name: api-ca
+          configMap: {name: {{ $ui.apiCAConfigMap | quote }}, items: [{key: ca.pem, path: ca.pem}]}
+        {{- end }}
+        {{- if $ui.issuerCAConfigMap }}
+        - name: issuer-ca
+          configMap: {name: {{ $ui.issuerCAConfigMap | quote }}, items: [{key: ca.pem, path: ca.pem}]}
+        {{- end }}
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "open-agentic-catalog.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+  ports: [{name: http, port: 8080, targetPort: http, protocol: TCP}]
+{{- if $ui.ingress.enabled }}
+{{- $host := required "ui.ingress.host is required" $ui.ingress.host }}
+{{- if ne $origin (printf "https://%s" $host) }}
+{{- fail "UI ingress requires ui.config.origin to match https://ui.ingress.host" }}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+  annotations: {{- toYaml $ui.ingress.annotations | nindent 4 }}
+spec:
+  {{- with $ui.ingress.className }}
+  ingressClassName: {{ . | quote }}
+  {{- end }}
+  tls:
+    - hosts: [{{ $host | quote }}]
+      secretName: {{ required "ui.ingress.tlsSecretName is required" $ui.ingress.tlsSecretName | quote }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: {{ default "/" $config.basePath | quote }}
+            pathType: Prefix
+            backend:
+              service: {name: {{ $name | quote }}, port: {name: http}}
+          {{- if $config.basePath }}
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service: {name: {{ $name | quote }}, port: {name: http}}
+          {{- end }}
+{{- end }}
+{{- if $ui.networkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: ui
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "open-agentic-catalog.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: ui
+  policyTypes: [Ingress, Egress]
+  ingress: {{- toYaml $ui.networkPolicy.ingress | nindent 4 }}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "open-agentic-catalog.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: api
+      ports: [{protocol: TCP, port: 8080}]
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: kube-system}
+          podSelector:
+            matchLabels: {k8s-app: kube-dns}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    {{- with $ui.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}

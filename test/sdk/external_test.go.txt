@@ -1,0 +1,185 @@
+package consumer_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	sdk "github.com/open-agentic-catalog/open-agentic-catalog/sdk/go"
+)
+
+func TestIndependentSDKConsumer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/.well-known/ard.json" || r.Header.Get("Authorization") != "" || r.Header.Get("If-None-Match") != `"consumer-etag"` {
+			t.Error("unexpected discovery request")
+		}
+		w.Header().Set("ETag", `"consumer-etag"`)
+		w.WriteHeader(http.StatusNotModified)
+	}))
+	defer server.Close()
+	c, err := sdk.New(sdk.Config{Origin: server.URL, AllowLoopbackHTTP: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	etag := `"consumer-etag"`
+	r, err := c.GetARDManifestWithResponse(context.Background(), &sdk.GetARDManifestParams{IfNoneMatch: &etag})
+	if err != nil || r.StatusCode() != http.StatusNotModified || r.HTTPResponse.Header.Get("ETag") != `"consumer-etag"` || len(r.Body) != 0 {
+		t.Fatal("external module request failed", err)
+	}
+}
+
+// Run the exact README helpers, rather than a copy that can drift from the guide.
+// These controls test client usage; the composed fixture separately owns schema
+// and governed-release correctness.
+func TestReadmeSearchContinuation(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		cursors []string
+		failure bool
+	}{
+		{name: "empty-page-can-continue", cursors: []string{"next", ""}},
+		{name: "three-page-budget", cursors: []string{"second", "third", "fourth", ""}},
+		{name: "refusal-retains-previous-page", cursors: []string{"retry"}, failure: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var requestsMu sync.Mutex
+			var requests []map[string]any
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requestsMu.Lock()
+				defer requestsMu.Unlock()
+				if r.Method != http.MethodPost || r.URL.Path != "/api/v1/catalog/search" || r.Header.Get("Authorization") != "Bearer selected" {
+					t.Error("README helper changed request destination or identity")
+				}
+				var query map[string]any
+				if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
+					t.Error(err)
+				}
+				requests = append(requests, query)
+				if len(requests) > 1 && query["cursor"] != tc.cursors[len(requests)-2] {
+					t.Error("README helper changed the opaque cursor")
+				}
+				if tc.failure && len(requests) > 1 {
+					w.Header().Set("Content-Type", "application/problem+json")
+					w.WriteHeader(http.StatusForbidden)
+					_, _ = io.WriteString(w, `{"type":"about:blank","title":"Forbidden","status":403,"code":"FORBIDDEN","detail":"private-content"}`)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				page := map[string]any{
+					"items": []any{}, "durableTotal": 0, "liveCount": 0,
+					"partial": true, "tier": "core", "profile": "core-lexical-v1",
+					"generation":  "sha256:" + strings.Repeat("a", 64),
+					"diagnostics": []any{map[string]any{"status": "continuation_unavailable"}},
+				}
+				if cursor := tc.cursors[len(requests)-1]; cursor != "" {
+					page["nextCursor"] = cursor
+				}
+				if err := json.NewEncoder(w).Encode(page); err != nil {
+					t.Error(err)
+				}
+			}))
+			defer server.Close()
+			client, err := sdk.New(sdk.Config{Origin: server.URL, AllowLoopbackHTTP: true, Token: "selected"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			pages, next, err := searchLocalPages(ctx, client, nil)
+			requestsMu.Lock()
+			defer requestsMu.Unlock()
+			if tc.failure {
+				if err == nil || strings.Contains(err.Error(), "private-content") || len(pages) != 1 || next == nil || *next != "retry" {
+					t.Fatal("README helper lost earlier pages or exposed refusal contents")
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if len(pages) > 3 || len(requests) > 3 {
+				t.Fatal("README helper exceeded its three-page budget")
+			}
+			if !tc.failure && len(tc.cursors) > 3 {
+				if next == nil || *next != "fourth" || len(pages) != 3 {
+					t.Fatal("README helper discarded remaining continuation")
+				}
+			} else if !tc.failure && (next != nil || len(pages) != 2) {
+				t.Fatal("README helper stopped at an empty page instead of the cursor")
+			}
+			for _, page := range pages {
+				if !page.Partial || page.Diagnostics == nil || len(*page.Diagnostics) != 1 || (*page.Diagnostics)[0].Status != "continuation_unavailable" {
+					t.Fatal("README helper discarded partial-result evidence")
+				}
+			}
+			for _, query := range requests {
+				delete(query, "cursor")
+				if !reflect.DeepEqual(query, map[string]any{"text": "documentation", "limit": float64(10), "origins": []any{"local"}}) {
+					t.Fatal("README continuation changed the query or filters")
+				}
+			}
+		})
+	}
+}
+
+func TestReadmeLocalDetailAndSafeDiagnostics(t *testing.T) {
+	const releaseID = "00000000-0000-7000-8000-000000000123"
+	var reads atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reads.Add(1)
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/catalog/resources/"+releaseID {
+			t.Error("README helper used a resource or result ID instead of the release ID")
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"source":"local","release":{"id":%q}}`, releaseID)
+	}))
+	defer server.Close()
+	client, err := sdk.New(sdk.Config{Origin: server.URL, AllowLoopbackHTTP: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.Close()
+	var item sdk.CatalogSearchResult
+	if err := json.Unmarshal([]byte(`{"type":"local","id":"local:search-result","local":{"release":{"id":"`+releaseID+`"}}}`), &item); err != nil {
+		t.Fatal(err)
+	}
+	record, err := readLocalResult(context.Background(), client, item)
+	if err != nil || record.Release.Id.String() != releaseID {
+		t.Fatal("README exact release read failed", err)
+	}
+	for _, kind := range []sdk.CatalogSearchResultType{"indexed", "live"} {
+		item.Type = kind
+		if _, err := readLocalResult(context.Background(), client, item); err == nil {
+			t.Fatal("README helper admitted an external item as a local release")
+		}
+	}
+	item.Type, item.Local = "local", nil
+	if _, err := readLocalResult(context.Background(), client, item); err == nil || reads.Load() != 1 {
+		t.Fatal("invalid or external result issued an HTTP read")
+	}
+	var output bytes.Buffer
+	reportSDKFailure(&output, nil)
+	if output.Len() != 0 {
+		t.Fatal("successful call emitted a failure")
+	}
+	reportSDKFailure(&output, &sdk.Error{Code: "response_over_limit", StatusCode: 200})
+	if output.String() != "SDK failure: response_over_limit; HTTP status: 200\n" {
+		t.Fatal("README safe diagnostic omitted the fixed SDK classification")
+	}
+	output.Reset()
+	reportSDKFailure(&output, errors.New("private dependency details"))
+	if output.String() != "Catalog call failed\n" {
+		t.Fatal("README diagnostic exposed an unreviewed cause")
+	}
+}

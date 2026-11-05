@@ -1,0 +1,702 @@
+[
+  {
+    "name": "normal",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "case-sensitive-license",
+    "entry": {
+      "metadata": {
+        "license": "mit"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": "mit",
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "exact-license-spaces",
+    "entry": {
+      "metadata": {
+        "license": " MIT "
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": " MIT ",
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "unicode-normalization",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          " CAFÉ　",
+          "\tTOOLS\n",
+          "café"
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": [
+      "café",
+      "tools"
+    ]
+  },
+  {
+    "name": "inner-spaces",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "A  B"
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": [
+      "a  b"
+    ]
+  },
+  {
+    "name": "unicode-17",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "꟎",
+          "𖺠"
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": [
+      "꟏",
+      "𖺻"
+    ]
+  },
+  {
+    "name": "scalar",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": " TOOLS "
+      }
+    },
+    "license": "MIT",
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "known-empty",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": []
+      }
+    },
+    "license": "MIT",
+    "categories": []
+  },
+  {
+    "name": "license-null",
+    "entry": {
+      "metadata": {
+        "license": null
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "license-number",
+    "entry": {
+      "metadata": {
+        "license": 7
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "license-boolean",
+    "entry": {
+      "metadata": {
+        "license": true
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "license-object",
+    "entry": {
+      "metadata": {
+        "license": {
+          "name": "MIT"
+        }
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "license-array",
+    "entry": {
+      "metadata": {
+        "license": [
+          "MIT"
+        ]
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "license-empty",
+    "entry": {
+      "metadata": {
+        "license": ""
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "license-blank",
+    "entry": {
+      "metadata": {
+        "license": " \t"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "license-max-unicode",
+    "entry": {
+      "metadata": {
+        "license": "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂",
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "license-excess-unicode",
+    "entry": {
+      "metadata": {
+        "license": "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "license-raw-bound",
+    "entry": {
+      "metadata": {
+        "license": "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂 "
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "subject-null",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": null
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-number",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": 7
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-boolean",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": false
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-object",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": {
+          "name": "tools"
+        }
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-iri",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": {
+          "@id": "tools"
+        }
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-value-object",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": {
+          "@value": "tools"
+        }
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-mixed",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools",
+          1
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-null-element",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools",
+          null
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-nested",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          [
+            "tools"
+          ]
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-empty-label",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools",
+          ""
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-blank-label",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools",
+          " "
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-max-count",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "Label00",
+          "Label01",
+          "Label02",
+          "Label03",
+          "Label04",
+          "Label05",
+          "Label06",
+          "Label07",
+          "Label08",
+          "Label09",
+          "Label10",
+          "Label11",
+          "Label12",
+          "Label13",
+          "Label14",
+          "Label15"
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": [
+      "label00",
+      "label01",
+      "label02",
+      "label03",
+      "label04",
+      "label05",
+      "label06",
+      "label07",
+      "label08",
+      "label09",
+      "label10",
+      "label11",
+      "label12",
+      "label13",
+      "label14",
+      "label15"
+    ]
+  },
+  {
+    "name": "subject-excess-duplicates",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools",
+          "tools"
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-max-unicode",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂"
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": [
+      "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂"
+    ]
+  },
+  {
+    "name": "subject-excess-unicode",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂"
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "subject-raw-bound",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂🙂 "
+        ]
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "missing-license",
+    "entry": {
+      "metadata": {},
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "missing-subject",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {}
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "reverse-subject",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": {
+        "@reverse": {
+          "http://purl.org/dc/terms/subject": "tools"
+        }
+      }
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "bad-metadata-shape",
+    "entry": {
+      "metadata": [],
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  },
+  {
+    "name": "bad-unknown-shape",
+    "entry": {
+      "metadata": {
+        "license": "MIT"
+      },
+      "unknownProperties": "tools"
+    },
+    "license": "MIT",
+    "categories": null
+  },
+  {
+    "name": "both-unavailable",
+    "entry": {
+      "metadata": {
+        "license": 123
+      },
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools",
+          false
+        ]
+      }
+    },
+    "license": null,
+    "categories": null
+  },
+  {
+    "name": "native-license-not-borrowed",
+    "entry": {
+      "metadata": {},
+      "unknownProperties": {
+        "http://purl.org/dc/terms/subject": [
+          "tools"
+        ]
+      },
+      "data": {
+        "license": "MIT"
+      }
+    },
+    "license": null,
+    "categories": [
+      "tools"
+    ]
+  }
+]

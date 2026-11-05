@@ -1,0 +1,102 @@
+{
+  "description": "Named request bodies and empty response examples, not a request envelope. Retrieval is selected by the deployment, not by a client model/tier flag. Hashes are illustrative. A real result page includes the normal source-tagged items.",
+  "search": {
+    "text": "purchase assistance",
+    "limit": 20
+  },
+  "reindex": {
+    "reason": "Rebuild derived search metadata"
+  },
+  "responses": [
+    {
+      "items": [],
+      "durableTotal": 0,
+      "liveCount": 0,
+      "profile": "core-lexical-v1",
+      "generation": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tier": "core",
+      "partial": false
+    },
+    {
+      "items": [],
+      "durableTotal": 0,
+      "liveCount": 0,
+      "profile": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "generation": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tier": "hybrid",
+      "partial": false
+    },
+    {
+      "items": [],
+      "durableTotal": 0,
+      "liveCount": 0,
+      "profile": "core-lexical-v1",
+      "generation": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tier": "core",
+      "fallbackReason": "indexing",
+      "partial": false
+    },
+    {
+      "items": [],
+      "durableTotal": 0,
+      "liveCount": 0,
+      "profile": "core-lexical-v1",
+      "generation": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "tier": "core",
+      "fallbackReason": "provider_unavailable",
+      "partial": false
+    }
+  ],
+  "filteredSearches": [
+    {
+      "text": "purchase assistance",
+      "origins": [
+        "local"
+      ],
+      "namespaceId": "00000000-0000-7000-8000-000000000001",
+      "limit": 20
+    },
+    {
+      "text": "purchase assistance",
+      "origins": [
+        "indexed",
+        "live"
+      ],
+      "limit": 20
+    },
+    {
+      "text": "purchase assistance",
+      "origins": [
+        "live"
+      ],
+      "limit": 20
+    }
+  ],
+  "namespaceExplore": {
+    "query": {
+      "namespaceId": "00000000-0000-7000-8000-000000000001"
+    },
+    "facets": [
+      {
+        "field": "namespace",
+        "limit": 20
+      }
+    ]
+  },
+  "continuationInstructions": "Copy nextCursor verbatim from the previous response. Keep all criteria and the limit unchanged. Retry the same body after a temporary replay failure. Restart without a cursor after expiry or changed results. Hybrid pages preserve durable rank order before a separate live tail. Live-only pages skip durable and embedding work. The cursor below is a placeholder, not a valid token.",
+  "continuations": [
+    {
+      "text": "purchase assistance",
+      "limit": 20,
+      "cursor": "<nextCursor>"
+    },
+    {
+      "text": "purchase assistance",
+      "origins": [
+        "live"
+      ],
+      "limit": 20,
+      "cursor": "<nextCursor>"
+    }
+  ]
+}

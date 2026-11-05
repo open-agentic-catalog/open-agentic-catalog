@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "open-agentic-catalog.fullname" . | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: configuration
+data:
+  {{- include "open-agentic-catalog.configData" . | trim | nindent 2 }}

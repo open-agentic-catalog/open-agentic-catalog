@@ -1,0 +1,11 @@
+# Render-only example. Create this Secret and provision the optional schema
+# before enabling a real deployment; no model service is deployed by the chart.
+semanticSearch:
+  enabled: true
+  endpoint: https://embeddings.example.com/v1/embeddings
+  model: deployment-model
+  profileRevision: reviewed-revision-1
+  dimensions: 384
+  existingSecret: catalog-embeddings
+  tokenFile: /etc/open-agentic-catalog/embeddings/token
+  caFile: /etc/open-agentic-catalog/embeddings/ca.pem

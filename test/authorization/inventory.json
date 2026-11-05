@@ -1,0 +1,4833 @@
+{
+  "version": 1,
+  "status": "implemented finite scoped authorization; currentAuthority retains the frozen pre-cutover baseline",
+  "permissions": {
+    "resource.read": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": []
+    },
+    "resource.read_history": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": []
+    },
+    "resource.read_content": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": []
+    },
+    "resource.create": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "namespace.read"
+      ]
+    },
+    "resource.edit": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "resource.read",
+        "resource.read_history",
+        "resource.read_content"
+      ]
+    },
+    "resource.delete_draft": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "resource.read"
+      ]
+    },
+    "resource.validate": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "resource.read_content"
+      ]
+    },
+    "review.submit": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "resource.read_history",
+        "resource.read_content"
+      ]
+    },
+    "review.decide": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "resource.read_history",
+        "resource.read_content"
+      ]
+    },
+    "release.publish": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "resource.read_history",
+        "resource.read_content"
+      ]
+    },
+    "release.transition": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "resource.read"
+      ]
+    },
+    "namespace.read": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": []
+    },
+    "namespace.manage": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "namespace.read"
+      ]
+    },
+    "namespace.create": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "publisher.read": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "publisher.create": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "publisher.read"
+      ]
+    },
+    "publisher.manage": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "publisher.read"
+      ]
+    },
+    "publisher.approve_domain": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "publisher.read"
+      ]
+    },
+    "federation.discover": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "source.read": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "source.inspect": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "source.read"
+      ]
+    },
+    "source.manage": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "source.read",
+        "source.inspect"
+      ]
+    },
+    "source.sync": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "source.read"
+      ]
+    },
+    "source.read_evidence": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "source.read"
+      ]
+    },
+    "publication.read": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "publication.generate": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "publication.read"
+      ]
+    },
+    "publication.activate": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "publication.read"
+      ]
+    },
+    "publication.rollback": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "publication.read"
+      ]
+    },
+    "publication.unpublish": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "publication.read"
+      ]
+    },
+    "discovery.read": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "job.read": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "job.cancel": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "job.read"
+      ]
+    },
+    "job.retry": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "job.read"
+      ]
+    },
+    "audit.read": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "audit.export": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "audit.read"
+      ]
+    },
+    "webhook.read": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "webhook.manage": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "webhook.read"
+      ]
+    },
+    "webhook.test": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "webhook.read"
+      ]
+    },
+    "webhook.rotate": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "webhook.read"
+      ]
+    },
+    "webhook.read_evidence": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "webhook.read"
+      ]
+    },
+    "feedback.own": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "feedback.moderate": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "operations.reindex": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "access.manage": {
+      "scope": "tenant",
+      "delegable": false,
+      "requires": []
+    },
+    "ratings.own": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": []
+    },
+    "ratings.moderate": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "ratings.sharing.manage": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "settings.read": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    },
+    "settings.manage": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": [
+        "settings.read"
+      ]
+    },
+    "library.own": {
+      "scope": "tenant",
+      "delegable": true,
+      "requires": []
+    }
+  },
+  "builtins": {
+    "reader": [
+      "ratings.own",
+      "resource.read",
+      "resource.read_history",
+      "resource.read_content",
+      "namespace.read"
+    ],
+    "contributor": [
+      "ratings.own",
+      "resource.read",
+      "resource.read_history",
+      "resource.read_content",
+      "namespace.read",
+      "resource.create",
+      "resource.edit",
+      "resource.delete_draft",
+      "resource.validate",
+      "review.submit"
+    ],
+    "reviewer": [
+      "ratings.own",
+      "resource.read",
+      "resource.read_history",
+      "resource.read_content",
+      "namespace.read",
+      "review.decide"
+    ],
+    "publisher": [
+      "ratings.own",
+      "resource.read",
+      "resource.read_history",
+      "resource.read_content",
+      "namespace.read",
+      "release.publish",
+      "release.transition"
+    ],
+    "discovery_reader": [
+      "library.own",
+      "ratings.own",
+      "federation.discover",
+      "discovery.read",
+      "publisher.read",
+      "job.read"
+    ],
+    "publisher_creator": [
+      "publisher.read",
+      "publisher.create"
+    ],
+    "publication_admin": [
+      "publication.read",
+      "publication.generate",
+      "publication.activate",
+      "publication.rollback",
+      "publication.unpublish",
+      "job.read",
+      "job.cancel",
+      "job.retry"
+    ],
+    "source_admin": [
+      "source.read",
+      "source.inspect",
+      "source.manage",
+      "source.sync",
+      "source.read_evidence",
+      "federation.discover",
+      "job.read",
+      "job.cancel",
+      "job.retry"
+    ],
+    "security_reviewer": [
+      "audit.read",
+      "audit.export"
+    ],
+    "webhook_admin": [
+      "webhook.read",
+      "webhook.manage",
+      "webhook.test",
+      "webhook.rotate",
+      "webhook.read_evidence"
+    ],
+    "feedback_member": [
+      "feedback.own"
+    ],
+    "tenant_admin": [
+      "library.own",
+      "settings.read",
+      "settings.manage",
+      "ratings.moderate",
+      "ratings.sharing.manage",
+      "ratings.own",
+      "resource.read",
+      "resource.read_history",
+      "resource.read_content",
+      "resource.create",
+      "resource.edit",
+      "resource.delete_draft",
+      "resource.validate",
+      "review.submit",
+      "review.decide",
+      "release.publish",
+      "release.transition",
+      "namespace.read",
+      "namespace.manage",
+      "namespace.create",
+      "publisher.read",
+      "publisher.create",
+      "publisher.manage",
+      "publisher.approve_domain",
+      "federation.discover",
+      "source.read",
+      "source.inspect",
+      "source.manage",
+      "source.sync",
+      "source.read_evidence",
+      "publication.read",
+      "publication.generate",
+      "publication.activate",
+      "publication.rollback",
+      "publication.unpublish",
+      "discovery.read",
+      "job.read",
+      "job.cancel",
+      "job.retry",
+      "audit.read",
+      "audit.export",
+      "webhook.read",
+      "webhook.manage",
+      "webhook.test",
+      "webhook.rotate",
+      "webhook.read_evidence",
+      "feedback.own",
+      "feedback.moderate",
+      "operations.reindex",
+      "access.manage"
+    ],
+    "service_client": [],
+    "library_member": [
+      "library.own"
+    ]
+  },
+  "policies": {
+    "process": {
+      "scopeSource": "none",
+      "actors": "anonymous",
+      "disclosure": "bounded process/build/metrics or exact public contract; metrics retain existing deployment authentication",
+      "eligibility": "existing listener policy; no membership permission"
+    },
+    "self": {
+      "scopeSource": "resolved membership",
+      "actors": "active human or service member",
+      "disclosure": "own access and bounded capabilities; no other user permission inspection",
+      "eligibility": "OAuth enforcement unchanged; per-capability permission checks for sensitive operations"
+    },
+    "access": {
+      "scopeSource": "tenant plus administrator realm for grants/groups",
+      "actors": "protected direct tenant administrator",
+      "disclosure": "bounded same-tenant membership/assignment records",
+      "eligibility": "last usable admin, terminal offboarding, revision/reason, reserved built-ins, no group administrator"
+    },
+    "namespace": {
+      "scopeSource": "exact addressed namespace, authorized directory population; creation uses tenant",
+      "actors": "active human or service member",
+      "disclosure": "only accessible directory records; compact labels on authorized resources do not enumerate the directory",
+      "eligibility": "trusted ID lookup, no moves, scope validation and revision"
+    },
+    "publisher": {
+      "scopeSource": "tenant",
+      "actors": "active human or service member",
+      "disclosure": "publisher directory/evidence only with explicit permission; compact resource summaries separate",
+      "eligibility": "publisher administration/domain approval distinct; revisions and active-release safety"
+    },
+    "content": {
+      "scopeSource": "canonical resource namespace through same-tenant parent/reference",
+      "actors": "active human or service member",
+      "disclosure": "authorized metadata/history/exact content according to permission; digests do not grant access",
+      "eligibility": "namespace spoofing refused, immutable evidence, current audit-before-content, deleted/draft rules; edits require read, deletion requires creator or protected administrator"
+    },
+    "review": {
+      "scopeSource": "canonical resource namespace",
+      "actors": "active human or service member; preserve existing actor policy",
+      "disclosure": "submission metadata or evidence through authorized target",
+      "eligibility": "current validation and no self-approval; action authority does not bypass eligibility"
+    },
+    "release": {
+      "scopeSource": "canonical resource namespace",
+      "actors": "active human or service member",
+      "disclosure": "selected release with authorized read capability",
+      "eligibility": "approved review, publisher/domain/validation, immutable evidence, ETag and legal state transition"
+    },
+    "search": {
+      "scopeSource": "authorized local namespaces; external results separately require tenant federation.discover",
+      "actors": "active human or service member",
+      "disclosure": "predicate before count/facets/ranking/paging; no inaccessible provenance or suppression by hidden local matches",
+      "eligibility": "origins authorized before live query disclosure; unknown targets hidden; lexical/hybrid same authority"
+    },
+    "source": {
+      "scopeSource": "tenant and approved source topology",
+      "actors": "active human or service member",
+      "disclosure": "source metadata distinct from raw observation/credential-private evidence",
+      "eligibility": "current source revision, egress/audience/query policy, inspect-before-connect, complete snapshots preserved"
+    },
+    "adoption": {
+      "scopeSource": "tenant source evidence plus destination namespace from trusted input/lookup",
+      "actors": "active human or service member",
+      "disclosure": "exact occurrence under source.read_evidence and new local draft",
+      "eligibility": "complete occurrence, immutable provenance, no silent discovery adoption or execution"
+    },
+    "publication": {
+      "scopeSource": "tenant and configured host binding",
+      "actors": "active human or service member",
+      "disclosure": "private retained publication candidates/results",
+      "eligibility": "whole snapshot transition distinct from namespace release, approved host, completeness/work bounds, activation revalidation"
+    },
+    "jobs": {
+      "scopeSource": "trusted Job kind and retained tenant/target",
+      "actors": "active human or service member",
+      "disclosure": "bounded target-authorized Job projection; no execution payload or mixed private snapshot",
+      "eligibility": "job permission AND owner-family permission; source.sync=>source.read/manage; source.trust_verify=>source.read_evidence, with source.manage AND federation.discover for cancel/retry; publication.generate=>publication.read/generate; semantic.reindex=>operations.reindex; unknown kinds refuse and target checks are family-specific; trust status remains readable after source changes/removal, while retry rechecks current source, policy and credential eligibility"
+    },
+    "audit": {
+      "scopeSource": "tenant",
+      "actors": "active human or service member",
+      "disclosure": "privileged tenant-wide audit or bounded deterministic export; not object-filtered documents",
+      "eligibility": "required private-read evidence, bounds and immutable audit"
+    },
+    "webhook": {
+      "scopeSource": "tenant",
+      "actors": "active human or service member",
+      "disclosure": "endpoint/delivery evidence; one-time secrets only under exact command result authority",
+      "eligibility": "HTTPS fetch rules, configured capability, rotation/revision, safe current replay of secrets"
+    },
+    "feedback": {
+      "scopeSource": "own membership or tenant moderator; creation also needs resource.read on target",
+      "actors": "human for own listing/submission/edit/withdraw; active human or service member for own exact read and moderator operations under existing actor policy",
+      "disclosure": "private own/admin current text; replay only text-free receipt",
+      "eligibility": "immutable context, authorship/moderation/state checks; resource visibility loss does not disclose other records or erase own submission"
+    },
+    "operations": {
+      "scopeSource": "tenant",
+      "actors": "active human or service member",
+      "disclosure": "bounded reindex Job receipt",
+      "eligibility": "current enabled profile, bounded target/valid payload; no schema-owner migration authority"
+    },
+    "discovery": {
+      "scopeSource": "configured host/audience and active immutable snapshot",
+      "actors": "anonymous only when enabled; authenticated host requires active member plus discovery.read",
+      "disclosure": "only activated allowlisted public artifacts/metadata; never private draft filtering",
+      "eligibility": "host/tenant/scope ceiling; explicit change from current authenticated host active-membership-only admission; private revoke does not unpublish public entries"
+    },
+    "internal": {
+      "scopeSource": "trusted composition/host or admitted Job/transition",
+      "actors": "internal execution only; service classification or a worker-like subject is insufficient",
+      "disclosure": "caller retains host/tenant/target boundary; no user permission bypass",
+      "eligibility": "typed work, kind/lease/target and domain eligibility; initiating attribution separate"
+    },
+    "ratings": {
+      "scopeSource": "Exact released version or admitted actual source generation; tenant-scoped aggregates.",
+      "actors": "Active verified humans own opinions; finite tenant administrators moderate and configure sharing.",
+      "disclosure": "Only admitted discovery targets receive aggregates; own records remain disposable after visibility loss.",
+      "eligibility": "Current source/policy/credential fences, exact namespace permission and optional OAuth ceilings."
+    },
+    "mcp": {
+      "scopeSource": "request-owned authenticated member; exact tool uses existing Control read authority",
+      "actors": "active human or service member",
+      "disclosure": "six bounded metadata tools; self-access excludes private identity fields; no execution or native documents",
+      "eligibility": "default-off finite stateless HTTP; valid protocol and mirrored headers precede read; resource tools require catalog.read when enforced; no shared credential/session"
+    },
+    "settings": {
+      "scopeSource": "authenticated tenant only",
+      "actors": "active human or service member with explicitly granted tenant permission",
+      "disclosure": "safe tenant overrides and responding API deployment defaults; no secrets or worker configuration",
+      "eligibility": "current permission, tenant.admin OAuth ceiling, exact settings ETag, idempotency and audited reason"
+    },
+    "personal": {
+      "scopeSource": "current Catalog authority",
+      "actors": "active human membership",
+      "disclosure": "owner only; current independent target permissions",
+      "eligibility": "exact membership/realm attribution and bounded selection"
+    }
+  },
+  "operations": [
+    {
+      "operationId": "listOwnFeedback",
+      "method": "GET",
+      "path": "/api/v1/feedback",
+      "permissions": [
+        "feedback.own"
+      ],
+      "policy": "feedback",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader plus human identity; own membership for listing/edit/withdraw"
+    },
+    {
+      "operationId": "createFeedback",
+      "method": "POST",
+      "path": "/api/v1/feedback",
+      "permissions": [
+        "feedback.own"
+      ],
+      "policy": "feedback",
+      "oauthCeiling": "feedback.write",
+      "currentAuthority": "global reader plus human identity; own membership for listing/edit/withdraw"
+    },
+    {
+      "operationId": "listFeedbackInbox",
+      "method": "GET",
+      "path": "/api/v1/feedback/inbox",
+      "permissions": [
+        "feedback.moderate"
+      ],
+      "policy": "feedback",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin (implies reader); no human-only moderator condition"
+    },
+    {
+      "operationId": "getFeedback",
+      "method": "GET",
+      "path": "/api/v1/feedback/{feedbackId}",
+      "permissions": [],
+      "policy": "feedback",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader and own membership or tenant_admin; target lookup remains required; no human-only exact-read condition",
+      "conditionalPermissions": {
+        "own": [
+          "feedback.own"
+        ],
+        "moderator": [
+          "feedback.moderate"
+        ]
+      }
+    },
+    {
+      "operationId": "editFeedback",
+      "method": "PATCH",
+      "path": "/api/v1/feedback/{feedbackId}",
+      "permissions": [
+        "feedback.own"
+      ],
+      "policy": "feedback",
+      "oauthCeiling": "feedback.write",
+      "currentAuthority": "global reader plus human identity; own membership for listing/edit/withdraw"
+    },
+    {
+      "operationId": "withdrawFeedback",
+      "method": "POST",
+      "path": "/api/v1/feedback/{feedbackId}:withdraw",
+      "permissions": [
+        "feedback.own"
+      ],
+      "policy": "feedback",
+      "oauthCeiling": "feedback.write",
+      "currentAuthority": "global reader plus human identity; own membership for listing/edit/withdraw"
+    },
+    {
+      "operationId": "addressFeedback",
+      "method": "POST",
+      "path": "/api/v1/feedback/{feedbackId}:address",
+      "permissions": [
+        "feedback.moderate"
+      ],
+      "policy": "feedback",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin (implies reader); no human-only moderator condition"
+    },
+    {
+      "operationId": "reopenFeedback",
+      "method": "POST",
+      "path": "/api/v1/feedback/{feedbackId}:reopen",
+      "permissions": [
+        "feedback.moderate"
+      ],
+      "policy": "feedback",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin (implies reader); no human-only moderator condition"
+    },
+    {
+      "operationId": "removeFeedback",
+      "method": "POST",
+      "path": "/api/v1/feedback/{feedbackId}:remove",
+      "permissions": [
+        "feedback.moderate"
+      ],
+      "policy": "feedback",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin (implies reader); no human-only moderator condition"
+    },
+    {
+      "operationId": "getLiveness",
+      "method": "GET",
+      "path": "/livez",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "listener policy"
+    },
+    {
+      "operationId": "getReadiness",
+      "method": "GET",
+      "path": "/readyz",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "listener policy"
+    },
+    {
+      "operationId": "getVersion",
+      "method": "GET",
+      "path": "/version",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "listener policy"
+    },
+    {
+      "operationId": "getMetrics",
+      "method": "GET",
+      "path": "/metrics",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "listener policy"
+    },
+    {
+      "operationId": "getControlOpenAPI",
+      "method": "GET",
+      "path": "/openapi/control-v1.yaml",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "listener policy"
+    },
+    {
+      "operationId": "getServiceActivity",
+      "method": "GET",
+      "path": "/api/v1/service-activity",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "current scoped permission selection; deployment disclosure gate"
+    },
+    {
+      "operationId": "getServiceInformation",
+      "method": "GET",
+      "path": "/api/v1/service-information",
+      "permissions": [],
+      "policy": "self",
+      "oauthCeiling": "",
+      "currentAuthority": "active membership"
+    },
+    {
+      "operationId": "getCapabilities",
+      "method": "GET",
+      "path": "/api/v1/capabilities",
+      "permissions": [],
+      "policy": "self",
+      "oauthCeiling": "",
+      "currentAuthority": "active membership"
+    },
+    {
+      "operationId": "getCurrentAccess",
+      "method": "GET",
+      "path": "/api/v1/me",
+      "permissions": [],
+      "policy": "self",
+      "oauthCeiling": "",
+      "currentAuthority": "active membership"
+    },
+    {
+      "operationId": "listMemberships",
+      "method": "GET",
+      "path": "/api/v1/memberships",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "getMembership",
+      "method": "GET",
+      "path": "/api/v1/memberships/{membershipId}",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "getMembershipAccess",
+      "method": "GET",
+      "path": "/api/v1/memberships/{membershipId}/access",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "current access.manage; bounded target paths; current-realm group disclosure"
+    },
+    {
+      "operationId": "suspendMembership",
+      "method": "POST",
+      "path": "/api/v1/memberships/{membershipId}:suspend",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "reactivateMembership",
+      "method": "POST",
+      "path": "/api/v1/memberships/{membershipId}:reactivate",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "offboardMembership",
+      "method": "POST",
+      "path": "/api/v1/memberships/{membershipId}:offboard",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "listRoleAssignments",
+      "method": "GET",
+      "path": "/api/v1/role-assignments",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "grantRoleAssignment",
+      "method": "POST",
+      "path": "/api/v1/role-assignments",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "revokeRoleAssignment",
+      "method": "POST",
+      "path": "/api/v1/role-assignments/{assignmentId}:revoke",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "listNamespaces",
+      "method": "GET",
+      "path": "/api/v1/namespaces",
+      "permissions": [
+        "namespace.read"
+      ],
+      "policy": "namespace",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "createNamespace",
+      "method": "POST",
+      "path": "/api/v1/namespaces",
+      "permissions": [
+        "namespace.create"
+      ],
+      "policy": "namespace",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "getNamespace",
+      "method": "GET",
+      "path": "/api/v1/namespaces/{namespaceId}",
+      "permissions": [
+        "namespace.read"
+      ],
+      "policy": "namespace",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "updateNamespace",
+      "method": "PATCH",
+      "path": "/api/v1/namespaces/{namespaceId}",
+      "permissions": [
+        "namespace.manage"
+      ],
+      "policy": "namespace",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "listPublishers",
+      "method": "GET",
+      "path": "/api/v1/publishers",
+      "permissions": [
+        "publisher.read"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "createPublisher",
+      "method": "POST",
+      "path": "/api/v1/publishers",
+      "permissions": [
+        "publisher.create"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.manage",
+      "currentAuthority": "global contributor"
+    },
+    {
+      "operationId": "getPublisher",
+      "method": "GET",
+      "path": "/api/v1/publishers/{publisherId}",
+      "permissions": [
+        "publisher.read"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "updatePublisher",
+      "method": "PATCH",
+      "path": "/api/v1/publishers/{publisherId}",
+      "permissions": [
+        "publisher.manage"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "approvePublisherPublicationDomain",
+      "method": "POST",
+      "path": "/api/v1/publishers/{publisherId}/publication-domains/{domain}:approve",
+      "permissions": [
+        "publisher.approve_domain"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "revokePublisherPublicationDomain",
+      "method": "POST",
+      "path": "/api/v1/publishers/{publisherId}/publication-domains/{domain}:revoke",
+      "permissions": [
+        "publisher.approve_domain"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "listResourceListings",
+      "method": "GET",
+      "path": "/api/v1/resources/{resourceId}/listings",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "listListingReleases",
+      "method": "GET",
+      "path": "/api/v1/catalog-listings/{listingId}/releases",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "listReviewSubmissions",
+      "method": "GET",
+      "path": "/api/v1/review-submissions",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "review",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "getReviewSubmissionEvidence",
+      "method": "GET",
+      "path": "/api/v1/review-submissions/{submissionId}/evidence",
+      "permissions": [
+        "resource.read_content"
+      ],
+      "policy": "review",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "listResources",
+      "method": "GET",
+      "path": "/api/v1/resources",
+      "permissions": [
+        "resource.read"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "createResource",
+      "method": "POST",
+      "path": "/api/v1/resources",
+      "permissions": [
+        "resource.create"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "scoped contributor on canonical target namespace"
+    },
+    {
+      "operationId": "getResource",
+      "method": "GET",
+      "path": "/api/v1/resources/{resourceId}",
+      "permissions": [
+        "resource.read"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "deleteResource",
+      "method": "POST",
+      "path": "/api/v1/resources/{resourceId}:delete",
+      "permissions": [
+        "resource.delete_draft"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "creator with scoped contributor or tenant_admin"
+    },
+    {
+      "operationId": "listResourceVersions",
+      "method": "GET",
+      "path": "/api/v1/resources/{resourceId}/versions",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "createResourceVersion",
+      "method": "POST",
+      "path": "/api/v1/resources/{resourceId}/versions",
+      "permissions": [
+        "resource.edit"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "scoped contributor on canonical target namespace"
+    },
+    {
+      "operationId": "getResourceVersion",
+      "method": "GET",
+      "path": "/api/v1/resource-versions/{versionId}",
+      "permissions": [
+        "resource.read"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "listVersionRevisions",
+      "method": "GET",
+      "path": "/api/v1/resource-versions/{versionId}/revisions",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "createVersionRevision",
+      "method": "POST",
+      "path": "/api/v1/resource-versions/{versionId}/revisions",
+      "permissions": [
+        "resource.edit"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "scoped contributor on canonical target namespace"
+    },
+    {
+      "operationId": "getVersionRevision",
+      "method": "GET",
+      "path": "/api/v1/version-revisions/{revisionId}",
+      "permissions": [
+        "resource.read_content"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "exportVersionRevisionDraft",
+      "method": "GET",
+      "path": "/api/v1/version-revisions/{revisionId}/export",
+      "permissions": [
+        "resource.read",
+        "resource.read_content"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current exact-namespace metadata and content grants; no history lookup"
+    },
+    {
+      "operationId": "validateVersionRevision",
+      "method": "POST",
+      "path": "/api/v1/version-revisions/{revisionId}:validate",
+      "permissions": [
+        "resource.validate"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "scoped contributor on canonical target namespace"
+    },
+    {
+      "operationId": "createCatalogListing",
+      "method": "POST",
+      "path": "/api/v1/catalog-listings",
+      "permissions": [
+        "resource.edit"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "scoped contributor on canonical target namespace"
+    },
+    {
+      "operationId": "getCatalogListing",
+      "method": "GET",
+      "path": "/api/v1/catalog-listings/{listingId}",
+      "permissions": [
+        "resource.read"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "listListingRevisions",
+      "method": "GET",
+      "path": "/api/v1/catalog-listings/{listingId}/revisions",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "createListingRevision",
+      "method": "POST",
+      "path": "/api/v1/catalog-listings/{listingId}/revisions",
+      "permissions": [
+        "resource.edit"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "scoped contributor on canonical target namespace"
+    },
+    {
+      "operationId": "getListingRevision",
+      "method": "GET",
+      "path": "/api/v1/listing-revisions/{revisionId}",
+      "permissions": [
+        "resource.read_content"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "submitListingForReview",
+      "method": "POST",
+      "path": "/api/v1/catalog-listings/{listingId}/submissions",
+      "permissions": [
+        "review.submit"
+      ],
+      "policy": "review",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "scoped contributor"
+    },
+    {
+      "operationId": "getReviewSubmission",
+      "method": "GET",
+      "path": "/api/v1/review-submissions/{submissionId}",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "review",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "approveReviewSubmission",
+      "method": "POST",
+      "path": "/api/v1/review-submissions/{submissionId}:approve",
+      "permissions": [
+        "review.decide"
+      ],
+      "policy": "review",
+      "oauthCeiling": "catalog.review",
+      "currentAuthority": "scoped reviewer; no self-approval"
+    },
+    {
+      "operationId": "requestReviewChanges",
+      "method": "POST",
+      "path": "/api/v1/review-submissions/{submissionId}:request-changes",
+      "permissions": [
+        "review.decide"
+      ],
+      "policy": "review",
+      "oauthCeiling": "catalog.review",
+      "currentAuthority": "scoped reviewer; no self-approval"
+    },
+    {
+      "operationId": "rejectReviewSubmission",
+      "method": "POST",
+      "path": "/api/v1/review-submissions/{submissionId}:reject",
+      "permissions": [
+        "review.decide"
+      ],
+      "policy": "review",
+      "oauthCeiling": "catalog.review",
+      "currentAuthority": "scoped reviewer; no self-approval"
+    },
+    {
+      "operationId": "publishCatalogListing",
+      "method": "POST",
+      "path": "/api/v1/catalog-listings/{listingId}:publish",
+      "permissions": [
+        "release.publish"
+      ],
+      "policy": "release",
+      "oauthCeiling": "catalog.publish",
+      "currentAuthority": "scoped publisher on canonical resource namespace; domain eligibility remains required"
+    },
+    {
+      "operationId": "getListingRelease",
+      "method": "GET",
+      "path": "/api/v1/listing-releases/{releaseId}",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "deprecateListingRelease",
+      "method": "POST",
+      "path": "/api/v1/listing-releases/{releaseId}:deprecate",
+      "permissions": [
+        "release.transition"
+      ],
+      "policy": "release",
+      "oauthCeiling": "catalog.publish",
+      "currentAuthority": "scoped publisher on canonical resource namespace; domain eligibility remains required"
+    },
+    {
+      "operationId": "retireListingRelease",
+      "method": "POST",
+      "path": "/api/v1/listing-releases/{releaseId}:retire",
+      "permissions": [
+        "release.transition"
+      ],
+      "policy": "release",
+      "oauthCeiling": "catalog.publish",
+      "currentAuthority": "scoped publisher on canonical resource namespace; domain eligibility remains required"
+    },
+    {
+      "operationId": "supersedeListingRelease",
+      "method": "POST",
+      "path": "/api/v1/listing-releases/{releaseId}:supersede",
+      "permissions": [
+        "release.transition"
+      ],
+      "policy": "release",
+      "oauthCeiling": "catalog.publish",
+      "currentAuthority": "scoped publisher on canonical resource namespace; domain eligibility remains required"
+    },
+    {
+      "operationId": "revokeListingRelease",
+      "method": "POST",
+      "path": "/api/v1/listing-releases/{releaseId}:revoke",
+      "permissions": [
+        "release.transition"
+      ],
+      "policy": "release",
+      "oauthCeiling": "catalog.publish",
+      "currentAuthority": "scoped publisher on canonical resource namespace; domain eligibility remains required"
+    },
+    {
+      "operationId": "getArtifactContent",
+      "method": "GET",
+      "path": "/api/v1/artifacts/{artifactId}/content",
+      "permissions": [
+        "resource.read_content"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "browseCatalog",
+      "method": "GET",
+      "path": "/api/v1/catalog/resources",
+      "permissions": [
+        "resource.read"
+      ],
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "getCatalogRecord",
+      "method": "GET",
+      "path": "/api/v1/catalog/resources/{catalogRecordId}",
+      "permissions": [
+        "resource.read"
+      ],
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "getIndexedCatalogRecord",
+      "method": "GET",
+      "path": "/api/v1/catalog/indexed-record",
+      "permissions": [
+        "federation.discover"
+      ],
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "reindexCatalog",
+      "method": "POST",
+      "path": "/api/v1/catalog:reindex",
+      "permissions": [
+        "operations.reindex"
+      ],
+      "policy": "operations",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "searchCatalog",
+      "method": "POST",
+      "path": "/api/v1/catalog/search",
+      "permissions": [],
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader",
+      "conditionalPermissions": {
+        "local": [
+          "resource.read"
+        ],
+        "external": [
+          "federation.discover"
+        ]
+      }
+    },
+    {
+      "operationId": "exploreCatalog",
+      "method": "POST",
+      "path": "/api/v1/catalog/explore",
+      "permissions": [
+        "resource.read"
+      ],
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "listAuditEvents",
+      "method": "GET",
+      "path": "/api/v1/audit-events",
+      "permissions": [
+        "audit.read"
+      ],
+      "policy": "audit",
+      "oauthCeiling": "audit.read",
+      "currentAuthority": "security_reviewer"
+    },
+    {
+      "operationId": "exportAuditEvents",
+      "method": "POST",
+      "path": "/api/v1/audit-exports",
+      "permissions": [
+        "audit.export"
+      ],
+      "policy": "audit",
+      "oauthCeiling": "audit.export",
+      "currentAuthority": "security_reviewer"
+    },
+    {
+      "operationId": "listPublicationHosts",
+      "method": "GET",
+      "path": "/api/v1/publication/hosts",
+      "permissions": [
+        "publication.read"
+      ],
+      "policy": "publication",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global publisher"
+    },
+    {
+      "operationId": "listPublicationSnapshots",
+      "method": "GET",
+      "path": "/api/v1/publication/snapshots",
+      "permissions": [
+        "publication.read"
+      ],
+      "policy": "publication",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global publisher"
+    },
+    {
+      "operationId": "buildPublicationSnapshot",
+      "method": "POST",
+      "path": "/api/v1/publication/snapshots",
+      "permissions": [
+        "publication.generate"
+      ],
+      "policy": "publication",
+      "oauthCeiling": "catalog.publish",
+      "currentAuthority": "global publisher"
+    },
+    {
+      "operationId": "getPublicationSnapshot",
+      "method": "GET",
+      "path": "/api/v1/publication/snapshots/{snapshotId}",
+      "permissions": [
+        "publication.read"
+      ],
+      "policy": "publication",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global publisher"
+    },
+    {
+      "operationId": "activatePublicationSnapshot",
+      "method": "POST",
+      "path": "/api/v1/publication/snapshots/{snapshotId}:activate",
+      "permissions": [
+        "publication.activate"
+      ],
+      "policy": "publication",
+      "oauthCeiling": "catalog.publish",
+      "currentAuthority": "global publisher"
+    },
+    {
+      "operationId": "rollbackPublicationSnapshot",
+      "method": "POST",
+      "path": "/api/v1/publication/snapshots/{snapshotId}:rollback",
+      "permissions": [
+        "publication.rollback"
+      ],
+      "policy": "publication",
+      "oauthCeiling": "catalog.publish",
+      "currentAuthority": "global publisher"
+    },
+    {
+      "operationId": "unpublishCatalog",
+      "method": "POST",
+      "path": "/api/v1/publication:unpublish",
+      "permissions": [
+        "publication.unpublish"
+      ],
+      "policy": "publication",
+      "oauthCeiling": "catalog.publish",
+      "currentAuthority": "global publisher"
+    },
+    {
+      "operationId": "inspectFederationSource",
+      "method": "POST",
+      "path": "/api/v1/federation/source-inspections",
+      "permissions": [
+        "source.inspect"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "getFederationSourceInspection",
+      "method": "GET",
+      "path": "/api/v1/federation/source-inspections/{inspectionId}",
+      "permissions": [
+        "source.inspect"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "listFederationSources",
+      "method": "GET",
+      "path": "/api/v1/federation/sources",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "connectFederationSource",
+      "method": "POST",
+      "path": "/api/v1/federation/sources",
+      "permissions": [
+        "source.manage"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "getFederationSource",
+      "method": "GET",
+      "path": "/api/v1/federation/sources/{sourceId}",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "updateFederationSource",
+      "method": "PATCH",
+      "path": "/api/v1/federation/sources/{sourceId}",
+      "permissions": [
+        "source.manage"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "removeFederationSource",
+      "method": "POST",
+      "path": "/api/v1/federation/sources/{sourceId}:remove",
+      "permissions": [
+        "source.manage"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "previewFederationSourceChange",
+      "method": "POST",
+      "path": "/api/v1/federation/sources/{sourceId}/change-previews",
+      "permissions": [
+        "source.manage"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "listFederationSourceSnapshots",
+      "method": "GET",
+      "path": "/api/v1/federation/sources/{sourceId}/snapshots",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "testFederationSource",
+      "method": "POST",
+      "path": "/api/v1/federation/sources/{sourceId}:test",
+      "permissions": [
+        "source.manage"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "syncFederationSource",
+      "method": "POST",
+      "path": "/api/v1/federation/sources/{sourceId}:sync",
+      "permissions": [
+        "source.sync"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "pauseFederationSource",
+      "method": "POST",
+      "path": "/api/v1/federation/sources/{sourceId}:pause",
+      "permissions": [
+        "source.manage"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "resumeFederationSource",
+      "method": "POST",
+      "path": "/api/v1/federation/sources/{sourceId}:resume",
+      "permissions": [
+        "source.manage"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "getFederationSourceSnapshot",
+      "method": "GET",
+      "path": "/api/v1/federation/snapshots/{snapshotId}",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "listObservations",
+      "method": "GET",
+      "path": "/api/v1/observations",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "getObservationGroup",
+      "method": "GET",
+      "path": "/api/v1/observation-groups",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "getRawObservation",
+      "method": "GET",
+      "path": "/api/v1/observations/{observationId}/raw",
+      "permissions": [
+        "source.read_evidence"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "listObservationOccurrences",
+      "method": "GET",
+      "path": "/api/v1/observations/{observationId}/occurrences",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "adoptObservation",
+      "method": "POST",
+      "path": "/api/v1/observations/{observationId}:adopt",
+      "permissions": [
+        "resource.create",
+        "source.read_evidence"
+      ],
+      "policy": "adoption",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "source_admin plus scoped contributor"
+    },
+    {
+      "operationId": "searchObservations",
+      "method": "POST",
+      "path": "/api/v1/observations:search",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "liveFederatedSearch",
+      "method": "POST",
+      "path": "/api/v1/federation/sources:live-search",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
+    },
+    {
+      "operationId": "listJobs",
+      "method": "GET",
+      "path": "/api/v1/jobs",
+      "permissions": [
+        "job.read"
+      ],
+      "policy": "jobs",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "getJob",
+      "method": "GET",
+      "path": "/api/v1/jobs/{jobId}",
+      "permissions": [
+        "job.read"
+      ],
+      "policy": "jobs",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global reader"
+    },
+    {
+      "operationId": "cancelJob",
+      "method": "POST",
+      "path": "/api/v1/jobs/{jobId}:cancel",
+      "permissions": [
+        "job.cancel"
+      ],
+      "policy": "jobs",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "Job-kind-specific source_admin, publisher or tenant_admin"
+    },
+    {
+      "operationId": "retryJob",
+      "method": "POST",
+      "path": "/api/v1/jobs/{jobId}:retry",
+      "permissions": [
+        "job.retry"
+      ],
+      "policy": "jobs",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "Job-kind-specific source_admin, publisher or tenant_admin"
+    },
+    {
+      "operationId": "listWebhooks",
+      "method": "GET",
+      "path": "/api/v1/webhooks",
+      "permissions": [
+        "webhook.read"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "createWebhook",
+      "method": "POST",
+      "path": "/api/v1/webhooks",
+      "permissions": [
+        "webhook.manage"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "getWebhook",
+      "method": "GET",
+      "path": "/api/v1/webhooks/{webhookId}",
+      "permissions": [
+        "webhook.read"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "updateWebhook",
+      "method": "PATCH",
+      "path": "/api/v1/webhooks/{webhookId}",
+      "permissions": [
+        "webhook.manage"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "disableWebhook",
+      "method": "DELETE",
+      "path": "/api/v1/webhooks/{webhookId}",
+      "permissions": [
+        "webhook.manage"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "rotateWebhookSecret",
+      "method": "POST",
+      "path": "/api/v1/webhooks/{webhookId}:rotate-secret",
+      "permissions": [
+        "webhook.rotate"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "getWebhookReconciliation",
+      "method": "GET",
+      "path": "/api/v1/webhooks/reconciliation",
+      "permissions": [
+        "webhook.read"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "testWebhook",
+      "method": "POST",
+      "path": "/api/v1/webhooks/{webhookId}:test",
+      "permissions": [
+        "webhook.test"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "listWebhookDeliveries",
+      "method": "GET",
+      "path": "/api/v1/webhooks/{webhookId}/deliveries",
+      "permissions": [
+        "webhook.read_evidence"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "tenant_admin"
+    },
+    {
+      "operationId": "getARDManifest",
+      "method": "GET",
+      "path": "/.well-known/ard.json",
+      "permissions": [],
+      "policy": "discovery",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "host policy; authenticated mode uses active tenant membership and optional OAuth ceiling, not Reader",
+      "conditionalPermissions": {
+        "anonymous": [],
+        "authenticated": [
+          "discovery.read"
+        ]
+      }
+    },
+    {
+      "operationId": "getAICatalog",
+      "method": "GET",
+      "path": "/.well-known/ai-catalog.json",
+      "permissions": [],
+      "policy": "discovery",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "host policy; authenticated mode uses active tenant membership and optional OAuth ceiling, not Reader",
+      "conditionalPermissions": {
+        "anonymous": [],
+        "authenticated": [
+          "discovery.read"
+        ]
+      }
+    },
+    {
+      "operationId": "searchARDRegistry",
+      "method": "POST",
+      "path": "/ard/v1/search",
+      "permissions": [],
+      "policy": "discovery",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "host policy; authenticated mode uses active tenant membership and optional OAuth ceiling, not Reader",
+      "conditionalPermissions": {
+        "anonymous": [],
+        "authenticated": [
+          "discovery.read"
+        ]
+      }
+    },
+    {
+      "operationId": "exploreARDRegistry",
+      "method": "POST",
+      "path": "/ard/v1/explore",
+      "permissions": [],
+      "policy": "discovery",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "host policy; authenticated mode uses active tenant membership and optional OAuth ceiling, not Reader",
+      "conditionalPermissions": {
+        "anonymous": [],
+        "authenticated": [
+          "discovery.read"
+        ]
+      }
+    },
+    {
+      "operationId": "listARDRegistryEntries",
+      "method": "GET",
+      "path": "/ard/v1/agents",
+      "permissions": [],
+      "policy": "discovery",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "host policy; authenticated mode uses active tenant membership and optional OAuth ceiling, not Reader",
+      "conditionalPermissions": {
+        "anonymous": [],
+        "authenticated": [
+          "discovery.read"
+        ]
+      }
+    },
+    {
+      "operationId": "getPublicArtifact",
+      "method": "GET",
+      "path": "/public/v1/artifacts/{artifactId}",
+      "permissions": [],
+      "policy": "discovery",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "host policy; authenticated mode uses active tenant membership and optional OAuth ceiling, not Reader",
+      "conditionalPermissions": {
+        "anonymous": [],
+        "authenticated": [
+          "discovery.read"
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/permissions",
+      "operationId": "listPermissionDescriptors",
+      "policy": "self",
+      "oauthCeiling": "",
+      "permissions": [],
+      "currentAuthority": "implemented current permission resolution; active principal for self views"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/capabilities",
+      "operationId": "checkCurrentPermissions",
+      "policy": "self",
+      "oauthCeiling": "",
+      "permissions": [],
+      "currentAuthority": "implemented current permission resolution; active principal for self views"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/self",
+      "operationId": "listCurrentAccess",
+      "policy": "self",
+      "oauthCeiling": "",
+      "permissions": [],
+      "currentAuthority": "implemented current permission resolution; active principal for self views"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/roles",
+      "operationId": "listRoleDefinitions",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/roles",
+      "operationId": "createRoleDefinition",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/roles/{roleId}",
+      "operationId": "getRoleDefinition",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/access/roles/{roleId}",
+      "operationId": "updateRoleDefinition",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/roles/{roleId}:archive",
+      "operationId": "archiveRoleDefinition",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/groups",
+      "operationId": "listAccessGroups",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/groups",
+      "operationId": "createAccessGroup",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/groups/{groupId}",
+      "operationId": "getAccessGroup",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/access/groups/{groupId}",
+      "operationId": "updateAccessGroup",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/groups/{groupId}:suspend",
+      "operationId": "suspendAccessGroup",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/groups/{groupId}:reactivate",
+      "operationId": "reactivateAccessGroup",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/groups/{groupId}:archive",
+      "operationId": "archiveAccessGroup",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/roles/{roleId}/assignments",
+      "operationId": "listRoleImpact",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/groups/{groupId}/members",
+      "operationId": "listAccessGroupMembers",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/groups/{groupId}/members",
+      "operationId": "addAccessGroupMember",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/groups/{groupId}/members/{memberId}:revoke",
+      "operationId": "revokeAccessGroupMember",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/access/assignments",
+      "operationId": "listAccessAssignments",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/assignments",
+      "operationId": "grantAccessAssignment",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/access/assignments/{assignmentId}:revoke",
+      "operationId": "revokeAccessAssignment",
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "permissions": [
+        "access.manage"
+      ],
+      "currentAuthority": "implemented transactional current access.manage check; last usable administrator protections"
+    },
+    {
+      "operationId": "readArtwork",
+      "method": "POST",
+      "path": "/api/v1/artwork/read",
+      "permissions": [],
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current authenticated member with exact local release or retained-content authority, or admitted external discovery authority",
+      "conditionalPermissions": {
+        "local": [
+          "resource.read"
+        ],
+        "local_preview": [
+          "resource.read_content"
+        ],
+        "external": [
+          "federation.discover"
+        ]
+      }
+    },
+    {
+      "operationId": "getArtworkOverride",
+      "method": "GET",
+      "path": "/api/v1/federation/sources/{sourceId}/artwork",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "current tenant source action and exact presentation-generation target"
+    },
+    {
+      "operationId": "setArtworkOverride",
+      "method": "POST",
+      "path": "/api/v1/federation/sources/{sourceId}/artwork",
+      "permissions": [
+        "source.manage"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "current tenant source action and exact presentation-generation target"
+    },
+    {
+      "operationId": "listArtworkOverrideHistory",
+      "method": "GET",
+      "path": "/api/v1/federation/sources/{sourceId}/artwork/history",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "current tenant source action and exact presentation-generation target"
+    },
+    {
+      "operationId": "readRating",
+      "method": "POST",
+      "path": "/api/v1/ratings/read",
+      "permissions": [],
+      "policy": "ratings",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "submitRating",
+      "method": "POST",
+      "path": "/api/v1/ratings",
+      "permissions": [
+        "ratings.own"
+      ],
+      "policy": "ratings",
+      "oauthCeiling": "ratings.write",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "listOwnRatings",
+      "method": "GET",
+      "path": "/api/v1/ratings",
+      "permissions": [],
+      "policy": "ratings",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "listRatingInbox",
+      "method": "GET",
+      "path": "/api/v1/ratings/inbox",
+      "permissions": [
+        "ratings.moderate"
+      ],
+      "policy": "ratings",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "getRating",
+      "method": "GET",
+      "path": "/api/v1/ratings/{ratingId}",
+      "permissions": [],
+      "policy": "ratings",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "withdrawRating",
+      "method": "POST",
+      "path": "/api/v1/ratings/{ratingId}:withdraw",
+      "permissions": [],
+      "policy": "ratings",
+      "oauthCeiling": "ratings.write",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "removeRating",
+      "method": "POST",
+      "path": "/api/v1/ratings/{ratingId}:remove",
+      "permissions": [
+        "ratings.moderate"
+      ],
+      "policy": "ratings",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "permitRating",
+      "method": "POST",
+      "path": "/api/v1/ratings/{ratingId}:permit",
+      "permissions": [
+        "ratings.moderate"
+      ],
+      "policy": "ratings",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "getRatingSharing",
+      "method": "GET",
+      "path": "/api/v1/ratings/sharing",
+      "permissions": [
+        "ratings.sharing.manage"
+      ],
+      "policy": "ratings",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "setRatingSharing",
+      "method": "POST",
+      "path": "/api/v1/ratings/sharing",
+      "permissions": [
+        "ratings.sharing.manage"
+      ],
+      "policy": "ratings",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "Current exact target visibility for reads/submission; verified human issuer/subject ownership for disposal; finite tenant moderation/sharing authority."
+    },
+    {
+      "operationId": "requestTrustAssessment",
+      "method": "POST",
+      "path": "/api/v1/federation/sources/{sourceId}/trust-assessments",
+      "policy": "source",
+      "oauthCeiling": "sources.manage",
+      "currentAuthority": "Current tenant permissions and exact source/Job binding; private evidence only.",
+      "permissions": [
+        "source.manage",
+        "source.read_evidence",
+        "federation.discover"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "getTrustAssessment",
+      "method": "GET",
+      "path": "/api/v1/federation/sources/{sourceId}/trust-assessments/{jobId}",
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "Current tenant permissions and exact source/Job binding; private evidence only.",
+      "permissions": [
+        "job.read",
+        "source.read_evidence"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "callCatalogMCP",
+      "method": "POST",
+      "path": "/mcp",
+      "permissions": [],
+      "policy": "mcp",
+      "oauthCeiling": "",
+      "currentAuthority": "configured MCP availability and exact Origin policy; current caller and tool authority on POST",
+      "conditionalPermissions": {
+        "local resource reads": [
+          "resource.read"
+        ],
+        "external discovery": [
+          "federation.discover"
+        ]
+      }
+    },
+    {
+      "operationId": "preflightCatalogMCP",
+      "method": "OPTIONS",
+      "path": "/mcp",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "configured MCP availability and exact Origin policy; current caller and tool authority on POST"
+    },
+    {
+      "operationId": "refuseCatalogMCPStream",
+      "method": "GET",
+      "path": "/mcp",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "configured MCP availability and exact Origin policy; current caller and tool authority on POST"
+    },
+    {
+      "operationId": "refuseCatalogMCPSessionDeletion",
+      "method": "DELETE",
+      "path": "/mcp",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "configured MCP availability and exact Origin policy; current caller and tool authority on POST"
+    },
+    {
+      "operationId": "getCatalogMCPOAuthMetadata",
+      "method": "GET",
+      "path": "/.well-known/oauth-protected-resource/mcp",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "configured MCP availability and exact Origin policy; current caller and tool authority on POST"
+    },
+    {
+      "operationId": "headCatalogMCPOAuthMetadata",
+      "method": "HEAD",
+      "path": "/.well-known/oauth-protected-resource/mcp",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "configured MCP availability and exact Origin policy; current caller and tool authority on POST"
+    },
+    {
+      "operationId": "preflightCatalogMCPOAuthMetadata",
+      "method": "OPTIONS",
+      "path": "/.well-known/oauth-protected-resource/mcp",
+      "permissions": [],
+      "policy": "process",
+      "oauthCeiling": "",
+      "currentAuthority": "configured MCP availability and exact Origin policy; current caller and tool authority on POST"
+    },
+    {
+      "operationId": "getTenantSettings",
+      "method": "GET",
+      "path": "/api/v1/tenant-settings",
+      "permissions": [
+        "settings.read"
+      ],
+      "policy": "settings",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "exact tenant settings permissions; custom delegation permitted without access.manage"
+    },
+    {
+      "operationId": "setTenantSettings",
+      "method": "POST",
+      "path": "/api/v1/tenant-settings",
+      "permissions": [
+        "settings.manage",
+        "settings.read"
+      ],
+      "policy": "settings",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "exact tenant settings permissions; custom delegation permitted without access.manage"
+    },
+    {
+      "operationId": "listPersonalWork",
+      "method": "GET",
+      "path": "/api/v1/me/work",
+      "policy": "personal",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "Active human; exact self ownership and current required permissions",
+      "permissions": [],
+      "conditionalPermissions": {
+        "metadata": [
+          "resource.read"
+        ],
+        "history": [
+          "resource.read_history"
+        ],
+        "content": [
+          "resource.read_content"
+        ]
+      }
+    },
+    {
+      "operationId": "listPersonalItems",
+      "method": "GET",
+      "path": "/api/v1/personal/items",
+      "policy": "personal",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "Active human; exact self ownership and current required permissions",
+      "permissions": [
+        "library.own"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "createPersonalItem",
+      "method": "POST",
+      "path": "/api/v1/personal/items",
+      "policy": "personal",
+      "oauthCeiling": "personal.write",
+      "currentAuthority": "Active human; exact self ownership and current required permissions",
+      "permissions": [
+        "library.own"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "getPersonalItem",
+      "method": "GET",
+      "path": "/api/v1/personal/items/{itemId}",
+      "policy": "personal",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "Active human; exact self ownership and current required permissions",
+      "permissions": [
+        "library.own"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "updatePersonalItem",
+      "method": "PATCH",
+      "path": "/api/v1/personal/items/{itemId}",
+      "policy": "personal",
+      "oauthCeiling": "personal.write",
+      "currentAuthority": "Active human; exact self ownership and current required permissions",
+      "permissions": [
+        "library.own"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "deletePersonalItem",
+      "method": "DELETE",
+      "path": "/api/v1/personal/items/{itemId}",
+      "policy": "personal",
+      "oauthCeiling": "personal.write",
+      "currentAuthority": "Active human; exact self ownership and current required permissions",
+      "permissions": [
+        "library.own"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "resolvePersonalItem",
+      "method": "POST",
+      "path": "/api/v1/personal/items/{itemId}/resolve",
+      "policy": "personal",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "Active human; exact self ownership and current required permissions",
+      "permissions": [
+        "library.own"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "getPublisherDomainVerification",
+      "method": "GET",
+      "path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification",
+      "permissions": [
+        "publisher.read"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.read",
+      "currentAuthority": "current tenant publisher.read"
+    },
+    {
+      "operationId": "getPublisherDomainChallenge",
+      "method": "GET",
+      "path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification/challenge",
+      "permissions": [
+        "publisher.manage"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.manage",
+      "currentAuthority": "current tenant publisher.manage"
+    },
+    {
+      "operationId": "issuePublisherDomainChallenge",
+      "method": "POST",
+      "path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification:issue",
+      "permissions": [
+        "publisher.manage"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.manage",
+      "currentAuthority": "current tenant publisher.manage"
+    },
+    {
+      "operationId": "checkPublisherDomainVerification",
+      "method": "POST",
+      "path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification:check",
+      "permissions": [
+        "publisher.manage"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.manage",
+      "currentAuthority": "current tenant publisher.manage"
+    },
+    {
+      "operationId": "clearPublisherDomainVerification",
+      "method": "POST",
+      "path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification:clear",
+      "permissions": [
+        "publisher.manage"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.manage",
+      "currentAuthority": "current tenant publisher.manage"
+    },
+    {
+      "operationId": "getResourceOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/resources",
+      "permissions": [
+        "resource.read"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getReleaseOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/releases",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getNamespaceOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/namespaces",
+      "permissions": [
+        "namespace.read"
+      ],
+      "policy": "namespace",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getPublisherOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/publishers",
+      "permissions": [
+        "publisher.read"
+      ],
+      "policy": "publisher",
+      "oauthCeiling": "publishers.read",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getIndexedOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/indexed",
+      "permissions": [
+        "federation.discover"
+      ],
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getReviewOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/reviews",
+      "permissions": [
+        "resource.read_history"
+      ],
+      "policy": "content",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getPublicationOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/publication",
+      "permissions": [
+        "publication.read"
+      ],
+      "policy": "publication",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "global publisher"
+    },
+    {
+      "operationId": "getSourceOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/sources",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getJobOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/jobs",
+      "permissions": [
+        "job.read"
+      ],
+      "policy": "jobs",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getWebhookEndpointOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/webhook-endpoints",
+      "permissions": [
+        "webhook.read"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getWebhookDeliveryOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/webhook-deliveries",
+      "permissions": [
+        "webhook.read_evidence"
+      ],
+      "policy": "webhook",
+      "oauthCeiling": "webhooks.manage",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getAdministrationOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/administration",
+      "permissions": [
+        "access.manage"
+      ],
+      "policy": "access",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getFeedbackOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/feedback",
+      "permissions": [
+        "feedback.moderate"
+      ],
+      "policy": "feedback",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "getRatingOverview",
+      "method": "GET",
+      "path": "/api/v1/overview/ratings",
+      "permissions": [
+        "ratings.moderate"
+      ],
+      "policy": "ratings",
+      "oauthCeiling": "tenant.admin",
+      "currentAuthority": "current scoped permission selection"
+    }
+  ],
+  "domainCallers": [
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "AdoptExternalObservation",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor"
+      ],
+      "source": "internal/catalog/adoption.go",
+      "policy": "adoption"
+    },
+    {
+      "calls": [
+        "GetSubmission"
+      ],
+      "method": "GetSubmissionEvidence",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/history.go",
+      "policy": "review"
+    },
+    {
+      "calls": [
+        "GetListing"
+      ],
+      "method": "ListListingRevisions",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/history.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetResource"
+      ],
+      "method": "ListListings",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/history.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetListing"
+      ],
+      "method": "ListReleases",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/history.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetListing",
+        "requireRole"
+      ],
+      "method": "ListSubmissions",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/history.go",
+      "policy": "review"
+    },
+    {
+      "calls": [
+        "GetVersion"
+      ],
+      "method": "ListVersionRevisions",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/history.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetResource"
+      ],
+      "method": "ListVersions",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/history.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "FromContext"
+      ],
+      "method": "SemanticConfiguration",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/semantic_search.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "SemanticProviderState",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/semantic_search.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "SemanticReindexTarget",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/catalog/semantic_search.go",
+      "policy": "operations"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "SemanticStatus",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/catalog/semantic_search.go",
+      "policy": "operations"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "ApprovePublisherPublicationDomain",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "AuditEvents",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleSecurityReviewer"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "audit"
+    },
+    {
+      "calls": [
+        "GetResource",
+        "requireRole"
+      ],
+      "method": "CreateListing",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetListing",
+        "GetResource",
+        "GetVersion",
+        "requireActor",
+        "requireRole"
+      ],
+      "method": "CreateListingRevision",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "CreateNamespace",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "namespace"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "CreatePublisher",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "CreateResource",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetResource",
+        "requireActor",
+        "requireRole"
+      ],
+      "method": "CreateVersion",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetResource",
+        "GetVersion",
+        "requireActor",
+        "requireRole"
+      ],
+      "method": "CreateVersionRevision",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetListing",
+        "GetSubmission",
+        "GetVersion",
+        "requireActor",
+        "requireRole"
+      ],
+      "method": "DecideSubmission",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReviewer"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "review"
+    },
+    {
+      "calls": [
+        "GetResource",
+        "HasRole",
+        "requireActor"
+      ],
+      "method": "DeleteResource",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor",
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "Explore",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "search"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "ExportAuditEvents",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleSecurityReviewer"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "audit"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "GetArtifact",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "GetCatalogRecord",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "search"
+    },
+    {
+      "calls": [
+        "GetListing",
+        "requireRole"
+      ],
+      "method": "GetListing",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "GetListingRevision",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "GetNamespace",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "namespace"
+    },
+    {
+      "calls": [],
+      "method": "GetPublicArtifact",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/service.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "GetPublisher",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "preparePublisherDomain"
+      ],
+      "method": "CheckPublisherDomain",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/publisher_verification.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "preparePublisherDomain"
+      ],
+      "method": "ClearPublisherDomainVerification",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/publisher_verification.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "preparePublisherDomain"
+      ],
+      "method": "GetPublisherDomainChallenge",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/publisher_verification.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "preparePublisherDomain"
+      ],
+      "method": "GetPublisherDomainVerification",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/publisher_verification.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "preparePublisherDomain"
+      ],
+      "method": "IssuePublisherDomainChallenge",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/publisher_verification.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "GetRelease",
+        "requireRole"
+      ],
+      "method": "GetRelease",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetResource",
+        "requireRole"
+      ],
+      "method": "GetResource",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "GetSubmission",
+        "requireRole"
+      ],
+      "method": "GetSubmission",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "review"
+    },
+    {
+      "calls": [
+        "GetVersion",
+        "requireRole"
+      ],
+      "method": "GetVersion",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "GetVersionRevision",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "ListNamespaces",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "namespace"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "ListPublishers",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "ListResources",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [],
+      "method": "PublicRecords",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/service.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "PublicationRecords",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/service.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [
+        "GetListing",
+        "GetRelease",
+        "GetResource",
+        "GetSubmission",
+        "requireActor",
+        "requireRole"
+      ],
+      "method": "Publish",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RolePublisher"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "release"
+    },
+    {
+      "calls": [
+        "GetResource",
+        "GetVersion",
+        "requireActor",
+        "requireRole"
+      ],
+      "method": "RevalidateVersionRevision",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "RevokePublisherPublicationDomain",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "Search",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "search"
+    },
+    {
+      "calls": [
+        "GetListing",
+        "requireActor",
+        "requireRole"
+      ],
+      "method": "Submit",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleContributor"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "review"
+    },
+    {
+      "calls": [
+        "GetListing",
+        "GetRelease",
+        "requireActor",
+        "requireRole"
+      ],
+      "method": "TransitionRelease",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RolePublisher"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "release"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "UpdateNamespace",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "namespace"
+    },
+    {
+      "calls": [
+        "requireRole"
+      ],
+      "method": "UpdatePublisher",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/catalog/service.go",
+      "policy": "publisher"
+    },
+    {
+      "calls": [],
+      "method": "ValidationLimits",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/service.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "AdoptObservation",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "adoption"
+    },
+    {
+      "calls": [],
+      "method": "Connect",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "GetInspection",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "GetObservation",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "GetRawObservation",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "GetSnapshot",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "GetSource",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "Inspect",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "InspectWithAccess",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ListSnapshotPage",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ListSnapshots",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ListSourcePage",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "LiveSearch",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ObservationGroup",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ObservationOccurrencePage",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ObservationOccurrences",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ObservationPage",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "PreviewChange",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "Referrals",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "search"
+    },
+    {
+      "calls": [],
+      "method": "Search",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "SearchFederatedCatalog",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "search"
+    },
+    {
+      "calls": [],
+      "method": "SearchLiveCatalog",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "search"
+    },
+    {
+      "calls": [],
+      "method": "SearchObservationPage",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "SetStatus",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "Sync",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "SyncAtRevision",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "TestSource",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "TestSourceAtRevision",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "UpdateSource",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/manager.go",
+      "policy": "source"
+    },
+    {
+      "calls": [
+        "Get",
+        "actor"
+      ],
+      "method": "Change",
+      "package": "feedback",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/feedback/service.go",
+      "policy": "feedback"
+    },
+    {
+      "calls": [
+        "GetRelease",
+        "GetResource",
+        "GetVersion",
+        "actor"
+      ],
+      "method": "Create",
+      "package": "feedback",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/feedback/service.go",
+      "policy": "feedback"
+    },
+    {
+      "calls": [
+        "Get",
+        "GetResource",
+        "HasRole",
+        "actor"
+      ],
+      "method": "Get",
+      "package": "feedback",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/feedback/service.go",
+      "policy": "feedback"
+    },
+    {
+      "calls": [
+        "actor"
+      ],
+      "method": "List",
+      "package": "feedback",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/feedback/service.go",
+      "policy": "feedback"
+    },
+    {
+      "calls": [
+        "requireTenantAdministrator"
+      ],
+      "method": "GetMembership",
+      "package": "identity",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/identity/service.go",
+      "policy": "access"
+    },
+    {
+      "calls": [
+        "requireTenantAdministrator"
+      ],
+      "method": "GrantRole",
+      "package": "identity",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/identity/service.go",
+      "policy": "access"
+    },
+    {
+      "calls": [
+        "requireTenantAdministrator"
+      ],
+      "method": "ListMemberships",
+      "package": "identity",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/identity/service.go",
+      "policy": "access"
+    },
+    {
+      "calls": [
+        "requireTenantAdministrator"
+      ],
+      "method": "ListRoleAssignments",
+      "package": "identity",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/identity/service.go",
+      "policy": "access"
+    },
+    {
+      "calls": [],
+      "method": "OffboardMembership",
+      "package": "identity",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/identity/service.go",
+      "policy": "access"
+    },
+    {
+      "calls": [],
+      "method": "ReactivateMembership",
+      "package": "identity",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/identity/service.go",
+      "policy": "access"
+    },
+    {
+      "calls": [
+        "requireTenantAdministrator"
+      ],
+      "method": "RevokeRole",
+      "package": "identity",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/identity/service.go",
+      "policy": "access"
+    },
+    {
+      "calls": [],
+      "method": "SuspendMembership",
+      "package": "identity",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/identity/service.go",
+      "policy": "access"
+    },
+    {
+      "calls": [
+        "FromContext",
+        "Get",
+        "HasRole"
+      ],
+      "method": "Cancel",
+      "package": "jobs",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/jobs/jobs.go",
+      "policy": "jobs"
+    },
+    {
+      "calls": [
+        "Enqueue",
+        "FromContext",
+        "HasRole"
+      ],
+      "method": "Enqueue",
+      "package": "jobs",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleTenantAdmin"
+      ],
+      "source": "internal/jobs/jobs.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [
+        "FromContext",
+        "HasRole"
+      ],
+      "method": "Get",
+      "package": "jobs",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/jobs/jobs.go",
+      "policy": "jobs"
+    },
+    {
+      "calls": [
+        "FromContext",
+        "HasRole"
+      ],
+      "method": "List",
+      "package": "jobs",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/jobs/jobs.go",
+      "policy": "jobs"
+    },
+    {
+      "calls": [
+        "Enqueue",
+        "FromContext",
+        "Get",
+        "HasRole"
+      ],
+      "method": "Retry",
+      "package": "jobs",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/jobs/jobs.go",
+      "policy": "jobs"
+    },
+    {
+      "calls": [
+        "Get"
+      ],
+      "method": "Activate",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "publication"
+    },
+    {
+      "calls": [],
+      "method": "Active",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "ArtifactAllowed",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "BuildCandidate",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "publication"
+    },
+    {
+      "calls": [],
+      "method": "Explore",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [
+        "Get"
+      ],
+      "method": "GetSnapshot",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "publication"
+    },
+    {
+      "calls": [],
+      "method": "List",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "publication"
+    },
+    {
+      "calls": [],
+      "method": "ListSnapshotSummaries",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "publication"
+    },
+    {
+      "calls": [
+        "Get"
+      ],
+      "method": "Rollback",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "publication"
+    },
+    {
+      "calls": [],
+      "method": "Search",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "SearchContinuation",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "Unpublish",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "publication"
+    },
+    {
+      "calls": [],
+      "method": "WithdrawDomain",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "WithdrawRelease",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/manager.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "NotificationState",
+      "package": "webhook",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/webhook/notification.go",
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "Create",
+      "package": "webhook",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/webhook/service.go",
+      "policy": "webhook"
+    },
+    {
+      "calls": [],
+      "method": "Disable",
+      "package": "webhook",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/webhook/service.go",
+      "policy": "webhook"
+    },
+    {
+      "calls": [],
+      "method": "Get",
+      "package": "webhook",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/webhook/service.go",
+      "policy": "webhook"
+    },
+    {
+      "calls": [],
+      "method": "List",
+      "package": "webhook",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/webhook/service.go",
+      "policy": "webhook"
+    },
+    {
+      "calls": [],
+      "method": "ListDeliveries",
+      "package": "webhook",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/webhook/service.go",
+      "policy": "webhook"
+    },
+    {
+      "calls": [],
+      "method": "RotateSecret",
+      "package": "webhook",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/webhook/service.go",
+      "policy": "webhook"
+    },
+    {
+      "calls": [],
+      "method": "Test",
+      "package": "webhook",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/webhook/service.go",
+      "policy": "webhook"
+    },
+    {
+      "calls": [],
+      "method": "Update",
+      "package": "webhook",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/webhook/service.go",
+      "policy": "webhook"
+    },
+    {
+      "package": "catalog",
+      "receiver": "SearchService",
+      "method": "GetIndexed",
+      "source": "internal/catalog/unified_search.go",
+      "calls": [
+        "requireRole"
+      ],
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "policy": "search"
+    },
+    {
+      "package": "catalog",
+      "receiver": "SearchService",
+      "method": "Search",
+      "source": "internal/catalog/unified_search.go",
+      "calls": [
+        "requireRole"
+      ],
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "policy": "search"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "CurrentPermissionDecisions",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "CheckPermissions"
+      ],
+      "roleConstants": [],
+      "policy": "self"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "ListRoleDefinitions",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "GetRoleDefinition",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "SaveRoleDefinition",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "ListAccessGroups",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "GetAccessGroup",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "SaveAccessGroup",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "ListAccessGroupMembers",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "ChangeAccessGroupMember",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "ListAuthorizationAssignments",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "GrantAuthorizationAssignment",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "RevokeAuthorizationAssignment",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "CurrentAccessAssignments",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": [],
+      "policy": "self"
+    },
+    {
+      "package": "identity",
+      "receiver": "Service",
+      "method": "WithAdministrationDisclosure",
+      "source": "internal/identity/administration.go",
+      "calls": [
+        "WithPermissionAdmission"
+      ],
+      "roleConstants": [],
+      "policy": "access"
+    },
+    {
+      "package": "publication",
+      "receiver": "Manager",
+      "method": "Host",
+      "source": "internal/publication/manager.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "internal"
+    },
+    {
+      "calls": [],
+      "method": "ReadListingArtwork",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/artwork.go",
+      "policy": "content"
+    },
+    {
+      "calls": [],
+      "method": "GetArtworkOverride",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/artwork.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "SetArtworkOverride",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/artwork.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ArtworkOverrideHistory",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/artwork.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ArtworkSourceContext",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/artwork.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "ResolveArtwork",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/artwork.go",
+      "policy": "search"
+    },
+    {
+      "calls": [],
+      "method": "ValidateLiveArtworkOverride",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/artwork.go",
+      "policy": "source"
+    },
+    {
+      "calls": [],
+      "method": "AdminArtworkSourceContext",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/artwork.go",
+      "policy": "source"
+    },
+    {
+      "package": "federation",
+      "receiver": "Manager",
+      "method": "ResolveRatingSignals",
+      "source": "internal/federation/ratings.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "package": "ratings",
+      "receiver": "Service",
+      "method": "Read",
+      "source": "internal/ratings/service.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "package": "ratings",
+      "receiver": "Service",
+      "method": "Submit",
+      "source": "internal/ratings/service.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "package": "ratings",
+      "receiver": "Service",
+      "method": "Change",
+      "source": "internal/ratings/service.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "package": "ratings",
+      "receiver": "Service",
+      "method": "Get",
+      "source": "internal/ratings/service.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "package": "ratings",
+      "receiver": "Service",
+      "method": "List",
+      "source": "internal/ratings/service.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "package": "ratings",
+      "receiver": "Service",
+      "method": "SelectedSummaries",
+      "source": "internal/ratings/service.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "package": "ratings",
+      "receiver": "Service",
+      "method": "Sharing",
+      "source": "internal/ratings/sharing.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "package": "ratings",
+      "receiver": "Service",
+      "method": "SetSharing",
+      "source": "internal/ratings/sharing.go",
+      "calls": [],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "package": "federation",
+      "receiver": "Manager",
+      "method": "AdmitRating",
+      "source": "internal/federation/ratings.go",
+      "calls": [
+        "federation.discover"
+      ],
+      "roleConstants": [],
+      "policy": "ratings"
+    },
+    {
+      "calls": [],
+      "method": "ContinueLiveSearch",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/live_search_page.go",
+      "policy": "internal"
+    },
+    {
+      "package": "federation",
+      "receiver": "Manager",
+      "method": "PrepareTrustAssessment",
+      "source": "internal/federation/trust.go",
+      "policy": "source"
+    },
+    {
+      "package": "federation",
+      "receiver": "Manager",
+      "method": "ValidateTrustJob",
+      "source": "internal/federation/trust.go",
+      "policy": "source"
+    },
+    {
+      "package": "federation",
+      "receiver": "Manager",
+      "method": "ExecuteTrustAssessment",
+      "source": "internal/federation/trust.go",
+      "policy": "source"
+    },
+    {
+      "package": "federation",
+      "receiver": "Manager",
+      "method": "ReadTrustAssessment",
+      "source": "internal/federation/trust.go",
+      "policy": "source"
+    },
+    {
+      "package": "jobs",
+      "receiver": "Service",
+      "method": "PrivateTrustJob",
+      "source": "internal/jobs/trust.go",
+      "policy": "jobs"
+    },
+    {
+      "package": "federation",
+      "receiver": "Manager",
+      "method": "ValidateTrustEnqueue",
+      "source": "internal/federation/trust.go",
+      "policy": "source"
+    },
+    {
+      "package": "catalog",
+      "receiver": "Service",
+      "method": "ListPersonalWork",
+      "source": "internal/catalog/personal_work.go",
+      "policy": "personal"
+    },
+    {
+      "package": "personal",
+      "receiver": "Service",
+      "method": "Get",
+      "source": "internal/personal/service.go",
+      "policy": "personal"
+    },
+    {
+      "package": "personal",
+      "receiver": "Service",
+      "method": "List",
+      "source": "internal/personal/service.go",
+      "policy": "personal"
+    },
+    {
+      "package": "personal",
+      "receiver": "Service",
+      "method": "Save",
+      "source": "internal/personal/service.go",
+      "policy": "personal"
+    },
+    {
+      "calls": [
+        "requireTenantAdministrator"
+      ],
+      "method": "MemberAccess",
+      "package": "identity",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/identity/member_access.go",
+      "policy": "access"
+    },
+    {
+      "calls": [],
+      "method": "PublisherDomainVerificationPolicy",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/publisher_verification.go",
+      "policy": "internal"
+    },
+    {
+      "source": "internal/catalog/overview.go",
+      "package": "catalog",
+      "receiver": "Service",
+      "method": "ResourceOverview",
+      "policy": "content",
+      "calls": [
+        "inventoryCounts"
+      ],
+      "roleConstants": []
+    },
+    {
+      "source": "internal/catalog/overview.go",
+      "package": "catalog",
+      "receiver": "Service",
+      "method": "ReleaseOverview",
+      "policy": "content",
+      "calls": [
+        "inventoryCounts"
+      ],
+      "roleConstants": []
+    },
+    {
+      "source": "internal/catalog/overview.go",
+      "package": "catalog",
+      "receiver": "Service",
+      "method": "DirectoryOverview",
+      "policy": "namespace",
+      "calls": [
+        "inventoryCounts"
+      ],
+      "roleConstants": []
+    },
+    {
+      "source": "internal/federation/overview.go",
+      "package": "federation",
+      "receiver": "Manager",
+      "method": "IndexedOverview",
+      "policy": "search",
+      "calls": [
+        "permissionActor",
+        "WithCollectionContext"
+      ],
+      "roleConstants": []
+    },
+    {
+      "source": "internal/catalog/review_overview.go",
+      "package": "catalog",
+      "receiver": "Service",
+      "method": "ReviewOverview",
+      "policy": "content",
+      "calls": [
+        "collectionContext"
+      ],
+      "roleConstants": []
+    },
+    {
+      "source": "internal/federation/source_overview.go",
+      "package": "federation",
+      "receiver": "Manager",
+      "method": "SourceOverview",
+      "policy": "source",
+      "calls": [
+        "permissionActor",
+        "WithCollectionContext"
+      ],
+      "roleConstants": []
+    },
+    {
+      "calls": [
+        "FromContext",
+        "HasRole"
+      ],
+      "method": "Overview",
+      "package": "jobs",
+      "receiver": "Service",
+      "roleConstants": [
+        "RoleReader"
+      ],
+      "source": "internal/jobs/overview.go",
+      "policy": "jobs"
+    },
+    {
+      "source": "internal/webhook/overview.go",
+      "package": "webhook",
+      "receiver": "Service",
+      "method": "EndpointOverview",
+      "policy": "webhook",
+      "calls": [
+        "overviewContext"
+      ],
+      "roleConstants": []
+    },
+    {
+      "source": "internal/webhook/overview.go",
+      "package": "webhook",
+      "receiver": "Service",
+      "method": "DeliveryOverview",
+      "policy": "webhook",
+      "calls": [
+        "overviewContext"
+      ],
+      "roleConstants": []
+    },
+    {
+      "source": "internal/identity/overview.go",
+      "package": "identity",
+      "receiver": "Service",
+      "method": "AdministrationOverview",
+      "policy": "access",
+      "calls": [
+        "currentAuthorization"
+      ],
+      "roleConstants": []
+    },
+    {
+      "source": "internal/feedback/overview.go",
+      "package": "feedback",
+      "receiver": "Service",
+      "method": "Overview",
+      "policy": "feedback",
+      "calls": [
+        "actor"
+      ],
+      "roleConstants": []
+    },
+    {
+      "source": "internal/ratings/overview.go",
+      "package": "ratings",
+      "receiver": "Service",
+      "method": "Overview",
+      "policy": "ratings",
+      "calls": [],
+      "roleConstants": []
+    }
+  ],
+  "internalExecution": [
+    {
+      "owner": "cmd/catalogd and platform/runtime",
+      "authority": "API JWT/membership admission; internal executor only from owned Job kind/tenant/target/lease, never a client Actor"
+    },
+    {
+      "owner": "jobs.Worker",
+      "authority": "worker database role and current claim/heartbeat/terminal lease owner; initiating membership separate"
+    },
+    {
+      "owner": "catalog semantic indexer",
+      "authority": "worker Job tenant/profile/target/lease and exact metadata/vector privileges; no per-user index"
+    },
+    {
+      "owner": "webhook.Dispatcher/outbox",
+      "authority": "worker role, current endpoint/attempt ownership and safe sender; committed notifications survive initiator revocation"
+    },
+    {
+      "owner": "housekeeping",
+      "authority": "bounded class eligibility and explicit tenant predicates; no grant administration rights"
+    },
+    {
+      "owner": "catalogctl remote/sample loader and catalog-ui fixed-upstream host",
+      "authority": "same HTTP operation matrix; remote token/UI cookie never schema-owner authority; UI hints and login cannot grant Catalog permissions"
+    },
+    {
+      "owner": "catalogctl migrate, semantic schema, identity provision/realm lifecycle, repair, restore verification and key maintenance",
+      "authority": "existing exact owner/login validation, explicit scope, maintenance locking and audit; authority-changing writers join revision/admission"
+    },
+    {
+      "owner": "catalogctl profiles/version/help/local diagnostics/development smoke",
+      "authority": "static tools or explicitly owned development composition; no new production grant or synthetic-Actor remote bypass"
+    }
+  ]
+}

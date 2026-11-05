@@ -1,0 +1,32 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="sample-receipts-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1171" role="img" aria-labelledby="sample-receipts-title sample-receipts-desc">
+  <title id="sample-receipts-title">Choose a safe sample-loader rerun</title>
+  <desc id="sample-receipts-desc">Start with an explicitly selected ready Catalog, frozen YAML/native inputs and the private receipt lock. A matching completed receipt permits a read-only repeat without authoring commands or an archive service. A first load or explicit append-only extension uses the governed API; prior entries and unowned collisions cannot be changed. An interrupted or uncertain command retains its journal and exact request binding for readback or supported replay. Save a new or extended receipt only after authoritative verification. The Catalog can still create audit records when you read evidence.</desc>
+  <defs><marker id="sample-receipts-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 144 V214" marker-end="url(#sample-receipts-arrow)" />
+  <path class="svg-connector" d="M320 338 V373 H180 V408" marker-end="url(#sample-receipts-arrow)" />
+  <path class="svg-connector" d="M320 338 V373 H460 V408" marker-end="url(#sample-receipts-arrow)" />
+  <path class="svg-connector" d="M320 338 V392 H12 V777 H320 V793" marker-end="url(#sample-receipts-arrow)" />
+  <text class="svg-small" x="38" y="384">Saved journal</text>
+  <path class="svg-connector" d="M460 555 V590 H320 V625" marker-end="url(#sample-receipts-arrow)" />
+  <path class="svg-connector" d="M320 723 V793" marker-end="url(#sample-receipts-arrow)" />
+  <text class="svg-small" x="192" y="769">Interrupted</text>
+  <path class="svg-connector" d="M320 723 V741 H628 V1014 H320 V1030" marker-end="url(#sample-receipts-arrow)" />
+  <text class="svg-small" x="340" y="1006">Exact readback</text>
+  <path class="svg-connector" d="M320 960 V1030" marker-end="url(#sample-receipts-arrow)" />
+  <text class="svg-small" x="30" y="987">Readback / replay</text>
+  <DiagramCard x={60} y={20} width={520} title={["Validate inputs and lock the private", "receipt"]} lines={["Catalog is already ready and explicitly selected", "Freeze the single YAML source and native assets"]} />
+  <DiagramCard x={60} y={214} width={520} title={["Check receipt, ownership and command", "journal"]} lines={["Match the exact instance, dataset and prior entries", "Refuse changed inputs and unowned collisions"]} />
+  <DiagramCard x={60} y={408} width={240} title={["Matching completed", "receipt"]} tone="authority" lines={["Verify exact current state", "Read-only repeat", "No authoring commands or", "archive service needed"]} />
+  <DiagramCard x={340} y={408} width={240} title={["First load /", "explicit extension"]} tone="core" lines={["Use declared namespaces", "Extension preserves", "prior inputs and IDs"]} />
+  <DiagramCard x={60} y={625} width={520} title={"Governed API sequence"} lines={["Prepare required fixture inputs first", "Create, review and publish through the API"]} />
+  <DiagramCard x={60} y={793} width={520} title={"Interrupted or uncertain command"} tone="warning" lines={["Keep the private journal, original", "key and exact request binding", "Reconcile through authoritative", "readback or supported exact replay", "If replay is required, stop when it is unavailable or refused"]} />
+  <DiagramCard x={60} y={1030} width={520} title={"Confirm state and retain the receipt"} tone="authority" lines={["Save a new or extended receipt only after exact readback", "Keep existing identities and command bindings", "The Catalog can still create audit records for evidence reads"]} />
+
+</svg>
+</div>

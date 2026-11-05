@@ -1,0 +1,13 @@
+# Read-only correctness checks for maintained Python tooling, not a formatter.
+required-version = "==0.17.0"
+preview = false
+fix = false
+fix-only = false
+include = ["*.py"]
+# Personal Git ignore rules must not silently hide maintained source.
+respect-gitignore = false
+# Extend, rather than replace, Ruff's dependency and cache exclusions.
+extend-exclude = [".tools", "test/clientcompat/go/generated", "sdk/python/src/catalog_sdk/generated"]
+
+[lint]
+select = ["E4", "E7", "E9", "F", "B006", "B012", "B018", "B904", "B905", "RUF006"]

@@ -1,0 +1,207 @@
+name: SDK and editor checks
+
+on:
+  workflow_call:
+    inputs:
+      language:
+        type: string
+        default: all
+      upload_artifacts:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      upload_artifacts:
+        description: Upload selected reports only when the maintainer explicitly enables it
+        type: boolean
+        default: false
+      language:
+        description: SDK selection; all includes every maintained language
+        type: choice
+        required: true
+        default: all
+        options:
+          - all
+          - go
+          - python
+          - typescript
+          - rust
+
+permissions:
+  contents: read
+
+concurrency:
+  group: clients-${{ github.workflow }}-${{ github.ref }}-${{ inputs.language }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CATALOG_ENV_FILE: /dev/null
+  DEV_PYTHON: python3.12
+  PYTHONDONTWRITEBYTECODE: "1"
+  GOTELEMETRY: "off"
+  SELECTED_LANGUAGE: ${{ inputs.language }}
+  ASTRO_TELEMETRY_DISABLED: '1'
+  NPM_CONFIG_AUDIT: 'false'
+
+jobs:
+  admission:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      languages: ${{ steps.select.outputs.languages }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - id: select
+        env:
+          LANGUAGE: ${{ inputs.language }}
+        run: |
+          languages="$(python3 -B test/ci/admission.py languages "$LANGUAGE")"
+          printf 'languages=%s\n' "$languages" >> "$GITHUB_OUTPUT"
+  sdk:
+    needs: admission
+    name: ${{ matrix.language }} SDK${{ matrix.language == 'go' && ' and webhook receiver' || '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        language: ${{ fromJSON(needs.admission.outputs.languages) }}
+    env:
+      SDK_LANGUAGE: ${{ matrix.language }}
+      SDK_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.language }}
+    steps:
+      - name: Check out complete source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      # Rust can exceed standard runner storage. Refuse insufficient capacity;
+      # never delete runner tools, prune resources or substitute a compiler.
+      - name: Check selected SDK capacity
+        run: python3.12 -B test/ci/tools.py preflight --profile "$SDK_LANGUAGE"
+      - name: Install selected SDK system prerequisites
+        run: python3.12 -B test/ci/tools.py install --profile "$SDK_LANGUAGE"
+      - name: Install Go or Python SDK tools
+        if: ${{ matrix.language == 'go' || matrix.language == 'python' }}
+        run: make sdk-tools-install SDK_LANGUAGE="$SDK_LANGUAGE"
+      - name: Install TypeScript or Rust SDK tools
+        if: ${{ matrix.language == 'typescript' || matrix.language == 'rust' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: make sdk-tools-install SDK_LANGUAGE="$SDK_LANGUAGE"
+      - name: Install TypeScript Chromium system libraries
+        if: ${{ matrix.language == 'typescript' }}
+        run: |
+          sdk_node="$(python3.12 -c 'import json; from pathlib import Path; print(json.loads(Path("test/sdk/.tools/typescript/installed.json").read_text())["node"])')"
+          "$sdk_node" sdk/typescript/node_modules/playwright/cli.js install-deps chromium
+      - name: Check the selected SDK and examples
+        id: sdk_checks
+        run: |
+          if [[ "$SDK_LANGUAGE" == go ]]; then
+            make webhook-report-check
+          else
+            make sdk-check SDK_LANGUAGE="$SDK_LANGUAGE"
+          fi
+      - name: Install standalone generated Go-client tools
+        if: ${{ matrix.language == 'go' }}
+        run: make client-go-tools-install
+      - name: Qualify the unmodified Go generator
+        id: raw_go
+        if: ${{ matrix.language == 'go' }}
+        run: make client-go-check
+      # sdk-check already retains a qualified tarball and manifest. The editor
+      # installer requires its SHA-512 to match the checked-in extension lock.
+      - name: Install editor tools against the qualified TypeScript package
+        if: ${{ matrix.language == 'typescript' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: make vscode-tools-install
+      - name: Check editor types, lint and isolated units
+        id: editor_checks
+        if: ${{ matrix.language == 'typescript' }}
+        run: make vscode-check
+      - name: Stage the exact qualified SDK outputs
+        run: >-
+          python3.12 -B test/ci/admission.py stage-sdk --language "$SDK_LANGUAGE"
+          --run "$SDK_RUN_ID"
+          --output "output/artifacts/qualified-sdk/$SDK_RUN_ID"
+      - name: Upload the qualified SDK package set
+        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: qualified-sdk-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.language }}
+          retention-days: 7
+          if-no-files-found: error
+          path: output/artifacts/qualified-sdk/${{ env.SDK_RUN_ID }}/
+      - name: Reject unexpected source changes
+        if: ${{ !cancelled() }}
+        run: |
+          if ! git diff --quiet --; then
+            printf 'Verification changed unstaged source files.\n' >&2
+            exit 1
+          fi
+          if ! git diff --cached --quiet --; then
+            printf 'Verification changed staged source files.\n' >&2
+            exit 1
+          fi
+          unexpected="$(git ls-files --others --exclude-standard)"
+          if [[ -n "$unexpected" ]]; then
+            printf 'Verification created unexpected non-ignored files.\n' >&2
+            exit 1
+          fi
+      - name: Record client scope
+        if: ${{ always() }}
+        env:
+          RESULT: ${{ job.status }}
+          SDK_CHECKS: ${{ steps.sdk_checks.outcome || 'not_run' }}
+          RAW_GO: ${{ steps.raw_go.outcome || 'not_run' }}
+          EDITOR_CHECKS: ${{ steps.editor_checks.outcome || 'not_run' }}
+          SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          # Summary format strings contain literal Markdown backticks.
+          # shellcheck disable=SC2016
+          {
+            printf '### %s SDK checks\n\nStatus at summary, before artifact upload: `%s`.\n\n' "$SDK_LANGUAGE" "$RESULT"
+            printf 'Commit: `%s`\n\n' "$SOURCE_COMMIT"
+            printf 'Requested SDK selection: `%s`.\n' "$SELECTED_LANGUAGE"
+            if [[ "$SELECTED_LANGUAGE" != all ]]; then
+              printf 'Other SDK languages are unselected.\n'
+            fi
+            if [[ "$SDK_LANGUAGE" == go ]]; then
+              printf 'Go SDK and webhook receiver gate: `%s`.\n\n' "$SDK_CHECKS"
+              printf 'Receiver-only unit coverage, when produced: `coverage/publication-report-unit.out`.\n'
+              printf 'This profile excludes SDK and functional coverage.\n'
+            else
+              printf 'SDK gate: `%s`.\n\n' "$SDK_CHECKS"
+            fi
+            printf 'The SDK harness owns generation checks, unit/local HTTP/TLS tests and installed consumers.\n'
+            printf 'Language/MSRV/runtime selections belong to the existing harness; no outer runtime matrix is added.\n'
+            if [[ "$SDK_LANGUAGE" == go ]]; then
+              printf 'Independent unmodified-generator gate: `%s`.\n' "$RAW_GO"
+            elif [[ "$SDK_LANGUAGE" == typescript ]]; then
+              printf 'Editor type/lint/unit gate: `%s`; it reuses the SDK tarball.\n' "$EDITOR_CHECKS"
+              printf 'Installed-editor tests use the separate test-vscode target.\n'
+            fi
+            printf 'No package is published. Unit and functional coverage are separate measurements.\n'
+          } | tee "$RUNNER_TEMP/ci-client-summary.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain safe client evidence
+        if: ${{ (always()) && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: clients-${{ matrix.language }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ runner.arch }}
+          retention-days: 7
+          if-no-files-found: error
+          # Go retains a source manifest, without a package archive.
+          # The receiver profile contains only its independent module's units.
+          path: |
+            ${{ runner.temp }}/ci-client-summary.md
+            coverage/publication-report-unit.out
+            output/artifacts/sdk/${{ matrix.language }}/manifest.json
+            output/sdk/rust-coverage.json

@@ -1,0 +1,9 @@
+/* Keep callout titles readable in narrow columns and with enlarged text. */
+.starlight-aside__title {
+  flex-wrap: wrap;
+  overflow-wrap: anywhere;
+}
+
+.starlight-aside__icon {
+  flex-shrink: 0;
+}

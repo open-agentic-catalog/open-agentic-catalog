@@ -1,0 +1,98 @@
+/* Decorative manual-link icons. Native Starlight labels and controls remain intact. */
+nav[aria-label="Main"] a[data-nav-icon] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+nav[aria-label="Main"] a[data-nav-icon]::before {
+  content: "";
+  flex: 0 0 1rem;
+  width: 1rem;
+  height: 1rem;
+  margin-block-start: calc((1.4em - 1rem) / 2);
+  background-color: currentColor;
+  mask: var(--catalog-nav-mask) center / contain no-repeat;
+}
+
+nav[aria-label="Main"] a[data-nav-icon] > span:first-child {
+  min-width: 0;
+  flex: 1;
+}
+
+/* Retain label readability when a browser cannot render decorative masks. */
+@supports not (mask-image: url("")) {
+  nav[aria-label="Main"] a[data-nav-icon]::before {
+    display: none;
+  }
+}
+
+@media (forced-colors: active) {
+  nav[aria-label="Main"] a[data-nav-icon]::before {
+    display: none;
+  }
+}
+
+nav[aria-label="Main"] a[data-nav-icon="analytics"] {
+  --catalog-nav-mask: url("../assets/navigation/analytics.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="approve-check-circle"] {
+  --catalog-nav-mask: url("../assets/navigation/approve-check-circle.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="code-branch"] {
+  --catalog-nav-mask: url("../assets/navigation/code-branch.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="comment"] {
+  --catalog-nav-mask: url("../assets/navigation/comment.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="database"] {
+  --catalog-nav-mask: url("../assets/navigation/database.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="document"] {
+  --catalog-nav-mask: url("../assets/navigation/document.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="information"] {
+  --catalog-nav-mask: url("../assets/navigation/information.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="link"] {
+  --catalog-nav-mask: url("../assets/navigation/link.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="list-format"] {
+  --catalog-nav-mask: url("../assets/navigation/list-format.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="map"] {
+  --catalog-nav-mask: url("../assets/navigation/map.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="open-book"] {
+  --catalog-nav-mask: url("../assets/navigation/open-book.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="padlock"] {
+  --catalog-nav-mask: url("../assets/navigation/padlock.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="pen"] {
+  --catalog-nav-mask: url("../assets/navigation/pen.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="puzzle"] {
+  --catalog-nav-mask: url("../assets/navigation/puzzle.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="setting"] {
+  --catalog-nav-mask: url("../assets/navigation/setting.svg");
+}
+
+nav[aria-label="Main"] a[data-nav-icon="window"] {
+  --catalog-nav-mask: url("../assets/navigation/window.svg");
+}

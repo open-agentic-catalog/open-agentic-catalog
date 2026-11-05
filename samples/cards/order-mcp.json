@@ -1,0 +1,1 @@
+{"$schema":"https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json","description":"Provides order and fulfillment tools.","name":"com.example/order-integration","remotes":[{"supportedProtocolVersions":["2025-11-25"],"type":"streamable-http","url":"https://mcp.example.com/order-integration"}],"title":"Order integration MCP Server","version":"1.0.0"}

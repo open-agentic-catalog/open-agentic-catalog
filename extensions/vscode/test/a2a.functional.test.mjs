@@ -1,0 +1,400 @@
+import test from "node:test";
+import { listenFixture } from "../../../test/vscode/listen.mjs";
+import assert from "node:assert/strict";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { createServer } from "node:http";
+import { connect } from "node:net";
+import { execFileSync } from "node:child_process";
+import { a2aPeer } from "../../../test/vscode/a2a-peer.mjs";
+const { a2aPlan, a2aSettings, A2AConversation, a2aClient } = await import(
+  process.env.CATALOG_VSCODE_LIB
+);
+const make = (card, settings, headers = {}) => {
+  const plan = a2aPlan(Buffer.from(JSON.stringify(card)), settings);
+  return new A2AConversation(
+    plan,
+    a2aClient(plan, plan.interfaces[0], settings, headers),
+    async () => {},
+    () => {},
+  );
+};
+const until = async (predicate) => {
+  const end = Date.now() + 5000;
+  while (Date.now() < end) {
+    if (predicate()) return;
+    await new Promise((r) => setTimeout(r, 10));
+  }
+  throw Error("Owned A2A deadline");
+};
+
+test("Real TLS + unchanged official Hello World: streaming, readback, consent-free transport controls and cancellation", async (t) => {
+  const dir = await mkdtemp(resolve("output/vscode/a2a-tls-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  execFileSync(
+    "openssl",
+    [
+      "req",
+      "-x509",
+      "-newkey",
+      "rsa:2048",
+      "-nodes",
+      "-keyout",
+      join(dir, "key.pem"),
+      "-out",
+      join(dir, "fresh.pem"),
+      "-days",
+      "1",
+      "-subj",
+      "/CN=owned-a2a",
+      "-addext",
+      "subjectAltName=IP:127.0.0.1",
+    ],
+    { stdio: "pipe", timeout: 30000 },
+  );
+  // Allow bounded host clock drift without changing TLS validation or host time.
+  await writeFile(join(dir, "index"), "");
+  await writeFile(
+    join(dir, "ca.conf"),
+    `[ca]\ndefault_ca=owned\n[owned]\ndatabase=${join(dir, "index")}\nnew_certs_dir=${dir}\nserial=${join(dir, "serial")}\ndefault_md=sha256\ndefault_days=1\npolicy=subject\nx509_extensions=server\n[subject]\ncommonName=supplied\n[server]\nsubjectAltName=IP:127.0.0.1\nbasicConstraints=critical,CA:TRUE\nkeyUsage=critical,digitalSignature,keyCertSign\nextendedKeyUsage=serverAuth\n`,
+  );
+  const start =
+    new Date(Date.now() - 3600000)
+      .toISOString()
+      .replace(/[-:T]/gu, "")
+      .slice(0, 14) + "Z";
+  execFileSync(
+    "openssl",
+    [
+      "ca",
+      "-batch",
+      "-notext",
+      "-rand_serial",
+      "-selfsign",
+      "-config",
+      join(dir, "ca.conf"),
+      "-keyfile",
+      join(dir, "key.pem"),
+      "-cert",
+      join(dir, "fresh.pem"),
+      "-ss_cert",
+      join(dir, "fresh.pem"),
+      "-startdate",
+      start,
+      "-out",
+      join(dir, "cert.pem"),
+    ],
+    { stdio: "pipe", timeout: 30000 },
+  );
+  const peer = await a2aPeer({
+    key: await readFile(join(dir, "key.pem")),
+    cert: await readFile(join(dir, "cert.pem")),
+  });
+  t.after(() => peer.close());
+  const settings = a2aSettings({
+    caFile: join(dir, "cert.pem"),
+    timeoutMs: 3000,
+    streamTimeoutMs: 5000,
+  });
+  await assert.rejects(
+    make(peer.card, a2aSettings()).send("hello", true),
+    /a2a_request_failed/u,
+  );
+  assert.equal(peer.seen.length, 0, "Untrusted TLS must fail before HTTP");
+  const proxy = createServer(),
+    sockets = new Set();
+  let tunnels = 0;
+  proxy.on("connection", (socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+  });
+  proxy.on("connect", (request, client, head) => {
+    assert.equal(request.url, new URL(peer.origin).host);
+    tunnels++;
+    const upstream = connect(
+      Number(new URL(peer.origin).port),
+      "127.0.0.1",
+      () => {
+        client.write("HTTP/1.1 200 Connection Established\r\n\r\n");
+        if (head.length) upstream.write(head);
+        client.pipe(upstream);
+        upstream.pipe(client);
+      },
+    );
+    sockets.add(upstream);
+    upstream.on("close", () => sockets.delete(upstream));
+    upstream.on("error", () => client.destroy());
+    client.on("error", () => upstream.destroy());
+    client.on("close", () => upstream.destroy());
+  });
+  await listenFixture(proxy);
+  t.after(
+    () =>
+      new Promise((r) => {
+        for (const s of sockets) s.destroy();
+        proxy.close(r);
+      }),
+  );
+  const proxied = make(peer.card, {
+    ...settings,
+    proxyURL: `http://127.0.0.1:${proxy.address().port}`,
+  });
+  await proxied.send("hello", true);
+  assert.equal(proxied.state.status, "completed");
+  assert.equal(tunnels, 1);
+  const c = make(peer.card, settings, {
+    Authorization: "Bearer owned-a2a-secret",
+  });
+  await c.send("hello", true);
+  assert.equal(c.state.status, "completed");
+  assert.match(
+    c.state.artifacts[0].parts.join(""),
+    /Hello World! Nice to meet you!/u,
+  );
+  assert.equal(c.state.messages.filter((m) => m.role === "user").length, 1);
+  await c.read();
+  assert.equal(c.state.status, "completed");
+  const previous = c.state.context;
+  await c.send("hello again", true);
+  assert.equal(c.state.context, previous);
+  const cancel = make(peer.card, settings);
+  const sending = cancel.send("hello", true);
+  await until(() => cancel.state.task && cancel.state.status === "working");
+  await cancel.cancel();
+  await sending;
+  assert.equal(cancel.state.status, "canceled");
+  assert.equal(cancel.state.uncertain, false);
+  assert.ok(peer.seen.some((s) => s.request.method === "CancelTask"));
+  assert.ok(peer.seen.every((s) => s.headers["a2a-version"] === "1.0"));
+  assert.ok(
+    peer.seen.every(
+      (s) =>
+        !s.headers.cookie &&
+        (!s.headers.authorization ||
+          s.headers.authorization === "Bearer owned-a2a-secret"),
+    ),
+  );
+  assert.ok(
+    peer.seen.every(
+      (s) => !JSON.stringify(s.request).includes("CATALOG_TOKEN"),
+    ),
+  );
+  const bad = make(peer.card, settings, {
+    Authorization: "Bearer wrong-target-secret",
+  });
+  await assert.rejects(bad.send("hello"), /a2a_auth_refused/u);
+});
+
+test("Real owned A2A tasks: input-required continuation, readback, refused cancellation, separate contexts and outage", async (t) => {
+  const peer = await a2aPeer();
+  t.after(() => peer.close());
+  const card = {
+      ...peer.card,
+      supportedInterfaces: [
+        { ...peer.card.supportedInterfaces[0], url: peer.origin + "/owned" },
+      ],
+    },
+    settings = a2aSettings({ allowLoopbackHTTP: true, timeoutMs: 1000 });
+  const streaming = make(card, settings);
+  await streaming.send("stream", true);
+  assert.deepEqual(streaming.state.artifacts[0].parts, ["one ", "two"]);
+  assert.equal(streaming.state.artifacts[0].last, true);
+  const interrupted = make(card, settings);
+  await interrupted.send("auth", true);
+  assert.equal(interrupted.state.status, "authentication-required");
+  await assert.rejects(interrupted.send("must not replay"), /not_ready/u);
+  const c = make(card, settings);
+  await c.send("input");
+  assert.equal(c.state.status, "input-required");
+  const { task, context } = c.state;
+  await c.send("continue");
+  assert.equal(c.state.task, task);
+  assert.equal(c.state.context, context);
+  assert.equal(c.state.status, "completed");
+  const other = make(card, settings);
+  await other.send("refuse");
+  assert.notEqual(other.state.context, context);
+  await other.read();
+  assert.equal(other.state.status, "working");
+  await assert.rejects(other.cancel(), /a2a_remote_refusal/u);
+  assert.equal(other.state.status, "working");
+  other.disconnect();
+  assert.equal(other.state.connected, false);
+  assert.equal(
+    peer.seen.filter((s) => s.request.method === "CancelTask").length,
+    1,
+  );
+  const waiting = make(card, settings);
+  await waiting.send("wait");
+  await waiting.cancel();
+  assert.equal(waiting.state.status, "canceled");
+  const newConversation = make(card, settings);
+  await newConversation.send("input");
+  assert.notEqual(newConversation.state.context, context);
+  await peer.close();
+  await assert.rejects(newConversation.send("continue"), /a2a_request_failed/u);
+  assert.equal(newConversation.state.uncertain, true);
+});
+
+test("Real HTTP/SSE boundaries: direct Messages, no redirects, byte/type/identity refusal, timeout closure and no uncertain replay", async (t) => {
+  let mode = "message",
+    contacts = 0,
+    stolen = 0,
+    closed = 0;
+  const task = {
+    id: "t",
+    contextId: "c",
+    status: { state: "TASK_STATE_WORKING" },
+  };
+  const messages = [];
+  const server = createServer(async (req, res) => {
+    contacts++;
+    if (req.url === "/stolen") stolen++;
+    res.on("close", () => closed++);
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    const request = JSON.parse(body);
+    if (mode === "message") {
+      messages.push(request);
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.id,
+          result: {
+            message: {
+              messageId: `direct-${messages.length}`,
+              contextId: "direct-context",
+              role: "ROLE_AGENT",
+              parts: [{ text: "<script>inert direct reply</script>" }],
+            },
+          },
+        }),
+      );
+      return;
+    }
+    if (mode === "redirect") {
+      res.writeHead(302, { location: "/stolen" });
+      res.end();
+      return;
+    }
+    if (mode === "large") {
+      res.setHeader("content-type", "application/json");
+      res.end(Buffer.alloc(1024 ** 2 + 1));
+      return;
+    }
+    if (mode === "nontext") {
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.id,
+          result: {
+            message: {
+              messageId: "m",
+              contextId: "c",
+              role: "ROLE_AGENT",
+              parts: [{ data: { private: "not text" } }],
+            },
+          },
+        }),
+      );
+      return;
+    }
+    res.setHeader("content-type", "text/event-stream");
+    const event = (result) =>
+      res.write(
+        `data: ${JSON.stringify({ jsonrpc: "2.0", id: request.id, result })}\n\n`,
+      );
+    event({ task });
+    if (mode === "stall") return;
+    if (mode === "truncated") {
+      res.end(
+        `data: ${JSON.stringify({ jsonrpc: "2.0", id: request.id, result: { statusUpdate: { taskId: "t", contextId: "c", status: { state: "TASK_STATE_COMPLETED" } } } })}\n`,
+      );
+      return;
+    }
+    event({
+      statusUpdate: {
+        taskId: "t",
+        contextId: "different",
+        status: { state: "TASK_STATE_COMPLETED" },
+      },
+    });
+    res.end();
+  });
+  await listenFixture(server);
+  t.after(
+    () =>
+      new Promise((r) => {
+        server.closeAllConnections();
+        server.close(r);
+      }),
+  );
+  const card = {
+      name: "Adverse",
+      version: "1",
+      supportedInterfaces: [
+        {
+          url: `http://127.0.0.1:${server.address().port}/rpc`,
+          protocolBinding: "JSONRPC",
+          protocolVersion: "1.0",
+        },
+      ],
+      capabilities: { streaming: true },
+      defaultInputModes: ["text/plain"],
+      defaultOutputModes: ["text/plain"],
+    },
+    settings = a2aSettings({
+      allowLoopbackHTTP: true,
+      timeoutMs: 1000,
+      streamTimeoutMs: 1000,
+    });
+  const direct = make(card, settings);
+  await direct.send("你好");
+  assert.equal(direct.state.status, "completed");
+  assert.equal(direct.state.context, "direct-context");
+  assert.equal(direct.state.task, undefined);
+  assert.equal(
+    direct.state.messages[1].text,
+    "<script>inert direct reply</script>",
+  );
+  assert.deepEqual(direct.state.artifacts, []);
+  await assert.rejects(direct.read(), /a2a_task_required/);
+  assert.equal(contacts, 1, "A direct Message has no task to poll");
+  await direct.send("another prompt");
+  assert.equal(contacts, 2);
+  assert.equal(messages[0].method, "SendMessage");
+  assert.equal(messages[0].params.message.contextId, undefined);
+  assert.equal(messages[0].params.message.taskId, undefined);
+  assert.equal(messages[1].params.message.contextId, "direct-context");
+  assert.equal(messages[1].params.message.taskId, undefined);
+  assert.deepEqual(
+    messages.map((r) => r.params.message.parts.map((p) => p.text)),
+    [["你好"], ["another prompt"]],
+  );
+  assert.equal(
+    direct.state.messages.filter((m) => m.role === "agent").length,
+    2,
+  );
+  for (const selected of [
+    "redirect",
+    "large",
+    "nontext",
+    "bad-context",
+    "truncated",
+    "stall",
+  ]) {
+    mode = selected;
+    const c = make(card, settings);
+    const before = contacts;
+    await assert.rejects(
+      c.send("prompt", ["bad-context", "truncated", "stall"].includes(mode)),
+    );
+    assert.equal(c.state.uncertain, true);
+    await assert.rejects(c.send("prompt"), /not_ready/u);
+    assert.equal(contacts, before + 1);
+    await until(() => closed >= contacts);
+    assert.equal(stolen, 0);
+  }
+});

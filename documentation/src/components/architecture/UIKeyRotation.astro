@@ -1,0 +1,23 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="ui-key-rotation-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1043" role="img" aria-labelledby="ui-key-rotation-title ui-key-rotation-desc">
+  <title id="ui-key-rotation-title">Rotate cookie keys without breaking replica sessions</title>
+  <desc id="ui-key-rotation-desc">The UI writes cookies with the first configured key pair. It can read cookies with every listed pair.
+
+  First add the new pair after the old writer and replace every UI process so all replicas accept both. Next put the new pair first and complete a second rollout. Measure the overlap from the time the last old-key writer stops. Keep the old key pair available for reads for the greater of maximum session lifetime and five minutes. Then remove it in a third rollout. Startup does not reload changed Secrets; emergency removal deliberately invalidates affected sessions.</desc>
+  <defs><marker id="ui-key-rotation-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 164 V234" marker-end="url(#ui-key-rotation-arrow)" />
+  <path class="svg-connector" d="M320 355 V425" marker-end="url(#ui-key-rotation-arrow)" />
+  <path class="svg-connector" d="M320 595 V642" marker-end="url(#ui-key-rotation-arrow)" />
+  <DiagramCard x={60} y={20} width={520} title={"Stage 1: all replicas read the new pair"} lines={["Key ring: [old, new]", "Writer: old; readers: old and new", "Replace every UI process", "Do not write with the new pair yet"]} />
+  <DiagramCard x={60} y={234} width={520} title={"Stage 2: all replicas write the new pair"} lines={["Key ring: [new, old]", "Writer: new; readers: new and old", "Finish the second rollout and stop the last old-key writer"]} />
+  <DiagramCard x={60} y={425} width={520} title={["Measure overlap from the last old-key", "writer's stop"]} tone="warning" lines={["Wait the greater of maximum", "session lifetime and five minutes", "Keep the old key pair available for reads", "throughout this window"]} />
+  <DiagramCard x={60} y={642} width={520} title={"Stage 3: retire the old pair"} tone="authority" lines={["Key ring: [new]", "Writer and reader: new", "Complete a third rollout after the overlap window"]} />
+  <DiagramCard x={60} y={833} width={520} title={"Replace processes at every stage"} tone="warning" lines={["The UI writes cookies with the first configured pair", "It can read cookies with every listed pair", "Secret updates do not reload a running", "host; keep at most three pairs", "Emergency removal is separate and", "deliberately invalidates affected sessions"]} />
+
+</svg>
+</div>

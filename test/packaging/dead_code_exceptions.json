@@ -1,0 +1,137 @@
+[
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/audit",
+    "symbol": "Actions",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Shared action vocabulary: api/openapi_test.go compares the public enum with domain actions; audit tests verify ordering and registration."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock",
+    "symbol": "NewFake",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Shared deterministic clock constructor used across package unit and functional tests; moving it to _test.go would break importing tests."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock",
+    "symbol": "Fake.Now",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Clock interface implementation for the shared deterministic test clock."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock",
+    "symbol": "Fake.Advance",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Shared deterministic advancement for lease, retry, expiry and retention assertions across package tests."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config",
+    "symbol": "EnvironmentVariables",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Shared configuration inventory for runtime documentation/container contracts and Helm environment wiring tests; does not read secrets."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "PrepareWithReceipt",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Explicit test/demo --prepare (make demo-archives-prepare) materializes exact known original archive bytes for retained receipt hints; not a shipped Catalog entry point or API ownership authority. Isolated units verify original paths and unchanged selected plan."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "Prepare",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Explicit local test/demo --prepare entry point (make demo-archives-prepare); not a shipped Catalog process. Units verify atomic publication and immutable path identities."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "atomicFile",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Private durable publication helper reached by the explicit local test/demo preparation tool; not a shipped Catalog entry point."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "objectName",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Exact digest-addressed storage helper shared by the explicit local preparation and serving tool; never used for metadata-directed paths."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "ReadPrepared",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Explicit local test/demo HTTPS serving entry point snapshots verified files; not a shipped Catalog process."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "PreviewReceipt",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Local test/demo --check inventory projection, exercised by make demo-check; not a shipped Catalog process or API authority."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "EncodePreview",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Local test/demo --check output projection (make demo-check); not a shipped Catalog process."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "Samples",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Shared YAML-backed published inventory for existing runtime, command, archive and Compose qualification fixtures; default seeding uses the full Plan."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "Representation",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Shared exact YAML-backed representation fixture for runtime and Compose qualification; default seeding uses the full Plan."
+  },
+  {
+    "package": "github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata",
+    "symbol": "PrepareDirectory",
+    "scopes": [
+      "production-amd64",
+      "production-arm64"
+    ],
+    "reason": "Shared private-directory boundary for test/demo TLS and archive preparation/serving, with ancestor-link refusal before any output creation; not a shipped Catalog entry point."
+  }
+]

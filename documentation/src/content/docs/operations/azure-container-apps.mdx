@@ -1,0 +1,580 @@
+---
+title: Deploy on Azure Container Apps
+description: Run separate Catalog API and worker apps with Azure Database for PostgreSQL Flexible Server and an explicit migration operation.
+---
+
+Run separate API and worker containers in [Azure Container Apps](https://learn.microsoft.com/en-us/azure/container-apps/overview), with [Azure Database for PostgreSQL Flexible Server](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/overview) as the database. Use a manually triggered Container Apps job for schema-owner commands. The optional UI uses a separate image, app and credentials.
+
+This deployment has not been tested on Azure. Complete the database and platform checks below before serving production traffic.
+
+## Check suitability first
+
+Use PostgreSQL 18 and enable `pgcrypto`. Catalog will not start with another PostgreSQL major version. Azure supports [PostgreSQL 18](https://learn.microsoft.com/en-us/azure/postgresql/configure-maintain/concepts-supported-versions) and lists [pgcrypto 1.4 for PostgreSQL 18](https://learn.microsoft.com/en-us/azure/postgresql/extensions/concepts-extensions-versions#pgcrypto). Check capacity in your selected region and subscription before provisioning. Engine support does not establish the database permissions checked below.
+
+| Component | Required deployment behavior |
+| --- | --- |
+| Database | PostgreSQL 18, UTF8, `pgcrypto`, a dedicated Catalog database and schema owner. |
+| Runtime identities | Direct, distinct API and worker logins with the exact attributes and privileges in [PostgreSQL roles](database-roles.md). |
+| Worker | A continuously running app with at least one replica. PostgreSQL Jobs, outbox work and housekeeping do not generate HTTP scaling traffic. |
+| Migrations | An explicit owner-only operation after every old API and worker replica has stopped. No startup or init-container migrations. |
+| Images | The reviewed `linux/amd64` backend image, selected by immutable digest. Container Apps currently requires [Linux x86-64 images](https://learn.microsoft.com/en-us/azure/container-apps/containers#limitations). |
+| Network | Private database connectivity, verified TLS, controlled ingress and operator-managed egress. |
+| Authentication | Catalog validates issuer-signed JWT access tokens. Container Apps authentication and managed identities do not replace this contract. |
+
+The backend image is static, stripped and based on `scratch`. It runs as UID/GID `65532:65532`, embeds public TLS roots, and contains no shell, `curl`, configuration or credentials. Preserve that image user. Use native HTTP probes rather than shell commands.
+
+:::caution[Container hardening has a platform limit]
+The current stable [Container Apps resource schema](https://learn.microsoft.com/en-us/azure/templates/microsoft.app/2026-07-01/containerapps) and [job schema](https://learn.microsoft.com/en-us/azure/templates/microsoft.app/2026-07-01/jobs) do not expose a container security context or a read-only root-filesystem setting. These examples cannot reproduce Docker's `--read-only`, `--cap-drop ALL` and `no-new-privileges` controls. A non-root image and secret volumes do not establish those controls. If your deployment requires them, use a platform that supplies them; do not add unsupported YAML fields or claim equivalent hardening.
+:::
+
+## Prepare infrastructure and operator access
+
+Use an approved subscription, resource group and region. Install the current [Azure CLI](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli) and its supported Container Apps extension. Use Bash for the examples. Authenticate through your organization's approved operator flow before running deployment commands.
+
+Provide these existing infrastructure inputs:
+
+- A Container Apps environment integrated with your virtual network. Use a workload profiles environment and a dedicated infrastructure subnet. Follow [virtual network integration](https://learn.microsoft.com/en-us/azure/container-apps/vnet-custom) and [environment networking](https://learn.microsoft.com/en-us/azure/container-apps/networking).
+- A PostgreSQL 18 Flexible Server with private access, database backups, capacity, availability and a maintenance window selected by the database operator.
+- A separate PostgreSQL delegated subnet and its linked private DNS zone. [PostgreSQL private access](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-networking-private) must resolve from the apps, owner job and administrative connection path. Use the server FQDN rather than a private IP.
+- An Azure Container Registry (ACR) containing the reviewed backend digest and, if selected, the independent UI digest. The managed-identity registry configuration below is ACR-specific.
+- A secret-delivery mechanism. This procedure uses existing Azure Key Vault secrets, referenced through separate user-assigned managed identities. An equivalent scoped delivery mechanism is acceptable.
+- An ingress boundary that protects operational paths, preserves the intended HTTP `Host`, and supplies the selected public HTTPS origin. Bind any required [custom domain and certificate](https://learn.microsoft.com/en-us/azure/container-apps/custom-domains-certificates).
+
+Use network controls for PostgreSQL TCP 5432, DNS and platform dependencies. Permit the required identity, registry and Key Vault traffic, plus API discovery/key traffic to the configured issuer. Permit only separately approved federation, artifact and webhook destinations when enabling those features. Account for [Container Apps networking requirements](https://learn.microsoft.com/en-us/azure/container-apps/firewall-integration); a deny rule must not block required platform traffic. VNet placement alone does not establish egress isolation.
+
+The API example uses environment-internal ingress: `external: false` permits callers in the same Container Apps environment. A private Application Gateway in another subnet instead needs an environment with an internal virtual IP and app `ingress.external: true`. In that combination, the app is reachable from the VNet without a public environment endpoint. Azure's `external` flag describes access relative to the environment, not internet exposure by itself. Select the [environment and app ingress boundaries](https://learn.microsoft.com/en-us/azure/container-apps/networking#accessibility-level) that match your gateway, then verify no direct public bypass exists.
+
+Prepare these non-secret shell settings. Replace every uppercase placeholder before using commands:
+
+```sh
+set -euo pipefail
+umask 077
+CATALOG_SUBSCRIPTION='SUBSCRIPTION_UUID'
+CATALOG_RESOURCE_GROUP='RESOURCE_GROUP_NAME'
+CATALOG_AZURE_ENVIRONMENT='CONTAINER_APPS_ENVIRONMENT_NAME'
+CATALOG_DATABASE_SERVER='POSTGRESQL_SERVER_NAME'
+CATALOG_API_APP='catalog-api'
+CATALOG_WORKER_APP='catalog-worker'
+CATALOG_OWNER_JOB='catalog-owner'
+CATALOG_INPUTS="$HOME/.local/share/open-agentic-catalog/azure"
+mkdir -p "$CATALOG_INPUTS"
+az account set --subscription "$CATALOG_SUBSCRIPTION"
+az extension add --name containerapp --upgrade
+```
+
+The commands below name their resource group. Confirm the selected subscription before each maintenance window. Keep prepared files outside the checkout. Do not place passwords or tokens in shell assignments, YAML values, command arguments or logs.
+
+## Qualify the database identities
+
+Azure's administrator is a member of restricted `azure_pg_admin`, not a PostgreSQL superuser. Microsoft documents [non-administrator BYPASSRLS support for PostgreSQL 16 and later](https://learn.microsoft.com/en-us/azure/postgresql/security/security-access-control#bypass-row-level-security). This permits the required worker attribute; it does not prove schema ownership or extension-function grant authority.
+
+Have the database administrator create three dedicated logins and a UTF8 database. The following SQL describes a new isolated installation. Provision passwords separately through a protected administrative session:
+
+```sql
+CREATE ROLE catalog_owner LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION BYPASSRLS;
+CREATE ROLE catalog_api LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+CREATE ROLE catalog_worker LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION BYPASSRLS;
+CREATE DATABASE catalog OWNER catalog_owner ENCODING 'UTF8' TEMPLATE template0;
+GRANT CONNECT ON DATABASE catalog TO catalog_api, catalog_worker;
+```
+
+Do not grant either runtime membership in `azure_pg_admin` or any other database role. Remove any automatic creator memberships that involve a runtime role, in either direction. Keep `catalog_owner` separate from runtime identities and from other applications.
+
+In the selected `catalog` database, arrange direct ownership of the application schema by `catalog_owner`. Azure documents that its `public` schema remains owned by `azure_pg_admin`, even on newer PostgreSQL versions. Database ownership alone therefore does not establish Catalog's required schema ownership. Have the administrator review and perform the ownership preparation for this dedicated database. Do not change a shared schema or grant schema creation to runtime roles.
+
+Allow `pgcrypto` through [Azure's extension allowlist](https://learn.microsoft.com/en-us/azure/postgresql/extensions/how-to-allow-extensions). On a new dedicated server with no other required extensions:
+
+```sh
+az postgres flexible-server parameter set \
+  --resource-group "$CATALOG_RESOURCE_GROUP" \
+  --server-name "$CATALOG_DATABASE_SERVER" \
+  --name azure.extensions --value pgcrypto --output none
+```
+
+This replaces the server allowlist. On a shared or existing server, preserve its reviewed entries and include `pgcrypto` instead. An allowlist entry does not install the extension or authorize its function grants.
+
+Complete [non-superuser owner preparation](database-roles.md#prepare-an-isolated-non-superuser-owner). Trusted extension installation can leave functions owned by a bootstrap superuser. The owner must reconcile grants for every application-visible extension function, including revocation of `PUBLIC EXECUTE`. Azure's public documentation does not establish that every managed extension ownership arrangement permits this preparation. If Azure refuses a required ownership or grant operation, stop: that server does not meet Catalog's database requirements. Do not use the managed administrator as a runtime identity or bypass the privilege checks.
+
+Inspect the actual server through a protected SQL session before migration:
+
+```sql
+SHOW server_version;
+SHOW server_encoding;
+SELECT extname, extversion
+  FROM pg_catalog.pg_extension
+ WHERE extname = 'pgcrypto';
+SELECT rolname, rolcanlogin, rolsuper, rolinherit, rolcreaterole,
+       rolcreatedb, rolreplication, rolbypassrls
+  FROM pg_catalog.pg_roles
+ WHERE rolname IN ('catalog_owner', 'catalog_api', 'catalog_worker');
+SELECT granted.rolname AS granted_role, member.rolname AS member_role
+  FROM pg_catalog.pg_auth_members membership
+  JOIN pg_catalog.pg_roles granted ON granted.oid = membership.roleid
+  JOIN pg_catalog.pg_roles member ON member.oid = membership.member
+ WHERE granted.rolname IN ('catalog_api', 'catalog_worker')
+    OR member.rolname IN ('catalog_api', 'catalog_worker');
+SELECT nspname, pg_catalog.pg_get_userbyid(nspowner) AS owner
+  FROM pg_catalog.pg_namespace WHERE nspname = 'public';
+SELECT extname, extversion, pg_catalog.pg_get_userbyid(extowner) AS owner
+  FROM pg_catalog.pg_extension;
+SELECT procedure.oid::pg_catalog.regprocedure AS function,
+       pg_catalog.pg_get_userbyid(procedure.proowner) AS owner
+  FROM pg_catalog.pg_proc procedure
+  JOIN pg_catalog.pg_depend dependency
+    ON dependency.classid = 'pg_catalog.pg_proc'::pg_catalog.regclass
+   AND dependency.objid = procedure.oid AND dependency.deptype = 'e'
+  JOIN pg_catalog.pg_extension extension
+    ON extension.oid = dependency.refobjid
+ WHERE dependency.refclassid = 'pg_catalog.pg_extension'::pg_catalog.regclass
+   AND extension.extname = 'pgcrypto';
+```
+
+Expect `18.x`, `UTF8` and one installed `pgcrypto` row from the first three queries. The runtime attributes must match [PostgreSQL roles](database-roles.md#required-database-identities), and the membership query must return no rows. Require the intended schema owner and the extension-function authority described above. These queries do not replace the owner-only migration and privilege checks. Apply all pending migrations, require compliant privilege reports for both roles, then start the API and worker with their separate database logins.
+
+Use direct PostgreSQL connections on port 5432 in this procedure. Do not enable the provider's pooler by assumption. Catalog requires verified session pooling when a pooler is selected; follow the [connection-pooling boundary](database-roles.md#connection-pooling-boundary).
+
+## Prepare configuration, trust and secrets
+
+Start with a reviewed copy of the [production profile](../../../../../config/production.example.json). Replace example public URLs, tenant UUID, issuer, audience and discovery hosts. Remove sample host mappings you do not serve. Keep `database.migrateOnStart: false`. Keep optional webhooks, hybrid search, managed media, software assessment and trust verification disabled for this baseline.
+
+Use `0.0.0.0:8080` for `http.address` and `0.0.0.0:9090` for `worker.operationsAddress`. Keep the same domain settings and cursor key across API and worker replicas. Size `database.maxConnections` for all API replicas, worker replicas, owner operations and database headroom. Reserve connections for temporary revision overlap and platform maintenance, even when `maxReplicas` is one. The shipped production profile selects 20 per process; it is not a server-wide budget.
+
+Provide three DSNs with the exact corresponding login. For example, the API secret has this shape:
+
+```text
+postgres://catalog_api:PERCENT_ENCODED_PASSWORD@SERVER_NAME.postgres.database.azure.com:5432/catalog?sslmode=verify-full&sslrootcert=/inputs/db-ca.pem
+```
+
+Use the provider's current [TLS certificate guidance](https://learn.microsoft.com/en-us/azure/postgresql/security/security-tls-how-to-connect) to prepare `db-ca.pem`. Include the required roots during certificate transitions. Verify the server FQDN with `sslmode=verify-full`; private routing does not replace TLS verification. Do not rely on a system CA file inside the scratch image.
+
+The example uses [Key Vault references and secret volumes](https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets). Each projected secret becomes a file. Configuration and the public CA bundle also use this delivery mechanism to avoid another mounted storage service; their contents are non-secret. Keep each input within [Key Vault's 25 KB secret limit](https://learn.microsoft.com/en-us/azure/key-vault/secrets/about-secrets). Larger public trust or policy inputs need another reviewed file-delivery method.
+
+| Input | Contents | Consumers |
+| --- | --- | --- |
+| `runtime-config` | Reviewed production JSON, without credentials. | API, worker, owner job. |
+| `db-ca` | Current public PostgreSQL CA bundle in PEM format. | Each database consumer. |
+| `api-dsn` | API DSN only. | API identity only. |
+| `worker-dsn` | Worker DSN only. | Worker identity only. |
+| `owner-dsn` | Schema-owner DSN only. | Owner-job identity only. |
+| `cursor-key` | Base64 for exactly 32 independent random bytes. | API and worker only. |
+
+Have the secret operator upload these files through the approved mechanism. For file-based upload, [az keyvault secret set](https://learn.microsoft.com/en-us/cli/azure/keyvault/secret#az-keyvault-secret-set) accepts `--file`, so secret bytes need not appear in arguments. Suppress value output. Retain each selected secret version URI in the deployment inputs. This procedure uses versioned references for explicit rollout and rotation.
+
+Use distinct managed identities for API, worker and owner job. Grant each identity access only to its required secrets and registry. These identities retrieve inputs and pull images; this recipe uses externally rotated PostgreSQL login credentials. Catalog does not automatically obtain or renew Azure database access tokens.
+
+For [Key Vault references](https://learn.microsoft.com/en-us/azure/container-apps/manage-secrets#reference-secret-from-key-vault), grant the selected identity secret-value read authority, such as `Key Vault Secrets User`. Azure resource `Contributor` alone does not supply this data-plane access. Use separate vaults or reviewed secret scopes so runtime identities cannot read the owner DSN. Verify network access to the selected vault and its private DNS when applicable.
+
+For [ACR managed-identity pulls](https://learn.microsoft.com/en-us/azure/container-apps/managed-identity-image-pull), allow ARM-audience token authentication on the registry. Grant `AcrPull` for an RBAC-only registry, or the applicable `Container Registry Repository Reader` access for an [ABAC-enabled registry](https://learn.microsoft.com/en-us/azure/container-registry/container-registry-rbac-abac-repository-permissions). Scope each grant to its required repository where supported. Set `REGISTRY_HOST` to that registry's login server. Other registries need their own supported credential configuration; the identity field is not generic registry authentication.
+
+Review Azure permissions for app modification, secret listing and job execution: starting a job can override its image and use its secrets. Treat owner-job start authority as owner-credential authority. Do not assign broad operational roles as a substitute for this review.
+
+Backend precedence is defaults, `--config` JSON, allowlisted environment overrides, then role validation. The examples override only the role DSN through `CATALOG_DATABASE_DSN_FILE`. They set `CATALOG_CURSOR_SIGNING_KEY_FILE` only for runtimes. Do not also set their direct-value counterparts. File paths are container paths. The binaries do not load `.env` or expand shell variables in JSON/YAML. See [configuration delivery](../reference/configuration.mdx#configuration-delivery-and-precedence).
+
+Before cloud deployment, run `catalogctl config validate` for `api`, `worker` and `migration` with the intended files and environment. Use the selected release binary or image. Offline validation does not establish Azure connectivity, database authority or issuer compatibility.
+
+## Configure the API and worker apps
+
+Save this [Container Apps YAML](https://learn.microsoft.com/en-us/azure/container-apps/azure-resource-manager-api-spec) as `api.yaml` in the protected input directory. Replace every uppercase placeholder, including the identity resource ID used as a mapping key. Select the reviewed backend digest. The example assumes an existing environment and registry permissions.
+
+```yaml title="api.yaml"
+location: AZURE_REGION
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    API_IDENTITY_RESOURCE_ID: {}
+properties:
+  environmentId: CONTAINER_APPS_ENVIRONMENT_RESOURCE_ID
+  workloadProfileName: Consumption
+  configuration:
+    activeRevisionsMode: Single
+    ingress:
+      external: false
+      targetPort: 8080
+      transport: auto
+      allowInsecure: false
+    registries:
+      - server: REGISTRY_HOST
+        identity: API_IDENTITY_RESOURCE_ID
+    secrets:
+      - name: runtime-config
+        keyVaultUrl: CONFIG_SECRET_VERSION_URI
+        identity: API_IDENTITY_RESOURCE_ID
+      - name: db-ca
+        keyVaultUrl: DATABASE_CA_SECRET_VERSION_URI
+        identity: API_IDENTITY_RESOURCE_ID
+      - name: database-dsn
+        keyVaultUrl: API_DSN_SECRET_VERSION_URI
+        identity: API_IDENTITY_RESOURCE_ID
+      - name: cursor-key
+        keyVaultUrl: CURSOR_SECRET_VERSION_URI
+        identity: API_IDENTITY_RESOURCE_ID
+  template:
+    revisionSuffix: RELEASE_SUFFIX
+    terminationGracePeriodSeconds: 40
+    scale:
+      minReplicas: 1
+      maxReplicas: 1
+      rules: []
+    containers:
+      - name: api
+        image: REGISTRY_HOST/REPOSITORY@sha256:BACKEND_DIGEST
+        command: [/usr/local/bin/catalogd]
+        args: [api, --config, /inputs/config.json]
+        resources:
+          cpu: 1.0
+          memory: 2Gi
+        env:
+          - name: CATALOG_DATABASE_DSN_FILE
+            value: /inputs/database.dsn
+          - name: CATALOG_CURSOR_SIGNING_KEY_FILE
+            value: /inputs/cursor.key
+        volumeMounts:
+          - volumeName: inputs
+            mountPath: /inputs
+          - volumeName: temporary
+            mountPath: /tmp
+        probes:
+          - type: Startup
+            httpGet: {path: /livez, port: 8080}
+            initialDelaySeconds: 1
+            periodSeconds: 2
+            timeoutSeconds: 2
+            failureThreshold: 60
+          - type: Liveness
+            httpGet: {path: /livez, port: 8080}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          - type: Readiness
+            httpGet: {path: /readyz, port: 8080}
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+    volumes:
+      - name: inputs
+        storageType: Secret
+        secrets:
+          - {secretRef: runtime-config, path: config.json}
+          - {secretRef: db-ca, path: db-ca.pem}
+          - {secretRef: database-dsn, path: database.dsn}
+          - {secretRef: cursor-key, path: cursor.key}
+      - name: temporary
+        storageType: EmptyDir
+```
+
+Create `worker.yaml` from that file and make each change below. Keep the image, shared configuration, CA bundle and cursor-key version identical:
+
+| API setting | Worker replacement |
+| --- | --- |
+| Every `API_IDENTITY_RESOURCE_ID` | The separate `WORKER_IDENTITY_RESOURCE_ID`. |
+| `API_DSN_SECRET_VERSION_URI` | `WORKER_DSN_SECRET_VERSION_URI`. |
+| `configuration.ingress` | Remove the complete object. The worker has no ingress. |
+| Container `name: api` | `name: worker`. |
+| `args: [api, --config, /inputs/config.json]` | `args: [worker, --config, /inputs/config.json]`. |
+| Every probe port `8080` | `9090`. |
+
+The 1 CPU/2 GiB allocation is a permitted Consumption combination, not a measured Catalog sizing result. Measure the selected workload before changing capacity. Keep `minReplicas: 1` or more for the worker; [scale-to-zero defaults](https://learn.microsoft.com/en-us/azure/container-apps/scale-app) are unsuitable for its PostgreSQL polling loop. The example fixes both roles at one replica to make the initial database budget explicit.
+
+Use [HTTP health probes](https://learn.microsoft.com/en-us/azure/container-apps/health-probes); Container Apps does not support `exec` probes. `/livez` does not contact PostgreSQL. `/readyz` verifies required role dependencies. Do not use dependency readiness as liveness. A worker probe reaches port 9090 directly without creating a public worker route.
+
+The [termination grace period](https://learn.microsoft.com/en-us/rest/api/resource-manager/containerapps/container-apps/get?view=rest-resource-manager-containerapps-2025-07-01#template) is 40 seconds, above the default 20-second Catalog drain. Increase it with the configured shutdown budget. `EmptyDir` is transient; no authoritative Catalog state belongs there. Verify projected files are readable by UID 65532 without changing the image to root.
+
+Do not create the runtime apps until migration and initial identity provisioning have succeeded.
+
+When the gateway preserves a public API hostname, bind that same hostname and certificate to the app. Add the following `customDomains` array under `properties.configuration.ingress` in the complete API YAML. Use an existing environment certificate resource and the actual hostname:
+
+```yaml
+customDomains:
+  - name: catalog.example.com
+    bindingType: SniEnabled
+    certificateId: ENVIRONMENT_CERTIFICATE_RESOURCE_ID
+```
+
+Follow the [custom-domain procedure](https://learn.microsoft.com/en-us/azure/container-apps/custom-domains-certificates) for certificate import and domain validation. Keep the binding in later complete updates. The gateway still owns public DNS/TLS routing and path restrictions; a domain binding does not filter `/metrics`.
+
+## Run the owner operation explicitly
+
+Save `owner-job.yaml` beside the runtime files. Use the separate owner managed identity and owner DSN. Its default operation plans migrations without applying them:
+
+```yaml title="owner-job.yaml"
+location: AZURE_REGION
+identity:
+  type: UserAssigned
+  userAssignedIdentities:
+    OWNER_IDENTITY_RESOURCE_ID: {}
+properties:
+  environmentId: CONTAINER_APPS_ENVIRONMENT_RESOURCE_ID
+  workloadProfileName: Consumption
+  configuration:
+    triggerType: Manual
+    replicaTimeout: 1800
+    replicaRetryLimit: 0
+    manualTriggerConfig:
+      parallelism: 1
+      replicaCompletionCount: 1
+    registries:
+      - server: REGISTRY_HOST
+        identity: OWNER_IDENTITY_RESOURCE_ID
+    secrets:
+      - name: runtime-config
+        keyVaultUrl: CONFIG_SECRET_VERSION_URI
+        identity: OWNER_IDENTITY_RESOURCE_ID
+      - name: db-ca
+        keyVaultUrl: DATABASE_CA_SECRET_VERSION_URI
+        identity: OWNER_IDENTITY_RESOURCE_ID
+      - name: database-dsn
+        keyVaultUrl: OWNER_DSN_SECRET_VERSION_URI
+        identity: OWNER_IDENTITY_RESOURCE_ID
+  template:
+    containers:
+      - name: owner
+        image: REGISTRY_HOST/REPOSITORY@sha256:BACKEND_DIGEST
+        command: [/usr/local/bin/catalogctl]
+        args: [migrate, plan, --config, /inputs/config.json]
+        resources: {cpu: 1.0, memory: 2Gi}
+        env:
+          - name: CATALOG_DATABASE_DSN_FILE
+            value: /inputs/database.dsn
+        volumeMounts:
+          - {volumeName: inputs, mountPath: /inputs}
+          - {volumeName: temporary, mountPath: /tmp}
+    volumes:
+      - name: inputs
+        storageType: Secret
+        secrets:
+          - {secretRef: runtime-config, path: config.json}
+          - {secretRef: db-ca, path: db-ca.pem}
+          - {secretRef: database-dsn, path: database.dsn}
+      - {name: temporary, storageType: EmptyDir}
+```
+
+The owner job receives no cursor key or runtime DSN. Its 30-minute execution timeout is an example operational budget. Size it for the reviewed migration plan. Disable automatic replica retries so an operator inspects an uncertain or failed execution before retrying. `parallelism: 1` limits one execution, not simultaneous manual starts; allow only one owner operation at a time.
+
+Create the [manual job](https://learn.microsoft.com/en-us/azure/container-apps/jobs) and run its plan:
+
+```sh
+az containerapp job create \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_OWNER_JOB" \
+  --yaml "$CATALOG_INPUTS/owner-job.yaml" --output none
+az containerapp job start \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_OWNER_JOB"
+az containerapp job execution list \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_OWNER_JOB" \
+  --output table
+```
+
+Job start acceptance is not completion. Inspect the exact execution status and owner-command logs through your Azure log destination. Require `Succeeded`, the expected migration plan and no other owner execution before continuing. Do not print DSNs or list secret values during diagnosis.
+
+Prepare a complete stored job definition for the apply operation. Copy the reviewed owner file:
+
+```sh
+cp "$CATALOG_INPUTS/owner-job.yaml" "$CATALOG_INPUTS/owner-apply-job.yaml"
+```
+
+Replace only `properties.template.containers[0].args` in that copy with this array. Preserve the image, managed identity, secret references, environment, resources, volumes and mounts:
+
+```yaml
+args: [migrate, apply, --config, /inputs/config.json, --api-role, catalog_api, --worker-role, catalog_worker]
+```
+
+After confirming both runtimes are absent or fully drained, update the stored job and start it without execution overrides:
+
+```sh
+az containerapp job update \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_OWNER_JOB" \
+  --yaml "$CATALOG_INPUTS/owner-apply-job.yaml" --output none
+az containerapp job start \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_OWNER_JOB"
+```
+
+The [job-start request schema](https://learn.microsoft.com/en-us/rest/api/resource-manager/containerapps/jobs/start?view=rest-resource-manager-containerapps-2026-07-01) does not expose the stored template's volumes and mounts. Do not pass a copied full template to `job start --yaml` and assume those fields survive. Use the complete [job update](https://learn.microsoft.com/en-us/cli/azure/containerapp/job#az-containerapp-job-update), then plain `job start`, for each owner command. Verify the stored command and input references before every start; the last selected command remains the job's default.
+
+Require execution success and compliant `runtimePrivileges` reports for both exact roles. An apply can commit migrations before grant reconciliation fails. Keep runtimes stopped after any failure. Correct the reported authority or grant problem, then rerun the same target operation. Never substitute administrator runtime credentials.
+
+For a fresh installation, copy the full `owner-job.yaml` into `owner-provision-job.yaml`. Replace only the same container's `args` with the initial identity operation. Use your exact tenant, issuer, access-token subject and operator attribution:
+
+```yaml
+args:
+  - identity
+  - provision
+  - --config
+  - /inputs/config.json
+  - --tenant
+  - CATALOG_TENANT_UUID
+  - --tenant-name
+  - Catalog tenant
+  - --issuer
+  - https://ISSUER_HOST/ISSUER_PATH
+  - --tenancy-mode
+  - dedicated
+  - --subject
+  - INITIAL_ADMIN_ACCESS_TOKEN_SUBJECT
+  - --roles
+  - tenant_admin
+  - --operator
+  - RELEASE_OPERATOR_ID
+  - --reason
+  - Initial tenant bootstrap
+```
+
+Update the stored job, verify its inputs, then start the provisioning operation:
+
+```sh
+az containerapp job update \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_OWNER_JOB" \
+  --yaml "$CATALOG_INPUTS/owner-provision-job.yaml" --output none
+az containerapp job start \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_OWNER_JOB"
+```
+
+Require success before runtime startup. Shared tenancy needs the corresponding organization claim and exact mapping from [identity provisioning](database-roles.md#initial-catalog-identity-provisioning). Do not use development provisioning in production.
+
+## Start, authenticate and verify
+
+Create the separate runtime apps with their reviewed files:
+
+```sh
+az containerapp create \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_API_APP" \
+  --yaml "$CATALOG_INPUTS/api.yaml" --output none
+az containerapp create \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_WORKER_APP" \
+  --yaml "$CATALOG_INPUTS/worker.yaml" --output none
+az containerapp revision list \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_API_APP" \
+  --output table
+az containerapp revision list \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_WORKER_APP" \
+  --output table
+```
+
+Wait for both roles' readiness and check startup logs for database-role or privilege errors. Verify image/build identity, private PostgreSQL DNS and TLS, and absence of an owner credential in either app. Keep traffic closed if either role fails. A running revision alone does not prove authentication or permission checks.
+
+Configure [authentication and sign-in](sign-in.md) with an external issuer before opening product traffic. Catalog requires matching `iss` and `aud`, a non-empty `sub`, valid `iat` and `exp`, and current Catalog membership. With scope enforcement, only a whitespace-separated string `scope` supplies the OAuth ceiling. The ceiling never grants Catalog permissions.
+
+For Microsoft Entra ID, follow the [Entra API guide](oidc-entra.md). Use tenant-specific v2 issuer semantics and the API application's client-ID audience. Entra normally supplies `scp` or `roles`; Catalog does not read either as its OAuth ceiling. Its application-specific subjects can also prevent built-in UI and CLI login. Do not present Entra registration, Container Apps built-in authentication or managed identity as a working Catalog human-login recipe. Qualify the selected token/client arrangement or use a compatible issuer.
+
+From an approved client with a protected API access-token file:
+
+```sh
+catalogctl remote capabilities \
+  --base-url https://CATALOG_PUBLIC_HOST \
+  --token-file /protected/catalog-api-token
+```
+
+Verify `/api/v1/me`, the intended tenant and subject, one permitted read and one denied action. Check unauthenticated access and a wrong-audience token fail. Do not use `smoke` as a production probe. It changes Catalog state.
+
+Before enabling discovery traffic, verify the configured host reaches the app unchanged. The ingress boundary must remove `Forwarded`, `X-Forwarded-Host` and `X-Original-Host` before Catalog's host-bound discovery handler. Ordinary `X-Forwarded-Proto` and `X-Forwarded-For` are separate [Container Apps ingress headers](https://learn.microsoft.com/en-us/azure/container-apps/ingress-overview#http-headers); their presence does not imply failure. Reject unknown hosts and prove the intended active audience-scoped snapshot is served without private records. Keep API `/metrics` and the worker's operations routes, including `/status`, inside the operator network. A direct public API ingress exposes every listener path unless another boundary filters them.
+
+## Add the independent UI
+
+Deploy the UI only after API authentication works. Use its reviewed `linux/amd64` image in another app, with no database DSN, owner authority or backend key. Use an independent configuration file, mounted cookie-key ring and OIDC client-secret file. The host reads its `--config` JSON only; backend environment overrides do not configure it.
+
+Prepare the [UI host configuration](../reference/ui-host-configuration.md#host-configuration) as `ui.json`. This complete field example uses separate API and browser hosts. Replace the issuer and client ID, then select the actual HTTPS origins:
+
+```json title="ui.json"
+{
+  "logLevel": "info",
+  "logFormat": "json",
+  "listen": "0.0.0.0:4180",
+  "environment": "production",
+  "origin": "https://console.example.com",
+  "basePath": "",
+  "assets": "/app/assets",
+  "upstream": "https://catalog.example.com",
+  "cookieName": "catalog-session",
+  "keysFile": "/inputs/keys.json",
+  "sessionSeconds": 3600,
+  "requestBytes": 2097152,
+  "responseBytes": 16777216,
+  "timeoutSeconds": 60,
+  "authMode": "oidc",
+  "issuer": "https://identity.example.com",
+  "clientId": "REPLACE_UI_CLIENT_ID",
+  "clientSecretFile": "/inputs/client-secret",
+  "scopes": []
+}
+```
+
+Add the issuer's reviewed Catalog scopes when API scope enforcement is enabled. Create the cookie-key ring as described in [browser sign-in](sign-in.md#add-optional-browser-login). Upload the JSON, key ring and client secret to UI-only Key Vault secrets. Keep the same key ring and deployment binding on all UI replicas; sticky sessions are unnecessary.
+
+Copy the complete `api.yaml` into `ui.yaml` and make every change below. Keep the existing capacity and termination grace unless workload tests establish other valid values:
+
+| Location in the app YAML | UI replacement |
+| --- | --- |
+| Every API identity reference | A separate pre-created UI identity, with only its image and UI-secret read access. |
+| `configuration.ingress.targetPort` and every probe port | `4180`; select private gateway ingress or deliberate public UI ingress and its HTTPS domain binding. |
+| `configuration.secrets` | Exactly `ui-config`, `ui-keys` and `ui-client-secret`, each with its own versioned Key Vault URI and the UI identity. Remove all backend secret references. |
+| Container name, image, command and args | `ui`, the reviewed UI digest, `[/usr/local/bin/catalog-ui]` and `[--config, /inputs/ui.json]`. |
+| Container `env` | Remove all backend `CATALOG_*` values. This host reads its JSON file. |
+| The `inputs` volume's secret mappings | `ui-config` to `ui.json`, `ui-keys` to `keys.json`, and `ui-client-secret` to `client-secret`. Remove database, CA and cursor mappings. |
+| `revisionSuffix` and custom-domain binding | A unique UI release suffix and the configured UI hostname/certificate. |
+
+Save the reviewed file, then create the separate app:
+
+```sh
+az containerapp create \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name catalog-ui \
+  --yaml "$CATALOG_INPUTS/ui.yaml" --output none
+```
+
+The UI must reach the exact configured API origin through its approved gateway or private path. Add separate `apiCAFile` and `issuerCAFile` projections when private trust is required. Preserve UI-only secret scope; neither file changes backend trust.
+
+Use native probes at `/livez` and `/readyz` on 4180. Preserve Host, Origin and the configured base path. Register exactly `origin + basePath + /auth/callback` at a compatible issuer. The ID token and API access token must identify the same subject. Test login, expiry, sign-out, membership suspension and a denied action. These steps do not remove the [Entra human-login limitations](oidc-entra.md#understand-scope-and-human-login-limits).
+
+The UI image includes public static documentation at `/docs/`, independently of its UI base path. Omit `documentationUrl` to use that bundle, or supply the documented HTTPS override. UI issuer trust and API trust are independent file inputs. Neither changes backend PostgreSQL or issuer trust.
+
+## Upgrade with an explicit maintenance window
+
+Container Apps [single revision mode](https://learn.microsoft.com/en-us/azure/container-apps/revisions) can keep the previous revision running until a replacement is ready. That behavior does not supply Catalog's schema-change drain. Traffic weights and a worker minimum of zero also do not establish that every old process has exited.
+
+1. Prepare the target digest, configuration, versioned secrets and owner template. Validate the target inputs before stopping the service.
+2. Close product ingress and pause external mutation-producing automation. Record desired target replica counts separately from observed counts.
+3. List every active API revision. Deactivate each exact revision with the command below. Confirm its replicas have exited.
+4. Repeat for every active worker revision after the API drain. Confirm no old runtime database session remains.
+5. Update the owner job to the complete target definition and run its migration plan. Update that complete definition for apply, then start apply without execution overrides. Require successful completion and both exact privilege reports. Perform any separately documented bounded owner repair before startup.
+6. Update API and worker with the complete target YAML, a new unique `revisionSuffix` and the recorded target replica counts. Start only matching target binaries.
+7. Require both roles ready, then verify build identity, authenticated readback, current permissions and intended discovery. Restore product ingress only after these checks.
+
+Use [revision management](https://learn.microsoft.com/en-us/cli/azure/containerapp/revision) and [replica inspection](https://learn.microsoft.com/en-us/cli/azure/containerapp/replica) for each selected old revision:
+
+```sh
+CATALOG_OLD_REVISION='EXACT_OLD_REVISION_NAME'
+az containerapp revision deactivate \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_API_APP" \
+  --revision "$CATALOG_OLD_REVISION"
+az containerapp replica list \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_API_APP" \
+  --revision "$CATALOG_OLD_REVISION" --output table
+```
+
+Repeat with `CATALOG_WORKER_APP` for worker revisions. An accepted deactivation is not completed drain. Allow the configured grace period and require no remaining old replicas. Through the protected owner SQL connection, require no runtime sessions before applying SQL:
+
+```sql
+SELECT usename, application_name, state
+  FROM pg_catalog.pg_stat_activity
+ WHERE datname = current_database()
+   AND usename IN ('catalog_api', 'catalog_worker');
+```
+
+Require an empty result and confirmation that no other deployment uses these roles. Do not kill an unrelated session to force this check. If drain is uncertain, stop the release operation before migration.
+
+After the full drain, update the stored owner job to the complete target plan definition:
+
+```sh
+az containerapp job update \
+  --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_OWNER_JOB" \
+  --yaml "$CATALOG_INPUTS/owner-job.yaml" --output none
+```
+
+Verify the stored target image digest, plan arguments, configuration and secret version references before starting it. Prepare apply and any further owner operation from this target file using the procedure above. Update the complete stored job before each plain start. Reusing a predecessor file can run the wrong migrator or credentials.
+
+Use `az containerapp update --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_API_APP" --yaml "$CATALOG_INPUTS/api.yaml" --output none` for the target API. Repeat with the worker file and name. Preserve deliberate ingress/custom-domain configuration in the complete files. Do not reactivate an old revision after committed migrations or exact-manifest changes.
+
+If apply, grant reconciliation or target startup fails, keep ingress closed and both runtimes stopped. Inspect the exact owner execution and target startup evidence, correct the cause, then retry forward. There is no automatic SQL or application rollback. A previous recovery point needs a separately authorized [database-and-application restore](backup-restore.mdx).
+
+Use new versioned secret references and replace affected revisions for credential or trust changes. Mounted-file consumers load inputs at startup; secret replacement alone does not prove they reloaded. Follow [credential rotation](maintenance.mdx#rotate-credentials-and-trust), including staged [UI cookie-key rotation](maintenance.mdx#rotate-ui-session-keys). Keep the shared cursor key stable across ordinary restarts.
+
+Collect stdout/stderr through Azure's selected logging destination and retain redacted plan/apply reports, image digest, configuration identity and verification results. Monitor both role readiness, worker activity, database capacity and dependency failures. Follow [observability](observability.mdx), [backup and restore](backup-restore.mdx) and [incident response](incident-response.md). Removing apps is not authorization to delete the database, backups, secret versions or retained evidence.

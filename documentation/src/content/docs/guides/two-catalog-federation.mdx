@@ -1,0 +1,924 @@
+---
+title: Federate two Catalogs and browse from VS Code
+description: Publish on Catalog A, synchronize its authenticated metadata into Catalog B and inspect it with an installed desktop client.
+---
+
+import FederationPeers from "../../../components/architecture/FederationPeers.astro";
+
+This tutorial connects two independent Catalogs. A publishes an Agent; B synchronizes its published metadata and retains external provenance. This [federation](../reference/glossary.md#federation) does not copy databases, drafts, users, passwords or access policy. Discovery does not install or execute the Agent.
+
+<FederationPeers />
+
+The baseline uses indexed synchronization only. B initiates HTTPS requests to A; metadata flows from A to B. Live queries, referrals, reciprocal federation and local adoption remain explicit follow-ups.
+
+## Prepare the owned environment
+
+Complete [the interactive Keycloak setup](../operations/oidc-keycloak.md#run-the-interactive-local-tutorial) through A's administrator/Reader login and access checks. Stop before its cleanup. Keep the same shell, private `CATALOG_TUTORIAL_DIRECTORY`, CA, Compose project and account subjects. The [complete local recipe](../../../../../examples/tutorials/local-oidc/README.md) prepares both Catalogs before either starts; no test target is an interactive launcher.
+
+Reuse [the project-pinned `tutorial_compose` helper](../operations/oidc-keycloak.md#select-the-prepared-project-and-start-dependencies) for every Compose operation below. It invokes the checked-in launcher, reads the selected generated metadata and supplies `--project-name` explicitly. Confirm its `--show-project` result before cleanup; ambient project/interpolation settings cannot replace the prepared inputs. If preparation failed or the seven-day certificates expired, follow [preparation recovery](../operations/oidc-keycloak.md#recover-from-failed-preparation) or [certificate recovery](../operations/oidc-keycloak.md#replace-expired-tutorial-certificates) before continuing. A fresh project requires fresh accounts, grants, logins and source credentials; it does not migrate this tutorial's retained state.
+
+| Input | A | B |
+| --- | --- | --- |
+| API and discovery origin | `https://catalog-a.test:8443` | `https://catalog-b.test:8445` |
+| Browser UI | `https://browse-a.test:9443` | `https://browse-b.test:9445` |
+| API [audience](../reference/glossary.md#audience-and-visibility) | `open-agentic-catalog` | `open-agentic-catalog-b` |
+| Dedicated tenant | `00000000-0000-7000-8000-000000000001` | `00000000-0000-7000-8000-000000000002` |
+| Human UI / CLI / desktop clients | `catalog-ui` / `catalog-cli` / `catalog-vscode` | `catalog-ui-b` / `catalog-cli-b` / `catalog-vscode-b` |
+| UI cookie | `catalog-a-session` | `catalog-b-session` |
+| Database and inputs | `postgres-a`, `a/owner.json`, `a/api.json`, `a/worker.json` | `postgres-b`, corresponding `b/` inputs |
+| Runtime cursor key | Independently generated `a/cursor.key` | Independently generated `b/cursor.key` |
+| Configured discovery host | `catalog-a.test`, authenticated, publisher domain `tutorial.catalog.example` | `catalog-b.test`, authenticated, publisher domain `tutorial-b.catalog.example` |
+
+The example shares issuer `https://identity.test:8447/realms/catalog`. Separate issuers also work; sharing an issuer is not a federation requirement. An A token is not a B administrator token because audiences and memberships differ.
+
+The prerequisite setup supplies Docker/Compose, Python 3.12-3.14, OpenSSL, curl, Make, Go, images, a browser and the PostgreSQL 18 client inside the selected database image. For source-built VSIX acquisition, also prepare [Git](https://git-scm.com/downloads), configured [GitHub CLI](https://cli.github.com/) and the supported Linux amd64 desktop. The SDK installer supplies pinned Node/npm; no global Node installation is required. Downloads need network/disk capacity; the complete stack's minimum RAM requirement has not been measured.
+
+Preserve the host/browser/editor name mapping and certificate trust from Keycloak setup. The curl helper below resolves only the two tutorial API origins to loopback while retaining their TLS names. Inside Compose, B resolves A to the private TLS frontend, normally `172.29.245.10`. It never uses a loopback fetch exception.
+
+Before B starts, inspect its prepared inputs:
+
+- `http.publicBaseUrl` is `https://catalog-b.test:8445`; `discovery.hosts` contains B's exact hostname, tenant, authenticated audience and publisher domain.
+- `b/federation-policy.json` defines private profile `tutorial-a`, exact origin `https://catalog-a.test:8443`, the selected frontend `/32`, B's tenant assignment and `/trust/ca.pem`.
+- API and worker mount the same policy/CA and `b/source-credentials/` at `/credentials`, with `credentialResolution.enabled: true` and that directory selected.
+- A/B have separate PostgreSQL owner/API/worker identities, DSNs, cursor keys, UI client secrets and UI cookie-key rings. Only runtime API/worker roles receive their own cursor key.
+
+These static inputs load at startup. Credential generations are added later to the already mounted directory. Changing policy/resolver/trust startup settings requires recreating the selected API/worker processes. Replacing a supported credential generation does not.
+
+## Keep actors, files and requests separate
+
+Use separate browser profiles for each human login. Verify **My access** after each handoff; issuer SSO can otherwise select the previous account.
+
+| Responsibility | Selected credential | Authority |
+| --- | --- | --- |
+| Database/operator setup | Owned `owner-a` / `owner-b` services | Dedicated schema-owner DSN, migration and initial administrator provisioning |
+| A administrator/publication administrator | `a/admin-login.json`, derived `a/admin.headers` | Tenant administration, Publisher/domain setup and explicit tenant Publication administrator assignment |
+| A author/release Publisher | `a/author-login.json`, derived `a/author.headers` | Contributor and Publisher in the tutorial namespace |
+| A independent Reviewer | `a/reviewer-login.json`, derived `a/reviewer.headers` | Reviewer in that same namespace; a different subject from the author |
+| A ordinary Reader | `a/reader-login.json`, derived `a/reader.headers` | Reader; local release access, not source administration |
+| B administrator acting as Source Administrator | `b/admin-login.json`, derived `b/admin.headers` | Source inspection, management, synchronization, retained reads and Job reads |
+| B ordinary Reader | `b/reader-login.json`, derived `b/reader.headers` | Reader plus tenant Discovery reader |
+| B's upstream caller on A | `catalog-source-b-to-a` service identity | Service membership plus tenant Discovery reader on A; no human UI session |
+
+The main Keycloak walkthrough sets `auth.enforceScopes: false`; signature/issuer/audience verification and Catalog permissions remain enforced. If you enable [OAuth scope ceilings](../operations/oidc-keycloak.md#enable-oauth-scope-enforcement), request the corresponding scopes before deriving header files. Reads require `catalog.read`; authoring uses `catalog.write`, decisions `catalog.review`, releases/snapshots `catalog.publish`, access administration `tenant.admin`, and Publisher commands `publishers.manage`. Source commands use `sources.manage`; retained source/evidence reads use `sources.read`.
+
+B's Source Administrator needs tenant `source.inspect`, `source.manage`, `source.sync`, `source.read`, `source.read_evidence` and `job.read`. B's external Control Search requires `federation.discover`. A's authenticated manifest requires tenant `discovery.read`. Scopes limit these permissions; they do not grant them.
+
+### Capture bodies, IDs and ETags
+
+Run these definitions in one Bash shell from the repository root. They keep private responses outside the checkout and never place bearer tokens in command arguments. Expected statuses come from the HTTP contract; an unexpected status stops the step.
+
+```sh
+set -eu
+umask 077
+export CATALOG_TUTORIAL_CA="$CATALOG_TUTORIAL_DIRECTORY/trust/ca.pem"
+export A_ORIGIN=https://catalog-a.test:8443
+export B_ORIGIN=https://catalog-b.test:8445
+export FEDERATION_RUN_ID=$(python3 -c 'import uuid; print(uuid.uuid4().hex)')
+export FEDERATION_RESULTS="$CATALOG_TUTORIAL_DIRECTORY/federation-$FEDERATION_RUN_ID"
+mkdir -m 700 "$FEDERATION_RESULTS"
+printf '{}\n' > "$FEDERATION_RESULTS/empty.json"
+
+jget() {
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1]))
+for part in sys.argv[2].split("."):
+    value = value[int(part)] if isinstance(value, list) else value[part]
+print(value)
+PY
+}
+field() { jget "$FEDERATION_RESULTS/$1.json" "$2"; }
+etag() {
+  python3 - "$FEDERATION_RESULTS/$1.headers" <<'PY'
+import sys
+values = [line.split(":", 1)[1].strip() for line in open(sys.argv[1])
+          if line.lower().startswith("etag:")]
+if not values:
+    raise SystemExit("The response has no ETag")
+print(values[-1])
+PY
+}
+api() {
+  # name, method, private header file, origin, path, body file, ETag, status
+  local response_name="$1" method="$2" header_file="$3" origin="$4"
+  local route="$5" body_file="$6" revision_etag="$7" expected="$8"
+  local resolve_name response_status
+  case "$origin" in
+    "$A_ORIGIN") resolve_name=catalog-a.test:8443:127.0.0.1 ;;
+    "$B_ORIGIN") resolve_name=catalog-b.test:8445:127.0.0.1 ;;
+    *) printf 'Select one tutorial API origin.\n' >&2; return 1 ;;
+  esac
+  set -- curl --silent --show-error --connect-timeout 5 --max-time 30 \
+    --noproxy '*' --proto '=https' --resolve "$resolve_name" \
+    --cacert "$CATALOG_TUTORIAL_CA" --header @"$header_file" \
+    --request "$method" --dump-header "$FEDERATION_RESULTS/$response_name.headers" \
+    --output "$FEDERATION_RESULTS/$response_name.json" --write-out '%{http_code}'
+  if test -n "$body_file"; then
+    set -- "$@" --header 'Content-Type: application/json' --data-binary @"$body_file"
+  fi
+  if test "$method" != GET && test "$route" != /api/v1/catalog/search; then
+    set -- "$@" --header "Idempotency-Key: $FEDERATION_RUN_ID-$response_name"
+  fi
+  if test -n "$revision_etag"; then
+    set -- "$@" --header "If-Match: $revision_etag"
+  fi
+  response_status=$("$@" "$origin$route")
+  printf '%s: HTTP %s\n' "$response_name" "$response_status"
+  test "$response_status" = "$expected"
+}
+```
+
+For a new mutation, use a new response name/key. For an uncertain outcome, retain its exact name, body, original ETag and actor before deliberate replay. Do not rerun a changed request under the same key.
+
+Credentials expire. Try a supported `remote --login-file` read for configured refresh. If fresh login is required, log out that actor's selected file first; for A's administrator, use `catalogctl auth logout --file "$CATALOG_TUTORIAL_DIRECTORY/a/admin-login.json"`. Repeat the same actor's login and [recreate derived headers](../operations/oidc-keycloak.md#prepare-private-http-credentials). Keep an uncertain command's original actor, name, body and ETag unchanged.
+
+## Start B and grant its reader
+
+Use the provider's existing `catalog-admin` and `catalog-reader` subjects from A's setup. Their B memberships are separate. Check B's existing runtime logins, migrate, then provision only its first administrator with the owner:
+
+```sh
+tutorial_compose exec -T postgres-b psql -X -v ON_ERROR_STOP=1 -U postgres -d catalog_b \
+  -c "SELECT rolname,rolcanlogin,rolsuper,rolinherit,rolbypassrls FROM pg_roles WHERE rolname IN ('catalog_owner','catalog_api','catalog_worker') ORDER BY rolname" \
+  -c "SELECT count(*) AS catalog_role_memberships FROM pg_auth_members WHERE roleid IN (SELECT oid FROM pg_roles WHERE rolname LIKE 'catalog_%') OR member IN (SELECT oid FROM pg_roles WHERE rolname LIKE 'catalog_%')"
+tutorial_compose run --rm owner-b migrate plan --config /inputs/b/owner.json
+tutorial_compose run --rm owner-b migrate apply --config /inputs/b/owner.json \
+  --api-role catalog_api --worker-role catalog_worker
+tutorial_compose run --rm owner-b identity provision --config /inputs/b/owner.json \
+  --tenant 00000000-0000-7000-8000-000000000002 --tenant-name "Tutorial B" \
+  --issuer https://identity.test:8447/realms/catalog --tenancy-mode dedicated \
+  --subject "$ADMIN_SUBJECT" --roles tenant_admin \
+  --operator docs-tutorial --reason "Initial B administrator"
+tutorial_compose up -d --wait api-b worker-b ui-b
+catalogctl auth login \
+  --issuer https://identity.test:8447/realms/catalog --client-id catalog-cli-b \
+  --base-url "$B_ORIGIN" \
+  --issuer-ca-file "$CATALOG_TUTORIAL_CA" --ca-file "$CATALOG_TUTORIAL_CA" \
+  --file "$CATALOG_TUTORIAL_DIRECTORY/b/admin-login.json"
+python3 examples/tutorials/local-oidc/credential-files.py \
+  "$CATALOG_TUTORIAL_DIRECTORY/b/admin-login.json" "$B_ORIGIN" \
+  "$CATALOG_TUTORIAL_DIRECTORY/b/admin"
+api b-admin-self GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  /api/v1/me '' '' 200
+test "$(field b-admin-self subject)" = "$ADMIN_SUBJECT"
+test "$(field b-admin-self tenantId)" = 00000000-0000-7000-8000-000000000002
+```
+
+Expect three non-superuser, non-inheriting runtime/owner role rows and zero role memberships, as on A. API is `NOBYPASSRLS`; owner and worker have their documented `BYPASSRLS` authority. Owner migrations reconcile exact grants. No runtime process applies migrations.
+
+Create B's Reader membership through the subject-grant endpoint, then obtain role definitions for the tenant-specific Discovery reader UUID:
+
+```sh
+python3 - "$READER_SUBJECT" "$FEDERATION_RESULTS/b-reader-grant.json" <<'PY'
+import json, sys
+json.dump({"subject": sys.argv[1], "actorType": "human", "role": "reader",
+           "reason": "Read B tutorial metadata"}, open(sys.argv[2], "w"))
+PY
+api b-reader-grant POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  /api/v1/role-assignments "$FEDERATION_RESULTS/b-reader-grant.json" '' 201
+B_READER_MEMBERSHIP_ID=$(field b-reader-grant membershipId)
+api b-roles GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  '/api/v1/access/roles?limit=100' '' '' 200
+python3 - "$FEDERATION_RESULTS/b-roles.json" "$B_READER_MEMBERSHIP_ID" \
+  "$FEDERATION_RESULTS/b-discovery-grant.json" <<'PY'
+import json, sys
+page = json.load(open(sys.argv[1]))
+assert not page.get("nextCursor"), "Page through roles before selecting the template"
+role = next(r for r in page["items"] if r.get("builtin")
+            and r.get("key") == "discovery_reader" and r["state"] == "active")
+json.dump({"roleDefinitionId": role["id"], "membershipId": sys.argv[2],
+           "reason": "Allow B reader to discover approved external metadata"},
+          open(sys.argv[3], "w"))
+PY
+api b-discovery-grant POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  /api/v1/access/assignments "$FEDERATION_RESULTS/b-discovery-grant.json" '' 201
+```
+
+The fresh tenant's built-ins fit this bounded role page. Ordinary Reader alone does not grant `federation.discover`. `discovery_reader` and `publication_admin` are role-definition keys; the older subject-grant endpoint's closed `role` enum does not accept them.
+
+Sign in to B's UI as `catalog-reader`. Check the B tenant and `resource.read`/`federation.discover` on **My access**. Obtain its separate native credential and verify an empty indexed search:
+
+```sh
+catalogctl auth login \
+  --issuer https://identity.test:8447/realms/catalog --client-id catalog-cli-b \
+  --base-url "$B_ORIGIN" --scope catalog.read \
+  --issuer-ca-file "$CATALOG_TUTORIAL_CA" --ca-file "$CATALOG_TUTORIAL_CA" \
+  --file "$CATALOG_TUTORIAL_DIRECTORY/b/reader-login.json"
+python3 examples/tutorials/local-oidc/credential-files.py \
+  "$CATALOG_TUTORIAL_DIRECTORY/b/reader-login.json" "$B_ORIGIN" \
+  "$CATALOG_TUTORIAL_DIRECTORY/b/reader"
+printf '{"origins":["indexed"],"text":"federation tutorial","kinds":["agent"],"limit":10}\n' \
+  > "$FEDERATION_RESULTS/indexed-query.json"
+api b-empty POST "$CATALOG_TUTORIAL_DIRECTORY/b/reader.headers" "$B_ORIGIN" \
+  /api/v1/catalog/search "$FEDERATION_RESULTS/indexed-query.json" '' 200
+python3 - "$FEDERATION_RESULTS/b-empty.json" <<'PY'
+import json, sys
+assert json.load(open(sys.argv[1]))["items"] == []
+PY
+```
+
+## Publish the first Agent on A
+
+### Create human accounts and scoped grants
+
+In Keycloak's **catalog > Users**, create `catalog-author` and `catalog-reviewer` with complete basic profiles and different temporary passwords. Retain their exact UUID subjects; usernames are not access-token subjects. Use separate browser profiles and complete each first password change during login.
+
+```sh
+export AUTHOR_SUBJECT=REPLACE_WITH_CATALOG_AUTHOR_USER_UUID
+export REVIEWER_SUBJECT=REPLACE_WITH_CATALOG_REVIEWER_USER_UUID
+test "$AUTHOR_SUBJECT" != "$REVIEWER_SUBJECT"
+api a-admin-self GET "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /api/v1/me '' '' 200
+test "$(field a-admin-self subject)" = "$ADMIN_SUBJECT"
+python3 - "$FEDERATION_RESULTS" "$FEDERATION_RUN_ID" <<'PY'
+import json, sys
+from pathlib import Path
+d = Path(sys.argv[1])
+payloads = {
+    "namespace-request": {"slug": "federation-" + sys.argv[2], "displayName": "Federation tutorial"},
+    "publisher-request": {"displayName": "Tutorial publisher", "domains": ["tutorial.catalog.example"]},
+    "approve-domain-request": {"reason": "Allow the tutorial Publisher domain"},
+    "candidate-request": {"host": "catalog-a.test"},
+    "activation-request": {"host": "catalog-a.test", "reason": "Activate inspected tutorial metadata"},
+    "approval-request": {"reason": "Independent review of exact tutorial content and listing"},
+}
+for name, value in payloads.items():
+    (d / (name + ".json")).write_text(json.dumps(value))
+PY
+api namespace POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /api/v1/namespaces "$FEDERATION_RESULTS/namespace-request.json" '' 201
+NAMESPACE_ID=$(field namespace id)
+api publisher POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /api/v1/publishers "$FEDERATION_RESULTS/publisher-request.json" '' 201
+PUBLISHER_ID=$(field publisher id)
+api approve-domain POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  "/api/v1/publishers/$PUBLISHER_ID/publication-domains/tutorial.catalog.example:approve" \
+  "$FEDERATION_RESULTS/approve-domain-request.json" "$(etag publisher)" 200
+```
+
+Grant Contributor and Publisher to the author in this namespace. Grant Reviewer to the other subject there:
+
+```sh
+grant_a_role() {
+  python3 - "$2" "$3" "$NAMESPACE_ID" "$FEDERATION_RESULTS/$1-request.json" <<'PY'
+import json, sys
+json.dump({"subject": sys.argv[1], "actorType": "human", "role": sys.argv[2],
+           "namespaceId": sys.argv[3], "reason": "Scoped tutorial responsibility"},
+          open(sys.argv[4], "w"))
+PY
+  api "$1" POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+    /api/v1/role-assignments "$FEDERATION_RESULTS/$1-request.json" '' 201
+}
+grant_a_role author-contributor "$AUTHOR_SUBJECT" contributor
+grant_a_role author-publisher "$AUTHOR_SUBJECT" publisher
+grant_a_role independent-reviewer "$REVIEWER_SUBJECT" reviewer
+api a-roles GET "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  '/api/v1/access/roles?limit=100' '' '' 200
+python3 - "$FEDERATION_RESULTS/a-roles.json" "$(field a-admin-self membershipId)" \
+  "$FEDERATION_RESULTS/publication-grant.json" <<'PY'
+import json, sys
+page = json.load(open(sys.argv[1]))
+assert not page.get("nextCursor")
+role = next(r for r in page["items"] if r.get("builtin")
+            and r.get("key") == "publication_admin" and r["state"] == "active")
+json.dump({"roleDefinitionId": role["id"], "membershipId": sys.argv[2],
+           "reason": "Tenant-wide tutorial snapshot administration"}, open(sys.argv[3], "w"))
+PY
+api publication-grant POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /api/v1/access/assignments "$FEDERATION_RESULTS/publication-grant.json" '' 201
+```
+
+Snapshot authority is tenant-wide; the author's namespace Publisher grant is insufficient. The administrator already has broader authority, but this explicit assignment identifies the publication responsibility. No Reader receives source administration.
+
+Log in separately as the author and reviewer, then derive protected HTTP files. Complete the password-change prompt in the corresponding browser profile:
+
+```sh
+for person in author reviewer; do
+  catalogctl auth login \
+    --issuer https://identity.test:8447/realms/catalog --client-id catalog-cli \
+    --base-url "$A_ORIGIN" \
+    --issuer-ca-file "$CATALOG_TUTORIAL_CA" --ca-file "$CATALOG_TUTORIAL_CA" \
+    --file "$CATALOG_TUTORIAL_DIRECTORY/a/$person-login.json"
+  python3 examples/tutorials/local-oidc/credential-files.py \
+    "$CATALOG_TUTORIAL_DIRECTORY/a/$person-login.json" "$A_ORIGIN" \
+    "$CATALOG_TUTORIAL_DIRECTORY/a/$person"
+done
+api author-self GET "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" /api/v1/me '' '' 200
+api reviewer-self GET "$CATALOG_TUTORIAL_DIRECTORY/a/reviewer.headers" "$A_ORIGIN" /api/v1/me '' '' 200
+test "$(field author-self subject)" = "$AUTHOR_SUBJECT"
+test "$(field reviewer-self subject)" = "$REVIEWER_SUBJECT"
+```
+
+### Create and validate the native Agent
+
+Use the maintained inline [Agent Card](../../../../../samples/cards/order-agent.json). Its endpoint is declared metadata; this tutorial never invokes it. The Listing supplies the tutorial's display name and description.
+
+```sh
+export TUTORIAL_IDENTIFIER=urn:air:tutorial.catalog.example:agents:federation-demo
+python3 - "$FEDERATION_RESULTS" "$NAMESPACE_ID" "$TUTORIAL_IDENTIFIER" <<'PY'
+import json, sys
+from pathlib import Path
+d = Path(sys.argv[1])
+(d / "resource-request.json").write_text(json.dumps({
+    "namespaceId": sys.argv[2], "canonicalIdentifier": sys.argv[3], "kind": "agent"}))
+card = json.loads(Path("samples/cards/order-agent.json").read_text())
+(d / "version-request.json").write_text(json.dumps({"version": "1.0.0", "representations": [{
+    "role": "primary", "mediaType": "application/a2a-agent-card+json", "data": card}]}))
+PY
+api resource POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  /api/v1/resources "$FEDERATION_RESULTS/resource-request.json" '' 201
+RESOURCE_ID=$(field resource id)
+api version POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/resources/$RESOURCE_ID/versions" "$FEDERATION_RESULTS/version-request.json" '' 201
+VERSION_REVISION_ID=$(field version revision.id)
+api validation POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/version-revisions/$VERSION_REVISION_ID:validate" "$FEDERATION_RESULTS/empty.json" '' 201
+test "$(field validation evidence.state)" = complete
+EVIDENCE_ID=$(field validation evidence.id)
+python3 - "$FEDERATION_RESULTS" "$NAMESPACE_ID" "$RESOURCE_ID" \
+  "$VERSION_REVISION_ID" "$PUBLISHER_ID" <<'PY'
+import json, sys
+from pathlib import Path
+d = Path(sys.argv[1])
+(d / "listing-request.json").write_text(json.dumps({"namespaceId": sys.argv[2], "resourceId": sys.argv[3]}))
+(d / "listing-revision-request.json").write_text(json.dumps({
+    "versionRevisionId": sys.argv[4], "displayName": "Federation tutorial Agent",
+    "description": "Agent metadata for the federation tutorial, retained and reviewed on A.",
+    "tags": ["federation", "tutorial"], "categories": ["development", "examples"],
+    "representativeQueries": ["Find the federation tutorial Agent", "Find setup metadata for the federation tutorial"],
+    "publisherId": sys.argv[5], "license": "Apache-2.0", "visibility": "tenant"}))
+PY
+api listing POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  /api/v1/catalog-listings "$FEDERATION_RESULTS/listing-request.json" '' 201
+LISTING_ID=$(field listing id)
+api listing-revision POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/catalog-listings/$LISTING_ID/revisions" "$FEDERATION_RESULTS/listing-revision-request.json" \
+  "$(etag listing)" 201
+LISTING_REVISION_ID=$(field listing-revision revision.id)
+api submission POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/catalog-listings/$LISTING_ID/submissions" "$FEDERATION_RESULTS/empty.json" '' 201
+SUBMISSION_ID=$(field submission id)
+```
+
+Version creation and explicit validation are synchronous `201` responses, not Jobs. Inspect the saved findings and representations; stop if evidence is blocked. Complete structural validation does not establish trust or rights. Tenant visibility is discoverable only through A's authenticated audience after activation.
+
+### Review independently and release
+
+As the Reviewer, read the exact submission evidence, listing revision and content revision. Compare the bound IDs/digest before deciding:
+
+```sh
+api submitted-evidence GET "$CATALOG_TUTORIAL_DIRECTORY/a/reviewer.headers" "$A_ORIGIN" \
+  "/api/v1/review-submissions/$SUBMISSION_ID/evidence" '' '' 200
+api submitted-listing GET "$CATALOG_TUTORIAL_DIRECTORY/a/reviewer.headers" "$A_ORIGIN" \
+  "/api/v1/listing-revisions/$LISTING_REVISION_ID" '' '' 200
+api submitted-content GET "$CATALOG_TUTORIAL_DIRECTORY/a/reviewer.headers" "$A_ORIGIN" \
+  "/api/v1/version-revisions/$VERSION_REVISION_ID" '' '' 200
+test "$(field submitted-evidence id)" = "$EVIDENCE_ID"
+test "$(field submitted-evidence digest)" = "$(field submission evidenceDigest)"
+test "$(field submission listingRevisionId)" = "$LISTING_REVISION_ID"
+test "$(field submission versionRevisionId)" = "$VERSION_REVISION_ID"
+```
+
+Inspect those private response files or the UI's exact submitted-evidence view. Approve only after independent review, then switch back to the author's Publisher credential:
+
+```sh
+api approval POST "$CATALOG_TUTORIAL_DIRECTORY/a/reviewer.headers" "$A_ORIGIN" \
+  "/api/v1/review-submissions/$SUBMISSION_ID:approve" "$FEDERATION_RESULTS/approval-request.json" \
+  "$(etag submission)" 200
+api release-listing GET "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/catalog-listings/$LISTING_ID" '' '' 200
+python3 - "$SUBMISSION_ID" "$FEDERATION_RESULTS/release-request.json" <<'PY'
+import json, sys
+json.dump({"submissionId": sys.argv[1]}, open(sys.argv[2], "w"))
+PY
+api release POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/catalog-listings/$LISTING_ID:publish" "$FEDERATION_RESULTS/release-request.json" \
+  "$(etag release-listing)" 201
+RELEASE_ID=$(field release release.id)
+api a-reader-record GET "$CATALOG_TUTORIAL_DIRECTORY/a/reader.headers" "$A_ORIGIN" \
+  "/api/v1/catalog/resources/$RELEASE_ID" '' '' 200
+test "$(field a-reader-record resource.canonicalIdentifier)" = "$TUTORIAL_IDENTIFIER"
+test "$(field a-reader-record version.version)" = 1.0.0
+```
+
+Approval seals the version label; it does not publish the release. Release publication enables current local Catalog reads; it does not activate ARD. The submitter cannot approve their own work, even with an administrator grant.
+
+### Activate A's authenticated discovery snapshot
+
+Build as the tenant publication administrator, inspect the exact host/audience, documents and exclusions, then activate that immutable candidate:
+
+```sh
+api candidate POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /api/v1/publication/snapshots "$FEDERATION_RESULTS/candidate-request.json" '' 201
+SNAPSHOT_ID=$(field candidate id)
+python3 - "$FEDERATION_RESULTS/candidate.json" "$TUTORIAL_IDENTIFIER" <<'PY'
+import json, sys
+s = json.load(open(sys.argv[1]))
+assert s["host"] == "catalog-a.test" and s["audience"] == "authenticated"
+assert s["state"] == "candidate" and s["exclusions"] == []
+for name in ("ard", "aiCatalog"):
+    assert any(e["identifier"] == sys.argv[2] and e.get("version") == "1.0.0"
+               for e in s[name]["entries"]), name
+PY
+api activation POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  "/api/v1/publication/snapshots/$SNAPSHOT_ID:activate" "$FEDERATION_RESULTS/activation-request.json" \
+  "$(etag candidate)" 200
+api a-manifest GET "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /.well-known/ard.json '' '' 200
+python3 - "$FEDERATION_RESULTS/a-manifest.json" "$TUTORIAL_IDENTIFIER" <<'PY'
+import json, sys
+assert any(e["identifier"] == sys.argv[2] and e.get("version") == "1.0.0"
+           for e in json.load(open(sys.argv[1]))["entries"])
+PY
+```
+
+The host is a configured hostname, without scheme or port; its API public base URL includes both. A publication request cannot switch audience or invent a host. No candidate-generation Job needs polling here.
+
+## Give B's source a credential for A
+
+### Obtain A's service token and grant discovery
+
+The preparer registers confidential client `catalog-source-b-to-a`: client authentication/service accounts on; standard, implicit and password flows off. Its access-token audience is `open-agentic-catalog`, with default scope `catalog.read`. Its host-only secret is `b/source-client-secret`. Verify these settings in Keycloak; for another issuer, register the equivalent separate client. The [service-account procedure](../operations/oidc-keycloak.md#give-a-service-account-access) explains why the actual service subject differs from the client ID.
+
+Use the protected secret file to obtain the service token. The bounded helper verifies issuer TLS, refuses redirects and prints no token:
+
+```sh
+python3 examples/tutorials/local-oidc/service-token.py \
+  --issuer https://identity.test:8447/realms/catalog \
+  --client-id catalog-source-b-to-a --audience open-agentic-catalog \
+  --secret-file "$CATALOG_TUTORIAL_DIRECTORY/b/source-client-secret" \
+  --ca-file "$CATALOG_TUTORIAL_CA" \
+  --output-stem "$CATALOG_TUTORIAL_DIRECTORY/b/upstream-a"
+SOURCE_SUBJECT=$(jget "$CATALOG_TUTORIAL_DIRECTORY/b/upstream-a.claims.json" subject)
+python3 - "$SOURCE_SUBJECT" "$FEDERATION_RESULTS/source-membership-request.json" <<'PY'
+import json, sys
+json.dump({"subject": sys.argv[1], "actorType": "service", "role": "service_client",
+           "reason": "Create B upstream caller membership on A"}, open(sys.argv[2], "w"))
+PY
+api source-membership POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /api/v1/role-assignments "$FEDERATION_RESULTS/source-membership-request.json" '' 201
+SOURCE_MEMBERSHIP_ID=$(field source-membership membershipId)
+python3 - "$FEDERATION_RESULTS/a-roles.json" "$SOURCE_MEMBERSHIP_ID" \
+  "$FEDERATION_RESULTS/source-discovery-request.json" <<'PY'
+import json, sys
+role = next(r for r in json.load(open(sys.argv[1]))["items"]
+            if r.get("builtin") and r.get("key") == "discovery_reader" and r["state"] == "active")
+json.dump({"roleDefinitionId": role["id"], "membershipId": sys.argv[2],
+           "reason": "Read A authenticated discovery for B"}, open(sys.argv[3], "w"))
+PY
+api source-discovery POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /api/v1/access/assignments "$FEDERATION_RESULTS/source-discovery-request.json" '' 201
+api source-self GET "$CATALOG_TUTORIAL_DIRECTORY/b/upstream-a.headers" "$A_ORIGIN" /api/v1/me '' '' 200
+test "$(field source-self subject)" = "$SOURCE_SUBJECT"
+test "$(field source-self actorType)" = service
+api source-manifest GET "$CATALOG_TUTORIAL_DIRECTORY/b/upstream-a.headers" "$A_ORIGIN" \
+  /.well-known/ard.json '' '' 200
+```
+
+`service_client` alone grants no discovery permission. The access assignment supplies tenant `discovery.read` on A. The local claims projection identifies the requested audience/subject/expiry; decoding it does not verify a signature. A's actual `/api/v1/me` and manifest requests validate the signed token and current membership.
+
+### Publish one complete credential generation on B
+
+The binding belongs to B's consuming tenant and A's exact origin. Write a new immutable token file first. Then atomically replace `catalog-a-reader.json`. Use a new revision and token filename for every replacement. Do not reuse either.
+
+```sh
+project_source_token() {
+  python3 - "$CATALOG_TUTORIAL_DIRECTORY/b" <<'PY'
+import datetime, json, os, tempfile, uuid
+from pathlib import Path
+root = Path(__import__("sys").argv[1])
+claims = json.loads((root / "upstream-a.claims.json").read_text())
+expiry = datetime.datetime.fromisoformat(claims["expiresAt"])
+assert expiry > datetime.datetime.now(datetime.timezone.utc)
+token = (root / "upstream-a.token").read_text()
+directory = root / "source-credentials"
+revision = "source-a-" + uuid.uuid4().hex
+leaf = revision + ".token"
+descriptor = os.open(directory / leaf, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+with os.fdopen(descriptor, "w") as stream:
+    stream.write(token)
+    stream.flush()
+    os.fsync(stream.fileno())
+    os.fchmod(stream.fileno(), 0o444)
+metadata = {"schemaVersion": 1,
+            "tenantId": "00000000-0000-7000-8000-000000000002",
+            "revision": revision, "expiresAt": claims["expiresAt"],
+            "origin": "https://catalog-a.test:8443", "type": "bearer", "secretFile": leaf}
+descriptor, staging = tempfile.mkstemp(prefix=".generation-", dir=directory)
+try:
+    with os.fdopen(descriptor, "w") as stream:
+        json.dump(metadata, stream)
+        stream.flush()
+        os.fsync(stream.fileno())
+        os.fchmod(stream.fileno(), 0o444)
+    os.replace(staging, directory / "catalog-a-reader.json")
+finally:
+    if os.path.exists(staging):
+        os.unlink(staging)
+print(revision)
+PY
+}
+SOURCE_CREDENTIAL_REVISION=$(project_source_token)
+```
+
+The host's owning `0700` tutorial directory protects these files. The mounted credential directory is `0755` and its immutable token files are `0444` so the non-root API/worker can read their scoped read-only mount. Neither the UI nor an external peer receives this directory. Do not expose it through a web server or copy it into reports.
+
+Changing token, expiry, origin, tenant or type without a new revision violates the resolver contract. Old token files remain until no in-flight request can use that generation; this disposable tutorial removes them only during complete cleanup. Catalog does not acquire or refresh source tokens. External operators own this replacement process.
+
+## Inspect, connect and synchronize on B
+
+### Retain inspection and test the connected source
+
+```sh
+printf '{"url":"https://catalog-a.test:8443/.well-known/ard.json","networkProfile":"tutorial-a","credentialBinding":"catalog-a-reader"}\n' \
+  > "$FEDERATION_RESULTS/inspection-request.json"
+api inspection POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  /api/v1/federation/source-inspections "$FEDERATION_RESULTS/inspection-request.json" '' 201
+test "$(field inspection credentialRevision)" = "$SOURCE_CREDENTIAL_REVISION"
+python3 - "$(field inspection id)" "$FEDERATION_RESULTS/connect-request.json" <<'PY'
+import json, sys
+json.dump({"inspectionId": sys.argv[1], "displayName": "Catalog A tutorial source",
+           "retrievalMode": "indexed", "scope": {"kinds": ["agent"]},
+           "updateMode": "manual_review", "networkProfile": "tutorial-a",
+           "credentialBinding": "catalog-a-reader", "live": {"enabled": False},
+           "referrals": {"enabled": False}, "nesting": {"enabled": False},
+           "discoveryAssignments": [{"host": "catalog-b.test", "audience": "authenticated"}],
+           "reason": "Index A authenticated published Agent metadata"}, open(sys.argv[2], "w"))
+PY
+api connected POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  /api/v1/federation/sources "$FEDERATION_RESULTS/connect-request.json" '' 201
+SOURCE_ID=$(field connected id)
+api source-test POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID:test" "$FEDERATION_RESULTS/empty.json" \
+  "$(etag connected)" 200
+test "$(field source-test status)" = succeeded
+test "$(field source-test credentialRevision)" = "$SOURCE_CREDENTIAL_REVISION"
+SOURCE_ETAG=$(etag source-test)
+```
+
+Inspect the resolved endpoint, profile, warnings, policy and expiry before connection. Inspection alone does not approve a source. Test returns safe diagnostics without synchronization; `200` alone is insufficient because its `status` can be `failed`. A successful exact-interface test can advance the source revision, so use its new ETag for the next command. Manual update mode means explicit synchronization, not a source-change review queue.
+
+### Check that the Job succeeded and the source snapshot is complete
+
+Define one bounded helper for the initial sync and later repeats. It never retries a mutation automatically. It polls the returned Job for up to 180 seconds, with individual HTTP reads bounded by 30 seconds. An in-flight final read can finish after the poll budget.
+
+```sh
+complete_sync() {
+  local prefix="$1" source_revision deadline job_state=queued
+  api "$prefix-source" GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+    "/api/v1/federation/sources/$SOURCE_ID" '' '' 200
+  source_revision=$(field "$prefix-source" revision)
+  api "$prefix" POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+    "/api/v1/federation/sources/$SOURCE_ID:sync" "$FEDERATION_RESULTS/empty.json" \
+    "$(etag "$prefix-source")" 202
+  SYNC_JOB_ID=$(field "$prefix" job.id)
+  deadline=$(( $(date +%s) + 180 ))
+  while test "$(date +%s)" -lt "$deadline"; do
+    api "$prefix-job" GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+      "/api/v1/jobs/$SYNC_JOB_ID" '' '' 200
+    job_state=$(field "$prefix-job" state)
+    case "$job_state" in
+      succeeded) break ;;
+      failed|cancelled|dead_letter) printf 'Inspect the unsuccessful Job.\n' >&2; return 1 ;;
+    esac
+    sleep 2
+  done
+  test "$job_state" = succeeded
+  test "$(field "$prefix-job" result.type)" = source_snapshot
+  test "$(field "$prefix-job" result.state)" = complete
+  test "$(field "$prefix-job" result.sourceId)" = "$SOURCE_ID"
+  SYNC_SNAPSHOT_ID=$(field "$prefix-job" result.snapshotId)
+  api "$prefix-snapshot" GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+    "/api/v1/federation/snapshots/$SYNC_SNAPSHOT_ID" '' '' 200
+  api "$prefix-current-source" GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+    "/api/v1/federation/sources/$SOURCE_ID" '' '' 200
+  python3 - "$FEDERATION_RESULTS/$prefix-snapshot.json" "$FEDERATION_RESULTS/$prefix-current-source.json" \
+    "$SOURCE_ID" "$source_revision" "$SYNC_SNAPSHOT_ID" <<'PY'
+import json, sys
+snapshot, source = (json.load(open(p)) for p in sys.argv[1:3])
+assert snapshot["state"] == "complete" and snapshot["enumerationComplete"] is True
+assert snapshot["sourceId"] == sys.argv[3] and snapshot["sourceRevision"] == int(sys.argv[4])
+assert source["lastCompleteSnapshotId"] == sys.argv[5]
+PY
+}
+complete_sync sync-initial
+LAST_COMPLETE_SNAPSHOT_ID=$SYNC_SNAPSHOT_ID
+```
+
+`POST :sync` returns `{job, existing}`; `GET /jobs/{id}` returns a bare Job. Success can still retain an incomplete source snapshot, so all checks above matter. The exact snapshot must be complete, enumerate completely, match the source/revision and be the source's last complete snapshot. Inspect retained entry/change counts, findings and withdrawal authority too; Registry List completeness alone does not prove upstream deletion authority.
+
+If the helper stops, preserve the Job ID and inspect its current state. `queued`, `running` and `waiting` are not completion. Repair the demonstrated dependency/configuration problem before a new explicit sync; do not label a timeout or partial result a pass.
+
+### Read observations and discover as B's Reader
+
+```sh
+api observations GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/observations?sourceId=$SOURCE_ID&freshness=current&limit=100" '' '' 200
+api b-indexed POST "$CATALOG_TUTORIAL_DIRECTORY/b/reader.headers" "$B_ORIGIN" \
+  /api/v1/catalog/search "$FEDERATION_RESULTS/indexed-query.json" '' 200
+python3 - "$FEDERATION_RESULTS/b-indexed.json" "$TUTORIAL_IDENTIFIER" "$SOURCE_ID" <<'PY'
+import json, sys
+page = json.load(open(sys.argv[1]))
+item = next(i for i in page["items"] if i["identifier"] == sys.argv[2]
+            and i["versionPresent"] is True and i["version"] == "1.0.0")
+assert item["type"] == "indexed" and item["kind"] == "agent"
+assert item["displayName"] == "Federation tutorial Agent"
+assert sys.argv[3] in item["indexed"]["sourceIds"]
+assert "local" not in item and page["partial"] is False
+PY
+```
+
+The administrator can inspect retained occurrences/evidence with source permissions. The reader gets bounded provenance without source-directory or private-evidence authority. In B's web UI, select only **Indexed external**, search `federation tutorial` and open the matching record. Keep exact identifier, version presence/value and source references. [Result interpretation](understand-results.mdx) explains their meaning.
+
+To create a governed B copy, follow [the worked adoption continuation](../operations/federation.mdx#continue-from-the-two-catalog-tutorial) before changing A's Listing or removing B's source. You can finish the VS Code check below first. The continuation prepares B's separate author/reviewer grants, adopts exact retained evidence and independently releases B's copy.
+
+See the [retained occurrence example](../operations/federation.mdx#select-and-read-the-exact-retained-occurrence) for exact references.
+
+## Find the synchronized entry in installed VS Code
+
+Obtain the local VSIX from a maintainer, or build it from source with the supported tools. No Marketplace release is assumed. From the repository root:
+
+```sh
+make sdk-tools-install SDK_LANGUAGE=typescript
+make sdk-check SDK_LANGUAGE=typescript
+make sdk-package SDK_LANGUAGE=typescript
+make vscode-tools-install
+make vscode-check
+make vscode-package
+```
+
+Run each target separately. Installer downloads and package outputs need ordinary disk space. The SDK installer supplies pinned Node/npm. `make test-vscode` is separate contributor qualification, not an interactive startup step. Existing VSIX installation needs no checkout or separate Node/Go/npm.
+
+Install the actual file under `output/artifacts/vscode/` with **Extensions: Install from VSIX** or `code --install-extension /absolute/path/to/open-agentic-catalog-<version>.vsix`. Use its real versioned name.
+
+The package requires VS Code 1.139.1 or a compatible later 1.x version. Automated desktop tests use VS Code 1.141.0 on Linux amd64. Installation supports trusted writable Linux, Windows and macOS filesystem workspaces. A bounded same-machine Linux Remote SSH/browser check is qualified separately. Native Windows/macOS, other remote providers, OS browser associations and production keychains remain unqualified. The source-build commands above use the maintained Linux amd64 workflow.
+
+Confirm both public editor clients have the [native callback registration](../operations/oidc-keycloak.md#connect-the-desktop-client). VS Code can add a window-routing query; an older fixture with only the bare callback needs its two existing client registrations updated through the provider console.
+
+Preserve your other connections when adding these machine-scoped user settings. Replace both CA paths with the actual absolute path; VS Code does not expand shell variables in JSON:
+
+```json
+{
+  "openAgenticCatalog.connections": [
+    {
+      "id": "tutorial-a", "label": "Tutorial A", "origin": "https://catalog-a.test:8443",
+      "mode": "control", "auth": "oidc",
+      "caFile": "/home/you/.catalog-tutorials/passwords-01/trust/ca.pem",
+      "oidc": {"issuer": "https://identity.test:8447/realms/catalog", "clientId": "catalog-vscode",
+               "audience": "open-agentic-catalog", "scopes": ["openid", "catalog.read"], "refresh": false}
+    },
+    {
+      "id": "tutorial-b", "label": "Tutorial B", "origin": "https://catalog-b.test:8445",
+      "mode": "control", "auth": "oidc",
+      "caFile": "/home/you/.catalog-tutorials/passwords-01/trust/ca.pem",
+      "oidc": {"issuer": "https://identity.test:8447/realms/catalog", "clientId": "catalog-vscode-b",
+               "audience": "open-agentic-catalog-b", "scopes": ["openid", "catalog.read"], "refresh": false}
+    }
+  ]
+}
+```
+
+1. Run **Catalog: Select Connection** and choose Tutorial B.
+2. Run **Catalog: Sign In** and select `catalog-reader` in its own browser profile.
+3. Run **Catalog: Test Connection** and verify its subject and B tenant.
+4. Run **Catalog: Open Catalog**.
+5. Select indexed external metadata explicitly; Control mode defaults to local releases.
+6. Enter `federation tutorial`, choose Agent kind and select **Search / refresh**.
+7. Open **Federation tutorial Agent** and inspect version `1.0.0` and its source provenance.
+8. Save the exact indexed reference, reopen it and confirm current access is checked.
+
+An empty default-local view on B is expected. Its synchronized entry is external metadata, not a B release. Local facets exclude it. Installation, MCP connections and A2A conversations are separate optional extension workflows; this tutorial stops at discovery/inspection and never contacts the declared Agent endpoint.
+
+## Change Listing metadata and synchronize again
+
+Keep the sealed content revision and version label. Create a new ListingRevision with an updated description, then obtain a new independent review and release:
+
+```sh
+api update-listing-current GET "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/catalog-listings/$LISTING_ID" '' '' 200
+python3 - "$FEDERATION_RESULTS/listing-revision-request.json" \
+  "$FEDERATION_RESULTS/listing-update-request.json" <<'PY'
+import json, sys
+value = json.load(open(sys.argv[1]))
+value["description"] = "Updated listing metadata for the federation tutorial; native Agent content stays unchanged."
+json.dump(value, open(sys.argv[2], "w"))
+PY
+api listing-update POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/catalog-listings/$LISTING_ID/revisions" "$FEDERATION_RESULTS/listing-update-request.json" \
+  "$(etag update-listing-current)" 201
+UPDATED_LISTING_REVISION_ID=$(field listing-update revision.id)
+api update-submission POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/catalog-listings/$LISTING_ID/submissions" "$FEDERATION_RESULTS/empty.json" '' 201
+UPDATED_SUBMISSION_ID=$(field update-submission id)
+api update-review-listing GET "$CATALOG_TUTORIAL_DIRECTORY/a/reviewer.headers" "$A_ORIGIN" \
+  "/api/v1/listing-revisions/$UPDATED_LISTING_REVISION_ID" '' '' 200
+api update-review-evidence GET "$CATALOG_TUTORIAL_DIRECTORY/a/reviewer.headers" "$A_ORIGIN" \
+  "/api/v1/review-submissions/$UPDATED_SUBMISSION_ID/evidence" '' '' 200
+test "$(field update-submission versionRevisionId)" = "$VERSION_REVISION_ID"
+test "$(field update-submission listingRevisionId)" = "$UPDATED_LISTING_REVISION_ID"
+```
+
+Review the changed listing and exact bound evidence as the independent Reviewer. Then approve/publish and activate a new discovery snapshot:
+
+```sh
+api update-approval POST "$CATALOG_TUTORIAL_DIRECTORY/a/reviewer.headers" "$A_ORIGIN" \
+  "/api/v1/review-submissions/$UPDATED_SUBMISSION_ID:approve" "$FEDERATION_RESULTS/approval-request.json" \
+  "$(etag update-submission)" 200
+api update-release-listing GET "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/catalog-listings/$LISTING_ID" '' '' 200
+python3 - "$UPDATED_SUBMISSION_ID" "$FEDERATION_RESULTS/update-release-request.json" <<'PY'
+import json, sys
+json.dump({"submissionId": sys.argv[1]}, open(sys.argv[2], "w"))
+PY
+api update-release POST "$CATALOG_TUTORIAL_DIRECTORY/a/author.headers" "$A_ORIGIN" \
+  "/api/v1/catalog-listings/$LISTING_ID:publish" "$FEDERATION_RESULTS/update-release-request.json" \
+  "$(etag update-release-listing)" 201
+api update-candidate POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /api/v1/publication/snapshots "$FEDERATION_RESULTS/candidate-request.json" '' 201
+UPDATED_PUBLICATION_ID=$(field update-candidate id)
+python3 - "$FEDERATION_RESULTS/update-candidate.json" "$TUTORIAL_IDENTIFIER" <<'PY'
+import json, sys
+snapshot = json.load(open(sys.argv[1]))
+assert snapshot["host"] == "catalog-a.test" and snapshot["audience"] == "authenticated"
+assert snapshot["exclusions"] == []
+assert any(e["identifier"] == sys.argv[2] and e.get("version") == "1.0.0"
+           for e in snapshot["ard"]["entries"])
+PY
+api update-activation POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  "/api/v1/publication/snapshots/$UPDATED_PUBLICATION_ID:activate" "$FEDERATION_RESULTS/activation-request.json" \
+  "$(etag update-candidate)" 200
+complete_sync sync-listing-update
+LAST_COMPLETE_SNAPSHOT_ID=$SYNC_SNAPSHOT_ID
+api b-updated POST "$CATALOG_TUTORIAL_DIRECTORY/b/reader.headers" "$B_ORIGIN" \
+  /api/v1/catalog/search "$FEDERATION_RESULTS/indexed-query.json" '' 200
+python3 - "$FEDERATION_RESULTS/b-indexed.json" "$FEDERATION_RESULTS/b-updated.json" "$TUTORIAL_IDENTIFIER" <<'PY'
+import json, sys
+def selected(path):
+    return next(i for i in json.load(open(path))["items"] if i["identifier"] == sys.argv[3])
+old, new = selected(sys.argv[1]), selected(sys.argv[2])
+assert old["versionPresent"] and new["versionPresent"] and old["version"] == new["version"] == "1.0.0"
+assert new["description"] == "Updated listing metadata for the federation tutorial; native Agent content stays unchanged."
+assert old["indexed"]["normalizedEntryDigest"] != new["indexed"]["normalizedEntryDigest"]
+PY
+```
+
+Refresh the B UI/editor result deliberately. The identifier/version tuple is unchanged; its retained metadata evidence has changed. The old observation remains historical evidence. Changing native content requires a new version label because approval sealed `1.0.0`. A later complete sync can add the new tuple and reconcile membership of the old one according to source authority; it does not rewrite sealed content or imply remote deletion.
+
+## Test synchronization recovery after stopping A's API
+
+Stop only A's API in this tutorial project. Leave B and the databases running:
+
+```sh
+tutorial_compose stop api-a
+api outage-source GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID" '' '' 200
+api outage-sync POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID:sync" "$FEDERATION_RESULTS/empty.json" \
+  "$(etag outage-source)" 202
+OUTAGE_JOB_ID=$(field outage-sync job.id)
+deadline=$(( $(date +%s) + 180 ))
+outage_state=queued
+while test "$(date +%s)" -lt "$deadline"; do
+  api outage-job GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+    "/api/v1/jobs/$OUTAGE_JOB_ID" '' '' 200
+  outage_state=$(field outage-job state)
+  case "$outage_state" in
+    waiting|failed|dead_letter) break ;;
+    succeeded) test "$(field outage-job result.state)" != complete; break ;;
+    cancelled) printf 'The outage Job was cancelled; investigate before proceeding.\n' >&2; exit 1 ;;
+  esac
+  sleep 2
+done
+test "$outage_state" != queued && test "$outage_state" != running
+api outage-retained-source GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID" '' '' 200
+test "$(field outage-retained-source lastCompleteSnapshotId)" = "$LAST_COMPLETE_SNAPSHOT_ID"
+api outage-indexed POST "$CATALOG_TUTORIAL_DIRECTORY/b/reader.headers" "$B_ORIGIN" \
+  /api/v1/catalog/search "$FEDERATION_RESULTS/indexed-query.json" '' 200
+python3 - "$FEDERATION_RESULTS/outage-indexed.json" "$TUTORIAL_IDENTIFIER" <<'PY'
+import json, sys
+assert any(i["identifier"] == sys.argv[2] and i["type"] == "indexed"
+           for i in json.load(open(sys.argv[1]))["items"])
+PY
+tutorial_compose up -d --wait api-a
+complete_sync sync-recovery
+LAST_COMPLETE_SNAPSHOT_ID=$SYNC_SNAPSHOT_ID
+```
+
+Inspect the actual outage Job's `state`, `attempt`, `attemptLimit`, `notBefore` and safe failure classification. A retryable outage can leave it `waiting`; do not call that terminal failure. The 180-second reader poll is not the worker's retry budget. A successful Job with a non-complete snapshot is also an unsuccessful synchronization. Restarting A can allow retained waiting work to finish; a new explicit sync can coalesce with existing work.
+
+Failed/incomplete synchronization preserves the last complete membership. Eligible indexed observations remain searchable from active/error sources. `lastSyncAt` and observation `lastSeenAt` show age; age alone does not expire them. Replacing egress policy does not itself withdraw observations. Pausing, scope changes, current access and complete reconciliation have their separate participation effects.
+
+## Replace the upstream token without restarting B
+
+Acquire a new `catalog-source-b-to-a` token with the same protected `service-token.py` command above. Do not edit the projected token file or reuse its revision. Publish a new generation, test with the current source ETag and synchronize again:
+
+```sh
+PREVIOUS_CREDENTIAL_REVISION=$SOURCE_CREDENTIAL_REVISION
+python3 examples/tutorials/local-oidc/service-token.py \
+  --issuer https://identity.test:8447/realms/catalog \
+  --client-id catalog-source-b-to-a --audience open-agentic-catalog \
+  --secret-file "$CATALOG_TUTORIAL_DIRECTORY/b/source-client-secret" \
+  --ca-file "$CATALOG_TUTORIAL_CA" \
+  --output-stem "$CATALOG_TUTORIAL_DIRECTORY/b/upstream-a"
+SOURCE_CREDENTIAL_REVISION=$(project_source_token)
+test "$SOURCE_CREDENTIAL_REVISION" != "$PREVIOUS_CREDENTIAL_REVISION"
+api token-source GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID" '' '' 200
+api token-test POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID:test" "$FEDERATION_RESULTS/empty.json" \
+  "$(etag token-source)" 200
+test "$(field token-test status)" = succeeded
+test "$(field token-test credentialRevision)" = "$SOURCE_CREDENTIAL_REVISION"
+complete_sync sync-token-replacement
+test "$(field sync-token-replacement-snapshot credentialRevision)" = "$SOURCE_CREDENTIAL_REVISION"
+LAST_COMPLETE_SNAPSHOT_ID=$SYNC_SNAPSHOT_ID
+```
+
+For each request, B rereads the complete source credential generation in the supported file format. No restart occurs here. Static federation policy/resolver settings, issuer/API trust and UI startup secrets do not inherit that reload behavior. An expired token can cause a terminal/nonretryable Job; replacing files does not revive it. Use current `:test` evidence and a new explicit sync as shown. [Credential maintenance](../operations/maintenance.mdx#rotate-credentials-and-trust) owns the production procedure.
+
+## Pause, resume and remove the source
+
+Pause stops current participation while preserving evidence. Resume re-enables eligible retained indexed observations under reviewed scope; it does not manufacture fresh remote evidence:
+
+```sh
+printf '{"reason":"Exercise tutorial source pause"}\n' > "$FEDERATION_RESULTS/pause-request.json"
+printf '{"reason":"Resume tutorial source participation"}\n' > "$FEDERATION_RESULTS/resume-request.json"
+api lifecycle-source GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID" '' '' 200
+api pause POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID:pause" "$FEDERATION_RESULTS/pause-request.json" \
+  "$(etag lifecycle-source)" 200
+api paused-search POST "$CATALOG_TUTORIAL_DIRECTORY/b/reader.headers" "$B_ORIGIN" \
+  /api/v1/catalog/search "$FEDERATION_RESULTS/indexed-query.json" '' 200
+python3 - "$FEDERATION_RESULTS/paused-search.json" <<'PY'
+import json, sys
+assert json.load(open(sys.argv[1]))["items"] == []
+PY
+api resume POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID:resume" "$FEDERATION_RESULTS/resume-request.json" \
+  "$(etag pause)" 200
+api resumed-search POST "$CATALOG_TUTORIAL_DIRECTORY/b/reader.headers" "$B_ORIGIN" \
+  /api/v1/catalog/search "$FEDERATION_RESULTS/indexed-query.json" '' 200
+python3 - "$FEDERATION_RESULTS/resumed-search.json" "$TUTORIAL_IDENTIFIER" <<'PY'
+import json, sys
+assert any(i["identifier"] == sys.argv[2] for i in json.load(open(sys.argv[1]))["items"])
+PY
+```
+
+Remove only after you finish the editor/update/recovery steps. Preview the removal, inspect its consequences, then bind the command to that digest and current ETag:
+
+```sh
+printf '{"intent":"remove"}\n' > "$FEDERATION_RESULTS/remove-preview-request.json"
+api removal-source GET "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID" '' '' 200
+api remove-preview POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID/change-previews" "$FEDERATION_RESULTS/remove-preview-request.json" '' 200
+python3 - "$(field remove-preview digest)" "$FEDERATION_RESULTS/remove-request.json" <<'PY'
+import json, sys
+json.dump({"changePreviewDigest": sys.argv[1], "reason": "Remove only the tutorial source"},
+          open(sys.argv[2], "w"))
+PY
+api remove POST "$CATALOG_TUTORIAL_DIRECTORY/b/admin.headers" "$B_ORIGIN" \
+  "/api/v1/federation/sources/$SOURCE_ID:remove" "$FEDERATION_RESULTS/remove-request.json" \
+  "$(etag removal-source)" 204
+api removed-search POST "$CATALOG_TUTORIAL_DIRECTORY/b/reader.headers" "$B_ORIGIN" \
+  /api/v1/catalog/search "$FEDERATION_RESULTS/indexed-query.json" '' 200
+python3 - "$FEDERATION_RESULTS/removed-search.json" <<'PY'
+import json, sys
+assert json.load(open(sys.argv[1]))["items"] == []
+PY
+```
+
+Removal marks retained participation `source_removed`; it does not erase historical evidence or adopted local Resources. Removed source/parent-history routes no longer resolve. Exact historical evidence reads retain their own permission boundary. Reviewed scope changes can independently exclude entries; complete reconciliation can mark absent entries withdrawn/stale according to authority, without pretending every absence is deletion.
+
+## Optional next steps and limits
+
+- **Compare origins:** Local-only B Search is empty until B has its own released resource. Indexed-only can show an external counterpart even when B has a local copy. Combined Local+Indexed can prefer local identity. Local facets never count B's external observations.
+- **Adopt deliberately:** [Adoption](../operations/federation.mdx#adopt-one-observation-as-a-local-draft) selects exact observation/snapshot/occurrence evidence and an authorized B destination. It creates a draft, not approval or installation. Release it through B's own independent workflow before calling it local.
+- **Enable live/referrals:** Follow [participation policy](../operations/federation.mdx#choose-indexed-live-and-referral-participation), with inspected Registry Search, exact host/audience assignments and query-disclosure acknowledgement. Nonblank live queries are bounded; a referral locator alone grants no network authority.
+- **Configure B to A reciprocally:** Inspect/register B as a separate source on A. A's default public policy is disabled; prepare its exact private route/trust/credential resolver and recreate A runtimes before that optional workflow. Do not reuse the A-directed token or bypass outbound policy.
+- **Add other resource kinds:** Use supported, tested delivery forms and their own review/publication. Curated package-only Skills are excluded from ARD/AI Catalog snapshots with `PUBLIC_DELIVERY_FORM_REQUIRED`, including authenticated snapshots. `make demo-up`/`demoArchives` are development inputs and do not load this OIDC Catalog.
+
+The [search cookbook](search-cookbook.mdx) covers local/indexed comparisons and separately prepared optional live/hybrid cases. The [LangGraph branch](../../../../../examples/langgraph/README.md#use-a-human-oidc-login) can read A's local Agent; it does not inspect B's federated observations. Separate peer/OIDC harness passes do not establish that this combined tutorial was followed.
+
+## Clean up only this project
+
+Sign out/remove the two tutorial connections in VS Code and close their previews. CLI, editor SecretStorage and UI cookies are separate; deleting a CLI file does not clear provider/browser sessions. Remove the tutorial CA only from the dedicated browser profile you configured, and remove only its host mappings if you added them.
+
+To stop and retain data for another visit:
+
+```sh
+tutorial_compose --show-project
+tutorial_compose ps -a
+tutorial_compose down
+```
+
+This removes the selected project's containers and network while keeping both database volumes, Keycloak state, private inputs, responses and credentials. `stop` also keeps its containers/network allocation. Do not call a retained environment fresh on its next start; use the Keycloak guide's [restart and certificate checks](../operations/oidc-keycloak.md#stop-or-remove-only-this-environment). For complete disposal of this deliberately created project, confirm the generated name before removing only its volumes:
+
+```sh
+tutorial_compose --show-project
+tutorial_compose ps -a
+tutorial_compose down --volumes --remove-orphans
+```
+
+After confirming disposal, delete only this tutorial's private directory through your normal local file-management tools. That removes its DSNs, client secrets, CLI credentials, projected generations, TLS keys and private response evidence. Keep any needed non-secret verification summary separately. Built images, caches and the VSIX remain; no registry or external deployment was created. Never use a global prune, reset the developer stack or delete another Catalog's receipts/data for cleanup.

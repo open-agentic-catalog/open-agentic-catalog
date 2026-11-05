@@ -1,0 +1,17 @@
+{
+  "specversion": "1.0",
+  "id": "0198f1c2-24a0-7000-8000-000000000031",
+  "source": "https://github.com/open-agentic-catalog/open-agentic-catalog/tenants/0198f1c2-24a0-7000-8000-000000000010",
+  "type": "com.open.agentic.catalog.publication.activated.v1",
+  "subject": "0198f1c2-24a0-7000-8000-000000000032",
+  "time": "2026-09-03T12:00:00Z",
+  "datacontenttype": "application/json",
+  "dataschema": "https://github.com/open-agentic-catalog/open-agentic-catalog/schemas/event/v1",
+  "data": {
+    "action": "publication.activated",
+    "targetType": "publication_snapshot",
+    "targetId": "0198f1c2-24a0-7000-8000-000000000032",
+    "digest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "host": "catalog.example.com"
+  }
+}

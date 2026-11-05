@@ -1,0 +1,15 @@
+/* Keep API labels and highlighted examples readable with the manual's theme. */
+:root .sl-markdown-content :is(.sl-openapi-key-required, .sl-openapi-request-body-required) {
+  color: var(--sl-color-red-high);
+}
+
+/* Muted labels and inactive type tabs sit inside the API renderer's panels. */
+:root .sl-markdown-content .sl-openapi-key-additional,
+:root .sl-markdown-content .sl-openapi-section-panel starlight-tabs [role="tab"][aria-selected="false"] {
+  color: var(--sl-color-gray-2);
+}
+
+/* The renderer's gray example background does not match the syntax palette. */
+:root .sl-markdown-content .sl-openapi-example .expressive-code .frame pre {
+  background-color: var(--ec-codeBg);
+}

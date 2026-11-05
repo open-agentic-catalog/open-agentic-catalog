@@ -1,0 +1,10 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "catalog-discovery-tools",
+  "version": "1.0.0",
+  "description": "Locally curated portable bundle; not an upstream-authored Plugin.",
+  "author": {
+    "name": "Open Agentic Catalog local curator"
+  },
+  "license": "Apache-2.0"
+}

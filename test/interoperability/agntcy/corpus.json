@@ -1,0 +1,38 @@
+[
+  {
+    "name": "multi",
+    "file": "corpus/multi.json",
+    "cid": "baeareiee3pc2j74ijcu66th3z7rfyudamnckbyzuegabtitqj6prpwej4a",
+    "type": "application/ai-catalog+json"
+  },
+  {
+    "name": "mcp",
+    "file": "corpus/mcp.json",
+    "cid": "baeareicvteor2fbc7vjkkg74kagiszqqmyn6kvs3x22wipit5dtkjxz5di",
+    "type": "application/mcp-server-card+json"
+  },
+  {
+    "name": "a2a",
+    "file": "corpus/a2a.json",
+    "cid": "baeareifihvdah5heh5zisk7nkgk3l4eg46vmun3eviupdiuv2clawmjpay",
+    "type": "application/a2a-agent-card+json"
+  },
+  {
+    "name": "plain",
+    "file": "corpus/plain.json",
+    "cid": "baeareigxmp7ycx4tmfsydkanyojvd4b3ha27of5qsxnlxfgmgsrapaziee",
+    "type": null
+  },
+  {
+    "name": "a2a-v2",
+    "file": "corpus/a2a-v2.json",
+    "cid": "baeareifkwq3gjodjv3vgjntlyqgqvqqgqa6rg7d2fmamykk32ug4umd2oq",
+    "type": "application/a2a-agent-card+json"
+  },
+  {
+    "name": "current-a2a",
+    "file": "record.json",
+    "cid": "baeareiejq2an6i6iake6pq33wmd4upjb6jfrh5lzjradenxrrswcbmq7vq",
+    "type": "application/a2a-agent-card+json"
+  }
+]

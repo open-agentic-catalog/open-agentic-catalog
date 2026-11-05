@@ -1,0 +1,179 @@
+---
+title: "Events and operations"
+---
+
+import Events from "../../../components/architecture/Events.astro";
+
+## Optional monitoring
+
+API and worker processes expose bounded Prometheus-format metrics without requiring a collector. An independent [monitoring companion chart](../operations/helm-monitoring.md) can deploy Prometheus, Grafana and the shared dashboard. It is disabled by default and is independent of the application chart. Enable it with `--set enabled=true` or `make monitoring-install`.
+
+Only Prometheus's separate identity reads Kubernetes Pods in the selected namespace. Application Pods do not receive service-account tokens. Monitoring credentials and optional volumes are separate from Catalog PostgreSQL. Collector failure or removal does not affect Catalog readiness.
+
+Operators can use their existing monitoring instead. Infrastructure metrics, network integration, alerting, monitoring availability and retention objectives remain deployment responsibilities. Default-off application tracing exports OTLP/HTTP protobuf to one configured Collector or compatible backend. Each process has an independent resource identity; durable Job/outbox causes link separate asynchronous attempts across replicas and restarts. Collector failure never changes readiness. Metrics still use Prometheus scraping or a Collector Prometheus receiver. See [tracing operations](../operations/observability.mdx#distributed-tracing).
+
+The service owns safe runtime behavior and testable limits. SRE supplies topology, objectives, platform services, and operational ownership for each deployment.
+
+## Configuration model
+
+Configuration precedence is explicit and finite. Later sources override earlier non-secret values before one role-specific startup validation pass.
+
+1. **Compiled safe defaults** Default-deny optional and outbound capabilities
+
+1. **Optional JSON baseline** Strict, typed, duplicate-key safe, unknown-field rejecting
+
+1. **Explicit environment allowlist** Kubernetes, Compose, or direct process injection
+
+1. **Cross-field startup validation** Role, profiles, dependencies, credentials, and fail-closed feature flags
+
+Make targets may load a selected Make-compatible `.env`. The binaries never load environment files. Secrets use mutually exclusive direct or mounted-file variables and never belong in JSON configuration.
+
+Selected tenant operational settings are separate PostgreSQL data. Administrators can change automatic source synchronization and default attempt budgets through the Settings page or API without restarting processes. Unset values inherit the deployment defaults. Current Jobs keep their admitted budgets. Connectivity, credentials, trust and capability activation remain startup inputs. See [live tenant settings](../reference/configuration.mdx#live-tenant-settings) and [ADR-0025](decisions/0025-tenant-operational-settings.md).
+
+### Runtime and HTTP
+
+Environment, profile, service name, listener, public base URL, cooperative product-work deadline, socket read/write/idle timeouts, process shutdown timeout, body limit, and exact CORS origins.
+
+### Identity and database
+
+OIDC issuer/audience/tenancy mapping, scope ceiling, development identities, database driver, role-specific DSN, and pool size.
+
+### Worker and federation
+
+Poll, lease, concurrency, request deadline, response bytes, redirects, fan-out, hops, and mounted egress policy. Shared `jobs.maxAttempts` and `jobs.retryCeiling` configure creation budgets and future full-jitter scheduling. Existing Job limits and due times remain authoritative across process replacement; see the [durable retry policy](../reference/configuration.mdx#durable-job-retry-policy).
+
+Worker component restarts use `worker.dependencyRetryInitialDelay` and `worker.dependencyRetryCeiling`, separate from healthy cadence and durable Job scheduling. Each supervisor has independent capped exponential jitter and cancellation; see [worker dependency restarts](../reference/configuration.mdx#worker-dependency-restarts).
+
+### Discovery
+
+Exact host/tenant/mode/publisher-domain mappings and pinned ARD and AI Catalog output profiles.
+
+### Implemented optional boundaries
+
+Credential resolution, webhooks and OTLP/HTTP tracing have explicit settings. Disabled tracing reads no credential or trust files; collector availability never affects readiness.
+
+### Optional and unavailable capabilities
+
+Optional hybrid search requires explicit provider configuration and owner-applied semantic storage. Temporary inference outages degrade to lexical search without failing core readiness; invalid configuration or missing storage fails startup. Managed media and software assessment remain unavailable and fail startup when enabled. See [hybrid search operations](../operations/hybrid-search.mdx).
+
+### Production configuration is a safety gate, not a readiness claim
+
+Production rejects the local profile, memory database, development authentication, HTTP public or CORS origins, application-startup migrations, and the combined PostgreSQL role. It requires PostgreSQL, OIDC for the API, explicit tenancy, one deployment-injected cursor-signing key used by purpose-bound cursor formats, valid exact egress policy, and only the secrets needed by enabled capabilities. Static validation does not establish database connectivity, role privileges or issuer availability; verify those during deployment.
+
+## Events and post-commit delivery
+
+A reviewed workflow commits state, audit and any independently classified outbox event together in PostgreSQL. Audit-only work adds no delivery record. The outbox provides reliable post-commit notification state. Optional webhook delivery is retryable and never becomes authoritative Catalog state.
+
+<Events />
+
+### Consistency
+
+For every classified core workflow, state, audit, any applicable outbox row, and the retained command response commit or roll back together. An HTTP replay adds no duplicate evidence. Worker execution remains at least once, so each distinct domain result actually committed after a retry has its own evidence, attributed to a service executor with bounded retained Job linkage.
+
+### Delivery semantics
+
+Enabled webhooks are optional and unordered, with at-least-once retry semantics; finite retries do not guarantee receipt. Receivers verify the HMAC signature and bounded timestamp, deduplicate by the CloudEvent `(source, id)` pair, then read current authorized state when ordering matters.
+
+### Disabled means absent
+
+With webhooks disabled, routes, keys, sender, and receiver readiness dependencies are omitted; a no-network worker drainer terminates pending notification rows. Enabling requires the documented rollout order.
+
+## Evidence channels are intentionally different
+
+| Channel | Purpose | Authority and current boundary |
+| --- | --- | --- |
+| Audit event | Attributable tenant-bound evidence for reviewed state changes, exact private-evidence reads, and outbound administrator actions. | ADR-0013 versions and bounds records; the current baseline requires complete version-1 attribution. Version-1 actors are stable Catalog-membership, service-executor, or database-login principals; service-generated fields do not copy external identity subjects or issuers, raw content, queries, credentials, URLs, tokens, request digests, or idempotency-key digests. A bounded user-authored reason is retained and must not contain sensitive payloads. |
+| Transactional outbox | Reliable post-commit notification record for an independently reviewed public or internal event. | Durable PostgreSQL boundary with leased processing; an audit-only action has no outbox row, and there is no broker or schema-registry dependency. |
+| Webhook delivery | Optional signed external notification and attempt evidence. | At-least-once retry semantics and unordered; finite retries do not guarantee receipt. The receiver retrieves current authorized state rather than treating delivery order as authority. |
+| Logs, metrics, and traces | Operational diagnosis, correlation, performance, and degradation signals. | Redacted and low-cardinality; never an authoritative history, tenant data export, or replacement for audit. |
+
+The service records audit evidence for reviewed core actions and sensitive reads. It supports exact database filters and synchronous, idempotent exports within fixed limits. Verification checks exported files for self-consistency. A read-only procedure compares restored data with a trusted manifest bound to a proven recovery point. These checks do not establish database-only tamper detection.
+
+The event schema defines the implemented CloudEvents envelope, tenant-bound `source`, immutable `dataschema`, public event types and one small closed notification reference. Catalog, identity, source, publication, operator and webhook-test producers validate this format. The Go registry, JSON Schema, OpenAPI selector, examples and tests change together. Drain old dispatchers before emitting new types because they acknowledge unknown types.
+
+Retained internal idempotency-repair rows are never delivered, including through wildcard subscriptions. Protocol-v2 repairs emit audit only because no post-commit consumer exists. A new internal event requires a concrete consumer. Source pause, resume and removal use distinct types. Removal remains identifiable when a current-source read returns not found. A no-op lifecycle request changes neither revision nor evidence.
+
+Publication references include the normalized host needed to read the snapshot. Webhook delivery supports signing-key overlap, emergency revocation, bounded status-aware retries and deferred bounded endpoint selection. Encryption-key replacement requires stopped runtimes. Delivery uses an independent private HTTPS policy. Endpoint, outcome and delivery-page audit evidence does not create another notification.
+
+Worker outcomes commit with audit only under a live, owned outbox claim. Ownership checks after database lock waits reject stale writes. After a worker interruption, recovery skips committed terminal outcomes and does not send those notifications again. One API test slot, serial workers and atomic 1,000-event tenant admission bound work.
+
+Authorized reconciliation coalesces requests; retention respects parent records. Delivery metrics and status report bounded outcomes. Saturation preserves valid mutations and required evidence without replaying missed historical events. Webhooks remain off by default.
+
+[Catalog event schema](../../../../../api/schemas/catalog-event-v1.schema.json) - Complete implemented CloudEvents envelope and closed public notification-reference contract.
+
+[Webhook example](../../../../../api/examples/webhook-delivery.json) - Concrete signed-delivery payload shape for receiver integration.
+
+[Webhook operations](../operations/webhooks.mdx) - Enablement, transition ordering, verification, retry, and compromise handling.
+
+[Event-delivery decision](decisions/0012-event-delivery.md) - Why PostgreSQL outbox is required, webhooks are optional, and no broker is deployed.
+
+[Audit-evidence decision](decisions/0013-audit-evidence-and-verification.md) - Why evidence is versioned and bounded, what is audited, and what export or restore verification can prove.
+
+[Logging and observability decision](decisions/0021-logging-observability-and-audit.md) - Startup level/format controls, safe terminal and panic boundaries, event ownership and collection responsibilities. Backend and UI startup controls, safe diagnostics, owned panic boundaries and bounded event observations are implemented; audit remains the durable evidence authority.
+
+## Health and shutdown contract
+
+| Signal | Meaning | Dependencies | Status |
+| --- | --- | --- | --- |
+| API `/livez` | Process is alive. | None; never contacts PostgreSQL or optional providers. | Implemented |
+| API `/readyz` | Startup complete, not draining, and one bounded configured-repository check succeeds. PostgreSQL pool admission and readiness both require the current runtime session to report `transaction_read_only=off` without issuing a canary write. | PostgreSQL under the exact API role in maintained split-role deployments; no external dependency in the combined in-memory development role. Intentionally read-only restore and audit operators use a separate connection contract. Enabled fail-closed capabilities are validated before startup. | Implemented |
+| Worker operations surface | `/startupz`, `/livez`, `/readyz`, `/status`, `/version`, and `/metrics` report startup, liveness, configured-repository readiness, fixed component degradation, and drain without product APIs. | Readiness, status, and worker aggregate collection contact PostgreSQL when configured. Every new physical worker connection and each readiness check require a read/write-capable session. Liveness and startup never contact PostgreSQL. | Implemented |
+| Graceful drain | Stop new HTTP work or Job claims, become unready, bound shutdown, preserve recoverability. | Idempotency and Job leases. | Behavior implemented |
+
+## Verification and recovery
+
+The [testing strategy](../contributing/testing.md) defines service-free, PostgreSQL, functional, container and Kubernetes gates and their separate coverage measures. The [performance guide](../guides/performance-and-monitoring.md) defines load profiles, SQL diagnostics and cleanup. These maintained guides replace a second target inventory here.
+
+The optional writer-recovery test covers planned and abrupt PostgreSQL promotion. [Restore verification](../operations/backup-restore.mdx) checks retained logical state in an isolated database; deployment operators qualify their backup/PITR and infrastructure-specific behavior.
+
+## Operational responsibility and current boundary
+
+### Service owns
+
+- The service owns parser, archive, fetch, federation, Job, publication and internal-selection limits. ADR-0014 defines its cooperative request deadline and fixed cleanup allowance. The service also owns fixed-work progress evidence and the demonstrated limit on concurrent publication construction within a process.
+- API and worker startup, liveness, configured-repository readiness including runtime read/write-session admission for required PostgreSQL in maintained split-role deployments, component degradation, and drain contracts.
+- Low-cardinality metrics, bounded diagnostics, safe structured correlation logs, the redaction boundary, and classified core audit evidence.
+- Migration compatibility, immutable profile inputs, and restore-safety invariants. The service provides tenant-scoped isolated logical-integrity verification and safe recovery sequencing without becoming backup tooling.
+
+### SRE owns
+
+- Replicas, autoscaling, placement, disruption, regions, and availability objectives.
+- PostgreSQL high availability, backup and point-in-time recovery (PITR), schedules, retention and deployment-specific recovery objectives.
+- Ingress, certificates, firewall/NetworkPolicy, CDN, monitoring integration, and on-call operations.
+- Measured environment capacity and applicable release evidence.
+
+## Metrics must stay low-cardinality
+
+The provider-neutral registry emits deterministic Prometheus text within a fixed output limit. It measures in-flight requests, response bytes, registered-route latency/status and a label-free product-deadline counter. Other signals cover PostgreSQL pools/statements, bounded Job kinds/outcomes and required-dependency/startup/drain state. Workers report persisted Job, source, synchronization, publication and outbox state or age. Search, validation, live federation, publication, source sync, outbox and readiness have outcome counters.
+
+`catalogctl diagnostics` reports bounded schema, privilege-manifest, profile, dependency, pool, component and worker aggregate information. It also reports the effective request deadline and publication work limit. There is no support-only product API.
+
+Metric labels never contain tenant/resource IDs, raw paths, URLs, publishers, queries, request IDs, credentials, DSNs, SQL, errors or trace IDs. Deployment operators own database-replica, backup and CDN metrics.
+
+Fixed Go heap, allocation, goroutine and garbage-collection (GC) metrics report unavailable states explicitly. There is no invented GC pause sum. Current heap, last-GC live heap and container resident memory are different measurements. See [local monitoring](../guides/performance-and-monitoring.md) for the Compose overlay and bounded load diagnostics.
+
+The independent [Helm monitoring chart](../operations/helm-monitoring.md) defaults to `enabled: false`. `--set enabled=true` or `make monitoring-install` deploys namespace-scoped Prometheus discovery, Grafana and the shared 32-panel dashboard. Credentials and optional retained claims are external. Disabling monitoring removes its resources but retains external claims and credentials. Collectors are not Catalog readiness or application-chart dependencies.
+
+OTLP/HTTP tracing is disabled by default and owned by each process. Private durable causes link asynchronous attempts across replicas. Export uses isolated transport, bounded queues and the remaining shutdown time. It never gates readiness. See [observability](../operations/observability.mdx) for field rules and interpretation limits.
+
+## Runbooks
+
+[Deployment](../operations/deployment.mdx) - Image, dependencies, release order, probes, network, and shutdown.
+
+[Logs, metrics, traces and worker health](../operations/observability.mdx) - Listener isolation, probe semantics, metrics, redaction, trace correlation, and diagnostics.
+
+[Security](../operations/security.md) - Production controls, keys, federation, monitoring, and incidents.
+
+[Database roles](../operations/database-roles.md) - API, worker, migrator, RLS, and bootstrap.
+
+[Idempotency repair](../operations/idempotency-repair.mdx) - Proof-driven recovery for interrupted commands.
+
+[Backup and restore](../operations/backup-restore.mdx) - Authoritative data, isolation, integrity, and safe reactivation.
+
+[Webhooks](../operations/webhooks.mdx) - Optional receiver, signing, rotation, retry, and evidence operations.
+
+[Incident response](../operations/incident-response.md) - Triage, containment, recovery, and follow-up.
+
+[Testing strategy](../contributing/testing.md) - Environment boundaries, coverage accounting, fakes, and evidence selection.
+
+[Configuration](../reference/configuration.mdx) - Groups, environment allowlist, secrets, diagnostics, and production gate.

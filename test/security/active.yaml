@@ -1,0 +1,43 @@
+# Original contract; context exclusion is important: OpenAPI import uses
+# exclusions, not just inclusion. Only two catalog read operations are attacked.
+env:
+  contexts:
+    - name: api
+      urls: [http://api:8080]
+      includePaths:
+        - 'http://api:8080/api/v1/catalog/(search|resources)(\?.*)?'
+      excludePaths:
+        - 'http://api:8080/(?!api/v1/catalog/(search|resources)(\?.*)?$).*'
+  parameters:
+    failOnError: true
+    failOnWarning: true
+    progressToStdout: false
+jobs:
+  - type: openapi
+    parameters:
+      apiFile: /zap/contract.yaml
+      targetUrl: http://api:8080
+      context: api
+  - type: activeScan
+    parameters:
+      context: api
+      maxRuleDurationInMins: 1
+      maxScanDurationInMins: 3
+      threadPerHost: 1
+      delayInMs: 10
+      injectPluginIdInHeader: true
+    policyDefinition:
+      defaultThreshold: 'Off'
+      defaultStrength: Low
+      rules:
+        - id: 40012
+          name: Cross Site Scripting (Reflected)
+          threshold: Medium
+          strength: Low
+        - id: 40018
+          name: SQL Injection
+          threshold: Medium
+          strength: Low
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 1

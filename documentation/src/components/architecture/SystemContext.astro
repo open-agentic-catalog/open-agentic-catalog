@@ -1,0 +1,38 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="system-context-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1475" role="img" aria-labelledby="system-context-title system-context-desc">
+  <title id="system-context-title">Open Agentic Catalog system context</title>
+  <desc id="system-context-desc">People use client applications to govern and discover resources. Operators deploy and administer the Catalog. One Catalog software system interacts with the configured identity provider, approved HTTPS sources and artifacts, optional embedding inference and optional webhook receivers. Git and OCI locations are metadata references, not Catalog fetches. Resource execution stays outside the Catalog.</desc>
+  <defs><marker id="system-context-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M180 144 V235" marker-end="url(#system-context-arrow)" />
+  <text class="svg-small" x="70" y="200">Use</text>
+  <path class="svg-connector" d="M460 144 V190 H620 V510 H580" marker-end="url(#system-context-arrow)" />
+  <text class="svg-small" x="490" y="218">Operate</text>
+  <path class="svg-connector" d="M320 359 V450" marker-end="url(#system-context-arrow)" />
+  <text class="svg-small" x="338" y="412">Control and discovery</text>
+  <path class="svg-connector" d="M180 597 V720" marker-end="url(#system-context-arrow)" />
+  <text class="svg-small" x="60" y="671">Check identity</text>
+  <path class="svg-connector" d="M460 597 V720" marker-end="url(#system-context-arrow)" />
+  <text class="svg-small" x="478" y="671">Read metadata</text>
+  <path class="svg-connector" d="M60 560 H34 V1070 H60" marker-end="url(#system-context-arrow)" />
+  <text class="svg-small" x="60" y="950">Optional inference</text>
+  <path class="svg-connector" d="M580 560 H606 V1070 H580" marker-end="url(#system-context-arrow)" />
+  <text class="svg-small" x="350" y="950">Optional notifications</text>
+  <path class="svg-connector svg-connector-reference" d="M320 597 V1290" marker-end="url(#system-context-arrow)" />
+  <text class="svg-small" x="338" y="1220">References only</text>
+  <DiagramCard x={60} y={20} width={240} title={"Content teams"} lines={["Authors and reviewers", "Publishers and readers"]} kicker={"PEOPLE"} />
+  <DiagramCard x={340} y={20} width={240} title={"Operators"} lines={["Deploy and configure", "Operate Catalog"]} kicker={"PEOPLE"} />
+  <DiagramCard x={60} y={235} width={520} title={"Catalog client applications"} lines={["Browser UI, CLI, IDE and automation", "Control API, ARD and AI Catalog consumers"]} kicker={"CLIENT SOFTWARE"} />
+  <DiagramCard x={60} y={450} width={520} title={"Open Agentic Catalog"} lines={["Govern content, evidence, review and publication", "Provide discovery and approved federation", "Metadata only; no resource execution"]} kicker={"SOFTWARE SYSTEM"} tone={"core"} />
+  <DiagramCard x={60} y={720} width={240} title={"Identity provider"} lines={["Configured OIDC issuer", "Issue tokens and keys", "When OIDC is selected"]} kicker={"EXTERNAL SYSTEM"} />
+  <DiagramCard x={340} y={720} width={240} title={["Approved HTTPS", "sources and artifacts"]} lines={["Read peer metadata,", "documents and packages"]} kicker={"EXTERNAL SYSTEM"} />
+  <DiagramCard x={60} y={1000} width={240} title={["Embedding", "provider"]} lines={["Query and metadata", "vectors"]} kicker={"EXTERNAL; OPTIONAL"} tone={"optional"} />
+  <DiagramCard x={340} y={1000} width={240} title={["Webhook", "receivers"]} lines={["Signed notifications", "When delivery is enabled"]} kicker={"EXTERNAL; OPTIONAL"} tone={"optional"} />
+  <DiagramCard x={60} y={1290} width={520} title={"Git and OCI registries"} lines={["Source and deployable packages remain external", "Catalog records references; consumers fetch and execute"]} kicker={"EXTERNAL STORAGE"} />
+  <text class="svg-small" x="20" y="1455">Solid: requests. Purple dashed: metadata references, not requests.</text>
+</svg>
+</div>

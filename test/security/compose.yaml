@@ -1,0 +1,83 @@
+# Invocation-owned security fixtures have no Internet route. Never use this
+# overlay to scan retained environments or an operator-selected destination.
+networks:
+  default:
+    internal: true
+services:
+  zap:
+    image: ghcr.io/zaproxy/zaproxy@sha256:781a2bdaea47324e7bab583e2263f21d257b0aee61ed51521a5be45f5f5081ef
+    pull_policy: never
+    command:
+      - zap.sh
+      - -daemon
+      - -host
+      - 0.0.0.0
+      - -port
+      - '8090'
+      - -config
+      - api.disablekey=true
+      - -config
+      - api.addrs.addr.name=.*
+      - -config
+      - api.addrs.addr.regex=true
+      - -config
+      - autoupdate.checkOnStart=false
+      - -config
+      - autoupdate.downloadNewRelease=false
+      - -config
+      - autoupdate.installAddonUpdates=false
+      - -config
+      - autoupdate.installScannerRules=false
+      - -config
+      - callhome.tel.enabled=false
+      - -config
+      - connection.timeoutInSecs=5
+    read_only: true
+    tmpfs:
+      - /home/zap/.ZAP:size=256m,uid=1000,gid=1000
+      - /tmp:size=256m
+    environment:
+      JAVA_OPTS: -Xmx1024m
+    healthcheck:
+      test: [CMD, python3, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/JSON/core/view/version/', timeout=2).read(1024)"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    logging:
+      driver: local
+      options:
+        max-size: 1m
+        max-file: '2'
+    mem_limit: 2g
+    cpus: 2
+    pids_limit: 256
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?owned fixture required}/zap
+        target: /zap/wrk
+      - type: bind
+        source: ./api/openapi/control-v1.yaml
+        target: /zap/contract.yaml
+        read_only: true
+  security-ui:
+    image: open-agentic-catalog-ui:functional-${CATALOG_FUNCTIONAL_SUFFIX:?owned suffix required}
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: catalog-ui/Containerfile
+      args:
+        VERSION: functional
+        COMMIT: ${CATALOG_FUNCTIONAL_COMMIT:?owned commit required}
+    network_mode: service:zap
+    command: [--config, /fixture/ui.json]
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?owned fixture required}/zap
+        target: /fixture
+        read_only: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]

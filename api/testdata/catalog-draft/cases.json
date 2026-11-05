@@ -1,0 +1,312 @@
+[
+  {
+    "name": "agent-exact-native-text",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": true
+  },
+  {
+    "name": "mcp_server-url",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"mcp_server\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/mcp-server-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"url\",\"url\":\"https://mcp.example.test/card.json\"}}]}",
+    "valid": true
+  },
+  {
+    "name": "skill-content",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"skill\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/agent-skills+md\",\"profileId\":\"\",\"input\":{\"mode\":\"content\",\"text\":\"---\\nname: draft-skill\\ndescription: Test the draft file.\\n---\\n\\n# Instructions\\n\\nKeep these bytes.\\r\\n\"}}]}",
+    "valid": true
+  },
+  {
+    "name": "skill-skill-package",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"skill\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/agent-skills+zip\",\"profileId\":\"\",\"input\":{\"mode\":\"skill-package\",\"handoff\":\"{\\\"git\\\":{\\\"repository\\\":\\\"https://example.test/skills.git\\\",\\\"commit\\\":\\\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\\",\\\"directory\\\":\\\"draft-skill\\\"}}\"}}]}",
+    "valid": true
+  },
+  {
+    "name": "plugin-plugin-archive",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"plugin\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/agent-plugins+zip\",\"profileId\":\"\",\"input\":{\"mode\":\"plugin-archive\",\"url\":\"https://plugins.example.test/plugin.zip\",\"expectedDigest\":\"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\"}}]}",
+    "valid": true
+  },
+  {
+    "name": "plugin-plugin-preparation",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"plugin\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/agent-plugins+zip\",\"profileId\":\"\",\"input\":{\"mode\":\"plugin-preparation\",\"manifest\":\"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\",\"mcp\":\"{\",\"skills\":[\"---\\nname: draft-skill\\n---\\n\"],\"sourceFiles\":[{\"path\":\"plugin.json\",\"retained\":true},{\"path\":\"scripts/start.sh\",\"retained\":false}]}}]}",
+    "valid": true
+  },
+  {
+    "name": "incomplete-editable-listing",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"\",\"version\":\"\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"unfinished\\\":\"}}],\"listing\":{\"displayName\":\"\",\"description\":\"\",\"visibility\":\"private\",\"tags\":[\"\",\"One\",\"One\"],\"categories\":[\"\"],\"representativeQueries\":[\"x\",\"\"],\"documentationUrl\":\"https://\",\"supportUrl\":\"\",\"termsUrl\":\"\",\"license\":\"\",\"relationships\":[{\"type\":\"depends_on\",\"targetIdentifier\":\"\",\"targetVersion\":\"\"}],\"extensions\":\"{\\\"number\\\":9007199254740993,\",\"artwork\":{\"schemaVersion\":1,\"icon\":{\"url\":\"\",\"alt\":\"\",\"caption\":\"\",\"rights\":{\"basis\":\"\",\"attribution\":\"\",\"reference\":\"\"}},\"screenshots\":[{\"url\":\"https://images.example.test/one.png\",\"alt\":\"\"}]}}}",
+    "valid": true
+  },
+  {
+    "name": "multiple-representations",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}},{\"role\":\"documentation\",\"mediaType\":\"text/markdown\",\"profileId\":\"custom-profile\",\"input\":{\"mode\":\"content\",\"text\":\"# Notes\\n\\nDo not execute the Agent.\\n\"}}]}",
+    "valid": true
+  },
+  {
+    "name": "signed-native-text",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"signatures\\\":[{\\\"protected\\\":\\\"eyJhbGciOiJFZERTQSJ9\\\",\\\"signature\\\":\\\"AA\\\"}],\\\"unknown\\\":null}\"}}]}",
+    "valid": true
+  },
+  {
+    "name": "reject-root-format-v2",
+    "document": "{\"format\":\"v2\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-format-None",
+    "document": "{\"format\":null,\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-kind-unknown",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"unknown\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-kind-None",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":null,\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-canonicalIdentifier-None",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":null,\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-version-1",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":1,\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-representations-[]",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[]}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-representations-None",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":null}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-listing-None",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}],\"listing\":null}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-tenantId-private-tenant",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}],\"tenantId\":\"private-tenant\"}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-publisherId-private-publisher",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}],\"publisherId\":\"private-publisher\"}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-Format-wrong-case",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}],\"Format\":\"wrong-case\"}",
+    "valid": false
+  },
+  {
+    "name": "reject-root-dataFile-../secret.json",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}],\"dataFile\":\"../secret.json\"}",
+    "valid": false
+  },
+  {
+    "name": "reject-representation-role",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"unknown\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-representation-role",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":null,\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-representation-mediaType",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":null,\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-representation-profileId",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":123,\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-representation-id",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"},\"id\":\"source-id\"}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-representation-input",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":null}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-input-28",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-input-29",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":null}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-input-30",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"data\",\"text\":\"\",\"url\":\"\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-input-31",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"url\",\"url\":\"\",\"handoff\":\"\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-input-32",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"skill-package\",\"handoff\":\"\",\"packageFile\":\"/tmp/archive.zip\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-input-33",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"plugin-archive\",\"url\":\"\",\"expectedDigest\":null}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-input-34",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"plugin-preparation\",\"manifest\":\"\",\"mcp\":\"\",\"skills\":[],\"url\":\"https://stale.example.test/plugin.zip\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-input-35",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"plugin-preparation\",\"manifest\":\"\",\"mcp\":\"\",\"skills\":[{\"id\":\"old-id\",\"content\":\"\"}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-input-36",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"kind\":\"agent\",\"canonicalIdentifier\":\"custom:draft-agent\",\"version\":\"1.0.0\",\"representations\":[{\"role\":\"primary\",\"mediaType\":\"application/a2a-agent-card+json\",\"profileId\":\"\",\"input\":{\"mode\":\"package\",\"packageData\":\"UEs=\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-encoding-37",
+    "document": "",
+    "valid": false
+  },
+  {
+    "name": "reject-encoding-38",
+    "document": "{}",
+    "valid": false
+  },
+  {
+    "name": "reject-encoding-39",
+    "document": "[]",
+    "valid": false
+  },
+  {
+    "name": "reject-encoding-40",
+    "document": "null",
+    "valid": false
+  },
+  {
+    "name": "reject-encoding-41",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"format\":\"open-agentic-catalog-draft-v1\"}",
+    "valid": false
+  },
+  {
+    "name": "reject-encoding-42",
+    "document": "{\"format\":\"open-agentic-catalog-draft-v1\",\"for\\u006dat\":\"open-agentic-catalog-draft-v1\"}",
+    "valid": false
+  },
+  {
+    "name": "reject-encoding-43",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"agent\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/a2a-agent-card+json\", \"profileId\": \"\", \"input\": {\"mode\": \"data\", \"text\": \"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}{}",
+    "valid": false
+  },
+  {
+    "name": "reject-encoding-44",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"agent\", \"canonicalIdentifier\": \"\\ud800\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/a2a-agent-card+json\", \"profileId\": \"\", \"input\": {\"mode\": \"data\", \"text\": \"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}]}",
+    "valid": false
+  },
+  {
+    "name": "long-license-within-file-limit",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"agent\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/a2a-agent-card+json\", \"profileId\": \"\", \"input\": {\"mode\": \"data\", \"text\": \"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}], \"listing\": {\"displayName\": \"Draft\", \"description\": \"Example\", \"visibility\": \"private\", \"license\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}}",
+    "valid": true
+  },
+  {
+    "name": "reject-control-integer-1.0",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"agent\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/a2a-agent-card+json\", \"profileId\": \"\", \"input\": {\"mode\": \"data\", \"text\": \"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}], \"listing\": {\"displayName\": \"Draft\", \"description\": \"Example\", \"visibility\": \"private\", \"license\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"artwork\": {\"schemaVersion\": 1.0}}}",
+    "valid": false
+  },
+  {
+    "name": "reject-control-integer-1e0",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"agent\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/a2a-agent-card+json\", \"profileId\": \"\", \"input\": {\"mode\": \"data\", \"text\": \"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}], \"listing\": {\"displayName\": \"Draft\", \"description\": \"Example\", \"visibility\": \"private\", \"license\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"artwork\": {\"schemaVersion\": 1e0}}}",
+    "valid": false
+  },
+  {
+    "name": "reject-control-integer-1.0000000000000001",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"agent\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/a2a-agent-card+json\", \"profileId\": \"\", \"input\": {\"mode\": \"data\", \"text\": \"{\\\"integer\\\":9007199254740993,\\\"decimal\\\":0.123456789012345678901,\\\"unknown\\\":{\\\"id\\\":\\\"00000000-0000-7000-8000-000000000001\\\"}}\"}}], \"listing\": {\"displayName\": \"Draft\", \"description\": \"Example\", \"visibility\": \"private\", \"license\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"artwork\": {\"schemaVersion\": 1.0000000000000001}}}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-0",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-1",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"../secret\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-2",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"/absolute\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-3",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"C:/secret\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-4",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"root\\\\secret\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-5",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"root//file\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-6",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"root/file.\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-7",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"root/file \", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-8",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"root/\\u0000file\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-9",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"root/\\u0085file\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-10",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-11",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x/x\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  },
+  {
+    "name": "reject-package-inventory-path-12",
+    "document": "{\"format\": \"open-agentic-catalog-draft-v1\", \"kind\": \"plugin\", \"canonicalIdentifier\": \"custom:draft-agent\", \"version\": \"1.0.0\", \"representations\": [{\"role\": \"primary\", \"mediaType\": \"application/agent-plugins+zip\", \"profileId\": \"\", \"input\": {\"mode\": \"plugin-preparation\", \"manifest\": \"{\\\"name\\\":\\\"draft-plugin\\\",\\\"unknown\\\":9007199254740993}\", \"mcp\": \"{\", \"skills\": [\"---\\nname: draft-skill\\n---\\n\"], \"sourceFiles\": [{\"path\": \"root/\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\\ud83d\\ude42\", \"retained\": true}, {\"path\": \"scripts/start.sh\", \"retained\": false}]}}]}",
+    "valid": false
+  }
+]

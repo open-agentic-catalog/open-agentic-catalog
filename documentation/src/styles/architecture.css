@@ -1,0 +1,212 @@
+/* Static architecture figures share the documentation theme and never its layout controls. */
+.catalog-architecture {
+  --canvas: light-dark(#f4f7fb, #0b1420);
+  --surface: light-dark(#ffffff, #111d2b);
+  --surface-raised: light-dark(#ffffff, #162536);
+  --surface-soft: light-dark(#edf3fa, #182a3c);
+  --ink: light-dark(#142033, #edf5ff);
+  --muted: light-dark(#58677a, #a9bacd);
+  --line: light-dark(#d4deea, #2d4157);
+  --line-strong: light-dark(#aebed0, #46617b);
+  --connector: light-dark(#657c96, #829bb4);
+  --blue: light-dark(#1261a0, #72b7ee);
+  --blue-soft: light-dark(#dceeff, #163a56);
+  --cyan: light-dark(#066875, #62d2dc);
+  --green: light-dark(#18794e, #79d9a7);
+  --green-soft: light-dark(#dff5e9, #163c2d);
+  --amber: light-dark(#9a6700, #ffd166);
+  --amber-soft: light-dark(#fff1c7, #493b15);
+  --purple: light-dark(#6842a0, #c7a9ff);
+  --purple-soft: light-dark(#eee6ff, #352655);
+  --diagram-grid: light-dark(rgba(16, 42, 67, 0.055), rgba(202, 222, 243, 0.06));
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+  box-sizing: border-box;
+  overflow-x: auto;
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(var(--diagram-grid) 1px, transparent 1px), linear-gradient(90deg, var(--diagram-grid) 1px, transparent 1px), var(--surface);
+  background-size: 24px 24px;
+  padding: .5rem;
+  margin-block: 1.5rem;
+}
+:root[data-theme="light"] .catalog-architecture { color-scheme: light; }
+.catalog-architecture:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
+:root:has(.catalog-architecture) { --sl-content-width: 68rem; }
+.catalog-architecture .architecture-svg {
+  display: block;
+  width: 100%;
+  /* Keep labels readable when the sidebar narrows the available column. */
+  min-width: 560px;
+  max-width: none;
+  height: auto;
+  font-family: var(--sans);
+}
+
+.catalog-architecture .architecture-svg * {
+  vector-effect: non-scaling-stroke;
+}
+
+.catalog-architecture .svg-canvas {
+  fill: color-mix(in srgb, var(--surface) 72%, transparent);
+}
+
+.catalog-architecture .svg-boundary {
+  fill: color-mix(in srgb, var(--blue-soft) 34%, var(--surface));
+  stroke: var(--blue);
+  stroke-width: 2;
+}
+
+.catalog-architecture .svg-boundary-neutral {
+  fill: color-mix(in srgb, var(--surface-soft) 58%, var(--surface));
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+}
+
+.catalog-architecture .svg-node {
+  fill: var(--surface-raised);
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+}
+
+.catalog-architecture .svg-node-optional {
+  fill: color-mix(in srgb, var(--blue-soft) 18%, color-mix(in srgb, var(--purple-soft) 54%, var(--surface)));
+  stroke: var(--purple);
+  stroke-width: 1.8;
+  stroke-dasharray: 7 6;
+}
+
+.catalog-architecture .svg-node-core {
+  fill: var(--blue-soft);
+  stroke: var(--blue);
+  stroke-width: 1.7;
+}
+
+.catalog-architecture .svg-node-authority {
+  fill: var(--green-soft);
+  stroke: var(--green);
+  stroke-width: 1.7;
+}
+
+.catalog-architecture .svg-node-warning {
+  fill: var(--amber-soft);
+  stroke: var(--amber);
+  stroke-width: 1.5;
+}
+
+.catalog-architecture .svg-node-target {
+  fill: var(--purple-soft);
+  stroke: var(--purple);
+  stroke-width: 1.5;
+}
+
+.catalog-architecture .svg-node-external {
+  fill: var(--surface-raised);
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+  stroke-dasharray: 7 5;
+}
+
+.catalog-architecture .svg-title {
+  fill: var(--ink);
+  font-size: 20px;
+  font-weight: 780;
+}
+
+.catalog-architecture .svg-copy {
+  fill: var(--muted);
+  font-size: 16px;
+  font-weight: 520;
+}
+
+.catalog-architecture .svg-small {
+  fill: var(--muted);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.catalog-architecture .svg-kicker {
+  fill: var(--cyan);
+  font-size: 16px;
+  font-weight: 820;
+  letter-spacing: 0.5px;
+}
+
+.catalog-architecture .svg-code {
+  fill: var(--ink);
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.catalog-architecture .svg-badge {
+  fill: var(--surface-soft);
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.catalog-architecture .svg-badge-core {
+  fill: var(--blue);
+}
+
+.catalog-architecture .svg-badge-authority {
+  fill: var(--green);
+}
+
+.catalog-architecture .svg-badge-text {
+  fill: var(--surface);
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 820;
+  letter-spacing: 0.4px;
+  text-anchor: middle;
+}
+
+.catalog-architecture .svg-connector {
+  fill: none;
+  stroke: var(--connector);
+  stroke-width: 2;
+}
+
+/* Direction arrows need more contrast than decorative node borders. */
+.catalog-architecture marker path { fill: var(--connector); }
+
+.catalog-architecture .svg-connector-core {
+  stroke: var(--blue);
+}
+
+.catalog-architecture .svg-connector-authority {
+  stroke: var(--green);
+}
+
+.catalog-architecture .svg-connector-reference {
+  stroke: var(--purple);
+  stroke-dasharray: 7 5;
+}
+
+.catalog-architecture .svg-divider {
+  stroke: var(--line);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+}
+
+.catalog-architecture .svg-step {
+  fill: var(--surface);
+  stroke: var(--blue);
+  stroke-width: 1.5;
+}
+
+.catalog-architecture .svg-step-number {
+  fill: var(--blue);
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: 900;
+  text-anchor: middle;
+}
+
+/* Non-network dependencies; each owning view names construction or startup. */
+.catalog-architecture .svg-connector-dependency {
+  stroke-dasharray: 3 5;
+}

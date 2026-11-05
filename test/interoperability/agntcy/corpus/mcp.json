@@ -1,0 +1,38 @@
+{
+  "name": "https://example.test/agntcy-lab/mcp",
+  "schema_version": "1.0.0",
+  "version": "1.0.0",
+  "description": "A dedicated record for AI Catalog SDK projection tests",
+  "authors": [
+    "AI Catalog SDK E2E"
+  ],
+  "created_at": "2025-01-01T00:00:00Z",
+  "skills": [
+    {
+      "name": "natural_language_processing/natural_language_understanding/contextual_comprehension",
+      "id": 10101
+    }
+  ],
+  "locators": [],
+  "modules": [
+    {
+      "name": "integration/mcp",
+      "data": {
+        "name": "ai-catalog-sdk-mcp-server",
+        "connections": [
+          {
+            "type": "stdio",
+            "command": "docker",
+            "args": [
+              "run",
+              "-i",
+              "--rm",
+              "ai-catalog-sdk-mcp-server"
+            ],
+            "env_vars": []
+          }
+        ]
+      }
+    }
+  ]
+}

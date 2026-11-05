@@ -1,0 +1,4 @@
+title = "Catalog staged-secret checks"
+
+[extend]
+useDefault = true

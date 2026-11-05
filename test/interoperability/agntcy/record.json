@@ -1,0 +1,54 @@
+{
+  "name": "https://example.test/agntcy-lab/current-a2a",
+  "schema_version": "1.0.0",
+  "version": "1.0.0",
+  "description": "A dedicated record for AI Catalog SDK projection tests",
+  "authors": [
+    "AI Catalog SDK E2E"
+  ],
+  "created_at": "2025-01-01T00:00:00Z",
+  "skills": [
+    {
+      "name": "natural_language_processing/natural_language_understanding/contextual_comprehension",
+      "id": 10101
+    }
+  ],
+  "locators": [],
+  "modules": [
+    {
+      "name": "integration/a2a",
+      "data": {
+        "card_data": {
+          "name": "https://example.test/agntcy-lab/current-a2a",
+          "description": "Resolves invoice exceptions",
+          "version": "1.0.0",
+          "supportedInterfaces": [
+            {
+              "url": "https://agents.example.com/a2a",
+              "protocolBinding": "JSONRPC",
+              "protocolVersion": "1.0"
+            }
+          ],
+          "capabilities": {},
+          "defaultInputModes": [
+            "application/json"
+          ],
+          "defaultOutputModes": [
+            "application/json"
+          ],
+          "skills": [
+            {
+              "id": "resolve-invoices",
+              "name": "Resolve invoices",
+              "description": "Resolves invoice exceptions",
+              "tags": [
+                "invoices"
+              ]
+            }
+          ]
+        },
+        "card_schema_version": "v1.0.0"
+      }
+    }
+  ]
+}

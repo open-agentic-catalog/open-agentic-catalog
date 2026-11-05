@@ -1,0 +1,134 @@
+# One independent publishing Catalog, alongside the existing consuming stack.
+x-peer-environment: &peer-environment
+  CATALOG_PUBLIC_BASE_URL: https://peer-a.test:8443
+  CATALOG_FEDERATION_POLICY_FILE: /config/federation-policy.json
+  CATALOG_DEMO_ARCHIVES: '{"origin":"https://${CATALOG_FUNCTIONAL_ARCHIVE_IP:?}:8443","trustBundleFile":"/config/archives-cert.pem","allowlistFile":"/config/archives-allowlist.json"}'
+  CATALOG_WORKER_SOURCE_MAINTENANCE_INTERVAL: 1m
+  CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE: "1"
+x-peer-runtime: &peer-runtime
+  image: ${IMAGE:?owned Catalog image is required}
+  pull_policy: never
+  read_only: true
+  init: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: ["/tmp:size=64m,noexec,nosuid,nodev"]
+  volumes:
+    - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/cert.pem:/config/archives-cert.pem:ro
+    - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/allowlist.json:/config/archives-allowlist.json:ro
+    - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/peer-a.json:/config/config.json:ro
+    - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/policy.json:/config/federation-policy.json:ro
+    - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/trust:/etc/open-agentic-catalog/federation/trust:ro
+  depends_on:
+    provision-a:
+      condition: service_completed_successfully
+services:
+  peer-archives:
+    image: ${IMAGE:?}
+    pull_policy: never
+    user: "${CATALOG_FUNCTIONAL_ARCHIVE_UID:?}:${CATALOG_FUNCTIONAL_ARCHIVE_GID:?}"
+    entrypoint: [/fixture/demo-archives]
+    command: [--directory, /fixture/archives, --address, "0.0.0.0:8443", --fixture-ip, "${CATALOG_FUNCTIONAL_ARCHIVE_IP:?}"]
+    volumes:
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}:/fixture:ro
+    networks:
+      default:
+        ipv4_address: ${CATALOG_FUNCTIONAL_ARCHIVE_IP:?}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+  federation-fixture:
+    command: [serve, --directory, /fixture, --peer]
+    networks:
+      default:
+        aliases: [peer-a.test, private-a.test, peer-b.test]
+  api:
+    environment:
+      CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE: "3"
+      CATALOG_PUBLIC_BASE_URL: https://peer-b.test:8443
+      CATALOG_DISCOVERY_HOSTS: >-
+        [{"host":"127.0.0.1","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"catalog.example.com"},
+        {"host":"peer-b.test","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"catalog.example.com"},
+        {"host":"private.catalog.test","tenantId":"00000000-0000-7000-8000-000000000001","mode":"authenticated","publisherDomain":"catalog.example.com"}]
+      CATALOG_DEMO_ARCHIVES: '{"origin":"https://${CATALOG_FUNCTIONAL_ARCHIVE_IP:?}:8443","trustBundleFile":"/config/archives-cert.pem","allowlistFile":"/config/archives-allowlist.json"}'
+      CATALOG_CREDENTIAL_RESOLUTION_ENABLED: "true"
+      CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY: /etc/open-agentic-catalog/federation/credentials
+    volumes:
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/cert.pem:/config/archives-cert.pem:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/allowlist.json:/config/archives-allowlist.json:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/credentials:/etc/open-agentic-catalog/federation/credentials:ro
+  worker:
+    environment:
+      CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE: "3"
+      CATALOG_DEMO_ARCHIVES: '{"origin":"https://${CATALOG_FUNCTIONAL_ARCHIVE_IP:?}:8443","trustBundleFile":"/config/archives-cert.pem","allowlistFile":"/config/archives-allowlist.json"}'
+      CATALOG_CREDENTIAL_RESOLUTION_ENABLED: "true"
+      CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY: /etc/open-agentic-catalog/federation/credentials
+    volumes:
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/cert.pem:/config/archives-cert.pem:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/archives/allowlist.json:/config/archives-allowlist.json:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/credentials:/etc/open-agentic-catalog/federation/credentials:ro
+  postgres-a:
+    image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+    environment:
+      POSTGRES_DB: catalog
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: catalog
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, catalog, -d, catalog]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+    volumes:
+      - ./deployments/postgres/init.sql:/docker-entrypoint-initdb.d/010-catalog-roles.sql:ro
+      - peer-postgres:/var/lib/postgresql
+  migrate-a:
+    image: ${IMAGE:?}
+    pull_policy: never
+    entrypoint: [/usr/local/bin/catalogctl]
+    command: [migrate, apply, --config, /config/config.json, --api-role, catalog_api, --worker-role, catalog_worker]
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog:catalog@postgres-a:5432/catalog?sslmode=disable
+    depends_on:
+      postgres-a:
+        condition: service_healthy
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/peer-a.json:/config/config.json:ro
+    restart: "no"
+  provision-a:
+    image: ${IMAGE:?}
+    pull_policy: never
+    entrypoint: [/usr/local/bin/catalogctl]
+    command: [identity, provision-development, --config, /config/config.json]
+    environment:
+      <<: *peer-environment
+      CATALOG_DATABASE_DSN: postgres://catalog:catalog@postgres-a:5432/catalog?sslmode=disable
+    depends_on:
+      migrate-a:
+        condition: service_completed_successfully
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/peer-a.json:/config/config.json:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?}/policy.json:/config/federation-policy.json:ro
+    restart: "no"
+  api-a:
+    <<: *peer-runtime
+    command: [api, --config, /config/config.json]
+    environment:
+      <<: *peer-environment
+      CATALOG_DATABASE_DSN: postgres://catalog_api:catalog-api@postgres-a:5432/catalog?sslmode=disable
+      CATALOG_HTTP_ADDRESS: 0.0.0.0:8080
+    ports: ["127.0.0.1:${CATALOG_FUNCTIONAL_PEER_HTTP_PORT:?owned peer port is required}:8080"]
+  worker-a:
+    <<: *peer-runtime
+    command: [worker, --config, /config/config.json]
+    environment:
+      <<: *peer-environment
+      CATALOG_DATABASE_DSN: postgres://catalog_worker:catalog-worker@postgres-a:5432/catalog?sslmode=disable
+      CATALOG_WORKER_OPERATIONS_ADDRESS: 0.0.0.0:9090
+volumes:
+  peer-postgres:

@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {"name":"direct exact namespace", "tenant":"a", "realm":"one", "member":"alice", "namespace":"A", "permission":"resource.edit", "allow":true},
+    {"name":"same role does not share assignees", "tenant":"a", "realm":"one", "member":"bob", "namespace":"A", "permission":"resource.edit", "allow":false},
+    {"name":"other assignee exact namespace", "tenant":"a", "realm":"one", "member":"bob", "namespace":"B", "permission":"resource.edit", "allow":true},
+    {"name":"group-derived access", "tenant":"a", "realm":"one", "member":"alice", "namespace":"B", "permission":"resource.edit", "allow":true},
+    {"name":"no access to unrelated namespace", "tenant":"a", "realm":"one", "member":"alice", "namespace":"C", "permission":"resource.read", "allow":false},
+    {"name":"unknown action denies", "tenant":"a", "realm":"one", "member":"alice", "namespace":"A", "permission":"invented.permission", "allow":false},
+    {"name":"realm collision denies", "tenant":"a", "realm":"two", "member":"alice", "namespace":"A", "permission":"resource.edit", "allow":false},
+    {"name":"tenant collision denies", "tenant":"b", "realm":"one", "member":"alice", "namespace":"A", "permission":"resource.edit", "allow":false},
+    {"name":"inactive membership denies", "tenant":"a", "realm":"one", "member":"suspended", "namespace":"A", "permission":"resource.edit", "allow":false},
+    {"name":"service is not privileged", "tenant":"a", "realm":"one", "member":"service", "namespace":"A", "permission":"resource.edit", "allow":false},
+    {"name":"namespace is not tenant authority", "tenant":"a", "realm":"one", "member":"alice", "namespace":"", "permission":"resource.edit", "allow":false},
+    {"name":"namespace read does not imply federation", "tenant":"a", "realm":"one", "member":"alice", "namespace":"A", "permission":"federation.discover", "allow":false}
+  ]
+}

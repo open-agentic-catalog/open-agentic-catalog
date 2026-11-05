@@ -1,0 +1,26 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="embedding-boundary-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 856" role="img" aria-labelledby="embedding-boundary-title embedding-boundary-desc">
+  <title id="embedding-boundary-title">Optional embedding service boundary</title>
+  <desc id="embedding-boundary-desc">API replicas send query text and worker replicas send metadata batches to one configured embeddings endpoint, which returns vectors. A local or hosted model service scales independently and has no Catalog database access. API and worker replicas share PostgreSQL for vector generations, eligibility and indexing Jobs. Core lexical search requires neither a model nor pgvector; hybrid search is disabled by default.</desc>
+  <defs><marker id="embedding-boundary-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M180 141 V176 H320 V211" marker-start="url(#embedding-boundary-arrow)" marker-end="url(#embedding-boundary-arrow)" />
+  <text class="svg-small" x="190" y="168">Query / vector</text>
+  <path class="svg-connector" d="M460 141 V176 H320 V211" marker-start="url(#embedding-boundary-arrow)" marker-end="url(#embedding-boundary-arrow)" />
+  <text class="svg-small" x="340" y="199">Metadata / vectors</text>
+  <path class="svg-connector" d="M320 309 V379" marker-end="url(#embedding-boundary-arrow)" />
+  <path class="svg-connector svg-connector-authority" d="M180 141 V195 H12 V554 H320 V570" marker-end="url(#embedding-boundary-arrow)" />
+  <path class="svg-connector svg-connector-authority" d="M460 141 V165 H628 V524 H320 V570" marker-end="url(#embedding-boundary-arrow)" />
+  <DiagramCard x={60} y={20} width={240} title={"API replicas"} tone="core" lines={["Bounded query requests", "Authorized Search", "Lexical fallback"]} />
+  <DiagramCard x={340} y={20} width={240} title={"Worker replicas"} tone="core" lines={["Metadata batches in Jobs", "Provider calls", "outside transactions"]} />
+  <DiagramCard x={60} y={211} width={520} title={"One configured embedding endpoint"} tone="optional" lines={["OpenAI-compatible HTTP API", "Either a local service or a hosted provider"]} />
+  <DiagramCard x={60} y={379} width={520} title={"Independent model replicas"} tone="optional" lines={["Same active model and preprocessing", "No Catalog database credentials or", "model weights in Catalog images"]} />
+  <DiagramCard x={60} y={570} width={520} title={"Shared PostgreSQL + optional pgvector"} tone="authority" lines={["API and workers share eligibility,", "vector generations and indexing Jobs"]} />
+  <DiagramCard x={60} y={738} width={520} title={"Core lexical search remains model-free"} tone="warning" lines={["Hybrid search is disabled by", "default; pgvector is optional too."]} />
+
+</svg>
+</div>

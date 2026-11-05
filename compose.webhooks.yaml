@@ -1,0 +1,19 @@
+services:
+  api:
+    environment:
+      CATALOG_WEBHOOKS_ENABLED: "true"
+      CATALOG_WEBHOOKS_POLICY_FILE: /config/webhooks/policy.json
+    volumes:
+      - type: bind
+        source: ${CATALOG_COMPOSE_WEBHOOK_DIRECTORY:?Select the webhook policy and CA directory}
+        target: /config/webhooks
+        read_only: true
+  worker:
+    environment:
+      CATALOG_WEBHOOKS_ENABLED: "true"
+      CATALOG_WEBHOOKS_POLICY_FILE: /config/webhooks/policy.json
+    volumes:
+      - type: bind
+        source: ${CATALOG_COMPOSE_WEBHOOK_DIRECTORY:?Select the webhook policy and CA directory}
+        target: /config/webhooks
+        read_only: true

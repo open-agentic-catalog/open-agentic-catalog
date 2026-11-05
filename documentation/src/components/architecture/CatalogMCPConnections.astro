@@ -1,0 +1,29 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="catalog-mcp-connections-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 951" role="img" aria-labelledby="catalog-mcp-connections-title catalog-mcp-connections-desc">
+  <title id="catalog-mcp-connections-title">Two ways to connect an MCP host to the Catalog</title>
+  <desc id="catalog-mcp-connections-desc">For local stdio, an assistant or IDE starts catalogctl mcp serve. The command loads its API token and sends authenticated Control HTTP reads to one configured Catalog origin. Alternatively, an MCP host sends HTTP requests with its caller token directly to the optional API /mcp endpoint. Both paths use the same authorized Catalog reads. The HTTP MCP handler calls them in process, without an HTTP request to itself. Current authentication, permissions and applicable OAuth scope ceilings apply to both paths. Cataloged MCP Servers remain separate resources; these tools do not connect to them, invoke their tools or install resources.</desc>
+  <defs><marker id="catalog-mcp-connections-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M180 141 V211" marker-end="url(#catalog-mcp-connections-arrow)" />
+  <text class="svg-small" x="192" y="168">stdio</text>
+  <path class="svg-connector" d="M460 141 V211" marker-end="url(#catalog-mcp-connections-arrow)" />
+  <text class="svg-small" x="472" y="168">MCP HTTP</text>
+  <path class="svg-connector" d="M180 332 V390 H320 V425" marker-end="url(#catalog-mcp-connections-arrow)" />
+  <text class="svg-small" x="190" y="382">HTTP + CLI token</text>
+  <path class="svg-connector" d="M460 355 V409 H628 V600 H320 V616" marker-end="url(#catalog-mcp-connections-arrow)" />
+  <text class="svg-small" x="340" y="592">In-process reads</text>
+  <path class="svg-connector" d="M320 546 V616" marker-end="url(#catalog-mcp-connections-arrow)" />
+  <DiagramCard x={60} y={20} width={240} title={"Local MCP host"} tone="external" lines={["Assistant or IDE", "starts catalogctl", "Owns the stdio connection"]} />
+  <DiagramCard x={340} y={20} width={240} title={"HTTP MCP host"} tone="external" lines={["Owns its access token", "No local", "catalogctl process"]} />
+  <DiagramCard x={60} y={211} width={240} title={"catalogctl mcp serve"} tone="core" lines={["Loads its API token once", "Uses one configured", "API origin"]} />
+  <DiagramCard x={340} y={211} width={240} title={"Optional API /mcp"} tone="core" lines={["MCP HTTP with", "caller token", "Authenticate each caller", "Direct API; no UI proxy"]} />
+  <DiagramCard x={60} y={425} width={520} title={"Control HTTP routes: /api/v1"} tone="core" lines={["CLI sends authenticated HTTP reads", "The HTTP MCP handler calls shared reads in process", "There is no HTTP request from /mcp back to its own API"]} />
+  <DiagramCard x={60} y={616} width={520} title={"Shared authorized Catalog reads"} tone="authority" lines={["Check current permissions and", "applicable OAuth scope ceilings", "Return bounded metadata and references"]} />
+  <DiagramCard x={60} y={807} width={520} title={["Cataloged MCP Servers are separate", "resources"]} tone="warning" lines={["These tools do not connect to their servers,", "invoke their tools or install resources."]} />
+
+</svg>
+</div>

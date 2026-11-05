@@ -1,0 +1,60 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="revision-lifecycle-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1357" role="img" aria-labelledby="revision-lifecycle-title revision-lifecycle-desc">
+  <title id="revision-lifecycle-title">Review decisions and release lifecycle</title>
+  <desc id="revision-lifecycle-desc">A submitted review binds immutable version/listing revisions and retained validation evidence. Approval, changes required, and rejection are terminal decisions for that submission. First approval seals the version label. An approved submission requires a separate release command. Published releases can become deprecated, retired, superseded, or revoked. Deprecated releases can become retired, superseded, or revoked. Retired and superseded releases can only become revoked. Revoked is terminal.</desc>
+  <defs><marker id="revision-lifecycle-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 118 V188" marker-end="url(#revision-lifecycle-arrow)" />
+  <path class="svg-connector" d="M320 286 V356" marker-end="url(#revision-lifecycle-arrow)" />
+  <text class="svg-small" x="340" y="334">Approve</text>
+  <path class="svg-connector" d="M320 286 V340 H12 V508 H180 V524" marker-end="url(#revision-lifecycle-arrow)" />
+  <text class="svg-small" x="38" y="500">Request changes</text>
+  <path class="svg-connector" d="M320 286 V310 H628 V478 H460 V524" marker-end="url(#revision-lifecycle-arrow)" />
+  <text class="svg-small" x="490" y="470">Reject</text>
+  <path class="svg-connector" d="M320 454 V516 H618 V699 H320 V715" marker-end="url(#revision-lifecycle-arrow)" />
+  <text class="svg-small" x="340" y="691">Separate publish command</text>
+  <DiagramCard x={60} y={20} width={520} title={"Immutable authoring candidates"} lines={["VersionRevision and ListingRevision", "Draft changes preserve the active release"]} />
+  <DiagramCard x={60} y={188} width={520} title={"Submitted review"} tone="core" lines={["Bind exact revisions and retained validation evidence", "Reviewer must differ from the submitter"]} />
+  <DiagramCard x={60} y={356} width={520} title={"Approved submission"} tone="authority" lines={["First approval seals the version label", "Publication remains a separate command"]} />
+  <DiagramCard x={60} y={524} width={240} title={"Changes required"} tone="warning" lines={["Correct the work;", "create a new submission", "This decision is terminal"]} />
+  <DiagramCard x={340} y={524} width={240} title={"Rejected"} tone="warning" lines={["Retain reason", "and findings", "This decision is terminal"]} />
+  <DiagramCard x={60} y={715} width={520} title={"Explicit release publication"} tone="core" lines={["Recheck prerequisites and create", "a published ListingRelease", "Approval alone never publishes the resource"]} />
+
+  <text class="svg-kicker" x="30" y="896">ALLOWED RELEASE TRANSITIONS</text>
+  <rect class="svg-node" x="30" y="916" width="580" height="265" rx="14" />
+  <text class="svg-small" x="46" y="948">From / to</text>
+  <text class="svg-small" x="230" y="948">deprecated</text>
+  <text class="svg-small" x="343" y="948">retired</text>
+  <text class="svg-small" x="428" y="948">superseded</text>
+  <text class="svg-small" x="537" y="948">revoked</text>
+  <line class="svg-divider" x1="42" y1="967" x2="598" y2="967" />
+  <text class="svg-small" x="46" y="995">published</text>
+  <text class="svg-copy" x="270" y="995" text-anchor="middle">Allowed</text>
+  <text class="svg-copy" x="370" y="995" text-anchor="middle">Allowed</text>
+  <text class="svg-copy" x="470" y="995" text-anchor="middle">Allowed</text>
+  <text class="svg-copy" x="570" y="995" text-anchor="middle">Allowed</text>
+  <line class="svg-divider" x1="42" y1="1019" x2="598" y2="1019" />
+  <text class="svg-small" x="46" y="1047">deprecated</text>
+  <text class="svg-copy" x="270" y="1047" text-anchor="middle">-</text>
+  <text class="svg-copy" x="370" y="1047" text-anchor="middle">Allowed</text>
+  <text class="svg-copy" x="470" y="1047" text-anchor="middle">Allowed</text>
+  <text class="svg-copy" x="570" y="1047" text-anchor="middle">Allowed</text>
+  <line class="svg-divider" x1="42" y1="1071" x2="598" y2="1071" />
+  <text class="svg-small" x="46" y="1099">retired</text>
+  <text class="svg-copy" x="270" y="1099" text-anchor="middle">-</text>
+  <text class="svg-copy" x="370" y="1099" text-anchor="middle">-</text>
+  <text class="svg-copy" x="470" y="1099" text-anchor="middle">-</text>
+  <text class="svg-copy" x="570" y="1099" text-anchor="middle">Allowed</text>
+  <line class="svg-divider" x1="42" y1="1123" x2="598" y2="1123" />
+  <text class="svg-small" x="46" y="1151">superseded</text>
+  <text class="svg-copy" x="270" y="1151" text-anchor="middle">-</text>
+  <text class="svg-copy" x="370" y="1151" text-anchor="middle">-</text>
+  <text class="svg-copy" x="470" y="1151" text-anchor="middle">-</text>
+  <text class="svg-copy" x="570" y="1151" text-anchor="middle">Allowed</text>
+  <DiagramCard x={30} y={1216} width={580} title="Revoked is terminal" tone="warning" lines={["Retirement and supersession preserve history", "Supersession names the replacement release", "ListingRelease states and host snapshots are separate state machines"]} />
+</svg>
+</div>

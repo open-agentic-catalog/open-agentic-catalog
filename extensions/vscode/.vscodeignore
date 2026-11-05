@@ -1,0 +1,13 @@
+node_modules/**
+src/**
+test/**
+package-lock.json
+tsconfig.json
+eslint.config.mjs
+dist/test/**
+
+.gitignore
+Makefile
+tooling/**
+.vscode/**
+.tools/**

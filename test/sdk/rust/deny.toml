@@ -1,0 +1,21 @@
+# All selected runtime, build and test code has a separate Rust license policy.
+[licenses]
+allow = ["Apache-2.0", "MIT", "BSD-2-Clause", "BSD-3-Clause", "ISC", "MIT-0", "Unicode-3.0", "Zlib", "CDLA-Permissive-2.0"]
+include-dev = true
+include-build = true
+[licenses.private]
+ignore = false
+
+# Execution-only cargo-deny dependency; retain Apache terms and LLVM exception.
+[[licenses.exceptions]]
+crate = "target-lexicon@=0.13.5"
+allow = ["Apache-2.0 WITH LLVM-exception"]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+
+[advisories]
+db-path = "$CATALOG_RUST_ADVISORY_DIR"
+maximum-db-staleness = "P7D"
+yanked = "deny"

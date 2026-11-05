@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "policyId": "production-example",
+  "revision": 1,
+  "public": {
+    "mode": "allowlist",
+    "origins": ["https://catalog.partner.example:443"]
+  }
+}

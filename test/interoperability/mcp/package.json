@@ -1,0 +1,19 @@
+{
+  "name": "catalog-mcp-interoperability",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Execution-only local MCP interoperability tools; never shipped with Catalog",
+  "engines": {
+    "node": "22.23.4"
+  },
+  "packageManager": "npm@10.9.9",
+  "dependencies": {
+    "@modelcontextprotocol/inspector": "2.11.0",
+    "@modelcontextprotocol/server-everything": "2026.8.31"
+  },
+  "overrides": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "ip-address": "10.7.4",
+    "@napi-rs/keyring": "2.1.1"
+  }
+}

@@ -1,0 +1,51 @@
+---
+import "../../styles/architecture.css";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="browser-session-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1200" role="img" aria-labelledby="browser-session-title browser-session-desc">
+<title id="browser-session-title">OIDC login and authenticated UI requests</title>
+<desc id="browser-session-desc">The browser starts login at the Go UI host, receives an authorization URL and navigates to the identity provider. The provider redirects back with a code and state. The host validates temporary state, exchanges the code with PKCE, validates the ID token, and checks the API access token and matching human subject through Catalog self-context. Only then does it set an encrypted session cookie. Subsequent same-origin browser requests carry the cookie and CSRF defenses; the host forwards the user's access token to the fixed Catalog API, which checks current authorization. Tokens are not exposed to browser JavaScript.</desc>
+<defs><marker id="browser-session-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+<rect class="svg-node" x="10" y="20" width="140" height="80" rx="12" />
+<text class="svg-title" x="26" y="64">Browser</text>
+<rect class="svg-node-core" x="170" y="20" width="140" height="80" rx="12" />
+<text class="svg-title" x="186" y="53">Go UI</text>
+<text class="svg-title" x="186" y="79">host</text>
+<rect class="svg-node-external" x="330" y="20" width="140" height="80" rx="12" />
+<text class="svg-title" x="346" y="53">Identity</text>
+<text class="svg-title" x="346" y="79">provider</text>
+<rect class="svg-node-authority" x="490" y="20" width="140" height="80" rx="12" />
+<text class="svg-title" x="506" y="53">Catalog</text>
+<text class="svg-title" x="506" y="79">API</text>
+<path class="svg-divider" d="M80 100 V1040 M240 100 V1040 M400 100 V1040 M560 100 V1040" />
+<text class="svg-copy" x="30" y="154">1. Browser starts login at the UI host</text>
+<path class="svg-connector" d="M80 174 H240" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="224">2. Host returns the authorization URL</text>
+<path class="svg-connector" d="M240 244 H80" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="294">Browser opens the URL: state, nonce and PKCE challenge</text>
+<path class="svg-connector" d="M80 314 H400" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="364">3. Provider redirects the browser with code and state</text>
+<path class="svg-connector" d="M400 384 H80" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="434">Browser follows the UI host callback</text>
+<path class="svg-connector" d="M80 454 H240" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="504">4. Host checks temporary state; exchanges code with PKCE</text>
+<path class="svg-connector" d="M240 524 H400" marker-start="url(#browser-session-arrow)" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="564">Host validates the ID token and nonce</text>
+<text class="svg-copy" x="30" y="634">5. Access token: GET /api/v1/me</text>
+<text class="svg-copy" x="30" y="657">Host verifies the same human subject in both tokens</text>
+<path class="svg-connector svg-connector-authority" d="M240 680 H560" marker-start="url(#browser-session-arrow)" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="734">6. Only then: encrypted HttpOnly session cookie</text>
+<path class="svg-connector" d="M240 754 H80" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="814">7. Same-origin request: cookie, origin and CSRF checks</text>
+<path class="svg-connector" d="M80 834 H240" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="894">8. Host forwards the user's access token to one fixed API</text>
+<path class="svg-connector svg-connector-authority" d="M240 914 H560" marker-end="url(#browser-session-arrow)" />
+<text class="svg-copy" x="30" y="974">API checks tenant, membership, permissions and scopes</text>
+<text class="svg-copy" x="30" y="997">No token is exposed to browser JavaScript</text>
+<rect class="svg-node-warning" x="30" y="1065" width="580" height="108" rx="14" />
+<text class="svg-copy" x="46" y="1096">UI replicas share cookie keys and configuration</text>
+<text class="svg-copy" x="46" y="1119">No session database or sticky routing is needed</text>
+<text class="svg-copy" x="46" y="1142">The host retains no refresh token</text>
+</svg>
+</div>

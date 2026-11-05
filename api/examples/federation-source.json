@@ -1,0 +1,46 @@
+{
+  "description": "Inspect and connect an administrator-selected partner source. The inspect and connect objects are separate request bodies, not one Control API request.",
+  "prerequisites": [
+    "Authenticate with the source_admin role. Replace the example origin with a controlled source permitted by the deployment's partner-catalogs network profile and tenant-scoped partner-reader credential binding; no credential value belongs in these bodies.",
+    "POST inspect to /api/v1/federation/source-inspections with an Idempotency-Key. Review the returned evidence and use its unexpired inspection ID in connect without changing the inspected connectivity policy. Hybrid retrieval needs both indexed enumeration and an advertised ARD Registry Search endpoint.",
+    "Replace approvedSourceIds with previously connected, non-removed same-tenant sources advertising Registry Search in the same discovery host and audience; the referral graph must remain acyclic. Configure catalog.internal.example as an authenticated discovery host for that tenant. Review query disclosure and nesting permissions before enabling them.",
+    "POST connect to /api/v1/federation/sources with its own Idempotency-Key. These optional topology settings demonstrate controlled federation; they are not required for a simple indexed-only source.",
+    "This scope deliberately includes only Agents, MCP Servers and Skills. Add plugin to scope.kinds only if Plugins are also intended to be ingested; an explicit kind list does not expand automatically."
+  ],
+  "inspect": {
+    "url": "https://partners.example.com",
+    "networkProfile": "partner-catalogs",
+    "credentialBinding": "partner-reader"
+  },
+  "connect": {
+    "inspectionId": "00000000-0000-7000-8000-000000000020",
+    "displayName": "Partner automation catalog",
+    "retrievalMode": "hybrid",
+    "scope": {
+      "kinds": ["agent", "mcp_server", "skill"],
+      "publishers": ["partners.example.com"],
+      "tags": ["integration"],
+      "excludedIdentifiers": ["urn:air:partners.example.com:skills:retired-example"]
+    },
+    "updateMode": "manual_review",
+    "live": {
+      "enabled": true,
+      "queryPrivacyAcknowledged": true,
+      "federationMode": "referrals"
+    },
+    "referrals": {
+      "enabled": true,
+      "maxHops": 1,
+      "approvedSourceIds": ["00000000-0000-7000-8000-000000000021"]
+    },
+    "discoveryAssignments": [{"host": "catalog.internal.example", "audience": "authenticated"}],
+    "nesting": {
+      "enabled": true,
+      "maxDepth": 2,
+      "allowedOrigins": ["https://partners.example.com"]
+    },
+    "networkProfile": "partner-catalogs",
+    "credentialBinding": "partner-reader",
+    "reason": "Approve this inspected partner source for the reviewed tenant scope"
+  }
+}

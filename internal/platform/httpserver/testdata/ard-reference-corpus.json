@@ -1,0 +1,641 @@
+{
+  "profile": "ard-0.91-aa3e598",
+  "cases": [
+    {
+      "name": "official-current-search-request",
+      "source": "ards-project/ard-spec",
+      "revision": "aa3e598bb7752a9175897823234311216acfa864",
+      "generation": "ARD 0.91",
+      "boundary": "ARDSearch",
+      "disposition": "accept",
+      "value": {
+        "query": {
+          "text": "weather forecast tools",
+          "filter": {
+            "type": [
+              "application/mcp-server-card+json"
+            ]
+          }
+        },
+        "federation": "none",
+        "pageSize": 2
+      },
+      "sourcePath": "spec/schemas/ard.openapi.yaml",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "official-empty-explore-buckets",
+      "source": "ards-project/ard-spec",
+      "revision": "aa3e598bb7752a9175897823234311216acfa864",
+      "generation": "ARD 0.91",
+      "boundary": "ARDExploreResponse",
+      "disposition": "accept",
+      "value": {
+        "resultType": "facets",
+        "facets": {
+          "type": {
+            "buckets": []
+          }
+        }
+      },
+      "sourcePath": "spec/schemas/ard.openapi.yaml",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "official-empty-requested-facets",
+      "source": "ards-project/ard-spec",
+      "revision": "aa3e598bb7752a9175897823234311216acfa864",
+      "generation": "ARD 0.91",
+      "boundary": "ARDExplore",
+      "disposition": "reject",
+      "value": {
+        "resultType": {
+          "facets": []
+        }
+      },
+      "sourcePath": "spec/schemas/ard.openapi.yaml",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "hugging-face-predecessor-catalog",
+      "source": "huggingface/hf-discover",
+      "revision": "49c927439fcaa8f210cfd42186c0641acef579fa",
+      "generation": "ARD 0.5 and AI Catalog compatibility",
+      "boundary": "ai-catalog-compatibility",
+      "disposition": "compatibility",
+      "value": {
+        "specVersion": "1.0",
+        "entries": [
+          {
+            "identifier": "urn:ai:huggingface.co:space:weather",
+            "type": "application/a2a-agent-card+json",
+            "url": "https://huggingface.co/spaces/example/weather"
+          }
+        ]
+      },
+      "sourcePath": "src/discover/models.py: SearchRequest, SearchResult",
+      "license": "MIT",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "github-current-nested-query",
+      "source": "ards-project/connectors",
+      "revision": "53cc4f3a4596cf51482fabeb554d124ca248ed07",
+      "generation": "ARD 0.91 connector guidance",
+      "boundary": "ARDSearch",
+      "disposition": "accept",
+      "value": {
+        "query": {
+          "text": "find an agent",
+          "filter": {
+            "type": "application/a2a-agent-card+json"
+          }
+        },
+        "federation": "none"
+      },
+      "sourcePath": "shared/discovery-instructions.md: HTTP discovery",
+      "license": "no LICENSE found; independently authored example",
+      "evidence": "documented",
+      "note": "Documented request/term with independently authored values; no hosted behavior claim."
+    },
+    {
+      "name": "github-media-type-iri-alias",
+      "source": "ards-project/connectors",
+      "revision": "53cc4f3a4596cf51482fabeb554d124ca248ed07",
+      "generation": "ARD 0.91 connector guidance",
+      "boundary": "query-term",
+      "disposition": "accept",
+      "value": "mediaType",
+      "sourcePath": "shared/discovery-instructions.md: HTTP discovery",
+      "license": "no LICENSE found; independently authored example",
+      "evidence": "documented",
+      "note": "Documented request/term with independently authored values; no hosted behavior claim."
+    },
+    {
+      "name": "synthetic-insecure-registry-url",
+      "source": "ards-project/ard-spec",
+      "revision": "aa3e598bb7752a9175897823234311216acfa864",
+      "generation": "ARD 0.91",
+      "boundary": "external-url",
+      "disposition": "reject",
+      "value": "http://agentfinder.example/ard/v1",
+      "sourcePath": "spec/schemas/ard.openapi.yaml",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "agntcy-scalar-search-request",
+      "source": "agntcy/dir",
+      "revision": "3bbfe8a8c1d795242c5fefbd63818558061dfd55",
+      "generation": "pre-0.91 custom gateway",
+      "boundary": "ARDSearch",
+      "disposition": "reject",
+      "value": {
+        "query": "weather"
+      },
+      "sourcePath": "proto/agntcy/dir/catalog/v1/ai_finder_service.proto: SearchAgentsRequest, ListAgentsResponse",
+      "license": "Apache-2.0",
+      "evidence": "source-derived",
+      "note": "Source-defined field shape with independently authored example values; no peer execution."
+    },
+    {
+      "name": "agntcy-custom-search-envelope",
+      "source": "agntcy/dir",
+      "revision": "3bbfe8a8c1d795242c5fefbd63818558061dfd55",
+      "generation": "pre-0.91 custom gateway",
+      "boundary": "ARDSearchResponse",
+      "disposition": "reject",
+      "value": {
+        "results": [
+          {
+            "identifier": "urn:air:example.com:agent:weather",
+            "score": 80,
+            "source": "https://registry.example.com/ard/v1/"
+          }
+        ],
+        "nextPageToken": "20",
+        "totalCount": 40
+      },
+      "sourcePath": "proto/agntcy/dir/catalog/v1/ai_finder_service.proto: SearchAgentsRequest, ListAgentsResponse",
+      "license": "Apache-2.0",
+      "evidence": "source-derived",
+      "note": "Source-defined field shape with independently authored example values; no peer execution."
+    },
+    {
+      "name": "agntcy-result-without-ard-annotations",
+      "source": "agntcy/dir",
+      "revision": "3bbfe8a8c1d795242c5fefbd63818558061dfd55",
+      "generation": "pre-0.91 custom gateway",
+      "boundary": "ARDSearchResponse",
+      "disposition": "reject",
+      "value": {
+        "results": [
+          {
+            "identifier": "urn:air:example.com:agent:weather"
+          }
+        ]
+      },
+      "sourcePath": "proto/agntcy/dir/catalog/v1/ai_finder_service.proto: SearchAgentsRequest, ListAgentsResponse",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "agntcy-old-air-identifier-current-entry",
+      "source": "agntcy/dir",
+      "revision": "3bbfe8a8c1d795242c5fefbd63818558061dfd55",
+      "generation": "AI Catalog compatibility",
+      "boundary": "ard-entry",
+      "disposition": "reject",
+      "value": {
+        "identifier": "urn:ai:org.agntcy:cid:example",
+        "displayName": "Directory entry",
+        "type": "application/a2a-agent-card+json",
+        "url": "https://directory.example/agents/example"
+      },
+      "sourcePath": "proto/agntcy/dir/catalog/v1/ai_finder_service.proto: SearchAgentsRequest, ListAgentsResponse",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "agntcy-old-air-identifier-compatibility-entry",
+      "source": "agntcy/dir",
+      "revision": "3bbfe8a8c1d795242c5fefbd63818558061dfd55",
+      "generation": "AI Catalog compatibility",
+      "boundary": "ai-catalog-compatibility",
+      "disposition": "compatibility",
+      "value": {
+        "specVersion": "1.0",
+        "entries": [
+          {
+            "identifier": "urn:ai:org.agntcy:cid:example",
+            "type": "application/a2a-agent-card+json",
+            "url": "https://directory.example/agents/example"
+          }
+        ]
+      },
+      "sourcePath": "proto/agntcy/dir/catalog/v1/ai_finder_service.proto: SearchAgentsRequest, ListAgentsResponse",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "agntcy-media-type-only-compatibility-entry",
+      "source": "agntcy/dir",
+      "revision": "3bbfe8a8c1d795242c5fefbd63818558061dfd55",
+      "generation": "AI Catalog compatibility",
+      "boundary": "ai-catalog-compatibility",
+      "disposition": "reject",
+      "value": {
+        "specVersion": "1.0",
+        "entries": [
+          {
+            "identifier": "urn:ai:org.agntcy:cid:example",
+            "mediaType": "application/a2a-agent-card+json",
+            "url": "https://directory.example/agents/example"
+          }
+        ]
+      },
+      "sourcePath": "proto/agntcy/dir/catalog/v1/ai_finder_service.proto: SearchAgentsRequest, ListAgentsResponse",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "agntcy-entry-without-identifier",
+      "source": "agntcy/dir",
+      "revision": "3bbfe8a8c1d795242c5fefbd63818558061dfd55",
+      "generation": "AI Catalog compatibility",
+      "boundary": "ai-catalog-compatibility",
+      "disposition": "reject",
+      "value": {
+        "specVersion": "1.0",
+        "entries": [
+          {
+            "type": "application/a2a-agent-card+json",
+            "data": {
+              "name": "nested projection"
+            }
+          }
+        ]
+      },
+      "sourcePath": "proto/agntcy/dir/catalog/v1/ai_finder_service.proto: SearchAgentsRequest, ListAgentsResponse",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "ora-search-without-text",
+      "source": "ora.ai static OpenAPI",
+      "revision": "1.24.0-retrieved-2026-09-13",
+      "generation": "declared ARD 0.91",
+      "boundary": "ARDSearch",
+      "disposition": "reject",
+      "value": {
+        "query": {
+          "filter": {
+            "type": "application/a2a-agent-card+json"
+          }
+        },
+        "federation": "auto"
+      },
+      "sourcePath": "https://ora.ai/api/openapi.json: /api/ard/search",
+      "license": "hosted documentation; independently authored example",
+      "evidence": "documented",
+      "note": "Documented request/term with independently authored values; no hosted behavior claim."
+    },
+    {
+      "name": "synthetic-search-extension",
+      "source": "ards-project/ard-spec",
+      "revision": "aa3e598bb7752a9175897823234311216acfa864",
+      "generation": "ARD 0.91",
+      "boundary": "ARDSearch",
+      "disposition": "reject",
+      "value": {
+        "query": {
+          "text": "weather"
+        },
+        "federation": "auto",
+        "readinessWeight": 0.5
+      },
+      "sourcePath": "spec/schemas/ard.openapi.yaml",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "ans-extra-stale-state",
+      "source": "agentnameservice/ans",
+      "revision": "83875d0572287821489c8dc5fc9cf37142ee35f0",
+      "generation": "ARD 0.9",
+      "boundary": "ARDSearchResponse",
+      "disposition": "reject",
+      "value": {
+        "results": [],
+        "staleSince": "2026-09-02T00:00:00Z"
+      },
+      "sourcePath": "internal/finder/handler/dto.go: SearchResponse, ExploreResponse",
+      "license": "MIT",
+      "evidence": "source-derived",
+      "note": "Source-defined field shape with independently authored example values; no peer execution."
+    },
+    {
+      "name": "agntcy-custom-list-envelope",
+      "source": "agntcy/dir",
+      "revision": "3bbfe8a8c1d795242c5fefbd63818558061dfd55",
+      "generation": "pre-0.91 custom gateway",
+      "boundary": "ARDListResponse",
+      "disposition": "reject",
+      "value": {
+        "results": [],
+        "nextPageToken": "20",
+        "totalCount": 40
+      },
+      "sourcePath": "proto/agntcy/dir/catalog/v1/ai_finder_service.proto: SearchAgentsRequest, ListAgentsResponse",
+      "license": "Apache-2.0",
+      "evidence": "source-derived",
+      "note": "Source-defined field shape with independently authored example values; no peer execution."
+    },
+    {
+      "name": "synthetic-unissued-offset-token",
+      "source": "ards-project/ard-spec",
+      "revision": "aa3e598bb7752a9175897823234311216acfa864",
+      "generation": "Catalog issued-token boundary",
+      "boundary": "issued-search-token",
+      "disposition": "reject",
+      "value": "20",
+      "sourcePath": "spec/schemas/ard.openapi.yaml",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Independently authored boundary regression; not an observed peer response."
+    },
+    {
+      "name": "hugging-face-nested-search",
+      "source": "huggingface/hf-discover",
+      "revision": "49c927439fcaa8f210cfd42186c0641acef579fa",
+      "generation": "Reviewed shared ARD wire shape",
+      "sourcePath": "src/discover/models.py: SearchRequest, SearchResult",
+      "license": "MIT",
+      "evidence": "source-derived",
+      "note": "Source-defined field shape with independently authored values; no peer execution.",
+      "boundary": "ARDSearch",
+      "disposition": "accept",
+      "value": {
+        "query": {
+          "text": "weather",
+          "filter": {
+            "type": "application/a2a-agent-card+json"
+          }
+        },
+        "federation": "none",
+        "pageSize": 2
+      }
+    },
+    {
+      "name": "hugging-face-full-search-result",
+      "source": "huggingface/hf-discover",
+      "revision": "49c927439fcaa8f210cfd42186c0641acef579fa",
+      "generation": "Reviewed shared ARD wire shape",
+      "sourcePath": "src/discover/models.py: SearchRequest, SearchResult",
+      "license": "MIT",
+      "evidence": "source-derived",
+      "note": "Source-defined field shape with independently authored values; no peer execution.",
+      "boundary": "ARDSearchResponse",
+      "disposition": "accept",
+      "value": {
+        "results": [
+          {
+            "identifier": "urn:air:example.com:agent:weather",
+            "displayName": "Weather",
+            "type": "application/a2a-agent-card+json",
+            "data": {
+              "name": "Weather"
+            },
+            "score": 80,
+            "source": "https://registry.example.com/ard/v1/"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ans-fresh-search",
+      "source": "agentnameservice/ans",
+      "revision": "83875d0572287821489c8dc5fc9cf37142ee35f0",
+      "generation": "Reviewed shared ARD wire shape",
+      "sourcePath": "internal/finder/handler/dto.go: SearchResponse, ExploreResponse",
+      "license": "MIT",
+      "evidence": "source-derived",
+      "note": "Source-defined field shape with independently authored values; no peer execution.",
+      "boundary": "ARDSearchResponse",
+      "disposition": "accept",
+      "value": {
+        "results": [
+          {
+            "identifier": "urn:air:example.com:agent:weather",
+            "displayName": "Weather",
+            "type": "application/a2a-agent-card+json",
+            "data": {
+              "name": "Weather"
+            },
+            "score": 80,
+            "source": "https://registry.example.com/ard/v1/"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ans-fresh-explore",
+      "source": "agentnameservice/ans",
+      "revision": "83875d0572287821489c8dc5fc9cf37142ee35f0",
+      "generation": "Reviewed shared ARD wire shape",
+      "sourcePath": "internal/finder/handler/dto.go: SearchResponse, ExploreResponse",
+      "license": "MIT",
+      "evidence": "source-derived",
+      "note": "Source-defined field shape with independently authored values; no peer execution.",
+      "boundary": "ARDExploreResponse",
+      "disposition": "accept",
+      "value": {
+        "resultType": "facets",
+        "facets": {
+          "type": {
+            "buckets": [
+              {
+                "value": "application/a2a-agent-card+json",
+                "count": 1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "gateway-shared-list-model",
+      "source": "agentic-community/mcp-gateway-registry",
+      "revision": "7d2f85b6674bebd65a69b57e89d4f3aea1631aa7",
+      "generation": "Reviewed shared ARD wire shape",
+      "sourcePath": "registry/schemas/ard_models.py: ArdListResponse, ArdSearchResponse; registry/api/ard_routes.py: ard_browse, ard_search; registry/services/ard_search_service.py: encode_page_token",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Non-null model subset only, not a complete unmodified Gateway exchange.",
+      "boundary": "ARDListResponse",
+      "disposition": "accept",
+      "value": {
+        "items": [],
+        "total": 40,
+        "pageToken": "eyJvZmZzZXQiOiAyMH0="
+      }
+    },
+    {
+      "name": "gateway-inferred-terminal-null-token",
+      "source": "agentic-community/mcp-gateway-registry",
+      "revision": "7d2f85b6674bebd65a69b57e89d4f3aea1631aa7",
+      "generation": "Reviewed shared ARD wire shape",
+      "sourcePath": "registry/schemas/ard_models.py: ArdListResponse, ArdSearchResponse; registry/api/ard_routes.py: ard_browse, ard_search; registry/services/ard_search_service.py: encode_page_token",
+      "license": "Apache-2.0",
+      "evidence": "source-derived",
+      "note": "Inferred from response_model without exclude_none and terminal None; not captured deployment bytes.",
+      "boundary": "ARDListResponse",
+      "disposition": "reject",
+      "value": {
+        "items": [],
+        "total": 0,
+        "pageToken": null
+      }
+    },
+    {
+      "name": "gateway-inferred-search-null-token",
+      "source": "agentic-community/mcp-gateway-registry",
+      "revision": "7d2f85b6674bebd65a69b57e89d4f3aea1631aa7",
+      "generation": "Reviewed shared ARD wire shape",
+      "sourcePath": "registry/schemas/ard_models.py: ArdListResponse, ArdSearchResponse; registry/api/ard_routes.py: ard_browse, ard_search; registry/services/ard_search_service.py: encode_page_token",
+      "license": "Apache-2.0",
+      "evidence": "source-derived",
+      "note": "Inferred from Search route response_model and terminal None; not captured deployment bytes.",
+      "boundary": "ARDSearchResponse",
+      "disposition": "reject",
+      "value": {
+        "results": [],
+        "referrals": [],
+        "pageToken": null
+      }
+    },
+    {
+      "name": "synthetic-null-referrals",
+      "source": "ards-project/ard-spec",
+      "revision": "aa3e598bb7752a9175897823234311216acfa864",
+      "generation": "Reviewed shared ARD wire shape",
+      "sourcePath": "spec/schemas/ard.openapi.yaml",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Source-defined field shape with independently authored values; no peer execution.",
+      "boundary": "ARDSearchResponse",
+      "disposition": "reject",
+      "value": {
+        "results": [],
+        "referrals": null
+      }
+    },
+    {
+      "name": "a2a-declared-modes-and-skill-tags",
+      "source": "a2aproject/A2A",
+      "revision": "3303592588e388e62e0f69f701af531d2f4e3991",
+      "generation": "A2A 1.0.1 through ARD 0.91",
+      "boundary": "native-disclosed-filter",
+      "disposition": "accept",
+      "sourcePath": "specification/a2a.proto",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "Synthetic projection of the pinned A2A repeated-string declarations. Skill mode overrides are not card defaults.",
+      "value": {
+        "entry": {
+          "type": "application/a2a-agent-card+json",
+          "data": {
+            "defaultInputModes": [
+              "text/plain"
+            ],
+            "defaultOutputModes": [
+              "text/plain"
+            ],
+            "skills": [
+              {
+                "id": "forecast",
+                "tags": [
+                  "weather"
+                ]
+              }
+            ]
+          }
+        },
+        "query": {
+          "text": "weather",
+          "@context": {
+            "card.body": "https://agenticresourcediscovery.org/ns#data"
+          },
+          "filter": {
+            "card.body.defaultInputModes": "text/plain",
+            "card.body.defaultOutputModes": "text/plain",
+            "card.body.skills.tags": "weather"
+          }
+        }
+      }
+    },
+    {
+      "name": "a2a-scalar-input-mode-rejected",
+      "source": "a2aproject/A2A",
+      "revision": "3303592588e388e62e0f69f701af531d2f4e3991",
+      "generation": "A2A 1.0.1 through ARD 0.91",
+      "boundary": "native-disclosed-filter",
+      "disposition": "reject",
+      "sourcePath": "specification/a2a.proto",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "A selected card mode must be a string array. Other omitted declarations remain sparse.",
+      "value": {
+        "entry": {
+          "type": "application/a2a-agent-card+json",
+          "data": {
+            "defaultInputModes": "text/plain"
+          }
+        },
+        "query": {
+          "text": "weather",
+          "@context": {
+            "card.body": "https://agenticresourcediscovery.org/ns#data"
+          },
+          "filter": {
+            "card.body.defaultInputModes": "text/plain",
+            "card.body.defaultOutputModes": "text/plain",
+            "card.body.skills.tags": "weather"
+          }
+        }
+      }
+    },
+    {
+      "name": "a2a-mixed-skill-tags-rejected",
+      "source": "a2aproject/A2A",
+      "revision": "3303592588e388e62e0f69f701af531d2f4e3991",
+      "generation": "A2A 1.0.1 through ARD 0.91",
+      "boundary": "native-disclosed-filter",
+      "disposition": "reject",
+      "sourcePath": "specification/a2a.proto",
+      "license": "Apache-2.0",
+      "evidence": "synthetic",
+      "note": "A selected skill tag array cannot contain null, even when another tag matches.",
+      "value": {
+        "entry": {
+          "type": "application/a2a-agent-card+json",
+          "data": {
+            "skills": [
+              {
+                "tags": [
+                  "weather",
+                  null
+                ]
+              }
+            ]
+          }
+        },
+        "query": {
+          "text": "weather",
+          "@context": {
+            "card.body": "https://agenticresourcediscovery.org/ns#data"
+          },
+          "filter": {
+            "card.body.defaultInputModes": "text/plain",
+            "card.body.defaultOutputModes": "text/plain",
+            "card.body.skills.tags": "weather"
+          }
+        }
+      }
+    }
+  ]
+}

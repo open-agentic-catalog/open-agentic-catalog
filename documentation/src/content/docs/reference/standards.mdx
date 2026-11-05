@@ -1,0 +1,549 @@
+---
+title: "Standards and interoperability"
+---
+
+import StandardsEcosystem from "../../../components/architecture/StandardsEcosystem.astro";
+import { Badge } from "@astrojs/starlight/components";
+
+Open Agentic Catalog helps you author, review, publish and find Agents, MCP Servers, Skills and Plugins. It validates their metadata and supported package formats. Your client application installs, connects to or runs the resources you choose.
+
+This page explains the supported standards, the rules the Catalog applies, and known compatibility limits.
+
+## How the standards fit together
+
+| Standard | What it does | How Open Agentic Catalog uses it |
+| --- | --- | --- |
+| [Agentic Resource Discovery (ARD)](https://agenticresourcediscovery.org/spec/) | Lets clients discover and search for resources across catalogs. | Publishes reviewed resources and searches sources configured by an administrator. |
+| [AI Catalog](https://ai-catalog.io/) | Defines entries that describe resources and include their content or a link to it. | Reads and publishes separate AI Catalog documents for compatibility. |
+| [Agent2Agent (A2A)](https://a2a-protocol.org/latest/) | Defines communication between agents. An Agent Card describes an agent's capabilities, interfaces and authentication requirements. | Validates Agent Cards so clients can find agents and obtain their metadata. |
+| [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) | Connects AI applications to tools, data and prompts provided by MCP servers. | Validates server metadata without connecting to servers or invoking their tools. |
+| [Agent Skills](https://agentskills.io/specification) | Defines reusable instructions in `SKILL.md`, with optional supporting files. | Validates Skill documents and supported packages for review and discovery. |
+| [Agent Plugins](https://agent-plugins.org/specification) | Defines a directory that groups Skills, MCP configuration and client-specific extensions. | Validates complete Plugin archives for review and discovery. |
+
+<StandardsEcosystem />
+
+You can use these standards independently. A Skill does not need a Plugin. A compatible client can use a Plugin without an ARD entry.
+
+A discovery result or successful validation does not establish that a resource is safe to run. Your client application must apply its own permissions and execution controls.
+
+### MCP metadata formats
+
+These files serve different purposes and are not interchangeable:
+
+- [MCP Registry `server.json`](https://github.com/modelcontextprotocol/registry/blob/f52dc8525a441a3abf5fedc9912152d95af5aab1/docs/reference/server-json/generic-server-json.md) describes distribution packages and remote servers.
+- An [MCP Server Card](https://github.com/modelcontextprotocol/ext-server-card/tree/526201bbc80231daa40ffcdecfc9da4e54e5dc93) describes how to connect to a remote server. This format is experimental.
+- A [Plugin's `mcp.json`](https://agent-plugins.org/specification#721-discovery-and-configuration) configures the MCP servers included in that Plugin.
+
+### Skills and Plugins
+
+A Skill provides reusable instructions and supporting files. A Plugin groups related Skills and MCP configurations into one package. A standalone Skill does not need a Plugin wrapper.
+
+The capabilities called "skills" in an A2A Agent Card are different from Agent Skills packages.
+
+## Supported formats and versions
+
+A standards profile identifies the exact specification files and validation rules that the Catalog uses. The Catalog includes fixed copies of those files and verifies their checksums. An upstream update does not automatically change Catalog behavior.
+
+| Profile | What you can submit or import | Publication support |
+| --- | --- | --- |
+| `ard-0.91-aa3e598` | Discovery documents, Search results, and paged Registry List results from an inspected source. | Discovery documents, Search, Explore and List. Search can include approved remote results or referrals. |
+| `ai-catalog-1.0-b062278` | AI Catalog documents and supported entries. | A separate AI Catalog compatibility document. The Catalog checks Trust Manifest structure. It does not verify signatures. |
+| `a2a-agent-card-1.0.1-3303592` | A2A Agent Cards for `agent` resources. | Agent Cards included in ARD or AI Catalog entries. |
+| `mcp-registry-server-1.8.1-f52dc85` | Registry `server.json` documents for `mcp_server` resources. | Requires a valid primary MCP Server Card for ARD and AI Catalog snapshots, including authenticated hosts. A Registry record alone can remain available through Control reads. |
+| `mcp-server-card-v1-experimental-526201b` | <Badge text="Experimental" variant="caution" /> MCP Server Cards for `mcp_server` resources. | Server Cards included in ARD or AI Catalog entries, with the experimental format identified. |
+| `agent-skills-69ef37e` | Inline `SKILL.md`, ZIP packages and gzipped-tar packages for `skill` resources. | Supported content in ARD or AI Catalog entries. Authenticated Catalog clients can access package-only releases. Public discovery requires a supported public HTTPS delivery form. |
+| `agent-plugins-1.0.0-1fc1b627` | Complete ZIP or gzipped-tar packages for `plugin` resources. | An archive URL accessible over HTTPS without credentials, with a checksum. The Catalog retains inspected documents and file inventory, not archive bytes. |
+
+The [profile reference](../../../../../schemas/PROFILES.md) lists exact source commits and bundled files. General specification links can describe newer versions than the Catalog supports. Supporting a metadata format does not mean the Catalog implements its runtime protocol.
+
+### Local resources and external entries
+
+| Step | Resources you author locally | Entries imported from another catalog |
+| --- | --- | --- |
+| Validation | The Catalog checks the submitted content against its supported format. It does not run the resource. URL retrieval and package inspection use separate safety controls. | The Catalog checks discovery entries and preserves their original content, source and validation findings. |
+| Storage | Resources, versions, listings, reviews and releases preserve the authoring and publication history. | Source observations are records of external content and its origin. The Catalog does not store remote Search results used only for the current request. |
+| Publication | Eligible reviewed releases can appear in ARD and AI Catalog discovery documents. | Imported entries are not automatically adopted or republished. |
+| Adoption | Not required for locally authored resources. | You can explicitly adopt a complete supported entry into a private draft. The draft retains its source information and follows the normal review and publication process. |
+
+## Discover resources with ARD
+
+ARD lets clients find resources across catalogs. Each entry describes a resource and includes its content or a link to it. The `type` field identifies the content format, such as an Agent Card or Skill document.
+
+A complete ARD entry requires `identifier`, `displayName`, `type` and exactly one of `url` or `data`. A Search response can return fewer entry fields, but each result must include its identifier, relevance score and source.
+
+The Catalog checks the discovery entry and the resource content separately. For example, a valid ARD entry can link to an invalid Agent Card. Local review and publication requirements also apply before the resource can be published locally.
+
+Your client application controls installation, connections and execution. An ARD entry does not contain the Catalog's full review history or grant permission to run a resource.
+
+### Supported discovery operations
+
+| Operation | Purpose |
+| --- | --- |
+| `/.well-known/ard.json` | Find the ARD discovery document on a host. |
+| `rel="ard"` | Advertise an ARD document through an HTTP or HTML link relation. |
+| Registry `POST /search` | Search for matching resources. |
+| Registry `POST /explore` | Retrieve facets and counts for browsing. |
+| Registry `GET /agents` | List entries with pagination. |
+
+Explore and List are optional in ARD v0.91. Open Agentic Catalog implements both. See the [API contracts and examples](../../../../../api/README.md) for the implemented routes and request fields.
+
+The `none`, `referrals` and `auto` federation modes use only sources, access rules and outbound destinations approved by an administrator. A client request can narrow those choices but cannot add a source or broaden its access.
+
+### Importing a paged Registry List
+
+Before a List import, the Catalog inspects the source and tests its List endpoint. The advertised Registry base URL determines that endpoint. The Catalog requests pages within configured limits and follows the source's continuation tokens. It applies the configured source scope locally. It does not send free-form filter or ordering expressions to the source.
+
+A successful direct Search probe alone does not establish List support. The retained inspection must report List capability before the Catalog accepts indexed Registry retrieval.
+
+ARD v0.91 does not guarantee that every page comes from the same point in time. An item can therefore disappear between pages without having been withdrawn by its publisher.
+
+After a complete import, the Catalog marks previously observed items absent from the new List as `stale`. It keeps these items in history. If any page fails, the Catalog keeps the previous complete set of imported items. The Catalog does not retain List continuation tokens between imports.
+
+### ARD and AI Catalog document selection
+
+The Catalog publishes separate ARD and AI Catalog documents from the same approved publication snapshot. It validates each format independently.
+
+A publication snapshot contains fixed ARD and AI Catalog documents generated from eligible releases. Each document follows its own format rules.
+
+When you supply a domain, the Catalog first requests `/.well-known/ard.json` on that domain. The root document is a fallback. It can also read discovery JSON embedded in a page without executing the page's scripts.
+
+A generic hosted discovery document uses the ARD entry model. Top-level `specVersion` or `host` fields alone do not select AI Catalog. ARD permits the older `/.well-known/ai-catalog.json` path and `rel="ai-catalog"` relation as equivalent entry sources. These names alone do not select the older payload format.
+
+The Catalog selects AI Catalog through explicit format information. This can be a response media type, a Link `type`, a nested AI Catalog entry or its previously reviewed profile.
+
+The Catalog rejects conflicting format signals. If an approved source changes its resolved endpoint, format profile or Registry interface, an administrator must inspect it again. A changed interface requires a replacement source; a patch cannot migrate it. Follow the [source lifecycle guide](../operations/federation.mdx).
+
+### Example search queries
+
+The `representativeQueries` field contains example searches that should find the resource. ARD recommends two to five examples. Open Agentic Catalog applies these rules:
+
+- **Importing an external entry:** Missing example queries do not, by themselves, make the entry invalid.
+- **Publishing a public release:** You must provide two to five example queries. The Catalog rejects publication without them.
+- **Including a release in an ARD discovery document:** The release must have two to five example queries. Otherwise, the Catalog leaves it out of that document.
+
+The last rule also applies to tenant-visible releases served through authenticated discovery. A release excluded from ARD can still appear in the separate AI Catalog document. It must meet that format's publication requirements.
+
+These publication requirements are Catalog rules. They do not change which external entries ARD permits the Catalog to import.
+
+### Listing extensions
+
+`ListingRevision.extensions` contains reviewed listing metadata. These values contribute to the listing's immutable digest, which identifies its exact content. The Catalog does not automatically copy them into published ARD or AI Catalog entries. Each format has its own extension rules. The Catalog needs an explicit mapping before it can publish an extension in that format.
+
+Extensions received from an external source remain in the retained original document.
+
+## ARD validation and compatibility rules
+
+Open Agentic Catalog supports ARD v0.91 at commit `aa3e598bb7752a9175897823234311216acfa864`. This is an untagged specification proposal. Its written requirements, JSON Schema and API definition differ in some details. The Catalog applies the following rules consistently.
+
+| Field or request | Catalog behavior |
+| --- | --- |
+| AIR identifier (`urn:air`) | A name can follow the publisher directly, or include namespace segments before the name. The final segment is the name. Identifiers generated by the Catalog include a namespace. |
+| `trustManifest` | An imported entry can use `trustManifest` or `TrustManifest`, but cannot contain both. Raw evidence preserves the original spelling; normalized input uses lowercase. Local publication omits this optional field. Eligible live Search results include the peer's declaration as lowercase `trustManifest`. Duplicate JSON keys are rejected. |
+| `@id` and `identifier` | When present in a complete entry or live Search result, `@id` must be nonblank and equal `identifier`. Similar spelling or a redirect does not establish equivalence. Indexed ingestion can retain rejected source evidence; live Search omits the invalid result. |
+| `type` | A present value must have valid media type syntax, including any parameters. Unfamiliar valid types are accepted. The Catalog does not query IANA or require registration. Complete entries require this field; sparse Search results can omit it. |
+| Search result fields | Results must contain `identifier`, `score` and `source`. The score indicates relevance. Neither the score nor the reported source establishes trust. |
+| Search page size | The maximum `pageSize` is 100. Requests above this limit are rejected. |
+| Optional `tags` and `capabilities` | Empty arrays are accepted and omitted from documents published by the Catalog. |
+| Explore requests and results | A request must select at least one facet. Result buckets include `count`. An empty bucket list is valid when the facet has no matches. |
+| Referral fields | Referrals can contain bounded extension metadata. The required fields must use their exact names and can authorize contact only with an approved endpoint. Extensions cannot replace required fields through different capitalization. |
+| Response fields | Search and Explore responses reject unknown top-level fields and differently cased aliases. Search result objects and List responses have separate extension rules. |
+| Query `@context` | Search and Explore accept the supported URI, object and array forms. They reject explicit null. The Catalog limits how it retrieves and interprets contexts. Public queries cannot trigger arbitrary context downloads. |
+| Unsupported filters | Filters on unsupported namespaced terms or fields retained without interpretation return `400`. The Catalog does not silently ignore them. |
+
+Remote Search results can omit optional fields used by a filter. The Catalog rejects a returned value that contradicts the filter, including null where the filter requires a string. An omitted optional field does not, by itself, prove a contradiction. The Catalog does not replace missing names or types with empty values.
+
+Invalid live Search entries are omitted without removing healthy local or peer results. The public response uses `Server-Timing` to report partial results; private diagnostics remain separate. The Catalog also omits entries whose supplied media types are malformed or whose node identifiers are contradictory or blank.
+
+### License, topic and metadata filters
+
+`metadata.*` filters compare non-null scalar values, such as strings, numbers and booleans. JSON null is allowed in entry metadata, but it does not match a scalar filter or appear as an Explore bucket. Arrays and objects are rejected by the supported entry schema.
+
+The Catalog does not convert null into the string `<nil>`. An explicitly supplied `<nil>` string is an ordinary string that can match a filter.
+
+Generated entries include two optional declarations from the reviewed ListingRevision:
+
+| Declaration | Published field and limits | Search and Explore |
+| --- | --- | --- |
+| License | `metadata.license`: nonempty text up to 256 Unicode code points. Longer text is omitted without truncation; authorized Listing reads preserve it. | Compare the exact declared text, such as `Apache-2.0`. This is not a license document URL or a legal assessment. |
+| Topics | `http://purl.org/dc/terms/subject`: up to 16 category labels, each up to 80 code points. | Compare exact labels. Each distinct label counts once per matched local entry. |
+
+The topic field uses [Dublin Core subject](https://www.dublincore.org/specifications/dublin-core/dcmi-terms/#http://purl.org/dc/terms/subject). It is an optional ARD extension, not a required core field or shared taxonomy. Its `http` IRI names a vocabulary; the Catalog does not fetch it during Search.
+
+A full IRI or an inline alias selects the same field. Prefixes can contain periods. Each filter key must match; an array allows any value within that key. For example:
+
+```json
+{
+  "query": {
+    "@context": {"topic": "http://purl.org/dc/terms/"},
+    "text": "invoice",
+    "filter": {"topic:subject": ["finance", "invoices"], "metadata.license": "Apache-2.0"}
+  },
+  "federation": "none"
+}
+```
+
+Send this body to `POST /ard/v1/search`. For Explore, select `metadata.license` or the subject IRI as a facet field. Explore counts the matched local snapshot, not live peer results.
+
+A peer's topic alias uses that peer's context, not the query context. Literal strings and string arrays are supported. If the Catalog cannot interpret a disclosed topic, it rejects that peer result. A contradictory topic value also produces a partial outcome. Sparse results can omit the topic. Search never retrieves native artifacts or new contexts to fill missing values.
+
+Generate and activate a new publication snapshot to add these fields to an existing deployment. Active snapshots keep their original contents and ETags. Regenerate an older candidate or rollback target if its contents no longer match current publication rules.
+
+Control Search and browser filters use `license` and `categories` across selected origins. Local releases use Listing declarations. External entries use bounded `metadata.license` strings and literal Dublin Core subjects. License matches exact case-sensitive text. All categories must match after trimming and lowercasing. Control Explore still covers local releases only.
+
+Control category matching requires every normalized category to match. ARD accepts any exact value in a filter array. The Catalog therefore omits topic filters from live Control requests and checks all required conditions before accepting results.
+
+Exact license filters can be forwarded. Missing required declarations produce an `insufficient_evidence` partial diagnostic; known nonmatches are ordinary omissions. Live checks use inline contexts and the embedded ARD base context, without remote context or native-artifact fetches. Public ARD requests retain their original filters and context.
+
+### Native card filters and facets
+
+Public ARD Search and Explore also support these paths in inline `data`:
+
+| Entry media type | Supported paths | Values |
+| --- | --- | --- |
+| `application/a2a-agent-card+json` | `data.skills.id`, `data.skills.tags`, `data.defaultInputModes`, `data.defaultOutputModes`, `data.capabilities.streaming`, `data.supportedInterfaces.protocolBinding`, `data.supportedInterfaces.protocolVersion` | Exact skill IDs, skill tags, default input/output media types, protocol bindings and A2A versions. Send the streaming value as the string `"true"` or `"false"`. |
+| `application/mcp-server-card+json` | `data.remotes.type`, `data.remotes.supportedProtocolVersions` | Exact transport names and MCP protocol versions. |
+
+The [A2A profile](https://github.com/a2aproject/A2A/blob/3303592588e388e62e0f69f701af531d2f4e3991/specification/a2a.proto) and [experimental MCP Server Card](https://github.com/modelcontextprotocol/ext-server-card/tree/526201bbc80231daa40ffcdecfc9da4e54e5dc93) define these declarations. The [pinned profiles](../../../../../schemas/PROFILES.md) own the supported versions. MCP Registry `server.json` does not supply Server Card values.
+
+Use the same path as a filter key or an Explore facet. For example:
+
+```json
+{
+  "query": {
+    "text": "invoice",
+    "filter": {
+      "data.capabilities.streaming": "false",
+      "data.skills.id": ["resolve-invoices", "report"],
+      "data.skills.tags": "finance",
+      "data.defaultInputModes": "text/plain",
+      "data.defaultOutputModes": "text/plain"
+    }
+  },
+  "federation": "none"
+}
+```
+
+The mode paths select card defaults, not each skill's effective modes. A skill can override the defaults through `inputModes` and `outputModes`. The `data.skills.tags` path selects native skill keywords, separately from top-level Listing `tags`. Values match exactly, including case; no media-type normalization or wildcard matching occurs. These declarations do not prove that an agent accepts a particular request.
+
+The entry's media type selects the native format. The Catalog reads only inline data; it does not fetch a URL-only card, Skill or Plugin. A missing value does not become `false`. Null has no comparable value. Incorrect types are rejected when the selected path is inspected.
+
+The query context can alias the leading `data` term. Names after it are literal native members, even if the context defines the same names. Each distinct value counts once per entry. Separate path filters can match different array elements. A matching protocol binding and version do not prove that one interface supports both. A matching skill ID and tag need not belong to the same skill.
+
+Inspect the native card before use; discovery does not authorize invocation.
+
+Local entries need a matching value. Sparse live results can omit optional native members or the card itself. Disclosed contradictions, invalid selected shapes and peer refusals produce a partial outcome; healthy local results remain available. The original filters are forwarded to peers without removal.
+
+Inspection reuses the 16 MiB ARD document ceiling across local inline data. Live responses retain their configured byte limit and 8 MiB hard ceiling. Each native document is decoded once per query; filters, ranking and facets reuse the result. Cancellation and bounds stop work without truncating successful facet counts. These paths do not add filters to authenticated Control Search or the UI.
+
+### Trust checks
+
+A Trust Manifest describes a publisher's declared identity and the evidence it supplies about the resource.
+
+The Catalog checks Trust Manifest structure for both supported spellings, before and after normalization. Imported complete entries and sparse live Search results use the same declared publisher-alignment check. The identity's domain must match the entry's publisher domain or one of its subdomains. Invalid live entries are omitted; healthy results remain available with a partial-result signal.
+
+Framework-specific fields remain open. Validation does not fetch attestation, governance or key URLs. It does not verify cryptographic signatures or establish publisher ownership. The reported trust status is `not_assessed`. Previously retained observations are unchanged; [synchronize an affected source](../operations/federation.mdx#test-synchronize-and-inspect-the-result) to reassess its current entries.
+
+Eligible live Search results include the peer's manifest as `trustManifest`, with unknown framework fields and exact numbers intact. Uppercase input uses this lowercase output name. Source approval, tenant, host and audience rules still control disclosure. Local results do not inherit peer claims, and duplicate results do not combine manifests. A trust declaration change invalidates existing live continuation; restart the query in that case.
+
+Search returns a JSON projection, not the original signed bytes. Control live-search evidence retains the original entry and spelling. An evidence URL is metadata; its presence does not authorize a request to that URL.
+
+ARD [recommends verification](https://agenticresourcediscovery.org/spec/#452-verification) through the trust framework declared by the Trust Manifest. That framework defines how to sign a document, find keys and verify signatures. ARD does not define one verification procedure for every publisher.
+
+The file-only `catalogctl trust verify-bundle` command implements the selected `ans-registration-v1` procedure for ANS V1/V2 registration evidence. Operators supply accepted public keys and exact publisher domains. It checks signatures, log inclusion, entry matching and fresh registration status separately. See [offline verification](commands.md#offline-ans-registration-verification) and [ADR-0024](../architecture/decisions/0024-optional-ans-registration-verification.md). Default-off [authority configuration](configuration.mdx#ans-registration-verification) and bounded evidence acquisition are implemented. Explicit [administrator assessments](../operations/federation.mdx#request-an-ans-registration-assessment) use durable Jobs and private retained results. The separately selected [local qualification](../contributing/testing.md#real-local-ans-assessment-qualification) checks the complete workflow against unchanged ANS services. Ordinary discovery does not verify receipts, and broad trust and rights remain `not_assessed`.
+
+A structurally valid entry or an approved publication does not prove that you can trust its publisher or software.
+
+### Unsupported discovery features
+
+The Catalog does not implement these discovery features:
+
+- DNS discovery or Agentmap discovery.
+- MCP or A2A interfaces for Registry Search.
+- Remote pagination that guarantees all pages describe the same source state.
+- The proposed `GET /agents/{identifier}` endpoint.
+
+Use the supported Search API to search by identifier.
+
+New upstream proposals do not change the supported API. A valid extension media type does not, by itself, make an entry invalid. A conformance tool can still report a warning.
+
+ARD defines discovery formats and Registry operations. The Catalog defines its own rules for cleanup, Job history, command replay storage and notification delivery. See [housekeeping and retention](../architecture/decisions/0015-operational-housekeeping-and-retention.md).
+
+## AI Catalog documents
+
+[AI Catalog](https://ai-catalog.io/) defines a JSON document with `specVersion` and an `entries` array. Optional `host` metadata describes the catalog operator. Each entry identifies its content with `identifier` and `type`, and supplies exactly one of `url` or `data`. An entry can also refer to another catalog using `application/ai-catalog+json`.
+
+ARD and AI Catalog share resource-description concepts but have separate requirements. For example, `displayName` is optional on an AI Catalog entry and required on a complete ARD entry. The Catalog validates and publishes the two document formats separately.
+
+The supported AI Catalog profile checks the structural requirements for Minimal and Discoverable catalogs (Levels 1 and 2). It also checks Trust Manifest structure. If a manifest declares a subject, its content type and optional URL must match the entry. The subject must include a correctly formatted digest. These checks do not verify signatures or establish that a publisher's claims are true. The Catalog does not claim Trusted Catalog verification (Level 3).
+
+Extension keys can be absolute URIs or reverse-DNS names with at least two labels, such as `com.example`. Existing URI forms, including `urn:example:metadata`, remain accepted. This label minimum is a Catalog compatibility choice; the pinned specification does not define a minimum. Keys must not contain literal whitespace or control characters. The Catalog preserves namespace spelling and unknown values without fetching namespace identifiers. The same rules apply to document, entry, host Trust Manifest and entry Trust Manifest extension maps.
+
+Entry trust metadata requires the publisher domain encoded in an AIR identifier. The trust identity's domain must match that publisher domain or one of its subdomains. Existing identity forms include `did:web`, SPIFFE and HTTPS. Alternate identifiers, including HTTPS resource identifiers, remain acceptable without entry trust metadata. An artifact URL, optional publisher object or trust declaration cannot supply a missing publisher domain. ARD's framework-specific fields retain their separate, open rules.
+
+Read the [AI Catalog specification](https://ai-catalog.io/specification/) for the standard's requirements. Read the [supported profile](../../../../../schemas/PROFILES.md) for the exact version implemented by this service.
+
+## A2A Agent Cards
+
+An Agent Card describes an agent's capabilities, interfaces, protocol versions and authentication requirements. It can also include signature metadata. Open Agentic Catalog validates and retains the exact card and can publish it as an Agent representation.
+
+### Validation rules
+
+The Catalog validates cards against A2A v1.0.1. It uses strict ProtoJSON parsing and additional semantic checks. ProtoJSON is the JSON format for the protocol's Protobuf schema. Protocol versions must use the required major/minor form without surrounding whitespace.
+
+For signature metadata:
+
+- Encoded values must use unpadded base64url without whitespace.
+- Protected headers must contain the exact `alg` member and a string `kid` member. Ambiguous JSON is rejected.
+- Protected and unprotected headers cannot contain the same member name.
+- The algorithm cannot be empty or `none`.
+
+Optional `typ` and unrelated extension fields are supported. The key identifier is retained as supplied. These are structure checks: the Catalog does not retrieve signing keys or verify signatures. Agent Card signatures are separate from Catalog review and AI Catalog Trust Manifests.
+
+### Revalidate or replace a retained card
+
+Current validation rules apply to new submissions and explicit `POST /api/v1/version-revisions/{revisionId}:validate` requests. The Catalog does not automatically rescan or rewrite existing validation evidence or active discovery documents.
+
+A revalidation request for an invalid retained card records a blocked result and preserves the original content. An attempt to change immutable validation state can return `REPRESENTATION_VALIDATION_STATE_CHANGED`.
+
+To correct a card:
+
+- For an unsealed version, append a VersionRevision with the corrected card.
+- For a sealed version, create a ResourceVersion with a new label and the corrected card.
+
+Complete the normal listing review and publication process. See [content revisions and sealed versions](../guides/resource-authoring.mdx#check-evidence-before-review) for the authoring requests.
+
+If an invalid card appears in an active inline publication:
+
+1. Retire or revoke the affected release with its current ETag and a reason.
+2. Generate a replacement publication snapshot when the eligible releases are ready.
+3. Activate the replacement snapshot.
+
+The release retirement or revocation withdraws the affected active publication snapshots. Do not wait for a replacement card to withdraw an invalid publication.
+
+Revalidation alone does not withdraw an inline publication. A blocked revalidation of content retrieved from an external URL follows the existing withdrawal rules for that representation. Earlier evidence remains available as history.
+
+### Connecting to an agent
+
+The Catalog can retrieve an Agent Card from a declared HTTPS URL that requires no credentials. Its outbound-fetch safety controls apply. It does not retrieve authenticated extended cards or choose an invocation interface. It does not send messages, manage A2A tasks or grant permission to invoke an agent.
+
+The [local A2A tests](../contributing/testing.md#local-a2a-interoperability-control) use an independent client to retrieve a governed card and test communication with the agent. The Catalog does not execute the agent.
+
+## MCP server metadata
+
+The Catalog supports Registry `server.json` and the experimental MCP Server Card as separate formats. Validation does not establish that the server is reachable or safe to use.
+
+A Registry document describes distribution packages and remote endpoints. ARD and AI Catalog snapshots require a valid primary MCP Server Card, including snapshots for authenticated hosts. A Registry `server.json` record alone can remain available through Control reads. The Server Card format remains experimental and is identified as such in validation results.
+
+The MCP runtime protocol defines how hosts, clients and servers exchange JSON-RPC messages over stdio or Streamable HTTP. Its version is separate from the Catalog's metadata profiles.
+
+The Catalog does not connect to resource MCP servers or invoke their tools. A client or gateway performs those actions after the user and its policies permit them.
+
+The optional [Catalog MCP server](../guides/mcp-server.mdx) exposes read-only Control metadata through `catalogctl mcp serve` over stdio or the API's stateless `/mcp` HTTP route. It is separate from the proposed ARD Registry wrapper. Neither transport connects to cataloged MCP servers or executes resources.
+
+## Agent Skills
+
+An Agent Skill is a directory containing `SKILL.md`, with optional scripts, references and other files. `SKILL.md` contains YAML frontmatter followed by Markdown instructions. The frontmatter declares metadata such as the Skill's name and description. The Catalog checks the supported fields and types and enforces size limits. It preserves the Markdown without executing it.
+
+### Skill content types
+
+| Content type | Meaning in the Catalog |
+| --- | --- |
+| `text/markdown; profile="urn:air:agent-skills"` | Skill Markdown in the supported ARD format. |
+| `application/agent-skills+md` | Skill Markdown in the supported AI Catalog format. |
+| `application/agent-skills+json` | Skill metadata with size limits and checks on `name` and `description`. Acceptance does not establish a complete Agent Skills directory or an installable package. |
+| `application/agent-skills+zip` | A ZIP Skill package. |
+| `application/agent-skills+gzip` | One gzip member containing a tar Skill package. |
+
+The Catalog preserves the content type declared by the source. Published entries use the spelling required by the selected output format.
+
+### Package validation and delivery
+
+A package must contain exactly one Skill root directory with the required lower-case name. That directory must contain one regular `SKILL.md` file. Its frontmatter name must match the directory name.
+
+The Catalog inspects archive contents in memory. It does not extract them to disk or run any file. It rejects:
+
+- Unsafe paths, links and special files.
+- Duplicate names, names that collide when case is ignored, and file/directory conflicts.
+- Encrypted archives, multi-disk ZIPs, ZIP64 and concatenated gzip members.
+
+File count, directory depth, expanded size and compression-ratio limits also apply. For gzip, the ratio limit applies during decompression of the complete tar stream.
+
+Successful inspection records each regular file's normalized path, size, media type, executable marker and SHA-256 digest. The file extension determines its media type. An executable marker records a file attribute. It does not grant permission to run the file.
+
+Submit package bytes as base64 `packageData` when creating a version. The Catalog computes their digest but does not store or host the archive. The same request must supply at least one of these delivery locations:
+
+- A Git repository accessible over HTTPS without credentials. Supply a complete 40- or 64-character commit object ID and a directory ending in the validated Skill root.
+- An Open Container Initiative (OCI) repository reference pinned by a `sha256` digest.
+
+The Catalog validates and retains these locations. It does not clone the repository, pull the image or install the Skill. It does not verify that the remote content exists. Authenticated clients can retrieve the exact retained locations and file inventory. See [Skill package requests](api-conventions.md#agent-skill-package-requests) for the request fields.
+
+Malware, secret, license, SBOM and provenance assessments are separate from package validation. These optional assessments currently report `not_assessed`.
+
+## Agent Plugins
+
+Agent Plugins 1.0.0 defines a portable directory containing root `plugin.json`. This manifest requires `$schema` and `name`. Components use these locations:
+
+- Optional Skills occupy immediate child directories of `skills/`.
+- Root `mcp.json` configures optional MCP servers.
+- Client-specific extensions use directories named after reversed domains, such as `com.example`.
+
+The manifest cannot move these component locations or define the components inline.
+
+Each component keeps its own format: Agent Skills defines the contained `SKILL.md` files, and MCP defines server communication. Plugin configuration describes the connections. A Plugin is not an Agent, and version 1.0.0 defines no Agent component type.
+
+The Plugin specification defines package layout and how clients load components. It does not prescribe an installer, a resource permission model, a Catalog discovery media type or an archive distribution format.
+
+The AI Catalog draft lists `application/agent-plugins+zip` and `application/agent-plugins+gzip`. Those labels alone do not prove that a package follows Agent Plugins 1.0.0. The supported ARD profile does not define `application/agent-plugins+json`. The Catalog requires a complete package. A manifest alone is not sufficient.
+
+### Plugin validation and delivery
+
+Submit a complete ZIP or gzipped-tar package delivered over HTTPS. The Catalog validates its manifest, MCP configuration and contained Skills against the supported profiles. An invalid component blocks the whole package. The Catalog does not approve a partially valid package. It rejects an unsafe archive before storage.
+
+This whole-package check is a Catalog rule. The [Plugin specification](https://agent-plugins.org/specification#113-unsupported-components-and-failures) requires runtime clients to isolate component failures. A failed component must not prevent the client from using independently valid components.
+
+The Catalog retains the exact inspected documents and file inventory. It publishes the archive URL, SHA-256 digest and size. It does not host the archive. Federation recognizes supported Plugin archive types without downloading them during discovery.
+
+See [Catalog Agent Plugins](../guides/agent-plugins.mdx) for authoring, package limits, revalidation and client checksum verification. The client application installs and executes the Plugin. The Catalog does not support the 1.1.0 working draft.
+
+## Compatibility with other catalogs and clients
+
+Other catalogs and clients can support different versions of ARD. Check their discovery URL, request format and response format before configuring an integration.
+
+The Catalog's test suites check example messages from other implementations. They also run selected versions of ARD Explorer, Hugging Face Discover and AGNTCY Directory in local test environments. These checks cover specific versions and configurations, not every release or the providers' public services.
+
+| Implementation | Compatible behavior covered by tests | Known differences and limits |
+| --- | --- | --- |
+| [Pi/pi-ard](../guides/integrating.mdx#evaluate-pi-as-an-ard-client) | Native public manifests, MCP Search, two result pages, token binding and private-read refusal. A separate synthetic Skill confirms declined installation without artifact retrieval. | No authentication, `queryContext`, general filters, Explore or List input. The client expands type aliases, omits formatted result provenance and does not recognize the canonical Skill media type. Positive installation and model behavior are untested. |
+| [ARD Explorer](../guides/integrating.mdx#evaluate-the-ard-explorer-browser-client) | Native public Search, type filters, three Search pages, Explore counts and one List page against an owned Catalog. Separate local fixtures check sparse results and error handling. | The selected client has no authentication or `queryContext` input, no List continuation control, and incorrect Connect handling for referral URLs ending in `/search`. |
+| [Hugging Face Discover](https://github.com/huggingface/hf-discover) | Nested Search requests, responses containing complete entries, selected public navigation and direct authenticated Search. | Uses the older well-known discovery path. It lacks List and Explore support, and rejects some valid Search results that omit optional fields. Its Search CLI cannot follow continuation tokens; its Skill filter uses a different media type. |
+| [GitHub Agent Finder connectors](https://github.com/ards-project/ard-connectors) | Nested HTTP Search requests through Catalog HTTP, CLI and UI; the query alias `mediaType` resolves to `type`. | These are clients. The tests do not qualify a hosted server or its MCP behavior. Entry documents must still use `type`. |
+| [AGNTCY Directory](https://github.com/agntcy/dir) | Selected local A2A artifact exchanges and examples of incompatible discovery messages. | Its custom Search requests and `results/nextPageToken/totalCount` responses differ from the supported ARD API. These tests do not demonstrate resource synchronization through the current ARD API. |
+| [Ora Directory](https://ora.ai/api/openapi.json) | Documented nested Search and optional Explore/List request formats. | Available success schemas do not establish complete compatibility. Filter-only Search differs from the supported required-text request. Readiness scores and attestation claims do not establish trust. |
+| [ANS Finder](https://github.com/agentnameservice/ans) | Compatible Search and Explore response examples. | Responses containing `staleSince` conflict with the supported response fields. The reviewed implementation lacks query `@context` and List support. |
+| [MCP Gateway Registry](https://github.com/agentic-community/mcp-gateway-registry) | Local native authentication, paging and lexical Search controls. Indexed manifest import, exact source history, membership changes, outage recovery and reviewed source replacement. | Registry responses contain invalid optional nulls, so live Search remains unavailable. Descriptors contain MCP Registry documents but declare the MCP Server Card media type. The current discovery path is absent; the older path works. Explore returns 405. Reverse import refuses private Catalog destinations before sending an HTTP request, but reports success with zero imports. |
+
+Search results can omit optional fields. Search responses can also omit optional top-level fields. If present, `pageToken` must be a string and `referrals` must be an array. Neither can be null. The Catalog does not convert incompatible peer messages into its supported format or automatically adopt remote resources.
+
+### Hugging Face client and peer tests
+
+The [Hugging Face (HF) client tests](../contributing/testing.md#independent-hugging-face-interoperability) cover Search and navigation against a local Catalog. They identify these client limitations:
+
+- The client rejects some valid results that omit optional fields.
+- It omits tokens when it retrieves private manifests.
+- It forwards tokens to a Registry on another origin.
+- It rewrites source information during navigation.
+
+Tests that demonstrate these limitations do not establish that those operations are supported or safe for production use.
+
+The separate [HF peer tests](../contributing/testing.md#independent-hugging-face-interoperability) cover source inspection, synchronization, approved referrals, partial results and recovery after a source outage. They use local HTTPS peers, not hosted HF inventory.
+
+The peer tests identify these differences:
+
+- The peer rejects some valid contexts.
+- Advertised base URLs do not match the operational endpoint.
+- The peer returns referrals under `none`.
+- Some result sources do not use HTTPS.
+
+The primary test fixture's Search also fails when offline. The Catalog rejects live results that violate its HTTPS-source policy. It retains local results and reports partial discovery.
+
+### AGNTCY Directory integration
+
+AGNTCY Directory describes resources in the Open Agentic Schema Framework (OASF) format and identifies records by their content. It uses OCI storage and its own distributed routing. These are Directory implementation choices, not requirements for ARD compatibility.
+
+Open Agentic Catalog preserves native documents and uses its own review, publication and administrator-configured HTTPS federation. It does not convert OASF, replicate OCI content or use peer-to-peer routing to match Directory. It does not implement Directory's credential negotiation, runtime discovery or scanner execution.
+
+Use the [local AGNTCY tests](../contributing/testing.md#local-agntcy-interoperability) to check the selected integration. Directory signatures, popularity counts and scanner results do not establish Catalog approval.
+
+## Validation, approval and trust
+
+| Result | What it means |
+| --- | --- |
+| `valid` | The document passed the supported format's structural and semantic checks. It does not establish trust, safety, reachability or permission to run it. |
+| `supported` | The Catalog has an adapter for this format and resource kind. Standards-compliant entries in unknown formats can remain source observations without becoming locally managed resources. |
+| `published` | The Catalog has a release for the approved version and listing. Public discovery also requires an eligible active publication snapshot. |
+| `conformant` | The named specification version and tested operations meet the stated requirements. It does not imply support for a moving upstream `latest` version. |
+
+The Catalog identifies draft, proposal, preview, experimental and published specification status in profile metadata and validation findings. Format support, publisher trust, local approval, rights and permission to execute remain separate checks.
+
+## Supporting standards
+
+| Standard | Catalog use | Important limits |
+| --- | --- | --- |
+| [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12) | Validates ARD, MCP metadata, events and Plugin documents against included schemas. | A document cannot cause the Catalog to download a schema by naming it. |
+| [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/) | Expands ARD entries and namespaced query terms. | Source contexts use controlled outbound retrieval. Public queries cannot trigger arbitrary context downloads. Original source content is preserved. |
+| [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0) | Defines the control API and public HTTP routes. | The Catalog API contract and the included ARD Registry contract have separate ownership. The worker's operational listener is separate from the product API. |
+| [RFC 9457 Problem Details](https://www.rfc-editor.org/rfc/rfc9457) | Defines control API error responses. | ARD Registry errors use the error format required by the supported ARD version. |
+| [RFC 9530 Digest Fields](https://www.rfc-editor.org/rfc/rfc9530) | Supplies HTTP content digests for immutable API and discovery content. | A digest checks content integrity, not publisher identity, approval or execution rights. |
+| [CloudEvents 1.0.2](https://github.com/cloudevents/spec/blob/v1.0.2/cloudevents/spec.md) | Formats optional signed webhook notifications. | The same notification can arrive more than once. Notifications can arrive out of order. Use the Catalog API to read authoritative state. |
+| [OpenID Connect Core](https://openid.net/specs/openid-connect-core-1_0.html) and signed [JWT access tokens](https://www.rfc-editor.org/rfc/rfc7519) | Authenticates API callers and supports UI login through a configured identity provider. | The provider issues production tokens. The API validates access tokens and checks Catalog membership and grants. The UI uses authorization code with PKCE and manages its own session. |
+| [RFC 8785 JSON Canonicalization Scheme](https://www.rfc-editor.org/rfc/rfc8785) | Canonicalizes signed ANS event and envelope JSON in the offline verifier. | Automatic Trust Manifest and Agent Card verification remains unavailable. Ordinary discovery does not verify signatures. |
+
+Discovery publication requires identifiers that follow the supported ARD `urn:air` naming rules. Private Control Resources also accept bounded opaque identifiers, including Unicode. An opaque identifier does not make a Resource eligible for discovery publication. See [identifier and version limits](api-conventions.md#identifier-and-version-lengths) for syntax and character limits, and [API conventions](api-conventions.md) for conditional requests, caching and release metadata.
+
+Inline, scoped and remotely loaded JSON-LD contexts accept numeric `"@version": 1.1`, including `1.10` and `11e-1`. A string value such as `"1.1"` is invalid. Native data and JSON literals retain exact numbers.
+
+A listing release's `sunsetAt` describes the resource. It is not an HTTP `Sunset` header or a promise to retire an API version. The Catalog does not currently emit HTTP `Deprecation` or `Sunset` headers.
+
+## Verify and update standards profiles
+
+Run `catalogctl profiles verify` to check the checksums of the specification files embedded in the command. This verifies the included bundle. It does not validate a publisher's document or prove publisher authenticity.
+
+The included upstream conformance CLI can check a local ARD manifest with `manifest <local-file>`. Review warnings and whether JSON Schema validation ran. A successful exit alone is not complete validation.
+
+The maintained [schema and conformance tests](../contributing/testing.md#schema-validation-and-ard-conformance) combine the upstream tool with independent schema, semantic and HTTP tests. They cover pagination, federation, authentication, source format selection and error responses. The running-service tests exercise the official manifest, publisher and Registry modes against a disposable local Catalog. Obtain explicit authorization before running these tests against another deployment.
+
+To update a supported profile:
+
+1. Compare the old and new versions for changes to validation, data normalization, published content, storage, security and client compatibility.
+2. Retain the new specification and its licenses in a new profile directory at an exact source commit. Do not overwrite an existing profile.
+3. Update checksums, profile selection and compatibility fixtures.
+4. Run profile verification, fixture tests, the default verification suite and applicable running-service conformance tests.
+5. Activate the profile only after the required checks pass.
+
+Read the [profile reference](../../../../../schemas/PROFILES.md) for bundled files and source mappings. Changes to unrelated upstream documentation or examples do not automatically require a profile upgrade. New upstream proposals do not change the format of retained evidence. The Catalog does not download schemas dynamically to process untrusted documents.
+
+## Primary sources
+
+- [ARD public specification](https://agenticresourcediscovery.org/spec/)
+- [ARD v0.91 pinned source](https://github.com/ards-project/ard-spec/blob/aa3e598bb7752a9175897823234311216acfa864/spec/ard.md)
+- [ARD reference implementations](https://agenticresourcediscovery.org/ref_implementations/)
+- [AI Catalog documentation](https://ai-catalog.io/)
+- [AI Catalog specification](https://ai-catalog.io/specification/)
+- [AI Catalog pinned source](https://github.com/Agent-Card/ai-catalog/blob/b062278fd7f5a83202d33208f1d07c5b5eb7ccb3/specification/ai-catalog.md)
+- [A2A v1.0.1 release source](https://github.com/a2aproject/A2A/tree/3303592588e388e62e0f69f701af531d2f4e3991)
+- [A2A Agent Card concepts](https://a2a-protocol.org/latest/topics/agent-discovery/)
+- [MCP specification dated 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28)
+- [MCP Registry documentation](https://modelcontextprotocol.io/registry/about)
+- [MCP Registry v1.8.1 pinned source](https://github.com/modelcontextprotocol/registry/tree/f52dc8525a441a3abf5fedc9912152d95af5aab1)
+- [Experimental MCP Server Card pinned source](https://github.com/modelcontextprotocol/ext-server-card/tree/526201bbc80231daa40ffcdecfc9da4e54e5dc93)
+- [Agent Skills specification](https://agentskills.io/specification)
+- [Agent Skills pinned source](https://github.com/agentskills/agentskills/blob/69ef37e9424c0a7ea9dd2293b559e43ec8176379/docs/specification.mdx)
+- [Agent Plugins 1.0.0 published specification](https://agent-plugins.org/specification)
+- [Agent Plugins 1.0.0 supported source](https://github.com/agentplugins/agent-plugins-spec/blob/1fc1b6270e3cc492ec2d24ad7a34277c6d53b9c1/spec/1.0.0.md)
+- [JSON-LD 1.1](https://www.w3.org/TR/json-ld11/)
+- [JSON Schema Draft 2020-12](https://json-schema.org/draft/2020-12)
+- [OpenAPI 3.1.0 specification](https://spec.openapis.org/oas/v3.1.0)
+- [Problem Details for HTTP APIs, RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)
+- [Digest Fields, RFC 9530](https://www.rfc-editor.org/rfc/rfc9530)
+- [JSON Canonicalization Scheme, RFC 8785](https://www.rfc-editor.org/rfc/rfc8785)
+- [CloudEvents 1.0.2](https://github.com/cloudevents/spec/blob/v1.0.2/cloudevents/spec.md)
+- [OpenID Connect Core 1.0](https://openid.net/specs/openid-connect-core-1_0.html)
+- [JSON Web Token, RFC 7519](https://www.rfc-editor.org/rfc/rfc7519)
+
+## Optional artwork extension
+
+The Catalog defines an optional artwork descriptor at `https://github.com/open-agentic-catalog/open-agentic-catalog/schemas/artwork/v1#descriptor`. Its [version-1 schema](../../../../../schemas/extensions/artwork-v1.schema.json) defines image slots, accessible text, declared rights and sealed image facts. This extension is a Catalog contract, not a standardized ARD property.
+
+ARD entries declare the full IRI as an inline JSON-LD term with `@type: "@json"`. The JSON literal preserves descriptor structure and screenshot order. AI Catalog entries use the same IRI under `extensions`. Neither form changes the pinned upstream profiles or native resource documents.
+
+Public snapshots include eligible reviewed local artwork. They exclude private-route locators, nonpublic literal addresses and tenant-local consumer overrides. Receivers validate recognized descriptors and ignore unknown versions. A valid descriptor does not approve its image origin or prove legal clearance. See [source artwork controls](../operations/federation.mdx#publisher-artwork-and-local-overrides).
+
+## Optional rating summaries
+
+The Catalog can publish consented human ratings through a service-owned extension. ARD does not define a standard rating format.
+
+The extension identifier is `https://github.com/open-agentic-catalog/open-agentic-catalog/schemas/ratings/v1#summary`. Its [JSON Schema](../../../../../schemas/extensions/ratings-v1.schema.json) defines the supported fields. ARD entries use an inline JSON-LD context with an `@json` value. AI Catalog entries use their extension map.
+
+Each summary identifies its reporting origin, exact AIR and advertised version. It contains a scale, count, sum and UTC measurement time. The receiver checks the enclosing source and version, arithmetic and size. A malformed optional summary is omitted; the resource can remain discoverable.
+
+Peer summaries stay separate from opinions recorded in the consuming Catalog. They do not establish trust, installation or execution. See [Resource ratings](../guides/ratings.mdx) for consent, publication and withdrawal rules.

@@ -1,0 +1,18 @@
+<div class="catalog-client-comparison">
+  <slot />
+</div>
+
+<style>
+  /* Keep the homepage comparison inside the desktop reading column. */
+  @media (min-width: 64rem) {
+    .catalog-client-comparison :global(table) {
+      display: table;
+      width: 100%;
+      table-layout: fixed;
+    }
+
+    .catalog-client-comparison :global(:is(th, td)) {
+      overflow-wrap: anywhere;
+    }
+  }
+</style>

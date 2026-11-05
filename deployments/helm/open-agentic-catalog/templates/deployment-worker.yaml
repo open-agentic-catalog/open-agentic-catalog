@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "worker") | quote }}
+  labels:
+    {{- include "open-agentic-catalog.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  replicas: {{ .Values.worker.replicas }}
+  selector:
+    matchLabels:
+      {{- include "open-agentic-catalog.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: worker
+  template:
+    metadata:
+      labels:
+        {{- include "open-agentic-catalog.labels" . | nindent 8 }}
+        app.kubernetes.io/component: worker
+      annotations:
+        {{- with omit .Values.podAnnotations "checksum/config" "checksum/federation-policy" "checksum/webhook-egress" "checksum/database-trust-reference" }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        checksum/config: {{ include "open-agentic-catalog.configData" . | trim | sha256sum | quote }}
+        {{- if .Values.databaseTrustBundleConfigMap }}
+        checksum/database-trust-reference: {{ .Values.databaseTrustBundleConfigMap | sha256sum | quote }}
+        {{- end }}
+        checksum/federation-policy: {{ .Values.federation.policy | toJson | sha256sum | quote }}
+        checksum/webhook-egress: {{ .Values.webhooks.egressConfigMap | sha256sum | quote }}
+    spec:
+      serviceAccountName: {{ include "open-agentic-catalog.serviceAccountName" (dict "root" . "role" "worker") | quote }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      {{- with .Values.podDNSOptions }}
+      dnsConfig:
+        options: {{- toYaml . | nindent 10 }}
+      {{- end }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {runAsNonRoot: true, seccompProfile: {type: RuntimeDefault}}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- if .Values.worker.topologySpread.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .Values.worker.topologySpread.topologyKey | quote }}
+          whenUnsatisfiable: {{ .Values.worker.topologySpread.whenUnsatisfiable | quote }}
+          matchLabelKeys: [pod-template-hash]
+          labelSelector:
+            matchLabels:
+              {{- include "open-agentic-catalog.selectorLabels" . | nindent 14 }}
+              app.kubernetes.io/component: worker
+      {{- end }}
+      containers:
+        - name: catalog-worker
+          image: {{ include "open-agentic-catalog.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy | quote }}
+          command: ["/usr/local/bin/catalogd", "worker"]
+          envFrom:
+            - configMapRef: {name: {{ include "open-agentic-catalog.fullname" . | quote }}}
+          env:
+            {{- if and (eq (index .Values.configEnv "CATALOG_WEBHOOKS_ENABLED") "true") .Values.webhooks.egressConfigMap }}
+            - name: CATALOG_WEBHOOKS_POLICY_FILE
+              value: /etc/open-agentic-catalog/webhooks/policy.json
+            {{- end }}
+            - name: CATALOG_DATABASE_DSN
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.workerDatabase.name | quote }}, key: {{ .Values.secrets.workerDatabase.key | quote }}}}
+            - name: CATALOG_CURSOR_SIGNING_KEY
+              valueFrom: {secretKeyRef: {name: {{ .Values.secrets.cursorSigning.name | quote }}, key: {{ .Values.secrets.cursorSigning.key | quote }}}}
+            {{- if eq (index .Values.configEnv "CATALOG_WEBHOOKS_ENABLED") "true" }}
+            {{- $webhookSecret := required "secrets.webhookEncryption is required when webhooks are enabled" .Values.secrets.webhookEncryption }}
+            - name: CATALOG_WEBHOOK_ENCRYPTION_KEY
+              valueFrom: {secretKeyRef: {name: {{ required "secrets.webhookEncryption.name is required" $webhookSecret.name | quote }}, key: {{ required "secrets.webhookEncryption.key is required" $webhookSecret.key | quote }}}}
+            {{- end }}
+          ports: [{name: operations, containerPort: 9090, protocol: TCP}]
+          startupProbe: {httpGet: {path: /startupz, port: operations}, periodSeconds: 2, timeoutSeconds: 1, failureThreshold: 30}
+          livenessProbe: {httpGet: {path: /livez, port: operations}, periodSeconds: 10, timeoutSeconds: 3, failureThreshold: 3}
+          readinessProbe: {httpGet: {path: /readyz, port: operations}, periodSeconds: 5, timeoutSeconds: 3, failureThreshold: 3}
+          resources: {{- toYaml .Values.worker.resources | nindent 12 }}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: ["ALL"]}}
+          volumeMounts:
+            {{- if (mustFromJson .Values.configEnv.CATALOG_TRUST_VERIFICATION).enabled }}
+            - {name: trust-verification, mountPath: /etc/open-agentic-catalog/trust-verification, readOnly: true}
+            {{- end }}
+            {{- if .Values.databaseTrustBundleConfigMap }}
+            - {name: database-trust, mountPath: /etc/open-agentic-catalog/database, readOnly: true}
+            {{- end }}
+            {{- if and .Values.semanticSearch.enabled .Values.semanticSearch.existingSecret }}
+            - {name: embedding-inputs, mountPath: /etc/open-agentic-catalog/embeddings, readOnly: true}
+            {{- end }}
+            {{- if and ((mustFromJson .Values.configEnv.CATALOG_TRACING).enabled) .Values.secrets.tracingInputs }}
+            - {name: tracing-inputs, mountPath: /etc/open-agentic-catalog/tracing, readOnly: true}
+            {{- end }}
+            - {name: tmp, mountPath: /tmp}
+            {{- if and (eq (index .Values.configEnv "CATALOG_WEBHOOKS_ENABLED") "true") .Values.webhooks.egressConfigMap }}
+            - {name: webhook-egress, mountPath: /etc/open-agentic-catalog/webhooks, readOnly: true}
+            {{- end }}
+            - {name: federation-policy, mountPath: /etc/open-agentic-catalog/federation/policy, readOnly: true}
+            {{- if eq (index .Values.configEnv "CATALOG_CREDENTIAL_RESOLUTION_ENABLED") "true" }}
+            - {name: federation-credentials, mountPath: /etc/open-agentic-catalog/federation/credentials, readOnly: true}
+            {{- end }}
+            {{- if .Values.federation.trustBundleConfigMap }}
+            - {name: federation-trust, mountPath: /etc/open-agentic-catalog/federation/trust, readOnly: true}
+            {{- end }}
+      volumes:
+        {{- if (mustFromJson .Values.configEnv.CATALOG_TRUST_VERIFICATION).enabled }}
+        - name: trust-verification
+          configMap: {name: {{ required "trustVerification.publicKeysConfigMap is required when verification is enabled" .Values.trustVerification.publicKeysConfigMap | quote }}}
+        {{- end }}
+        {{- if .Values.databaseTrustBundleConfigMap }}
+        - name: database-trust
+          configMap:
+            name: {{ .Values.databaseTrustBundleConfigMap | quote }}
+            items: [{key: ca.pem, path: ca.pem}]
+        {{- end }}
+        {{- if and .Values.semanticSearch.enabled .Values.semanticSearch.existingSecret }}
+        - name: embedding-inputs
+          secret: {secretName: {{ .Values.semanticSearch.existingSecret | quote }}}
+        {{- end }}
+        {{- if and ((mustFromJson .Values.configEnv.CATALOG_TRACING).enabled) .Values.secrets.tracingInputs }}
+        - name: tracing-inputs
+          secret: {secretName: {{ .Values.secrets.tracingInputs.name | quote }}}
+        {{- end }}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+        {{- if and (eq (index .Values.configEnv "CATALOG_WEBHOOKS_ENABLED") "true") .Values.webhooks.egressConfigMap }}
+        - name: webhook-egress
+          configMap: {name: {{ .Values.webhooks.egressConfigMap | quote }}}
+        {{- end }}
+        - name: federation-policy
+          configMap:
+            name: {{ default (include "open-agentic-catalog.resourceName" (dict "root" . "suffix" "federation-policy")) .Values.federation.policy.existingConfigMap | quote }}
+            items: [{key: {{ .Values.federation.policy.key | quote }}, path: policy.json}]
+        {{- if eq (index .Values.configEnv "CATALOG_CREDENTIAL_RESOLUTION_ENABLED") "true" }}
+        {{- $federationCredentials := required "secrets.federationCredentials is required when credential resolution is enabled" .Values.secrets.federationCredentials }}
+        - name: federation-credentials
+          secret: {secretName: {{ required "secrets.federationCredentials.name is required when credential resolution is enabled" $federationCredentials.name | quote }}}
+        {{- end }}
+        {{- if .Values.federation.trustBundleConfigMap }}
+        - name: federation-trust
+          configMap: {name: {{ .Values.federation.trustBundleConfigMap | quote }}}
+        {{- end }}
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}

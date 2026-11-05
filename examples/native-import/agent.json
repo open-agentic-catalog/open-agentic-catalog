@@ -1,0 +1,23 @@
+{
+  "capabilities": {},
+  "defaultInputModes": ["application/json"],
+  "defaultOutputModes": ["application/json"],
+  "description": "Prepares review notes from a supplied change description.",
+  "name": "Review helper",
+  "skills": [
+    {
+      "description": "Lists affected components and checks for a change review.",
+      "id": "review-notes",
+      "name": "Prepare review notes",
+      "tags": ["review"]
+    }
+  ],
+  "supportedInterfaces": [
+    {
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0",
+      "url": "https://agents.example.com/review-helper"
+    }
+  ],
+  "version": "0.1.0"
+}

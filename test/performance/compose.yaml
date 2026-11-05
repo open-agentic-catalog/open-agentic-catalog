@@ -1,0 +1,18 @@
+# The supervisor reserves and owns the external-to-Compose trial networks.
+# Remove the retained development stack's fixed IPAM before model validation.
+services:
+  api:
+    volumes:
+      - ${CATALOG_PERF_CONFIG_FILE:-./config/postgres.json}:/config/config.json:ro
+  worker:
+    volumes:
+      - ${CATALOG_PERF_CONFIG_FILE:-./config/postgres.json}:/config/config.json:ro
+  provision:
+    volumes:
+      - ${CATALOG_PERF_CONFIG_FILE:-./config/postgres.json}:/config/config.json:ro
+  migrate:
+    volumes:
+      - ${CATALOG_PERF_CONFIG_FILE:-./config/postgres.json}:/config/config.json:ro
+networks:
+  default:
+    ipam: !reset null

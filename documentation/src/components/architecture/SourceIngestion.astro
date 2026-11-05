@@ -1,0 +1,25 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="source-ingestion-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1336" role="img" aria-labelledby="source-ingestion-title source-ingestion-desc">
+  <title id="source-ingestion-title">Source ingestion from leased work to an atomic synchronization result</title>
+  <desc id="source-ingestion-desc">Claim work and resolve source policy. Retrieve bounded discovery evidence, parse the inspected profile, and apply configured scope. Prepare observations, compatibility findings, and search projections without downloading or validating described resource packages. One transaction rechecks the source revision and saves the snapshot, observations, current view, audit, and outbox evidence. Failed or partial runs retain diagnostics without replacing the last complete view. Local adoption, resource validation, and review are separate workflows.</desc>
+  <defs><marker id="source-ingestion-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 141 V211" marker-end="url(#source-ingestion-arrow)" />
+  <path class="svg-connector" d="M320 332 V402" marker-end="url(#source-ingestion-arrow)" />
+  <path class="svg-connector" d="M320 523 V593" marker-end="url(#source-ingestion-arrow)" />
+  <path class="svg-connector" d="M320 717 V787" marker-end="url(#source-ingestion-arrow)" />
+  <path class="svg-connector" d="M320 908 V978" marker-end="url(#source-ingestion-arrow)" />
+  <DiagramCard x={60} y={20} width={520} title={"1. Claim and prepare"} tone="core" lines={["Scheduled or manual request; claim", "the revision-bound Job lease", "Resolve credentials and network policy"]} />
+  <DiagramCard x={60} y={211} width={520} title={"2. Retrieve bounded discovery evidence"} tone="core" lines={["Discover or enumerate approved", "locations through safe fetch", "Preserve raw bytes and fetch evidence"]} />
+  <DiagramCard x={60} y={402} width={520} title={"3. Interpret discovery metadata"} tone="core" lines={["Parse the inspected source profile", "Preserve entry bytes and compatibility findings", "Do not fetch or execute resource packages"]} />
+  <DiagramCard x={60} y={593} width={520} title={["4. Apply administrator-configured source", "scope"]} tone="core" lines={["Keep external provenance and unknown resource types", "Discovery is not local validation or approval"]} />
+  <DiagramCard x={60} y={787} width={520} title={"5. Prepare observations in memory"} tone="core" lines={["Build bounded observations and search projections", "Bind exact digests and source", "occurrences; compare the previous view"]} />
+  <DiagramCard x={60} y={978} width={520} title={"6. Commit the synchronization result"} tone="authority" lines={["Recheck the source revision under the database lock", "Save snapshot, observations and current source view", "Commit audit and outbox evidence in the same transaction"]} />
+  <DiagramCard x={60} y={1169} width={520} title={["Partial or failed synchronization", "preserves the last complete view"]} tone="warning" lines={["A failed run cannot silently withdraw its members", "Local adoption, resource validation", "and review are separate workflows"]} />
+
+</svg>
+</div>

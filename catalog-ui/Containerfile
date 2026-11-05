@@ -1,0 +1,98 @@
+# syntax=docker/dockerfile:1.28.0@sha256:bb22d9815c728170f72750f4e5b0d672e06176142e1d602c7e66c050100b7e5b
+# Build from the repository root. Build toolchains are not shipped.
+FROM --platform=$BUILDPLATFORM docker.io/library/node:22.23.4-alpine3.24@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS documentation
+WORKDIR /src/documentation
+COPY documentation/package.json documentation/package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+COPY documentation/astro.config.mjs documentation/content-map.json documentation/tsconfig.json ./
+COPY documentation/src ./src
+COPY documentation/assets ./assets
+COPY documentation/scripts ./scripts
+COPY CONTRIBUTING.md SECURITY.md /src/
+COPY schemas/PROFILES.md /src/schemas/PROFILES.md
+COPY schemas/extensions/artwork-v1.schema.json schemas/extensions/ratings-v1.schema.json /src/schemas/extensions/
+COPY api /src/api
+COPY test/minikube/fixtures/vault/catalog-sync.yaml test/minikube/fixtures/vault/runtime-policy.hcl test/minikube/fixtures/vault/owner-policy.hcl /src/test/minikube/fixtures/vault/
+COPY deployments/helm/open-agentic-catalog/README.md /src/deployments/helm/open-agentic-catalog/README.md
+COPY examples/langgraph/README.md /src/examples/langgraph/README.md
+COPY examples/rust-catalog-report/README.md /src/examples/rust-catalog-report/README.md
+COPY examples/publication-report/README.md /src/examples/publication-report/README.md
+COPY examples/typescript-ard-list/README.md /src/examples/typescript-ard-list/README.md
+COPY examples/webhookreceiver/README.md /src/examples/webhookreceiver/README.md
+COPY examples/native-import/drafts /src/examples/native-import/drafts
+COPY examples/native-import/mcp-registry-response.json examples/native-import/mcp-registry-import.yaml /src/examples/native-import/
+COPY sdk/README.md /src/sdk/README.md
+COPY sdk/go/README.md /src/sdk/go/README.md
+COPY sdk/python/README.md /src/sdk/python/README.md
+COPY sdk/typescript/README.md /src/sdk/typescript/README.md
+COPY sdk/rust/README.md /src/sdk/rust/README.md
+COPY extensions/vscode/README.md /src/extensions/vscode/README.md
+COPY extensions/vscode/media/catalog-preview.png extensions/vscode/media/agent-conversation.png extensions/vscode/media/mcp-selection-preview.png extensions/vscode/media/my-tools-installed.png /src/extensions/vscode/media/
+COPY config/local.json config/postgres.json config/production.example.json config/federation-policy.local.json config/federation-policy.production.example.json /src/config/
+COPY LICENSE /src/LICENSE
+RUN --network=none ASTRO_TELEMETRY_DISABLED=1 DOCS_BASE=/docs/ npm run build && \
+    mkdir -p /out/licenses && \
+    cp dist/documentation-bundle.json dist/generated/dependency-inventory.json dist/generated/third-party-notices.txt dist/generated/browser-inventory.json /out/licenses/ && \
+    chmod -R a+rX dist /out/licenses
+
+FROM --platform=$BUILDPLATFORM docker.io/library/node:22.23.4-alpine3.24@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS frontend
+WORKDIR /src/catalog-ui
+COPY catalog-ui/package.json catalog-ui/package-lock.json ./
+RUN npm ci --ignore-scripts --no-audit --no-fund
+COPY LICENSE /src/LICENSE
+COPY catalog-ui/src ./src
+COPY catalog-ui/index.html catalog-ui/tsconfig.json catalog-ui/tsconfig.build.json catalog-ui/vite.config.ts ./
+COPY catalog-ui/scripts/licenses.mjs catalog-ui/scripts/e2e-instrument.mjs ./scripts/
+RUN --network=none npm run build && node scripts/licenses.mjs
+
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-alpine3.24@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS host
+WORKDIR /src
+ENV GOTOOLCHAIN=local
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG SOURCE_STATE=unknown
+ARG TARGETOS
+ARG TARGETARCH
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download && go mod verify && GOBIN=/tools go install github.com/google/go-licenses@v1.6.0
+COPY catalog-ui/cmd ./catalog-ui/cmd
+COPY catalog-ui/internal ./catalog-ui/internal
+COPY api ./api
+COPY internal/jsondoc ./internal/jsondoc
+COPY internal/safeerr ./internal/safeerr
+COPY internal/platform/buildinfo ./internal/platform/buildinfo
+COPY internal/platform/diagnostics ./internal/platform/diagnostics
+COPY internal/platform/id ./internal/platform/id
+COPY internal/platform/processinfo ./internal/platform/processinfo
+COPY LICENSE ./LICENSE
+RUN --network=none --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p /out/licenses/project /out/licenses/go && \
+    cp LICENSE /out/licenses/project/LICENSE && cp /usr/local/go/LICENSE /out/licenses/go/LICENSE && \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} /tools/go-licenses save \
+    --ignore github.com/open-agentic-catalog/open-agentic-catalog --save_path /out/licenses/dependencies ./catalog-ui/cmd/catalog-ui && \
+    CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -mod=readonly -trimpath -buildvcs=false \
+    -tags=netgo,osusergo -ldflags="-s -w -buildid= -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.sourceState=${SOURCE_STATE}" -o /out/catalog-ui ./catalog-ui/cmd/catalog-ui && \
+    chmod -R a+rX /out/licenses
+
+FROM scratch AS runtime
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG SOURCE_STATE=unknown
+LABEL org.opencontainers.image.title="Open Agentic Catalog UI" \
+      org.opencontainers.image.source="https://github.com/open-agentic-catalog/open-agentic-catalog" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${COMMIT}" \
+      io.open-agentic-catalog.source-state="${SOURCE_STATE}" \
+      org.opencontainers.image.licenses="Apache-2.0"
+COPY --from=host --chmod=0555 /out/catalog-ui /usr/local/bin/catalog-ui
+COPY --from=host /out/licenses/ /licenses/
+COPY --from=frontend /out/licenses/ /licenses/frontend/
+COPY --from=frontend /src/catalog-ui/dist/ /app/assets/
+COPY --from=documentation /src/documentation/dist/ /app/assets/docs/
+COPY --from=documentation /out/licenses/ /licenses/documentation/
+USER 65532:65532
+EXPOSE 8080
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/usr/local/bin/catalog-ui"]
+CMD ["--config", "/config/config.json"]

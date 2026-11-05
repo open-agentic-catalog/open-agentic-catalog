@@ -1,0 +1,43 @@
+# Install this separate release explicitly; the application chart never installs it.
+enabled: false
+target:
+  # Empty means this monitoring release's namespace. Cross-namespace discovery
+  # creates only a Pod-reader Role/RoleBinding in the selected target namespace.
+  namespace: ""
+  release: ""
+  # Stable unique installation identifier used by the shared dashboard.
+  deploymentLabel: ""
+# Existing Secret and claim names accept Kubernetes DNS subdomain names.
+imagePullSecrets: []
+# Prometheus's image USER is named, so Kubernetes needs a numeric non-root ID.
+# Set all three to null for admission-assigned identities such as OpenShift.
+podSecurityContext:
+  runAsUser: 65534
+  runAsGroup: 65534
+  fsGroup: 65534
+prometheus:
+  # Empty selects the digest pin packaged from deployments/monitoring/images.json.
+  image: ""
+  scrapeIntervalSeconds: 10
+  scrapeTimeoutSeconds: 4
+  retentionTime: 24h
+  retentionSize: 512MB
+  storage:
+    # Claims are provisioned and deleted separately; this chart never owns a PVC.
+    existingClaim: ""
+    emptyDirSizeLimit: 1Gi
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}
+grafana:
+  image: ""
+  adminSecret:
+    name: ""
+    userKey: admin-user
+    passwordKey: admin-password
+  storage:
+    existingClaim: ""
+    emptyDirSizeLimit: 256Mi
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: "1", memory: 512Mi}

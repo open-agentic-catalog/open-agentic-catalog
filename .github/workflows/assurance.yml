@@ -1,0 +1,244 @@
+name: Focused assertion assurance
+
+on:
+  workflow_dispatch:
+    inputs:
+      upload_artifacts:
+        description: Upload selected reports only when the maintainer explicitly enables it
+        type: boolean
+        default: false
+      suite:
+        description: Select one maintained assertion-strength boundary
+        type: choice
+        required: true
+        default: go-properties
+        options:
+          - go-properties
+          - go-fuzz
+          - go-mutation
+          - formal
+          - ui-properties
+          - ui-mutation
+      mutation_package:
+        description: Reviewed Go mutation package; ignored for other suites
+        type: choice
+        required: true
+        default: ./internal/jsondoc
+        options:
+          - ./internal/publication
+          - ./internal/platform/config
+          - ./catalog-ui/internal/web
+          - ./internal/webhook
+          - ./internal/audit
+          - ./internal/adapter
+          - ./internal/catalog
+          - ./internal/platform/httpserver
+          - ./internal/platform/fetcher
+          - ./internal/platform/authn
+          - ./internal/jsondoc
+          - ./internal/identity
+          - ./internal/platform/idempotency
+
+permissions:
+  contents: read
+
+concurrency:
+  group: assurance-${{ github.workflow }}-${{ github.ref }}-${{ inputs.suite }}-${{ inputs.mutation_package }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  CATALOG_ENV_FILE: /dev/null
+  DEV_PYTHON: python3.12
+  PYTHONDONTWRITEBYTECODE: '1'
+  PYTHONOPTIMIZE: '0'
+  GOTELEMETRY: 'off'
+  GOMAXPROCS: '2'
+  GOFLAGS: -mod=readonly
+  GOWORK: 'off'
+  ASTRO_TELEMETRY_DISABLED: '1'
+  NPM_CONFIG_AUDIT: 'false'
+
+jobs:
+  assurance:
+    name: ${{ inputs.suite }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      SUITE: ${{ inputs.suite }}
+      MUTATION_PACKAGE: ${{ inputs.mutation_package }}
+      REPORT_DIRECTORY: output/ci/${{ github.run_id }}-${{ github.run_attempt }}/assurance/${{ inputs.suite }}
+    steps:
+      - name: Check out complete source
+        id: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check fixed selection and runner capacity
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            go-properties|go-fuzz|go-mutation) profile=unit ;;
+            formal) profile=formal ;;
+            ui-properties|ui-mutation) profile=ui ;;
+            *) printf '%s\n' 'Unsupported fixed assurance suite.' >&2; exit 2 ;;
+          esac
+          if [[ "$SUITE" == go-mutation ]]; then
+            case "$MUTATION_PACKAGE" in
+              ./internal/publication|./internal/platform/config|./catalog-ui/internal/web|./internal/webhook|./internal/audit|./internal/adapter|./internal/catalog) ;;
+              ./internal/platform/httpserver|./internal/platform/fetcher|./internal/platform/authn|./internal/jsondoc|./internal/identity|./internal/platform/idempotency) ;;
+              *) printf '%s\n' 'Unsupported reviewed mutation package.' >&2; exit 2 ;;
+            esac
+          fi
+          python3.12 -B test/ci/tools.py preflight --profile "$profile"
+          printf 'CI_TOOL_PROFILE=%s\n' "$profile" >> "$GITHUB_ENV"
+      - name: Install only the selected system tool profile
+        run: python3.12 -B test/ci/tools.py install --profile "$CI_TOOL_PROFILE"
+      - name: Install locked Python development tools
+        run: make dev-tools-install
+      - name: Install locked UI packages without browser acquisition
+        if: inputs.suite == 'ui-properties' || inputs.suite == 'ui-mutation'
+        run: make ui-install
+      - name: Install the pinned formal verifier and solver
+        if: inputs.suite == 'formal'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: make formal-tools-install
+      - name: Run the selected assertion boundary
+        id: measurement
+        run: |
+          set -euo pipefail
+          case "$SUITE" in
+            go-properties) make test-property PROPERTY_CHECKS=1000 PROPERTY_SEED=1 ;;
+            go-fuzz) make test-fuzz FUZZ_TIME=10s ;;
+            go-mutation) make test-mutation MUTATION_PACKAGE="$MUTATION_PACKAGE" ;;
+            formal) make test-formal ;;
+            ui-properties) UI_PROPERTY_RUNS=1000 UI_PROPERTY_SEED=42 make ui-test-property ;;
+            ui-mutation) make ui-test-mutation ;;
+            *) printf '%s\n' 'Unsupported fixed assurance suite.' >&2; exit 2 ;;
+          esac
+      - name: Reduce mutation evidence to counts and source identity
+        if: >-
+          !cancelled() && steps.measurement.outcome == 'success' &&
+          (inputs.suite == 'go-mutation' || inputs.suite == 'ui-mutation')
+        run: |
+          set -euo pipefail
+          python3.12 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          suite = os.environ['SUITE']
+          root = Path('output/mutation' if suite == 'go-mutation' else 'output/ui-mutation')
+          reports = list(root.glob('run-*/report.json'))
+          if len(reports) != 1 or reports[0].is_symlink() or reports[0].stat().st_size > 8 << 20:
+              raise SystemExit('Missing, ambiguous or oversized mutation report')
+          report = json.loads(reports[0].read_text())
+          fields = ('complete', 'package', 'sourceIdentity', 'counts', 'limits') if suite == 'go-mutation' else ('status', 'node', 'source', 'summary')
+          reduced = {name: report[name] for name in fields}
+          destination = Path(os.environ['REPORT_DIRECTORY'])
+          destination.mkdir(parents=True, exist_ok=True)
+          (destination / 'mutation-summary.json').write_text(json.dumps(reduced, indent=2) + '\n')
+          print(json.dumps(reduced))
+          PY
+      - name: Preserve new synthetic fuzz counterexamples after a failure
+        if: >-
+          !cancelled() && inputs.suite == 'go-fuzz' &&
+          steps.measurement.outcome == 'failure'
+        run: |
+          set -euo pipefail
+          python3.12 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          roots = ('cmd/catalogctl', 'internal/artwork', 'internal/jsondoc',
+                   'internal/platform/cliauth', 'internal/audit', 'internal/catalog',
+                   'internal/identity', 'internal/platform/httpserver',
+                   'internal/platform/fetcher', 'internal/adapter',
+                   'internal/publication', 'internal/standards/anstrust',
+                   'internal/standards', 'internal/federation')
+          paths = subprocess.run(['git', 'ls-files', '--others', '--exclude-standard', '-z'],
+                                 check=True, capture_output=True, timeout=30).stdout.split(b'\0')
+          destination = Path(os.environ['REPORT_DIRECTORY']) / 'fuzz-corpus'
+          total = 0
+          for name in filter(None, paths):
+              source = Path(os.fsdecode(name))
+              relative = source.as_posix()
+              if not any(relative.startswith(root + '/testdata/fuzz/') for root in roots):
+                  continue
+              if (source.is_symlink() or any(parent.is_symlink() for parent in source.parents)
+                      or not re.fullmatch(r'[0-9a-f]{16,64}', source.name)
+                      or not source.is_file() or source.stat().st_size > 1 << 20):
+                  raise SystemExit('Unexpected fuzz counterexample file')
+              data = source.read_bytes()
+              total += len(data)
+              if not data.startswith(b'go test fuzz v1\n') or total > 16 << 20:
+                  raise SystemExit('Unexpected or excessive fuzz counterexamples')
+              target = destination / source
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_bytes(data)
+          PY
+      - name: Reject unexpected source changes
+        if: always() && steps.checkout.outcome == 'success'
+        run: |
+          set -euo pipefail
+          git diff --quiet -- || { printf '%s\n' 'Unexpected unstaged source changes.' >&2; exit 1; }
+          git diff --cached --quiet -- || { printf '%s\n' 'Unexpected staged source changes.' >&2; exit 1; }
+          test -z "$(git ls-files --others --exclude-standard)" || { printf '%s\n' 'Unexpected non-ignored files; failed fuzzing can retain new counterexamples.' >&2; exit 1; }
+      - name: Summarize only the selected assurance boundary
+        if: always() && steps.checkout.outcome == 'success'
+        env:
+          MEASUREMENT_OUTCOME: ${{ steps.measurement.outcome || 'not_run' }}
+          STATUS_AT_SUMMARY: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$REPORT_DIRECTORY"
+          {
+            printf 'Checkout: %s\nSuite: %s\n' "$(git rev-parse HEAD)" "$SUITE"
+            printf 'Status at summary: %s\nSelected measurement: %s\n' "$STATUS_AT_SUMMARY" "$MEASUREMENT_OUTCOME"
+            printf '%s\n' 'This report covers the selected suite. Check the final job result after artifact upload.'
+            case "$SUITE" in
+              go-properties)
+                printf '%s\n' 'Rapid uses the existing six-package selection, 1000 checks per property and seed 1.'
+                ;;
+              go-fuzz)
+                printf '%s\n' 'Each maintained fuzz target gets 10 seconds, with two workers.'
+                printf '%s\n' 'Failed synthetic counterexamples are retained when available.'
+                ;;
+              go-mutation)
+                printf 'Reviewed package: %s\n' "$MUTATION_PACKAGE"
+                printf '%s\n' 'Success means a complete baseline/inventory/execution measurement.'
+                printf '%s\n' 'It does not mean zero survivors or timeouts; inspect the reduced counts.'
+                ;;
+              formal)
+                printf '%s\n' 'One source-bound Job arithmetic proof, three diagnostic controls and four tool calibrations.'
+                printf '%s\n' 'This is not whole-service verification or coverage.'
+                ;;
+              ui-properties)
+                printf '%s\n' 'Isolated JSON display properties: 1000 cases with seed 42. No browser, API or database fixture.'
+                ;;
+              ui-mutation)
+                printf '%s\n' 'Two UI helpers use the existing bounded Stryker workflow and reviewed survivor dispositions.'
+                printf '%s\n' 'This is not whole-UI mutation coverage.'
+                ;;
+            esac
+            printf '%s\n' 'Cancellation can interrupt owned cleanup. Failed, skipped or incomplete work is not a pass.'
+          } > "$REPORT_DIRECTORY/summary.txt"
+          cat "$REPORT_DIRECTORY/summary.txt" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain only safe reports and synthetic fuzz counterexamples
+        if: ${{ (always() && steps.checkout.outcome == 'success') && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: assurance-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.suite }}
+          retention-days: 7
+          if-no-files-found: warn
+          path: |
+            ${{ env.REPORT_DIRECTORY }}/summary.txt
+            ${{ env.REPORT_DIRECTORY }}/mutation-summary.json
+            ${{ env.REPORT_DIRECTORY }}/fuzz-corpus/**
+            output/property/run-*/report.json
+            output/formal/run-*/report.json

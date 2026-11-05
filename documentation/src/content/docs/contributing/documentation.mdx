@@ -1,0 +1,408 @@
+---
+title: Build and maintain this documentation
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+The reader manual and its Starlight project live in `documentation/`. Edit ordinary pages in `documentation/src/content/docs/`.
+
+The documentation Node/npm toolchain builds only the manual. Backend Go builds and images do not depend on it. The optional UI image builds and packages the manual in a separate stage. Ordinary Go and frontend tests need no manual build. Serve the built documentation as static files; it needs no Node server.
+
+## Install, build and preview locally
+
+Use Node 22.23.4, pinned in `documentation/.nvmrc`, with npm 10.9.9. The supported range is Node 22.19+ within major 22. Undici requires at least Node 22.19.
+
+If you use nvm, run `nvm install` inside `documentation/`. Run `nvm use` in the same directory. Otherwise, select that Node version through your usual tooling. Return to the repository root:
+
+```sh
+make docs-install
+```
+
+`docs-install` runs locked `npm ci` and can access the npm registry. `docs-build` uses installed local packages and repository inputs. It does not install tools or fetch remote schemas. Missing dependencies fail the command; run the install target explicitly.
+
+Choose one hosting path below for an independent preview. Build and preview with the same non-secret `DOCS_BASE`. Stop your previous preview with Ctrl-C before rebuilding or changing the base. Preview serves existing output; it does not rebuild when you select a tab or edit a source.
+
+<Tabs>
+<TabItem label="Site root">
+
+Build and preview at the default `/` base. If your environment sets `DOCS_BASE`, pass `DOCS_BASE=/` to both commands:
+
+```sh
+make docs-build
+make docs-preview
+```
+
+Visit `http://127.0.0.1:4321/`.
+
+</TabItem>
+<TabItem label="Subpath">
+
+Build and preview under `/catalog/`:
+
+```sh
+make docs-build DOCS_BASE=/catalog/
+make docs-preview DOCS_BASE=/catalog/
+```
+
+Visit `http://127.0.0.1:4321/catalog/`.
+
+</TabItem>
+</Tabs>
+
+Valid bases are `/` or slash-delimited alphanumeric, hyphen and underscore segments. The build uses no hardcoded GitHub Pages domain or repository path. It rebuilds root-relative assets and local Pagefind search for the selected base.
+
+Stop the preview with Ctrl-C. Preview does not run the Catalog or publish the site. Git ignores `documentation/dist/`, npm dependencies and generated projections.
+
+Open the preview through HTTP; `file://` browsing is not supported. GitHub Actions includes a [manually run documentation check](testing.md#github-actions). This repository does not configure publication to a separate documentation website. The optional UI image serves the bundled manual at `/docs/`. Analytics and versioned archives are not configured.
+
+## Export the complete manual to PDF
+
+Install the documentation packages and their matching headless browser explicitly:
+
+```sh
+make docs-install
+make docs-pdf-browser-install
+```
+
+The second command downloads Chromium Headless Shell into `.tools/documentation-pdf/`. It requires the browser's operating-system libraries. It does not install system packages.
+
+Build the manual, then export it:
+
+```sh
+make docs-build
+make docs-pdf
+```
+
+The PDF is `output/documentation-pdf/catalog-manual.pdf`. Export reads the completed `documentation/dist/` build without changing it. It supports the build's root or non-root base. It needs no UI installation, Catalog process, database or identity provider. After package and browser acquisition, rendering uses only local inputs.
+
+The exporter follows sidebar order and checks coverage against the content map and OpenAPI operations. It includes generated API pages, all tab alternatives and collapsed content. Code prints as wrapped monospaced text. Contents, bookmarks and cross-page links identify the combined chapters. Download references identify files in the HTML manual; the PDF does not embed downloadable contracts or archives.
+
+Export uses a private loopback asset server and an owned browser. Navigation has a two-minute limit. Printing has a ten-minute limit; the overall export limit is fifteen minutes. Press Ctrl-C to cancel. Failure or cancellation preserves the previous PDF and closes the owned server and browser. Correct the reported problem, rebuild changed inputs, then run the export again.
+
+Each successful render writes a separate JSON report beside the PDF. It records input and output hashes, chapter routes, tool versions, browser identity and cleanup. A report establishes successful rendering, not visual qualification. Inspect the PDF after changing print layout, content components or the renderer. PDF bytes can differ between runs and operating systems.
+
+The PDF includes the built manual's license and third-party notices. Playwright and its core package use Apache License 2.0. Browser binaries and installed fonts have separate terms. Keep their notices with any redistributed tools or fonts. Browser executables remain local tools; they do not enter the site or application images. The current export is qualified on Linux with the pinned headless browser. Font substitution can change pagination. Chromium creates structure tags for the bookmarks. These tags do not establish PDF accessibility compliance.
+
+Ordinary site builds and checks do not install or launch this browser. Run `make test-docs-pdf` explicitly for real PDF regression tests. It also requires `pdftotext`, `pdfinfo` and `mutool`. Pure transformation tests run with the normal documentation units. Exports and reports remain ignored local artifacts. External publication remains maintainer-owned.
+
+`make clean` removes the PDF browser cache and default export directory. `make clean-output` removes the default export directory without removing the browser. Stop exports before cleanup.
+
+## Prepare the public website and PDF
+
+The selected public address is `https://open-agentic-catalog.github.io/open-agentic-catalog/`. Ordinary builds and the UI's `/docs/` manual keep their existing bases.
+
+Install documentation packages and the PDF browser as described above. Run source and site checks before the final build:
+
+```sh
+make docs-check
+make docs-site-check
+export DOCS_SITE=https://open-agentic-catalog.github.io
+export DOCS_BASE=/open-agentic-catalog/
+export DOCS_EDITION_COMMIT="$(git rev-parse HEAD)"
+export DOCS_DELIVERY_OUTPUT=output/documentation-delivery/review-1
+make docs-build
+make docs-delivery
+```
+
+Select a new output directory for each preparation. The homepage displays the application version, full source revision and PDF download. Delivery copies the sealed build and its matching PDF into the selected directory. A separate `documentation-delivery.json` inventories the final tree. The original bundle stays unchanged. Ordinary files retain their 32 MiB limit; only the complete PDF permits up to 128 MiB. Total delivery permits 384 MiB.
+
+Preparation uses local files after tool acquisition. It does not upload or publish. It verifies the PDF against the exported build and checks the selected website address and base. Changed inputs require a new build and export. Failure prevents an incomplete edition from replacing a delivered edition. Correct the failure and prepare a new directory.
+
+The maintainer enables GitHub Pages with the Actions source and restricts the `github-pages` environment to `main`. The Pages workflow prepares editions on `main` and manual dispatch. Deployment requires `deploy=true`, or `PAGES_ENABLED=true` for a push to `main`. Pull requests cannot deploy. Only the separate deployment job receives Pages and identity-token permissions. Hosted delivery requires maintainer verification; local preparation does not prove GitHub settings.
+
+`make clean-output` removes these delivery directories. Stop active builds and exports before cleanup.
+
+## How the manual is built
+
+`make docs-build` runs these steps through the documentation project's locked npm scripts:
+
+1. Validate the content map and prepare registered reference pages, exact downloads, dependency inventories and license notices.
+2. Render the pages with Astro, Starlight and the local OpenAPI contract. Create the local Pagefind search index.
+3. Write `documentation-bundle.json` from the final output. Record the hosting base, each file's size and SHA-256, and exact inline script and style hashes.
+
+The output is `documentation/dist/`. Do not edit generated pages or the bundle manifest. Edit the owning source and rebuild. The [source ownership table](#one-editable-source-per-topic) identifies those sources.
+
+The manual contains registered reader pages and explicitly selected public downloads. Task trackers, engineering records, runtime credentials and browser sessions are not build inputs. A standalone static host needs only `documentation/dist/`; it needs no Catalog API or Node runtime.
+
+## Read the manual through the UI
+
+The UI image packages the manual automatically. Open **Help > Documentation** to read it at `/docs/`. This route stays at the origin root when the UI uses another base path. The manual is public and does not require sign-in.
+
+### Packaged UI
+
+`catalog-ui/Containerfile` installs the locked documentation packages in a separate build stage. It renders the manual with network access disabled and `DOCS_BASE=/docs/`. The final image includes static output and license notices, without Node, npm or an Astro server. Backend images remain independent.
+
+Build and inspect the UI image from the repository root:
+
+```sh
+make ui-container-build
+make ui-container-inspect
+```
+
+These commands do not replace a running container. Follow the existing [Compose or Helm deployment procedure](../operations/maintenance.mdx#coordinated-release-deployment) to run the new image. Rebuild and redeploy after documentation changes; `make docs-build` alone does not update a running UI image.
+
+Image inspection checks every file and the notices against the selected image's bundle manifest. See [UI image delivery](./build-and-release.md#optional-ui-image) for caching, browser security policy, inventories and verification targets.
+
+### Source development
+
+Install the separate UI and documentation packages with `make ui-install` and `make docs-install`. Start the [local API](../guides/local-development.mdx#start-the-service) before the UI. Stop an existing UI on port 4180 before this launch:
+
+```sh
+make docs-build DOCS_BASE=/docs/
+make ui-dev UI_DOCUMENTATION_DIRECTORY="$PWD/documentation/dist"
+```
+
+`ui-dev` builds the React assets and Go host. The launcher checks and copies the prepared manual into temporary UI assets. It leaves `documentation/dist/` unchanged and removes its temporary files when it stops. Rebuild the manual and restart `ui-dev` after documentation changes.
+
+Without a prepared manual or explicit URL, ordinary source runs omit the Documentation link. Ordinary source tests do not require a manual build. For a separately hosted site, use the optional [HTTPS documentation override](../reference/configuration.mdx#ui-documentation).
+
+## One editable source per topic
+
+| Content | Edit here |
+| --- | --- |
+| Guides, reference prose and operator procedures | `documentation/src/content/docs/`. |
+| Architecture and accepted decisions | `documentation/src/content/docs/architecture/` and its `decisions/` directory. Root `DESIGN.md` is a compact entry point; the detailed design is authored in the manual, not projected from the root. |
+| HTTP contract and examples | `api/openapi/control-v1.yaml` and `api/`; the pinned OpenAPI plugin renders the actual contract read-only. |
+| SDK overview and language guides | `sdk/README.md`, `sdk/go/README.md`, `sdk/python/README.md`, `sdk/typescript/README.md` and `sdk/rust/README.md`; the content map publishes them under `sdk/`. Shared examples remain in the [client integration guide](../guides/integrating.mdx). |
+| LangGraph discovery example | `examples/langgraph/README.md`, beside the Python client example and its independent lock. The content map publishes this guide without copying its framework dependencies into the site. Test guidance belongs in [Tests and quality checks](testing.md#optional-langgraph-discovery-example). |
+| VS Code consumer guide and screenshots | `extensions/vscode/README.md` and its four reviewed PNGs under `extensions/vscode/media/`; the same sources supply offline extension Help and the published guide. Developer setup belongs in [Build and release](build-and-release.md#optional-vs-code-package); verification guidance belongs in [Tests and quality checks](testing.md#optional-vs-code-extension). |
+| Pinned standards, chart and receiver example | Their colocated source files; the site derives reviewed reference pages. |
+| Contribution and security policies | Root `CONTRIBUTING.md` and `SECURITY.md`; setup and test procedures belong in their manual guides. |
+| Repository introduction and contributor setup | Root `README.md` and `DEVELOPING.md`; keep these entry points short and link to the full manual. |
+| Consolidated application context | Root `CONTEXT.md`, a self-contained repository-only overview with source and measurement baselines. Update affected summaries alongside their owning contracts; keep task definitions in the trackers and detailed evidence in engineering records. |
+| Implementation status, backlog, handoff, agent rules and raw verification evidence | Repository only; never copy into the public asset tree or site content. |
+
+`documentation/content-map.json` explicitly maps sources to site routes. Its `omitSections` entries name exact level-two headings excluded from generated pages. Update the map when renaming those headings. The build rejects missing or duplicate excluded headings.
+
+The VS Code guide also ships unchanged as offline extension Help. Keep required settings in that README and give the exact names of relevant manual sections in visible text. Repository-relative links to an unbundled manual do not work inside the installed extension. For a link in the published projection, place a standalone `manual-link:` HTML comment around one Markdown link. The three comments in `extensions/vscode/README.md` show the exact syntax and source-relative paths.
+
+Preparation expands that comment into an ordinary Markdown link. Start its label with an ASCII letter or digit and use at most 160 characters. Letters, digits, spaces and `. , : ; / & ( ) ' -` are permitted. Targets are relative Markdown page paths, at most 1,024 characters, with an optional heading fragment; they must resolve to a registered manual route. External URLs, downloads, private/unregistered files and malformed markers fail preparation.
+
+Normal link rewriting supplies the selected hosting base. Offline Markdown hides the comment; source and packaged README bytes remain identical. Other HTML comments stay unchanged.
+
+Register each new authored page in the content map. Place it exactly once in the appropriate sidebar section in `documentation/astro.config.mjs`. The built-site gate rejects missing or duplicated manual navigation.
+
+| Sidebar section | Reader tasks |
+| --- | --- |
+| Get started | Understand the lifecycle, evaluate locally and look up terms. |
+| Use the Catalog | Browse, author, review and administer resources through the UI; catalog Plugins and submit feedback. |
+| Build integrations | Implement clients and check standards compatibility. |
+| Deploy and operate | Install, configure, monitor, maintain and recover the service; enable optional capabilities. |
+| Architecture | Understand design principles, components, state, runtime boundaries and accepted decisions. |
+| Develop and contribute | Build, test, measure performance and maintain code, dependencies and documentation. |
+| Reference | Look up CLI commands, API conventions, contracts and examples, and generated HTTP endpoint schemas. |
+
+Keep this section order. Expand Get started by default and collapse the other sections. Put procedures before their detailed references and introductory pages before specialized workflows. Keep Reference last. Group CLI reference, API conventions, Contracts and examples, and the nested HTTP API there. HTTP operation groups remain derived from OpenAPI. Put contributor Make workflows under Develop and contribute; the CLI reference preserves forwarding anchors for moved workflows.
+
+Use one subgroup level for authored task groups. The existing Managed container platforms group adds a second level inside Deploy and operate > Install and configure. The generated HTTP API keeps its operation groups inside Reference > HTTP API. Put the decision overview before ADRs, followed by the records in numerical order. Preserve page routes when changing navigation labels, titles or order. Check that every existing page remains linked exactly once, including autogenerated decisions.
+
+Keep each procedure in its owning page. Link to it from overviews instead of maintaining parallel instructions. Do not edit `src/content/docs/generated/` or `public/generated/`. Each build replaces only these owned projections and removes stale pages. Do not add arbitrary public assets.
+
+Technical diagrams are native SVG components in `documentation/src/components/architecture/`. Embed them in the MDX page that owns the architecture or workflow. Keep prose and tables beside the drawing, rather than in a second HTML document. Keep raw measurements and reports under ignored `output/`. Reviewed local notes may live outside the repository. Neither belongs in the content map or search index.
+
+Use Markdown with JSX (MDX) for pages that import components, such as diagrams, Steps, FileTree or Tabs. Add a diagram only when it clarifies a sequence, relationship or boundary; keep its explanation beside the relevant procedure rather than creating a second guide.
+
+Each technical diagram SVG needs a unique title and description, accessible labels and self-contained marker IDs. Register the expected rendered count in `scripts/check.mjs` so a removed import cannot silently remove a diagram. Keep a page's route unchanged when converting its source from Markdown to MDX, and update the content map and repository links.
+
+Give each diagram one reader question. Label the actor, process or stored state when the distinction matters. Check arrows against the owning code and contract. Keep exact limits and exceptions in adjacent tables or captions. Link to an existing diagram when it answers the same question.
+
+SVGs must not contain scripts, event handlers, HTML labels or external assets. Marker and shape references must resolve inside the same drawing. Mermaid is not configured; a Mermaid fence remains code rather than a rendered diagram. Use the existing SVG components without a renderer or browser requirement in the build.
+
+Use MDX comments instead of HTML comments when a comment is necessary. Remove obsolete Markdown lint comments after conversion, and register new component names in the Markdown lint allowlist. Preserve explicit anchor elements and every code example.
+
+The shared stylesheet supports light and dark themes and horizontal scrolling within diagrams on narrow screens. Check all diagrams after changing shared styles.
+
+Use the existing SVG components and shared architecture styles for flows, state transitions and relationships. Use native FileTree for a small package layout. Do not draw diagrams or directory maps with ASCII characters in code blocks. Keep commands, configuration and response examples as copyable code.
+
+The [Starlight code renderer](https://starlight.astro.build/reference/configuration/#expressivecode) preserves shell comments when readers copy examples. Keep `expressiveCode.frames.removeCommentsWhenCopyingTerminalFrames` set to `false` in the site configuration. Removing comment lines can also remove required file content inside a heredoc. Check the clipboard text after changing a code block or its presentation.
+
+A projected Markdown source can use a `<!-- diagram: ComponentName -->` marker with that component listed in its content-map `diagrams` array. The build creates an MDX projection with the matching import, requires each marker exactly once and rejects unregistered markers. Keep explanatory prose beside the marker in the source. The component owns the drawing; do not maintain an ASCII copy of it.
+
+Use real UI screenshots beside the workflow they illustrate, with descriptive alt text, a short caption and a link to the full-size image.
+
+Capture synthetic demo data using a test identity; exclude credentials, session cookies and private customer data. Keep raw browser evidence in ignored `output/playwright/`. Copy reviewed Catalog UI images into `documentation/assets/catalog-ui/` and monitoring images into `documentation/assets/monitoring/`. Keep a repeatable capture procedure in each asset directory's README.
+
+Register those images in the `downloads` allowlist in `scripts/site.mjs`; relative Markdown image links then work at both root and non-root site bases.
+
+Refresh screenshots when the pictured controls or workflow change, and check the rendered page at desktop and mobile widths. Keep instructions in text so screenshots are not the only way to follow a procedure.
+
+Keep Markdown ASCII with one-line paragraphs and one frontmatter `title`, without a duplicate H1. Write ordinary relative links that work from the source file in the repository. The build maps included pages to local site routes. References to code outside the site retain their text without inventing a public repository URL.
+
+Reader procedures must link to published guides or include the necessary instructions; do not send readers to internal trackers or test records. No edit link is configured until a real publication/repository destination is selected.
+
+### Content components
+
+Use built-in Starlight components when they clarify an existing task. Keep the current theme and dependency pins. A component is optional; ordinary prose, lists and comparison tables often suffice.
+
+The build makes manual tables, code blocks and long API paths focusable for keyboard scrolling. Press Tab to focus one, then use the arrow keys. The build preserves source content and copyable examples.
+
+| Component | Use and limits |
+| --- | --- |
+| [Asides](https://starlight.astro.build/components/asides/) | Use a short note or caution with a specific title. Reserve danger for a genuine hazard. Keep required instructions and permissions in the main procedure. |
+| [Steps](https://starlight.astro.build/components/steps/) | Wrap one existing ordered list. Preserve its sequence, commands and stop conditions. Keep headings outside the component. |
+| [FileTree](https://starlight.astro.build/components/file-tree/) | Show one bounded package layout with a nested unordered list. Identify an actual sample or an illustrative layout. Keep required filenames and purposes in adjacent prose: the tree is excluded from search. |
+| [Code labels](https://starlight.astro.build/guides/authoring-content/#expressive-code-features) | Use fence metadata such as `title="plugin.json"` to identify a file, command or partial configuration destination. Keep exact code and copied text. Do not add shell prompts. |
+| [Tabs](https://starlight.astro.build/components/tabs/) | Separate genuine supported alternatives. Keep common prerequisites visible. Do not separate consecutive actors or mandatory steps into tabs. |
+| [Cards and grids](https://starlight.astro.build/components/card-grids/) | Use for a task chooser when one link per card is sufficient. Keep tables that compare state, authority or several destinations. |
+| [Badges](https://starlight.astro.build/components/badges/) and [details](https://starlight.astro.build/guides/authoring-content/#details) | Describe each documented status in visible text. Collapse supplementary explanations only; keep permissions, required steps, safety and unresolved limits visible. |
+
+For a simple aside, use a Markdown directive in either Markdown or MDX:
+
+```markdown
+:::note[Retention is not approval]
+The Catalog can retain invalid content. Independent review and publication checks still apply.
+:::
+```
+
+For Steps, import the native component in an MDX page and wrap one ordered list:
+
+```mdx
+import { Steps } from '@astrojs/starlight/components';
+
+<Steps>
+
+1. Check the prerequisites.
+2. Follow the procedure.
+3. Verify the result.
+
+</Steps>
+```
+
+The [Plugin package example](../guides/agent-plugins.mdx#prepare-a-complete-package) shows FileTree with actual sample paths and a labelled manifest. Do not duplicate a directory diagram or generate a whole repository tree.
+
+The [Docker input tree](../operations/docker.mdx#send-settings-to-docker) shows an illustrative host layout after each file has been introduced. Keep file purposes and required names in searchable prose outside the tree.
+
+Use LinkCards when each choice has one destination, as in [Continue exploring](../architecture/overview.mdx#continue-exploring). Keep the descriptions and use a non-staggered CardGrid to preserve reading order. Keep comparison tables when a row needs several links.
+
+Use a Badge to format an existing status, with its explanation beside it. The [supported formats](../reference/standards.mdx#supported-formats-and-versions) distinguish an experimental format; [capability activation](../reference/configuration.mdx#capability-activation-and-retained-state) identifies unavailable features. Do not repeat the label, badge every optional setting or imply approval, trust or runtime health.
+
+Use `Tabs` with one `TabItem` per supported alternative, as in the [startup chooser](../guides/local-development.mdx#start-the-service). Keep the complete command sequence within its selected tab. Put common prerequisites, permission rules and safety outside the group. Keep established headings outside tabs so existing fragment links reach visible content.
+
+Keep separate choices independent. Omit `syncKey` unless the same labels have the same meaning across every synchronized group. Tabs select instructions; they do not run commands, rebuild output or switch an existing deployment. Do not separate successive actors, migration steps or required verification into tabs.
+
+Use ordinary relative Markdown links for prose. JSX `href` attributes bypass the repository-link transformer. For a local component link, use the hosting base, for example ``href={`${import.meta.env.BASE_URL}guides/concepts/`}``. Check root and subpath output.
+
+After a component change, check its accessible name, keyboard controls, narrow-screen layout and both themes. Verify code copying and search visibility. Keep existing route, anchor, download and diagram checks active. Do not add a component solely to demonstrate it.
+
+Include necessary MDX conversions, content-map updates, incoming links and lint allowances with the owning content change. Extend the existing rendered-site assertions and run the source and site checks before the next content batch.
+
+### Navigation icons
+
+Manual links use decorative SVG icons beside their text. Set `attrs: { 'data-nav-icon': 'name' }` on the page link in `documentation/astro.config.mjs`. Select an existing task family before adding a shape. Autogenerated decisions inherit `document` through their `autogenerate.attrs` setting.
+
+The [Starlight sidebar attributes](https://starlight.astro.build/guides/sidebar/#custom-html-attributes) preserve native labels, links and controls. Keep section headings plain. Generated HTTP API operations retain their method badges.
+
+`src/styles/navigation.css` defines each icon key and its local file in `src/assets/navigation/`. Register the stylesheet through Starlight `customCss`. Keep the masks decorative, approximately 16 pixels wide and aligned with the first line of wrapped text. Inherit link colors for both themes and active states. Hide masks in forced-color mode; the text remains available.
+
+Use the [existing Starlight shapes](https://starlight.astro.build/reference/icons/) where suitable. Preserve copied shape attribution and licenses. Keep local SVG references in the stylesheet; the build bundles them without external requests. Do not add emoji to labels, override the sidebar or insert icons through browser JavaScript.
+
+The site gate checks assigned icons, local shapes, unchanged link names and every manual route. Technical diagrams have separate accessible labels and rendered-count checks. Check navigation at desktop and narrow widths, in both themes, after changes.
+
+## Writing style
+
+Write for someone using, operating or contributing to the project. State what the software does and what the reader needs to do, not who requested a change or how a work session unfolded.
+
+These rules apply to usage, contribution, architecture, development, testing, deployment and operations documentation, including records and trackers. The published manual serves users, developers, architects and operators. Site inclusion determines publication location, not audience or writing standards. Keep useful evidence and chronology in records, but remove conversational history and repetitive session recaps from them too.
+
+### Use Simplified Technical English
+
+Apply [ASD-STE100 Simplified Technical English](https://asd-ste100.org/) principles where practical. The rules below adapt those principles to software documentation. They do not establish full compliance with the standard's controlled dictionary and writing rules.
+
+- Aim for 20 words or fewer in an instruction and 25 in a descriptive sentence. Split a long sentence at a logical boundary.
+- Give one instruction in each sentence. Start a procedural step with a verb. State a prerequisite before the action that needs it.
+- Prefer active voice. Identify who performs an action when responsibility matters. Use simple present, past or future tense where possible.
+- Retain articles such as "a" and "the". Do not omit words that the reader needs to understand a condition or action.
+- Use a simple verb instead of an unnecessary "-ing" construction. Keep established technical terms, such as "listing", "tracing" and "connection pooling".
+- Use the same name for the same concept. Use each term with a consistent meaning. Explain necessary technical terms and acronyms at first use.
+- Avoid noun chains longer than three words. Use a phrase such as "configuration for the API listener" when a noun chain is unclear.
+- Write "do not" for a prohibition. Preserve exact field names, commands, media types, product names and normative terms such as MUST and SHOULD.
+- Keep each paragraph to one topic and six sentences or fewer. Use lists or tables when they make choices, conditions or steps clearer.
+
+Treat sentence lengths as review targets, not an automatic gate. Code, URLs, tables and exact technical names need separate judgment. Do not change a requirement or remove a useful condition to meet a word count.
+
+### Remove unnecessary words
+
+- Remove words and sentences that add no information. Keep prerequisites, limits, failure consequences and security requirements.
+- Remove remarks about the text, such as "as you can see", "this is important" or "this is the interesting part".
+- Replace abstract language with the concrete behavior. For example, write "Clients use ARD to find resources" instead of "ARD provides a discovery projection".
+- Explain the relevant limitation once, beside the behavior it affects. Link to details instead of repeating broad exclusions.
+- Preserve uncertainty. Do not change "the test did not reproduce the failure" into "the failure cannot occur".
+
+### Document behavior, not work history
+
+- Use present tense for current behavior and imperative steps for procedures. Describe planned features as unavailable or deferred; do not imply that a design is implemented.
+- Use descriptive headings such as "Run container tests" or "Known limitations", not "Scope clarification", "Completion recheck" or dated documentation-update headings.
+- Keep conversation history, approval narratives and routine edit journals out of project documents. Git history records ordinary edits.
+- Name a role only when it matters to the instruction: for example, a Tenant Administrator approves a publication domain and the database schema owner runs migrations. Avoid vague attribution such as "the owner confirmed" or "as requested".
+- Keep backlog IDs and work sequencing in the tracker and handoff. Reader pages explain capabilities, requirements and procedures without requiring knowledge of the backlog.
+- Use topic names for links, such as "Database roles", not filenames such as "database-roles.md". Mention filenames when the reader needs to edit, run or validate that file, or when the name is part of a format such as `SKILL.md`.
+- Link standard, tool and reference implementation names where readers need more detail, including names in tables. Prefer official specifications, project documentation or source repositories. Put the link at the relevant name, not only in a source list. Use versioned specifications or pinned sources for exact version claims. Check destinations and redirects. Avoid repeated links that distract from the text.
+- Keep source-location notices and generated-page editing instructions out of reader pages. Explain where contributors edit documentation in this guide, not in a banner on every reference page. Implementation status stays in the repository-only tracking directory and is excluded from site navigation, generated pages and search.
+- Give each topic one maintained source. Link to details instead of repeating implementation summaries, run histories or long lists of exclusions.
+- Preserve concrete limits, prerequisites, security warnings and unresolved defects. Replace general disclaimers with the specific limitation relevant to the task.
+- Omit obvious disclaimers such as "this repository is not a SaaS" or "the chart is not a production environment". State the actionable requirement instead: supply PostgreSQL, configure an issuer or inject the required credentials.
+- Use dates for test measurements, security scans and releases when chronology matters. Ordinary reference and how-to text does not need a date or a "now implemented" narrative.
+- Test records identify the build, environment, command, result and relevant limitation. Separate observations from suspected causes; a later passing run does not explain an earlier failure.
+- Keep dated source comparisons and test results in engineering records. Explain supported behavior and compatibility limits in reader pages. Dates in specification titles identify versions, not editing sessions.
+- Separate specification requirements, Catalog rules and observed client behavior. Link to primary specifications for requirements and pinned profiles for implemented versions. Announcements do not define conformance.
+- ADRs describe current decisions, rationale, alternatives, consequences and limits. Update the owning ADR in place and preserve its identifier and route. Keep amendment journals, supersession chains, obsolete backlog IDs and implementation histories out of ADRs. Git retains edit history. Released API and stored-data compatibility obligations still apply.
+- Apply this style to HTML, diagrams, API descriptions, configuration comments, command help and code comments as well as Markdown. Comments explain behavior or rationale, not the editing session. Preserve protocol names, technical ownership terms, third-party text, generated bindings and immutable migrations.
+
+For example, replace "The owner approved the new testing approach" with "Run the applicable tests against each build." Replace "The latest follow-up now completes the webhook slice" with "Webhooks are disabled by default and deliver signed HTTPS notifications when enabled."
+
+After a rewrite, compare the text with its authoritative source. Confirm that conditions, permissions, required actions and failure consequences retain their meaning. Read the page without relying on the conversation, backlog or previous work sessions.
+
+## Verify a documentation change
+
+```sh
+make check
+make docs-site-check
+```
+
+The separate `lint` command checks maintained `.mjs` tooling, configuration and tests, including new files. It uses installed ESLint 10.12.0, `@eslint/js` 10.0.1 and globals 17.13.0. Recommended correctness rules use Node ES-module globals; they do not format files or check Astro/TypeScript. The command uses explicit configuration and disables inline overrides, caching and fixes. It does not modify source files. Installed packages, `.astro/`, `dist/` and generated content are excluded.
+
+A missing local executable fails without a global fallback or download; run `make docs-install` explicitly. The site gate includes lint once; native unit tests and `docs-check` stay independent. Use `npm --prefix documentation run lint` for focused source iteration.
+
+`check:astro` runs the installed Astro CLI with `@astrojs/check` 0.9.10 and TypeScript 5.9.3.
+
+The strict `tsconfig.json` includes authored `src/**/*.astro`, `src/**/*.ts` and generated `.astro/types.d.ts`; dependency files, build output and generated manual pages are outside the diagnostic source scope. Astro sync generates the required types before checking. Errors and warnings fail; hints remain visible.
+
+The launcher checks local prerequisites before invoking Astro, disables telemetry and installation prompts, and enforces a two-minute bound. Missing tools or configuration fail with no fallback to broader source discovery. Run `make docs-install` explicitly after changing locks.
+
+Diagnostics may update `.astro/` but do not rewrite authored source or build the site; native unit tests and `docs-check` stay independent. Use `npm --prefix documentation run check:astro` for focused diagnostics; the site gate includes this command before tests and builds.
+
+`check` includes `docs-check`; use `docs-check` alone for focused Markdown/link iteration. Repository-only context, handoff, tracker or skill changes require the source gate; reader-site content or tooling changes also require the site gate.
+
+The site gate runs JavaScript lint and Astro diagnostics first. It then runs Node tests and builds root and non-root output. It checks local routes, anchors, assets, operation coverage, downloads and inclusion boundaries. It leaves a root-path build ready for preview.
+
+Repository audits inspect authored Markdown, MDX, configuration, role, ADR and contract sources. They remain independent of Node. Generated output, npm dependencies and caches are the only documentation-specific exclusions.
+
+`make check` and `make verify` do not invoke `docs-site-check`; run it explicitly when changing site content or tooling. Preview serves existing output without rebuilding or watching source changes, so rebuild after edits and use the same `DOCS_BASE` for build and preview.
+
+After navigation, theme, search or dependency changes, preview the built output in a browser. Check keyboard skip/search/menu controls, code blocks, long tables, narrow-screen navigation and local Pagefind results for API and operator terms. Inspect console/network errors and confirm no third-party request is required. Test a non-root build too. Browser checks supplement static checks and do not require a new testing framework. Follow changed operator procedures in an owned disposable environment.
+
+## Dependencies and distributed assets
+
+ESLint, its recommended JS configuration and globals package are exact pinned MIT-licensed development dependencies. Their added lockfile entries declare MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC or BlueOak-1.0.0. They execute locally and are not browser assets.
+
+The existing generated dependency inventory and notices include their installed license texts; source lint does not introduce a runtime dependency on the UI or API-validation project.
+
+Astro diagnostics independently pin MIT-licensed `@astrojs/check` 0.9.10 and Apache-2.0-licensed TypeScript 5.9.3 as development dependencies. Their locked dependencies include language-server 2.17.2, Astro-to-TSX conversion and language-service helpers, with MIT, ISC and Apache-2.0 license metadata.
+
+Transitive formatter support is part of the language service; diagnostics do not run a formatter or introduce a formatting gate. These tools and their notices belong to the documentation project, not the service or product UI.
+
+Astro 7.3.8, Starlight 0.42.6 and starlight-openapi 0.27.0 are exact pinned MIT-licensed tools. `package-lock.json` fixes all direct and transitive dependency versions.
+
+A narrow `form-data` 4.0.6 override fixes the upstream snippet helper's vulnerable 4.0.5 dependency; review and remove that override when the upstream dependency is corrected. No request console is enabled.
+
+The schema check rejects every non-fragment OpenAPI `$ref` before the plugin can resolve it. The pinned unified Markdown processor preserves repository-compatible Markdown and link rewriting. A small tested build hook disambiguates the plugin's repeated response-header anchors before Pagefind indexing; no dependency source is patched.
+
+Run `npm outdated` inside `documentation/`. Select versions deliberately. Inspect the updated lockfile. Run all source, site and browser gates. Registry audits, including `npm audit`, submit the dependency inventory externally and remain maintainer-only. Agents use local scans and leave registry audits unrun.
+
+Check the [documentation dependency review](../reference/dependencies.md#selected-documentation-tooling) for known findings and scan limits. A successful site build is not a clean security scan. Do not run an automatic force upgrade.
+
+The generated `generated/third-party-notices.txt` includes installed package license texts and `generated/dependency-inventory.json` records every lockfile package, including optional platform inputs.
+
+Not all npm dependencies use permissive licenses: Sharp/libvips platform binaries include LGPL-3.0-or-later and Lightning CSS is MPL-2.0. These are upstream build-only tools, not browser assets or Catalog release inputs; do not redistribute npm dependencies as part of the site. The remaining reviewed metadata includes MIT, Apache-2.0, BSD, ISC, 0BSD, CC0, BlueOak and Python-2.0 terms. The npm gate is separate from and does not relax the Go license allowlist.
+
+No external fonts, analytics or content delivery network (CDN) assets are configured. Search assets are bundled locally by Pagefind. Project source uses [Apache License 2.0](../../../../../LICENSE). Third-party licenses remain their own.

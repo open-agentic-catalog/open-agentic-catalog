@@ -1,0 +1,26 @@
+fullnameOverride: catalog-0000000000000000000000000000000000000000000000000000000
+
+image:
+  digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+imagePullSecrets:
+  - name: catalog-registry
+
+serviceAccounts:
+  api:
+    create: false
+    name: catalog-api
+  worker:
+    create: false
+    name: catalog-worker
+  migration:
+    create: false
+    name: catalog-migration
+
+api:
+  podDisruptionBudget:
+    enabled: false
+
+configEnv:
+  CATALOG_AUTH_TENANCY_MODE: shared
+  CATALOG_AUTH_ORGANIZATION_CLAIM: organization_id

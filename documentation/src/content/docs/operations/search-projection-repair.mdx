@@ -1,0 +1,68 @@
+---
+title: "Indexed search projection repair"
+---
+
+import { Steps } from "@astrojs/starlight/components";
+
+Indexed search uses derived fields built from retained normalized observation bytes. This repair rebuilds missing or outdated fields without fetching source data. Current projections use Unicode letters and numbers with PostgreSQL Unicode collation. Their tokenization and display-name normalization match the Go search scorer and cursor. Current vectors use version 2; retained version-1 vectors require repair. Migrations do not run an unbounded backfill.
+
+Optional declaration filters have a separate version marker. Migration 000039 marks retained observations for the same bounded repair. Fresh observations receive the current marker at insertion.
+
+Repair reads retained PostgreSQL bytes and makes no network requests. It preserves observation identity, raw and normalized bytes, digests, compatibility, freshness, occurrence history and outbox history. Each non-empty batch commits one audit-only record; an empty batch creates none. The command applies directly and has no list, plan or dry-run mode. Each transaction updates one tenant and at most 1,000 rows.
+
+Each repaired row advances the tenant search generation. The audit generation delta therefore equals the processed count, and existing local and unified search cursors become stale. A sparse tenant-and-ID index selects incomplete or outdated projections. After each update, an indexed `LIMIT 1` probe reports `hasMore` and `complete`. It does not count all remaining rows.
+
+## License and category declarations
+
+The derived license uses the exact string at `metadata.license` in the retained normalized entry. It must be nonempty and contain at most 256 Unicode code points. Matching preserves its case and spaces. Native Skill or Plugin license fields and local presentation overrides do not supply this declaration.
+
+Categories use literal values at `unknownProperties["http://purl.org/dc/terms/subject"]`. Ingestion expands supported aliases to this IRI. A declaration contains one string or at most 16 strings, each no longer than 80 Unicode code points. The projector checks these limits before trimming, lowercasing and removing duplicates. It preserves spaces inside each label. IRI references, reverse properties and JSON-LD value objects do not supply literal labels.
+
+Each dimension can be unavailable independently. Missing, malformed or oversized evidence does not exclude an unfiltered observation. The projector does not truncate a declaration or convert numbers and booleans to strings. A retained empty topic array is known-empty; an absent or unusable topic declaration is unavailable. Neither satisfies a selected category.
+
+Indexed repositories apply these predicates before totals, ranking, identity grouping and page selection. Conflict evidence still covers the complete eligible identity. Local published resources retain precedence when the local origin is selected, even when their Listing does not match the declaration. Indexed-only Search and exact indexed bookmarks retain the external counterpart. Control Search and browser license/category filters apply across selected origins. Control Explore and namespace filters remain local-only.
+
+## Authority and prerequisites
+
+Apply current migrations and [exact runtime grants](database-roles.md) before repair. Use the current build and operator-controlled schema-owner DSN. PostgreSQL 18 with UTF8 encoding is required. Generated local search fields and indexed ranking vectors need no separate repair.
+
+The command verifies the exact valid sparse index and rejects API and worker database roles. It requires an explicit tenant UUID, applies tenant RLS context, and accepts limits from 1 through 1,000. Drain API and worker processes before this upgrade. Keep them stopped while repairing every tenant, then restart matching upgraded processes. Keep restored runtimes stopped during isolated recovery too. Search returns `DEPENDENCY_UNAVAILABLE` when a tenant has missing or outdated projections; it does not silently omit results.
+
+Unsupported, structurally invalid or non-normalizable upstream entries can legitimately lack a normalized projection. They remain source evidence rather than indexed results. Missing required bytes or occurrence provenance is an integrity failure. Do not replace that evidence by fetching the current upstream source.
+
+## Workflow
+
+<Steps>
+
+1. Review the migration plan and apply the forward migration through the normal operator path.
+
+    ```sh
+    make migrate-plan
+    make migrate-apply
+    ```
+
+1. Run one bounded batch for exactly one tenant. The maintained wrapper uses `CATALOG_MIGRATION_DATABASE_DSN`; `SEARCH_PROJECTION_REPAIR_LIMIT` defaults to 500, `REPAIR_REASON` is required, and `SEARCH_PROJECTION_REPAIR_OPERATOR_LABEL` is an optional correlation label.
+
+    ```sh
+    make repair-search-projections REPAIR_TENANT_ID=00000000-0000-7000-8000-000000000001 REPAIR_REASON='Rebuild derived search fields after migration' SEARCH_PROJECTION_REPAIR_LIMIT=500
+    ```
+
+    The equivalent direct command is:
+
+    ```sh
+    catalogctl repair search-projections --config config/postgres.json --tenant 00000000-0000-7000-8000-000000000001 --reason "Rebuild derived search fields after migration" --limit 500
+    ```
+
+1. Review the JSON result. `processed` counts rows rebuilt in this transaction. `hasMore` reports whether the bounded indexed probe found another repairable row; `complete` is its inverse. The command does not count the entire remaining set. A tenant with no discovery-affecting writes completes with zero generations and no new generation row or audit entry.
+1. Repeat the bounded command until `complete` is true. Repeat for every deployment tenant. Concurrent invocations use `SKIP LOCKED`. One controlled operator loop per tenant simplifies auditing and avoids unnecessary changes to the search generation.
+1. Restart the upgraded processes. Before restoring normal traffic, check exact lookup, lexical queries, filters, local facets, deterministic pagination, indexed source attribution and cross-tenant denial. `complete: true` means no row matches the missing-or-outdated predicate. It does not validate every projection, freshness, permission or search result. Investigate missing eligible results through their exact query and source state. Do not clear fields to force repair of a complete but suspect projection.
+
+</Steps>
+
+## Failure and rollback boundary
+
+One failed batch rolls back completely and may be retried. A completed batch is also safe to repeat because already projected rows no longer match the repair predicate. Do not clear projection columns, decrement the search generation, edit a numbered migration, or rewrite observation history to reverse a batch. Roll forward by fixing the compatible projection code and rerunning the bounded repair.
+
+If the connection disappears after commit, repeat the command and compare its result with the audit record. Rebuildable projections have no external side effect or public event to reconcile.
+
+Each non-empty batch requires a bounded reason. Its audit record identifies `session_user`, `current_user`, any operator label, the selected ID range, processed count and bounded `hasMore` result. It also records before and after search generations. The command creates no outbox row. It uses a direct bounded apply, without a plan object or background Job.

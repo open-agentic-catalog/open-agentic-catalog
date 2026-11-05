@@ -1,0 +1,79 @@
+x-runtime: &runtime
+  image: ${CATALOG_IMAGE:?prepared Catalog image required}
+  pull_policy: never
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  group_add: ["${RUN_GID:?fixture group required}"]
+  networks: [owned]
+  volumes:
+    - ${PRIVATE:?prepared inputs required}/backend:/config:ro
+services:
+  postgres:
+    image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+    pull_policy: never
+    networks: [owned]
+    environment:
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: ${PG_PASSWORD:?owned password required}
+      POSTGRES_DB: catalog
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ${REPOSITORY:?source required}/deployments/postgres/init.sql:/docker-entrypoint-initdb.d/catalog.sql:ro
+    ports: [{target: 5432, published: "0", host_ip: 127.0.0.1}]
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, catalog, -d, catalog]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  owner:
+    <<: *runtime
+    profiles: [operator]
+    entrypoint: [/usr/local/bin/catalogctl]
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog:${PG_PASSWORD:?owned password required}@postgres:5432/catalog?sslmode=disable
+      CATALOG_WEBHOOK_ENCRYPTION_KEY_FILE: /config/encryption.key
+  api:
+    <<: *runtime
+    command: [api, --config, /config/config.json]
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_api:catalog-api@postgres:5432/catalog?sslmode=disable
+      CATALOG_WEBHOOK_ENCRYPTION_KEY_FILE: /config/encryption.key
+    ports: [{target: 8080, published: "0", host_ip: 127.0.0.1}]
+    healthcheck:
+      test: [CMD, /usr/local/bin/catalogctl, probe, --url, "http://127.0.0.1:8080/readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  worker:
+    <<: *runtime
+    command: [worker, --config, /config/config.json]
+    extra_hosts: ["peer-a.test:${GATEWAY:?owned bridge gateway required}"]
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_worker:catalog-worker@postgres:5432/catalog?sslmode=disable
+      CATALOG_WEBHOOK_ENCRYPTION_KEY_FILE: /config/encryption.key
+    healthcheck:
+      test: [CMD, /usr/local/bin/catalogctl, probe, --url, "http://127.0.0.1:9090/readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  mcp:
+    image: ${CATALOG_IMAGE:?prepared image required}
+    pull_policy: never
+    entrypoint: [/fixture-bin, --directory, /fixture]
+    user: "${RUN_UID:?fixture user required}:${RUN_GID:?fixture group required}"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    networks: [owned]
+    volumes:
+      - ${PRIVATE:?prepared inputs required}/build/mcp-fixture:/fixture-bin:ro
+      - ${PRIVATE:?prepared inputs required}/mcp:/fixture:ro
+    ports: [{target: 9443, published: "0", host_ip: 127.0.0.1}]
+networks:
+  owned:
+    internal: true
+    ipam:
+      config: [{subnet: "${SUBNET:?owned private subnet required}", gateway: "${GATEWAY:?owned gateway required}"}]
+volumes:
+  postgres-data:

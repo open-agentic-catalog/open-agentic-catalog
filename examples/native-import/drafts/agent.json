@@ -1,0 +1,17 @@
+{
+  "format": "open-agentic-catalog-draft-v1",
+  "kind": "agent",
+  "canonicalIdentifier": "urn:example:reusable:agent",
+  "version": "0.1.0",
+  "representations": [
+    {
+      "role": "primary",
+      "mediaType": "application/a2a-agent-card+json",
+      "profileId": "",
+      "input": {
+        "mode": "data",
+        "text": "{\n  \"capabilities\": {},\n  \"defaultInputModes\": [\"application/json\"],\n  \"defaultOutputModes\": [\"application/json\"],\n  \"description\": \"Prepares review notes from a supplied change description.\",\n  \"name\": \"Review helper\",\n  \"skills\": [\n    {\n      \"description\": \"Lists affected components and checks for a change review.\",\n      \"id\": \"review-notes\",\n      \"name\": \"Prepare review notes\",\n      \"tags\": [\"review\"]\n    }\n  ],\n  \"supportedInterfaces\": [\n    {\n      \"protocolBinding\": \"JSONRPC\",\n      \"protocolVersion\": \"1.0\",\n      \"url\": \"https://agents.example.com/review-helper\"\n    }\n  ],\n  \"version\": \"0.1.0\"\n}\n"
+      }
+    }
+  ]
+}

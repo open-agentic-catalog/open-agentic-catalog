@@ -1,0 +1,15 @@
+# syntax=docker/dockerfile:1.28.0@sha256:bb22d9815c728170f72750f4e5b0d672e06176142e1d602c7e66c050100b7e5b
+# Test-only fixed upstream router, built offline from the repository root.
+FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.3-alpine3.24@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS build
+WORKDIR /src
+ENV GOTOOLCHAIN=local
+ARG TARGETOS
+ARG TARGETARCH
+COPY go.mod go.sum ./
+COPY test/interoperability/agntcy/router ./test/interoperability/agntcy/router
+RUN --network=none --mount=type=cache,target=/go/pkg/mod CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -mod=readonly -trimpath -buildvcs=false -ldflags='-s -w -buildid=' -o /router ./test/interoperability/agntcy/router
+FROM scratch
+COPY --from=build --chmod=0555 /router /router
+USER 65532:65532
+STOPSIGNAL SIGTERM
+ENTRYPOINT ["/router"]

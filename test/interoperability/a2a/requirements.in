@@ -1,0 +1,9 @@
+# Execution-only A2A SDK with upstream HTTP routes; no model or optional databases.
+a2a-sdk[http-server]==1.2.2
+uvicorn==0.54.0
+# Keep the image installer out of known-vulnerable base-image pip releases.
+pip==26.2.2
+# Exact approved CA bundle security update.
+certifi==2026.10.19
+# Pin the pyasn1 security fix within the existing parent range.
+pyasn1==0.6.5

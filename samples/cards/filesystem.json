@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+  "name": "mcp-servers/filesystem",
+  "version": "0.2.0",
+  "description": "Reference stdio filesystem tools; requires an explicitly allowed disposable directory.",
+  "repository": {
+    "url": "https://github.com/modelcontextprotocol/servers",
+    "source": "github"
+  },
+  "_meta": {
+    "org.open-agentic-catalog/curation": {
+      "package": "@modelcontextprotocol/server-filesystem",
+      "packageVersion": "2026.8.31",
+      "runtimeName": "secure-filesystem-server",
+      "transport": "stdio",
+      "sourceRevision": "a40bc270fb5ece62673f8a1196f57116d885c5eb"
+    }
+  }
+}

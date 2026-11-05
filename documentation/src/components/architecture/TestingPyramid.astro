@@ -1,0 +1,59 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="testing-pyramid-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1430" role="img" aria-labelledby="testing-pyramid-title testing-pyramid-desc">
+<title id="testing-pyramid-title">Catalog testing pyramid and quality checks</title>
+<desc id="testing-pyramid-desc">Read the pyramid from the broad base upward: isolated units; local functional tests, including local Playwright; real PostgreSQL integration; packaged API and browser workflows; and selected deployment qualification. Higher layers add real boundaries and fixture setup. Width represents preferred testing emphasis, not measured counts or coverage. Source checks apply throughout development. Properties, fuzzing, mutation, race checks, a focused formal proof, contracts, security, recovery and performance supply additional evidence across these layers. The adjacent page explains when to select each gate.</desc>
+<defs><marker id="testing-pyramid-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+<text class="svg-title" x="30" y="35">Confidence grows with real boundaries</text>
+<text class="svg-copy" x="30" y="62">Start with isolated logic. Add the boundaries a change needs.</text>
+<path class="svg-connector" d="M14 670 V105" marker-end="url(#testing-pyramid-arrow)" />
+<polygon class="svg-node-core" points="230,100 410,100 450,220 190,220" />
+<text class="svg-title" x="320" y="130" text-anchor="middle">Deployment</text>
+<text class="svg-copy" x="320" y="156" text-anchor="middle">Selected topology</text>
+<text class="svg-copy" x="320" y="179" text-anchor="middle">Images and charts</text>
+<text class="svg-copy" x="320" y="202" text-anchor="middle">Tests create Minikube clusters</text>
+<polygon class="svg-node-core" points="190,220 450,220 490,340 150,340" />
+<text class="svg-title" x="320" y="250" text-anchor="middle">Packaged E2E</text>
+<text class="svg-copy" x="320" y="276" text-anchor="middle">API, worker, UI and PostgreSQL</text>
+<text class="svg-copy" x="320" y="299" text-anchor="middle">Compose and real OIDC</text>
+<polygon class="svg-node-core" points="150,340 490,340 530,460 110,460" />
+<text class="svg-title" x="320" y="370" text-anchor="middle">PostgreSQL integration</text>
+<text class="svg-copy" x="320" y="396" text-anchor="middle">SQL, migrations, roles, RLS and locks</text>
+<text class="svg-copy" x="320" y="419" text-anchor="middle">Real repository and process contracts</text>
+<polygon class="svg-node-core" points="110,460 530,460 570,580 70,580" />
+<text class="svg-title" x="320" y="490" text-anchor="middle">Local functional</text>
+<text class="svg-copy" x="320" y="516" text-anchor="middle">HTTP/TLS, subprocesses and memory workflows</text>
+<text class="svg-copy" x="320" y="539" text-anchor="middle">Playwright browser tests with owned local fixtures</text>
+<polygon class="svg-node-core" points="70,580 570,580 610,700 30,700" />
+<text class="svg-title" x="320" y="610" text-anchor="middle">Isolated units</text>
+<text class="svg-copy" x="320" y="636" text-anchor="middle">Go, React, Python, Node and Rust</text>
+<text class="svg-copy" x="320" y="659" text-anchor="middle">Controlled inputs and fakes</text>
+<text class="svg-copy" x="320" y="682" text-anchor="middle">No listeners, fixture processes, databases or browsers</text>
+<text class="svg-small" x="30" y="737">Read from the broad base upward; width shows preferred emphasis.</text>
+<text class="svg-small" x="30" y="760">It does not represent measured counts or coverage.</text>
+<DiagramCard x={30} y={800} width={580} title="Source checks apply throughout development" lines={[
+  "Go: formatting, vet, Staticcheck, golangci-lint and deadcode",
+  "UI / docs: ESLint, Prettier, TypeScript, Knip and Astro",
+  "Repository / API: Ruff, ShellCheck, Markdown, JSON / YAML,",
+  "Hadolint, Compose parsing and Redocly",
+  "Use check, ui-check and docs-site-check",
+  "for affected code and documentation",
+]} />
+<DiagramCard x={30} y={1035} width={580} title="Select focused evidence across the layers" lines={[
+  "Assertions: fuzzing, properties, mutation, race and testing/synctest",
+  "Focused Gobra proof: selected Job retry arithmetic",
+  "Contracts: OpenAPI, JSON Schema, ARD, Schemathesis, SDKs, peers",
+  "Security / recovery: scanners, ZAP, authorization, failover and restore",
+  "Performance: benchmarks, load, SQL plans and search relevance",
+  "Coverage counts execution; assertions check behavior",
+]} />
+<DiagramCard x={30} y={1295} width={580} title="Use the adjacent tables to select checks" tone="warning" lines={[
+  "Exact commands and limits belong in the linked testing strategy",
+  "Optional local SonarQube supplements review; its gate is report-only",
+]} />
+</svg>
+</div>

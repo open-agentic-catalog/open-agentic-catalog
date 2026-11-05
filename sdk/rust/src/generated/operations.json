@@ -1,0 +1,3276 @@
+[
+  {
+    "consumption": "buffered",
+    "method": "activate_publication_snapshot",
+    "operation_id": "activatePublicationSnapshot",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publication~1snapshots~1{snapshotId}:activate/post",
+    "source_method": "POST",
+    "source_operation_id": "activatePublicationSnapshot",
+    "source_path": "/api/v1/publication/snapshots/{snapshotId}:activate",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "add_access_group_member",
+    "operation_id": "addAccessGroupMember",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups~1{groupId}~1members/post",
+    "source_method": "POST",
+    "source_operation_id": "addAccessGroupMember",
+    "source_path": "/api/v1/access/groups/{groupId}/members",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "address_feedback",
+    "operation_id": "addressFeedback",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1feedback~1{feedbackId}:address/post",
+    "source_method": "POST",
+    "source_operation_id": "addressFeedback",
+    "source_path": "/api/v1/feedback/{feedbackId}:address",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "adopt_observation",
+    "operation_id": "adoptObservation",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1observations~1{observationId}:adopt/post",
+    "source_method": "POST",
+    "source_operation_id": "adoptObservation",
+    "source_path": "/api/v1/observations/{observationId}:adopt",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "approve_publisher_publication_domain",
+    "operation_id": "approvePublisherPublicationDomain",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers~1{publisherId}~1publication-domains~1{domain}:approve/post",
+    "source_method": "POST",
+    "source_operation_id": "approvePublisherPublicationDomain",
+    "source_path": "/api/v1/publishers/{publisherId}/publication-domains/{domain}:approve",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "approve_review_submission",
+    "operation_id": "approveReviewSubmission",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1review-submissions~1{submissionId}:approve/post",
+    "source_method": "POST",
+    "source_operation_id": "approveReviewSubmission",
+    "source_path": "/api/v1/review-submissions/{submissionId}:approve",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "archive_access_group",
+    "operation_id": "archiveAccessGroup",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups~1{groupId}:archive/post",
+    "source_method": "POST",
+    "source_operation_id": "archiveAccessGroup",
+    "source_path": "/api/v1/access/groups/{groupId}:archive",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "archive_role_definition",
+    "operation_id": "archiveRoleDefinition",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1roles~1{roleId}:archive/post",
+    "source_method": "POST",
+    "source_operation_id": "archiveRoleDefinition",
+    "source_path": "/api/v1/access/roles/{roleId}:archive",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "browse_catalog",
+    "operation_id": "browseCatalog",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog~1resources/get",
+    "source_method": "GET",
+    "source_operation_id": "browseCatalog",
+    "source_path": "/api/v1/catalog/resources",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "build_publication_snapshot",
+    "operation_id": "buildPublicationSnapshot",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publication~1snapshots/post",
+    "source_method": "POST",
+    "source_operation_id": "buildPublicationSnapshot",
+    "source_path": "/api/v1/publication/snapshots",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "call_catalog_mcp",
+    "operation_id": "callCatalogMCP",
+    "response_excluded_statuses": [
+      "202",
+      "400",
+      "401",
+      "403",
+      "404",
+      "413",
+      "415",
+      "500",
+      "503"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1mcp/post",
+    "source_method": "POST",
+    "source_operation_id": "callCatalogMCP",
+    "source_path": "/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "cancel_job",
+    "operation_id": "cancelJob",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1jobs~1{jobId}:cancel/post",
+    "source_method": "POST",
+    "source_operation_id": "cancelJob",
+    "source_path": "/api/v1/jobs/{jobId}:cancel",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "check_current_permissions",
+    "operation_id": "checkCurrentPermissions",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1capabilities/post",
+    "source_method": "POST",
+    "source_operation_id": "checkCurrentPermissions",
+    "source_path": "/api/v1/access/capabilities",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "check_publisher_domain_verification",
+    "operation_id": "checkPublisherDomainVerification",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers~1{publisherId}~1domains~1{domain}~1verification:check/post",
+    "source_method": "POST",
+    "source_operation_id": "checkPublisherDomainVerification",
+    "source_path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification:check",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "clear_publisher_domain_verification",
+    "operation_id": "clearPublisherDomainVerification",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers~1{publisherId}~1domains~1{domain}~1verification:clear/post",
+    "source_method": "POST",
+    "source_operation_id": "clearPublisherDomainVerification",
+    "source_path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification:clear",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "connect_federation_source",
+    "operation_id": "connectFederationSource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources/post",
+    "source_method": "POST",
+    "source_operation_id": "connectFederationSource",
+    "source_path": "/api/v1/federation/sources",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_access_group",
+    "operation_id": "createAccessGroup",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups/post",
+    "source_method": "POST",
+    "source_operation_id": "createAccessGroup",
+    "source_path": "/api/v1/access/groups",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_catalog_listing",
+    "operation_id": "createCatalogListing",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog-listings/post",
+    "source_method": "POST",
+    "source_operation_id": "createCatalogListing",
+    "source_path": "/api/v1/catalog-listings",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_feedback",
+    "operation_id": "createFeedback",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1feedback/post",
+    "source_method": "POST",
+    "source_operation_id": "createFeedback",
+    "source_path": "/api/v1/feedback",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_listing_revision",
+    "operation_id": "createListingRevision",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog-listings~1{listingId}~1revisions/post",
+    "source_method": "POST",
+    "source_operation_id": "createListingRevision",
+    "source_path": "/api/v1/catalog-listings/{listingId}/revisions",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_namespace",
+    "operation_id": "createNamespace",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1namespaces/post",
+    "source_method": "POST",
+    "source_operation_id": "createNamespace",
+    "source_path": "/api/v1/namespaces",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_personal_item",
+    "operation_id": "createPersonalItem",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1personal~1items/post",
+    "source_method": "POST",
+    "source_operation_id": "createPersonalItem",
+    "source_path": "/api/v1/personal/items",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_publisher",
+    "operation_id": "createPublisher",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers/post",
+    "source_method": "POST",
+    "source_operation_id": "createPublisher",
+    "source_path": "/api/v1/publishers",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_resource",
+    "operation_id": "createResource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resources/post",
+    "source_method": "POST",
+    "source_operation_id": "createResource",
+    "source_path": "/api/v1/resources",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_resource_version",
+    "operation_id": "createResourceVersion",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resources~1{resourceId}~1versions/post",
+    "source_method": "POST",
+    "source_operation_id": "createResourceVersion",
+    "source_path": "/api/v1/resources/{resourceId}/versions",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_role_definition",
+    "operation_id": "createRoleDefinition",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1roles/post",
+    "source_method": "POST",
+    "source_operation_id": "createRoleDefinition",
+    "source_path": "/api/v1/access/roles",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_version_revision",
+    "operation_id": "createVersionRevision",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resource-versions~1{versionId}~1revisions/post",
+    "source_method": "POST",
+    "source_operation_id": "createVersionRevision",
+    "source_path": "/api/v1/resource-versions/{versionId}/revisions",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "create_webhook",
+    "operation_id": "createWebhook",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1webhooks/post",
+    "source_method": "POST",
+    "source_operation_id": "createWebhook",
+    "source_path": "/api/v1/webhooks",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "delete_personal_item",
+    "operation_id": "deletePersonalItem",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1personal~1items~1{itemId}/delete",
+    "source_method": "DELETE",
+    "source_operation_id": "deletePersonalItem",
+    "source_path": "/api/v1/personal/items/{itemId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "delete_resource",
+    "operation_id": "deleteResource",
+    "response_excluded_statuses": [],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "204"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resources~1{resourceId}:delete/post",
+    "source_method": "POST",
+    "source_operation_id": "deleteResource",
+    "source_path": "/api/v1/resources/{resourceId}:delete",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "deprecate_listing_release",
+    "operation_id": "deprecateListingRelease",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1listing-releases~1{releaseId}:deprecate/post",
+    "source_method": "POST",
+    "source_operation_id": "deprecateListingRelease",
+    "source_path": "/api/v1/listing-releases/{releaseId}:deprecate",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "disable_webhook",
+    "operation_id": "disableWebhook",
+    "response_excluded_statuses": [],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "204"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1webhooks~1{webhookId}/delete",
+    "source_method": "DELETE",
+    "source_operation_id": "disableWebhook",
+    "source_path": "/api/v1/webhooks/{webhookId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "edit_feedback",
+    "operation_id": "editFeedback",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1feedback~1{feedbackId}/patch",
+    "source_method": "PATCH",
+    "source_operation_id": "editFeedback",
+    "source_path": "/api/v1/feedback/{feedbackId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "explore_ard_registry",
+    "operation_id": "exploreARDRegistry",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1ard~1v1~1explore/post",
+    "source_method": "POST",
+    "source_operation_id": "exploreARDRegistry",
+    "source_path": "/ard/v1/explore",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "explore_catalog",
+    "operation_id": "exploreCatalog",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog~1explore/post",
+    "source_method": "POST",
+    "source_operation_id": "exploreCatalog",
+    "source_path": "/api/v1/catalog/explore",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "export_audit_events",
+    "operation_id": "exportAuditEvents",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1audit-exports/post",
+    "source_method": "POST",
+    "source_operation_id": "exportAuditEvents",
+    "source_path": "/api/v1/audit-exports",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "export_version_revision_draft",
+    "operation_id": "exportVersionRevisionDraft",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1version-revisions~1{revisionId}~1export/get",
+    "source_method": "GET",
+    "source_operation_id": "exportVersionRevisionDraft",
+    "source_path": "/api/v1/version-revisions/{revisionId}/export",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_access_group",
+    "operation_id": "getAccessGroup",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups~1{groupId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getAccessGroup",
+    "source_path": "/api/v1/access/groups/{groupId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_administration_overview",
+    "operation_id": "getAdministrationOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1administration/get",
+    "source_method": "GET",
+    "source_operation_id": "getAdministrationOverview",
+    "source_path": "/api/v1/overview/administration",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_ai_catalog",
+    "operation_id": "getAICatalog",
+    "response_excluded_statuses": [
+      "304",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/ai-catalog+json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1.well-known~1ai-catalog.json/get",
+    "source_method": "GET",
+    "source_operation_id": "getAICatalog",
+    "source_path": "/.well-known/ai-catalog.json",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_ard_manifest",
+    "operation_id": "getARDManifest",
+    "response_excluded_statuses": [
+      "304",
+      "401",
+      "403",
+      "404",
+      "503"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1.well-known~1ard.json/get",
+    "source_method": "GET",
+    "source_operation_id": "getARDManifest",
+    "source_path": "/.well-known/ard.json",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_artifact_content",
+    "operation_id": "getArtifactContent",
+    "response_excluded_statuses": [],
+    "response_kind": "binary",
+    "response_media_type": null,
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1artifacts~1{artifactId}~1content/get",
+    "source_method": "GET",
+    "source_operation_id": "getArtifactContent",
+    "source_path": "/api/v1/artifacts/{artifactId}/content",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_artifact_content_binary",
+    "operation_id": "getArtifactContent",
+    "response_excluded_statuses": [],
+    "response_kind": "binary",
+    "response_media_type": "*/*",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1artifacts~1{artifactId}~1content/get",
+    "source_method": "GET",
+    "source_operation_id": "getArtifactContent",
+    "source_path": "/api/v1/artifacts/{artifactId}/content",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_artwork_override",
+    "operation_id": "getArtworkOverride",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}~1artwork/get",
+    "source_method": "GET",
+    "source_operation_id": "getArtworkOverride",
+    "source_path": "/api/v1/federation/sources/{sourceId}/artwork",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_capabilities",
+    "operation_id": "getCapabilities",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1capabilities/get",
+    "source_method": "GET",
+    "source_operation_id": "getCapabilities",
+    "source_path": "/api/v1/capabilities",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_catalog_listing",
+    "operation_id": "getCatalogListing",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog-listings~1{listingId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getCatalogListing",
+    "source_path": "/api/v1/catalog-listings/{listingId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_catalog_mcpo_auth_metadata",
+    "operation_id": "getCatalogMCPOAuthMetadata",
+    "response_excluded_statuses": [
+      "400",
+      "403",
+      "404"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1.well-known~1oauth-protected-resource~1mcp/get",
+    "source_method": "GET",
+    "source_operation_id": "getCatalogMCPOAuthMetadata",
+    "source_path": "/.well-known/oauth-protected-resource/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_catalog_record",
+    "operation_id": "getCatalogRecord",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog~1resources~1{catalogRecordId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getCatalogRecord",
+    "source_path": "/api/v1/catalog/resources/{catalogRecordId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_control_open_api",
+    "operation_id": "getControlOpenAPI",
+    "response_excluded_statuses": [
+      "304"
+    ],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1openapi~1control-v1.yaml/get",
+    "source_method": "GET",
+    "source_operation_id": "getControlOpenAPI",
+    "source_path": "/openapi/control-v1.yaml",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_current_access",
+    "operation_id": "getCurrentAccess",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1me/get",
+    "source_method": "GET",
+    "source_operation_id": "getCurrentAccess",
+    "source_path": "/api/v1/me",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_federation_source",
+    "operation_id": "getFederationSource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getFederationSource",
+    "source_path": "/api/v1/federation/sources/{sourceId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_federation_source_inspection",
+    "operation_id": "getFederationSourceInspection",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1source-inspections~1{inspectionId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getFederationSourceInspection",
+    "source_path": "/api/v1/federation/source-inspections/{inspectionId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_federation_source_snapshot",
+    "operation_id": "getFederationSourceSnapshot",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1snapshots~1{snapshotId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getFederationSourceSnapshot",
+    "source_path": "/api/v1/federation/snapshots/{snapshotId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_feedback",
+    "operation_id": "getFeedback",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1feedback~1{feedbackId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getFeedback",
+    "source_path": "/api/v1/feedback/{feedbackId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_feedback_overview",
+    "operation_id": "getFeedbackOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1feedback/get",
+    "source_method": "GET",
+    "source_operation_id": "getFeedbackOverview",
+    "source_path": "/api/v1/overview/feedback",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_indexed_catalog_record",
+    "operation_id": "getIndexedCatalogRecord",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog~1indexed-record/get",
+    "source_method": "GET",
+    "source_operation_id": "getIndexedCatalogRecord",
+    "source_path": "/api/v1/catalog/indexed-record",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_indexed_overview",
+    "operation_id": "getIndexedOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1indexed/get",
+    "source_method": "GET",
+    "source_operation_id": "getIndexedOverview",
+    "source_path": "/api/v1/overview/indexed",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_job",
+    "operation_id": "getJob",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1jobs~1{jobId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getJob",
+    "source_path": "/api/v1/jobs/{jobId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_job_overview",
+    "operation_id": "getJobOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1jobs/get",
+    "source_method": "GET",
+    "source_operation_id": "getJobOverview",
+    "source_path": "/api/v1/overview/jobs",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_listing_release",
+    "operation_id": "getListingRelease",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1listing-releases~1{releaseId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getListingRelease",
+    "source_path": "/api/v1/listing-releases/{releaseId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_listing_revision",
+    "operation_id": "getListingRevision",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1listing-revisions~1{revisionId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getListingRevision",
+    "source_path": "/api/v1/listing-revisions/{revisionId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_liveness",
+    "operation_id": "getLiveness",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1livez/get",
+    "source_method": "GET",
+    "source_operation_id": "getLiveness",
+    "source_path": "/livez",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_membership",
+    "operation_id": "getMembership",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1memberships~1{membershipId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getMembership",
+    "source_path": "/api/v1/memberships/{membershipId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_membership_access",
+    "operation_id": "getMembershipAccess",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1memberships~1{membershipId}~1access/get",
+    "source_method": "GET",
+    "source_operation_id": "getMembershipAccess",
+    "source_path": "/api/v1/memberships/{membershipId}/access",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_metrics",
+    "operation_id": "getMetrics",
+    "response_excluded_statuses": [],
+    "response_kind": "text",
+    "response_media_type": "text/plain",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1metrics/get",
+    "source_method": "GET",
+    "source_operation_id": "getMetrics",
+    "source_path": "/metrics",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_namespace",
+    "operation_id": "getNamespace",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1namespaces~1{namespaceId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getNamespace",
+    "source_path": "/api/v1/namespaces/{namespaceId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_namespace_overview",
+    "operation_id": "getNamespaceOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1namespaces/get",
+    "source_method": "GET",
+    "source_operation_id": "getNamespaceOverview",
+    "source_path": "/api/v1/overview/namespaces",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_observation_group",
+    "operation_id": "getObservationGroup",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1observation-groups/get",
+    "source_method": "GET",
+    "source_operation_id": "getObservationGroup",
+    "source_path": "/api/v1/observation-groups",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_personal_item",
+    "operation_id": "getPersonalItem",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1personal~1items~1{itemId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getPersonalItem",
+    "source_path": "/api/v1/personal/items/{itemId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_public_artifact",
+    "operation_id": "getPublicArtifact",
+    "response_excluded_statuses": [
+      "304"
+    ],
+    "response_kind": "binary",
+    "response_media_type": null,
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1public~1v1~1artifacts~1{artifactId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getPublicArtifact",
+    "source_path": "/public/v1/artifacts/{artifactId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_public_artifact_binary",
+    "operation_id": "getPublicArtifact",
+    "response_excluded_statuses": [
+      "304"
+    ],
+    "response_kind": "binary",
+    "response_media_type": "*/*",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1public~1v1~1artifacts~1{artifactId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getPublicArtifact",
+    "source_path": "/public/v1/artifacts/{artifactId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_publication_overview",
+    "operation_id": "getPublicationOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1publication/get",
+    "source_method": "GET",
+    "source_operation_id": "getPublicationOverview",
+    "source_path": "/api/v1/overview/publication",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_publication_snapshot",
+    "operation_id": "getPublicationSnapshot",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publication~1snapshots~1{snapshotId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getPublicationSnapshot",
+    "source_path": "/api/v1/publication/snapshots/{snapshotId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_publisher",
+    "operation_id": "getPublisher",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers~1{publisherId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getPublisher",
+    "source_path": "/api/v1/publishers/{publisherId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_publisher_domain_challenge",
+    "operation_id": "getPublisherDomainChallenge",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers~1{publisherId}~1domains~1{domain}~1verification~1challenge/get",
+    "source_method": "GET",
+    "source_operation_id": "getPublisherDomainChallenge",
+    "source_path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification/challenge",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_publisher_domain_verification",
+    "operation_id": "getPublisherDomainVerification",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers~1{publisherId}~1domains~1{domain}~1verification/get",
+    "source_method": "GET",
+    "source_operation_id": "getPublisherDomainVerification",
+    "source_path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_publisher_overview",
+    "operation_id": "getPublisherOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1publishers/get",
+    "source_method": "GET",
+    "source_operation_id": "getPublisherOverview",
+    "source_path": "/api/v1/overview/publishers",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_rating",
+    "operation_id": "getRating",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings~1{ratingId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getRating",
+    "source_path": "/api/v1/ratings/{ratingId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_rating_overview",
+    "operation_id": "getRatingOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1ratings/get",
+    "source_method": "GET",
+    "source_operation_id": "getRatingOverview",
+    "source_path": "/api/v1/overview/ratings",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_rating_sharing",
+    "operation_id": "getRatingSharing",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings~1sharing/get",
+    "source_method": "GET",
+    "source_operation_id": "getRatingSharing",
+    "source_path": "/api/v1/ratings/sharing",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_raw_observation",
+    "operation_id": "getRawObservation",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1observations~1{observationId}~1raw/get",
+    "source_method": "GET",
+    "source_operation_id": "getRawObservation",
+    "source_path": "/api/v1/observations/{observationId}/raw",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_readiness",
+    "operation_id": "getReadiness",
+    "response_excluded_statuses": [
+      "503"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1readyz/get",
+    "source_method": "GET",
+    "source_operation_id": "getReadiness",
+    "source_path": "/readyz",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_release_overview",
+    "operation_id": "getReleaseOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1releases/get",
+    "source_method": "GET",
+    "source_operation_id": "getReleaseOverview",
+    "source_path": "/api/v1/overview/releases",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_resource",
+    "operation_id": "getResource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resources~1{resourceId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getResource",
+    "source_path": "/api/v1/resources/{resourceId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_resource_overview",
+    "operation_id": "getResourceOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1resources/get",
+    "source_method": "GET",
+    "source_operation_id": "getResourceOverview",
+    "source_path": "/api/v1/overview/resources",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_resource_version",
+    "operation_id": "getResourceVersion",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resource-versions~1{versionId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getResourceVersion",
+    "source_path": "/api/v1/resource-versions/{versionId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_review_overview",
+    "operation_id": "getReviewOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1reviews/get",
+    "source_method": "GET",
+    "source_operation_id": "getReviewOverview",
+    "source_path": "/api/v1/overview/reviews",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_review_submission",
+    "operation_id": "getReviewSubmission",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1review-submissions~1{submissionId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getReviewSubmission",
+    "source_path": "/api/v1/review-submissions/{submissionId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_review_submission_evidence",
+    "operation_id": "getReviewSubmissionEvidence",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1review-submissions~1{submissionId}~1evidence/get",
+    "source_method": "GET",
+    "source_operation_id": "getReviewSubmissionEvidence",
+    "source_path": "/api/v1/review-submissions/{submissionId}/evidence",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_role_definition",
+    "operation_id": "getRoleDefinition",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1roles~1{roleId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getRoleDefinition",
+    "source_path": "/api/v1/access/roles/{roleId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_service_activity",
+    "operation_id": "getServiceActivity",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1service-activity/get",
+    "source_method": "GET",
+    "source_operation_id": "getServiceActivity",
+    "source_path": "/api/v1/service-activity",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_service_information",
+    "operation_id": "getServiceInformation",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1service-information/get",
+    "source_method": "GET",
+    "source_operation_id": "getServiceInformation",
+    "source_path": "/api/v1/service-information",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_source_overview",
+    "operation_id": "getSourceOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1sources/get",
+    "source_method": "GET",
+    "source_operation_id": "getSourceOverview",
+    "source_path": "/api/v1/overview/sources",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_tenant_settings",
+    "operation_id": "getTenantSettings",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1tenant-settings/get",
+    "source_method": "GET",
+    "source_operation_id": "getTenantSettings",
+    "source_path": "/api/v1/tenant-settings",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_trust_assessment",
+    "operation_id": "getTrustAssessment",
+    "response_excluded_statuses": [
+      "401",
+      "403",
+      "404",
+      "409",
+      "503"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}~1trust-assessments~1{jobId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getTrustAssessment",
+    "source_path": "/api/v1/federation/sources/{sourceId}/trust-assessments/{jobId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_version",
+    "operation_id": "getVersion",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1version/get",
+    "source_method": "GET",
+    "source_operation_id": "getVersion",
+    "source_path": "/version",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_version_revision",
+    "operation_id": "getVersionRevision",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1version-revisions~1{revisionId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getVersionRevision",
+    "source_path": "/api/v1/version-revisions/{revisionId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_webhook",
+    "operation_id": "getWebhook",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1webhooks~1{webhookId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getWebhook",
+    "source_path": "/api/v1/webhooks/{webhookId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_webhook_delivery_overview",
+    "operation_id": "getWebhookDeliveryOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1webhook-deliveries/get",
+    "source_method": "GET",
+    "source_operation_id": "getWebhookDeliveryOverview",
+    "source_path": "/api/v1/overview/webhook-deliveries",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_webhook_endpoint_overview",
+    "operation_id": "getWebhookEndpointOverview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1overview~1webhook-endpoints/get",
+    "source_method": "GET",
+    "source_operation_id": "getWebhookEndpointOverview",
+    "source_path": "/api/v1/overview/webhook-endpoints",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_webhook_reconciliation",
+    "operation_id": "getWebhookReconciliation",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1webhooks~1reconciliation/get",
+    "source_method": "GET",
+    "source_operation_id": "getWebhookReconciliation",
+    "source_path": "/api/v1/webhooks/reconciliation",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "grant_access_assignment",
+    "operation_id": "grantAccessAssignment",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1assignments/post",
+    "source_method": "POST",
+    "source_operation_id": "grantAccessAssignment",
+    "source_path": "/api/v1/access/assignments",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "grant_role_assignment",
+    "operation_id": "grantRoleAssignment",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1role-assignments/post",
+    "source_method": "POST",
+    "source_operation_id": "grantRoleAssignment",
+    "source_path": "/api/v1/role-assignments",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "head_catalog_mcpo_auth_metadata",
+    "operation_id": "headCatalogMCPOAuthMetadata",
+    "response_excluded_statuses": [
+      "403",
+      "404"
+    ],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1.well-known~1oauth-protected-resource~1mcp/head",
+    "source_method": "HEAD",
+    "source_operation_id": "headCatalogMCPOAuthMetadata",
+    "source_path": "/.well-known/oauth-protected-resource/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "inspect_federation_source",
+    "operation_id": "inspectFederationSource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1source-inspections/post",
+    "source_method": "POST",
+    "source_operation_id": "inspectFederationSource",
+    "source_path": "/api/v1/federation/source-inspections",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "issue_publisher_domain_challenge",
+    "operation_id": "issuePublisherDomainChallenge",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers~1{publisherId}~1domains~1{domain}~1verification:issue/post",
+    "source_method": "POST",
+    "source_operation_id": "issuePublisherDomainChallenge",
+    "source_path": "/api/v1/publishers/{publisherId}/domains/{domain}/verification:issue",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_access_assignments",
+    "operation_id": "listAccessAssignments",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1assignments/get",
+    "source_method": "GET",
+    "source_operation_id": "listAccessAssignments",
+    "source_path": "/api/v1/access/assignments",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_access_group_members",
+    "operation_id": "listAccessGroupMembers",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups~1{groupId}~1members/get",
+    "source_method": "GET",
+    "source_operation_id": "listAccessGroupMembers",
+    "source_path": "/api/v1/access/groups/{groupId}/members",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_access_groups",
+    "operation_id": "listAccessGroups",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups/get",
+    "source_method": "GET",
+    "source_operation_id": "listAccessGroups",
+    "source_path": "/api/v1/access/groups",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_ard_registry_entries",
+    "operation_id": "listARDRegistryEntries",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1ard~1v1~1agents/get",
+    "source_method": "GET",
+    "source_operation_id": "listARDRegistryEntries",
+    "source_path": "/ard/v1/agents",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_artwork_override_history",
+    "operation_id": "listArtworkOverrideHistory",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}~1artwork~1history/get",
+    "source_method": "GET",
+    "source_operation_id": "listArtworkOverrideHistory",
+    "source_path": "/api/v1/federation/sources/{sourceId}/artwork/history",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_audit_events",
+    "operation_id": "listAuditEvents",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1audit-events/get",
+    "source_method": "GET",
+    "source_operation_id": "listAuditEvents",
+    "source_path": "/api/v1/audit-events",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_current_access",
+    "operation_id": "listCurrentAccess",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1self/get",
+    "source_method": "GET",
+    "source_operation_id": "listCurrentAccess",
+    "source_path": "/api/v1/access/self",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_federation_source_snapshots",
+    "operation_id": "listFederationSourceSnapshots",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}~1snapshots/get",
+    "source_method": "GET",
+    "source_operation_id": "listFederationSourceSnapshots",
+    "source_path": "/api/v1/federation/sources/{sourceId}/snapshots",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_federation_sources",
+    "operation_id": "listFederationSources",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources/get",
+    "source_method": "GET",
+    "source_operation_id": "listFederationSources",
+    "source_path": "/api/v1/federation/sources",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_feedback_inbox",
+    "operation_id": "listFeedbackInbox",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1feedback~1inbox/get",
+    "source_method": "GET",
+    "source_operation_id": "listFeedbackInbox",
+    "source_path": "/api/v1/feedback/inbox",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_jobs",
+    "operation_id": "listJobs",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1jobs/get",
+    "source_method": "GET",
+    "source_operation_id": "listJobs",
+    "source_path": "/api/v1/jobs",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_listing_releases",
+    "operation_id": "listListingReleases",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog-listings~1{listingId}~1releases/get",
+    "source_method": "GET",
+    "source_operation_id": "listListingReleases",
+    "source_path": "/api/v1/catalog-listings/{listingId}/releases",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_listing_revisions",
+    "operation_id": "listListingRevisions",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog-listings~1{listingId}~1revisions/get",
+    "source_method": "GET",
+    "source_operation_id": "listListingRevisions",
+    "source_path": "/api/v1/catalog-listings/{listingId}/revisions",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_memberships",
+    "operation_id": "listMemberships",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1memberships/get",
+    "source_method": "GET",
+    "source_operation_id": "listMemberships",
+    "source_path": "/api/v1/memberships",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_namespaces",
+    "operation_id": "listNamespaces",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1namespaces/get",
+    "source_method": "GET",
+    "source_operation_id": "listNamespaces",
+    "source_path": "/api/v1/namespaces",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_observation_occurrences",
+    "operation_id": "listObservationOccurrences",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1observations~1{observationId}~1occurrences/get",
+    "source_method": "GET",
+    "source_operation_id": "listObservationOccurrences",
+    "source_path": "/api/v1/observations/{observationId}/occurrences",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_observations",
+    "operation_id": "listObservations",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1observations/get",
+    "source_method": "GET",
+    "source_operation_id": "listObservations",
+    "source_path": "/api/v1/observations",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_own_feedback",
+    "operation_id": "listOwnFeedback",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1feedback/get",
+    "source_method": "GET",
+    "source_operation_id": "listOwnFeedback",
+    "source_path": "/api/v1/feedback",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_own_ratings",
+    "operation_id": "listOwnRatings",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings/get",
+    "source_method": "GET",
+    "source_operation_id": "listOwnRatings",
+    "source_path": "/api/v1/ratings",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_permission_descriptors",
+    "operation_id": "listPermissionDescriptors",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1permissions/get",
+    "source_method": "GET",
+    "source_operation_id": "listPermissionDescriptors",
+    "source_path": "/api/v1/access/permissions",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_personal_items",
+    "operation_id": "listPersonalItems",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1personal~1items/get",
+    "source_method": "GET",
+    "source_operation_id": "listPersonalItems",
+    "source_path": "/api/v1/personal/items",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_personal_work",
+    "operation_id": "listPersonalWork",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1me~1work/get",
+    "source_method": "GET",
+    "source_operation_id": "listPersonalWork",
+    "source_path": "/api/v1/me/work",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_publication_hosts",
+    "operation_id": "listPublicationHosts",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publication~1hosts/get",
+    "source_method": "GET",
+    "source_operation_id": "listPublicationHosts",
+    "source_path": "/api/v1/publication/hosts",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_publication_snapshots",
+    "operation_id": "listPublicationSnapshots",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publication~1snapshots/get",
+    "source_method": "GET",
+    "source_operation_id": "listPublicationSnapshots",
+    "source_path": "/api/v1/publication/snapshots",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_publishers",
+    "operation_id": "listPublishers",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers/get",
+    "source_method": "GET",
+    "source_operation_id": "listPublishers",
+    "source_path": "/api/v1/publishers",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_rating_inbox",
+    "operation_id": "listRatingInbox",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings~1inbox/get",
+    "source_method": "GET",
+    "source_operation_id": "listRatingInbox",
+    "source_path": "/api/v1/ratings/inbox",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_resource_listings",
+    "operation_id": "listResourceListings",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resources~1{resourceId}~1listings/get",
+    "source_method": "GET",
+    "source_operation_id": "listResourceListings",
+    "source_path": "/api/v1/resources/{resourceId}/listings",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_resource_versions",
+    "operation_id": "listResourceVersions",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resources~1{resourceId}~1versions/get",
+    "source_method": "GET",
+    "source_operation_id": "listResourceVersions",
+    "source_path": "/api/v1/resources/{resourceId}/versions",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_resources",
+    "operation_id": "listResources",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resources/get",
+    "source_method": "GET",
+    "source_operation_id": "listResources",
+    "source_path": "/api/v1/resources",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_review_submissions",
+    "operation_id": "listReviewSubmissions",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1review-submissions/get",
+    "source_method": "GET",
+    "source_operation_id": "listReviewSubmissions",
+    "source_path": "/api/v1/review-submissions",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_role_assignments",
+    "operation_id": "listRoleAssignments",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1role-assignments/get",
+    "source_method": "GET",
+    "source_operation_id": "listRoleAssignments",
+    "source_path": "/api/v1/role-assignments",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_role_definitions",
+    "operation_id": "listRoleDefinitions",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1roles/get",
+    "source_method": "GET",
+    "source_operation_id": "listRoleDefinitions",
+    "source_path": "/api/v1/access/roles",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_role_impact",
+    "operation_id": "listRoleImpact",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1roles~1{roleId}~1assignments/get",
+    "source_method": "GET",
+    "source_operation_id": "listRoleImpact",
+    "source_path": "/api/v1/access/roles/{roleId}/assignments",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_version_revisions",
+    "operation_id": "listVersionRevisions",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resource-versions~1{versionId}~1revisions/get",
+    "source_method": "GET",
+    "source_operation_id": "listVersionRevisions",
+    "source_path": "/api/v1/resource-versions/{versionId}/revisions",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_webhook_deliveries",
+    "operation_id": "listWebhookDeliveries",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1webhooks~1{webhookId}~1deliveries/get",
+    "source_method": "GET",
+    "source_operation_id": "listWebhookDeliveries",
+    "source_path": "/api/v1/webhooks/{webhookId}/deliveries",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_webhooks",
+    "operation_id": "listWebhooks",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1webhooks/get",
+    "source_method": "GET",
+    "source_operation_id": "listWebhooks",
+    "source_path": "/api/v1/webhooks",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "live_federated_search",
+    "operation_id": "liveFederatedSearch",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources:live-search/post",
+    "source_method": "POST",
+    "source_operation_id": "liveFederatedSearch",
+    "source_path": "/api/v1/federation/sources:live-search",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "offboard_membership",
+    "operation_id": "offboardMembership",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1memberships~1{membershipId}:offboard/post",
+    "source_method": "POST",
+    "source_operation_id": "offboardMembership",
+    "source_path": "/api/v1/memberships/{membershipId}:offboard",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "pause_federation_source",
+    "operation_id": "pauseFederationSource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}:pause/post",
+    "source_method": "POST",
+    "source_operation_id": "pauseFederationSource",
+    "source_path": "/api/v1/federation/sources/{sourceId}:pause",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "permit_rating",
+    "operation_id": "permitRating",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings~1{ratingId}:permit/post",
+    "source_method": "POST",
+    "source_operation_id": "permitRating",
+    "source_path": "/api/v1/ratings/{ratingId}:permit",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "preflight_catalog_mcp",
+    "operation_id": "preflightCatalogMCP",
+    "response_excluded_statuses": [
+      "400",
+      "403",
+      "404"
+    ],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "204"
+    ],
+    "source_json_pointer": "/paths/~1mcp/options",
+    "source_method": "OPTIONS",
+    "source_operation_id": "preflightCatalogMCP",
+    "source_path": "/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "preflight_catalog_mcpo_auth_metadata",
+    "operation_id": "preflightCatalogMCPOAuthMetadata",
+    "response_excluded_statuses": [
+      "400",
+      "403",
+      "404"
+    ],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "204"
+    ],
+    "source_json_pointer": "/paths/~1.well-known~1oauth-protected-resource~1mcp/options",
+    "source_method": "OPTIONS",
+    "source_operation_id": "preflightCatalogMCPOAuthMetadata",
+    "source_path": "/.well-known/oauth-protected-resource/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "preview_federation_source_change",
+    "operation_id": "previewFederationSourceChange",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}~1change-previews/post",
+    "source_method": "POST",
+    "source_operation_id": "previewFederationSourceChange",
+    "source_path": "/api/v1/federation/sources/{sourceId}/change-previews",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "publish_catalog_listing",
+    "operation_id": "publishCatalogListing",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog-listings~1{listingId}:publish/post",
+    "source_method": "POST",
+    "source_operation_id": "publishCatalogListing",
+    "source_path": "/api/v1/catalog-listings/{listingId}:publish",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "reactivate_access_group",
+    "operation_id": "reactivateAccessGroup",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups~1{groupId}:reactivate/post",
+    "source_method": "POST",
+    "source_operation_id": "reactivateAccessGroup",
+    "source_path": "/api/v1/access/groups/{groupId}:reactivate",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "reactivate_membership",
+    "operation_id": "reactivateMembership",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1memberships~1{membershipId}:reactivate/post",
+    "source_method": "POST",
+    "source_operation_id": "reactivateMembership",
+    "source_path": "/api/v1/memberships/{membershipId}:reactivate",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "read_artwork",
+    "operation_id": "readArtwork",
+    "response_excluded_statuses": [],
+    "response_kind": "binary",
+    "response_media_type": "image/jpeg",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1artwork~1read/post",
+    "source_method": "POST",
+    "source_operation_id": "readArtwork",
+    "source_path": "/api/v1/artwork/read",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "read_artwork_binary_image_png",
+    "operation_id": "readArtwork",
+    "response_excluded_statuses": [],
+    "response_kind": "binary",
+    "response_media_type": "image/png",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1artwork~1read/post",
+    "source_method": "POST",
+    "source_operation_id": "readArtwork",
+    "source_path": "/api/v1/artwork/read",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "read_rating",
+    "operation_id": "readRating",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings~1read/post",
+    "source_method": "POST",
+    "source_operation_id": "readRating",
+    "source_path": "/api/v1/ratings/read",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "refuse_catalog_mcp_session_deletion",
+    "operation_id": "refuseCatalogMCPSessionDeletion",
+    "response_excluded_statuses": [],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [],
+    "source_json_pointer": "/paths/~1mcp/delete",
+    "source_method": "DELETE",
+    "source_operation_id": "refuseCatalogMCPSessionDeletion",
+    "source_path": "/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "refuse_catalog_mcp_stream",
+    "operation_id": "refuseCatalogMCPStream",
+    "response_excluded_statuses": [],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [],
+    "source_json_pointer": "/paths/~1mcp/get",
+    "source_method": "GET",
+    "source_operation_id": "refuseCatalogMCPStream",
+    "source_path": "/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "reindex_catalog",
+    "operation_id": "reindexCatalog",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "202"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog:reindex/post",
+    "source_method": "POST",
+    "source_operation_id": "reindexCatalog",
+    "source_path": "/api/v1/catalog:reindex",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "reject_review_submission",
+    "operation_id": "rejectReviewSubmission",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1review-submissions~1{submissionId}:reject/post",
+    "source_method": "POST",
+    "source_operation_id": "rejectReviewSubmission",
+    "source_path": "/api/v1/review-submissions/{submissionId}:reject",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "remove_federation_source",
+    "operation_id": "removeFederationSource",
+    "response_excluded_statuses": [],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "204"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}:remove/post",
+    "source_method": "POST",
+    "source_operation_id": "removeFederationSource",
+    "source_path": "/api/v1/federation/sources/{sourceId}:remove",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "remove_feedback",
+    "operation_id": "removeFeedback",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1feedback~1{feedbackId}:remove/post",
+    "source_method": "POST",
+    "source_operation_id": "removeFeedback",
+    "source_path": "/api/v1/feedback/{feedbackId}:remove",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "remove_rating",
+    "operation_id": "removeRating",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings~1{ratingId}:remove/post",
+    "source_method": "POST",
+    "source_operation_id": "removeRating",
+    "source_path": "/api/v1/ratings/{ratingId}:remove",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "reopen_feedback",
+    "operation_id": "reopenFeedback",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1feedback~1{feedbackId}:reopen/post",
+    "source_method": "POST",
+    "source_operation_id": "reopenFeedback",
+    "source_path": "/api/v1/feedback/{feedbackId}:reopen",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "request_review_changes",
+    "operation_id": "requestReviewChanges",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1review-submissions~1{submissionId}:request-changes/post",
+    "source_method": "POST",
+    "source_operation_id": "requestReviewChanges",
+    "source_path": "/api/v1/review-submissions/{submissionId}:request-changes",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "request_trust_assessment",
+    "operation_id": "requestTrustAssessment",
+    "response_excluded_statuses": [
+      "400",
+      "401",
+      "403",
+      "404",
+      "409",
+      "412",
+      "503"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "202"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}~1trust-assessments/post",
+    "source_method": "POST",
+    "source_operation_id": "requestTrustAssessment",
+    "source_path": "/api/v1/federation/sources/{sourceId}/trust-assessments",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "resolve_personal_item",
+    "operation_id": "resolvePersonalItem",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1personal~1items~1{itemId}~1resolve/post",
+    "source_method": "POST",
+    "source_operation_id": "resolvePersonalItem",
+    "source_path": "/api/v1/personal/items/{itemId}/resolve",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "resume_federation_source",
+    "operation_id": "resumeFederationSource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}:resume/post",
+    "source_method": "POST",
+    "source_operation_id": "resumeFederationSource",
+    "source_path": "/api/v1/federation/sources/{sourceId}:resume",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "retire_listing_release",
+    "operation_id": "retireListingRelease",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1listing-releases~1{releaseId}:retire/post",
+    "source_method": "POST",
+    "source_operation_id": "retireListingRelease",
+    "source_path": "/api/v1/listing-releases/{releaseId}:retire",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "retry_job",
+    "operation_id": "retryJob",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "202"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1jobs~1{jobId}:retry/post",
+    "source_method": "POST",
+    "source_operation_id": "retryJob",
+    "source_path": "/api/v1/jobs/{jobId}:retry",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "revoke_access_assignment",
+    "operation_id": "revokeAccessAssignment",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1assignments~1{assignmentId}:revoke/post",
+    "source_method": "POST",
+    "source_operation_id": "revokeAccessAssignment",
+    "source_path": "/api/v1/access/assignments/{assignmentId}:revoke",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "revoke_access_group_member",
+    "operation_id": "revokeAccessGroupMember",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups~1{groupId}~1members~1{memberId}:revoke/post",
+    "source_method": "POST",
+    "source_operation_id": "revokeAccessGroupMember",
+    "source_path": "/api/v1/access/groups/{groupId}/members/{memberId}:revoke",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "revoke_listing_release",
+    "operation_id": "revokeListingRelease",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1listing-releases~1{releaseId}:revoke/post",
+    "source_method": "POST",
+    "source_operation_id": "revokeListingRelease",
+    "source_path": "/api/v1/listing-releases/{releaseId}:revoke",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "revoke_publisher_publication_domain",
+    "operation_id": "revokePublisherPublicationDomain",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers~1{publisherId}~1publication-domains~1{domain}:revoke/post",
+    "source_method": "POST",
+    "source_operation_id": "revokePublisherPublicationDomain",
+    "source_path": "/api/v1/publishers/{publisherId}/publication-domains/{domain}:revoke",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "revoke_role_assignment",
+    "operation_id": "revokeRoleAssignment",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1role-assignments~1{assignmentId}:revoke/post",
+    "source_method": "POST",
+    "source_operation_id": "revokeRoleAssignment",
+    "source_path": "/api/v1/role-assignments/{assignmentId}:revoke",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "rollback_publication_snapshot",
+    "operation_id": "rollbackPublicationSnapshot",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publication~1snapshots~1{snapshotId}:rollback/post",
+    "source_method": "POST",
+    "source_operation_id": "rollbackPublicationSnapshot",
+    "source_path": "/api/v1/publication/snapshots/{snapshotId}:rollback",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "rotate_webhook_secret",
+    "operation_id": "rotateWebhookSecret",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1webhooks~1{webhookId}:rotate-secret/post",
+    "source_method": "POST",
+    "source_operation_id": "rotateWebhookSecret",
+    "source_path": "/api/v1/webhooks/{webhookId}:rotate-secret",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "search_ard_registry",
+    "operation_id": "searchARDRegistry",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1ard~1v1~1search/post",
+    "source_method": "POST",
+    "source_operation_id": "searchARDRegistry",
+    "source_path": "/ard/v1/search",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "search_catalog",
+    "operation_id": "searchCatalog",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog~1search/post",
+    "source_method": "POST",
+    "source_operation_id": "searchCatalog",
+    "source_path": "/api/v1/catalog/search",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "search_observations",
+    "operation_id": "searchObservations",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1observations:search/post",
+    "source_method": "POST",
+    "source_operation_id": "searchObservations",
+    "source_path": "/api/v1/observations:search",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "set_artwork_override",
+    "operation_id": "setArtworkOverride",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}~1artwork/post",
+    "source_method": "POST",
+    "source_operation_id": "setArtworkOverride",
+    "source_path": "/api/v1/federation/sources/{sourceId}/artwork",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "set_rating_sharing",
+    "operation_id": "setRatingSharing",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings~1sharing/post",
+    "source_method": "POST",
+    "source_operation_id": "setRatingSharing",
+    "source_path": "/api/v1/ratings/sharing",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "set_tenant_settings",
+    "operation_id": "setTenantSettings",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1tenant-settings/post",
+    "source_method": "POST",
+    "source_operation_id": "setTenantSettings",
+    "source_path": "/api/v1/tenant-settings",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "submit_listing_for_review",
+    "operation_id": "submitListingForReview",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1catalog-listings~1{listingId}~1submissions/post",
+    "source_method": "POST",
+    "source_operation_id": "submitListingForReview",
+    "source_path": "/api/v1/catalog-listings/{listingId}/submissions",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "submit_rating",
+    "operation_id": "submitRating",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200",
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings/post",
+    "source_method": "POST",
+    "source_operation_id": "submitRating",
+    "source_path": "/api/v1/ratings",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "supersede_listing_release",
+    "operation_id": "supersedeListingRelease",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1listing-releases~1{releaseId}:supersede/post",
+    "source_method": "POST",
+    "source_operation_id": "supersedeListingRelease",
+    "source_path": "/api/v1/listing-releases/{releaseId}:supersede",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "suspend_access_group",
+    "operation_id": "suspendAccessGroup",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups~1{groupId}:suspend/post",
+    "source_method": "POST",
+    "source_operation_id": "suspendAccessGroup",
+    "source_path": "/api/v1/access/groups/{groupId}:suspend",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "suspend_membership",
+    "operation_id": "suspendMembership",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1memberships~1{membershipId}:suspend/post",
+    "source_method": "POST",
+    "source_operation_id": "suspendMembership",
+    "source_path": "/api/v1/memberships/{membershipId}:suspend",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "sync_federation_source",
+    "operation_id": "syncFederationSource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "202"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}:sync/post",
+    "source_method": "POST",
+    "source_operation_id": "syncFederationSource",
+    "source_path": "/api/v1/federation/sources/{sourceId}:sync",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "test_federation_source",
+    "operation_id": "testFederationSource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}:test/post",
+    "source_method": "POST",
+    "source_operation_id": "testFederationSource",
+    "source_path": "/api/v1/federation/sources/{sourceId}:test",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "test_webhook",
+    "operation_id": "testWebhook",
+    "response_excluded_statuses": [
+      "503"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1webhooks~1{webhookId}:test/post",
+    "source_method": "POST",
+    "source_operation_id": "testWebhook",
+    "source_path": "/api/v1/webhooks/{webhookId}:test",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "unpublish_catalog",
+    "operation_id": "unpublishCatalog",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publication:unpublish/post",
+    "source_method": "POST",
+    "source_operation_id": "unpublishCatalog",
+    "source_path": "/api/v1/publication:unpublish",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "update_access_group",
+    "operation_id": "updateAccessGroup",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1groups~1{groupId}/patch",
+    "source_method": "PATCH",
+    "source_operation_id": "updateAccessGroup",
+    "source_path": "/api/v1/access/groups/{groupId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "update_federation_source",
+    "operation_id": "updateFederationSource",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1sources~1{sourceId}/patch",
+    "source_method": "PATCH",
+    "source_operation_id": "updateFederationSource",
+    "source_path": "/api/v1/federation/sources/{sourceId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "update_namespace",
+    "operation_id": "updateNamespace",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1namespaces~1{namespaceId}/patch",
+    "source_method": "PATCH",
+    "source_operation_id": "updateNamespace",
+    "source_path": "/api/v1/namespaces/{namespaceId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "update_personal_item",
+    "operation_id": "updatePersonalItem",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1personal~1items~1{itemId}/patch",
+    "source_method": "PATCH",
+    "source_operation_id": "updatePersonalItem",
+    "source_path": "/api/v1/personal/items/{itemId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "update_publisher",
+    "operation_id": "updatePublisher",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1publishers~1{publisherId}/patch",
+    "source_method": "PATCH",
+    "source_operation_id": "updatePublisher",
+    "source_path": "/api/v1/publishers/{publisherId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "update_role_definition",
+    "operation_id": "updateRoleDefinition",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1access~1roles~1{roleId}/patch",
+    "source_method": "PATCH",
+    "source_operation_id": "updateRoleDefinition",
+    "source_path": "/api/v1/access/roles/{roleId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "update_webhook",
+    "operation_id": "updateWebhook",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1webhooks~1{webhookId}/patch",
+    "source_method": "PATCH",
+    "source_operation_id": "updateWebhook",
+    "source_path": "/api/v1/webhooks/{webhookId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "validate_version_revision",
+    "operation_id": "validateVersionRevision",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1version-revisions~1{revisionId}:validate/post",
+    "source_method": "POST",
+    "source_operation_id": "validateVersionRevision",
+    "source_path": "/api/v1/version-revisions/{revisionId}:validate",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "withdraw_feedback",
+    "operation_id": "withdrawFeedback",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1feedback~1{feedbackId}:withdraw/post",
+    "source_method": "POST",
+    "source_operation_id": "withdrawFeedback",
+    "source_path": "/api/v1/feedback/{feedbackId}:withdraw",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "withdraw_rating",
+    "operation_id": "withdrawRating",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1ratings~1{ratingId}:withdraw/post",
+    "source_method": "POST",
+    "source_operation_id": "withdrawRating",
+    "source_path": "/api/v1/ratings/{ratingId}:withdraw",
+    "webhook": false
+  }
+]

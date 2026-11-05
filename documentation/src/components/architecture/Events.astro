@@ -1,0 +1,31 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="events-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1076" role="img" aria-labelledby="events-title events-desc">
+  <title id="events-title">Transactional outbox and optional webhook delivery</title>
+  <desc id="events-desc">For a covered domain workflow, one PostgreSQL transaction commits the state change and bounded audit evidence. It adds an outbox event only when the event classification is public or internal. The outbox does not construct authoritative API state.
+
+  A worker leases events and drains without network access when webhooks are disabled. When enabled, only registered public event types can produce signed CloudEvents for an approved HTTPS receiver; internal and unknown types are not delivered. Delivery is unordered with bounded retries and possible duplicates, not guaranteed receipt. Consumers read current authorized state from the API.</desc>
+  <defs><marker id="arrow-events" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 164 V199 H180 V234" marker-end="url(#arrow-events)" />
+  <path class="svg-connector" d="M320 164 V199 H460 V234" marker-end="url(#arrow-events)" />
+  <path class="svg-connector" d="M460 355 V393 H320 V428" marker-end="url(#arrow-events)" />
+  <path class="svg-connector" d="M320 503 V538 H180 V573" marker-end="url(#arrow-events)" />
+  <path class="svg-connector" d="M320 503 V538 H460 V573" marker-end="url(#arrow-events)" />
+  <path class="svg-connector" d="M460 694 V729 H320 V764" marker-end="url(#arrow-events)" />
+  <path class="svg-connector" d="M320 888 V942 H12 V218 H180 V234" marker-end="url(#arrow-events)" />
+  <text class="svg-small" x="38" y="740">Authorized API read</text>
+  <DiagramCard x={60} y={20} width={520} title={"One PostgreSQL domain commit"} tone="authority" lines={["Save the governed state transition", "and bounded audit atomically", "Add an outbox event only for a", "public or internal classification"]} />
+  <DiagramCard x={60} y={234} width={240} title={["Authoritative API", "state"]} tone="authority" lines={["Current", "tenant-authorized reads"]} />
+  <DiagramCard x={340} y={234} width={240} title={"Transactional outbox"} lines={["Durable event", "and lease state", "No external broker"]} />
+  <DiagramCard x={60} y={428} width={520} title={"Worker leases and classifies the event"} tone="core" lines={["The outbox does not construct authoritative API state"]} />
+  <DiagramCard x={60} y={573} width={240} title={"Webhooks disabled"} tone="warning" lines={["Offline drainer", "No key, receiver", "or network"]} />
+  <DiagramCard x={340} y={573} width={240} title={"Enabled public event"} tone="external" lines={["Approved HTTPS receiver", "Signed CloudEvent", "May repeat; unordered"]} />
+  <DiagramCard x={60} y={764} width={520} title={["Consumer reads current authorized API", "state"]} tone="authority" lines={["Internal and unknown event types are not delivered", "Retries are bounded and receipt is not guaranteed"]} />
+  <DiagramCard x={60} y={958} width={520} title={"Delivery does not change Catalog authority"} tone="warning" lines={["Arrival order, retries and receiver", "availability never change committed state."]} />
+
+</svg>
+</div>

@@ -1,0 +1,11 @@
+# Execution-only official A2A SDK and unchanged sample; never a Catalog dependency.
+FROM python:3.13.17-slim-bookworm@sha256:e32be0e55814a08977501ca863271d9bd02443710db8f2afaf8372e2c4508530
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /tools
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --only-binary=:all: --require-hashes -r requirements.txt && pip check
+COPY agent_executor.py ./
+COPY SDK-LICENSE Sample-LICENSE /tools/notices/
+ENV PYTHONPATH=/tools
+USER 65532:65532
+ENTRYPOINT ["python", "-B"]

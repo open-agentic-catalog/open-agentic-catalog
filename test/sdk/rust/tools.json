@@ -1,0 +1,86 @@
+{
+  "rust": "1.99.0",
+  "msrv": "1.88.0",
+  "host": "x86_64-unknown-linux-gnu",
+  "dependencyCutoff": "2026-10-09T22:30:23Z",
+  "securityFixes": [
+    {
+      "name": "rustls",
+      "version": "0.23.46",
+      "checksum": "48e13bd8c0e9365c43cfa5c9e8f9ad49d3c8444926c9aac819e0e4dc503c8fdf",
+      "released": "2026-10-14T09:54:15Z",
+      "advisories": ["RUSTSEC-2026-0348", "RUSTSEC-2026-0349"],
+      "reason": "Exact security patch admitted before the ordinary two-week waiting period ends. No license, advisory, source, yank or compiler check is waived."
+    },
+    {
+      "name": "rustls-webpki",
+      "version": "0.103.16",
+      "checksum": "4443b1b6d39d7c663139942cc4558262562d2c84123bb6282ef177009ca8b281",
+      "released": "2026-10-20T08:58:28Z",
+      "advisories": ["RUSTSEC-2026-0382"],
+      "reason": "Exact security patch rejects distrusted intermediate certificate keys. No license, advisory, source, yank or compiler check is waived."
+    },
+    {
+      "name": "webpki-root-certs",
+      "version": "1.0.10",
+      "checksum": "58ec80e73fd8baf57bf0d9615554c75348bda990d6d5bbeab964dd068319fecb",
+      "released": "2026-10-19T20:11:38Z",
+      "advisories": ["RUSTSEC-2026-0383"],
+      "reason": "Exact security patch removes a distrusted emSign root certificate. No license, advisory, source, yank or compiler check is waived."
+    },
+    {
+      "name": "webpki-roots",
+      "version": "1.0.10",
+      "checksum": "1c1c8e20c8a38fc7d65abfe74eb7280e4aa667e8eec8bc84996d2874810748d9",
+      "released": "2026-10-19T20:11:32Z",
+      "advisories": ["RUSTSEC-2026-0381"],
+      "reason": "Exact security patch removes a distrusted emSign root certificate from the analyzer's roots. All license, advisory, source, yank and compiler checks remain enforced."
+    },
+    {
+      "name": "tokio",
+      "version": "1.53.3",
+      "checksum": "ce3335fa71841cda333a58d7615b03901380ecf09d59b3296d21f8bbac0dde4e",
+      "released": "2026-10-13T20:51:46Z",
+      "advisories": ["RUSTSEC-2026-0386"],
+      "reason": "Exact security patch addresses AsyncFd I/O safety on the selected 1.53 line. All license, advisory, source, yank and compiler checks remain enforced."
+    },
+    {
+      "name": "zstd",
+      "version": "0.13.4",
+      "checksum": "cdb02c3132d251ab1606e9fc913a7da6c6ed08cc263df15edf082e1dc497d157",
+      "released": "2026-11-01T14:12:07Z",
+      "advisories": ["RUSTSEC-2026-0391"],
+      "reason": "Approved N-215 compatible compression fix. The ordinary cutoff and all license, source, checksum, yank and advisory checks remain enforced."
+    },
+    {
+      "name": "zstd-safe",
+      "version": "7.4.0",
+      "checksum": "1c8ea04668f5de8d8d51051714ba560c9536519cadcdb8829bba4fe2ad159b03",
+      "released": "2026-11-01T14:11:59Z",
+      "advisories": ["RUSTSEC-2026-0398", "RUSTSEC-2026-0403"],
+      "reason": "Approved N-215 compatible compression fix. The ordinary cutoff and all license, source, checksum, yank and advisory checks remain enforced."
+    },
+    {
+      "name": "zstd-sys",
+      "version": "2.1.2+zstd.1.5.7",
+      "checksum": "481ada9c543b2323cbb7bbdbb5249177fbf0188ed959ed2c15e4b22421c84ed3",
+      "released": "2026-10-16T16:59:08Z",
+      "advisories": ["RUSTSEC-2026-0410"],
+      "reason": "Approved N-215 compatible compression fix. The ordinary cutoff and all license, source, checksum, yank and advisory checks remain enforced."
+    }
+  ],
+  "generator": {
+    "version": "0.22.0",
+    "repository": "gpu-cli/openapi-to-rust",
+    "revision": "a9138670383497794eeabab40f73cb2b2f37b9c3",
+    "archiveSha256": "815fe8087eeb9b56db616497aec7f9afaf7b2786fb1f08cc1c0182c106bd7121"
+  },
+  "deny": {
+    "version": "0.20.2",
+    "repository": "EmbarkStudios/cargo-deny",
+    "revision": "bca0dde53651ee946720e4540b5ce2610bec8f06",
+    "archiveSha256": "4c0c7eb74a3941d2b03a16871376bb35b7fe044cf17cace6ce072ec1016616b2"
+  },
+  "advisoryDirectory": "advisory-db-3157b0e258782691",
+  "advisoryMaxAgeSeconds": 604800
+}

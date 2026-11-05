@@ -1,0 +1,56 @@
+{
+  "release": "v1.8.0",
+  "revision": "337ddd89721bd66595c701c9675d6bfbb5a65997",
+  "source_sha256": "70ec934a82a3c142f5383e091cb948f56cb678da7aa975ec8e3b5fe6f61509b4",
+  "cli_sha256": "ecd0e41498ec4b28887be89a9df18d679bfd45636a47af005ade0d9b55ebaa9d",
+  "cli_version": "Application Version: v1.8.0 (337ddd89)",
+  "chart_sha256": "32e0a8015f36c8ac0f8b61a8e9920e03dbdb09b79607d8c797d9caed95162ee4",
+  "images": {
+    "apiserver": "ghcr.io/agntcy/dir-apiserver:v1.8.0@sha256:152e49c9d63fdd9de7c9baf2db2cfa3753e9e63e3c6b802941ac8165849349e7",
+    "reconciler": "ghcr.io/agntcy/dir-reconciler:v1.8.0@sha256:fb4277de2ab07b143a40e95a42e966b10ed11bd53c8a090455f40abb738e360a",
+    "oasf": "ghcr.io/agntcy/oasf-server:v1.0.0@sha256:fecae4ee41cb9fdbbc207f484b0e63f07ccaf0163e2b47435a01c02e4a79ed17",
+    "zot": "ghcr.io/project-zot/zot:v2.1.21@sha256:6b69512c00dceaad05b1144e6079aac6aa7309d7fd200f9947ecb1de09cf48c8",
+    "postgres": "docker.io/bitnami/postgresql@sha256:7d77a46bbf200709237318c27dec0eaeae2520e403dd18fdebde2be7a6b04993"
+  },
+  "cid": "baeareiejq2an6i6iake6pq33wmd4upjb6jfrh5lzjradenxrrswcbmq7vq",
+  "expected": {
+    "dispositions": {
+      "artifact": "supported",
+      "discovery": "compatible-empty",
+      "search": "peer-incompatible",
+      "conformance": "partial-compatibility"
+    },
+    "checker_errors": [
+      "GET /agents response is not a valid paginated object. Missing 'items' array.",
+      "POST /search request failed: 400 Bad Request"
+    ],
+    "entry_errors": [
+      {
+        "path": [
+          "identifier"
+        ],
+        "validator": "pattern"
+      },
+      {
+        "path": [
+          "metadata",
+          "agntcy.dir.trust.v1.Status"
+        ],
+        "validator": "type"
+      },
+      {
+        "path": [
+          "metadata",
+          "agntcy.dir.usage.v1.Metrics"
+        ],
+        "validator": "type"
+      }
+    ],
+    "manifest_entries": 0,
+    "members": 0,
+    "observations": 0,
+    "nested_status": 400,
+    "scalar_status": 503,
+    "nonempty_disposition": "unsupported_nonempty"
+  }
+}

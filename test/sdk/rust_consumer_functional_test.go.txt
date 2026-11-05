@@ -1,0 +1,406 @@
+//go:build functional
+
+package clientcompat_test
+
+import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"errors"
+	"fmt"
+	"io"
+	"log"
+	"math/big"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/api"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jobs"
+)
+
+type rustNoExternal struct{ calls atomic.Int32 }
+
+func (r *rustNoExternal) FetchExternalRepresentation(context.Context, catalog.ExternalRepresentationFetchRequest) (catalog.ExternalRepresentationFetchResult, error) {
+	r.calls.Add(1)
+	return catalog.ExternalRepresentationFetchResult{}, errors.New("unexpected external content request")
+}
+func (*rustNoExternal) PolicyDigest() string { return "sha256:" + strings.Repeat("a", 64) }
+
+func rustConsumer(t *testing.T, args ...string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, os.Getenv("CATALOG_SDK_RUST"), args...)
+	// Ambient proxies must not route either the API or credential traffic.
+	command.Env = append(os.Environ(), "HTTP_PROXY=http://127.0.0.1:1", "HTTPS_PROXY=http://127.0.0.1:1", "ALL_PROXY=http://127.0.0.1:1", "NO_PROXY=")
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Rust SDK %s: %v\n%s", args[0], err, output)
+	}
+	t.Log(string(output))
+}
+
+func TestRustSDKCatalogWorkflow(t *testing.T) {
+	external := &rustNoExternal{}
+	f := newFixtureWithFetcher(t, external)
+	_, _, err := f.jobStore.Enqueue(context.Background(), jobs.Job{ID: "00000000-0000-7000-8000-000000000090", TenantID: tenant, Kind: "publication.generate", Actor: "admin", PayloadVersion: 1, Payload: json.RawMessage(`{"host":"catalog.example.com"}`), State: jobs.StateFailed, NotBefore: f.now, AttemptLimit: 3, DeduplicationKey: "rust-prepared", CreatedAt: f.now, UpdatedAt: f.now})
+	must(t, err)
+	var mu sync.Mutex
+	dropped, attempts := false, 0
+	// Drop one actual committed Catalog response. A readback and deliberate
+	// original-key replay must recover it without another domain mutation.
+	original := f.server.Config.Handler
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Idempotency-Key") == "rust-uncertain" {
+			mu.Lock()
+			attempts++
+			first := !dropped
+			if first {
+				dropped = true
+			}
+			mu.Unlock()
+			if first {
+				recorder := httptest.NewRecorder()
+				original.ServeHTTP(recorder, r)
+				if recorder.Code != http.StatusOK {
+					t.Errorf("Uncertain command did not commit: %d", recorder.Code)
+				}
+				connection, _, err := w.(http.Hijacker).Hijack()
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				_ = connection.Close()
+				return
+			}
+		}
+		original.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+	rustConsumer(t, "workflow", server.URL)
+	mu.Lock()
+	defer mu.Unlock()
+	if !dropped || attempts != 2 {
+		t.Fatalf("Uncertain command attempts=%d dropped=%v", attempts, dropped)
+	}
+	if external.calls.Load() != 0 {
+		t.Fatal("Rust Catalog workflow attempted an external fetch")
+	}
+}
+
+func TestRustSDKTransport(t *testing.T) {
+	var mu sync.Mutex
+	calls := map[string]int{}
+	committed := 0
+	cancelled := make(chan struct{})
+	timedOut := make(chan struct{})
+	manifest, err := api.Files.ReadFile("examples/ard-manifest.json")
+	must(t, err)
+	search := []byte(`{"results":[{"identifier":"urn:air:catalog.example.com:payments:invoice-resolution-agent","score":37,"source":"https://catalog.example.com/ard/v1/search","x-extension":{"number":9007199254740993}}],"pageToken":"cursor+/=雪"}`)
+	emptySearch := []byte(`{"results":[]}`)
+	explore := []byte(`{"resultType":"facets","facets":{"tags":{"buckets":[]}}}`)
+	refusal := []byte(`{"errorCode":"INVALID_ARGUMENT","message":"Unsupported filter"}`)
+	for _, tc := range []struct {
+		schema string
+		body   []byte
+	}{
+		{"ARDManifest", manifest}, {"ARDSearchResponse", search}, {"ARDSearchResponse", emptySearch}, {"ARDExploreResponse", explore}, {"ARDError", refusal},
+	} {
+		must(t, component(t, tc.schema).Validate(exactJSON(t, tc.body)))
+	}
+	searchSchema, exploreSchema := component(t, "ARDSearch"), component(t, "ARDExplore")
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		calls[r.URL.Path]++
+		mu.Unlock()
+		anonymous := r.URL.Path == "/.well-known/ard.json" || r.URL.Path == "/ard/v1/search" || r.URL.Path == "/ard/v1/explore"
+		authorization := "Bearer synthetic-transport-token"
+		if anonymous {
+			authorization = ""
+		}
+		if r.Header.Get("Authorization") != authorization || (anonymous && r.Header.Values("Authorization") != nil) || r.Header.Get("Cookie") != "" || r.Header.Get("Referer") != "" || r.Header.Get("Accept-Encoding") != "identity" {
+			t.Errorf("Rust credential/header boundary failed")
+			w.WriteHeader(403)
+			return
+		}
+		switch r.URL.Path {
+		case "/.well-known/ard.json":
+			if r.Method != "GET" || r.Header.Get("Accept") != "application/json" {
+				t.Error("Incorrect anonymous manifest request")
+			}
+			w.Header().Set("ETag", `"anonymous-snapshot"`)
+			if r.Header.Get("If-None-Match") == `"anonymous-snapshot"` {
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(manifest)
+		case "/ard/v1/search", "/ard/v1/explore":
+			body, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+			if err != nil || r.Method != "POST" || r.Header.Get("Content-Type") != "application/json" || r.Header.Get("Accept") != "application/json" {
+				t.Error("Incorrect anonymous discovery request")
+				w.WriteHeader(500)
+				return
+			}
+			value := exactJSON(t, body)
+			schema := searchSchema
+			if r.URL.Path == "/ard/v1/explore" {
+				schema = exploreSchema
+			}
+			if err := schema.Validate(value); err != nil {
+				t.Errorf("Rust discovery request violates OpenAPI: %v", err)
+				w.WriteHeader(500)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if r.URL.Path == "/ard/v1/explore" {
+				_, _ = w.Write(explore)
+				return
+			}
+			request := value.(map[string]any)
+			if request["query"].(map[string]any)["text"] == "refuse" {
+				w.WriteHeader(400)
+				_, _ = w.Write(refusal)
+			} else if token, present := request["pageToken"]; present {
+				if token != "cursor+/=雪" {
+					t.Error("Rust ARD continuation changed the opaque token")
+				}
+				_, _ = w.Write(emptySearch)
+			} else {
+				_, _ = w.Write(search)
+			}
+		case "/success":
+			w.Header().Set("ETag", `"transport"`)
+			_, _ = io.WriteString(w, "exact-success")
+		case "/redirect":
+			w.Header().Set("Location", "/must-not-arrive")
+			w.WriteHeader(302)
+		case "/unavailable":
+			w.Header().Set("Retry-After", "7")
+			w.WriteHeader(503)
+		case "/rate-limited":
+			w.Header().Set("Retry-After", "5")
+			w.WriteHeader(429)
+		case "/too-large":
+			w.Header().Set("Content-Length", "9")
+			_, _ = io.WriteString(w, "123456789")
+		case "/exact":
+			_, _ = io.WriteString(w, "12345678")
+		case "/chunked":
+			w.WriteHeader(200)
+			w.(http.Flusher).Flush()
+			_, _ = io.WriteString(w, "123456789")
+		case "/headers":
+			w.Header().Set("X-Long", strings.Repeat("x", 100))
+			_, _ = io.WriteString(w, "ok")
+		case "/compressed":
+			var compressed bytes.Buffer
+			gzipper := gzip.NewWriter(&compressed)
+			_, _ = gzipper.Write([]byte("compressed-private-body"))
+			_ = gzipper.Close()
+			w.Header().Set("Content-Encoding", "gzip")
+			_, _ = w.Write(compressed.Bytes())
+		case "/truncated":
+			// Send a valid header and an incomplete body, then close the actual
+			// connection. Partial bytes must not become a successful response.
+			conn, buffered, err := w.(http.Hijacker).Hijack()
+			if err != nil {
+				t.Error(err)
+				return
+			}
+			defer conn.Close()
+			_, err = buffered.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n\r\nshort")
+			if err == nil {
+				err = buffered.Flush()
+			}
+			if err != nil {
+				t.Error(err)
+			}
+		case "/slow", "/cancel":
+			w.WriteHeader(200)
+			w.(http.Flusher).Flush()
+			select {
+			case <-r.Context().Done():
+			case <-time.After(5 * time.Second):
+				t.Error("Rust request did not release its response")
+			}
+			if r.URL.Path == "/cancel" {
+				close(cancelled)
+			} else {
+				close(timedOut)
+			}
+		case "/started":
+			mu.Lock()
+			started := calls["/cancel"] > 0
+			mu.Unlock()
+			if started {
+				_, _ = io.WriteString(w, "yes")
+			} else {
+				_, _ = io.WriteString(w, "no")
+			}
+		case "/lost":
+			body, err := io.ReadAll(io.LimitReader(r.Body, 1024))
+			must(t, err)
+			if r.Method != "POST" || r.Header.Get("Idempotency-Key") != "lost-write" || string(body) != "exact-command" {
+				t.Error("Lost command binding changed")
+			}
+			mu.Lock()
+			first := committed == 0
+			if first {
+				committed++
+			}
+			mu.Unlock()
+			if first {
+				conn, _, err := w.(http.Hijacker).Hijack()
+				must(t, err)
+				_ = conn.Close()
+				return
+			}
+			_, _ = io.WriteString(w, "committed")
+		case "/lost-count":
+			mu.Lock()
+			count := committed
+			mu.Unlock()
+			if count != 1 {
+				t.Error("Unexpected duplicate mutation")
+			}
+			_, _ = io.WriteString(w, "1")
+		default:
+			t.Errorf("Unexpected Rust request: %s", r.URL.Path)
+			w.WriteHeader(500)
+		}
+	})
+	server, caBytes := rustTLSServer(t, handler)
+	defer server.Close()
+	ca := filepath.Join(t.TempDir(), "roots.pem")
+	must(t, os.WriteFile(ca, caBytes, 0600))
+	rustConsumer(t, "transport", server.URL, ca)
+	for _, ch := range []chan struct{}{cancelled, timedOut} {
+		select {
+		case <-ch:
+		case <-time.After(3 * time.Second):
+			t.Fatal("Rust request cleanup was not observed")
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for path, expected := range map[string]int{"/.well-known/ard.json": 2, "/ard/v1/search": 3, "/ard/v1/explore": 1, "/success": 2, "/truncated": 1, "/redirect": 1, "/unavailable": 1, "/rate-limited": 1, "/too-large": 1, "/exact": 1, "/chunked": 1, "/headers": 1, "/compressed": 1, "/slow": 1, "/cancel": 1, "/lost": 2, "/lost-count": 2, "/must-not-arrive": 0} {
+		if calls[path] != expected {
+			t.Errorf("%s requests=%d want=%d", path, calls[path], expected)
+		}
+	}
+}
+
+func TestRustSDKExample(t *testing.T) {
+	binary := os.Getenv("CATALOG_SDK_RUST_EXAMPLE")
+	if binary == "" {
+		t.Fatal("Package qualification requires the compiled discovery example")
+	}
+	f := newFixture(t)
+	var searches atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost && r.URL.Path == "/api/v1/catalog/search" {
+			searches.Add(1)
+			body, err := io.ReadAll(io.LimitReader(r.Body, 4096))
+			must(t, err)
+			input := decode[map[string]any](t, body)
+			if input["limit"] != float64(10) || fmt.Sprint(input["origins"]) != "[local]" {
+				t.Error("discovery example must select local releases explicitly")
+			}
+			r.Body = io.NopCloser(bytes.NewReader(body))
+		}
+		f.server.Config.Handler.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, binary)
+	command.Env = append(os.Environ(), "CATALOG_SDK_ORIGIN="+server.URL, "CATALOG_SDK_TOKEN=admin", "CATALOG_SDK_ALLOW_LOOPBACK_HTTP=on", "CATALOG_SDK_CA_FILE=")
+	// Remove optional CA input instead of asking the example to read an empty path.
+	command.Env = slices.DeleteFunc(command.Env, func(s string) bool { return strings.HasPrefix(s, "CATALOG_SDK_CA_FILE=") })
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Rust discovery example: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "Access status: 200") || !strings.Contains(string(output), "Matches on this page: 0") {
+		t.Fatalf("Unexpected example output: %s", output)
+	}
+	if searches.Load() != 1 {
+		t.Fatal("discovery example must keep its first-page purpose")
+	}
+}
+
+func TestRustSDKCodecs(t *testing.T) {
+	digest := strings.Repeat("a", 64)
+	cases := []struct{ name, schema, wire string }{
+		{"current-access", "CurrentAccess", `{"tenantId":"00000000-0000-7000-8000-000000000001","subject":"synthetic-reader","membershipId":"00000000-0000-7000-8000-000000000002","realmId":"00000000-0000-7000-8000-000000000003","actorType":"human","authorizationRevision":1,"permissions":["library.own"],"availablePermissions":["library.own"],"namespaceGrants":[],"scopeEnforcement":true,"scopes":["catalog.read","personal.write"]}`},
+		{"personal-search", "PersonalInput", `{"type":"search","label":"Metadata search","search":{"text":"metadata","origins":["local"]}}`},
+		{"personal-foreign-absent", "PersonalInput", `{"type":"resource","label":"Exact external","reference":{"origin":"foreign","kind":"agent","sourceId":"00000000-0000-7000-8000-000000000001","presentationGeneration":2,"identifier":"urn:air:example.com:default:agent","versionPresent":false}}`},
+		{"personal-foreign-empty", "PersonalInput", `{"type":"resource","label":"Exact empty version","reference":{"origin":"foreign","kind":"agent","sourceId":"00000000-0000-7000-8000-000000000001","presentationGeneration":2,"identifier":"urn:air:example.com:default:agent","versionPresent":true,"version":""}}`},
+		{"personal-unavailable", "PersonalResolution", `{"status":"unavailable"}`},
+		{"namespace", "CreateNamespace", `{"slug":"rust-codec","displayName":"Rust"}`},
+		{"native", "RepresentationInput", `{"role":"primary","mediaType":"application/json","data":{"number":9007199254740993,"nested":[null,false,""]}}`},
+		{"package", "RepresentationInput", `{"role":"primary","mediaType":"application/agent-skills+zip","packageData":"AAEC/w==","handoff":{"git":{"repository":"https://example.com/skills.git","commit":"` + strings.Repeat("a", 40) + `","directory":"skills/example"}}}`},
+		{"trust", "TrustAssessmentRequest", `{"sourceRevision":1,"identifier":"urn:air:example.com:a","versionPresent":false,"mediaType":"application/json","delivery":"data","exactEntryDigest":"sha256:` + digest + `","text":"Example","reason":"Check"}`},
+		{"extensions", "ARDEntry", `{"identifier":"urn:air:example.com:agent","displayName":"Example","type":"application/json","data":{},"@context":null,"x-extension":{"large":1234567890123456789012345678901234567890,"tiny":1e-400},"additional_properties":{"nested":true}}`},
+		{"indexed", "CatalogSearchResult", `{"id":"indexed:opaque","type":"indexed","identifier":"urn:air:example.com:compat:plugin","versionPresent":false,"kind":"plugin","displayName":"Plugin","tags":[],"score":0,"indexed":{"observationGroupId":"observation-group-v1:sha256:` + digest + `","normalizedEntryDigest":"sha256:` + digest + `","sourceIds":["00000000-0000-7000-8000-000000000001"],"sourceCount":1,"sourcesTruncated":false,"conflict":false,"sameSourceConflict":false}}`},
+		{"live", "CatalogSearchResult", `{"id":"live:opaque","type":"live","identifier":"urn:air:example.com:compat:plugin","versionPresent":false,"kind":"plugin","displayName":"Plugin","tags":[],"score":0,"live":{"sourceId":"00000000-0000-7000-8000-000000000001","source":"https://catalog.example/ard","entry":{"future":{"null":null,"enabled":false,"empty":[]}}}}`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			schema := component(t, tc.schema)
+			original := exactJSON(t, []byte(tc.wire))
+			must(t, schema.Validate(original))
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			output, err := exec.CommandContext(ctx, os.Getenv("CATALOG_SDK_RUST"), "codec", tc.schema, tc.wire).Output()
+			must(t, err)
+			encoded := exactJSON(t, output)
+			must(t, schema.Validate(encoded))
+			if !reflect.DeepEqual(original, encoded) {
+				t.Fatalf("Rust codec changed original-contract fields: %s", tc.name)
+			}
+		})
+	}
+}
+
+func rustTLSServer(t *testing.T, handler http.Handler) (*httptest.Server, []byte) {
+	t.Helper()
+	server := httptest.NewUnstartedServer(handler)
+	server.Config.ErrorLog = log.New(io.Discard, "", 0)
+	// httptest's default certificate is also a CA. Use a real CA/leaf
+	// hierarchy: strict Rustls correctly refuses a CA used as a server leaf.
+	caKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	must(t, err)
+	leafKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	must(t, err)
+	now := time.Now()
+	root := &x509.Certificate{SerialNumber: big.NewInt(1), IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature, NotBefore: now.Add(-24 * time.Hour), NotAfter: now.Add(24 * time.Hour)}
+	rootDER, err := x509.CreateCertificate(rand.Reader, root, root, &caKey.PublicKey, caKey)
+	must(t, err)
+	leaf := &x509.Certificate{SerialNumber: big.NewInt(2), BasicConstraintsValid: true, KeyUsage: x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}, IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, NotBefore: root.NotBefore, NotAfter: root.NotAfter}
+	leafDER, err := x509.CreateCertificate(rand.Reader, leaf, root, &leafKey.PublicKey, caKey)
+	must(t, err)
+	server.TLS = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{{Certificate: [][]byte{leafDER, rootDER}, PrivateKey: leafKey}}}
+	server.StartTLS()
+	return server, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: rootDER})
+}

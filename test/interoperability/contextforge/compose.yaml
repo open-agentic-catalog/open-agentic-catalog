@@ -1,0 +1,188 @@
+x-proxies: &proxies
+  HTTP_PROXY: ""
+  HTTPS_PROXY: ""
+  ALL_PROXY: ""
+  NO_PROXY: ""
+  http_proxy: ""
+  https_proxy: ""
+  all_proxy: ""
+  no_proxy: ""
+x-bounds: &bounds
+  pull_policy: never
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 256
+  mem_limit: 512m
+  cpus: 2
+  networks: [owned]
+  logging:
+    driver: local
+    options:
+      max-size: 1m
+      max-file: "1"
+      compress: "false"
+services:
+  postgres:
+    <<: *bounds
+    image: ${POSTGRES_IMAGE:?prepared image required}
+    read_only: false
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    environment:
+      <<: *proxies
+      POSTGRES_DB: catalog
+      POSTGRES_USER: catalog
+      POSTGRES_PASSWORD: catalog
+    volumes:
+      - pg-data:/var/lib/postgresql
+      - ${REPOSITORY:?repository required}/deployments/postgres/init.sql:/docker-entrypoint-initdb.d/catalog.sql:ro
+    healthcheck:
+      test: [CMD, pg_isready, -h, 127.0.0.1, -U, catalog, -d, catalog]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  api:
+    <<: *bounds
+    image: ${CATALOG_IMAGE:?prepared image required}
+    group_add: ["${FIXTURE_GID:?group required}"]
+    command: [api, --config, /private/config.json]
+    environment:
+      <<: *proxies
+      CATALOG_DATABASE_DSN: postgres://catalog_api:catalog-api@postgres:5432/catalog?sslmode=disable
+      CATALOG_MCP_ENABLED: "true"
+      CATALOG_CURSOR_SIGNING_KEY_FILE: /private/cursor-key
+    volumes:
+      - ${PRIVATE:?prepared directory required}/backend:/private:ro
+    healthcheck:
+      test: [CMD, /usr/local/bin/catalogctl, probe, --url, "http://127.0.0.1:8080/readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  worker:
+    <<: *bounds
+    image: ${CATALOG_IMAGE:?prepared image required}
+    group_add: ["${FIXTURE_GID:?group required}"]
+    command: [worker, --config, /private/config.json]
+    environment:
+      <<: *proxies
+      CATALOG_DATABASE_DSN: postgres://catalog_worker:catalog-worker@postgres:5432/catalog?sslmode=disable
+      CATALOG_CURSOR_SIGNING_KEY_FILE: /private/cursor-key
+    volumes:
+      - ${PRIVATE:?prepared directory required}/backend:/private:ro
+    healthcheck:
+      test: [CMD, /usr/local/bin/catalogctl, probe, --url, "http://127.0.0.1:9090/readyz"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  owner:
+    <<: *bounds
+    image: ${CATALOG_IMAGE:?prepared image required}
+    profiles: [operator]
+    group_add: ["${FIXTURE_GID:?group required}"]
+    entrypoint: [/usr/local/bin/catalogctl]
+    environment:
+      <<: *proxies
+      CATALOG_DATABASE_DSN: postgres://catalog:catalog@postgres:5432/catalog?sslmode=disable
+    volumes:
+      - ${PRIVATE:?prepared directory required}/backend:/private:ro
+  federation-fixture:
+    <<: *bounds
+    image: ${FIXTURE_IMAGE:?prepared image required}
+    group_add: ["${FIXTURE_GID:?group required}"]
+    command: [contextforge-serve, --directory, /private]
+    environment: *proxies
+    networks: [owned, admin]
+    volumes:
+      - ${PRIVATE:?prepared directory required}/frontend:/private:ro
+    ports:
+      - target: 8443
+        published: "0"
+        host_ip: 127.0.0.1
+  cli:
+    <<: *bounds
+    image: ${CATALOG_IMAGE:?prepared image required}
+    profiles: [operator]
+    group_add: ["${FIXTURE_GID:?group required}"]
+    entrypoint: [/usr/local/bin/catalogctl]
+    environment: *proxies
+    volumes:
+      - ${PRIVATE:?prepared directory required}/catalog-client:/client:ro
+  everything:
+    <<: *bounds
+    image: ${EVERYTHING_IMAGE:?installed tools required}
+    command: [/tools/node_modules/@modelcontextprotocol/server-everything/dist/index.js, streamableHttp]
+    environment:
+      <<: *proxies
+      PORT: "3001"
+  client:
+    <<: *bounds
+    image: ${CLIENT_IMAGE:?installed SDK required}
+    user: "${FIXTURE_UID:?user required}:${FIXTURE_GID:?group required}"
+    command: [-c, "import time; time.sleep(1800)"]
+    environment:
+      <<: *proxies
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - ${PRIVATE:?prepared directory required}:/private:ro
+      - ${PRIVATE:?prepared directory required}/client-state:/state
+      - ${REPOSITORY:?repository required}/test/interoperability/contextforge:/code:ro
+      - ${REPOSITORY:?repository required}/samples/cards/documentation-agent.json:/assets/agent.json:ro
+  contextforge:
+    <<: *bounds
+    image: ${CONTEXTFORGE_IMAGE:?installed ContextForge required}
+    mem_limit: 2g
+    group_add: ["${FIXTURE_GID:?group required}"]
+    env_file: ["${PRIVATE:?prepared directory required}/contextforge.env"]
+    environment:
+      <<: *proxies
+      DATABASE_URL: sqlite:////data/mcp.db
+      HOST: 0.0.0.0
+      PORT: "4444"
+      GUNICORN_WORKERS: "1"
+      GUNICORN_CMD_ARGS: --umask 0002
+      CACHE_TYPE: database
+      USE_STATEFUL_SESSIONS: "false"
+      GATEWAY_ASYNC_LIFECYCLE_ENABLED: "false"
+      AUTH_REQUIRED: "true"
+      MCP_CLIENT_AUTH_ENABLED: "true"
+      MCP_REQUIRE_AUTH: "true"
+      TRUST_PROXY_AUTH: "false"
+      EMAIL_AUTH_ENABLED: "true"
+      ADMIN_REQUIRE_PASSWORD_CHANGE_ON_BOOTSTRAP: "false"
+      MCPGATEWAY_UI_ENABLED: "true"
+      MCPGATEWAY_ADMIN_API_ENABLED: "true"
+      MCPGATEWAY_UI_AIRGAPPED: "true"
+      MCPGATEWAY_CATALOG_ENABLED: "false"
+      MCPGATEWAY_CATALOG_AUTO_HEALTH_CHECK: "false"
+      PLUGINS_ENABLED: "false"
+      OTEL_ENABLE_OBSERVABILITY: "false"
+      OTEL_TRACES_EXPORTER: none
+      SSRF_PROTECTION_ENABLED: "true"
+      SSRF_ALLOW_PRIVATE_NETWORKS: "false"
+      SSRF_ALLOW_LOCALHOST: "false"
+      SSRF_DNS_FAIL_CLOSED: "true"
+      SSRF_ALLOWED_NETWORKS: ${UPSTREAM_CIDRS:?prepared private exceptions required}
+      ENABLE_HEADER_PASSTHROUGH: "false"
+      MCP_ALLOWED_HOSTS: contextforge:4444
+      MCP_ALLOWED_ORIGINS: https://127.0.0.1
+      SSL: "true"
+      SKIP_SSL_VERIFY: "false"
+      CERT_FILE: /private/server.pem
+      KEY_FILE: /private/server-key.pem
+      MCP_LIST_PAGE_SIZE: "2"
+      RATE_LIMIT_MEDIUM_RPM: "1000"
+    volumes:
+      - ${PRIVATE:?prepared directory required}/contextforge:/private:ro
+      - ${PRIVATE:?prepared directory required}/state:/data
+      - ${PRIVATE:?prepared directory required}/scratch:/tmp
+    healthcheck:
+      test: [CMD, python3, -c, "import ssl,urllib.request; urllib.request.urlopen('https://127.0.0.1:4444/health',context=ssl.create_default_context(cafile='/private/ca.pem'),timeout=3).close()"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+networks:
+  owned:
+    internal: true
+  admin: {}
+volumes:
+  pg-data: {}

@@ -1,0 +1,13 @@
+# Passive inspection is fed by explicit HTTP and Playwright exchanges.
+env:
+  contexts:
+    - name: passive
+      urls: [http://api:8080, 'http://localhost:8081']
+  parameters:
+    failOnError: true
+    failOnWarning: true
+    progressToStdout: false
+jobs:
+  - type: passiveScan-wait
+    parameters:
+      maxDuration: 1

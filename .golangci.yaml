@@ -1,0 +1,89 @@
+version: "2"
+run:
+  tests: true
+  build-tags:
+    - functional
+    - integration
+    - helm
+    - minikube
+linters:
+  default: none
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - durationcheck
+    - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - fatcontext
+    - forcetypeassert
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - gochecksumtype
+    - gocritic
+    - gomoddirectives
+    - gosec
+    - ineffassign
+    - loggercheck
+    - makezero
+    - mirror
+    - misspell
+    - musttag
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - noctx
+    - nolintlint
+    - nosprintfhostport
+    - prealloc
+    - predeclared
+    - reassign
+    - recvcheck
+    - revive
+    - rowserrcheck
+    - sloglint
+    - sqlclosecheck
+    - thelper
+    - unconvert
+    - unparam
+    - unqueryvet
+    - usestdlibvars
+    - wastedassign
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true
+  exclusions:
+    generated: lax
+    rules:
+      # This isolated test module imports the current Catalog for memory fixtures.
+      - path: ^test/clientcompat/go/go\.mod$
+        linters: [gomoddirectives]
+        text: 'local replacement are not allowed: github.com/open-agentic-catalog/open-agentic-catalog'
+      # This independent example uses the locally built SDK before remote publication.
+      - path: ^examples/publication-report/go\.mod$
+        linters: [gomoddirectives]
+        text: 'local replacement are not allowed: github.com/open-agentic-catalog/open-agentic-catalog/sdk/go'
+      # The scanner receiver also consumes the current local SDK before publication.
+      - path: ^examples/mcp-scanner/receiver/go\.mod$
+        linters: [gomoddirectives]
+        text: 'local replacement are not allowed: github.com/open-agentic-catalog/open-agentic-catalog/sdk/go'
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

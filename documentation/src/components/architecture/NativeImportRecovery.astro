@@ -1,0 +1,28 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="native-import-recovery-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1191" role="img" aria-labelledby="native-import-recovery-title native-import-recovery-desc">
+  <title id="native-import-recovery-title">Resume an interrupted draft import safely</title>
+  <desc id="native-import-recovery-desc">Explicit resume uses the unchanged native manifest or reusable JSON draft, assets, preparation flags and private receipt. It checks the API origin, current Catalog identity, permissions and saved input binding, then reads exact acknowledged drafts. Acknowledged commands are skipped. Remaining commands retain their saved keys; an uncertain command can be repeated only with its original request, concurrency token and key within the permitted replay window. Refused checks, blocked validation, unsafe replay or failed readback stop the invocation. Completion requires exact readback. API commands commit separately, so earlier drafts remain after a stop. Import does not approve, publish or roll back drafts.</desc>
+  <defs><marker id="native-import-recovery-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 167 V237" marker-end="url(#native-import-recovery-arrow)" />
+  <path class="svg-connector" d="M320 358 V428" marker-end="url(#native-import-recovery-arrow)" />
+  <path class="svg-connector" d="M320 549 V619" marker-end="url(#native-import-recovery-arrow)" />
+  <path class="svg-connector" d="M320 358 V412 H12 V794 H320 V810" marker-end="url(#native-import-recovery-arrow)" />
+  <text class="svg-small" x="38" y="786">Mismatch / refusal</text>
+  <path class="svg-connector" d="M320 549 V603 H628 V764 H320 V810" marker-end="url(#native-import-recovery-arrow)" />
+  <text class="svg-small" x="340" y="786">Cannot continue</text>
+  <path class="svg-connector" d="M320 740 V810" marker-end="url(#native-import-recovery-arrow)" />
+  <text class="svg-small" x="200" y="767">Read failed</text>
+  <DiagramCard x={60} y={20} width={520} title={["Keep original inputs and the private", "receipt"]} tone="core" lines={["Unchanged native manifest or reusable JSON draft", "Native assets and preparation flags", "Retain acknowledged IDs and the original command journal"]} />
+  <DiagramCard x={60} y={237} width={520} title={"Recheck binding and saved progress"} lines={["Match API origin, current Catalog", "identity and prepared inputs", "Check current permissions; read exact acknowledged drafts"]} />
+  <DiagramCard x={60} y={428} width={520} title={"Continue the original command sequence"} lines={["Skip acknowledged commands and keep their results", "Keep the exact uncertain request, key and required ETag", "Explicit replay must remain within its permitted window"]} />
+  <DiagramCard x={60} y={619} width={520} title={"Verify complete drafts"} tone="authority" lines={["Exact readback of every acknowledged", "record precedes completion", "Completed reruns send no creation commands"]} />
+  <DiagramCard x={60} y={810} width={520} title={"Stop and investigate"} tone="warning" lines={["Mismatch, refusal, blocked validation,", "unsafe replay or failed readback", "Keep drafts, private receipt and original uncertain keys", "Inspect the stopped step; earlier commits remain"]} />
+  <DiagramCard x={60} y={1024} width={520} title={["Import creates drafts, not published", "releases"]} tone="warning" lines={["API commands commit separately; a", "stopped batch does not undo them", "Import does not approve, publish or roll back drafts"]} />
+
+</svg>
+</div>

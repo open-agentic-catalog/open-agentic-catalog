@@ -1,0 +1,388 @@
+---
+title: Set up a sample Catalog
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+import SampleReceipts from "../../../components/architecture/SampleReceipts.astro";
+
+Use the curated sample when you need known Agents, MCP Servers, Skills and Plugins for the [Search cookbook](search-cookbook.mdx) or [local LangGraph assistant](../../../../../examples/langgraph/README.md). Loading creates governed records and activates discovery; ordinary startup does neither. The development identity selector is local only. For users and passwords, use the separate [OIDC tutorial](../operations/oidc-keycloak.md#run-the-interactive-local-tutorial).
+
+## What the sample contains
+
+The default `curated` YAML profile loads fourteen resources. It includes three published examples per kind, one draft Agent and one pending-review MCP Server. Published examples use real or adapted project metadata. Loading uses independently attributed administrator, contributor, reviewer, publisher and reader API identities. Ordinary startup never writes sample records. The [project inventory](#curated-real-projects) explains source revisions, complete packages and qualification limits. The repository sample manifest remains the input authority.
+
+| Namespace | Kind | Published examples |
+| --- | --- | --- |
+| Catalog demo | Agent | A2A Hello World, A2A Dice REST, A2A Number Guessing |
+| Catalog demo | MCP Server | Everything, Filesystem, Memory |
+| Catalog demo | Skill | Frontend Design, Anthropic Brand Guidelines, Web Application Testing |
+| IDE plugins | Plugin | Catalog Discovery Tools, Frontend Toolkit, Web Testing Toolkit |
+
+Catalog discovery is metadata. Only the separately selected local Hello World/Everything peers have qualified real invocation. Other entries require their documented independent clients/setup. Loading and browsing never contact resource runtimes or hosted Context7/AWS.
+
+Complete Skill packages retain full inventories and exact Git handoffs. Authenticated Catalog discovery includes them, but public snapshots exclude those package-only releases with `PUBLIC_DELIVERY_FORM_REQUIRED`. Fresh curated data produces ten ARD entries including self-Registry and nine AI Catalog entries. No public archive URL is invented, and Plugin projection is not a standardized ARD Plugin type.
+
+## Prepare an owned project
+
+This source workflow needs the repository checkout, GNU Make, Python 3.12-3.14, Git, the Go toolchain selected by `go.mod`, and Docker with Compose. Building the optional UI/manual image also needs its documented image-build inputs. Follow [build prerequisites](../contributing/build-and-release.md) for explicit installation. A reader using an existing Catalog instead starts with [Connect as a reader](reader-quickstart.mdx).
+
+Choose unused ports and a non-overlapping Docker subnet. The following example uses a separate project, private archive inputs and receipt. Confirm the project does not already contain data before its first load; reuse these exact inputs for subsequent verification. Run from the repository root:
+
+```sh
+export CATALOG_ENV_FILE=/dev/null
+export COMPOSE_PROJECT=catalog-docs-samples
+export CATALOG_COMPOSE_HTTP_PORT=18086
+export CATALOG_UI_PORT=14186
+export CATALOG_COMPOSE_POSTGRES_PORT=55486
+export CATALOG_COMPOSE_SUBNET=172.29.246.0/24
+export DEMO_ARCHIVE_IP=172.29.246.41
+export DEMO_ARCHIVE_PORT=18486
+export DEMO_ARCHIVE_DIR="$PWD/output/demo/$COMPOSE_PROJECT/archives"
+export DEMO_STATE_FILE="$PWD/output/demo/$COMPOSE_PROJECT/receipt.json"
+export DEMO_DATA_FILE="$PWD/samples/catalog.yaml"
+export DEMO_SAMPLE_SET=curated
+```
+
+For another project, select its own ports, subnet, archive inputs and receipt together. `CATALOG_ENV_FILE=/dev/null` skips the Make workflow file; it does not clear inherited runtime variables. Inspect your shell's selected inputs before starting. Do not reuse or reset the retained default development project.
+
+## Prepare optional peer inputs before loading
+
+Skip this section if you only want discovery metadata. To try the two owned runtimes later, choose their unused ports and private input directory before the first sample load. The retained developer peers may already occupy the default 19443/19444 ports. This example instead selects 19486/19487 and copies the sample tree before adapting its locally authored endpoint declarations:
+
+```sh
+export DEMO_RUNTIME_DIR="$PWD/output/demo/$COMPOSE_PROJECT/runtimes"
+export DEMO_A2A_PORT=19486
+export DEMO_MCP_PORT=19487
+export DEMO_DATA_FILE="$PWD/output/demo/$COMPOSE_PROJECT/samples/catalog.yaml"
+python3 - "$DEMO_DATA_FILE" <<'PYTHON'
+import shutil
+import sys
+from pathlib import Path
+destination = Path(sys.argv[1]).parent
+if destination.exists():
+    raise SystemExit("Choose a fresh owned sample-copy directory")
+shutil.copytree("samples", destination)
+for name, old, new in (
+    ("hello-world.json", "19443", "19486"),
+    ("everything.json", "19444", "19487"),
+    ("everything.registry.json", "19444", "19487"),
+):
+    card = destination / "cards" / name
+    text = card.read_text(encoding="utf-8")
+    original = "https://127.0.0.1:" + old
+    assert original in text, name
+    card.write_text(text.replace(original, "https://127.0.0.1:" + new), encoding="utf-8")
+PYTHON
+make demo-check
+```
+
+Choose different values together if these ports are occupied. The small script's old/new values must match the selected ports. It edits only the copied Cards, preserving vendored upstream source and licenses. Keep this copied `DEMO_DATA_FILE` for preview, archive preparation, loading and all receipt reruns. The loader does not rewrite endpoints for you. If the default Cards are already sealed in a retained release, changing their endpoints needs a new governed version or a separate fresh fixture.
+
+## Start the Catalog with Compose and load sample data
+
+Choose one sequence for a fresh selected development project. Both sequences load records and activate a public snapshot. With the private project inputs above, they use API `http://127.0.0.1:18086` and UI `http://127.0.0.1:14186/catalog`. Plain `compose-up` remains non-seeding.
+
+Preserve the same `COMPOSE_PROJECT`, ports, subnet, archive directory/IP and receipt across commands. Preserve existing monitoring, model and peer selectors. `demo-up` builds before draining/recreating API/worker, retaining PostgreSQL data and UI session keys. This example publishes the fixture on loopback port 18486; API/worker fetch `https://172.29.246.41:8443` inside its private Compose network.
+
+<Tabs>
+<TabItem label="One command">
+
+Run the existing launcher with these explicit Make arguments:
+
+```sh
+make demo-up \
+  CATALOG_ENV_FILE="$CATALOG_ENV_FILE" \
+  COMPOSE_PROJECT="$COMPOSE_PROJECT" \
+  CATALOG_COMPOSE_HTTP_PORT="$CATALOG_COMPOSE_HTTP_PORT" \
+  CATALOG_COMPOSE_POSTGRES_PORT="$CATALOG_COMPOSE_POSTGRES_PORT" \
+  CATALOG_UI_PORT="$CATALOG_UI_PORT" \
+  CATALOG_COMPOSE_SUBNET="$CATALOG_COMPOSE_SUBNET" \
+  DEMO_ARCHIVE_DIR="$DEMO_ARCHIVE_DIR" \
+  DEMO_ARCHIVE_IP="$DEMO_ARCHIVE_IP" \
+  DEMO_ARCHIVE_PORT="$DEMO_ARCHIVE_PORT" \
+  DEMO_STATE_FILE="$DEMO_STATE_FILE" \
+  DEMO_DATA_FILE="$DEMO_DATA_FILE" \
+  DEMO_SAMPLE_SET="$DEMO_SAMPLE_SET" \
+  DEMO_BASE_URL="http://127.0.0.1:$CATALOG_COMPOSE_HTTP_PORT" \
+  DEMO_ARCHIVE_ORIGIN="https://$DEMO_ARCHIVE_IP:8443" \
+  DEMO_ARCHIVE_TRUST_FILE="$DEMO_ARCHIVE_DIR/cert.pem" \
+  DEMO_EXTEND=false \
+  LOCAL_WEBHOOKS="${LOCAL_WEBHOOKS:-on}" \
+  LOCAL_MONITORING="${LOCAL_MONITORING:-off}" \
+  LOCAL_EMBEDDINGS="${LOCAL_EMBEDDINGS:-off}" \
+  LOCAL_DEMO_RUNTIMES="${LOCAL_DEMO_RUNTIMES:-off}" \
+  DEMO_RUNTIME_DIR="${DEMO_RUNTIME_DIR:-$PWD/output/demo/$COMPOSE_PROJECT/runtimes}" \
+  DEMO_A2A_PORT="${DEMO_A2A_PORT:-19443}" \
+  DEMO_MCP_PORT="${DEMO_MCP_PORT:-19444}"
+```
+
+The explicit arguments make this project's selection visible. You can also run `make demo-up` with the same exported inputs or a selected trusted workflow file. The launcher preserves effective project, port, archive, sample, receipt and optional-service inputs through its child targets. Command-line assignments override ordinary workflow-file assignments, which override inherited environment values. Keep credentials in supported environment or file inputs, outside command arguments.
+
+The target validates and previews inputs, then prepares immutable archives. It starts Compose with the UI and archive service. A bounded readiness check runs before it loads and verifies governed records. It refuses mismatched API/archive origins and a random API port before starting.
+
+</TabItem>
+<TabItem label="Step by step">
+
+Run the lower-level equivalent. Wait for API readiness before the standalone loader:
+
+```sh
+make demo-check
+make demo-archives-prepare
+make compose-up LOCAL_UI=on LOCAL_DEMO_ARCHIVES=on
+# Wait for /readyz before using the standalone loader.
+make demo-seed
+```
+
+</TabItem>
+</Tabs>
+
+`DEMO_BASE_URL` derives from `CATALOG_COMPOSE_HTTP_PORT` (8080 when unset), while `DEMO_ARCHIVE_ORIGIN` derives from the selected private IP and internal 8443. Public trust defaults to the selected archive directory's `cert.pem`. See [configuration](../reference/configuration.mdx#development-demo-archives).
+
+For an original minimal or expanded receipt, or a subsequently extended receipt, preview the inputs:
+
+```sh
+make demo-check
+```
+
+Then repeat the complete **One command** invocation above with `DEMO_EXTEND=true` as its last argument to request additions. Alternatively, retain the same exported inputs and run `make demo-up DEMO_EXTEND=true`. Verify the selected project, origin, files and optional services before either invocation.
+
+If you already prepared the archives and restarted the selected services through the standalone sequence, load explicitly with:
+
+```sh
+make demo-seed DEMO_EXTEND=true
+```
+
+Extension preserves all identities and history in an original receipt. A minimal receipt extended to curated has 17 Resources and 15 published releases. An expanded receipt extended to curated has 26 Resources and 24 published releases. It does not delete the original synthetic samples.
+
+Existing unrelated releases remain published and appear in the replacement snapshot. An unchanged completed receipt is verified read-only, including while the archive fixture is stopped.
+
+`make compose-ps`, `compose-stop` and `compose-down` operate on the same selected project and retain data/receipt/TLS inputs. Stop/down automatically include its existing optional services. Relaunch must explicitly preserve enabled selectors. Do not use `compose-reset` on retained data.
+
+Peer execution remains optional through the [separate peer commands](#start-and-test-the-two-local-peers); `demo-up` never installs tools or invokes them.
+
+## Start an in-memory Catalog and load sample data
+
+Use three terminals and separate inputs from the Compose example. Choose unused API port 18087 and fixture port 18487. Restarting memory loses records: select a new receipt for a new empty process, rather than reusing stale identity hints.
+
+```sh
+# Terminal 1: prepare once and keep this owned HTTPS fixture running.
+export DEMO_ARCHIVE_DIR="$PWD/output/demo/catalog-docs-memory/archives"
+export DEMO_ARCHIVE_ORIGIN=https://127.0.0.1:18487
+export DEMO_ARCHIVE_ADDRESS=127.0.0.1:18487
+make demo-archives-prepare CATALOG_ENV_FILE=/dev/null
+make demo-archives CATALOG_ENV_FILE=/dev/null
+```
+
+```sh
+# Terminal 2: fixed API origin, exact fixture trust and allowlist.
+CATALOG_HTTP_ADDRESS=127.0.0.1:18087 \
+CATALOG_PUBLIC_BASE_URL=http://127.0.0.1:18087 \
+CATALOG_DEMO_ARCHIVES='{"origin":"https://127.0.0.1:18487","trustBundleFile":"output/demo/catalog-docs-memory/archives/cert.pem","allowlistFile":"output/demo/catalog-docs-memory/archives/allowlist.json"}' \
+  make run CATALOG_ENV_FILE=/dev/null CATALOG_CONFIG_FILE=config/local.json
+```
+
+```sh
+# Terminal 3: after /readyz, load this exact memory process.
+make demo-seed CATALOG_ENV_FILE=/dev/null \
+  DEMO_BASE_URL=http://127.0.0.1:18087 \
+  DEMO_ARCHIVE_ORIGIN=https://127.0.0.1:18487 \
+  DEMO_ARCHIVE_TRUST_FILE=output/demo/catalog-docs-memory/archives/cert.pem \
+  DEMO_STATE_FILE=output/demo/catalog-docs-memory/receipt.json
+```
+
+Interrupt only the owned fixture with Ctrl-C. Restarting serves the same prepared packages/trust. Memory Catalog metadata remains readable during fixture outage. Production/OIDC/Helm cannot enable this local route.
+
+## Explore the two namespaces
+
+Open the UI's `/catalog` and select Reader. Search/Browse shows twelve published curated resources, three per kind. Draft/pending examples stay outside discovery. Resource details include documentation links, complete evidence and manual handoff guidance.
+
+Use the [Rust Catalog report](../../../../../examples/rust-catalog-report/README.md) for a read-only Markdown inventory of the same published releases. Its guide covers the Reader token file, optional `testing` query and complete/incomplete output.
+
+Catalog demo owns eleven retained Resources (nine published plus the two workflow controls); IDE plugins owns three published Plugins. Choose Administrator and **Manage content > Namespaces** to inspect allocations. Namespaces are authorization boundaries. Descriptive tags grant no access.
+
+Focused browser/model fixtures still explicitly select embedded `--sample-set minimal`, preserving the original five Resources/three releases without archive setup. `expanded` preserves fourteen original synthetic Resources/twelve releases. Neither explicit selection resets stored records.
+
+## Category labels and existing catalogs
+
+Use `listing.categories: [development, testing]` to describe a resource's purpose. Categories are optional, with up to 16 nonempty labels of 80 Unicode characters each. A comma inside a YAML list value remains literal. The loader sends trimmed, lowercase, unique, sorted labels through the normal Listing API. Exact readback checks include those labels.
+
+The curated inventory supplies purpose categories across all four kinds. They support local category counts and combined filters. They do not imply trust or installation counts. The original minimal and expanded inventories remain unchanged.
+
+Revision 3 changes the curated listing metadata. A new disposable Catalog receives these categories on its first explicit load. An existing receipt remains bound to its original definitions. The loader refuses changed retained keys; `DEMO_EXTEND=true` permits new keys only. Keep the original manifest for repeat verification.
+
+To update an existing release, create a Listing revision through normal authoring, review and publication. Do not delete a receipt or reset a database to bypass this check. Rebuilding Compose does not seed or rewrite releases.
+
+## Receipts and reruns
+
+<SampleReceipts />
+
+The file and relative assets are easy to expand: copy this complete sample tree, add one unique Resource definition/native file, optionally a new declared namespace/publisher, and append its key to a profile. `demo-check` is a local preview; the loader independently verifies current receipt-owned API records before authoring. Bindings include the dataset, namespace/publisher definitions and complete resource metadata/native bytes; receipts with Plugins also bind their archive origin.
+
+A Plugin-free receipt needs no archive/trust and can explicitly add its first Plugin at the selected origin. Source comments, resource/profile ordering and manifest revision labels cause no mutation when selected inputs are unchanged. Removed, renamed or edited prior entries are refused.
+
+Use ordinary version/governance APIs for changes to already loaded resources, not edits to seed-owned definitions. Prepare added Plugin paths and restart archive/API/worker before extension; `demo-up` does those steps explicitly. No YAML-selected image, command, acquisition or runtime executes.
+
+| Starting receipt | Result after selecting curated and explicit extension | Published / draft / pending |
+| --- | --- | --- |
+| None | 14 resources | 12 / 1 / 1 |
+| Original minimal receipt | 17 resources, preserving the original 5 | 15 / 1 / 1 |
+| Original expanded receipt | 26 resources, preserving the original 14 | 24 / 1 / 1 |
+
+Known original receipts are adopted only with `--extend` after exact state/history verification. Their original synthetic entries remain in the accumulated plan even when curated omits them; this exception is not generic removal support. Subsequent receipt-bound additions must remain selected. No Resource/Version/Listing/Release is rewritten, reset or deleted. Existing unrelated eligible releases remain in the replacement public snapshot but are not adopted into the receipt.
+
+### Resume an interrupted sample load
+
+Command responses must match the addressed object as well as their declared tenant, relationships and expected content. The loader stops if a successful response is malformed or identifies the wrong object. The loader preserves the pending journal instead of publishing a completed receipt. Keep that journal.
+
+After correcting the response problem, rerun the same inputs. Authoritative readback can recover a committed operation without issuing a duplicate command. Ambiguous outcomes or disagreement with retained state require investigation, not deleting the receipt or journal and starting over.
+
+Complete curated Skill packages are available in authenticated Search/Browse/details with their full inventory and immutable Git handoff. They do not have a public archive URL and remain excluded from ARD/AI Catalog with `PUBLIC_DELIVERY_FORM_REQUIRED`; no URL is invented. Fresh curated publication has ten ARD entries including self-Registry and nine AI Catalog entries. Minimal-to-curated has thirteen/twelve; expanded-to-curated has twenty-two/twenty-one. Reader discovery still shows all 12/15/24 published items respectively. Plugin inspection keeps exact archive URLs/digests and does not install components.
+
+Keep the private 0600 receipt (maximum 128 KiB), adjacent `.progress` (maximum 32 MiB/600 command steps) and lock with this exact instance. Retry interrupted work using exactly the same file/assets/profile, API origin, archive origin, trust and extension intent. The loader writes the journal before sending commands. It reuses idempotency keys and makes bounded checks of authoritative state to reconcile outcomes.
+
+Loading stops if its inputs or receipt-owned Catalog records no longer match the retained receipt or journal. The loader checks namespace slugs, Publisher display names and Resource canonical identifiers before writing. Each matching record must have the ID retained in the receipt or an acknowledged journal step. Multiple matching records or a different ID stop loading.
+
+If an outcome is uncertain, the loader uses authoritative reads or an exact retry with the original idempotency key. Unavailable or refused replay does not establish success. An exclusive file lock prevents concurrent invocations sharing the receipt. Do not edit Catalog data while loading.
+
+Receipt replacement is atomic after complete readback; a completed journal left by interruption is checked and removed without authoring. Completed reruns are read-only, even with archives stopped or CA unavailable; they still require the Catalog and exact retained state.
+
+Only an actual extension refreshes verified receipt-owned published Plugins, once per plan-bound journal. The API does not expose the current fetch-policy digest, so extension uses one explicit current validation run rather than guessing whether policy/freshness changed. Preflight checks archive readiness, TLS trust, media type, size and digest before mutations; an outage/drift then refuses loading.
+
+Failure **after** preflight can still make revalidation blocked and deliberately retire affected active snapshots. Retain receipt/progress, inspect the revision's validation evidence and follow the existing supported revalidation/publication workflow; never delete retained data or weaken policy. A blocked journal response cannot be silently treated as success or retried under a new key.
+
+Finish outstanding legacy expanded progress with its original explicit command (`DEMO_DATA_FILE= DEMO_SAMPLE_SET=expanded`) before selecting the configured loader.
+
+For in-memory or manually configured fixtures, override `DEMO_ARCHIVE_ORIGIN` to their exact admitted origin. `DEMO_ARCHIVE_TRUST_FILE` defaults to `$(DEMO_ARCHIVE_DIR)/cert.pem`; it is public CA input, never a secret or general trust bypass. `DEMO_BASE_URL` defaults to the selected Compose API port (8080 when unset), and the Compose archive origin defaults to the selected private IP on 8443, independent of its host-published port. See the reader configuration and local-development guides for lower-level recipes.
+
+Completed verification performs no authoring commands. Authenticated evidence reads still append the service's required `evidence.version_revision.read` audit events; read-only does not mean zero audit records. Earlier audit/history remains immutable. Compose startup also emits required `identity.membership_provisioned` bootstrap audits. Compare seeder authoring actions separately from both access and startup audit classes.
+
+Preparation accepts `DEMO_STATE_FILE` as bounded, unverified hints. If exact known original receipt keys are outside the selected profile, preparation also creates the embedded original archives. This applies when archives are first prepared in an existing TLS-only fixture directory. The API plan is not expanded by this hint: the API loader independently verifies and adopts known original receipts. Existing prepared paths cannot be rebound or removed.
+
+For stop/down/inspection or deliberate reset of a separately selected project, keep the same `COMPOSE_PROJECT`, `CATALOG_COMPOSE_SUBNET`, archive directory/IP and UI/archive selections. Maintenance receives the explicit subnet but no runtime credentials. `compose-down` preserves volumes; `compose-reset` destroys only the explicitly selected project's data and is appropriate only for disposable fixtures or separately authorized resets.
+
+## Continue the unpublished examples
+
+Use the IDs in the receipt or command result with the [authoring workflow](local-development.mdx#create-a-resource-review-its-listing-and-publish-a-release). Use a distinct `Idempotency-Key` for each new command and reuse that key when retrying the same command. Read the corresponding record's current ETag before a command requiring `If-Match`.
+
+| Example | Next action |
+| --- | --- |
+| `draft-agent` | As `local-contributor`, submit its existing `listingId` with `POST /api/v1/catalog-listings/{listingId}/submissions` and body `{}`. Retain the returned submission ID, then use the independent reviewer. |
+| `pending-mcp` | Its `submissionId` is already in the receipt. As `local-reviewer`, GET `/api/v1/review-submissions/{submissionId}`, then POST to the same path with `:approve`, the returned ETag in `If-Match`, and a reason such as `{"reason":"Reviewed the demo metadata"}`. |
+
+Approval returns `submission` and `version` objects. Read `submission.state` for the decision. It seals the version but does not publish a release. As `local-publisher`, GET the Catalog listing for its current ETag, then POST `/api/v1/catalog-listings/{listingId}:publish` with that ETag and `{"submissionId":"<approved-submission-id>"}`.
+
+The returned `release.id` can be read with `catalogctl remote record`. That command does not take a draft Resource ID. Build and activate a [new public snapshot](local-development.mdx#publish-ard-and-ai-catalog-snapshots) to include the newly published example in ARD and AI Catalog discovery. Once these records change, a seeder rerun refuses the changed fixture instead of reverting it.
+
+## Troubleshooting
+
+| Result | What to check |
+| --- | --- |
+| Invalid receipt or target mismatch | Use the receipt saved for this API origin and dataset. Do not edit IDs or copy a receipt from another instance. |
+| Missing receipt on populated data | Locate the original receipt. Retained progress can reconcile an interrupted owned run; without its receipt/progress the command will not adopt populated data. |
+| Fixture field, current version/listing or publication differs | This is expected after authoring, reviewing or withdrawing an example. Continue through the normal API; the seeder does not undo those changes. |
+| HTTP 401 or 403 | Use the maintained local development profile with its provisioned development identities. The seeder does not accept production credentials. |
+| Malformed inventory or inconsistent discovery | Check the selected API and its responses. A successful HTTP status alone does not establish a valid dataset; resetting data is not a fix for a malformed response. |
+| Setup incomplete or receipt could not be saved | Inspect the selected catalog and receipt path. Some API transactions may have committed. Retain receipt/progress and rerun the same selected command; drift or ambiguity requires explicit inspection, not a reset. |
+
+## Stop and deliberately dispose of the demo
+
+Keep the exported project, ports, subnet, archive directory and receipt from setup. Stop the same owned fixture with:
+
+```sh
+make compose-stop
+```
+
+To restart, repeat the complete **One command** invocation under [Start with Compose](#start-the-catalog-with-compose-and-load-sample-data). Use the same exported inputs or explicit Make arguments. Preserve extension intent and enabled peer, monitoring and model selectors. The stop and startup commands must select the same project, ports, subnet, archive directory and receipt.
+
+`compose-stop` and `compose-down` retain PostgreSQL volumes. To discard this exact demo, `make compose-reset COMPOSE_PROJECT="$COMPOSE_PROJECT"` deletes that project's database volume and history. Use it only after confirming the project is yours and its data is disposable. Then select a fresh `DEMO_STATE_FILE` for a new dataset. The old receipt and adjacent `.progress` journal refer to the erased instance; preserve them as historical evidence or deliberately remove only that pair after confirming the exact database was discarded. Removing only the receipt can leave an incompatible interrupted journal.
+
+An in-memory restart also clears all server records. Pass a fresh `DEMO_STATE_FILE` to `make demo-seed` for the new process. Keep the old receipt and journal with that run's evidence. Do not reset the default development project or another instance just to make the seeder pass.
+
+## Curated real projects
+
+The explicit `curated` profile contains three published examples per kind, plus the two original synthetic workflow examples. `minimal` and `expanded` still select the unchanged original data. Preview, archive preparation and API loading use the shared decoder; `curated` is the default API-loading profile. No existing Resource is renamed, overwritten or adopted by curation.
+
+```sh
+make demo-check DEMO_SAMPLE_SET=curated
+make demo-archives-prepare DEMO_SAMPLE_SET=curated DEMO_ARCHIVE_DIR=output/demo/curated-archives
+```
+
+Paths such as `upstream/` and `first-party/` in this inventory are relative to the checkout's `samples/` directory. Every adapted entry has bounded `provenance` (`source`, `revision`, optional `path`, `attribution`, `qualification`, `prerequisites`) and `listing.documentationUrl`. These are evidence and instructions, not execution authority. `source` is HTTPS or an explicit `local:<path>` reference for this repository's first-party package; that reference does not claim a published Git remote. Preparation binds this metadata into execution identity. `local-client`, `source-reviewed`, `provider-docs` and `package-validated` are separate qualification descriptions, never trust levels.
+
+| Kind | Curated example | Qualification and how to try |
+| --- | --- | --- |
+| Agent | A2A Hello World | Actual locked SDK 1.2.2/unchanged upstream executor, local HTTPS SendMessage and GetTask. Follow the peer commands below. No model or Catalog token. |
+| Agent | A2A Dice REST | Source-reviewed at A2A samples `6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3`, `samples/python/agents/dice_agent_rest`. Python 3.11+, frozen upstream dependencies and separately configured Google model/Vertex credentials. Follow the separate source setup below. Model-backed invocation remains unqualified. |
+| Agent | A2A Number Guessing | Source-reviewed Alice evaluator at the same revision, `samples/python/agents/number_guessing_game`. Python 3.10+, SDK 0.3.0/Uvicorn 0.35.0, no model key. Separate legacy client/TLS setup below; not started by Compose. |
+| MCP Server | Everything | Unchanged package 2026.8.31 at `a40bc270fb5ece62673f8a1196f57116d885c5eb`; observed runtime `mcp-servers/everything` 2.0.0, protocol 2025-11-25. Local HTTPS wrapper permits only echo. Follow the peer commands below. Registry distribution metadata is retained separately in `cards/everything.registry.json`; it is not a Server Card. |
+| MCP Server | Filesystem | Source-reviewed stdio reference server at the same MCP revision; package/version and observed source `Implementation.version` are distinct, recorded in Card `_meta`. In a separately selected MCP client, configure `npx -y @modelcontextprotocol/server-filesystem@2026.8.31 /absolute/disposable/directory`. Create the empty allowed directory first. No HTTPS endpoint is fabricated and no filesystem tool was invoked by qualification. |
+| MCP Server | Memory | Source-reviewed stdio graph server at the same MCP revision. Configure `npx -y @modelcontextprotocol/server-memory@2026.8.31` in your MCP client with `MEMORY_FILE_PATH` pointing to a fresh disposable file. Installation/client execution is separate; no graph tool was invoked here. |
+| Skill | Frontend Design | Complete unchanged Apache-2.0 directory from Anthropic Skills `8a1541c4a3ffa5a20a5a91de0dcf3f0bab1d1ef4`. Copy `upstream/skills/frontend-design/` into your client's project Skill directory; start a new session and request the Skill explicitly. Supply your own model/client configuration. |
+| Skill | Anthropic Brand Guidelines | Complete unchanged Apache-2.0 directory at the same revision. Copy `upstream/skills/brand-guidelines/` into the client Skill directory and request branding guidance. Brand guidance is upstream content, not Catalog endorsement or trademark permission. |
+| Skill | Web Application Testing | Complete unchanged Apache-2.0 directory at the same revision, including all three examples and `scripts/with_server.py`. Copy the entire `upstream/skills/webapp-testing/` folder. Its documented procedure additionally needs Python, Playwright and a browser. Package validation does not execute its helpers or qualify a model. |
+| Plugin | Catalog Discovery Tools | Locally authored Agent Plugins 1.0.0 bundle of the complete first-party Catalog discovery Skill (SKILL.md, README, LICENSE, all references). Manually load it with a compatible Plugin client, install `catalogctl` separately and provide Reader token/environment outside prompts. `make client-skill-check` qualifies the component; independent Plugin consumer qualification remains unqualified. |
+| Plugin | Frontend Toolkit | Local portable bundle of the unchanged Frontend Design Skill plus a Context7 Streamable HTTP configuration. Manually load in a compatible client, review the external connection and supply separate client permissions. No Context7 key is stored. |
+| Plugin | Web Testing Toolkit | Local portable bundle of the complete Web Application Testing Skill. Manually load with a compatible Plugin client and separately install its Python/Playwright/browser prerequisites. No automatic installation, script execution or client-compatibility claim. |
+
+MCP reference-server listings record `Apache-2.0 AND MIT`, reflecting the upstream licensing transition rather than claiming all runtime code is solely Apache-licensed. Their package manifests use `SEE LICENSE IN LICENSE`; consult the exact [retained upstream licence](../../../../../test/interoperability/mcp/Everything-LICENSE) for applicable contributions and CC-BY-4.0 documentation. Our locally authored Cards do not relicense those implementations.
+
+Standalone Skill ZIPs retain immutable Git handoffs to the exact upstream directory/revision. The Plugin file maps reference those same assets rather than duplicating them. The first-party Skill is snapshotted completely under `first-party/`; it has no released Git/OCI handoff, so it is bundled only inside a local Plugin.
+
+The first-party provenance revision `local-working-tree` identifies the current checked-in package. It does not identify an immutable Git release. Exact asset and archive hashes bind the prepared input. Updating the checked-in package does not rewrite prior receipts.
+
+Instruction changes inside the embedded Skill change the Plugin archive bytes and receipt-bound input digest. The `local-working-tree` marker does not make older prepared archives or receipts match the updated package. Preparation cannot overwrite the existing `/catalog-discovery-tools.zip` path with changed bytes. Retain the old prepared bytes, receipts and evidence.
+
+Use a fresh owned fixture for the updated sample baseline. For an existing Catalog, publish a new package version at a new archive path through normal governance. Do not rebind the old path, rewrite a receipt or reset retained data to make the updated instructions load.
+
+`upstream/checksums.txt` binds every vendored upstream file; retain exact bytes/licence files and update provenance/checksums deliberately together. Maintained Markdown lint excludes these immutable upstream files; native package validation and checksum tests still check them. `doc-coauthoring` was not selected because its inspected directory lacks an explicit licence file.
+
+No source-available document Skill is redistributed.
+
+## Start and test the two local peers
+
+Use the [peer inputs selected before loading](#prepare-optional-peer-inputs-before-loading). Keep `DEMO_RUNTIME_DIR`, ports and the copied dataset in the same shell. Acquire only the existing locked tools explicitly. Preparation verifies their installation receipts and immutable image IDs; missing/stale tools fail before credentials or containers are created. It never installs tools automatically.
+
+```sh
+make a2a-tools-install
+make mcp-tools-install
+make demo-runtimes-prepare
+export LOCAL_DEMO_RUNTIMES=on
+make compose-up LOCAL_UI=on LOCAL_DEMO_ARCHIVES=on LOCAL_DEMO_RUNTIMES=on
+make demo-runtimes-test
+make compose-stop
+# Remove this project's containers/network while preserving Catalog data and private inputs:
+make compose-down
+```
+
+`LOCAL_DEMO_RUNTIMES` defaults off and requires development authentication/environment plus a non-root developer. Existing peers are detected for stop/down/ps/logs even when the selector is omitted; an up call cannot silently orphan them. The launcher reports actual loopback URLs after verified TLS/Card and upstream-readiness checks. It does not seed records or invoke an Agent/MCP tool. Normal loading/browsing/checking never contacts these runtimes.
+
+With the optional inputs above, use `https://127.0.0.1:19486/` for Hello World and `https://127.0.0.1:19487/mcp` for Everything. Unconfigured defaults are 19443/19444. Set `DEMO_A2A_PORT`, `DEMO_MCP_PORT` (distinct 1024-65535) and `DEMO_RUNTIME_DIR` consistently for preparation/start/test. If changing ports, edit the selected YAML's native Cards to match before loading; the current loader does not rewrite arbitrary endpoints or template YAML. The actual served Hello World Card uses the selected launcher port. Stop/down on a custom deployment should use the same inputs/ports. Independent projects should select separate private input directories and unused ports. Once peers are enabled, retain `LOCAL_DEMO_RUNTIMES=on` for later `demo-up`/`compose-up` calls; retain `LOCAL_DEMO_ARCHIVES=on` for the archive service. Omitting an enabled selector is refused instead of silently orphaning its services.
+
+Private inputs under the selected `DEMO_RUNTIME_DIR` retain one-year localhost TLS and a separate random 256-bit `mcp-key` across restarts. Expired/mismatched or unsafe existing TLS/key inputs fail; they are never silently rotated. Explicitly choose a new private directory and restart the selected peers to replace local trust/credentials. Only the peer services receive their own TLS key; ephemeral clients receive public CA, selected Card and a private Inspector configuration containing the separate MCP key. Catalog bearer tokens, developer home, Docker socket and Catalog configuration are not mounted. Never paste `mcp-key` or Catalog credentials into a prompt, YAML, listing or receipt.
+
+`demo-runtimes-test` runs the actual pinned A2A SDK and Inspector as ephemeral clients in the Linux host network namespace against these fixed loopback ports. It checks the served Card, completed task/exact artifact/readback, actual MCP initialization/identity/tool listing/echo and missing-key denial. Reports omit credentials and raw private replies, and clients/temporary inputs are removed; persistent selected peers stay running. A client has host networking solely to reach the published loopback endpoints; no metadata-selected destination is allowed. These are integration checks, not unit tests. Original disposable interoperability tests remain network-none and keep their complete independent assertions.
+
+Peer containers use the installed immutable images (`pull_policy: never`), non-root input-owner identity, read-only roots/mounts, no capabilities, bounded CPU/memory/PIDs/tmpfs and local logs with rotation. A separate bridge with masquerading disabled publishes only loopback ports and does not join the Catalog network. This bridge setting is not a general egress firewall; the reviewed glue selects no external destination, and the MCP wrapper forwards only to its namespace's loopback Everything server.
+
+No YAML field selects an image, command, volume or runtime. The A2A deployment accepts only Card/SendMessage/GetTask paths and refuses bearer/cookie input; MCP refuses bearer/cookies and tools other than echo. Both cap new task/session admissions at 256 per process; readback remains available and restarting the owned peer clears demo state.
+
+They are development examples, not production runtimes.
+
+For a self-contained reproducible peer check, run `make test-demo-runtimes` alone after installing the same tools. It allocates an invocation-owned project/private directory and unused loopback ports, runs both real clients, verifies credential/cookie/tool/body/TLS refusals, stops and restarts the peers without rotating identity, checks log privacy, and removes only its own containers/network/private inputs. Outcome and cleanup reports are written under ignored `output/demo/qualification/`. It neither starts nor writes a Catalog. This is distinct from `demo-runtimes-test`, which deliberately leaves the selected running peers available.
+
+## Source-only Agent setup
+
+Select an isolated source checkout of `a2aproject/a2a-samples` at the exact revision above using `gh repo clone`, then `git checkout --detach <revision>` inside that owned checkout. Do not modify the vendored Cards or run these examples as part of demo startup.
+
+For Dice, enter `samples/python/agents/dice_agent_rest`, inspect its model permissions, supply your own approved Google API/Vertex configuration outside the Catalog, install the frozen dependencies with `uv sync --frozen`, and run `uv run python __main__.py --host 127.0.0.1 --port 10101`. The reviewed launcher uses HTTP; terminate TLS with your separately configured local proxy at `https://127.0.0.1:19445/`, forwarding to port 10101, before using the adapted Card. The descriptor records the legacy REST 0.3 interface, not an asserted A2A 1.0 deployment. Actual startup/invocation/model behavior was not tested here.
+
+For Number Guessing, enter `samples/python/agents/number_guessing_game`, create an isolated Python environment, install its exact `requirements.txt`, then run `python agent_Alice.py`, `python agent_Carol.py` and `python agent_Bob.py` in separate terminals as the upstream README specifies. Their ports are 8001/8003/8002. The native client uses JSONRPC 0.3; the adapted Alice Card's `https://127.0.0.1:19446/a2a/v1` requires separate TLS termination forwarding the unchanged `/a2a/v1` route to 8001. The plain HTTP game can be tried using Bob independently of Catalog HTTPS handoff. Source inspection establishes this procedure, not a successful hosted or model/client invocation. The game README's public-domain statement differs from the repository's Apache-2.0 root; our locally authored descriptor is Apache-2.0 and no game code is redistributed.
+
+## Hosted connections: Context7 and AWS
+
+The user-selected endpoints are documented services. The local demo and default tests do not invoke them. The experimental Card requires an implementation version which official setup docs do not establish; negotiated protocol claims are also unverified. We therefore selected source-qualified Filesystem/Memory for the other MCP slots rather than inventing required Card fields. Context7 remains a real connection in the local Frontend Toolkit's `mcp.json`. The following client-only connections can also be configured separately after explicit authorization:
+
+- [Context7 client guide](https://context7.com/docs/resources/all-clients): `https://mcp.context7.com/mcp` has anonymous access with lower limits and optional separately supplied key authentication. OAuth uses the distinct `https://mcp.context7.com/mcp/oauth` endpoint. Never substitute a Catalog token.
+- [AWS setup guide](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/getting-started-aws-mcp-server.html): `https://aws-mcp.us-east-1.api.aws/mcp` supports OAuth or a separately configured SigV4 proxy. AWS account/IAM/client setup is required; some OAuth clients need `?oauth=initialize`. Follow official setup, use a narrowly scoped sandbox identity and begin with tool discovery/documentation. No AWS account, identity, proxy or tool invocation is provisioned here.
+
+Provider documentation does not pin mutable hosted availability, version or authentication. A future explicitly authorized hosted client control can establish missing runtime identity before adding a truthful publishable Card; this is not a dependency of the local demo or permission to invoke arbitrary cloud operations.

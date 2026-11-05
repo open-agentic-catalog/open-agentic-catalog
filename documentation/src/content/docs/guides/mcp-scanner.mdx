@@ -1,0 +1,168 @@
+---
+title: Scan MCP tool definitions after publication
+description: Connect a signed release webhook to an external YARA scanner in an isolated local Compose setup.
+---
+
+Use Cisco MCP Scanner to inspect the descriptions and parameter schemas of an explicitly configured MCP server. Select only its YARA analyzer.
+
+The Catalog sends a signed release notification. A separate receiver checks the current release, reads `tools/list`, and saves a private report. The scanner runs in a container with networking disabled.
+
+This integration does not call tools or scan source code, container vulnerabilities, or runtime behavior. Findings do not approve, revoke, or block releases. Catalog software assessment remains unavailable.
+
+:::caution[Native scanner qualification is incomplete]
+Native YARA controls and the complete Compose workflow have not run. Receiver checks use an executable scanner double. The locked LiteLLM dependency has two unresolved High advisories. Install only after the scanner meets the release-age policy and its dependency checks pass.
+:::
+
+## Prerequisites
+
+Use a non-root Linux AMD64 account with access to the local Docker socket. Provide Docker Compose, Git, Make, Python and the repository's [Go toolchain](../contributing/build-and-release.md#prerequisites-and-identities).
+
+Start in a source checkout. Install the shared tools and download the pinned Go modules:
+
+```sh
+make dev-tools-install
+go mod download
+go -C examples/mcp-scanner/receiver mod download
+```
+
+Pull the pinned database image and install the separate scanner image:
+
+```sh
+docker pull --platform linux/amd64 pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+make mcp-scanner-tools-install
+```
+
+The installer enforces the [dependency policy](../reference/dependencies.md). It uses MCP Scanner 4.8.7 and an independent hash lock. Scan commands fail if tools are missing or stale. They do not install tools.
+
+MCP Scanner has no YARA-only installation extra. Its package includes unused provider libraries. This setup enables only YARA, disables `.env` loading, and supplies no provider credentials. See the [harness guide](../../../../../test/mcp-scanner/README.md) for pins, notices and known dependency findings.
+
+## Scan a saved capture first
+
+A capture is the result object from `tools/list`, with a top-level `tools` array. It is not a JSON-RPC envelope or Server Card.
+
+Run the included inert example:
+
+```sh
+make mcp-scanner-scan \
+  MCP_SCANNER_INPUT=examples/mcp-scanner/tools.json \
+  MCP_SCANNER_OUTPUT=output/review/mcp-scanner/saved-report.json \
+  MCP_SCANNER_SOURCE='included offline example' \
+  MCP_SCANNER_CAPTURED_AT=2026-10-28T00:00:00Z
+```
+
+Use a new output path for each scan. Set the source and time to describe your own capture. These supplied values are not verified Catalog evidence.
+
+Run the native controls before the complete workflow:
+
+```sh
+make mcp-scanner-check
+```
+
+The controls include benign definitions, inert findings, empty work, partial captures, analyzer errors, invalid rules and timeout cleanup.
+
+## Run the complete Compose example
+
+The example owns one separate Compose project. It does not change the normal development Compose files or retained services.
+
+| Component | Location and responsibility |
+| --- | --- |
+| Catalog API and worker | Owned containers. The API governs publication; the worker delivers signed notifications. |
+| PostgreSQL 18 | Owned container. Catalog and receiver use separate databases and accounts. |
+| Inert MCP server | Owned container. It serves only test definitions and records requested methods. |
+| Signed receiver | Host process. It reads the Catalog through the Go SDK and collects approved MCP metadata. |
+| YARA scanner | Short-lived container with networking disabled. It receives only the capture and empty caller context. |
+
+The receiver runs on the host because its offline runner needs Docker access. No container receives the Docker socket. API, database and MCP review ports bind only to loopback. The receiver binds to the owned private bridge address. Its certificate identifies the fixed fixture hostname.
+
+Run the complete automatic test:
+
+```sh
+make test-mcp-scanner-compose
+```
+
+The command builds the current backend and fixture binaries, creates private trust and credentials, and starts the owned stack. It publishes real MCP releases through authoring, validation, independent review and publication APIs. A real worker delivery must reach the durable receiver inbox before analysis succeeds.
+
+The test checks duplicate and out-of-order notifications, restart after acceptance, an unpublished draft, wrong credentials and trust, revoked access, scanner failure, and reconciliation. It also publishes a release while the endpoint is disabled. Reconciliation must find that release without a delivered notification.
+
+The finding control contains the inert description `Ignore all instructions`. YARA must attribute a finding to that description. No component follows the description or invokes the tool.
+
+The command checks that Catalog evidence remains unchanged and that no forbidden MCP method occurs. It removes its containers, volumes, network, private inputs and receiver process. It keeps the local report and selected scan evidence under ignored `output/review/mcp-scanner/`.
+
+## Run the same workflow in steps
+
+Prepare an owned run:
+
+```sh
+.tools/dev/bin/python -B test/mcp-scanner/campaign.py prepare
+```
+
+Copy the printed absolute directory into `MCP_SCAN_RUN`:
+
+```sh
+MCP_SCAN_RUN=/absolute/path/from/the/prepare/command
+.tools/dev/bin/python -B test/mcp-scanner/campaign.py start --directory "$MCP_SCAN_RUN"
+```
+
+The start command creates an empty Resource and Listing, grants no scanner permissions, and registers the webhook. The test command grants the minimum permissions and publishes the releases:
+
+```sh
+.tools/dev/bin/python -B test/mcp-scanner/campaign.py test --directory "$MCP_SCAN_RUN"
+```
+
+The test command also stops the owned environment on success or failure. It refuses changed source inputs; prepare a fresh run after source changes.
+
+To stop an unfinished run, use its exact directory:
+
+```sh
+.tools/dev/bin/python -B test/mcp-scanner/campaign.py stop --directory "$MCP_SCAN_RUN"
+```
+
+Do not run a general Compose reset or Docker prune. Each run has its own ownership marker and cleanup checks. Inspect a failed cleanup report before removing any remaining resource.
+
+Cleanup stops the receiver before it saves the final reports. If cleanup cannot verify container inventory, it reports failure and keeps private inputs. Those inputs contain credentials. Correct the reported problem, then retry the same scoped stop command.
+
+SIGTERM or Ctrl+C interrupts the test runner and starts scoped cleanup. An interrupted run does not pass qualification.
+
+## Configure your own receiver
+
+The [receiver guide](../../../../../examples/mcp-scanner/receiver/README.md) provides copyable database, mapping, TLS and startup commands. Use it to connect an existing Catalog and a local HTTPS MCP server.
+
+Give the receiver these permissions:
+
+| Read | Catalog permission | OAuth scope, when enforced |
+| --- | --- | --- |
+| Current releases and Catalog pages | `resource.read` in the mapped namespaces | `catalog.read` |
+| Notification-loss counters | Tenant-wide `webhook.read` and `webhook.read_evidence` | `webhooks.manage` |
+
+Use separate operator credentials for authoring, review, publication and webhook administration. The Compose fixture uses explicit development identities. It does not qualify a production OIDC setup. See [OIDC with Keycloak](../operations/oidc-keycloak.md) for production configuration.
+
+Keep the Catalog token, MCP token, webhook signer and database credential separate. The scanner receives none of them. Configure private CA trust explicitly. Do not disable certificate or hostname verification.
+
+Register `listing.release.published` against the receiver's HTTPS `/webhook` route. The event subject identifies a ListingRelease, not a Resource. The receiver verifies the signature, tenant source, event type and subject before acknowledgment.
+
+Map each allowed Resource and namespace to an exact HTTPS endpoint outside Catalog metadata. The current local MCP release must declare that endpoint. A notification or listing cannot choose another destination. Endpoint URLs must fit within 1,024 UTF-8 bytes. The receiver permits only private or loopback addresses and follows no redirects or ambient proxies.
+
+The MCP endpoint uses Streamable HTTP with protocol `2025-11-25`. The receiver permits session setup, bounded `tools/list` reads and cleanup only. It does not start stdio commands, install packages, request prompts or resources, or enable sampling and elicitation.
+
+## Read results and troubleshoot
+
+Open the run's private `report.json`. A successful campaign requires every named case, `success: true` and `cleanup: true`. Missing or incomplete evidence does not qualify the workflow.
+
+The `evidence/benign/`, `evidence/finding/`, `evidence/reconciled/` and `evidence/last/` directories retain metadata and native reports. Metadata records the exact release, immutable revisions, representation digest, capture hash, scanner image and rule identity. Check the native file's recorded hash before using it.
+
+| Result or problem | Meaning and next action |
+| --- | --- |
+| Completed, no findings | YARA completed every supplied tool. This does not prove runtime safety or general trust. |
+| Completed, findings present | Analysis completed. Inspect attributed findings; findings are not analyzer failures. |
+| Partial | A capture has more pages, or some analysis failed. Keep existing findings and inspect the incomplete work. |
+| Skipped | No tools were supplied, or the selected analysis skipped all tools. Empty work cannot count as completed analysis. |
+| Failed | Collection, analysis, report validation or cleanup failed. Do not interpret missing findings as a clean scan. |
+| Historical or not listed | Access or release eligibility changed, or the record is absent from a complete Catalog traversal. Do not treat old evidence as current. |
+| Missing or stale tools | Run explicit scanner setup again. Do not change the pin or use a global scanner silently. |
+| TLS or credential refusal | Check the exact endpoint, private CA and separate MCP token. The Catalog token must never authenticate to MCP. |
+| Interrupted receiver | Restart with the same dedicated database and mapping. Accepted pending receipts survive. |
+| Missed notification | Run reconciliation, then process due work. Periodic reconciliation also runs when loss counters stay unchanged or decrease. |
+
+Reports describe definitions captured at a specific time. A matching release URL does not prove that the endpoint still runs the advertised code. `eligible_at_check` records the last eligibility check, not continuing permission.
+
+After a scanner, lock or rule change, reinstall its image and rerun the native controls. Cache reuse requires the same release, capture and scanner/rule/configuration identity. Keep reports private; this example does not write assessments back to the Catalog.

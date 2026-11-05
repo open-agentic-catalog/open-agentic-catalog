@@ -1,0 +1,44 @@
+# Optional local inference only. Runtime enablement and pgvector schema setup
+# remain explicit, independent operations; the API has no model readiness dependency.
+services:
+  embeddings:
+    image: ${CATALOG_EMBEDDING_IMAGE:?verified embedding image is required}
+    pull_policy: never
+    user: "10001:10001"
+    command:
+      - --model-id
+      - /model
+      - --served-model-name
+      - ${CATALOG_EMBEDDING_MODEL:?verified model identity is required}
+      - --revision
+      - ${CATALOG_EMBEDDING_REVISION:?verified model revision is required}
+      - --dtype
+      - float32
+      - --pooling
+      - ${CATALOG_EMBEDDING_POOLING:-mean}
+      - --auto-truncate=false
+      - --max-concurrent-requests
+      - "16"
+      - --max-batch-tokens
+      - "4096"
+      - --max-client-batch-size
+      - "32"
+      - --tokenization-workers
+      - "2"
+    environment:
+      HF_HUB_OFFLINE: "1"
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    cpus: 4
+    mem_limit: 4g
+    memswap_limit: 4g
+    pids_limit: 256
+    tmpfs: ["/tmp:size=256m,nosuid,nodev"]
+    volumes:
+      - type: bind
+        source: ${CATALOG_EMBEDDING_MODEL_DIRECTORY:?verified offline model directory is required}
+        target: /model
+        read_only: true

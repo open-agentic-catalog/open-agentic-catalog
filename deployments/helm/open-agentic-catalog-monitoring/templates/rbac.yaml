@@ -1,0 +1,47 @@
+{{- if .Values.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "catalog-monitoring.name" . }}-prometheus
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "catalog-monitoring.labels" . | nindent 4 }}
+automountServiceAccountToken: true
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "catalog-monitoring.name" . }}-grafana
+  namespace: {{ .Release.Namespace | quote }}
+  labels:
+    {{- include "catalog-monitoring.labels" . | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "catalog-monitoring.name" . }}-discovery
+  namespace: {{ include "catalog-monitoring.targetNamespace" . | quote }}
+  labels:
+    {{- include "catalog-monitoring.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "catalog-monitoring.name" . }}-discovery
+  namespace: {{ include "catalog-monitoring.targetNamespace" . | quote }}
+  labels:
+    {{- include "catalog-monitoring.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "catalog-monitoring.name" . }}-discovery
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "catalog-monitoring.name" . }}-prometheus
+    namespace: {{ .Release.Namespace | quote }}
+{{- end }}

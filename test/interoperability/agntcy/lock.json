@@ -1,0 +1,22 @@
+{
+  "release": "v1.7.1",
+  "revision": "7bf5795ce7f6b2c3069ba2da1a32768701412334",
+  "cli_sha256": "68196755a6aeffb221aff97f3749f2b2a7be678bb5f175b9665a5302f6ba2305",
+  "chart_sha256": "cb54249679ef3a8380fdb3852396d25008b30277c1e1911b0ca0acdf5ba2b008",
+  "images": {
+    "apiserver": "ghcr.io/agntcy/dir-apiserver:v1.7.1@sha256:631b489e0ddd01877ad4e4a38931fef7c88e7861f1e2bc6da6047e6ee703e468",
+    "reconciler": "ghcr.io/agntcy/dir-reconciler:v1.7.1@sha256:998d1f8a9344878a57833a8e08c7cd4ff844e431e76cf7c7d5dbb7ebebe5326a",
+    "oasf": "ghcr.io/agntcy/oasf-server:v1.0.0@sha256:fecae4ee41cb9fdbbc207f484b0e63f07ccaf0163e2b47435a01c02e4a79ed17",
+    "zot": "ghcr.io/project-zot/zot:v2.1.21@sha256:6b69512c00dceaad05b1144e6079aac6aa7309d7fd200f9947ecb1de09cf48c8",
+    "postgres": "docker.io/bitnami/postgresql@sha256:7d77a46bbf200709237318c27dec0eaeae2520e403dd18fdebde2be7a6b04993"
+  },
+  "router_image_id": "sha256:3bf10c2cc7aae26bde9b9e9b99a9d516dff7e0fe198f530067759b0a82240ea7",
+  "cid": "baeareiejq2an6i6iake6pq33wmd4upjb6jfrh5lzjradenxrrswcbmq7vq",
+  "native_origin": "http://127.0.0.1:18889",
+  "grpc_address": "127.0.0.1:18888",
+  "tls_origin": "https://172.25.0.1:18443",
+  "network_policy_sha256": {
+    "agntcy-postgresql": "c4203b98c7db1dff6cca3074fdd6b284ac235cbc663c009fb19f3eee8b131c99",
+    "lab-only": "b8158fa4f9fdd1783149fff29a326a75e152067493a2717c50935d3cf0faa6be"
+  }
+}

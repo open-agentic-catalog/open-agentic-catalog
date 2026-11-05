@@ -1,0 +1,10 @@
+# Render-tested budget overlay, not a complete deployment or new defaults.
+# Pair with ui-values.yaml in tests; operators supply their own UI inputs.
+configEnv:
+  CATALOG_VALIDATION_MAX_FINDINGS: "256"
+  CATALOG_VALIDATION_MAX_DIAGNOSTIC_BYTES: "131072"
+  CATALOG_HTTP_MAX_BODY_BYTES: "33554432"
+ui:
+  config:
+    requestBytes: 33554432
+    responseBytes: 67108864

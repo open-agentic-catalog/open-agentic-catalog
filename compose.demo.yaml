@@ -1,0 +1,53 @@
+# Explicit local-only fixture overlay. Prepare its private directory before use.
+services:
+  demo-archives:
+    image: ${IMAGE:-open-agentic-catalog:dev}
+    pull_policy: never
+    user: "${DEMO_ARCHIVE_UID:?Select the non-root fixture directory owner}:${DEMO_ARCHIVE_GID:?Select the fixture directory group}"
+    entrypoint: ["/demo/demo-archives"]
+    command: ["--directory", "/demo", "--address", "0.0.0.0:8443", "--fixture-ip", "${DEMO_ARCHIVE_IP:-172.30.255.41}"]
+    volumes:
+      - type: bind
+        source: ${DEMO_ARCHIVE_DIR:-./output/demo/archives}
+        target: /demo
+        read_only: true
+    ports:
+      - "127.0.0.1:${DEMO_ARCHIVE_PORT:-18443}:8443"
+    networks:
+      default:
+        ipv4_address: ${DEMO_ARCHIVE_IP:-172.30.255.41}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  api:
+    depends_on:
+      demo-archives:
+        condition: service_started
+    environment:
+      CATALOG_DEMO_ARCHIVES: '{"origin":"https://${DEMO_ARCHIVE_IP:-172.30.255.41}:8443","trustBundleFile":"/config/demo-archives-ca.pem","allowlistFile":"/config/demo-archives-allowlist.json"}'
+    volumes:
+      - type: bind
+        source: ${DEMO_ARCHIVE_DIR:-./output/demo/archives}/cert.pem
+        target: /config/demo-archives-ca.pem
+        read_only: true
+      - type: bind
+        source: ${DEMO_ARCHIVE_DIR:-./output/demo/archives}/allowlist.json
+        target: /config/demo-archives-allowlist.json
+        read_only: true
+
+  worker:
+    depends_on:
+      demo-archives:
+        condition: service_started
+    environment:
+      CATALOG_DEMO_ARCHIVES: '{"origin":"https://${DEMO_ARCHIVE_IP:-172.30.255.41}:8443","trustBundleFile":"/config/demo-archives-ca.pem","allowlistFile":"/config/demo-archives-allowlist.json"}'
+    volumes:
+      - type: bind
+        source: ${DEMO_ARCHIVE_DIR:-./output/demo/archives}/cert.pem
+        target: /config/demo-archives-ca.pem
+        read_only: true
+      - type: bind
+        source: ${DEMO_ARCHIVE_DIR:-./output/demo/archives}/allowlist.json
+        target: /config/demo-archives-allowlist.json
+        read_only: true

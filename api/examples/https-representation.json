@@ -1,0 +1,25 @@
+{
+  "description": "Create one immutable Agent VersionRevision from a credential-free HTTPS representation without making the Catalog its delivery authority.",
+  "prerequisites": [
+    "The Agent resource already exists and the caller has contributor authority in its namespace.",
+    "The exact disposable HTTPS origin is present in the deployment-owned public egress allowlist.",
+    "The endpoint anonymously serves a valid A2A Agent Card with the declared base media type."
+  ],
+  "createVersion": {
+    "version": "1.0.0",
+    "representations": [
+      {
+        "role": "primary",
+        "mediaType": "application/a2a-agent-card+json",
+        "url": "https://content.example.test/agents/order-card.json"
+      }
+    ]
+  },
+  "expectedBehavior": {
+    "deliveryUrlRetained": true,
+    "exactValidationBytesRetainedInPostgreSQL": true,
+    "evidenceFreshnessHours": 24,
+    "publicationRefetchesExternalUrl": true,
+    "catalogAuthorizesPublicArtifactDelivery": false
+  }
+}

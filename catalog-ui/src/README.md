@@ -1,0 +1,9 @@
+# Browser source
+
+The browser client starts in `main.tsx`, loads the host's public runtime configuration and mounts the session-owning [shell](shell/README.md). The [API boundary](api/README.md) binds every private response to the current identity; [workflow screens](views/README.md) own typed queries and prepared commands. `styles.css` defines shared semantic colors, density and responsive shell layout. Keep credentials and private records out of browser storage; only appearance preferences persist there.
+
+`react-runtime.ts` exports the React bindings used by application code and the JSX compiler. Vite uses React's supported classic JSX transform and these unchanged bindings. Small shared source modules form one chunk; larger screens remain lazy. This reduces repeated runtime and validation code within the existing asset limits. Dependencies retain their normal React imports. Tests compare the bindings with React and verify keyed children, text, refs and callbacks. Knip analyzes the module as a compiler entry, with a narrow exception for its compiler-consumed exports. Browser, visual and performance checks qualify the emitted build.
+
+Add routed screens through `shell/App.tsx`, keep their query-changing inputs in read keys, and retain the configured base path in navigation links. The Go host's client-route allowlist must also recognize new navigation paths. Update the operation inventory when a workflow starts using another API operation. Generated `api/schema.d.ts` comes from the backend OpenAPI contract and is not hand-edited.
+
+Run `make ui-check` and the applicable tests from the repository root. See the [UI test strategy](../tests/README.md) for browser, coverage and packaged gates. Tests beside source modules exercise components and helpers; shared fixtures live under `tests/unit/`.

@@ -1,0 +1,38 @@
+# Disposable writer-recovery fixture, never a production HA topology.
+services:
+  api:
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_api:catalog-api@postgres:5432,standby:5432/catalog?sslmode=disable&target_session_attrs=read-write&connect_timeout=2
+      CATALOG_HTTP_REQUEST_TIMEOUT: 20s
+      CATALOG_HTTP_WRITE_TIMEOUT: 35s
+      CATALOG_HTTP_SHUTDOWN_TIMEOUT: 35s
+    restart: "no"
+  worker:
+    environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_worker:catalog-worker@postgres:5432,standby:5432/catalog?sslmode=disable&target_session_attrs=read-write&connect_timeout=2
+      CATALOG_WORKER_LEASE_DURATION: 15s
+      CATALOG_WORKER_POLL_INTERVAL: 250ms
+    restart: "no"
+  standby:
+    profiles: [failover]
+    image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+    environment:
+      PGDATA: /var/lib/postgresql/18/docker
+      PGPASSWORD: ${CATALOG_FUNCTIONAL_REPLICATION_PASSWORD:-compose-check-only}
+    entrypoint: [bash, -ec]
+    # A fresh volume is mandatory. Never erase or resynchronize an old database.
+    command:
+      - |
+        test ! -e "$$PGDATA/PG_VERSION"
+        mkdir -p "$$PGDATA"
+        chown postgres:postgres "$$PGDATA"
+        chmod 700 "$$PGDATA"
+        exec gosu postgres bash -ec '
+          pg_basebackup -d "host=postgres user=catalog_replication connect_timeout=2" -D "$$PGDATA" -R -X stream --checkpoint=fast
+          exec postgres -c synchronous_standby_names= -c max_standby_streaming_delay=120s
+        '
+    volumes:
+      - failover-standby:/var/lib/postgresql
+    restart: "no"
+volumes:
+  failover-standby:

@@ -1,0 +1,1362 @@
+[
+  {
+    "id": "invoice-agent",
+    "identifier": "urn:air:catalog.example.test:demo:invoice-agent",
+    "name": "Invoice reconciliation Assistant",
+    "description": "Compare supplier invoices with purchase orders and receipts, flag price discrepancies and prepare an accounts-payable exception report. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "finance",
+      "invoice"
+    ],
+    "representativeQueries": [
+      "Invoice reconciliation"
+    ],
+    "kind": "agent",
+    "family": "invoice",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "invoice-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:invoice-mcp_server",
+    "name": "Invoice reconciliation Connector",
+    "description": "Compare supplier invoices with purchase orders and receipts, flag price discrepancies and prepare an accounts-payable exception report. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "finance",
+      "invoice"
+    ],
+    "representativeQueries": [
+      "Invoice reconciliation"
+    ],
+    "kind": "mcp_server",
+    "family": "invoice",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "invoice-skill",
+    "identifier": "urn:air:catalog.example.test:demo:invoice-skill",
+    "name": "Invoice reconciliation Procedure",
+    "description": "Compare supplier invoices with purchase orders and receipts, flag price discrepancies and prepare an accounts-payable exception report. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "finance",
+      "invoice"
+    ],
+    "representativeQueries": [
+      "Invoice reconciliation"
+    ],
+    "kind": "skill",
+    "family": "invoice",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "invoice-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:invoice-plugin",
+    "name": "Invoice reconciliation Toolkit",
+    "description": "Compare supplier invoices with purchase orders and receipts, flag price discrepancies and prepare an accounts-payable exception report. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "finance",
+      "invoice"
+    ],
+    "representativeQueries": [
+      "Invoice reconciliation"
+    ],
+    "kind": "plugin",
+    "family": "invoice",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "calendar-agent",
+    "identifier": "urn:air:catalog.example.test:demo:calendar-agent",
+    "name": "Calendar coordination Assistant",
+    "description": "Read team availability, identify overlapping free intervals and propose meeting times across time zones. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "scheduling",
+      "calendar"
+    ],
+    "representativeQueries": [
+      "Calendar coordination"
+    ],
+    "kind": "agent",
+    "family": "calendar",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "calendar-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:calendar-mcp_server",
+    "name": "Calendar coordination Connector",
+    "description": "Read team availability, identify overlapping free intervals and propose meeting times across time zones. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "scheduling",
+      "calendar"
+    ],
+    "representativeQueries": [
+      "Calendar coordination"
+    ],
+    "kind": "mcp_server",
+    "family": "calendar",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "calendar-skill",
+    "identifier": "urn:air:catalog.example.test:demo:calendar-skill",
+    "name": "Calendar coordination Procedure",
+    "description": "Read team availability, identify overlapping free intervals and propose meeting times across time zones. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "scheduling",
+      "calendar"
+    ],
+    "representativeQueries": [
+      "Calendar coordination"
+    ],
+    "kind": "skill",
+    "family": "calendar",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "calendar-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:calendar-plugin",
+    "name": "Calendar coordination Toolkit",
+    "description": "Read team availability, identify overlapping free intervals and propose meeting times across time zones. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "scheduling",
+      "calendar"
+    ],
+    "representativeQueries": [
+      "Calendar coordination"
+    ],
+    "kind": "plugin",
+    "family": "calendar",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "translation-agent",
+    "identifier": "urn:air:catalog.example.test:demo:translation-agent",
+    "name": "Technical translation Assistant",
+    "description": "Translate product manuals between English and Spanish while preserving technical terms and document structure. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "language",
+      "translation"
+    ],
+    "representativeQueries": [
+      "Technical translation"
+    ],
+    "kind": "agent",
+    "family": "translation",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "translation-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:translation-mcp_server",
+    "name": "Technical translation Connector",
+    "description": "Translate product manuals between English and Spanish while preserving technical terms and document structure. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "language",
+      "translation"
+    ],
+    "representativeQueries": [
+      "Technical translation"
+    ],
+    "kind": "mcp_server",
+    "family": "translation",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "translation-skill",
+    "identifier": "urn:air:catalog.example.test:demo:translation-skill",
+    "name": "Technical translation Procedure",
+    "description": "Translate product manuals between English and Spanish while preserving technical terms and document structure. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "language",
+      "translation"
+    ],
+    "representativeQueries": [
+      "Technical translation"
+    ],
+    "kind": "skill",
+    "family": "translation",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "translation-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:translation-plugin",
+    "name": "Technical translation Toolkit",
+    "description": "Translate product manuals between English and Spanish while preserving technical terms and document structure. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "language",
+      "translation"
+    ],
+    "representativeQueries": [
+      "Technical translation"
+    ],
+    "kind": "plugin",
+    "family": "translation",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "log-analysis-agent",
+    "identifier": "urn:air:catalog.example.test:demo:log-analysis-agent",
+    "name": "Application log diagnosis Assistant",
+    "description": "Group application error logs, correlate request failures and identify likely causes of service incidents. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "operations",
+      "log-analysis"
+    ],
+    "representativeQueries": [
+      "Application log diagnosis"
+    ],
+    "kind": "agent",
+    "family": "log-analysis",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "log-analysis-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:log-analysis-mcp_server",
+    "name": "Application log diagnosis Connector",
+    "description": "Group application error logs, correlate request failures and identify likely causes of service incidents. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "operations",
+      "log-analysis"
+    ],
+    "representativeQueries": [
+      "Application log diagnosis"
+    ],
+    "kind": "mcp_server",
+    "family": "log-analysis",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "log-analysis-skill",
+    "identifier": "urn:air:catalog.example.test:demo:log-analysis-skill",
+    "name": "Application log diagnosis Procedure",
+    "description": "Group application error logs, correlate request failures and identify likely causes of service incidents. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "operations",
+      "log-analysis"
+    ],
+    "representativeQueries": [
+      "Application log diagnosis"
+    ],
+    "kind": "skill",
+    "family": "log-analysis",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "log-analysis-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:log-analysis-plugin",
+    "name": "Application log diagnosis Toolkit",
+    "description": "Group application error logs, correlate request failures and identify likely causes of service incidents. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "operations",
+      "log-analysis"
+    ],
+    "representativeQueries": [
+      "Application log diagnosis"
+    ],
+    "kind": "plugin",
+    "family": "log-analysis",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "inventory-agent",
+    "identifier": "urn:air:catalog.example.test:demo:inventory-agent",
+    "name": "Inventory forecasting Assistant",
+    "description": "Estimate future stock demand from historical sales and flag products likely to run out before replenishment. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "retail",
+      "inventory"
+    ],
+    "representativeQueries": [
+      "Inventory forecasting"
+    ],
+    "kind": "agent",
+    "family": "inventory",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "inventory-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:inventory-mcp_server",
+    "name": "Inventory forecasting Connector",
+    "description": "Estimate future stock demand from historical sales and flag products likely to run out before replenishment. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "retail",
+      "inventory"
+    ],
+    "representativeQueries": [
+      "Inventory forecasting"
+    ],
+    "kind": "mcp_server",
+    "family": "inventory",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "inventory-skill",
+    "identifier": "urn:air:catalog.example.test:demo:inventory-skill",
+    "name": "Inventory forecasting Procedure",
+    "description": "Estimate future stock demand from historical sales and flag products likely to run out before replenishment. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "retail",
+      "inventory"
+    ],
+    "representativeQueries": [
+      "Inventory forecasting"
+    ],
+    "kind": "skill",
+    "family": "inventory",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "inventory-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:inventory-plugin",
+    "name": "Inventory forecasting Toolkit",
+    "description": "Estimate future stock demand from historical sales and flag products likely to run out before replenishment. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "retail",
+      "inventory"
+    ],
+    "representativeQueries": [
+      "Inventory forecasting"
+    ],
+    "kind": "plugin",
+    "family": "inventory",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "redaction-agent",
+    "identifier": "urn:air:catalog.example.test:demo:redaction-agent",
+    "name": "Personal data redaction Assistant",
+    "description": "Locate names, email addresses and phone numbers in support transcripts and mask them before sharing. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "privacy",
+      "redaction"
+    ],
+    "representativeQueries": [
+      "Personal data redaction"
+    ],
+    "kind": "agent",
+    "family": "redaction",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "redaction-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:redaction-mcp_server",
+    "name": "Personal data redaction Connector",
+    "description": "Locate names, email addresses and phone numbers in support transcripts and mask them before sharing. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "privacy",
+      "redaction"
+    ],
+    "representativeQueries": [
+      "Personal data redaction"
+    ],
+    "kind": "mcp_server",
+    "family": "redaction",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "redaction-skill",
+    "identifier": "urn:air:catalog.example.test:demo:redaction-skill",
+    "name": "Personal data redaction Procedure",
+    "description": "Locate names, email addresses and phone numbers in support transcripts and mask them before sharing. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "privacy",
+      "redaction"
+    ],
+    "representativeQueries": [
+      "Personal data redaction"
+    ],
+    "kind": "skill",
+    "family": "redaction",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "redaction-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:redaction-plugin",
+    "name": "Personal data redaction Toolkit",
+    "description": "Locate names, email addresses and phone numbers in support transcripts and mask them before sharing. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "privacy",
+      "redaction"
+    ],
+    "representativeQueries": [
+      "Personal data redaction"
+    ],
+    "kind": "plugin",
+    "family": "redaction",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "weather-agent",
+    "identifier": "urn:air:catalog.example.test:demo:weather-agent",
+    "name": "Historical weather records Assistant",
+    "description": "Retrieve historical rainfall and temperature measurements for named observation stations; no future forecasts. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "climate",
+      "weather"
+    ],
+    "representativeQueries": [
+      "Historical weather records"
+    ],
+    "kind": "agent",
+    "family": "weather",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "weather-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:weather-mcp_server",
+    "name": "Historical weather records Connector",
+    "description": "Retrieve historical rainfall and temperature measurements for named observation stations; no future forecasts. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "climate",
+      "weather"
+    ],
+    "representativeQueries": [
+      "Historical weather records"
+    ],
+    "kind": "mcp_server",
+    "family": "weather",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "weather-skill",
+    "identifier": "urn:air:catalog.example.test:demo:weather-skill",
+    "name": "Historical weather records Procedure",
+    "description": "Retrieve historical rainfall and temperature measurements for named observation stations; no future forecasts. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "climate",
+      "weather"
+    ],
+    "representativeQueries": [
+      "Historical weather records"
+    ],
+    "kind": "skill",
+    "family": "weather",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "weather-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:weather-plugin",
+    "name": "Historical weather records Toolkit",
+    "description": "Retrieve historical rainfall and temperature measurements for named observation stations; no future forecasts. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "climate",
+      "weather"
+    ],
+    "representativeQueries": [
+      "Historical weather records"
+    ],
+    "kind": "plugin",
+    "family": "weather",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "images-agent",
+    "identifier": "urn:air:catalog.example.test:demo:images-agent",
+    "name": "Product image labels Assistant",
+    "description": "Assign object and color labels to supplied product photographs for metadata organization; no image generation. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "media",
+      "images"
+    ],
+    "representativeQueries": [
+      "Product image labels"
+    ],
+    "kind": "agent",
+    "family": "images",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "images-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:images-mcp_server",
+    "name": "Product image labels Connector",
+    "description": "Assign object and color labels to supplied product photographs for metadata organization; no image generation. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "media",
+      "images"
+    ],
+    "representativeQueries": [
+      "Product image labels"
+    ],
+    "kind": "mcp_server",
+    "family": "images",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "images-skill",
+    "identifier": "urn:air:catalog.example.test:demo:images-skill",
+    "name": "Product image labels Procedure",
+    "description": "Assign object and color labels to supplied product photographs for metadata organization; no image generation. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "media",
+      "images"
+    ],
+    "representativeQueries": [
+      "Product image labels"
+    ],
+    "kind": "skill",
+    "family": "images",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "images-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:images-plugin",
+    "name": "Product image labels Toolkit",
+    "description": "Assign object and color labels to supplied product photographs for metadata organization; no image generation. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "media",
+      "images"
+    ],
+    "representativeQueries": [
+      "Product image labels"
+    ],
+    "kind": "plugin",
+    "family": "images",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "contract-agent",
+    "identifier": "urn:air:catalog.example.test:demo:contract-agent",
+    "name": "Contract clause review Assistant",
+    "description": "Locate renewal deadlines, termination clauses and unusual liability language in commercial agreements; no legal representation. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "legal",
+      "contract"
+    ],
+    "representativeQueries": [
+      "Contract clause review"
+    ],
+    "kind": "agent",
+    "family": "contract",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "contract-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:contract-mcp_server",
+    "name": "Contract clause review Connector",
+    "description": "Locate renewal deadlines, termination clauses and unusual liability language in commercial agreements; no legal representation. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "legal",
+      "contract"
+    ],
+    "representativeQueries": [
+      "Contract clause review"
+    ],
+    "kind": "mcp_server",
+    "family": "contract",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "contract-skill",
+    "identifier": "urn:air:catalog.example.test:demo:contract-skill",
+    "name": "Contract clause review Procedure",
+    "description": "Locate renewal deadlines, termination clauses and unusual liability language in commercial agreements; no legal representation. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "legal",
+      "contract"
+    ],
+    "representativeQueries": [
+      "Contract clause review"
+    ],
+    "kind": "skill",
+    "family": "contract",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "contract-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:contract-plugin",
+    "name": "Contract clause review Toolkit",
+    "description": "Locate renewal deadlines, termination clauses and unusual liability language in commercial agreements; no legal representation. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "legal",
+      "contract"
+    ],
+    "representativeQueries": [
+      "Contract clause review"
+    ],
+    "kind": "plugin",
+    "family": "contract",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "accessibility-agent",
+    "identifier": "urn:air:catalog.example.test:demo:accessibility-agent",
+    "name": "Web accessibility review Assistant",
+    "description": "Inspect supplied HTML for missing accessible names, contrast concerns and keyboard navigation barriers. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "web",
+      "accessibility"
+    ],
+    "representativeQueries": [
+      "Web accessibility review"
+    ],
+    "kind": "agent",
+    "family": "accessibility",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "accessibility-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:accessibility-mcp_server",
+    "name": "Web accessibility review Connector",
+    "description": "Inspect supplied HTML for missing accessible names, contrast concerns and keyboard navigation barriers. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "web",
+      "accessibility"
+    ],
+    "representativeQueries": [
+      "Web accessibility review"
+    ],
+    "kind": "mcp_server",
+    "family": "accessibility",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "accessibility-skill",
+    "identifier": "urn:air:catalog.example.test:demo:accessibility-skill",
+    "name": "Web accessibility review Procedure",
+    "description": "Inspect supplied HTML for missing accessible names, contrast concerns and keyboard navigation barriers. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "web",
+      "accessibility"
+    ],
+    "representativeQueries": [
+      "Web accessibility review"
+    ],
+    "kind": "skill",
+    "family": "accessibility",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "accessibility-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:accessibility-plugin",
+    "name": "Web accessibility review Toolkit",
+    "description": "Inspect supplied HTML for missing accessible names, contrast concerns and keyboard navigation barriers. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "web",
+      "accessibility"
+    ],
+    "representativeQueries": [
+      "Web accessibility review"
+    ],
+    "kind": "plugin",
+    "family": "accessibility",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "sql-agent",
+    "identifier": "urn:air:catalog.example.test:demo:sql-agent",
+    "name": "Read-only database queries Assistant",
+    "description": "Run bounded SELECT statements against approved PostgreSQL views and return tabular results; writes and schema changes are prohibited. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "data",
+      "sql"
+    ],
+    "representativeQueries": [
+      "Read-only database queries"
+    ],
+    "kind": "agent",
+    "family": "sql",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "sql-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:sql-mcp_server",
+    "name": "Read-only database queries Connector",
+    "description": "Run bounded SELECT statements against approved PostgreSQL views and return tabular results; writes and schema changes are prohibited. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "data",
+      "sql"
+    ],
+    "representativeQueries": [
+      "Read-only database queries"
+    ],
+    "kind": "mcp_server",
+    "family": "sql",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "sql-skill",
+    "identifier": "urn:air:catalog.example.test:demo:sql-skill",
+    "name": "Read-only database queries Procedure",
+    "description": "Run bounded SELECT statements against approved PostgreSQL views and return tabular results; writes and schema changes are prohibited. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "data",
+      "sql"
+    ],
+    "representativeQueries": [
+      "Read-only database queries"
+    ],
+    "kind": "skill",
+    "family": "sql",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "sql-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:sql-plugin",
+    "name": "Read-only database queries Toolkit",
+    "description": "Run bounded SELECT statements against approved PostgreSQL views and return tabular results; writes and schema changes are prohibited. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "data",
+      "sql"
+    ],
+    "representativeQueries": [
+      "Read-only database queries"
+    ],
+    "kind": "plugin",
+    "family": "sql",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "release-notes-agent",
+    "identifier": "urn:air:catalog.example.test:demo:release-notes-agent",
+    "name": "Release note drafting Assistant",
+    "description": "Summarize merged change descriptions into user-facing release notes grouped by features, fixes and upgrade considerations. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "development",
+      "release-notes"
+    ],
+    "representativeQueries": [
+      "Release note drafting"
+    ],
+    "kind": "agent",
+    "family": "release-notes",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "release-notes-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:release-notes-mcp_server",
+    "name": "Release note drafting Connector",
+    "description": "Summarize merged change descriptions into user-facing release notes grouped by features, fixes and upgrade considerations. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "development",
+      "release-notes"
+    ],
+    "representativeQueries": [
+      "Release note drafting"
+    ],
+    "kind": "mcp_server",
+    "family": "release-notes",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "release-notes-skill",
+    "identifier": "urn:air:catalog.example.test:demo:release-notes-skill",
+    "name": "Release note drafting Procedure",
+    "description": "Summarize merged change descriptions into user-facing release notes grouped by features, fixes and upgrade considerations. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "development",
+      "release-notes"
+    ],
+    "representativeQueries": [
+      "Release note drafting"
+    ],
+    "kind": "skill",
+    "family": "release-notes",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "release-notes-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:release-notes-plugin",
+    "name": "Release note drafting Toolkit",
+    "description": "Summarize merged change descriptions into user-facing release notes grouped by features, fixes and upgrade considerations. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "development",
+      "release-notes"
+    ],
+    "representativeQueries": [
+      "Release note drafting"
+    ],
+    "kind": "plugin",
+    "family": "release-notes",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "duplicate-agent",
+    "identifier": "urn:air:catalog.example.test:demo:duplicate-agent",
+    "name": "Duplicate customer records Assistant",
+    "description": "Compare customer names, addresses and contact fields to suggest likely duplicate CRM records; never merge automatically. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "crm",
+      "duplicate"
+    ],
+    "representativeQueries": [
+      "Duplicate customer records"
+    ],
+    "kind": "agent",
+    "family": "duplicate",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "duplicate-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:duplicate-mcp_server",
+    "name": "Duplicate customer records Connector",
+    "description": "Compare customer names, addresses and contact fields to suggest likely duplicate CRM records; never merge automatically. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "crm",
+      "duplicate"
+    ],
+    "representativeQueries": [
+      "Duplicate customer records"
+    ],
+    "kind": "mcp_server",
+    "family": "duplicate",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "duplicate-skill",
+    "identifier": "urn:air:catalog.example.test:demo:duplicate-skill",
+    "name": "Duplicate customer records Procedure",
+    "description": "Compare customer names, addresses and contact fields to suggest likely duplicate CRM records; never merge automatically. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "crm",
+      "duplicate"
+    ],
+    "representativeQueries": [
+      "Duplicate customer records"
+    ],
+    "kind": "skill",
+    "family": "duplicate",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "duplicate-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:duplicate-plugin",
+    "name": "Duplicate customer records Toolkit",
+    "description": "Compare customer names, addresses and contact fields to suggest likely duplicate CRM records; never merge automatically. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "crm",
+      "duplicate"
+    ],
+    "representativeQueries": [
+      "Duplicate customer records"
+    ],
+    "kind": "plugin",
+    "family": "duplicate",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "shipment-agent",
+    "identifier": "urn:air:catalog.example.test:demo:shipment-agent",
+    "name": "Shipment tracking Assistant",
+    "description": "Retrieve package carrier events and delivery estimates for tracking numbers and explain delayed parcel status. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "logistics",
+      "shipment"
+    ],
+    "representativeQueries": [
+      "Shipment tracking"
+    ],
+    "kind": "agent",
+    "family": "shipment",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "shipment-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:shipment-mcp_server",
+    "name": "Shipment tracking Connector",
+    "description": "Retrieve package carrier events and delivery estimates for tracking numbers and explain delayed parcel status. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "logistics",
+      "shipment"
+    ],
+    "representativeQueries": [
+      "Shipment tracking"
+    ],
+    "kind": "mcp_server",
+    "family": "shipment",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "shipment-skill",
+    "identifier": "urn:air:catalog.example.test:demo:shipment-skill",
+    "name": "Shipment tracking Procedure",
+    "description": "Retrieve package carrier events and delivery estimates for tracking numbers and explain delayed parcel status. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "logistics",
+      "shipment"
+    ],
+    "representativeQueries": [
+      "Shipment tracking"
+    ],
+    "kind": "skill",
+    "family": "shipment",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "shipment-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:shipment-plugin",
+    "name": "Shipment tracking Toolkit",
+    "description": "Retrieve package carrier events and delivery estimates for tracking numbers and explain delayed parcel status. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "logistics",
+      "shipment"
+    ],
+    "representativeQueries": [
+      "Shipment tracking"
+    ],
+    "kind": "plugin",
+    "family": "shipment",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "expenses-agent",
+    "identifier": "urn:air:catalog.example.test:demo:expenses-agent",
+    "name": "Expense policy review Assistant",
+    "description": "Compare employee reimbursement requests with corporate travel and meal policies and flag missing receipts. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "finance",
+      "expenses"
+    ],
+    "representativeQueries": [
+      "Expense policy review"
+    ],
+    "kind": "agent",
+    "family": "expenses",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "expenses-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:expenses-mcp_server",
+    "name": "Expense policy review Connector",
+    "description": "Compare employee reimbursement requests with corporate travel and meal policies and flag missing receipts. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "finance",
+      "expenses"
+    ],
+    "representativeQueries": [
+      "Expense policy review"
+    ],
+    "kind": "mcp_server",
+    "family": "expenses",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "expenses-skill",
+    "identifier": "urn:air:catalog.example.test:demo:expenses-skill",
+    "name": "Expense policy review Procedure",
+    "description": "Compare employee reimbursement requests with corporate travel and meal policies and flag missing receipts. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "finance",
+      "expenses"
+    ],
+    "representativeQueries": [
+      "Expense policy review"
+    ],
+    "kind": "skill",
+    "family": "expenses",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "expenses-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:expenses-plugin",
+    "name": "Expense policy review Toolkit",
+    "description": "Compare employee reimbursement requests with corporate travel and meal policies and flag missing receipts. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "finance",
+      "expenses"
+    ],
+    "representativeQueries": [
+      "Expense policy review"
+    ],
+    "kind": "plugin",
+    "family": "expenses",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "dependencies-agent",
+    "identifier": "urn:air:catalog.example.test:demo:dependencies-agent",
+    "name": "Dependency vulnerability matching Assistant",
+    "description": "Compare a supplied dependency inventory with a pinned advisory database and report matching affected versions; no dynamic code execution. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "security",
+      "dependencies"
+    ],
+    "representativeQueries": [
+      "Dependency vulnerability matching"
+    ],
+    "kind": "agent",
+    "family": "dependencies",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "dependencies-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:dependencies-mcp_server",
+    "name": "Dependency vulnerability matching Connector",
+    "description": "Compare a supplied dependency inventory with a pinned advisory database and report matching affected versions; no dynamic code execution. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "security",
+      "dependencies"
+    ],
+    "representativeQueries": [
+      "Dependency vulnerability matching"
+    ],
+    "kind": "mcp_server",
+    "family": "dependencies",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "dependencies-skill",
+    "identifier": "urn:air:catalog.example.test:demo:dependencies-skill",
+    "name": "Dependency vulnerability matching Procedure",
+    "description": "Compare a supplied dependency inventory with a pinned advisory database and report matching affected versions; no dynamic code execution. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "security",
+      "dependencies"
+    ],
+    "representativeQueries": [
+      "Dependency vulnerability matching"
+    ],
+    "kind": "skill",
+    "family": "dependencies",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "dependencies-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:dependencies-plugin",
+    "name": "Dependency vulnerability matching Toolkit",
+    "description": "Compare a supplied dependency inventory with a pinned advisory database and report matching affected versions; no dynamic code execution. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "security",
+      "dependencies"
+    ],
+    "representativeQueries": [
+      "Dependency vulnerability matching"
+    ],
+    "kind": "plugin",
+    "family": "dependencies",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "support-agent",
+    "identifier": "urn:air:catalog.example.test:demo:support-agent",
+    "name": "Support ticket routing Assistant",
+    "description": "Classify incoming customer issues by product and urgency and suggest the appropriate support queue. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "support",
+      "support"
+    ],
+    "representativeQueries": [
+      "Support ticket routing"
+    ],
+    "kind": "agent",
+    "family": "support",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "support-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:support-mcp_server",
+    "name": "Support ticket routing Connector",
+    "description": "Classify incoming customer issues by product and urgency and suggest the appropriate support queue. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "support",
+      "support"
+    ],
+    "representativeQueries": [
+      "Support ticket routing"
+    ],
+    "kind": "mcp_server",
+    "family": "support",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "support-skill",
+    "identifier": "urn:air:catalog.example.test:demo:support-skill",
+    "name": "Support ticket routing Procedure",
+    "description": "Classify incoming customer issues by product and urgency and suggest the appropriate support queue. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "support",
+      "support"
+    ],
+    "representativeQueries": [
+      "Support ticket routing"
+    ],
+    "kind": "skill",
+    "family": "support",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "support-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:support-plugin",
+    "name": "Support ticket routing Toolkit",
+    "description": "Classify incoming customer issues by product and urgency and suggest the appropriate support queue. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "support",
+      "support"
+    ],
+    "representativeQueries": [
+      "Support ticket routing"
+    ],
+    "kind": "plugin",
+    "family": "support",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "csv-agent",
+    "identifier": "urn:air:catalog.example.test:demo:csv-agent",
+    "name": "CSV quality checks Assistant",
+    "description": "Validate CSV column types, required fields and uniqueness constraints, returning row-level data-quality errors. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "data",
+      "csv"
+    ],
+    "representativeQueries": [
+      "CSV quality checks"
+    ],
+    "kind": "agent",
+    "family": "csv",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "csv-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:csv-mcp_server",
+    "name": "CSV quality checks Connector",
+    "description": "Validate CSV column types, required fields and uniqueness constraints, returning row-level data-quality errors. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "data",
+      "csv"
+    ],
+    "representativeQueries": [
+      "CSV quality checks"
+    ],
+    "kind": "mcp_server",
+    "family": "csv",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "csv-skill",
+    "identifier": "urn:air:catalog.example.test:demo:csv-skill",
+    "name": "CSV quality checks Procedure",
+    "description": "Validate CSV column types, required fields and uniqueness constraints, returning row-level data-quality errors. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "data",
+      "csv"
+    ],
+    "representativeQueries": [
+      "CSV quality checks"
+    ],
+    "kind": "skill",
+    "family": "csv",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "csv-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:csv-plugin",
+    "name": "CSV quality checks Toolkit",
+    "description": "Validate CSV column types, required fields and uniqueness constraints, returning row-level data-quality errors. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "data",
+      "csv"
+    ],
+    "representativeQueries": [
+      "CSV quality checks"
+    ],
+    "kind": "plugin",
+    "family": "csv",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "meeting-agent",
+    "identifier": "urn:air:catalog.example.test:demo:meeting-agent",
+    "name": "Meeting action extraction Assistant",
+    "description": "Extract decisions, assigned tasks and due dates from supplied meeting notes into a structured action list. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "productivity",
+      "meeting"
+    ],
+    "representativeQueries": [
+      "Meeting action extraction"
+    ],
+    "kind": "agent",
+    "family": "meeting",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "meeting-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:meeting-mcp_server",
+    "name": "Meeting action extraction Connector",
+    "description": "Extract decisions, assigned tasks and due dates from supplied meeting notes into a structured action list. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "productivity",
+      "meeting"
+    ],
+    "representativeQueries": [
+      "Meeting action extraction"
+    ],
+    "kind": "mcp_server",
+    "family": "meeting",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "meeting-skill",
+    "identifier": "urn:air:catalog.example.test:demo:meeting-skill",
+    "name": "Meeting action extraction Procedure",
+    "description": "Extract decisions, assigned tasks and due dates from supplied meeting notes into a structured action list. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "productivity",
+      "meeting"
+    ],
+    "representativeQueries": [
+      "Meeting action extraction"
+    ],
+    "kind": "skill",
+    "family": "meeting",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "meeting-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:meeting-plugin",
+    "name": "Meeting action extraction Toolkit",
+    "description": "Extract decisions, assigned tasks and due dates from supplied meeting notes into a structured action list. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "productivity",
+      "meeting"
+    ],
+    "representativeQueries": [
+      "Meeting action extraction"
+    ],
+    "kind": "plugin",
+    "family": "meeting",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "currency-agent",
+    "identifier": "urn:air:catalog.example.test:demo:currency-agent",
+    "name": "Currency conversion history Assistant",
+    "description": "Retrieve historical exchange rates for supported currency pairs and calculate amounts at a specified past date; no trading. An agent prepares a reviewable answer from supplied business data.",
+    "tags": [
+      "finance",
+      "currency"
+    ],
+    "representativeQueries": [
+      "Currency conversion history"
+    ],
+    "kind": "agent",
+    "family": "currency",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "currency-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:currency-mcp_server",
+    "name": "Currency conversion history Connector",
+    "description": "Retrieve historical exchange rates for supported currency pairs and calculate amounts at a specified past date; no trading. An MCP server exposes bounded tools for this operation.",
+    "tags": [
+      "finance",
+      "currency"
+    ],
+    "representativeQueries": [
+      "Currency conversion history"
+    ],
+    "kind": "mcp_server",
+    "family": "currency",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "currency-skill",
+    "identifier": "urn:air:catalog.example.test:demo:currency-skill",
+    "name": "Currency conversion history Procedure",
+    "description": "Retrieve historical exchange rates for supported currency pairs and calculate amounts at a specified past date; no trading. A portable Skill describes repeatable steps and output checks for this task.",
+    "tags": [
+      "finance",
+      "currency"
+    ],
+    "representativeQueries": [
+      "Currency conversion history"
+    ],
+    "kind": "skill",
+    "family": "currency",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "currency-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:currency-plugin",
+    "name": "Currency conversion history Toolkit",
+    "description": "Retrieve historical exchange rates for supported currency pairs and calculate amounts at a specified past date; no trading. A Plugin bundles a task Skill and its optional connector configuration.",
+    "tags": [
+      "finance",
+      "currency"
+    ],
+    "representativeQueries": [
+      "Currency conversion history"
+    ],
+    "kind": "plugin",
+    "family": "currency",
+    "source": "local",
+    "public": true
+  }
+]

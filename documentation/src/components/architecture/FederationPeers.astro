@@ -1,0 +1,29 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="federation-peers-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 1066" role="img" aria-labelledby="federation-peers-title federation-peers-desc">
+  <title id="federation-peers-title">Published metadata between two independent Catalogs</title>
+  <desc id="federation-peers-desc">Catalog A exposes audience-scoped discovery from active local snapshots. Search can add permitted live results. Catalog B's administrator approves A as a source and controls indexed and live participation. B retains indexed observations in its own database. Incomplete synchronization preserves the last complete view.
+
+  Approved live Search returns bounded transient results. A signed continuation token replays the same bounded window of live results. The Catalog does not store a Search session. B combines local releases, indexed observations, and permitted live results for its authorized reader. Databases remain independent. B does not forward caller tokens or automatically adopt observations.</desc>
+  <defs><marker id="federation-peers-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 355 V379 H628 V8 H320 V20" marker-end="url(#federation-peers-arrow)" />
+  <text class="svg-small" x="340" y="371">B requests A</text>
+  <path class="svg-connector" d="M320 141 V195 H12 V379 H180 V425" marker-end="url(#federation-peers-arrow)" />
+  <text class="svg-small" x="24" y="401">Returned metadata</text>
+  <path class="svg-connector" d="M320 141 V165 H618 V417 H460 V425" marker-end="url(#federation-peers-arrow)" />
+  <text class="svg-small" x="340" y="401">Returned results</text>
+  <path class="svg-connector" d="M180 641 V676 H320 V711" marker-end="url(#federation-peers-arrow)" />
+  <path class="svg-connector" d="M460 592 V676 H320 V711" marker-end="url(#federation-peers-arrow)" />
+  <DiagramCard x={60} y={20} width={520} title={"Catalog A discovery"} tone="external" lines={["Host- and audience-scoped active local snapshots", "Published metadata, never drafts;", "Search can add permitted live results"]} />
+  <DiagramCard x={60} y={211} width={520} title={"Catalog B administrator approves A"} tone="core" lines={["Control source scope, indexed/live", "participation and query disclosure", "B uses approved source credentials,", "never its caller's token"]} />
+  <DiagramCard x={60} y={425} width={240} title={["Indexed", "synchronization"]} lines={["Retain observations", "in B's PostgreSQL", "Incomplete sync keeps", "the last complete view", "External provenance,", "not local Resources"]} />
+  <DiagramCard x={340} y={425} width={240} title={"Approved live Search"} lines={["Bounded query and", "transient results", "Visible partial failures", "Bounded replay;", "no stored session"]} />
+  <DiagramCard x={60} y={711} width={520} title={"B unified Search"} tone="authority" lines={["Local releases, indexed observations", "and permitted live results", "Apply current reader-visible scope", "Selected local releases win exact typed-identity collisions"]} />
+  <DiagramCard x={60} y={925} width={520} title={"Independent databases and governance"} tone="warning" lines={["B makes requests to A; metadata flows from A to B", "Adoption is a separate command creating a local draft", "The draft still needs local validation, review and release"]} />
+
+</svg>
+</div>

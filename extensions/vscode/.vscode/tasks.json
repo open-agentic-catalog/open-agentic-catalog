@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Catalog: build",
+      "type": "process",
+      "command": "make",
+      "args": ["build"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "Catalog: watch",
+      "type": "process",
+      "command": "make",
+      "args": ["watch"],
+      "options": { "cwd": "${workspaceFolder}" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "typescript",
+        "pattern": {
+          "regexp": "^(.*)\\((\\d+),(\\d+)\\): error TS\\d+: (.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "\\[watch\\] build started",
+          "endsPattern": "\\[watch\\] build (finished|failed)"
+        }
+      }
+    }
+  ]
+}

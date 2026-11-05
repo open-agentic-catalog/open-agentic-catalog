@@ -1,0 +1,181 @@
+---
+title: "Identity and security boundaries"
+---
+
+import OutboundChecks from "../../../components/architecture/OutboundChecks.astro";
+
+import Identity from "../../../components/architecture/Identity.astro";
+
+The service treats tokens, roles, URLs, DNS, redirects, standards documents, archives, queries, public hosts, cursors, credentials, and webhook destinations as independent untrusted inputs.
+
+Software assessment remains unavailable. The [external scanner design](decisions/0012-event-delivery.md#external-scanner-integration) keeps scanner execution and reports outside the Catalog API and worker. The optional [MCP Scanner example](../guides/mcp-scanner.mdx) supplies offline scanning and a separate release-webhook receiver. Its native scanner and complete Compose qualification remain pending. Receiver tests use an executable double.
+
+Scanning captured MCP descriptions does not establish runtime safety. Reports do not grant trust, bypass publication review or enable automatic assessment enforcement.
+
+## Inbound identity decision
+
+Production authorization resolves identity from verified token evidence, then derives authority from Catalog-owned state. Only the resulting tenant and actor context reaches a PostgreSQL transaction.
+
+<Identity />
+
+Token roles, groups, and tenant UUID claims do not grant Catalog authority. A broad OAuth scope does not create a Catalog role. The verifier may bridge a known signing-key outage for at most 15 minutes; after that, fresh provider evidence is required.
+
+The optional [UI host](catalog-ui.mdx#login-and-browser-security) handles browser login and its encrypted session cookie separately. It forwards the user's access token; the API still performs every membership, scope and domain authorization check.
+
+## Catalog roles
+
+| Built-in template | Permissions supplied | Boundary |
+| --- | --- | --- |
+| `reader` | Read local metadata, history, content and namespaces; eligible human ratings. | Exact metadata, history and content use distinct current permissions at the canonical namespace. Collection/search selection is bounded by current authorized scope before ordering, totals, facets and continuation. |
+| `contributor` | Create resources, versions, listings, validation runs, and review submissions. | Cannot approve its own submission. |
+| `reviewer` | Approve, request changes, or reject another actor's submission. | Does not publish merely by approving. |
+| `publisher` | Publish approved releases; whole-host discovery snapshot management has a separate `publication_admin` template. | Cannot bypass current validation or domain approval. |
+| `discovery_reader` | Authenticated discovery, federation participation, Publisher reads and eligible human saved items/ratings. | No local Resource-read grant. `job.read` alone exposes no operational Jobs; current family and target authority is also required. |
+| `publisher_creator` | Publisher creation and reads. | Does not grant publisher administration or domain approval. |
+| `publication_admin` | Whole-host snapshot reads, generation, activation, rollback and unpublish, plus publication-family Job controls. | Snapshot eligibility and publication-domain approval remain required. |
+| `source_admin` | Inspect, connect, test, sync, pause, resume, and remove federation sources. | Topology remains within deployment egress policy. |
+| `security_reviewer` | Investigate tenant audit evidence and create bounded deterministic exports. | Other security-governed commands still need explicit contracts and authorization rules; the role does not turn unassessed capabilities into verified results. |
+| `webhook_admin` | Webhook management, tests, secret rotation and delivery evidence. | Does not grant unrelated resource or federation evidence access. |
+| `library_member` | Own human saved references and named searches. | New references and search execution retain independent current target/discovery checks. Service identities cannot use personal library actions. |
+| `feedback_member` | Own human-feedback workflows. | Requires current item-read authority where applicable; does not grant moderation. |
+| `tenant_admin` | Explicit tenant-wide action permissions and reserved access administration. | The last active Tenant Administrator cannot be revoked. |
+| `service_client` | A recognized assignable role with no product-operation grant by itself. | Human/service classification comes from Catalog membership, not this role; explicit functional roles are still required. |
+
+[The authorization design](decisions/0022-local-postgresql-authorization.md) defines the implemented finite permissions, custom roles and direct-member groups. Current action/scope checks replace production role-name checks. Stable membership identity binds commands; current admission protects private replay. For creator-only deletion, the service checks the membership, realm and subject in the immutable creation or adoption audit. Public subject text alone is insufficient.
+
+Independent review refuses the same membership or retained tenant/realm/subject principal, while equal subject strings from unrelated realms can review with current permissions. Bounded origin lookups fail closed on missing or ambiguous attribution. Lifecycle, self-review, ownership, publisher, human/service and OAuth restrictions remain separate.
+
+Private collection/search selection uses current namespace permission before ordering and totals. Authentication and bounded self-access reads query retained policy instead of treating projected Actor roles as authority. Replica, cost, cutover, restore and writer-recovery tests cover selected operational boundaries; they do not promise production capacity. See [authorization qualification](../contributing/testing.md#authorization-qualification) for test selection.
+
+Built-in templates contain exact permission sets with no role hierarchy. Global development/bootstrap Reader, Contributor and Publisher bundles add explicit companion assignments. Scoped assignments add no tenant-wide supplements. Ordinary grants infer no extra authority.
+
+## Role and group administration
+
+Authenticated current members can read permission descriptors at `GET /api/v1/access/permissions`. `POST /api/v1/access/capabilities` accepts 1-64 checks, each with a finite `permission` and optional exact `namespaceId`. `GET /api/v1/access/self` pages effective assignment paths.
+
+`catalogAllowed` answers Catalog permission only. It does not establish OAuth scope, target existence, lifecycle eligibility or permission to execute a resource. A cached decision cannot grant authority.
+
+| API collection | Behavior and authority |
+| --- | --- |
+| `/api/v1/access/roles` | Tenant-wide role definitions: create, read, update exact permission sets and archive custom roles. Built-in identities/sets are immutable. `/{roleId}/assignments` pages retained assignment impact across the tenant, including other realms. |
+| `/api/v1/access/groups` | Current administrator's realm only: direct-member groups, update, suspend/reactivate/archive, member addition and revocation. No nesting or IdP-group mapping. |
+| `/api/v1/access/assignments` | Tenant-wide retained assignment history with role, member and group filters. Grant exactly one current same-realm member or group a role at tenant or exact-namespace scope; revoke a same-realm assignment by stable ID and revision. |
+| `/api/v1/role-assignments` | Bounded direct-assignment projection of the eight exact `CatalogRole` templates, independent of grant API. Tenant-wide active/revoked inventory; same-realm revocation. Unsupported custom/group/newer-template targets return `NOT_FOUND` without mutation. |
+
+These administration reads and commands require current `access.manage` plus the existing `tenant.admin` OAuth ceiling. Only a direct tenant-level built-in Tenant Administrator can hold `access.manage`; custom roles and groups cannot obtain it. Grants validate current same-tenant/realm parents. Membership inventory and lifecycle and assignment/role-impact inventories are tenant-wide. Group operations and assignment grants/revocations remain bound to the administrator's realm. Final-administrator protection counts usable direct Tenant Administrators across the tenant; it does not guarantee an administrator in each realm.
+
+All writes require a reason and `Idempotency-Key`. Changes to an existing role, group, member relation or assignment also require its current `If-Match` revision. Updates replace the complete custom permission set, including explicit companion reads. Custom permissions do not expand implicitly.
+
+Names allow 1-120 Unicode code points; descriptions allow up to 2,000. Custom roles contain 1-49 distinct permissions and exclude `access.manage`. A role with any tenant-only permission cannot be assigned to a namespace. An edit incompatible with an active scoped assignment returns a conflict.
+
+Revoke active assignments before archiving their role or group, and revoke active member relations before archiving a group. Existing archived relations remain historical and ineffective. Group suspension disables its path reversibly. Terminal membership offboarding atomically revokes direct assignments, group memberships and legacy namespace memberships.
+
+Collection `limit` defaults to 20 and is capped at 100. PostgreSQL selects at most `limit + 1` rows before projection. Signed cursors bind actor, collection, filters, page size and tenant authorization revision. They expire after 15 minutes. Restart paging after authority changes. Cosmetic edits advance the object revision without changing the authorization revision.
+
+Current checks, write fences and transactional audit operate independently of logs. Access-management actions emit audit evidence, not invented outbox notifications. Retained private responses require current admission before replay, including after a process restart.
+
+Policy records are Catalog data, not JSON/Helm configuration. No new environment variable, permission provider, group synchronization service or restart-based policy reload is needed. The [Control API contract](../reference/api-conventions.md) owns exact bodies, command suffixes and errors. [The authorization design](decisions/0022-local-postgresql-authorization.md) defines current enforcement; the administration APIs do not change public ARD snapshots.
+
+## Outbound boundary selection
+
+| Destination class | Owning boundary | Important isolation rule |
+| --- | --- | --- |
+| Federation source, nested Catalog, remote JSON-LD context, external HTTPS representation, or webhook receiver | `platform/fetcher` routing policy, with the feature-specific caller retaining narrower media, redirect, credential, and evidence rules. | Deployment policy must permit the exact origin and route, and administrator-owned configuration selects the destination where applicable; every redirect and resolved address is rechecked. |
+| OIDC discovery and signing keys | Dedicated configured-issuer verifier. | It cannot become a tenant-selected source route or use federation credentials and topology. Public roots are the default; one optional bounded private bundle extends only this verifier's discovery and declared HTTPS key transport, not other clients. |
+| OTLP/HTTP trace collector | Endpoint-bound adapter in `platform/fetcher`. | Startup selects one collector endpoint with separate credentials and trust. Tenant source policy does not select the collector, and exports carry no source credentials or externally propagated trace headers. |
+| Git repository or OCI release named by handoff metadata | No outbound client. | The Catalog validates immutable locator syntax only and never clones, pulls, installs, proves existence, or executes content. |
+| Agent Card or MCP endpoint declared inside metadata | No validation-time contact. | Endpoints are validated as metadata; downstream runtimes decide whether and how to connect under separate authorization. |
+
+## Hardened outbound request boundary
+
+<OutboundChecks />
+
+Admission checks precede the connection. TLS and response checks apply after contact. An allowed redirect repeats admission; webhook delivery never follows a redirect. OIDC uses its separate configured-issuer verifier.
+
+### URL and origin
+
+HTTPS by default; normalize once; reject user info, unsafe fragments, ambiguous IP forms, invalid IDNA, unexpected ports, credentials, and prohibited origins.
+
+### DNS and routing
+
+Resolve all A and AAAA records, reject mixed safe/unsafe answers, enforce hard-denied address classes, pin the chosen address, and re-evaluate every redirect.
+
+### TLS and redirects
+
+TLS 1.2+, hostname and chain validation, optional scoped private CA/mTLS, at most three redirects by default, no downgrade, and no credential forwarding across origin changes.
+
+### Bytes and time
+
+Connect, TLS, header, idle, and total deadlines; response and decompression limits; explicit content coding; hashes for received and decoded bytes.
+
+### Evidence and redaction
+
+Retain bounded status, media, digest, validator, route policy, address class, redirect, TLS, and timing evidence without logging credentials or sensitive query values.
+
+### Independent OIDC verifier
+
+The configured issuer selects discovery, which declares the HTTPS key endpoint; neither can be repurposed as a tenant-selected federation destination. The client defaults to embedded public roots; an optional bounded PEM bundle extends only this verifier's trust while preserving hostname and chain checks. Helm mounts its fixed certificate key only into the API, and trust changes require an API rollout.
+
+## Threats and principal controls
+
+| Threat | Primary controls |
+| --- | --- |
+| Cross-tenant disclosure | Trusted tenant derivation, Catalog-owned membership, exact namespace authorization, forced RLS, tenant-inclusive lookups, host-bound snapshots, tenant-bound cursors, and negative tests. |
+| SSRF and metadata access | Admin-only source onboarding, exact deployment allowlists, named private profiles, DNS/IP checks, hard denials, pinned connections, redirect checks, and independent infrastructure egress. |
+| Archive traversal or expansion | ZIP/GZIP format bounds, path normalization, file/byte/depth/ratio limits, rejection of links, devices, encryption, ZIP64, duplicates, ambiguity, and no extraction or execution. |
+| Catalog poisoning | Immutable raw observations, pinned profile findings, explicit local admission and adoption, review, exact digests, administrative publication scope, and no trust inference. |
+| Federation loops and amplification | Approved topology, normalized visited set, fan-out/hop/result/deadline limits, upstream mode restriction, and query disclosure acknowledgement. |
+| Command duplication or crash | Scoped idempotency protocol, canonical request/authority binding, database serialization, atomic retained response, and reviewed repair for proven orphaned reservations. |
+| Public draft leakage | Exact host map and immutable active snapshots. Public routes never query mutable authoring tables. |
+| Secret disclosure | Deployment injection, direct-or-file secret inputs, opaque credential bindings, purpose-separated keys and bounded API/telemetry projections. [Safe terminal and HTTP projections plus owned panic containment](../operations/observability.mdx#current-safety-and-interpretation-limits) exclude private causes; fatal-runtime and dependency-owned failures retain explicit limits. |
+| Webhook forgery or replay | Optional HTTPS delivery, per-endpoint HMAC, timestamp, event ID, one-time secret, AES-256-GCM at rest, redirect refusal, retry evidence, and receiver deduplication. |
+
+## Implemented controls and limits
+
+### Implemented baseline
+
+- JWT verification and exact tenancy.
+- Membership lifecycle, operator realm state, and Catalog roles.
+- Forced tenant RLS and distinct database role attributes.
+- Hardened fetch and credential routing.
+- Optional [DNS TXT challenges](../reference/configuration.mdx#publisher-domain-verification) verify control of a declared Publisher domain. Verification defaults off and remains separate from publication-domain approval.
+- Archive non-execution and bounds.
+- Database-bounded publication and federation selection, cooperative product-work deadline, bounded atomic cleanup, fixed-work progress evidence, publication-construction admission, and class-specific automatic housekeeping.
+- Atomic command replay, classified versioned audit evidence with exact mutation binding, exact investigation, deterministic export and verification, outbox machinery, and snapshot isolation.
+- Tenant-scoped cross-domain restore verification and safe recovery sequencing.
+
+### Deferred or conditional
+
+- General artifact signature and trust verification beyond the optional [ANS registration verifier](#optional-ans-registration-verification).
+- Managed listing media and scanners.
+- External penetration/privacy/legal assurance.
+
+### Structural validity is not trust
+
+Validity, compatibility, publisher authority, cryptographic trust, rights, local approval, relevance, installation, and invocation authorization are different results. V1 reports advanced trust and rights as `not_assessed`; it does not simulate them with an approval badge.
+
+[Security operations](../operations/security.md) - Production gate, key handling, federation controls, monitoring, and response.
+
+[Vulnerability reporting](../../../../../SECURITY.md) - Supported reporting and disclosure expectations.
+
+[Incident response](../operations/incident-response.md) - Triage, containment, recovery, evidence, and follow-up.
+
+[Identity and tenancy decision](decisions/0006-identity-and-tenancy.md) - Why tokens select a provisioned realm but never carry Catalog authority.
+
+[Secret-resolution decision](decisions/0007-secrets-and-credential-resolution.md) - Why deployments inject secrets and Catalog rows retain opaque bindings.
+
+## Optional ANS registration verification
+
+[ADR-0024](decisions/0024-optional-ans-registration-verification.md) defines the offline verifier and explicit private assessments. Operators supply accepted RA/log public keys, authority names, exact publisher domains and the evidence origin. Evidence cannot supply new keys or network authority.
+
+The verifier separates historical signatures, signed-tree inclusion, target matching and current status. It rejects unsupported algorithms, malformed signed data, ambiguous references and conflicting authority. It does not authenticate every ARD field or artifact, establish publisher ownership, or change approval, trust or rights.
+
+An administrator selects an exact entry and source revision through the [assessment command](../operations/federation.mdx#request-an-ans-registration-assessment). A durable Job acquires bounded evidence through the hardened fetcher. It rechecks source eligibility, loaded policy, credentials, lease and cancellation. Completion and its audit record commit atomically. Authorized private reads retain audit evidence before disclosure and distinguish current results from historical evidence.
+
+The capability defaults off. Ordinary discovery does not request receipts or enqueue verification work. Fresh native-service qualification remains separate from unit, local functional and PostgreSQL tests.
+
+## Read-only MCP HTTP
+
+Enabled API `/mcp` requests use the existing access-token audience and current Catalog membership. Capabilities, self-access and protocol discovery require no extra resource scope. Resource reads retain exact permissions and the configured OAuth ceiling. Public OAuth metadata identifies only the operator-configured issuer and resource. No caller can choose another authority or turn a tool argument into a credential destination.
+
+The HTTP boundary validates original bounded JSON, exact origins and unambiguous headers. It admits only finite read and protocol-control methods. Each request owns cancellation, credential-reflection checks and one bounded concurrency slot. SDK errors are sanitized before response commitment; scope refusals retain HTTP challenges. Request panics do not terminate other callers. See [configuration and limits](../guides/mcp-server.mdx#http-limits-and-diagnostics) and the [regression mapping](../operations/security.md#security-controls-and-regression-coverage).

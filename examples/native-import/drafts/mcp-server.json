@@ -1,0 +1,17 @@
+{
+  "format": "open-agentic-catalog-draft-v1",
+  "kind": "mcp_server",
+  "canonicalIdentifier": "urn:example:reusable:mcp-server",
+  "version": "0.1.0",
+  "representations": [
+    {
+      "role": "primary",
+      "mediaType": "application/vnd.mcp.server+json",
+      "profileId": "",
+      "input": {
+        "mode": "data",
+        "text": "{\n  \"name\": \"io.example/review-documents\",\n  \"description\": \"Search supplied documentation.\",\n  \"version\": \"0.1.0\",\n  \"remotes\": [\n    {\n      \"type\": \"streamable-http\",\n      \"url\": \"https://mcp.example.com/review-documents\"\n    }\n  ]\n}\n"
+      }
+    }
+  ]
+}

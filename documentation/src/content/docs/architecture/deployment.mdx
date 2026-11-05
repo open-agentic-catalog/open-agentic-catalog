@@ -1,0 +1,183 @@
+---
+title: "Deployment architecture"
+---
+
+import Deployment from "../../../components/architecture/Deployment.astro";
+import EmbeddingBoundary from "../../../components/architecture/EmbeddingBoundary.astro";
+import WelcomeDeployment from "../../../components/architecture/WelcomeDeployment.astro";
+import ComposeDeployment from "../../../components/architecture/ComposeDeployment.astro";
+
+The Catalog can run as local processes, Compose containers or Kubernetes workloads. These views separate software responsibilities from their placement in an environment.
+
+## Logical applications and data
+
+A [logical container in C4](https://c4model.com/diagrams/container) means an application or a data store. It does not mean an OCI image, host or Kubernetes namespace. This view shows the durable PostgreSQL topology.
+
+<WelcomeDeployment />
+
+The optional React client executes in the browser. Its separate Go host serves assets, manages browser sessions and forwards same-origin requests to one API. With OIDC, the host handles login and the API verifies access tokens. Neither the UI host nor an embedding provider accesses PostgreSQL.
+
+The frame identifies the Catalog service and its logical state. Infrastructure supplies the database server, storage and availability. API and worker run as separate processes from the same backend image. They coordinate through PostgreSQL Jobs and outbox records, without API-to-worker RPC or a broker.
+
+HTTP MCP belongs to the API process. Stdio MCP, SDKs and IDE integrations are client paths. [Operator commands](#process-roles-and-authority) use their separately documented credentials; they are not another persistent service. The [combined memory-only process](#direct-local-process) is a separate development alternative.
+
+See [UI architecture](catalog-ui.mdx) for browser and host execution, sessions and forwarding. The [monitoring companion](../operations/helm-monitoring.md) is an independent optional installation.
+
+## Optional embedding service boundary
+
+Optional hybrid search uses one configurable OpenAI-compatible embeddings endpoint. A local model service or hosted provider supplies it. API replicas embed queries, workers batch metadata, and PostgreSQL retains vectors and generation state.
+
+The model service has no Catalog database access. It scales independently behind a stable endpoint. All replicas serving an active index use the same model and preprocessing. See [the embedding provider design](decisions/0011-search-and-embedding-tiers.md#provider-api-and-deployment-boundary).
+
+Local tooling includes an optional Text Embeddings Inference (TEI) Compose service with separately verified model files. Catalog images contain no model code or weights. Starting TEI does not enable semantic search or change the database.
+
+The application chart configures an endpoint. It mounts credentials and trust files only when hybrid search is enabled. It does not install a model chart. An isolated Minikube fixture supplies its own model Deployment and Service; operators can deploy another compatible service independently. Core deployment remains model-free. See [hybrid search setup](../operations/hybrid-search.mdx).
+
+<EmbeddingBoundary />
+
+The [local relevance experiment](../contributing/testing.md#local-search-relevance-evaluation) runs disposable model and PostgreSQL containers independently of the application. Its BGE/MiniLM profiles are test inputs, not required production models. MiniLM also supplies the real-model runtime test fixture. Relevance experiments measure match quality separately from enabled Compose/Minikube correctness and outage-recovery tests. Model changes use one configured profile, with lexical operation during replacement indexing.
+
+## Packaging
+
+### Canonical OCI image
+
+The build uses a default-deny context and a digest-pinned Go builder. Compilation is offline after module verification. Both binaries are CGO-free and stripped. The literal `FROM scratch` runtime uses a numeric non-root user and embedded fallback public roots. Builds support AMD64 and ARM64 and verify the actual binaries copied into the image.
+
+### Helm chart
+
+The chart provides separate API and worker Deployments, a bounded migration hook Job, a Service and three role-specific ServiceAccounts. It configures resources, scheduling, optional revision-scoped topology spread, disruption budgets, immutable image selection and drain grace. Existing Secrets supply credentials. The chart supplies schema-validated environment settings through a ConfigMap. It includes the tenancy inputs required by the selected mode.
+
+Optional PgBouncer uses one private `Recreate` replica and session pooling with separate API and worker identities. Operators explicitly route runtime DSN Secrets through it; schema-owner operations remain direct. Both database hops verify TLS. Follow the [connection-pooling procedure](../operations/database-roles.md#connection-pooling-boundary) for trust, capacity and failure limits.
+
+### Publication evidence
+
+Existing-image inspection, automatic license files, local-image SBOMs and versioned chart packages are implemented. Images support Linux AMD64 and ARM64; both charts require Kubernetes 1.34+. The [deployment guide](../operations/deployment.mdx) distinguishes supported platforms from the maintained test environments. Local Make targets build and test artifacts without publishing them.
+
+## Process roles and authority
+
+| Role | Responsibility | Database identity | Network surface | Current health contract |
+| --- | --- | --- | --- | --- |
+| `catalogd api` | Authenticated control API, Catalog reads, publication commands, host-bound discovery, and bounded live federation. | Directly authenticated exact-manifest `LOGIN NOINHERIT NOBYPASSRLS` role with tenant context required. | HTTP Service plus approved outbound destinations. | `/livez`, PostgreSQL-aware `/readyz`, startup probe in Helm. |
+| `catalogd worker` | Durable Job claims, source synchronization, immutable publication candidate generation, outbox dispatch, optional webhook delivery, and an operations-only health and metrics listener. | Directly authenticated distinct exact-manifest `LOGIN NOINHERIT BYPASSRLS` role; repository reads still name their tenant explicitly, and publication-state updates are denied. | No product API; approved source and receiver egress; operations port omitted from the product Service. | `/startupz`, `/livez` and PostgreSQL-aware `/readyz` on the separate operations listener. |
+| `catalogd all` | Combined in-memory development process only. | Memory repository; rejected for PostgreSQL because role contracts conflict. | Local development listener. | Development convenience, not production topology. |
+| `catalogctl` | Native and reusable JSON draft import/export, human OIDC login, read-only MCP tools, remote reads and selected commands; migrations, identity bootstrap, diagnostics, profile checks, smoke and focused repair. | API client workflows use bearer authorization without database access. Migrations, identity provisioning and focused repairs use the schema owner. Development bootstrap uses the API role; other commands use task-specific credentials. | Short-lived command; MCP stdio uses local process streams, and human login uses a temporary loopback callback. | Exit status and machine-readable plans or results. |
+
+## Multiple replicas
+
+API and worker replicas in one deployment share the same PostgreSQL database and role-specific configuration. Transactions, idempotency reservations, optimistic concurrency and durable Job leases coordinate their work; Catalog federation is for discovering resources from other catalogs, not for synchronizing these replicas. UI replicas use the same API upstream, cookie settings and shared session keys, with no UI database or sticky-session requirement. See the [UI session design](catalog-ui.mdx#login-and-browser-security) and [replica verification](../contributing/testing.md#replica-integrity-and-short-load).
+
+## Maintained environments
+
+### Direct local process
+
+`make run` starts `catalogd all` against memory. It is fast, resets on exit, and exercises real HTTP behavior without PostgreSQL.
+
+### Docker Compose
+
+Compose runs PostgreSQL alongside migration, identity provisioning, API and worker containers. Catalog containers share the application image but use distinct role-specific credentials; PostgreSQL uses its own image. Compose is the maintained local full-stack and functional-test environment.
+
+This figure shows the base project with the optional UI. All three published host mappings bind to `127.0.0.1` by default. Worker operations remain private. API, worker, migration and development provisioning share the backend image; the UI has its own image.
+
+<ComposeDeployment />
+
+Dotted arrows show startup conditions, not network calls. PostgreSQL becomes healthy before migration starts. Migration must succeed before development identities are provisioned. Provisioning must succeed before API and worker start; the optional UI also waits for API health.
+
+The migration and provisioning containers connect as the schema owner. Running API and worker containers use distinct database identities. Solid arrows show requests or persistent storage writes. The PostgreSQL volume survives normal stop and down commands; explicit reset removes data.
+
+| Compose input | Optional components and boundaries |
+| --- | --- |
+| `compose.yaml` | PostgreSQL, migration, development provisioning, API and worker. Local development credentials do not define production identities. |
+| `compose.ui.yaml` | A separate UI image forwards to `api:8080`; it has no database connection. |
+| `compose.embeddings.yaml` | A separate inference service has no Catalog database access. Starting it does not enable hybrid search or install its schema. |
+| `compose.monitoring.yaml` | Prometheus reads API/worker metrics; Grafana reads Prometheus. Neither requires Catalog PostgreSQL access or gates product readiness. |
+
+Follow [local startup](../guides/local-development.mdx#start-the-service) for the commands and explicit overlays. The [Docker guide](../operations/docker.mdx) uses an external database instead of this Compose topology.
+
+### Kubernetes through Helm
+
+This [deployment view](https://c4model.com/diagrams/deployment) shows the application release and namespace. The frame describes chart resources, not a software-system, node or availability boundary. Operators supply general Control/discovery routing, ingress controllers and identity issuance.
+
+<Deployment />
+
+API, worker and migration use the backend image. The API Service routes to API Pod replicas. Worker replicas have a private operations listener, with no product Service or public ingress. The optional UI has its own Deployment, Service, image and optional Ingress.
+
+The direct and pooled lines are alternatives selected in each runtime DSN. Enabling PgBouncer provisions it without changing those Secrets.
+
+| Chart resource | Routing and authority |
+| --- | --- |
+| API Service and Deployment | Control, discovery and enabled HTTP MCP use the API listener. Replica count does not establish node, zone or database high availability. |
+| Worker Deployment | Operations default to port 9090. The API Service does not select worker Pods or expose that listener. |
+| Optional MCP Ingress | Routes only `/mcp` and `/.well-known/oauth-protected-resource/mcp` to the API Service. It is not a general Control/discovery ingress. |
+| Optional UI | Its Service and Ingress route UI requests to the Go host. The host forwards API requests; it has no database access. |
+| Migration hook Job | Runs before install/upgrade with the schema-owner credential and a direct database connection. It uses the backend image. |
+| Optional PgBouncer | Uses one private `Recreate` replica in session mode. Enabling it does not rewrite API or worker DSN Secrets. Both pooled connections verify TLS; the owner bypasses the pooler. |
+
+The [role table](#process-roles-and-authority) defines database identities. The [chart reference](../../../../../deployments/helm/open-agentic-catalog/README.md) owns replica defaults, resources, mounts and exact deployment inputs. PostgreSQL hosting, writer routing, storage, HA and backups remain infrastructure responsibilities.
+
+The hook does not drain running workloads. Use the [coordinated upgrade procedure](../operations/maintenance.mdx#coordinated-release-deployment) for drain and migration ordering. See [embedding boundaries](#optional-embedding-service-boundary), [telemetry paths](../operations/observability.mdx#distributed-tracing) and [coordinated release deployment](../operations/maintenance.mdx#coordinated-release-deployment) for their detailed workflow figures.
+
+Operators can use the chart on compatible Kubernetes, including OpenShift, or launch the image without Kubernetes. Preserve the documented process contract. Compose and Minikube are local fixtures; operators supply production PostgreSQL and infrastructure.
+
+Cluster-free checks verify identities, configuration, rendered resources, packages and current schema compatibility. Selected single-node and three-node Minikube-through-Helm tests use the exact locally built image. They check installation, migration retry, reconfiguration, replicas, disruption, drain and Calico-enforced isolation. These are selected tests, not a compatibility matrix for every Kubernetes distribution.
+
+Both charts require Kubernetes 1.34+ and validate against its schemas. The image supports Linux AMD64 and ARM64. Testing upgrades from a released version requires an actual supported predecessor. Revalidate relevant boundaries after downstream modifications. See [deployment testing](../operations/deployment.mdx#maintained-local-minikube-verification) for prerequisites and qualification limits.
+
+## What the Helm chart deliberately does not install
+
+PostgreSQL, an identity provider, an ingress controller, TLS certificates, autoscaling controllers, a network-policy controller, secret-management software, a CDN, backup infrastructure, and monitoring products are platform inputs. The optional UI can render a TLS Ingress using an existing certificate Secret. The chart's optional API ingress covers only MCP and its protected-resource metadata; operators route other API paths separately. A separately optional monitoring companion chart provides Prometheus, Grafana and the shared dashboard without adding an application dependency.
+
+## Container and pod security contract
+
+### Image
+
+- Static `catalogd` and `catalogctl` executables plus readable license files.
+- No shell, package manager, dynamic loader, source, credentials, or system CA bundle.
+- Numeric non-root default; filesystem write restrictions are enforced by the launcher, not the image.
+- Build version and commit remain inspectable.
+
+### Pod
+
+- Read-only root filesystem and bounded `/tmp`.
+- All Linux capabilities dropped; privilege escalation forbidden.
+- Runtime-default seccomp and disabled service-account token automount.
+- No fixed `runAsUser`, preserving OpenShift arbitrary-UID compatibility.
+
+## Release and shutdown sequence
+
+### 1. Validate
+
+Review configuration, exact image, profile bundle, migration plan, and enabled dependencies.
+
+### 2. Drain existing runtimes
+
+For an installation or upgrade, use the [coordinated release workflow](../operations/maintenance.mdx#coordinated-release-deployment). It validates the selected target, drains existing API then worker processes completely before migration, and starts the number of replicas specified for the target after migration succeeds. First installations have no old runtimes to drain. Raw Helm hooks do not drain old runtimes. External controller coordination and deployment serialization remain operator responsibilities.
+
+### 3. Migrate
+
+The bounded migration Job validates both existing runtime roles, holds one advisory lock through immutable forward migrations and exact grant reconciliation, and reports both manifests.
+
+### 4. Start
+
+API and worker independently require a directly authenticated LOGIN identity and validate exact role attributes, memberships, privileges, configuration, profiles, required secrets, and enabled dependencies. Each completes those checks before reporting ready. The worker exposes startup, liveness, required-PostgreSQL readiness, component state, version, and metrics on its separate operations-only listener.
+
+### 5. Serve
+
+API replicas need no sticky sessions. Worker processes run bounded work loops; durable Jobs and database leases coordinate work across replicas.
+
+### 6. Shutdown
+
+On SIGTERM, stop new requests or claims, become unready, finish bounded work, and leave unfinished durable state recoverable.
+
+[Deployment runbook](../operations/deployment.mdx) - Release order, image, dependencies, health, networking, and shutdown.
+
+[Helm chart guide](../../../../../deployments/helm/open-agentic-catalog/README.md) - Values, Secrets, migrations, security context, and local validation.
+
+[Local development](../guides/local-development.mdx) - Direct process, Compose, API workflows, and verification.
+
+[Canonical image source](../../../../../Containerfile) - Digest-pinned builder and scratch runtime used by every role.
+
+[Maintained Compose stack](../../../../../compose.yaml) - Local PostgreSQL, migration, provisioning, API, and worker topology.
+
+[Portability decision](decisions/0001-deployment-portability-and-support-boundary.md) - Why Catalog remains independently deployable across supported Kubernetes environments.
+
+[Packaging decision](decisions/0003-runtime-packaging-and-local-test-environments.md) - Why the project maintains image, Compose, Minikube and Helm workflows.

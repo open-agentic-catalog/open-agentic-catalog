@@ -1,0 +1,82 @@
+# Historical recovery extends the owned logical fixture, never retained Compose.
+x-pitr-tools: &pitr-tools
+  image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+  profiles: [pitr-tools]
+  restart: "no"
+  mem_limit: 512m
+  cpus: 1
+  security_opt: [no-new-privileges:true]
+
+services:
+  postgres:
+    mem_limit: 512m
+    cpus: 1
+    entrypoint: [bash, -ec]
+    command:
+      - |
+        install -d -m 700 -o postgres -g postgres /archive
+        exec docker-entrypoint.sh postgres \
+          -c wal_level=replica -c archive_mode=on -c hba_file=/fixture/pg_hba.conf \
+          -c 'archive_command=/bin/sh /fixture/archive.sh %p %f' \
+          -c max_wal_senders=3 -c max_replication_slots=1 \
+          -c max_wal_size=64MB -c min_wal_size=32MB -c shared_buffers=16MB
+    volumes:
+      - pitr-archive:/archive
+      - type: bind
+        source: ./test/functional/pitr_archive.sh
+        target: /fixture/archive.sh
+        read_only: true
+        bind: {create_host_path: false}
+      - type: bind
+        source: ./test/functional/pitr_pg_hba.conf
+        target: /fixture/pg_hba.conf
+        read_only: true
+        bind: {create_host_path: false}
+  wal-tools:
+    <<: *pitr-tools
+    entrypoint: [sleep, infinity]
+    environment:
+      PGHOST: postgres
+      PGUSER: catalog
+      PGPASSWORD: catalog
+      PGCONNECT_TIMEOUT: "3"
+    volumes:
+      - pitr-base:/backup
+      - pitr-archive:/archive:ro
+      - pitr-missing-archive:/missing-archive
+      - backup-restored:/restored
+      - pitr-negative:/negative
+      - ${CATALOG_FUNCTIONAL_STATE_DIRECTORY:?}/backup-inputs:/inputs:ro
+  restored:
+    user: postgres
+    environment:
+      PGDATA: /var/lib/postgresql/data
+    entrypoint: [postgres]
+    command: [-D, /var/lib/postgresql/data, -c, shared_buffers=16MB]
+    mem_limit: 512m
+    cpus: 1
+    volumes:
+      - pitr-archive:/archive:ro
+  negative:
+    <<: *pitr-tools
+    user: postgres
+    entrypoint: [postgres]
+    command: [-D, /var/lib/postgresql/data, -c, shared_buffers=16MB,
+              -c, logging_collector=on, -c, log_directory=logs, -c, log_filename=pitr.log]
+    volumes:
+      - pitr-negative:/var/lib/postgresql
+      - pitr-missing-archive:/archive:ro
+
+volumes:
+  catalog-postgres-18:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=512m"}
+  backup-restored:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=512m"}
+  pitr-base:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=512m"}
+  pitr-negative:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=512m"}
+  pitr-archive:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=128m"}
+  pitr-missing-archive:
+    driver_opts: {type: tmpfs, device: tmpfs, o: "size=128m"}

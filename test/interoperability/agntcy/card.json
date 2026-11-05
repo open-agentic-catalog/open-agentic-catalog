@@ -1,0 +1,29 @@
+{
+  "name": "https://example.test/agntcy-lab/current-a2a",
+  "description": "Resolves invoice exceptions",
+  "version": "1.0.0",
+  "supportedInterfaces": [
+    {
+      "url": "https://agents.example.com/a2a",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    }
+  ],
+  "capabilities": {},
+  "defaultInputModes": [
+    "application/json"
+  ],
+  "defaultOutputModes": [
+    "application/json"
+  ],
+  "skills": [
+    {
+      "id": "resolve-invoices",
+      "name": "Resolve invoices",
+      "description": "Resolves invoice exceptions",
+      "tags": [
+        "invoices"
+      ]
+    }
+  ]
+}

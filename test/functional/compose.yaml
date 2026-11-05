@@ -1,0 +1,52 @@
+x-functional-discovery-hosts: &functional-discovery-hosts >-
+  [{"host":"127.0.0.1","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"catalog.example.com"},
+  {"host":"private.catalog.test","tenantId":"00000000-0000-7000-8000-000000000001","mode":"authenticated","publisherDomain":"catalog.example.com"}]
+services:
+  api:
+    environment:
+      CATALOG_DATABASE_MAX_CONN_LIFETIME: 45m
+      CATALOG_DATABASE_MAX_CONN_IDLE_TIME: 3m
+      CATALOG_DATABASE_HEALTH_CHECK_PERIOD: 15s
+      CATALOG_JOBS_MAX_ATTEMPTS: "7"
+      CATALOG_JOBS_RETRY_CEILING: 5.5s
+      CATALOG_WORKER_DEPENDENCY_RETRY_INITIAL_DELAY: 1.25s
+      CATALOG_WORKER_DEPENDENCY_RETRY_CEILING: 2.5s
+      CATALOG_DISCOVERY_HOSTS: *functional-discovery-hosts
+  worker:
+    environment:
+      CATALOG_DATABASE_MAX_CONN_LIFETIME: 45m
+      CATALOG_DATABASE_MAX_CONN_IDLE_TIME: 3m
+      CATALOG_DATABASE_HEALTH_CHECK_PERIOD: 15s
+      CATALOG_JOBS_MAX_ATTEMPTS: "7"
+      CATALOG_JOBS_RETRY_CEILING: 5.5s
+      CATALOG_WORKER_DEPENDENCY_RETRY_INITIAL_DELAY: 1.25s
+      CATALOG_WORKER_DEPENDENCY_RETRY_CEILING: 2.5s
+      CATALOG_DISCOVERY_HOSTS: *functional-discovery-hosts
+    # Invocation-only observation, never a product or canonical dev port.
+    ports:
+      - target: 9090
+        published: "0"
+        host_ip: 127.0.0.1
+        protocol: tcp
+  federation-fixture:
+    image: ${CATALOG_FUNCTIONAL_FIXTURE_IMAGE:?functional fixture image is required}
+    pull_policy: never
+    build:
+      context: .
+      dockerfile: test/functional/Containerfile
+    command: ["serve", "--directory", "/fixture", "--credentials"]
+    ports:
+      - "127.0.0.1:${CATALOG_COMPOSE_FIXTURE_PORT:?functional fixture port is required}:8443"
+    read_only: true
+    init: true
+    tmpfs:
+      - /tmp:size=8m,noexec,nosuid,nodev
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?functional fixture directory is required}
+        target: /fixture
+        read_only: true

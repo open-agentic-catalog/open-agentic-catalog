@@ -1,0 +1,30 @@
+# Overlay only for the owned browser fixture. Reuse the shipped API, worker,
+# migration and PostgreSQL services without reserving the developer subnet.
+services:
+  provision:
+    volumes:
+      - ${CATALOG_UI_FIXTURE}/api.json:/config/config.json:ro
+  api:
+    ports: !override
+      - "127.0.0.1:0:8080"
+    volumes:
+      - ${CATALOG_UI_FIXTURE}/api.json:/config/config.json:ro
+      - ${CATALOG_UI_FIXTURE}/server.pem:/fixture/server.pem:ro
+  ui-browser:
+    image: ${UI_IMAGE:?owned UI image required}
+    pull_policy: never
+    ports:
+      - "127.0.0.1:${CATALOG_UI_PORT}:8080"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - ${CATALOG_UI_FIXTURE}/ui.json:/fixture/ui.json:ro
+      - ${CATALOG_UI_FIXTURE}/keys.json:/fixture/keys.json:ro
+      - ${CATALOG_UI_FIXTURE}/users.json:/fixture/users.json:ro
+      - ${CATALOG_UI_FIXTURE}/secret:/fixture/secret:ro
+      - ${CATALOG_UI_FIXTURE}/server.pem:/fixture/server.pem:ro
+    command: [--config, /fixture/ui.json]
+networks:
+  default:
+    ipam: !reset null

@@ -1,0 +1,24 @@
+{
+  "server": {
+    "name": "io.example/review-documents",
+    "description": "Search supplied documentation.",
+    "version": "0.1.0",
+    "remotes": [
+      {
+        "type": "streamable-http",
+        "url": "https://mcp.example.test/review-documents"
+      }
+    ],
+    "_meta": {
+      "io.modelcontextprotocol.registry/publisher-provided": {
+        "documentationFixture": "offline",
+        "revision": 7
+      }
+    }
+  },
+  "_meta": {
+    "io.modelcontextprotocol.registry/official": {
+      "status": "active"
+    }
+  }
+}

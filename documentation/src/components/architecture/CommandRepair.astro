@@ -1,0 +1,30 @@
+---
+import "../../styles/architecture.css";
+import DiagramCard from "./DiagramCard.astro";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="command-repair-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 954" role="img" aria-labelledby="command-repair-title command-repair-desc">
+  <title id="command-repair-title">Decide whether one interrupted command is repairable</title>
+  <desc id="command-repair-desc">The operator must prove the old execution ended and fence an old writer when relevant. Bounded inspection selects one reservation and an exact digest-bound plan. Active or uncertain execution stops repair; only an eligible interrupted plan can be applied under guarded ownership checks. A known successful apply retains audit evidence before an exact currently authorized command retry. An ambiguous apply requires a fresh plan and retained-audit inspection, not another blind mutation.</desc>
+  <defs><marker id="command-repair-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M320 118 V188" marker-end="url(#command-repair-arrow)" />
+  <path class="svg-connector" d="M320 286 V321 H180 V356" marker-end="url(#command-repair-arrow)" />
+  <text class="svg-small" x="192" y="313">Not eligible</text>
+  <path class="svg-connector" d="M320 286 V321 H460 V356" marker-end="url(#command-repair-arrow)" />
+  <text class="svg-small" x="472" y="313">Eligible</text>
+  <path class="svg-connector" d="M460 526 V561 H180 V596" marker-end="url(#command-repair-arrow)" />
+  <text class="svg-small" x="192" y="553">Unknown outcome</text>
+  <path class="svg-connector" d="M460 526 V596" marker-end="url(#command-repair-arrow)" />
+  <text class="svg-small" x="472" y="553">Known success</text>
+  <path class="svg-connector" d="M460 766 V801 H320 V836" marker-end="url(#command-repair-arrow)" />
+  <DiagramCard x={60} y={20} width={520} title={"Prove the old execution ended"} tone="warning" lines={["Fence an old writer when relevant", "Elapsed time alone is not proof"]} />
+  <DiagramCard x={60} y={188} width={520} title={"List and plan one reservation"} lines={["Owner-only bounded inspection in one tenant", "Review eligibility, state and exact plan digest"]} />
+  <DiagramCard x={60} y={356} width={240} title={"Stop and investigate"} tone="warning" lines={["Execution is active", "or uncertain", "Plan refused or", "target ineligible"]} />
+  <DiagramCard x={340} y={356} width={240} title={["Apply an eligible", "plan"]} tone="core" lines={["Same target,", "reason and digest", "Recheck under", "command lock"]} />
+  <DiagramCard x={60} y={596} width={240} title={["Re-plan and inspect", "audit"]} tone="warning" lines={["Apply outcome", "is ambiguous", "Do not blindly", "repeat or retry"]} />
+  <DiagramCard x={340} y={596} width={240} title={["Retain confirmed", "repair evidence"]} tone="authority" lines={["Known successful", "apply only", "Database actor, audit", "ID and release time"]} />
+  <DiagramCard x={60} y={836} width={520} title={"Retry the exact command"} tone="authority" lines={["Original key, body, actor, tenant and ETag", "Current authorization still applies"]} />
+
+</svg>
+</div>

@@ -1,0 +1,56 @@
+# Execution-only upstream tool under ADR-0003; never a shipped dependency.
+services:
+  oidc:
+    image: quay.io/keycloak/keycloak:26.8.1@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b
+    command:
+      - start-dev
+      - --import-realm
+      - --http-enabled=false
+      - --https-port=${CATALOG_FUNCTIONAL_OIDC_PORT:?owned port required}
+      - --hostname=https://catalog-oidc:${CATALOG_FUNCTIONAL_OIDC_PORT}
+      - --https-certificate-file=/fixture/oidc-server.pem
+      - --https-certificate-key-file=/fixture/oidc-server-key.pem
+    mem_limit: 1g
+    cpus: 2
+    pids_limit: 256
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "127.0.0.1:${CATALOG_FUNCTIONAL_OIDC_PORT}:${CATALOG_FUNCTIONAL_OIDC_PORT}"
+    networks:
+      default:
+        aliases: [catalog-oidc]
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?owned fixture required}/oidc-server.pem
+        target: /fixture/oidc-server.pem
+        read_only: true
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY}/oidc-server-key.pem
+        target: /fixture/oidc-server-key.pem
+        read_only: true
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY}/catalog-realm.json
+        target: /opt/keycloak/data/import/catalog-realm.json
+        read_only: true
+  api:
+    command: [api, --config, /fixture/oidc-catalog.json]
+    environment:
+      CATALOG_ENVIRONMENT: production
+      CATALOG_PROFILE: functional-oidc
+      CATALOG_PUBLIC_BASE_URL: https://127.0.0.1
+      CATALOG_CURSOR_SIGNING_KEY_FILE: /fixture/oidc-cursor-key
+      CATALOG_DISCOVERY_HOSTS: ${CATALOG_FUNCTIONAL_OIDC_HOSTS:?owned discovery hosts required}
+    volumes:
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?owned fixture required}/oidc-catalog.json
+        target: /fixture/oidc-catalog.json
+        read_only: true
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY}/oidc-cursor-key
+        target: /fixture/oidc-cursor-key
+        read_only: true
+      - type: bind
+        source: ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY}/trust/functional-ca.pem
+        target: /fixture/trust/functional-ca.pem
+        read_only: true

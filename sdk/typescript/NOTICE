@@ -1,0 +1,6 @@
+Open Agentic Catalog JavaScript/TypeScript SDK
+Apache License 2.0
+
+API declarations are generated with MIT-licensed openapi-typescript.
+Runtime dependencies retain their own licenses. openapi-fetch and
+openapi-typescript-helpers are MIT licensed; their packages include LICENSE.

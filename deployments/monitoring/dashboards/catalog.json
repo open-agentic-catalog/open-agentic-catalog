@@ -1,0 +1,1187 @@
+{
+  "uid": "catalog-overview",
+  "title": "Catalog overview",
+  "tags": [
+    "catalog"
+  ],
+  "schemaVersion": 41,
+  "version": 1,
+  "editable": false,
+  "refresh": "10s",
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timezone": "utc",
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "label": "Prometheus",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Catalog Prometheus",
+          "value": "catalog-prometheus"
+        }
+      },
+      {
+        "name": "deployment",
+        "label": "Deployment",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${datasource}"
+        },
+        "query": {
+          "query": "label_values(open_agentic_catalog_process_uptime_seconds, catalog_deployment)",
+          "refId": "StandardVariableQuery"
+        },
+        "refresh": 1,
+        "multi": false,
+        "includeAll": false,
+        "current": {
+          "text": "local",
+          "value": "local"
+        }
+      },
+      {
+        "name": "role",
+        "label": "Role",
+        "type": "custom",
+        "query": "api,worker",
+        "includeAll": true,
+        "allValue": "api|worker",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "multi": false
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Scrape health",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Runtime sample availability",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 12,
+        "y": 0,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(min by (catalog_deployment, catalog_role, job, instance) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"})) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Product request rate",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 0,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Product server errors",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 12,
+        "y": 8,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",status_class=\"5xx\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))) or on (catalog_deployment,catalog_role) (0 * (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))))",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Server latency p95 (bucket estimate)",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 0,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95,sum by (le,catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_request_duration_seconds_bucket{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))) and on (catalog_deployment,catalog_role) ((sum by (catalog_deployment,catalog_role) (increase(open_agentic_catalog_http_request_duration_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))) > 0)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Completed requests in window",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 12,
+        "y": 16,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role) (increase(open_agentic_catalog_http_responses_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",route!~\"/(metrics|livez|readyz|startupz|status|version|openapi.*)\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Database pool connections",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 0,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(open_agentic_catalog_postgresql_pool_connections{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Database statement rate",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 12,
+        "y": 24,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_postgresql_operations_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Worker snapshot available",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 0,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Runnable Job age (per reporting worker)",
+      "type": "timeseries",
+      "description": "Database-global value per reporting worker: never sum replicas. API-only selection is not applicable. Missing data or snapshot availability 0 means unavailable, not zero.",
+      "gridPos": {
+        "x": 12,
+        "y": 32,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(open_agentic_catalog_job_oldest_runnable_age_seconds{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Job backlog (per reporting worker)",
+      "type": "timeseries",
+      "description": "Database-global value per reporting worker: never sum replicas. API-only selection is not applicable. Missing data or snapshot availability 0 means unavailable, not zero.",
+      "gridPos": {
+        "x": 0,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(open_agentic_catalog_jobs{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\",state=~\"queued|waiting|running\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Outbox age (per reporting worker)",
+      "type": "timeseries",
+      "description": "Database-global value per reporting worker: never sum replicas. API-only selection is not applicable. Missing data or snapshot availability 0 means unavailable, not zero.",
+      "gridPos": {
+        "x": 12,
+        "y": 40,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(open_agentic_catalog_outbox_oldest_pending_age_seconds{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 13,
+      "title": "Heap bytes (not RSS)",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 0,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(open_agentic_catalog_go_heap_bytes{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_heap_bytes\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Live heap at last GC",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 12,
+        "y": 48,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(open_agentic_catalog_go_last_gc_live_heap_bytes{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_last_gc_live_heap_bytes\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "Heap allocation rate",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 0,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(rate(open_agentic_catalog_go_allocated_bytes_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_allocated_bytes_total\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "Bps",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "title": "Goroutines",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 12,
+        "y": 56,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(open_agentic_catalog_go_goroutines{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_goroutines\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "GC cycles",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 0,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(rate(open_agentic_catalog_go_gc_cycles_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_gc_cycles_total\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "title": "GC pause p95 (bucket estimate)",
+      "type": "timeseries",
+      "description": "Scope: one selected Catalog deployment. Missing telemetry is not healthy zero. Scrape health is not application readiness.",
+      "gridPos": {
+        "x": 12,
+        "y": 64,
+        "w": 12,
+        "h": 8
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(histogram_quantile(0.95,rate(open_agentic_catalog_go_gc_pause_seconds_bucket{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]))) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_go_metric_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",metric=\"open_agentic_catalog_go_gc_pause_seconds\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (increase(open_agentic_catalog_go_gc_pause_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) > 0)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{state}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      }
+    },
+    {
+      "id": 19,
+      "title": "Pool acquisition wait (seconds/second)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 72
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(rate(open_agentic_catalog_postgresql_pool_empty_acquire_seconds_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{operation}} {{class}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "description": "Existing application metrics. Process-local counters: rate before aggregation. Last-success 0 has not yet been observed; worker availability and scrape health remain separate."
+    },
+    {
+      "id": 20,
+      "title": "SQL client time (seconds/second)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 72
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_postgresql_operation_duration_seconds_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "legendFormat": "{{catalog_role}} {{instance}} {{operation}} {{class}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "description": "Existing application metrics. Process-local counters: rate before aggregation. Last-success 0 has not yet been observed; worker availability and scrape health remain separate."
+    },
+    {
+      "id": 21,
+      "title": "Housekeeping failures (per reporting worker)",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 80
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(rate(open_agentic_catalog_housekeeping_batches_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\",outcome=\"failed\"}[$__rate_interval])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{operation}} {{class}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "description": "Existing application metrics. Process-local counters: rate before aggregation. Last-success 0 has not yet been observed; worker availability and scrape health remain separate."
+    },
+    {
+      "id": 22,
+      "title": "Housekeeping last successful check age",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 80
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "((time() - open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"}) and (open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"worker\"} > 0)) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}} {{operation}} {{class}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      },
+      "description": "Existing application metrics. Process-local counters: rate before aggregation. Last-success 0 has not yet been observed; worker availability and scrape health remain separate."
+    },
+    {
+      "id": 23,
+      "title": "Embedding operation rate and outcomes",
+      "description": "Completed query/batch operations, including local input rejection and capacity admission cancellation/deadline. An admission outcome leaves prior provider state unchanged; it is not a provider request or token count.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 88
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role,operation,outcome) (rate(open_agentic_catalog_embedding_request_duration_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "legendFormat": "{{catalog_role}} {{operation}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 24,
+      "title": "Search retrieval and fallback rate",
+      "description": "Actual retrieval outcomes, not configured availability. First-page lexical fallback is separate from successful hybrid retrieval and errors.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 88
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role,operation,outcome) (rate(open_agentic_catalog_search_retrieval_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "legendFormat": "{{catalog_role}} {{operation}} {{outcome}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 25,
+      "title": "Pending semantic Jobs (per reporting worker)",
+      "description": "Database-global queued/running/waiting semantic Jobs, repeated by each reporting worker. Do not sum replicas. Unavailable snapshots are hidden.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 96
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "open_agentic_catalog_semantic_pending_jobs{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)",
+          "legendFormat": "{{catalog_role}} {{instance}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 26,
+      "title": "Embedding mean operation duration",
+      "description": "Observation-weighted duration including local admission and rejected operations, not provider-only inference latency. No observed operations means unavailable.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 96
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_embedding_request_duration_seconds_sum{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role,operation) (rate(open_agentic_catalog_embedding_request_duration_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
+          "legendFormat": "{{catalog_role}} {{operation}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 27,
+      "title": "Job persisted retry rate",
+      "description": "Process-local committed waiting transitions, including hints and jitter. Not actual execution wait or durable audit. Absent until observed; failed scrapes are unavailable.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 104
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role,kind) (rate(open_agentic_catalog_job_retry_delay_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "legendFormat": "{{catalog_role}} {{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 28,
+      "title": "Job mean scheduled retry delay",
+      "description": "Process-local committed waiting transitions, including hints and jitter. Not actual execution wait or durable audit. Absent until observed; failed scrapes are unavailable.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 104
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role,kind) (rate(open_agentic_catalog_job_retry_delay_seconds_sum{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role,kind) (rate(open_agentic_catalog_job_retry_delay_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
+          "legendFormat": "{{catalog_role}} {{kind}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 29,
+      "title": "Webhook persisted retry rate",
+      "description": "Process-local committed waiting transitions, including hints and jitter. Not actual execution wait or durable audit. Absent until observed; failed scrapes are unavailable.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 112
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_webhook_retry_delay_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "legendFormat": "{{catalog_role}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 30,
+      "title": "Webhook mean scheduled retry delay",
+      "description": "Process-local committed waiting transitions, including hints and jitter. Not actual execution wait or durable audit. Absent until observed; failed scrapes are unavailable.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 112
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_webhook_retry_delay_seconds_sum{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_webhook_retry_delay_seconds_count{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
+          "legendFormat": "{{catalog_role}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 31,
+      "title": "API security refusal rate",
+      "description": "Final classified unauthenticated/forbidden responses, including protected discovery. Excludes source-policy denials and unclassified statuses. Process-local counts remain complete when warning logs are suppressed. Not users or attack counts.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 120
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role,reason) (rate(open_agentic_catalog_security_refusals_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\",catalog_role=\"api\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1))",
+          "legendFormat": "{{catalog_role}} {{reason}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    },
+    {
+      "id": 32,
+      "title": "Trace export failed batch fraction",
+      "description": "Failed exporter submissions divided by submitted batches. No submissions is unavailable, including tracing disabled. Zero failures does not prove collector retention or absence of SDK queue loss. Process-local, healthy scrapes only.",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 120
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_trace_export_failures_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) / (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_trace_export_batches_total{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"}[$__rate_interval]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~\"${deployment:regex}\",catalog_role=~\"${role:regex}\"} == 1)) > 0)",
+          "legendFormat": "{{catalog_role}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "noValue": "Unavailable / no samples"
+        },
+        "overrides": []
+      }
+    }
+  ]
+}

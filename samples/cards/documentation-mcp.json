@@ -1,0 +1,1 @@
+{"$schema":"https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json","description":"Describes documentation search tools.","name":"com.example/documentation-mcp","remotes":[{"supportedProtocolVersions":["2025-11-25"],"type":"streamable-http","url":"https://mcp.example.com/documentation-mcp"}],"title":"Documentation search MCP Server","version":"1.0.0"}
