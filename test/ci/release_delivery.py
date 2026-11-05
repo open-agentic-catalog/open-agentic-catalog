@@ -17,6 +17,27 @@ ROOT = admission.ROOT
 SUITES = ("api", "ui-compose", "ui-oidc")
 
 
+def downloadable(name):
+    parts = Path(name).parts
+    return ((len(parts) == 3 and parts[0] == "sdk" and parts[1] in admission.LANGUAGES
+             and name.endswith((".tgz", ".crate", ".whl", ".tar.gz")))
+            or (len(parts) == 2 and parts[0] == "charts" and name.endswith(".tgz"))
+            or (len(parts) == 2 and parts[0] == "cli" and name.endswith(".tar.gz"))
+            or (len(parts) == 2 and parts[0] == "editor" and name.endswith(".vsix")))
+
+
+def public_assets(directory, value):
+    """One flat download inventory; internal image archives remain internal."""
+    names = ["release.json", "release-evidence.tar.gz", *(name for name in value["files"] if downloadable(name))]
+    if len({Path(name).name for name in names}) != len(names):
+        raise ValueError("Release asset basename collision")
+    return {Path(name).name: admission.regular(directory, name) for name in names}
+
+
+def public_checksums(directory, value):
+    return "".join(candidate.digest(path) + "  " + name + "\n" for name, path in sorted(public_assets(directory, value).items()))
+
+
 def runtime_result(suite, backend, ui, output):
     if suite not in SUITES:
         raise ValueError("Invalid runtime selection")
@@ -78,6 +99,7 @@ def assemble(directory, results, output):
     if set(runtime) != set(SUITES):
         raise ValueError("Missing runtime qualification")
     clients = {}
+    sdk_hashes = {}
     charts = None
     for path in directory.rglob("qualification.json"):
         receipt = json.loads(path.read_text())
@@ -88,7 +110,7 @@ def assemble(directory, results, output):
                     or receipt["sourceSha256"] != source["sourceSha256"] or receipt["manifestSha256"] != candidate.digest(manifest_path)):
                 raise ValueError("Invalid SDK qualification")
             manifest = json.loads(manifest_path.read_text())
-            expected_suffixes = {"go": [], "python": [".gz", ".whl"], "typescript": [".tgz"], "rust": [".crate"]}
+            expected_suffixes = {"go": [".gz"], "python": [".gz", ".whl"], "typescript": [".tgz"], "rust": [".crate"]}
             if (manifest["language"] != language or manifest["releaseBase"] != (ROOT / "VERSION").read_text().strip()
                     or manifest["openapiSha256"] != admission.digest(ROOT / "api/openapi/control-v1.yaml")
                     or sorted(Path(name).suffix for name in manifest["artifacts"]) != expected_suffixes[language]
@@ -108,6 +130,7 @@ def assemble(directory, results, output):
             expected_hashes["sdk/" + language + "/manifest.json"] = receipt["manifestSha256"]
             expected_hashes["sdk/" + language + "/qualification.json"] = candidate.digest(path)
             clients[language] = receipt
+            sdk_hashes[language] = set(manifest["artifacts"].values())
         elif "files" in receipt:
             if charts is not None or receipt["source"] != source or receipt["result"] != "success" or len(receipt["files"]) != 2:
                 raise ValueError("Invalid chart qualification")
@@ -120,6 +143,48 @@ def assemble(directory, results, output):
             charts = receipt
     if set(clients) != set(admission.LANGUAGES) or charts is None:
         raise ValueError("Missing client or chart qualification")
+    editors = list(directory.rglob("editor.json"))
+    if len(editors) != 1:
+        raise ValueError("Missing or duplicate tested editor")
+    editor = editors[0]
+    receipt = json.loads(admission.regular(directory, editor.relative_to(directory).as_posix()).read_text())
+    base = (ROOT / "VERSION").read_text().strip()
+    if (set(receipt) != {"kind", "source", "releaseBase", "artifact", "sha256", "sdkSha256", "result", "cleanup"}
+            or receipt["kind"] != "editor" or receipt["source"] != source or receipt["releaseBase"] != base
+            or receipt["result"] != "success" or receipt["cleanup"] != "passed"
+            or receipt["sdkSha256"] not in sdk_hashes["typescript"]
+            or receipt["artifact"] != "open-agentic-catalog-" + base + ".vsix"):
+        raise ValueError("Invalid tested editor handoff")
+    editor_file = admission.regular(directory, (editor.parent.relative_to(directory) / receipt["artifact"]).as_posix())
+    if candidate.digest(editor_file) != receipt["sha256"]:
+        raise ValueError("Tested editor bytes changed")
+    assets["editor/" + receipt["artifact"]] = editor_file
+    expected_hashes["editor/" + receipt["artifact"]] = receipt["sha256"]
+    assets["evidence/editor.json"] = editor
+    expected_hashes["evidence/editor.json"] = candidate.digest(editor)
+    cli_platforms = set()
+    for path in directory.rglob("cli.json"):
+        receipt = json.loads(admission.regular(directory, path.relative_to(directory).as_posix()).read_text())
+        platform = receipt.get("platform")
+        if platform not in candidate.PLATFORMS or platform in cli_platforms:
+            raise ValueError("Missing, duplicate or unexpected CLI platform")
+        arch = platform.split("/")[1]
+        expected_name = "catalogctl-" + base + "-linux-" + arch + ".tar.gz"
+        if (set(receipt) != {"kind", "source", "build", "platform", "imageId", "artifact", "sha256", "releaseCandidate", "result"}
+                or receipt["kind"] != "cli" or receipt["source"] != source or receipt["build"] != images["backend-" + arch]["build"]
+                or receipt["releaseCandidate"] is not True or receipt["result"] != "success"
+                or receipt["imageId"] != images["backend-" + arch]["imageId"] or receipt["artifact"] != expected_name):
+            raise ValueError("Invalid retained CLI package")
+        artifact = admission.regular(directory, (path.parent.relative_to(directory) / expected_name).as_posix())
+        if candidate.digest(artifact) != receipt["sha256"]:
+            raise ValueError("CLI package changed")
+        cli_platforms.add(platform)
+        assets["cli/" + expected_name] = artifact
+        expected_hashes["cli/" + expected_name] = receipt["sha256"]
+        assets["evidence/cli-" + arch + ".json"] = path
+        expected_hashes["evidence/cli-" + arch + ".json"] = candidate.digest(path)
+    if cli_platforms != set(candidate.PLATFORMS):
+        raise ValueError("Missing CLI packages")
     if output.exists() or output.is_symlink():
         raise ValueError("Select a new release output")
     output.mkdir(parents=True)
@@ -133,7 +198,7 @@ def assemble(directory, results, output):
         evidence_path = output / "release-evidence.tar.gz"
         with evidence_path.open("wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0, filename="") as compressed, tarfile.open(fileobj=compressed, mode="w|") as archive:
             for name in sorted(assets):
-                if name.endswith("/image.tar"):
+                if name.endswith("/image.tar") or downloadable(name):
                     continue
                 file = output / name
                 item = tarfile.TarInfo(name)
@@ -146,8 +211,7 @@ def assemble(directory, results, output):
         value.update(build=json.loads(next(iter(builds))), images={key: image["imageId"] for key, image in images.items()}, runtime=runtime,
                      files={name: expected_hashes[name] for name in sorted(assets)})
         (output / "release.json").write_text(json.dumps(value, sort_keys=True, indent=2) + "\n")
-        (output / "SHA256SUMS").write_text("".join(checksum + "  " + name + "\n" for name, checksum in value["files"].items())
-                                            + candidate.digest(output / "release.json") + "  release.json\n")
+        (output / "SHA256SUMS").write_text(public_checksums(output, value))
     except BaseException:
         shutil.rmtree(output)
         raise
@@ -160,18 +224,19 @@ def delivery_plan(directory, environment):
         raise ValueError("External delivery requires the protected maintainer job")
     value = json.loads((directory / "release.json").read_text())
     expected = "refs/tags/v" + value["build"]["version"]
+    intent = admission.release_intent(environment, value["build"]["version"])
+    if not intent["publish"]:
+        raise ValueError("Release publication is disabled")
     if (value["result"] != "success" or value["build"]["sourceState"] != "clean" or environment.get("GITHUB_REF") != expected
             or environment.get("GITHUB_SHA") != value["source"]["commit"]):
         raise ValueError("Delivery tag/source mismatch")
     if value["source"] != admission.source_identity(ROOT):
         raise ValueError("Delivery checkout differs from the qualified source")
-    expected_checksums = "".join(checksum + "  " + name + "\n" for name, checksum in value["files"].items())
-    expected_checksums += candidate.digest(directory / "release.json") + "  release.json\n"
-    if admission.regular(directory, "SHA256SUMS").read_text() != expected_checksums:
-        raise ValueError("Delivery checksums changed")
     for name, checksum in value["files"].items():
         if candidate.digest(admission.regular(directory, name)) != checksum:
             raise ValueError("Delivery artifact changed")
+    if admission.regular(directory, "SHA256SUMS").read_text() != public_checksums(directory, value):
+        raise ValueError("Delivery checksums changed")
     return value
 
 
@@ -211,19 +276,68 @@ def existing_index(manifest, members):
 
 
 def existing_assets(version, paths):
-    """Permit a partial-delivery rerun only when existing release assets match."""
-    repository = "open-agentic-catalog/open-agentic-catalog"
-    raw = subprocess.check_output(["gh", "release", "view", "v" + version, "--repo", repository, "--json", "assets"],
+    """Inspect the prepared draft; never delete an asset to retry an upload."""
+    repository = admission.REPOSITORY
+    raw = subprocess.check_output(["gh", "release", "view", "v" + version, "--repo", repository, "--json", "tagName,isDraft,assets"],
                                   text=True, timeout=120)
-    names = {item["name"] for item in json.loads(raw)["assets"]}
+    release = json.loads(raw)
+    if release.get("tagName") != "v" + version or type(release.get("isDraft")) is not bool:
+        raise ValueError("Prepared release identity differs")
+    names = {item["name"] for item in release["assets"]}
+    missing = []
     with tempfile.TemporaryDirectory(prefix="catalog-release-assets-") as temporary:
         for path in paths:
             if path.name not in names:
+                missing.append(path)
                 continue
             subprocess.run(["gh", "release", "download", "v" + version, "--repo", repository, "--pattern", path.name,
                             "--dir", temporary], check=True, timeout=300)
             if candidate.digest(Path(temporary) / path.name) != candidate.digest(path):
                 raise ValueError("Release already contains a different asset")
+    return {"draft": release["isDraft"], "missing": missing}
+
+
+def destination_commit(version):
+    """Resolve the current remote tag before writes, including annotated tags."""
+    prefix = "repos/" + admission.REPOSITORY + "/git/"
+    value = json.loads(subprocess.check_output(["gh", "api", prefix + "ref/tags/v" + version], text=True, timeout=120))["object"]
+    for _ in range(4):
+        if not admission.SHA.fullmatch(value.get("sha", "")):
+            break
+        if value.get("type") == "commit":
+            return value["sha"]
+        if value.get("type") != "tag":
+            break
+        value = json.loads(subprocess.check_output(["gh", "api", prefix + "tags/" + value["sha"]], text=True, timeout=120))["object"]
+    raise ValueError("Cannot resolve release tag to a commit")
+
+
+def image_target(product, version, arch=None):
+    return "ghcr.io/open-agentic-catalog/" + ("open-agentic-catalog" if product == "backend" else "catalog-ui") + ":" + version + ("-" + arch if arch else "")
+
+
+def registry_preflight(value):
+    """Read every destination before any write, refusing conflicting versions."""
+    members, digests, indexes = {}, {}, {}
+    version = value["build"]["version"]
+    for product in candidate.PRODUCTS:
+        expected = {}
+        for arch in ("amd64", "arm64"):
+            key = product + "-" + arch
+            target = image_target(product, version, arch)
+            manifest = registry_manifest(target)
+            existing_member(manifest, value["images"][key])
+            members[key] = manifest is not None
+            if manifest is not None:
+                digests[key] = registry_digest(target)
+                expected[arch] = digests[key]
+        index = registry_manifest(image_target(product, version))
+        if index is not None:
+            if len(expected) != 2:
+                raise ValueError("Existing index has missing platform tags")
+            existing_index(index, expected)
+        indexes[product] = index is not None
+    return members, digests, indexes
 
 
 def publish(directory):
@@ -239,44 +353,55 @@ def publish(directory):
         destination.write_text(json.dumps(record, sort_keys=True) + "\n")
 
     version = value["build"]["version"]
-    release_assets = [directory / "release.json", directory / "SHA256SUMS", directory / "release-evidence.tar.gz"]
-    release_assets += [directory / name for name in value["files"] if name.startswith(("charts/", "sdk/")) and name.endswith((".tgz", ".crate", ".whl", ".tar.gz"))]
-    if len({path.name for path in release_assets}) != len(release_assets):
-        raise ValueError("Release asset basename collision")
+    release_assets = [*public_assets(directory, value).values(), directory / "SHA256SUMS"]
     # Confirm the maintainer prepared the release, and refuse changed existing
     # assets before pushing any container layer.
-    registry = "ghcr.io/open-agentic-catalog/"
     try:
-        existing_assets(version, release_assets)
+        if destination_commit(version) != value["source"]["commit"]:
+            raise ValueError("Remote release tag no longer matches approved source")
+        release = existing_assets(version, release_assets)
+        present, digests, indexes = registry_preflight(value)
+        if not release["draft"]:
+            if release["missing"] or not all(present.values()) or not all(indexes.values()):
+                raise ValueError("Published release is incomplete; no writes are permitted")
+            record.update(result="success", releaseState="published", delivery="verified-existing")
+            return
         for product in candidate.PRODUCTS:
             references = []
             members = {}
             for arch in ("amd64", "arm64"):
                 key = product + "-" + arch
                 image = value["images"][key]
-                operation(["docker", "image", "load", "--input", str(directory / "images" / key / "image.tar")], "load-" + key)
-                tag = registry + ("open-agentic-catalog" if product == "backend" else "catalog-ui") + ":" + version + "-" + arch
-                existing_member(registry_manifest(tag), image)
-                operation(["docker", "image", "tag", image, tag], "tag-" + key)
-                operation(["docker", "image", "push", tag], "push-" + key)
-                manifest = registry_manifest(tag)
-                existing_member(manifest, image)
-                if manifest is None:
-                    raise ValueError("Pushed platform manifest is unavailable")
-                digest = registry_digest(tag)
+                tag = image_target(product, version, arch)
+                if not present[key]:
+                    operation(["docker", "image", "load", "--input", str(directory / "images" / key / "image.tar")], "load-" + key)
+                    operation(["docker", "image", "tag", image, tag], "tag-" + key)
+                    operation(["docker", "image", "push", tag], "push-" + key)
+                    manifest = registry_manifest(tag)
+                    existing_member(manifest, image)
+                    if manifest is None:
+                        raise ValueError("Pushed platform manifest is unavailable")
+                    digests[key] = registry_digest(tag)
+                digest = digests[key]
                 members[arch] = digest
                 references.append(tag.split(":")[0] + "@" + digest)
                 record.setdefault("platformDigests", {})[key] = digest
-            target = registry + ("open-agentic-catalog" if product == "backend" else "catalog-ui") + ":" + version
-            existing_index(registry_manifest(target), members)
-            operation(["docker", "buildx", "imagetools", "create", "--tag", target, *references], "index-" + product)
-            existing_index(registry_manifest(target), members)
+            target = image_target(product, version)
+            if not indexes[product]:
+                operation(["docker", "buildx", "imagetools", "create", "--tag", target, *references], "index-" + product)
+            index = registry_manifest(target)
+            if index is None:
+                raise ValueError("Pushed platform index is unavailable")
+            existing_index(index, members)
             record.setdefault("indexDigests", {})[product] = registry_digest(target)
             destination.write_text(json.dumps(record, sort_keys=True) + "\n")
         # No release creation or guessed notes. The maintainer prepares the
         # matching GitHub release; this job only attaches qualified assets.
-        operation(["gh", "release", "upload", "v" + version, "--repo", "open-agentic-catalog/open-agentic-catalog", "--clobber", *map(str, release_assets)], "release-assets")
-        record["result"] = "success"
+        if release["missing"]:
+            operation(["gh", "release", "upload", "v" + version, "--repo", admission.REPOSITORY, *map(str, release["missing"])], "release-assets")
+        if existing_assets(version, release_assets)["missing"]:
+            raise ValueError("Release asset upload is incomplete")
+        record.update(result="success", releaseState="draft", delivery="images-pushed-files-in-draft")
     finally:
         destination.write_text(json.dumps(record, sort_keys=True) + "\n")
 

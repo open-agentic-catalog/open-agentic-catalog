@@ -13,6 +13,29 @@ ROOT = Path(__file__).resolve().parents[2]
 LANGUAGES = ("go", "python", "typescript", "rust")
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 RUN = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,100}\Z")
+REPOSITORY = "open-agentic-catalog/open-agentic-catalog"
+
+
+def release_intent(environment, version):
+    """Validate event intent without Git, credentials or external operations."""
+    if environment.get("ACT"):
+        raise ValueError("Release handoff and delivery are unavailable under act")
+    if environment.get("GITHUB_REF") != "refs/tags/v" + version:
+        raise ValueError("Select the exact v<VERSION> tag, not a branch")
+    event = environment.get("GITHUB_EVENT_NAME")
+    if event == "push":
+        requested = True
+    elif event == "workflow_dispatch":
+        if environment.get("INPUT_UPLOAD") != "true":
+            raise ValueError("Release checks require upload_artifacts=true for job handoff")
+        if environment.get("INPUT_PUBLISH") not in ("true", "false"):
+            raise ValueError("Select an explicit boolean publish input")
+        requested = environment["INPUT_PUBLISH"] == "true"
+    else:
+        raise ValueError("Unsupported release event")
+    enabled = environment.get("RELEASE_PUBLISH_ENABLED") == "true"
+    expected_repository = environment.get("GITHUB_REPOSITORY") == REPOSITORY
+    return {"upload": True, "publish": requested and enabled and expected_repository}
 
 
 def digest(path):
@@ -108,7 +131,7 @@ def sdk_manifest(root, language):
         raise ValueError("SDK input identity mismatch")
     artifacts = value["artifacts"]
     suffixes = sorted(Path(name).suffix for name in artifacts)
-    expected = {"go": [], "python": [".gz", ".whl"], "typescript": [".tgz"], "rust": [".crate"]}
+    expected = {"go": [".gz"], "python": [".gz", ".whl"], "typescript": [".tgz"], "rust": [".crate"]}
     if suffixes != expected[language] or not value["sources"] or not value["tools"]:
         raise ValueError("Incomplete SDK output")
     for name, checksum in artifacts.items():
@@ -179,6 +202,7 @@ def main():
     sdk.add_argument("--language", choices=LANGUAGES, required=True)
     sdk.add_argument("--run", required=True)
     sdk.add_argument("--output", type=Path, required=True)
+    sub.add_parser("release-policy")
     args = parser.parse_args()
     if args.command == "select":
         if not SHA.fullmatch(args.base):
@@ -193,6 +217,10 @@ def main():
         print(json.dumps(languages(args.value), separators=(",", ":")))
     elif args.command == "outcomes":
         print(json.dumps(outcomes(json.loads(args.plan), json.loads(args.results)), sort_keys=True))
+    elif args.command == "release-policy":
+        value = release_intent(os.environ, (ROOT / "VERSION").read_text().strip())
+        for key, enabled in value.items():
+            print(key + "=" + str(enabled).lower())
     else:
         stage_sdk(ROOT, args.language, args.run, args.output.absolute())
 

@@ -294,7 +294,10 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
         self.assertIn("inputs.publish", delivery)
         self.assertIn("environment: release", delivery)
         self.assertIn("needs.policy.result == 'success'", delivery)
-        self.assertIn("[[ -z \"${ACT:-}\" && \"$UPLOAD\" == true ]]", verification)
+        self.assertIn("admission.py release-policy", verification)
+        self.assertIn("RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}", verification)
+        self.assertIn("publish: ${{ steps.intent.outputs.publish }}", verification)
+        self.assertIn("release_checks: true", verification)
         self.assertNotIn("packages: write", verification)
         self.assertNotIn("contents: write", verification)
         self.assertIn("packages: write", delivery)
@@ -395,9 +398,22 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
                     uploads += 1
                     condition = re.search(r"(?m)^        if: (.+)$", step)
                     self.assertIsNotNone(condition, path)
-                    self.assertIn("inputs.upload_artifacts", condition[1], path)
+                    expected = "needs.policy.outputs.upload == 'true'" if path.name == "release.yml" else "inputs.upload_artifacts"
+                    self.assertIn(expected, condition[1], path)
                     self.assertIn("&& !env.ACT", condition[1], path)
-        self.assertEqual(uploads, 16)
+        self.assertEqual(uploads, 18)
+
+    def test_main_builds_and_release_tags_have_separate_read_only_entry_points(self):
+        images = (local.ROOT / ".github/workflows/images.yml").read_text()
+        self.assertIn("branches: [main]", images)
+        self.assertIn("github.event_name == 'push' && fromJSON('[\"amd64\"]')", images)
+        self.assertIn("github.event_name == 'push' && github.ref == 'refs/heads/main'", images)
+        self.assertNotIn("packages: write", images)
+        self.assertNotIn("release_delivery.py publish", images)
+        release = (local.ROOT / ".github/workflows/release.yml").read_text()
+        self.assertIn("tags: ['v*']", release)
+        self.assertIn("needs.policy.outputs.upload == 'true'", release)
+        self.assertIn("github.repository == 'open-agentic-catalog/open-agentic-catalog'", release)
 
     def test_lint_does_not_select_broad_regression_or_api_launcher_tests(self):
         source = (local.ROOT / ".github/workflows/quality.yml").read_text()

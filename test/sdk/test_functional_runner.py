@@ -32,7 +32,7 @@ class RunnerFunctional(unittest.TestCase):
             root = Path(directory)
             scripts = root / "test/sdk"
             scripts.mkdir(parents=True)
-            for name in ("runner.py", "python_runner.py", "typescript_runner.py", "rust_runner.py"):
+            for name in ("runner.py", "go_archive.py", "python_runner.py", "typescript_runner.py", "rust_runner.py"):
                 shutil.copyfile(runner.HERE / name, scripts / name)
             shutil.copytree(runner.HERE / "rust", scripts / "rust")
             for name in ("Makefile", "go.mod", "VERSION"):

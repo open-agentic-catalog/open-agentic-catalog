@@ -4,6 +4,8 @@
 
 ## Install the SDK
 
+Maintainer-published GitHub Releases provide SDK downloads. Follow the [download and checksum instructions](../../documentation/src/content/docs/contributing/build-and-release.md#download-release-packages) before installation. Packages are not published to ecosystem registries. Source installation remains available below.
+
 No registry release is available yet. Install the local source package in your Python environment:
 
 ```sh

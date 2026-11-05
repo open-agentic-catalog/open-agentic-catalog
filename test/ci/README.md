@@ -149,3 +149,19 @@ These journeys use immutable local image IDs and verify served build identity. T
 The release workflow requires all source/security/client/chart/image/runtime jobs and complete same-source receipts. AMD64 executes the packaged journeys. ARM64 receives packaging inspection and scans only. Its image archive is still retained for delivery.
 
 The maintainer must enable protected `github-pages` and `release` environments, restrict deployment refs and verify hosted events and permissions. Signed tags and the matching GitHub release remain maintainer inputs. No local test dispatches hosted jobs, uploads artifacts, logs into a registry or publishes anything.
+
+## Release package handoffs
+
+`release_packages.py cli` extracts `catalogctl` and notices from a retained backend image. It reuses static image inspection and never recompiles. AMD64 also runs version/help commands; ARM64 receives inspection only. Keep the CLI output outside the sealed candidate directory.
+
+```sh
+python3 -B test/ci/release_packages.py cli --candidate output/release/backend-amd64/candidate.json --platform linux/amd64 --output output/release/cli-amd64
+```
+
+`release_packages.py editor --output output/artifacts/qualified-editor/<run>` runs `make test-vscode`, then stages only the tested VSIX and `editor.json`. Its receipt binds the source, SDK, artifact and successful cleanup. Do not run another package command after testing. The command requires the existing full editor test tools and Linux prerequisites. Raw reports remain private.
+
+Release assembly requires both CLI platforms, the editor receipt, all four SDK receipts, both charts and the existing runtime/image evidence. `SHA256SUMS` lists only flat public downloads. Internal image archive hashes remain in `release.json`. The evidence archive excludes image archives and package downloads.
+
+Unit tests intercept every delivery command. Functional fixtures create tags only inside disposable repositories. Ordinary image/chart workflows can run through act with uploads disabled. The release policy deliberately refuses act. Run SDK and installed-editor gates through their native Make targets.
+
+The [maintainer procedure](../../documentation/src/content/docs/contributing/build-and-release.md#configure-and-approve-delivery) owns activation, approvals, prepared drafts and failed-job reruns. Tag events use effective handoff inputs from the policy job. A manual `publish=false` disables delivery even when the repository switch is enabled. No local verification changes GitHub settings or sends project data externally.

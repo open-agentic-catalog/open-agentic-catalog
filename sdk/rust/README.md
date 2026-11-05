@@ -6,6 +6,8 @@ Use Rust 1.88 or newer and a Tokio runtime with time and I/O enabled. Source bui
 
 ## Install from local source
 
+Maintainer-published GitHub Releases provide SDK downloads. Follow the [download and checksum instructions](../../documentation/src/content/docs/contributing/build-and-release.md#download-release-packages) before installation. Packages are not published to ecosystem registries. Source installation remains available below.
+
 The package is named `open-agentic-catalog`; Rust imports use `open_agentic_catalog`. Registry publication is disabled. Use an existing Cargo binary project, or create one:
 
 ```sh

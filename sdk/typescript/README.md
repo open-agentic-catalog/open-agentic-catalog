@@ -6,6 +6,8 @@ Supported Node ranges are `>=22.13.0 <23` and `>=24.20.0 <25`. Maintainer toolin
 
 ## Install the SDK
 
+Maintainer-published GitHub Releases provide SDK downloads. Follow the [download and checksum instructions](../../documentation/src/content/docs/contributing/build-and-release.md#download-release-packages) before installation. Packages are not published to ecosystem registries. Source installation remains available below.
+
 No registry release is published. A maintainer builds the local package from this repository:
 
 ```sh

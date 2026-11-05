@@ -136,7 +136,8 @@ class AdmissionTests(unittest.TestCase):
 
     def release_fixture(self, directory):
         images = {}
-        build = {"version": "0.1.0", "commit": SOURCE["commit"], "sourceState": "clean"}
+        base = (r.ROOT / "VERSION").read_text().strip()
+        build = {"version": base, "commit": SOURCE["commit"], "sourceState": "clean"}
         for product in c.PRODUCTS:
             for arch in ("amd64", "arm64"):
                 name = product + "-" + arch
@@ -154,7 +155,7 @@ class AdmissionTests(unittest.TestCase):
         for language in a.LANGUAGES:
             target = directory / language
             target.mkdir()
-            names = {"go": [], "python": ["client.whl", "client.tar.gz"], "typescript": ["client.tgz"], "rust": ["client.crate"]}[language]
+            names = {"go": ["client-go.tar.gz"], "python": ["client.whl", "client.tar.gz"], "typescript": ["client.tgz"], "rust": ["client.crate"]}[language]
             artifacts = {}
             for name in names:
                 (target / name).write_bytes(language.encode())
@@ -178,6 +179,21 @@ class AdmissionTests(unittest.TestCase):
             if suite != "api":
                 selected["ui"] = images["ui-amd64"]
             (directory / ("runtime-" + suite + ".json")).write_text(json.dumps({"suite": suite, "source": SOURCE, "result": "success", "images": selected}))
+        for arch in ("amd64", "arm64"):
+            target = directory / ("cli-" + arch)
+            target.mkdir()
+            name = "catalogctl-" + base + "-linux-" + arch + ".tar.gz"
+            (target / name).write_bytes(b"cli")
+            (target / "cli.json").write_text(json.dumps({"kind": "cli", "source": SOURCE, "build": build,
+                "platform": "linux/" + arch, "imageId": images["backend-" + arch], "artifact": name,
+                "sha256": c.digest(target / name), "releaseCandidate": True, "result": "success"}))
+        target = directory / "editor"
+        target.mkdir()
+        name = "open-agentic-catalog-" + base + ".vsix"
+        (target / name).write_bytes(b"vsix")
+        (target / "editor.json").write_text(json.dumps({"kind": "editor", "source": SOURCE, "releaseBase": base,
+            "artifact": name, "sha256": c.digest(target / name), "sdkSha256": c.digest(directory / "typescript/client.tgz"),
+            "result": "success", "cleanup": "passed"}))
         return images
 
     def test_release_assembly_requires_complete_same_candidate_evidence(self):
@@ -202,6 +218,7 @@ class AdmissionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             (directory / "release.json").write_text("{}")
+            (directory / "release-evidence.tar.gz").write_bytes(b"evidence")
             value = {"source": SOURCE, "build": {"version": "0.1.0"}, "files": {},
                      "images": {product + "-" + arch: "sha256:" + "c" * 64 for product in c.PRODUCTS for arch in ("amd64", "arm64")}}
             calls = []
@@ -211,7 +228,7 @@ class AdmissionTests(unittest.TestCase):
                 if args[:3] == ["docker", "image", "push"]:
                     raise OSError("fixture push failure")
 
-            with patch.object(r, "delivery_plan", return_value=value), patch.object(r, "existing_assets"), patch.object(r, "registry_manifest", return_value=None), patch.object(r.subprocess, "run", side_effect=execute):
+            with patch.object(r, "delivery_plan", return_value=value), patch.object(r, "existing_assets", return_value={"draft": True, "missing": []}), patch.object(r, "destination_commit", return_value=SOURCE["commit"]), patch.object(r, "registry_manifest", return_value=None), patch.object(r.subprocess, "run", side_effect=execute):
                 with self.assertRaises(OSError):
                     r.publish(directory)
             record = json.loads((directory / "delivery-result.json").read_text())
@@ -243,9 +260,10 @@ class AdmissionTests(unittest.TestCase):
             value = {"result": "success", "source": SOURCE, "build": {"version": "0.1.0", "sourceState": "clean"},
                      "files": {"asset.tgz": c.digest(directory / "asset.tgz")}}
             (directory / "release.json").write_text(json.dumps(value))
-            checksums = value["files"]["asset.tgz"] + "  asset.tgz\n" + c.digest(directory / "release.json") + "  release.json\n"
+            (directory / "release-evidence.tar.gz").write_bytes(b"evidence")
+            checksums = r.public_checksums(directory, value)
             (directory / "SHA256SUMS").write_text(checksums)
-            environment = {"GITHUB_ACTIONS": "true", "RELEASE_PUBLISH": "true", "GITHUB_REF": "refs/tags/v0.1.0", "GITHUB_SHA": SOURCE["commit"]}
+            environment = {"GITHUB_EVENT_NAME": "push", "GITHUB_REPOSITORY": a.REPOSITORY, "RELEASE_PUBLISH_ENABLED": "true", "GITHUB_ACTIONS": "true", "RELEASE_PUBLISH": "true", "GITHUB_REF": "refs/tags/v0.1.0", "GITHUB_SHA": SOURCE["commit"]}
             self.assertEqual(r.delivery_plan(directory, environment), value)
             for key, wrong in (("GITHUB_REF", "refs/heads/main"), ("GITHUB_SHA", "d" * 40), ("ACT", "true")):
                 with self.assertRaises(ValueError):

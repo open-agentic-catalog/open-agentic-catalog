@@ -1,6 +1,6 @@
 # GitHub Actions
 
-The workflows call maintained Make targets. Contribution checks run on pull requests and pushes to `main`. Pages prepares the current manual on `main`; delivery needs explicit maintainer activation. Release qualification is manual and requires the exact clean version tag.
+The workflows call maintained Make targets. Contribution checks run on pull requests and pushes to `main`. Pages prepares the current manual on `main`; delivery needs explicit maintainer activation. Release qualification runs on `v*` tag pushes or manual selection and requires the exact clean version tag. Pushes to `main` also build AMD64 images and both charts without publishing.
 
 Agents do not dispatch hosted jobs, upload project data or publish artifacts. The maintainer owns repository settings and all external execution. Ordinary verification has read-only permissions and does not persist checkout credentials.
 
@@ -10,10 +10,10 @@ Agents do not dispatch hosted jobs, upload project data or publish artifacts. Th
 | --- | --- | --- |
 | [contributions.yml](workflows/contributions.yml) | Always run source lint and isolated units; select UI, docs and clients by changed inputs. | Require `Contribution checks complete` in branch protection. Selected failures and cancellations fail that check. |
 | [pages.yml](workflows/pages.yml) | Prepare the complete HTML manual and matching PDF. | Only the separate `github-pages` deployment job has Pages permissions. |
-| [release.yml](workflows/release.yml) | Build once, transfer and qualify exact images and client/chart packages. | Publishing is opt-in and uses the protected `release` environment. ARM64 inspection is not native execution. |
+| [release.yml](workflows/release.yml) | Build once, transfer and qualify exact images and client/chart packages. | Publishing requires `RELEASE_PUBLISH_ENABLED=true` and approval through the configured `release` environment. ARM64 inspection is not native execution. |
 | [quality.yml](workflows/quality.yml) | Isolated Go/Python units, source/local regression, UI and the manual. | Separate jobs preserve the test layers and toolchains. The UI job includes browser tests. |
 | [clients.yml](workflows/clients.yml) | Go, Python, TypeScript and Rust SDK checks, the Go webhook receiver, and selected editor and raw Go-generator checks. | Local HTTP/TLS fixtures and installed consumers are functional tests. The TypeScript harness owns its runtime matrix. |
-| [images.yml](workflows/images.yml) | Backend/UI images for AMD64 and ARM64, exact-image evidence and both Helm packages. | ARM64 is cross-built and inspected. It is not executed. Optional image scans use the same job's images. |
+| [images.yml](workflows/images.yml) | AMD64 backend/UI images on `main`; both architectures on manual runs, plus both Helm packages. | ARM64 is cross-built and inspected. It is not executed. Optional image scans use the same job's images. |
 | [functional.yml](workflows/functional.yml) | One selected PostgreSQL, process, packaged API, browser, local OIDC, backup/restore, federation or webhook receiver suite. | Existing harnesses own disposable services, credentials, ports and cleanup. |
 | [extended.yml](workflows/extended.yml) | Fresh combined application coverage or selected source/dependency security checks. | Combined coverage runs alone. Existing advisory failures remain failures. |
 | [assurance.yml](workflows/assurance.yml) | One focused Go/UI property or mutation check, bounded Go fuzzing, or the existing Job retry arithmetic proof. | A complete mutation measurement can contain survivors. The proof covers one helper, not the service. |
@@ -66,7 +66,7 @@ make docs-check CATALOG_ENV_FILE=/dev/null
 
 ## Reports and failures
 
-Jobs preserve failing exit codes and write step summaries. Artifact uploads are disabled by default and always disabled under act. Only the maintainer can select hosted uploads through `upload_artifacts=true`. Those uploads use explicit safe paths and seven-day retention, including selected coverage reports, SPDX inventories and chart archives. They exclude raw fixture directories, credentials, dependency trees and the complete `output/` tree. Image evidence and chart archives use job-owned output paths. Exporters refuse existing destinations. Ordinary report uploads do not publish to a package, chart or image registry. Only the protected release-delivery job performs the explicitly selected external delivery.
+Jobs preserve failing exit codes and write step summaries. Ordinary report uploads are disabled by default. Release tag checks require internal handoff uploads; manual release checks require `upload_artifacts=true`. Every upload is disabled under act. Those uploads use explicit safe paths and seven-day retention, including selected coverage reports, SPDX inventories and chart archives. They exclude raw fixture directories, credentials, dependency trees and the complete `output/` tree. Image evidence and chart archives use job-owned output paths. Exporters refuse existing destinations. Ordinary report uploads do not publish to a package, chart or image registry. Only the protected release-delivery job performs the explicitly selected external delivery.
 
 A missing report, cancelled job or unselected check is not a pass. Summaries label the status before artifact upload; the upload can still fail the final job. An older report is not evidence for a failed invocation. Coverage percentages from different profiles must not be added or averaged. `coverage-full` creates and reconciles its own fresh profiles.
 
@@ -84,7 +84,7 @@ Full Git history and tags support existing build identity. Normal builds let Mak
 
 Image build, inspection, SBOM and scans stay together. Ordinary functional harnesses build fixture images. The release workflow instead admits retained candidates and combines their source-bound results into one gate. Separate manual workflow runs do not form that gate.
 
-Repository administrators configure Actions permissions, available runners and required checks. These workflows do not change repository settings or deploy production services. The protected maintainer job can attach artifacts to an existing release.
+Repository administrators configure Actions permissions, available runners and required checks. These workflows do not change repository settings or deploy production services. The protected maintainer job attaches artifacts to a matching prepared draft. Final release publication remains a maintainer action.
 
 ## Further checks remain explicit
 
@@ -105,10 +105,16 @@ The fixed `Contribution checks complete` job runs even when another job fails. I
 
 ## Exact package and release handoff
 
-See [the candidate procedure](../test/ci/README.md#exact-candidate-qualification) for local commands, receipts and refusal paths. SDK checks record current source and run identity beside the actual qualified packages. `stage-sdk` refuses stale receipts or changed packages. Go retains a source manifest without an invented archive. The TypeScript editor checks still require the qualified tarball to match the extension lock.
+See [the candidate procedure](../test/ci/README.md#exact-candidate-qualification) for local commands, receipts and refusal paths. SDK checks record current source and run identity beside the actual qualified packages. `stage-sdk` refuses stale receipts or changed packages. Go retains its tested source archive and manifest. The TypeScript editor checks require the qualified tarball to match the extension lock.
 
-The release workflow requires `upload_artifacts=true` because its jobs transfer exact candidates. It builds backend/UI images once for AMD64 and ARM64, scans them and archives those exact image IDs. The existing API, Compose UI and OIDC UI journeys consume the AMD64 candidates. Their cleanup preserves borrowed images. The final job also requires source, security, client and chart checks from the same source.
+Tag-triggered release checks enable internal artifact handoff. Manual runs require `upload_artifacts=true`. The workflow builds each backend/UI platform once and scans those exact images. Existing API, Compose UI and OIDC UI journeys consume the AMD64 candidates. Their cleanup preserves borrowed images. The final gate also requires source, security, client and chart results from the same source.
 
-Before delivery, configure required reviewers on the `release` environment and restrict it to version tags. Verify the signed tag yourself. Prepare the matching GitHub release. Select `publish=true` only when ready to push to GHCR and attach the qualified assets. No workflow creates a release, signs artifacts or deploys production.
+Follow the [delivery setup procedure](../documentation/src/content/docs/contributing/build-and-release.md#configure-and-approve-delivery) before enabling `RELEASE_PUBLISH_ENABLED`. Prepare a matching draft release and approve delivery only after checks pass. Manual `publish=false` always prevents delivery. No workflow creates a release, signs artifacts or deploys production.
 
-A failed delivery reports completed operations. Rerun only the failed delivery job to reuse the original handoff key and immutable artifacts. Do not rerun builds after a partial delivery. Artifact expiry requires a new qualification run and maintainer review. Hosted actions and permission settings require separate maintainer qualification.
+A failed delivery reports completed operations. Rerun only the failed delivery job to reuse its original artifacts. Do not rerun builds after partial delivery. Artifact expiry requires maintainer review or a new version. Hosted events and permissions require a separate maintainer check.
+
+## Release downloads and container delivery
+
+The [release procedure](../documentation/src/content/docs/contributing/build-and-release.md#run-checks-for-a-release-candidate) owns setup, file names, installation and retries. GitHub Releases receive the tested SDKs, Linux CLI archives, VSIX, charts and checksums. GHCR receives the retained backend/UI images. No ecosystem registry or Marketplace publishing is configured.
+
+Publishing stays off by default. Tag checks transfer artifacts within the same Actions run even when delivery is disabled. Manual `publish=false` always blocks delivery. Configure required reviewers before enabling `RELEASE_PUBLISH_ENABLED`. Maintainers prepare and finally publish the draft release. Local act never delivers releases.
