@@ -129,7 +129,7 @@ The service that signs users in and issues tokens. Keycloak manages the example'
 
 ### Identity realm
 
-The Catalog mapping from a verified issuer and, where configured, an external organization to a Catalog tenant. Dedicated mode selects one configured tenant; shared mode also requires an organization mapping. It is distinct from a Keycloak realm, user membership and role assignment. See [dedicated and shared mapping](../operations/sign-in.md#configure-the-api-and-tenant-mapping) and [identity-realm administration](../operations/database-roles.md#identity-realm-administration).
+The Catalog mapping from a verified issuer and, where configured, an external organization to a Catalog tenant. Dedicated mode selects one configured tenant; shared mode also requires an organization mapping. It is distinct from a Keycloak realm, user membership and role assignment. See [dedicated and shared mapping](../operations/sign-in.md#configure-the-api-and-tenant-mapping) and [identity-realm administration](../operations/database-roles.mdx#identity-realm-administration).
 
 ### Indexed search
 
@@ -187,7 +187,7 @@ Model Context Protocol: a protocol for applications to use tools, resources and 
 
 ### Membership
 
-A human or service identity's relationship to a Catalog tenant. Active membership allows identity resolution; role assignments supply permissions tenant-wide or in an exact namespace. Provider accounts, passwords and PostgreSQL login roles are separate records. Suspension and offboarding affect Catalog access independently of token expiry. See [membership administration](../operations/database-roles.md#tenant-membership-administration) and [scoped grants](../guides/access-management.mdx).
+A human or service identity's relationship to a Catalog tenant. Active membership allows identity resolution; role assignments supply permissions tenant-wide or in an exact namespace. Provider accounts, passwords and PostgreSQL login roles are separate records. Suspension and offboarding affect Catalog access independently of token expiry. See [membership administration](../operations/database-roles.mdx#tenant-membership-administration) and [scoped grants](../guides/access-management.mdx).
 
 ### Namespace
 
@@ -299,7 +299,7 @@ An immutable VersionRevision records exact resource content; a ListingRevision r
 
 ### RLS
 
-PostgreSQL row-level security, which restricts rows by tenant context for the API role. Workers use a separate restricted role with deliberate cross-tenant selection authority and explicit tenant predicates in subsequent operations. RLS does not replace Catalog authorization. See [database identities](../operations/database-roles.md).
+PostgreSQL row-level security, which restricts rows by tenant context for the API role. Workers use a separate restricted role with deliberate cross-tenant selection authority and explicit tenant predicates in subsequent operations. RLS does not replace Catalog authorization. See [database identities](../operations/database-roles.mdx).
 
 ### SBOM
 

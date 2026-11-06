@@ -1,0 +1,54 @@
+---
+import "../../styles/architecture.css";
+---
+
+<div class="catalog-architecture" role="region" aria-labelledby="database-connections-title" tabindex="0">
+<svg class="architecture-svg" viewBox="0 0 640 590" role="img" aria-labelledby="database-connections-title database-connections-desc">
+  <title id="database-connections-title">Select database routes for each role</title>
+  <desc id="database-connections-desc">Direct connections are the default. The optional session-pooling route sends API and worker connections through PgBouncer, with distinct runtime logins and verified TLS on both hops. The schema owner connects directly to PostgreSQL in either setup. Operators supply PostgreSQL and explicitly select each role's DSN.</desc>
+  <defs><marker id="database-connections-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+
+  <rect class="svg-boundary-neutral" x="20" y="20" width="285" height="410" rx="14" />
+  <text class="svg-title" x="40" y="57">Default: direct</text>
+  <rect class="svg-boundary-neutral" x="335" y="20" width="285" height="410" rx="14" />
+  <text class="svg-title" x="355" y="57">Optional: session pool</text>
+
+  <path class="svg-connector" d="M95 160 V340" marker-end="url(#database-connections-arrow)" />
+  <path class="svg-connector" d="M230 160 V340" marker-end="url(#database-connections-arrow)" />
+  <text class="svg-small" x="125" y="253">TLS</text>
+  <path class="svg-connector" d="M410 160 V220" marker-end="url(#database-connections-arrow)" />
+  <path class="svg-connector" d="M545 160 V220" marker-end="url(#database-connections-arrow)" />
+  <text class="svg-small" x="465" y="198">TLS</text>
+  <path class="svg-connector" d="M477 290 V340" marker-end="url(#database-connections-arrow)" />
+  <text class="svg-small" x="492" y="323">TLS</text>
+  <path class="svg-connector" d="M180 525 H160 V410" marker-end="url(#database-connections-arrow)" />
+  <text class="svg-small" x="42" y="477">Direct TLS</text>
+  <path class="svg-connector" d="M460 525 H480 V410" marker-end="url(#database-connections-arrow)" />
+  <text class="svg-small" x="494" y="477">Direct TLS</text>
+
+  <rect class="svg-node-core" x="40" y="90" width="110" height="70" rx="12" />
+  <text class="svg-title" x="56" y="119">API</text>
+  <text class="svg-copy" x="56" y="146">Own login</text>
+  <rect class="svg-node-core" x="175" y="90" width="110" height="70" rx="12" />
+  <text class="svg-title" x="191" y="119">Worker</text>
+  <text class="svg-copy" x="191" y="146">Own login</text>
+  <rect class="svg-node-core" x="355" y="90" width="110" height="70" rx="12" />
+  <text class="svg-title" x="371" y="119">API</text>
+  <text class="svg-copy" x="371" y="146">Own login</text>
+  <rect class="svg-node-core" x="490" y="90" width="110" height="70" rx="12" />
+  <text class="svg-title" x="506" y="119">Worker</text>
+  <text class="svg-copy" x="506" y="146">Own login</text>
+  <rect class="svg-node-optional" x="355" y="220" width="245" height="70" rx="12" />
+  <text class="svg-title" x="371" y="249">PgBouncer</text>
+  <text class="svg-copy" x="371" y="276">Session mode; one replica</text>
+  <rect class="svg-node-authority" x="40" y="340" width="245" height="70" rx="12" />
+  <text class="svg-title" x="56" y="369">PostgreSQL writer</text>
+  <text class="svg-copy" x="56" y="396">Operator supplied</text>
+  <rect class="svg-node-authority" x="355" y="340" width="245" height="70" rx="12" />
+  <text class="svg-title" x="371" y="369">PostgreSQL writer</text>
+  <text class="svg-copy" x="371" y="396">Operator supplied</text>
+  <rect class="svg-node" x="180" y="490" width="280" height="70" rx="12" />
+  <text class="svg-title" x="196" y="519">Schema owner</text>
+  <text class="svg-copy" x="196" y="546">Migrations and owner commands</text>
+</svg>
+</div>

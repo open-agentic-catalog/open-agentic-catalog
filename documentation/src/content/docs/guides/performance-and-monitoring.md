@@ -28,13 +28,13 @@ For interactive diagnosis, choose the tool that owns the signal:
 | Prometheus | Check scrape targets and inspect the metric samples behind a panel. | [Inspect collection](#inspect-prometheus-collection). |
 | [Jaeger](https://www.jaegertracing.io/docs/) | Follow a request trace and linked background work when tracing is enabled. | [Start the separate trace viewer](../operations/observability.mdx#view-traces-locally). |
 
-For production setup, see [Monitoring with Prometheus and Grafana](../operations/helm-monitoring.md). It covers existing collectors and the optional Helm companion chart, using the same dashboard. The companion chart does not install Jaeger or another trace backend.
+For production setup, see [Monitoring with Prometheus and Grafana](../operations/helm-monitoring.mdx). It covers existing collectors and the optional Helm companion chart, using the same dashboard. The companion chart does not install Jaeger or another trace backend.
 
 Run these seed/load/reset workflows only in their owned local fixtures, never against shared infrastructure. For deployment-specific monitoring and sizing, use your own PostgreSQL and platform controls. See the [deployment guide](../operations/deployment.mdx#artifact-and-deployment-ownership).
 
 ## Budget replicas before load
 
-Complete the [replica and dependency worksheet](../operations/database-roles.md#replica-and-dependency-budget) before selecting a load profile. It includes rollout and terminating-process overlap, PostgreSQL reserves, direct clients, pooler limits and independent work gates. Its direct and session-pool examples use explicit deployment allocations, not this host's capacity.
+Complete the [replica and dependency worksheet](../operations/database-roles.mdx#replica-and-dependency-budget) before selecting a load profile. It includes rollout and terminating-process overlap, PostgreSQL reserves, direct clients, pooler limits and independent work gates. Its direct and session-pool examples use explicit deployment allocations, not this host's capacity.
 
 Use measured pool waits, Job queue age, CPU/memory and latency to assess the chosen allocation. The connection calculation is a ceiling, not an optimal pool size or throughput target. Existing test request caps remain test settings. A separate pressure/recovery qualification must declare its workload and deadlines before execution.
 
@@ -42,7 +42,7 @@ Use measured pool waits, Job queue age, CPU/memory and latency to assess the cho
 
 For optional session-pooler overhead, `make test-pgbouncer` also runs three alternating direct/pooled Search pairs with the maintained performance client. Each trial has two readers, one-second warm-up and three-second measurement against the same three public-local smoke records. Complete phases, zero errors and identical response digests are required. Achieved throughput, latency buckets and durations are report-only under `output/pgbouncer/run-*/tests.jsonl`.
 
-Both routes verify database TLS and use the compatibility fixture's same four-connection API limit and aggressive two-second lifetime, 500 ms idle timeout and 100 ms health cadence. These churn settings differ from production defaults. The small fixture is neither a scale nor saturation benchmark. See the [pooling runbook](../operations/database-roles.md#connection-pooling-boundary).
+Both routes verify database TLS and use the compatibility fixture's same four-connection API limit and aggressive two-second lifetime, 500 ms idle timeout and 100 ms health cadence. These churn settings differ from production defaults. The small fixture is neither a scale nor saturation benchmark. See the [pooling runbook](../operations/database-roles.mdx#connection-pooling-boundary).
 
 Run trials serially without another load or cluster/network campaign. No additional performance framework or timing gate is selected.
 
@@ -122,7 +122,7 @@ These totals exclude one tenant-context `SELECT`, one `BEGIN` and one `COMMIT`. 
 
 The check uses exact owned Pod image identities, explicit-context loopback port-forwards, bounded requests and ordinary harness cleanup. It uses the existing test identity fixture, not an independently qualified provider. This is instrumentation smoke, not a Kubernetes throughput benchmark: port-forward latency is not production latency. It does not deploy Prometheus/Grafana, verify Pod-discovery RBAC or include these assertions in the topology scenario.
 
-The separate `make test-minikube-monitoring` scenario qualifies the [optional companion chart](../operations/helm-monitoring.md), including collector RBAC, per-Pod discovery, dashboard queries and retained storage. Use Minikube load only for a selected topology-dependent application question, not as a second mandatory benchmark environment.
+The separate `make test-minikube-monitoring` scenario qualifies the [optional companion chart](../operations/helm-monitoring.mdx), including collector RBAC, per-Pod discovery, dashboard queries and retained storage. Use Minikube load only for a selected topology-dependent application question, not as a second mandatory benchmark environment.
 
 ## Optional tracing and overhead
 
@@ -203,7 +203,7 @@ Review the [tool-image boundary](../reference/dependencies.md#optional-local-mon
 
 The dashboard UID is `catalog-overview`. Its data source UID is `catalog-prometheus`. Both are provisioned automatically. The default time range is 15 minutes and the refresh interval is 10 seconds. These display controls do not change the scrape interval or retention.
 
-Use your own deployment label and compatible data source when you import the dashboard into an existing Grafana installation. Helm access uses your admin Secret's credentials, not the Compose username and password file. See [Helm access and installation](../operations/helm-monitoring.md#package-and-install).
+Use your own deployment label and compatible data source when you import the dashboard into an existing Grafana installation. Helm access uses your admin Secret's credentials, not the Compose username and password file. See [Helm access and installation](../operations/helm-monitoring.mdx#package-and-install).
 
 ![Grafana Catalog overview with deployment and role selectors, healthy API and worker scrapes, request traffic, zero server errors and estimated latency.](../../../../assets/monitoring/catalog-overview.png)
 
@@ -446,7 +446,7 @@ No production alert thresholds, paging integration, remote write or database exp
 
 Minikube uses the existing resource/deadline settings documented in the [deployment guide](../operations/deployment.mdx#maintained-local-minikube-verification). Its 25-search checks are fixed functional assertions, not a configurable benchmark profile. `LOCAL_MONITORING=on` remains Compose-only. The ordinary product Helm chart has no monitoring dependency.
 
-The separate [Helm monitoring chart](../operations/helm-monitoring.md) exposes its own scrape/resource/retention/storage values and is qualified by `make test-minikube-monitoring`, independently of the Compose controls above.
+The separate [Helm monitoring chart](../operations/helm-monitoring.mdx) exposes its own scrape/resource/retention/storage values and is qualified by `make test-minikube-monitoring`, independently of the Compose controls above.
 
 ## Interpretation and troubleshooting
 

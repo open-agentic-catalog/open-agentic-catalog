@@ -17,11 +17,11 @@ A [logical container in C4](https://c4model.com/diagrams/container) means an app
 
 The optional React client executes in the browser. Its separate Go host serves assets, manages browser sessions and forwards same-origin requests to one API. With OIDC, the host handles login and the API verifies access tokens. Neither the UI host nor an embedding provider accesses PostgreSQL.
 
-The frame identifies the Catalog service and its logical state. Infrastructure supplies the database server, storage and availability. API and worker run as separate processes from the same backend image. They coordinate through PostgreSQL Jobs and outbox records, without API-to-worker RPC or a broker.
+PostgreSQL holds the Catalog's durable state. Infrastructure supplies the database server, storage and availability. API and worker run as separate processes from the same backend image. They coordinate through PostgreSQL Jobs and outbox records, without API-to-worker RPC or a broker. Issuer requests retrieve configuration and public keys; the API validates access tokens locally.
 
 HTTP MCP belongs to the API process. Stdio MCP, SDKs and IDE integrations are client paths. [Operator commands](#process-roles-and-authority) use their separately documented credentials; they are not another persistent service. The [combined memory-only process](#direct-local-process) is a separate development alternative.
 
-See [UI architecture](catalog-ui.mdx) for browser and host execution, sessions and forwarding. The [monitoring companion](../operations/helm-monitoring.md) is an independent optional installation.
+See [UI architecture](catalog-ui.mdx) for browser and host execution, sessions and forwarding. The [monitoring companion](../operations/helm-monitoring.mdx) is an independent optional installation.
 
 ## Optional embedding service boundary
 
@@ -47,7 +47,7 @@ The build uses a default-deny context and a digest-pinned Go builder. Compilatio
 
 The chart provides separate API and worker Deployments, a bounded migration hook Job, a Service and three role-specific ServiceAccounts. It configures resources, scheduling, optional revision-scoped topology spread, disruption budgets, immutable image selection and drain grace. Existing Secrets supply credentials. The chart supplies schema-validated environment settings through a ConfigMap. It includes the tenancy inputs required by the selected mode.
 
-Optional PgBouncer uses one private `Recreate` replica and session pooling with separate API and worker identities. Operators explicitly route runtime DSN Secrets through it; schema-owner operations remain direct. Both database hops verify TLS. Follow the [connection-pooling procedure](../operations/database-roles.md#connection-pooling-boundary) for trust, capacity and failure limits.
+Optional PgBouncer uses one private `Recreate` replica and session pooling with separate API and worker identities. Operators explicitly route runtime DSN Secrets through it; schema-owner operations remain direct. Both database hops verify TLS. Follow the [connection-pooling procedure](../operations/database-roles.mdx#connection-pooling-boundary) for trust, capacity and failure limits.
 
 ### Publication evidence
 
@@ -101,7 +101,7 @@ This [deployment view](https://c4model.com/diagrams/deployment) shows the applic
 
 API, worker and migration use the backend image. The API Service routes to API Pod replicas. Worker replicas have a private operations listener, with no product Service or public ingress. The optional UI has its own Deployment, Service, image and optional Ingress.
 
-The direct and pooled lines are alternatives selected in each runtime DSN. Enabling PgBouncer provisions it without changing those Secrets.
+The diagram shows the default direct SQL connections. The optional pooler uses an explicitly selected alternative route; see [direct and pooled connections](../operations/database-roles.mdx#connection-pooling-boundary). Enabling PgBouncer provisions it without changing runtime DSN Secrets.
 
 | Chart resource | Routing and authority |
 | --- | --- |

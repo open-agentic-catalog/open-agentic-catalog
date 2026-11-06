@@ -2,7 +2,6 @@
 title: Integrate a Catalog client
 ---
 
-import ClientRetry from "../../../components/architecture/ClientRetry.astro";
 import FederationPeers from "../../../components/architecture/FederationPeers.astro";
 import WebhookReceiver from "../../../components/architecture/WebhookReceiver.astro";
 
@@ -597,7 +596,7 @@ Use [the shared evidence table](understand-results.mdx#understand-what-the-evide
 
 ## Authenticate and establish membership
 
-In production, obtain an access token through the deployment's identity system. The Catalog validates issuer, audience, signature and time claims. It does not issue tokens. An accepted token still needs an active tenant-bound Catalog identity and membership. OAuth scopes or identity-provider groups alone do not grant Catalog permissions. The [security runbook](../operations/security.md) and [database-role/bootstrap procedure](../operations/database-roles.md) describe the operator setup; [configuration](../reference/configuration.mdx) defines exact claim mappings and the optional issuer-specific private CA input.
+In production, obtain an access token through the deployment's identity system. The Catalog validates issuer, audience, signature and time claims. It does not issue tokens. An accepted token still needs an active tenant-bound Catalog identity and membership. OAuth scopes or identity-provider groups alone do not grant Catalog permissions. The [security runbook](../operations/security.md) and [database-role/bootstrap procedure](../operations/database-roles.mdx) describe the operator setup; [configuration](../reference/configuration.mdx) defines exact claim mappings and the optional issuer-specific private CA input.
 
 Development tokens such as `local-admin` work only when the deployment explicitly selects development authentication and configures those token mappings. Never distribute them as production credentials. Keep real tokens out of URLs, source files, shell history, browser storage, logs and support bundles.
 
@@ -697,7 +696,13 @@ A completed command has a fixed 24-hour replay window measured from its original
 
 An active or interrupted pending reservation fails closed. It does not expire into permission to duplicate work. Ask an operator to inspect an interrupted reservation with the [idempotency repair procedure](../operations/idempotency-repair.mdx). Do not invent a new key to bypass it.
 
-<ClientRetry />
+| Command outcome | Next action |
+| --- | --- |
+| Known success | Use the returned result. If it identifies a Job, follow that Job to a terminal state; `202` means accepted. |
+| Unknown outcome | Keep the exact request, key, tenant and actor. Retry within the replay window with bounded backoff and current authorization. Never use a new key to bypass pending work. |
+| Stale revision | Read current state and its ETag, reconcile the change, then prepare a deliberate new command with a new key. Do not blindly overwrite it. |
+
+Handle other failures through their documented problem code. A retryable transport failure does not authorize changing the command's inputs.
 
 ## Track Jobs to completion
 
@@ -746,7 +751,7 @@ Federation imports approved published metadata as observations, not local Resour
 
 <FederationPeers />
 
-The arrows show metadata flow, not database replication. B initiates both synchronization and permitted live queries; live participation is optional, bounded and restricted to eligible requests. Indexed observations and local releases remain distinct even when they appear in one Search response.
+Request arrows run from B to A; response arrows return metadata to B. Each Catalog keeps its own database. B retains indexed observations, while live results remain transient. Live participation is optional, bounded and restricted to eligible requests. Indexed observations and local releases remain distinct even when they appear in one Search response.
 
 Live participation requires an administrator-approved source and query-disclosure acknowledgement. Host-bound ARD Search also requires an eligible discovery-host assignment. Authenticated Control API Search uses the tenant's approved live sources without a host assignment. Private-network sources cannot be assigned to anonymous discovery.
 
@@ -764,9 +769,13 @@ The [MCP Scanner example](mcp-scanner.mdx) uses release notifications to collect
 
 <WebhookReceiver />
 
-Store an accepted event durably before returning success. The verifier outline checks signatures but provides no durable store for deduplication or processing.
+Verify the timestamp age, raw-body signature and CloudEvent identity before acceptance. The HMAC input is the timestamp, a literal `.` and the exact raw body. Invalid input is rejected without acceptance.
+
+Atomically deduplicate by `(source, id)` and retain accepted work before returning 2xx. An accepted duplicate can receive 2xx; an inbox commit failure needs a retryable response. The verifier outline checks signatures but provides no durable store for deduplication or processing.
 
 Reconcile periodically or in response to an event. Refresh the integration's authorized Catalog scope; this does not replay missed notifications. Reading loss counters requires `webhook.read_evidence` permission. With scope enforcement enabled, it also requires `webhooks.manage`. Reading affected Catalog records requires their separate permissions. See [capacity and reconciliation](../operations/webhooks.mdx#receiver-outages-capacity-and-reconciliation) for checkpoint rules.
+
+Also refresh after restore, disabled intervals or exhausted delivery. Page the authorized scope and retain the checkpoint and observed loss counters. Repeat the refresh if those counters change while paging. There is no missed-event replay API.
 
 ## Evaluate the ARD Explorer browser client
 

@@ -36,9 +36,9 @@ CREATE DATABASE catalog OWNER catalog_owner ENCODING 'UTF8' TEMPLATE template0;
 GRANT CONNECT ON DATABASE catalog TO catalog_api, catalog_worker;
 ```
 
-Provision passwords, certificates or other database login credentials separately. Neither runtime identity may own the database/schema or have a database-role membership in either direction. The owner needs access across forced row-level security for migrations and identity provisioning. It also needs authority to reconcile extension-function grants; role creation alone does not supply that authority. The owner applies migrations and exact grants; do not add handwritten table grants. Confirm provider support for worker `BYPASSRLS` and owner extension/grant authority. See [database roles](database-roles.md) for the complete contract.
+Provision passwords, certificates or other database login credentials separately. Neither runtime identity may own the database/schema or have a database-role membership in either direction. The owner needs access across forced row-level security for migrations and identity provisioning. It also needs authority to reconcile extension-function grants; role creation alone does not supply that authority. The owner applies migrations and exact grants; do not add handwritten table grants. Confirm provider support for worker `BYPASSRLS` and owner extension/grant authority. See [database roles](database-roles.mdx) for the complete contract.
 
-Have the administrator complete [non-superuser owner preparation](database-roles.md#prepare-an-isolated-non-superuser-owner) in the selected database before continuing. A trusted `pgcrypto` installation can leave functions owned by the bootstrap superuser. The owner needs authority over these function grants as well as the Catalog schema.
+Have the administrator complete [non-superuser owner preparation](database-roles.mdx#prepare-an-isolated-non-superuser-owner) in the selected database before continuing. A trusted `pgcrypto` installation can leave functions owned by the bootstrap superuser. The owner needs authority over these function grants as well as the Catalog schema.
 
 ## Prepare configuration and file inputs
 

@@ -3,7 +3,7 @@ title: Catalog UI architecture
 ---
 
 import BrowserSession from "../../../components/architecture/BrowserSession.astro";
-import UILayout from "../../../components/architecture/UILayout.astro";
+import { FileTree } from "@astrojs/starlight/components";
 
 The optional Catalog UI is a separate browser client and Go web host. The API remains authoritative for tenancy, roles and domain transitions. [ADR-0018](decisions/0018-optional-catalog-browser-client.md) records the architecture choice and alternatives; the [user guide](../guides/catalog-ui.mdx) explains the implemented screens, and the [testing guide](../contributing/testing.md#optional-browser-client) explains browser verification.
 
@@ -83,9 +83,26 @@ Public Troubleshooting requires no product read. Its authenticated preview reque
 
 A malformed successful write has an uncertain outcome. The UI keeps the prepared command for an explicit retry with the same inputs and idempotency key.
 
-Current layout:
+The browser client lives in `catalog-ui/src/`. The Go host starts in `catalog-ui/cmd/catalog-ui/` and implements hosting, sessions and forwarding in `catalog-ui/internal/`. Build scripts and locked frontend dependencies remain beside them.
 
-<UILayout />
+<FileTree>
+
+- catalog-ui/
+  - src/ browser client
+  - cmd/catalog-ui/ host entry point
+  - internal/ Go host
+  - scripts/ development and build tools
+  - package.json
+  - package-lock.json
+  - README.md
+
+</FileTree>
+
+| Source | Responsibility |
+| --- | --- |
+| `src/` | React views, shared components, API client and browser styles. |
+| `cmd/catalog-ui/` and `internal/` | Static hosting, login, encrypted sessions and forwarding to one API. No database access. |
+| `scripts/`, `package.json` and `package-lock.json` | Local launch, generated-type checks, builds and pinned dependencies. |
 
 Tests reside beside the API client, views and Go host. The operation-to-workflow inventory, type checks and `make test-ui` Playwright harness verify browser support. The UI has its own `Containerfile` and optional Compose/Helm wiring. `test-minikube-ui` checks deployment; `make test-ui-compose` checks built images with PostgreSQL. `make test-ui-oidc` checks human-provider login. See [browser testing](../contributing/testing.md#optional-browser-client) for assertion and coverage boundaries.
 
@@ -170,7 +187,9 @@ ADR-0018 selects the implemented Go UI host as the OIDC client: it obtains the u
 
 <BrowserSession />
 
-Steps 1-6 establish an OIDC session; steps 7-8 apply to subsequent API requests in both authentication modes. Explicit development login skips the provider exchange but still requires Catalog to accept a configured test identity. It never becomes a fallback after an OIDC failure.
+The upper sequence establishes an OIDC session. Authorization and callback navigation pass through the browser; code exchange happens directly between the host and provider. Before setting the cookie, the host checks the ID token and nonce, calls `GET /api/v1/me` with the access token, and requires the same human subject in both tokens.
+
+The lower sequence applies to subsequent API requests in both authentication modes. The host checks the cookie, request marker, Origin and applicable CSRF defenses before forwarding the user's access token. Explicit development login skips the provider exchange but still requires Catalog to accept a configured test identity. It never becomes a fallback after an OIDC failure.
 
 Use maintained OIDC/OAuth libraries and Authorization Code with PKCE. Validate exact redirects/origins, state and nonce. Do not use a password grant, shared administrator token or trusted identity headers.
 

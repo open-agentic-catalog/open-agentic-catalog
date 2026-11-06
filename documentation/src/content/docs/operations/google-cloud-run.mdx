@@ -20,7 +20,7 @@ Catalog can use Cloud SQL only if the database meets the requirements below. Thi
 
 A supported Cloud SQL procedure for these runtime roles and owner permissions has not been established. Confirm how to create both exact runtime identities and prepare the owner before provisioning. Do not assume that the generic `CREATE ROLE ... BYPASSRLS` example works as the Cloud SQL administrator. SQL-created roles can also acquire an administrator membership during creation; inspect both membership directions. Do not retain `cloudsqlsuperuser` on either runtime.
 
-Follow [PostgreSQL roles](database-roles.md), including [non-superuser owner preparation](database-roles.md#prepare-an-isolated-non-superuser-owner). Installing trusted `pgcrypto` does not necessarily transfer function ownership to the Catalog owner. The owner must be able to remove `PUBLIC` and excess runtime extension privileges, then grant only the reviewed overloads. Do not copy an ownership-changing procedure into Cloud SQL without confirming provider support.
+Follow [PostgreSQL roles](database-roles.mdx), including [non-superuser owner preparation](database-roles.mdx#prepare-an-isolated-non-superuser-owner). Installing trusted `pgcrypto` does not necessarily transfer function ownership to the Catalog owner. The owner must be able to remove `PUBLIC` and excess runtime extension privileges, then grant only the reviewed overloads. Do not copy an ownership-changing procedure into Cloud SQL without confirming provider support.
 
 Require all of the following before continuing:
 
@@ -40,7 +40,7 @@ SELECT extname, extversion
  WHERE extname = 'pgcrypto';
 ```
 
-Expect `18.x`, `UTF8` and one installed `pgcrypto` row. Follow the [role inspection and migration checks](database-roles.md#apply-migrations-and-verify-runtime-authority) for the separate permission requirements.
+Expect `18.x`, `UTF8` and one installed `pgcrypto` row. Follow the [role inspection and migration checks](database-roles.mdx#apply-migrations-and-verify-runtime-authority) for the separate permission requirements.
 
 If any required operation is unavailable, stop. This Cloud SQL configuration does not meet Catalog's database requirements. Select a PostgreSQL deployment that meets the contract; do not weaken RLS, privilege inspection or role separation. No Cloud Run setting or Cloud SQL connection proxy resolves missing SQL authority.
 

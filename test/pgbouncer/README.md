@@ -64,7 +64,7 @@ The operator helper stops only this invocation's pooler and promoted writer. It 
 
 The test restores only its original, unrevoked fixture inputs before the remaining protocol cases. Cleanup independently removes its private containers, volumes and key files. `tlsRenewalEvidence` contains five validated phase records and the required acceptance/refusal proofs. A complete checkpoint survives a later test failure; the overall report still fails. Unit checks reject missing phases, wrong leaves, reused backends, missing work and invalid activation order.
 
-Kubernetes Secret projection and Pod activation use the separate Minikube selection. This local renewal test does not qualify that boundary. The [operator procedure](../../documentation/src/content/docs/operations/database-roles.md#replace-database-server-certificates) explains trust order and maintenance responsibilities.
+Kubernetes Secret projection and Pod activation use the separate Minikube selection. This local renewal test does not qualify that boundary. The [operator procedure](../../documentation/src/content/docs/operations/database-roles.mdx#replace-database-server-certificates) explains trust order and maintenance responsibilities.
 
 ## Reports and regression
 
@@ -88,4 +88,4 @@ This small warm fixture measures achieved throughput and transport/query overhea
 
 Avoid concurrent benchmarks or cluster/network campaigns and keep source unchanged during execution.
 
-The [operator pooling runbook](../../documentation/src/content/docs/operations/database-roles.md#connection-pooling-boundary) owns session-only limits, explicit DSN routing, startup parameter restrictions, protected SCRAM inputs, separate budgets, both trust hops and direct owner maintenance. Keep artifact review, findings, runs and remaining limits in local reports. Session pooling preserves warm pgx clients and does not promise connection reduction or higher throughput.
+The [operator pooling runbook](../../documentation/src/content/docs/operations/database-roles.mdx#connection-pooling-boundary) owns session-only limits, explicit DSN routing, startup parameter restrictions, protected SCRAM inputs, separate budgets, both trust hops and direct owner maintenance. Keep artifact review, findings, runs and remaining limits in local reports. Session pooling preserves warm pgx clients and does not promise connection reduction or higher throughput.

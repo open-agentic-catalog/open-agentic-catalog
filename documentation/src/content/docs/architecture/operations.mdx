@@ -6,7 +6,7 @@ import Events from "../../../components/architecture/Events.astro";
 
 ## Optional monitoring
 
-API and worker processes expose bounded Prometheus-format metrics without requiring a collector. An independent [monitoring companion chart](../operations/helm-monitoring.md) can deploy Prometheus, Grafana and the shared dashboard. It is disabled by default and is independent of the application chart. Enable it with `--set enabled=true` or `make monitoring-install`.
+API and worker processes expose bounded Prometheus-format metrics without requiring a collector. An independent [monitoring companion chart](../operations/helm-monitoring.mdx) can deploy Prometheus, Grafana and the shared dashboard. It is disabled by default and is independent of the application chart. Enable it with `--set enabled=true` or `make monitoring-install`.
 
 Only Prometheus's separate identity reads Kubernetes Pods in the selected namespace. Application Pods do not receive service-account tokens. Monitoring credentials and optional volumes are separate from Catalog PostgreSQL. Collector failure or removal does not affect Catalog readiness.
 
@@ -152,7 +152,7 @@ Metric labels never contain tenant/resource IDs, raw paths, URLs, publishers, qu
 
 Fixed Go heap, allocation, goroutine and garbage-collection (GC) metrics report unavailable states explicitly. There is no invented GC pause sum. Current heap, last-GC live heap and container resident memory are different measurements. See [local monitoring](../guides/performance-and-monitoring.md) for the Compose overlay and bounded load diagnostics.
 
-The independent [Helm monitoring chart](../operations/helm-monitoring.md) defaults to `enabled: false`. `--set enabled=true` or `make monitoring-install` deploys namespace-scoped Prometheus discovery, Grafana and the shared 32-panel dashboard. Credentials and optional retained claims are external. Disabling monitoring removes its resources but retains external claims and credentials. Collectors are not Catalog readiness or application-chart dependencies.
+The independent [Helm monitoring chart](../operations/helm-monitoring.mdx) defaults to `enabled: false`. `--set enabled=true` or `make monitoring-install` deploys namespace-scoped Prometheus discovery, Grafana and the shared 32-panel dashboard. Credentials and optional retained claims are external. Disabling monitoring removes its resources but retains external claims and credentials. Collectors are not Catalog readiness or application-chart dependencies.
 
 OTLP/HTTP tracing is disabled by default and owned by each process. Private durable causes link asynchronous attempts across replicas. Export uses isolated transport, bounded queues and the remaining shutdown time. It never gates readiness. See [observability](../operations/observability.mdx) for field rules and interpretation limits.
 
@@ -164,7 +164,7 @@ OTLP/HTTP tracing is disabled by default and owned by each process. Private dura
 
 [Security](../operations/security.md) - Production controls, keys, federation, monitoring, and incidents.
 
-[Database roles](../operations/database-roles.md) - API, worker, migrator, RLS, and bootstrap.
+[Database roles](../operations/database-roles.mdx) - API, worker, migrator, RLS, and bootstrap.
 
 [Idempotency repair](../operations/idempotency-repair.mdx) - Proof-driven recovery for interrupted commands.
 

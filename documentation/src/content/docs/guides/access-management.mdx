@@ -6,13 +6,15 @@ import ScopedAccess from "../../../components/architecture/ScopedAccess.astro";
 
 Use Catalog roles, groups and assignments to give an existing identity the permissions required for its tasks. The Catalog stores this policy. Issuer role and group claims do not grant access.
 
-Start with an active Catalog membership bound to the correct tenant, issuer realm and subject. For initial provisioning, follow [schema-owner identity bootstrap](../operations/database-roles.md#initial-catalog-identity-provisioning). Browser sign-in and Catalog access are separate; see [sign-in configuration](../operations/sign-in.md).
+Start with an active Catalog membership bound to the correct tenant, issuer realm and subject. For initial provisioning, follow [schema-owner identity bootstrap](../operations/database-roles.mdx#initial-catalog-identity-provisioning). Browser sign-in and Catalog access are separate; see [sign-in configuration](../operations/sign-in.md).
 
 ## Choose the role and scope
 
 <ScopedAccess />
 
 Check every active assignment path at the requested scope. Removing one path does not revoke an independent grant. OAuth scopes can limit the resulting permission; they cannot add permission.
+
+For example, a member has Reader in namespace A through a direct assignment and a group. Revoking only the direct assignment leaves the group's Reader permissions in A.
 
 A role defines permissions. An assignment gives that role to one membership or group, either tenant-wide or in one exact namespace. Group membership connects an existing Catalog membership directly to a group. Groups do not nest or synchronize from issuer claims.
 
@@ -104,7 +106,7 @@ An empty authorized collection means no visible match. It does not establish tha
 
 ## Bootstrap production access
 
-Create issuer users, passwords and groups at the identity provider. Catalog does not manage those credentials or import issuer role/group claims. Apply migrations with the schema owner, then run the explicit [first-administrator bootstrap](../operations/database-roles.md#initial-catalog-identity-provisioning) for the exact issuer, tenant mapping and token subject. That owner command must grant `tenant_admin` to the initial subject; it is not the ordinary user-registration workflow.
+Create issuer users, passwords and groups at the identity provider. Catalog does not manage those credentials or import issuer role/group claims. Apply migrations with the schema owner, then run the explicit [first-administrator bootstrap](../operations/database-roles.mdx#initial-catalog-identity-provisioning) for the exact issuer, tenant mapping and token subject. That owner command must grant `tenant_admin` to the initial subject; it is not the ordinary user-registration workflow.
 
 After bootstrap, open **Members > Add Catalog member** with **Membership only - no role permissions** and the explicit Human or Service identity type. Then grant the required specialist/custom role separately through **Access assignments**. No temporary Reader assignment is needed. Only human memberships can open browser OIDC sessions or use eligible personal actions. An active human with no product permissions retains eligible My work and own-rating reads; existing own-rating withdrawal retains its ownership and OAuth checks.
 
@@ -171,7 +173,7 @@ For API commands, send the administrator's bearer token, `Content-Type: applicat
 
 The older `/api/v1/role-assignments` API projects only direct assignments to its eight exact built-in templates, including grants created through `/api/v1/access/assignments`. It retains active/revoked history and membership filters across realms. Custom roles, group assignments and the six newer templates use the general API; a named-role revocation of those targets returns `NOT_FOUND` without changing them.
 
-Final-administrator protection counts active direct tenant administrators across the tenant. It does not guarantee an administrator in each realm. If a realm has no usable administrator, use the explicit schema-owner [identity provisioning procedure](../operations/database-roles.md#initial-catalog-identity-provisioning); another realm's session cannot revoke its assignments.
+Final-administrator protection counts active direct tenant administrators across the tenant. It does not guarantee an administrator in each realm. If a realm has no usable administrator, use the explicit schema-owner [identity provisioning procedure](../operations/database-roles.mdx#initial-catalog-identity-provisioning); another realm's session cannot revoke its assignments.
 
 An archived group's retained member relations are historical and grant no access. New archival requires active members and assignments to be explicitly revoked first. Existing archived history is preserved, and the UI prevents revoking those historical relations. If you already selected a member or assignment and entered a revocation reason, archiving the group keeps that editor visible with its actions disabled. Close the editor deliberately to discard its input; a newly opened archived group has no revocation editor.
 
@@ -476,7 +478,7 @@ Before planned offboarding, let an authorized member remove unwanted saved items
 
 These commands change Catalog authority, not the issuer account or issued tokens. Coordinate issuer account disablement and token/session revocation with the identity administrator. UI sign-out clears this UI's session; it does not revoke an issuer token. A retained browser session cannot bypass a suspended or offboarded Catalog membership.
 
-Group suspension temporarily disables that group's access paths while preserving its policy. It does not suspend individual memberships or remove other direct/group paths. Manage realm suspension through the separate [schema-owner realm procedure](../operations/database-roles.md#identity-realm-administration).
+Group suspension temporarily disables that group's access paths while preserving its policy. It does not suspend individual memberships or remove other direct/group paths. Manage realm suspension through the separate [schema-owner realm procedure](../operations/database-roles.mdx#identity-realm-administration).
 
 ## Development identities and role handoffs
 

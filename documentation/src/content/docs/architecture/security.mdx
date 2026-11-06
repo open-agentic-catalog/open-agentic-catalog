@@ -14,7 +14,7 @@ Scanning captured MCP descriptions does not establish runtime safety. Reports do
 
 ## Inbound identity decision
 
-Production authorization resolves identity from verified token evidence, then derives authority from Catalog-owned state. Only the resulting tenant and actor context reaches a PostgreSQL transaction.
+Production authorization resolves identity from verified token evidence, then derives authority from Catalog-owned state. Current permission reads and domain operations use transaction-local tenant and actor context for PostgreSQL RLS.
 
 <Identity />
 

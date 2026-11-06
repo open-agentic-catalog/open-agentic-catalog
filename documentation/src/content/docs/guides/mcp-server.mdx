@@ -11,7 +11,7 @@ Use the optional [HTTP endpoint](#connect-over-http) or run `catalogctl mcp serv
 
 <CatalogMCPConnections />
 
-Arrows show requests. The local command supplies its configured API token; an HTTP MCP host sends its own token directly to the API.
+The arrows between processes show requests. The local command supplies its configured API token; an HTTP MCP host sends its own token directly to the API. Inside the API frame, both entry points call shared reads in process. The `/mcp` handler makes no HTTP request back to `/api/v1`.
 
 ## How stdio connects
 

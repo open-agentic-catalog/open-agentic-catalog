@@ -2,7 +2,7 @@
 
 Migration `000031_agent_plugins.sql` adds the Plugin resource kind and immutable retained inspection documents/inventory. Runtime privilege manifest v15 introduced API insertion and API/worker reads of `plugin_inspection`, without update authority. Drain API and worker runtimes, apply migrations with the schema owner, reconcile both manifests, then start the matching binaries. External archives are not copied into PostgreSQL or reconstructed during restore.
 
-Numbered `.sql` files are the forward-only schema history embedded by [embed.go](embed.go). The migration runner in [internal/platform/database/migrate.go](../internal/platform/database/migrate.go) plans and applies them; database lifecycle and exact runtime grants are documented in the [database-role runbook](../documentation/src/content/docs/operations/database-roles.md).
+Numbered `.sql` files are the forward-only schema history embedded by [embed.go](embed.go). The migration runner in [internal/platform/database/migrate.go](../internal/platform/database/migrate.go) plans and applies them; database lifecycle and exact runtime grants are documented in the [database-role runbook](../documentation/src/content/docs/operations/database-roles.mdx).
 
 Migration `000046_publisher_search_order.sql` invalidates search cursors when a Publisher changes, because its displayed name can determine result order. It reuses the existing tenant generation function and adds no table, function or runtime grant; manifest v26 is unchanged. Apply it through the normal drained schema-owner workflow. Failure rolls back this migration; keep runtimes stopped, fix the cause and rerun. There is no data rewrite or automatic SQL rollback.
 

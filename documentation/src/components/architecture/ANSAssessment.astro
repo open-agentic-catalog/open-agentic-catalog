@@ -1,27 +1,32 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="ans-assessment-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 1399" role="img" aria-labelledby="ans-assessment-title ans-assessment-desc">
-  <title id="ans-assessment-title">From an ANS request to a private assessment</title>
-  <desc id="ans-assessment-desc">An administrator selects an exact entry from one approved source. The API admits a Job bound to that entry, source revision and loaded authority policy. A worker acquires bounded credential-free evidence and checks it under the current source and policy. The worker must still own the Job claim.
-
-  Job completion, the private result and its audit evidence commit atomically. A private result read requires current authorization and a retained read audit before disclosure, then reports current applicability. A successful Job can contain negative checks. Ordinary discovery makes no receipt requests, and an assessment does not establish software trust, artifact integrity or rights.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 365" role="img" aria-labelledby="ans-assessment-title ans-assessment-desc">
+  <title id="ans-assessment-title">From a selected entry to a private assessment</title>
+  <desc id="ans-assessment-desc">The API binds an exact source entry to a Job. The worker verifies public evidence under operator keys and policy, then atomically commits the private result, Job completion and audit. Reading checks current authorization and audits before disclosure. A succeeded Job can contain negative verification results.</desc>
   <defs><marker id="ans-assessment-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 164 V234" marker-end="url(#ans-assessment-arrow)" />
-  <path class="svg-connector" d="M320 355 V425" marker-end="url(#ans-assessment-arrow)" />
-  <path class="svg-connector" d="M320 546 V616" marker-end="url(#ans-assessment-arrow)" />
-  <path class="svg-connector" d="M320 760 V830" marker-end="url(#ans-assessment-arrow)" />
-  <path class="svg-connector" d="M320 974 V1021" marker-end="url(#ans-assessment-arrow)" />
-  <DiagramCard x={60} y={20} width={520} title={"Explicit assessment; default off"} tone="optional" lines={["Operator loads public keys, exact", "publisher domains and evidence policy", "Evidence cannot introduce trusted", "keys or network authority"]} />
-  <DiagramCard x={60} y={234} width={520} title={"1. Select one exact entry"} lines={["Use a current indexed entry or direct live selection", "Bind original bytes and source revision", "If the entry changed or is unavailable, select again"]} />
-  <DiagramCard x={60} y={425} width={520} title={"2. Accept a bound Job"} tone="core" lines={["Check current request authority and loaded policy", "Retain exact entry, source and policy bindings", "Accepted does not mean assessed"]} />
-  <DiagramCard x={60} y={616} width={520} title={"3. Acquire and check evidence"} lines={["Use bounded, credential-free fetches", "Keep signature, inclusion, target and status results separate", "Recheck the source and policy", "Verify that the worker still owns the Job claim"]} />
-  <DiagramCard x={60} y={830} width={520} title={"4. Commit the private result"} tone="authority" lines={["Commit result, Job completion and audit atomically", "The source and policy must still match", "The worker must still own the Job claim", "Audit failure rolls back completion"]} />
-  <DiagramCard x={60} y={1021} width={520} title={"5. Read the private assessment"} lines={["Check current authorization and", "retain a read audit before disclosure", "Return original evidence and current applicability", "A failed audit blocks disclosure"]} />
-  <DiagramCard x={60} y={1235} width={520} title={"Completed checks can have negative results"} tone="warning" lines={["Job success does not mean the evidence passed each check", "Ordinary discovery makes no receipt requests", "Software trust, artifact integrity", "and rights remain not_assessed"]} />
-
+  <text class="svg-copy" x="535" y="30" text-anchor="middle">Operator keys + policy</text>
+  <path class="svg-connector" d="M190 100 H235" marker-end="url(#ans-assessment-arrow)" />
+  <path class="svg-connector" d="M405 100 H450" marker-end="url(#ans-assessment-arrow)" />
+  <path class="svg-connector" d="M535 140 V230" marker-end="url(#ans-assessment-arrow)" />
+  <path class="svg-connector" d="M450 270 H405" marker-end="url(#ans-assessment-arrow)" />
+  <g><rect class="svg-node" x="20" y="60" width="170" height="80" rx="10" />
+<text class="svg-title" x="105.0" y="95.0" text-anchor="middle">Select entry</text>
+<text class="svg-copy" x="105.0" y="117.0" text-anchor="middle">Source revision</text></g>
+  <g><rect class="svg-node-core" x="235" y="60" width="170" height="80" rx="10" />
+<text class="svg-title" x="320.0" y="95.0" text-anchor="middle">Admit Job</text>
+<text class="svg-copy" x="320.0" y="117.0" text-anchor="middle">Entry + policy</text></g>
+  <g><rect class="svg-node" x="450" y="60" width="170" height="80" rx="10" />
+<text class="svg-small" x="535.0" y="95.0" text-anchor="middle">Verify evidence</text>
+<text class="svg-copy" x="535.0" y="117.0" text-anchor="middle">Worker owns claim</text></g>
+  <g><rect class="svg-node-authority" x="450" y="230" width="170" height="80" rx="10" />
+<text class="svg-title" x="535.0" y="265.0" text-anchor="middle">Commit result</text>
+<text class="svg-copy" x="535.0" y="287.0" text-anchor="middle">Job + audit</text></g>
+  <g><rect class="svg-node" x="235" y="230" width="170" height="80" rx="10" />
+<text class="svg-title" x="320.0" y="265.0" text-anchor="middle">Private read</text>
+<text class="svg-copy" x="320.0" y="287.0" text-anchor="middle">Authorize + audit</text></g>
+  <text class="svg-copy" x="320" y="347" text-anchor="middle">Checks: signature / inclusion / target / current status</text>
 </svg>
 </div>

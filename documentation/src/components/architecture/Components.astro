@@ -2,38 +2,28 @@
 import "../../styles/architecture.css";
 import DiagramCard from "./DiagramCard.astro";
 ---
-
 <div class="catalog-architecture" role="region" aria-labelledby="components-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 1615" role="img" aria-labelledby="components-title components-desc">
-  <title id="components-title">Backend layers, dependencies and runtime calls</title>
-  <desc id="components-desc">Backend entry points select API or worker roles. Runtime composition constructs services and injects adapters. Inbound HTTP and command adapters call domain services. Domain services call their own ports, implemented by platform adapters. Dotted arrows show construction or source dependencies, not network calls. Solid arrows show runtime calls. The dedicated OIDC verifier contacts only its configured issuer, separately from controlled outbound fetching. Internal boxes are Go layers in a modular monolith, not microservices.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 450" role="img" aria-labelledby="components-title components-desc">
+  <title id="components-title">Backend calls and source dependencies</title>
+  <desc id="components-desc">API handlers call domain services. Domain services call their own ports, implemented by platform adapters. Platform code depends on those contracts. Runtime composition constructs and injects the implementations. SQL and remote systems stay at the edge of the same Go application.</desc>
   <defs><marker id="components-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector svg-connector-dependency" d="M320 121 V220" marker-end="url(#components-arrow)" />
-  <text class="svg-small" x="338" y="190">Construct</text>
-  <path class="svg-connector svg-connector-dependency" d="M320 321 V400" marker-end="url(#components-arrow)" />
-  <text class="svg-small" x="338" y="374">Wire handlers</text>
-  <path class="svg-connector svg-connector-dependency" d="M580 270 H622 V960 H580" marker-end="url(#components-arrow)" />
-  <text class="svg-small" x="435" y="580">Inject adapters</text>
-  <path class="svg-connector" d="M320 524 V650" marker-end="url(#components-arrow)" />
-  <text class="svg-small" x="338" y="610">Call services</text>
-  <path class="svg-connector" d="M180 774 V900" marker-end="url(#components-arrow)" />
-  <text class="svg-small" x="60" y="846">Call ports</text>
-  <path class="svg-connector svg-connector-dependency" d="M320 900 V774" marker-end="url(#components-arrow)" />
-  <text class="svg-small" x="338" y="846">Implement ports</text>
-  <path class="svg-connector" d="M180 1024 V1170" marker-end="url(#components-arrow)" />
-  <text class="svg-small" x="60" y="1120">SQL</text>
-  <path class="svg-connector" d="M460 1024 V1170" marker-end="url(#components-arrow)" />
-  <text class="svg-small" x="480" y="1120">HTTPS</text>
-  <path class="svg-connector" d="M60 460 H18 V1500 H60" marker-end="url(#components-arrow)" />
-  <text class="svg-small" x="40" y="1395">Dedicated verifier</text>
-  <DiagramCard x={60} y={20} width={520} title={"Backend process entry points"} lines={["catalogd api and catalogd worker"]} kicker={"CONSTRUCTION"} />
-  <DiagramCard x={60} y={220} width={520} title={"Runtime composition"} lines={["Construct services and inject adapters"]} kicker={"CONSTRUCTION"} />
-  <DiagramCard x={60} y={400} width={520} title={"HTTP and command adapters"} lines={["Call domain services after protocol checks", "Use a dedicated verifier for the configured OIDC issuer"]} kicker={"INBOUND"} />
-  <DiagramCard x={60} y={650} width={520} title={"Domain services and ports"} lines={["Lifecycle, access, discovery and durable work", "Domain-owned interfaces define required operations"]} kicker={"DOMAIN"} tone={"core"} />
-  <DiagramCard x={60} y={900} width={520} title={"Platform adapters"} lines={["Implement domain ports without leaking provider types", "Keep SQL, fetching and inference at the edge"]} kicker={"OUTBOUND"} />
-  <DiagramCard x={60} y={1170} width={240} title={["PostgreSQL 18", "and pgcrypto"]} lines={["Records and leases", "Optional pgvector"]} kicker={"RUNTIME SYSTEM"} tone={"authority"} />
-  <DiagramCard x={340} y={1170} width={240} title={["Configured HTTPS", "destinations"]} lines={["Sources and receivers", "Optional embeddings"]} kicker={"RUNTIME SYSTEM"} />
-  <DiagramCard x={60} y={1450} width={520} title={"Configured OIDC issuer"} lines={["Dedicated verification, separate from federation fetching"]} kicker={"EXTERNAL SYSTEM"} />
-  <text class="svg-small" x="20" y="1595">Solid: runtime calls. Dotted: construction or source dependencies.</text>
+  <path class="svg-connector" d="M200 58 H230" marker-end="url(#components-arrow)" />
+  <path class="svg-connector" d="M410 58 H440" marker-end="url(#components-arrow)" />
+  <path class="svg-connector svg-connector-dependency" d="M500 95 V145 H320 V95" marker-end="url(#components-arrow)" />
+  <text class="svg-small" x="338" y="134">Implements ports</text>
+  <path class="svg-connector svg-connector-dependency" d="M110 210 V180 H280 V95" marker-end="url(#components-arrow)" />
+  <text class="svg-small" x="25" y="166">Build / inject</text>
+  <path class="svg-connector" d="M530 95 V210" marker-end="url(#components-arrow)" />
+  <text class="svg-small" x="542" y="176">SQL</text>
+  <path class="svg-connector" d="M620 58 H630 V393 H620" marker-end="url(#components-arrow)" />
+  <text class="svg-small" x="548" y="340">HTTPS</text>
+  <DiagramCard x={20} y={20} width={180} title="API handlers" lines={["Decode and route"]} />
+  <DiagramCard x={230} y={20} width={180} title="Domain" tone="core" lines={["Rules and ports"]} />
+  <DiagramCard x={440} y={20} width={180} title="Platform" lines={["SQL / HTTP adapters"]} />
+  <DiagramCard x={20} y={210} width={180} title="Runtime" lines={["Construct and wire"]} />
+  <DiagramCard x={440} y={210} width={180} title="PostgreSQL" tone="authority" lines={["Records and leases"]} />
+  <DiagramCard x={440} y={355} width={180} title="Remote" tone="external" lines={["HTTPS endpoints"]} />
+  <text class="svg-small" x="24" y="369">Solid: runtime calls</text>
+  <text class="svg-small" x="24" y="397">Dotted: code dependencies / wiring</text>
 </svg>
 </div>

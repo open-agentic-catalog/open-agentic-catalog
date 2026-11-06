@@ -6,7 +6,7 @@ Identify the exact image version, profile digest and process role. Record the sa
 
 | Symptom | Read-only checks | Action and stop condition |
 | --- | --- | --- |
-| Startup refuses configuration or database authority | Role-specific config validation, migration plan, safe startup error and exact-role reports. | Correct the named input; if migration/reconciliation is incomplete, stop both runtimes and follow [database roles](database-roles.md). Do not use a privileged runtime DSN. |
+| Startup refuses configuration or database authority | Role-specific config validation, migration plan, safe startup error and exact-role reports. | Correct the named input; if migration/reconciliation is incomplete, stop both runtimes and follow [database roles](database-roles.mdx). Do not use a privileged runtime DSN. |
 | Process is live but not ready | Check startup/drain state and required PostgreSQL connectivity/read-write session capability for that role. | Correct the database route/role or wait for controlled drain. Liveness must not restart a healthy process for an optional receiver outage. |
 | Local cluster startup cannot create an inotify instance or file watcher | Inspect host inotify quotas and the failing process's open-file limit. "Too many open files" can have either cause. | Follow [host inotify tuning](deployment.mdx#inotify-limits-for-local-clusters). Keep higher existing limits. Change the container host, not the Catalog Pod. |
 | JWT rejected or authorized token denied | Check configured issuer/audience/time, issuer-specific trust and active tenant membership/namespace grants. | Correct identity configuration or use authorized provisioning. Do not log the token, bypass verification or infer private object existence from a denial. |

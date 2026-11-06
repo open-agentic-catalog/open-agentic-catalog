@@ -94,7 +94,7 @@ There are no per-class enable flags, per-tenant periods, cron expressions, concu
 
 ### Runtime ownership
 
-Every inspection consumer records a tenant-inclusive use link. Cleanup markers, indexes and class-specific guards enforce eligibility. The PostgreSQL worker uses `internal/housekeeping` and `internal/platform/database`; `catalogd all` supplies the no-op adapter. The [runtime privilege manifests](../../operations/database-roles.md#exact-grants-and-extension-access) preserve separate delivery, outbox, inspection and replay authority.
+Every inspection consumer records a tenant-inclusive use link. Cleanup markers, indexes and class-specific guards enforce eligibility. The PostgreSQL worker uses `internal/housekeeping` and `internal/platform/database`; `catalogd all` supplies the no-op adapter. The [runtime privilege manifests](../../operations/database-roles.mdx#exact-grants-and-extension-access) preserve separate delivery, outbox, inspection and replay authority.
 
 The worker operations surface exposes the fixed `housekeeper` component and bounded aggregate metrics. The packaged Compose functional scenario creates eligible and protected rows, starts the worker, and proves automatic reclamation without a manual cleanup command.
 

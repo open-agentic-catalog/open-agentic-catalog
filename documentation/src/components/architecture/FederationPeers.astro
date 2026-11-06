@@ -1,29 +1,47 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="federation-peers-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 1066" role="img" aria-labelledby="federation-peers-title federation-peers-desc">
-  <title id="federation-peers-title">Published metadata between two independent Catalogs</title>
-  <desc id="federation-peers-desc">Catalog A exposes audience-scoped discovery from active local snapshots. Search can add permitted live results. Catalog B's administrator approves A as a source and controls indexed and live participation. B retains indexed observations in its own database. Incomplete synchronization preserves the last complete view.
-
-  Approved live Search returns bounded transient results. A signed continuation token replays the same bounded window of live results. The Catalog does not store a Search session. B combines local releases, indexed observations, and permitted live results for its authorized reader. Databases remain independent. B does not forward caller tokens or automatically adopt observations.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 440" role="img" aria-labelledby="federation-peers-title federation-peers-desc">
+  <title id="federation-peers-title">Two Catalogs exchange published metadata</title>
+  <desc id="federation-peers-desc">Catalog B requests indexed metadata or optional live Search results from Catalog A. Indexed observations persist in B; live results remain transient. Each Catalog keeps its own database and governance. B uses the source credential rather than its caller's token.</desc>
   <defs><marker id="federation-peers-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 355 V379 H628 V8 H320 V20" marker-end="url(#federation-peers-arrow)" />
-  <text class="svg-small" x="340" y="371">B requests A</text>
-  <path class="svg-connector" d="M320 141 V195 H12 V379 H180 V425" marker-end="url(#federation-peers-arrow)" />
-  <text class="svg-small" x="24" y="401">Returned metadata</text>
-  <path class="svg-connector" d="M320 141 V165 H618 V417 H460 V425" marker-end="url(#federation-peers-arrow)" />
-  <text class="svg-small" x="340" y="401">Returned results</text>
-  <path class="svg-connector" d="M180 641 V676 H320 V711" marker-end="url(#federation-peers-arrow)" />
-  <path class="svg-connector" d="M460 592 V676 H320 V711" marker-end="url(#federation-peers-arrow)" />
-  <DiagramCard x={60} y={20} width={520} title={"Catalog A discovery"} tone="external" lines={["Host- and audience-scoped active local snapshots", "Published metadata, never drafts;", "Search can add permitted live results"]} />
-  <DiagramCard x={60} y={211} width={520} title={"Catalog B administrator approves A"} tone="core" lines={["Control source scope, indexed/live", "participation and query disclosure", "B uses approved source credentials,", "never its caller's token"]} />
-  <DiagramCard x={60} y={425} width={240} title={["Indexed", "synchronization"]} lines={["Retain observations", "in B's PostgreSQL", "Incomplete sync keeps", "the last complete view", "External provenance,", "not local Resources"]} />
-  <DiagramCard x={340} y={425} width={240} title={"Approved live Search"} lines={["Bounded query and", "transient results", "Visible partial failures", "Bounded replay;", "no stored session"]} />
-  <DiagramCard x={60} y={711} width={520} title={"B unified Search"} tone="authority" lines={["Local releases, indexed observations", "and permitted live results", "Apply current reader-visible scope", "Selected local releases win exact typed-identity collisions"]} />
-  <DiagramCard x={60} y={925} width={520} title={"Independent databases and governance"} tone="warning" lines={["B makes requests to A; metadata flows from A to B", "Adoption is a separate command creating a local draft", "The draft still needs local validation, review and release"]} />
-
+  <rect class="svg-boundary-neutral" x="20" y="15" width="270" height="410" rx="14" />
+  <rect class="svg-boundary-neutral" x="350" y="15" width="270" height="410" rx="14" />
+  <text class="svg-title" x="155" y="48" text-anchor="middle">Catalog B</text>
+  <text class="svg-title" x="485" y="48" text-anchor="middle">Catalog A</text>
+  <path class="svg-connector" d="M260 95 H380" marker-end="url(#federation-peers-arrow)" />
+  <path class="svg-connector" d="M380 120 H260" marker-end="url(#federation-peers-arrow)" />
+  <text class="svg-small" x="320" y="82" text-anchor="middle">Fetch</text>
+  <text class="svg-small" x="320" y="148" text-anchor="middle">Entries</text>
+  <path class="svg-connector" d="M260 345 H380" marker-end="url(#federation-peers-arrow)" />
+  <path class="svg-connector" d="M380 370 H260" marker-end="url(#federation-peers-arrow)" />
+  <text class="svg-small" x="320" y="332" text-anchor="middle">Search</text>
+  <text class="svg-small" x="320" y="398" text-anchor="middle">Results</text>
+  <path class="svg-connector" d="M150 140 V190" marker-end="url(#federation-peers-arrow)" />
+  <text class="svg-small" x="171" y="174" text-anchor="start">Retain</text>
+  <path class="svg-connector" d="M490 140 V190" marker-end="url(#federation-peers-arrow)" />
+  <text class="svg-small" x="508" y="174" text-anchor="start">Read</text>
+  <path class="svg-connector" d="M490 320 V260" marker-end="url(#federation-peers-arrow)" />
+  <text class="svg-small" x="507" y="296" text-anchor="start">Read</text>
+  <rect class="svg-node" x="40" y="70" width="220" height="70" rx="12" />
+  <text class="svg-title" x="150" y="98" text-anchor="middle">Indexed sync</text>
+  <text class="svg-copy" x="150" y="122" text-anchor="middle">Worker</text>
+  <rect class="svg-node-authority" x="40" y="190" width="220" height="70" rx="12" />
+  <text class="svg-title" x="150" y="218" text-anchor="middle">B PostgreSQL</text>
+  <text class="svg-copy" x="150" y="242" text-anchor="middle">External observations</text>
+  <rect class="svg-node-optional" x="40" y="320" width="220" height="70" rx="12" />
+  <text class="svg-title" x="150" y="348" text-anchor="middle">Live Search</text>
+  <text class="svg-copy" x="150" y="372" text-anchor="middle">Optional; transient</text>
+  <rect class="svg-node" x="380" y="70" width="220" height="70" rx="12" />
+  <text class="svg-title" x="490" y="98" text-anchor="middle">Manifest / List</text>
+  <text class="svg-copy" x="490" y="122" text-anchor="middle">Published metadata</text>
+  <rect class="svg-node-authority" x="380" y="190" width="220" height="70" rx="12" />
+  <text class="svg-title" x="490" y="218" text-anchor="middle">A PostgreSQL</text>
+  <text class="svg-copy" x="490" y="242" text-anchor="middle">Active snapshot</text>
+  <rect class="svg-node" x="380" y="320" width="220" height="70" rx="12" />
+  <text class="svg-title" x="490" y="348" text-anchor="middle">ARD Search</text>
+  <text class="svg-copy" x="490" y="372" text-anchor="middle">Host + audience</text>
 </svg>
 </div>

@@ -149,7 +149,7 @@ On `SIGTERM`, the process enters `draining`, API readiness is disabled, workers 
 
 Collection is optional. Catalog emits metrics without [Prometheus](https://prometheus.io/docs/introduction/overview/), [Grafana](https://grafana.com/docs/grafana/latest/) or an OpenTelemetry backend. The owned `make test-monitoring` fixture checks exact configured API/worker scrape identities, an authorized retained Resource read while both collectors are stopped, and fresh underlying application sample timestamps for both roles after restart. Collector readiness and instant-query evaluation time alone do not prove collection recovered.
 
-Metrics use pull-based Prometheus text at `/metrics`. Optional distributed tracing independently exports OTLP/HTTP protobuf spans. Direct OTLP metrics/log export and arbitrary `OTEL_*` environment configuration are not supported. Follow [Monitoring with Prometheus and Grafana](helm-monitoring.md) for existing-collector setup, static targets, access controls or the optional Helm stack.
+Metrics use pull-based Prometheus text at `/metrics`. Optional distributed tracing independently exports OTLP/HTTP protobuf spans. Direct OTLP metrics/log export and arbitrary `OTEL_*` environment configuration are not supported. Follow [Monitoring with Prometheus and Grafana](helm-monitoring.mdx) for existing-collector setup, static targets, access controls or the optional Helm stack.
 
 <TelemetryPaths />
 
@@ -164,6 +164,14 @@ Outside Kubernetes, configure the same two role endpoints through the deployment
 <JobLifecycle />
 
 Automatic attempts keep the same Job. Manual retry creates a child only from failed or dead-letter work. Running cancellation requests a cooperative stop; it does not undo completed effects. Cancelling terminal work is an audited no-op.
+
+| Starting state or condition | Transition |
+| --- | --- |
+| `queued` or `waiting` | A worker claims the Job as `running`; cancellation is immediate before a claim. |
+| `running` | The current claim commits success, waiting, terminal failure or acknowledged cooperative cancellation. |
+| Expired running claim | Another worker can recover it. The stale worker cannot commit completion. |
+| `failed` or `dead_letter` | An authorized manual retry with a reason creates a queued child; the parent history remains unchanged. |
+| Any terminal state | It does not reopen. Succeeded and cancelled Jobs cannot be retried. |
 
 Jobs lists bounded pages of retained background work, newest first. Open a Job for progress, attempts, safe failure information and result references. Source synchronization, ANS registration assessment, Discovery snapshot generation and Search indexing have readable labels. The exact Job kind remains visible.
 
@@ -425,7 +433,7 @@ up{catalog_deployment=~"local",catalog_role=~"api|worker"}
 (rate(open_agentic_catalog_postgresql_pool_empty_acquire_seconds_total{catalog_deployment=~"local",catalog_role=~"api|worker"}[1m])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
 ```
 
-Also inspect increases in `open_agentic_catalog_postgresql_pool_acquire_canceled_total` for the same healthy process. Cancellation can follow a caller cancellation or deadline; it does not establish pool exhaustion by itself. Compare both signals with the [connection and work budgets](database-roles.md#replica-and-dependency-budget).
+Also inspect increases in `open_agentic_catalog_postgresql_pool_acquire_canceled_total` for the same healthy process. Cancellation can follow a caller cancellation or deadline; it does not establish pool exhaustion by itself. Compare both signals with the [connection and work budgets](database-roles.mdx#replica-and-dependency-budget).
 
 **Check the oldest runnable Job.** This database-global age is repeated by reporting workers. Keep the per-worker results; do not sum them. Increasing age can indicate stalled eligible work.
 
@@ -455,7 +463,7 @@ Rates are calculated before process aggregation so counter resets retain their m
 
 Choose alert thresholds and persistence windows from your workload, collection cadence and operational objectives. Define who responds and which runbook they use. A short failure spike and a sustained unavailable dependency need different responses. These examples install no alert rules or notification service.
 
-Use infrastructure monitoring for filesystem space, PostgreSQL replication/WAL and backup success. Review [storage planning](maintenance.mdx#plan-storage-growth) and the [backup contract](backup-restore.mdx#backup-contract) with their owners. The [monitoring setup](helm-monitoring.md#check-collection) explains target discovery and collection checks.
+Use infrastructure monitoring for filesystem space, PostgreSQL replication/WAL and backup success. Review [storage planning](maintenance.mdx#plan-storage-growth) and the [backup contract](backup-restore.mdx#backup-contract) with their owners. The [monitoring setup](helm-monitoring.mdx#check-collection) explains target discovery and collection checks.
 
 ### Operational metering boundaries
 
@@ -509,7 +517,7 @@ Enabled [asynchronous tracing](#distributed-tracing) links attempt traces and re
 
 ## Go runtime metric inventory
 
-Instrumentation is always available; `LOCAL_MONITORING` controls optional Compose collectors, not metric emission. The [performance and monitoring guide](../guides/performance-and-monitoring.md#configure-trials-and-review-fixed-limits) lists Compose controls. The [optional Helm monitoring guide](helm-monitoring.md) covers the independent companion release, namespace-scoped discovery, storage and owned Minikube qualification. No collector setting is a Catalog runtime JSON field or a production alert policy.
+Instrumentation is always available; `LOCAL_MONITORING` controls optional Compose collectors, not metric emission. The [performance and monitoring guide](../guides/performance-and-monitoring.md#configure-trials-and-review-fixed-limits) lists Compose controls. The [optional Helm monitoring guide](helm-monitoring.mdx) covers the independent companion release, namespace-scoped discovery, storage and owned Minikube qualification. No collector setting is a Catalog runtime JSON field or a production alert policy.
 
 Every API and worker scrape samples a fixed standard-library `runtime/metrics` allowlist without forcing GC, adding a profiler or holding the registry update lock. The following families are process-local, have no application labels, and reset with the process. Values are samples, not an atomic runtime snapshot. No optional collector is required to emit them.
 

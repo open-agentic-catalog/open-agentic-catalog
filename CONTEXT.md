@@ -54,7 +54,7 @@ It records what each resource is, which exact version was reviewed, who approved
 
 The application is a standalone modular monolith. Other UIs, CLIs, IDEs and assistants use its HTTP/discovery contracts. Redis, Kafka, Vault, PgBouncer, model providers and Kubernetes are not required runtime dependencies.
 
-Optional chart-managed PgBouncer uses session pooling, one private `Recreate` replica and distinct API/worker logins. Both TLS hops remain verified; schema-owner operations connect directly. Enablement never rewrites DSN Secrets. Warm pgx sessions need separate backend budgets. Runtime admission refuses advertised non-session mode. The [pooling runbook](documentation/src/content/docs/operations/database-roles.md#connection-pooling-boundary) owns enablement, maintenance and capacity limits.
+Optional chart-managed PgBouncer uses session pooling, one private `Recreate` replica and distinct API/worker logins. Both TLS hops remain verified; schema-owner operations connect directly. Enablement never rewrites DSN Secrets. Warm pgx sessions need separate backend budgets. Runtime admission refuses advertised non-session mode. The [pooling runbook](documentation/src/content/docs/operations/database-roles.mdx#connection-pooling-boundary) owns enablement, maintenance and capacity limits.
 
 The [design philosophy](documentation/src/content/docs/architecture/design.mdx#operational-simplicity-and-least-surprise) favors operational simplicity and least surprise: explicit configuration and external secrets, replaceable processes, externally retained durable state and deployment-collected logs. Infrastructure owns PostgreSQL HA, promotion, fencing and writer routing; Catalog owns safe connection recovery, readiness and durable-work semantics. Reuse driver/pool behavior and existing bounded retry policies, applying configurable backoff/jitter where appropriate without stacked loops or blind replay of uncertain writes. New custom mechanisms need a demonstrated requirement; this guidance introduces no new runtime setting or capability.
 
@@ -506,7 +506,7 @@ Neither is a health check or data-repair tool.
 
 ### Direct Docker
 
-The [Docker guide](documentation/src/content/docs/operations/docker.mdx) runs separate API/worker images against operator-supplied PostgreSQL without Compose or Kubernetes. Source builds use the container Go compiler; explicitly select `CONTAINER_PLATFORM` to avoid host Go detection. Use selected `-e` or Docker-compatible `--env-file` inputs and separate mounted DSNs. Never pass Make's workflow `.env` wholesale. The [owner setup](documentation/src/content/docs/operations/database-roles.md#prepare-an-isolated-non-superuser-owner) requires forced-RLS access and extension-function grant authority. A Docker memory choice is also available in the local quickstart.
+The [Docker guide](documentation/src/content/docs/operations/docker.mdx) runs separate API/worker images against operator-supplied PostgreSQL without Compose or Kubernetes. Source builds use the container Go compiler; explicitly select `CONTAINER_PLATFORM` to avoid host Go detection. Use selected `-e` or Docker-compatible `--env-file` inputs and separate mounted DSNs. Never pass Make's workflow `.env` wholesale. The [owner setup](documentation/src/content/docs/operations/database-roles.mdx#prepare-an-isolated-non-superuser-owner) requires forced-RLS access and extension-function grant authority. A Docker memory choice is also available in the local quickstart.
 
 ### Persistent Compose with UI
 

@@ -254,7 +254,7 @@ Open the displayed authorization URL in a browser on the CLI machine. Omit `--sc
 
 ## Configure scopes and Catalog membership
 
-Set backend `auth.issuer` to the exact realm URL and `auth.audience` to `open-agentic-catalog`. Start with dedicated tenancy for one Catalog tenant. Follow [initial identity provisioning](database-roles.md#initial-catalog-identity-provisioning) with the Keycloak user's UUID as `--subject`. Verify that it is the actual access-token `sub`, not the username or email address.
+Set backend `auth.issuer` to the exact realm URL and `auth.audience` to `open-agentic-catalog`. Start with dedicated tenancy for one Catalog tenant. Follow [initial identity provisioning](database-roles.mdx#initial-catalog-identity-provisioning) with the Keycloak user's UUID as `--subject`. Verify that it is the actual access-token `sub`, not the username or email address.
 
 To enforce an OAuth ceiling, define the required Catalog scope names in Keycloak. Assign them to the intended clients as permitted default or optional scopes. Request optional scopes through UI `scopes` or repeated CLI `--scope` flags. Verify the resulting whitespace-separated `scope` claim before enabling `auth.enforceScopes`.
 
@@ -379,7 +379,7 @@ The selected human tokens last 30 minutes, with no requested offline refresh. Th
 
 ### Migrate and bootstrap the first Catalog administrator
 
-The fresh database initializer creates `catalog_owner` as a non-superuser schema/database owner with `BYPASSRLS`. It creates distinct `catalog_api` (`NOBYPASSRLS`) and `catalog_worker` (`BYPASSRLS`) logins, all `NOINHERIT`, with no role membership. It installs `pgcrypto` and assigns its function-grant authority to the isolated owner, following [owner preparation](database-roles.md#prepare-an-isolated-non-superuser-owner). Initialization runs only for fresh volumes; editing the SQL does not rerun it against existing data.
+The fresh database initializer creates `catalog_owner` as a non-superuser schema/database owner with `BYPASSRLS`. It creates distinct `catalog_api` (`NOBYPASSRLS`) and `catalog_worker` (`BYPASSRLS`) logins, all `NOINHERIT`, with no role membership. It installs `pgcrypto` and assigns its function-grant authority to the isolated owner, following [owner preparation](database-roles.mdx#prepare-an-isolated-non-superuser-owner). Initialization runs only for fresh volumes; editing the SQL does not rerun it against existing data.
 
 Check those identities, then apply every pending migration and reconcile both runtime manifests:
 

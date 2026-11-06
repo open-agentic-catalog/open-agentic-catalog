@@ -1,39 +1,53 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="job-lifecycle-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 1116" role="img" aria-labelledby="job-lifecycle-title job-lifecycle-desc">
-  <title id="job-lifecycle-title">Job attempts, cancellation and manual retry</title>
-  <desc id="job-lifecycle-desc">Queued and waiting Jobs can be claimed as running work. A running attempt commits success, classified failure, bounded retry waiting, exhaustion or cooperative cancellation under its current claim. Queued or waiting cancellation is immediate; running cancellation only requests a stop and does not undo side effects. Expired claims can be recovered, while stale workers cannot commit. Manual retry of a failed or dead_letter Job creates a separate queued child Job. A request to cancel a terminal Job does not change its state.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 560" role="img" aria-labelledby="job-lifecycle-title job-lifecycle-desc">
+  <title id="job-lifecycle-title">Job states and retry attempts</title>
+  <desc id="job-lifecycle-desc">Queued or waiting Jobs can run under a worker claim. A retryable attempt waits before being claimed again. Success, cancellation and terminal failures do not reopen. Manual retry of failed or dead-letter work creates a new child Job.</desc>
   <defs><marker id="job-lifecycle-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 95 V165" marker-end="url(#job-lifecycle-arrow)" />
-  <text class="svg-small" x="332" y="122">Claim</text>
-  <path class="svg-connector" d="M320 263 V298 H180 V333" marker-end="url(#job-lifecycle-arrow)" />
-  <text class="svg-small" x="192" y="290">Retryable</text>
-  <path class="svg-connector" d="M60 394 H12 V149 H320 V165" marker-end="url(#job-lifecycle-arrow)" />
-  <text class="svg-small" x="38" y="309">Due</text>
-  <path class="svg-connector" d="M320 263 V298 H460 V333" marker-end="url(#job-lifecycle-arrow)" />
-  <text class="svg-small" x="480" y="319">Complete</text>
-  <path class="svg-connector" d="M320 95 V119 H22 V478 H180 V524" marker-end="url(#job-lifecycle-arrow)" />
-  <text class="svg-small" x="38" y="500">Cancel queued</text>
-  <path class="svg-connector" d="M180 454 V524" marker-end="url(#job-lifecycle-arrow)" />
-  <text class="svg-small" x="192" y="481">Cancel waiting</text>
-  <path class="svg-connector" d="M320 263 V317 H32 V516 H180 V524" marker-end="url(#job-lifecycle-arrow)" />
-  <text class="svg-small" x="240" y="505">Stop acknowledged</text>
-  <path class="svg-connector" d="M320 263 V287 H628 V462 H460 V524" marker-end="url(#job-lifecycle-arrow)" />
-  <text class="svg-small" x="340" y="452">Terminal failure</text>
-  <path class="svg-connector" d="M460 645 V703 H320 V738" marker-end="url(#job-lifecycle-arrow)" />
-  <text class="svg-small" x="330" y="695">Manual retry</text>
-  <DiagramCard x={60} y={20} width={520} title={"queued"} tone="core" lines={["Admitted, not yet claimed"]} />
-  <DiagramCard x={60} y={165} width={520} title={"running"} lines={["Worker owns the current claim", "Expired claims can be recovered"]} />
-  <DiagramCard x={60} y={333} width={240} title={"waiting"} lines={["Same Job, scheduled retry", "Claim again when", "delay is due"]} />
-  <DiagramCard x={340} y={333} width={240} title={"succeeded"} tone="authority" lines={["Completion committed", "under the exact claim"]} />
-  <DiagramCard x={60} y={524} width={240} title={"cancelled"} tone="warning" lines={["Queued/waiting: immediate", "Running: cooperative stop", "Stop does not", "undo side effects"]} />
-  <DiagramCard x={340} y={524} width={240} title={"failed / dead_letter"} tone="warning" lines={["Terminal failure or", "exhausted attempts", "Retain terminal outcome"]} />
-  <DiagramCard x={60} y={738} width={520} title={"New queued child Job"} tone="core" lines={["Authorized manual retry with a", "reason: failed / dead_letter only", "Keep the parent's history and result intact"]} />
-  <DiagramCard x={60} y={929} width={520} title={"Terminal states do not reopen"} tone="warning" lines={["Stale workers cannot commit completion", "A request to cancel a terminal Job creates audit evidence", "without changing its state", "Succeeded and cancelled Jobs cannot be retried", "Job result and source snapshot state are separate"]} />
-
+  <path class="svg-connector" d="M185 75 H245" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="215" y="62" text-anchor="middle">Claim</text>
+  <path class="svg-connector" d="M270 110 V185 H110 V220" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="188" y="206" text-anchor="middle">Retryable</text>
+  <path class="svg-connector" d="M35 250 H25 V135 H220 V75 H245" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="100" y="158" text-anchor="middle">Due</text>
+  <path class="svg-connector" d="M320 110 V220" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="336" y="180" text-anchor="start">Complete</text>
+  <path class="svg-connector" d="M395 75 H530 V220" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="442" y="162" text-anchor="start">Fail</text>
+  <text class="svg-small" x="442" y="184" text-anchor="start">or exhaust</text>
+  <path class="svg-connector" d="M35 75 H12 V390 H70" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="22" y="328" text-anchor="start">Cancel</text>
+  <path class="svg-connector" d="M110 285 V355" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="122" y="325" text-anchor="start">Cancel</text>
+  <path class="svg-connector" d="M395 95 H425 V335 H255 V355" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="225" y="324" text-anchor="start">Stop acknowledged</text>
+  <path class="svg-connector" d="M530 285 V405" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="545" y="350" text-anchor="start">Manual</text>
+  <text class="svg-small" x="545" y="372" text-anchor="start">retry</text>
+  <path class="svg-connector" d="M565 460 V475 H360" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="470" y="497" text-anchor="middle">New child</text>
+  <path class="svg-connector" d="M395 48 H420 V10 H320 V40" marker-end="url(#job-lifecycle-arrow)" />
+  <text class="svg-small" x="150" y="22" text-anchor="middle">Expired claim: reclaim</text>
+  <rect class="svg-node-core" x="35" y="40" width="150" height="70" rx="12" />
+  <text class="svg-title" x="110" y="82" text-anchor="middle">queued</text>
+  <rect class="svg-node-core" x="245" y="40" width="150" height="70" rx="12" />
+  <text class="svg-title" x="320" y="82" text-anchor="middle">running</text>
+  <rect class="svg-node" x="35" y="220" width="150" height="65" rx="12" />
+  <text class="svg-title" x="110" y="259.5" text-anchor="middle">waiting</text>
+  <rect class="svg-node-authority" x="245" y="220" width="150" height="65" rx="12" />
+  <text class="svg-title" x="320" y="259.5" text-anchor="middle">succeeded</text>
+  <rect class="svg-node-warning" x="455" y="220" width="170" height="65" rx="12" />
+  <text class="svg-title" x="540" y="247.5" text-anchor="middle">failed /</text>
+  <text class="svg-title" x="540" y="271.5" text-anchor="middle">dead_letter</text>
+  <rect class="svg-node-warning" x="70" y="355" width="210" height="70" rx="12" />
+  <text class="svg-title" x="175" y="397" text-anchor="middle">cancelled</text>
+  <rect class="svg-node" x="455" y="405" width="170" height="55" rx="12" />
+  <text class="svg-title" x="540" y="439.5" text-anchor="middle">Retry command</text>
+  <rect class="svg-node-core" x="190" y="450" width="170" height="70" rx="12" />
+  <text class="svg-title" x="275" y="480" text-anchor="middle">queued</text>
+  <text class="svg-title" x="275" y="504" text-anchor="middle">child Job</text>
 </svg>
 </div>

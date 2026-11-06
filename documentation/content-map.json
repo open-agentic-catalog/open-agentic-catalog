@@ -170,7 +170,7 @@
     "route": "operations/backup-restore"
   },
   {
-    "source": "documentation/src/content/docs/operations/database-roles.md",
+    "source": "documentation/src/content/docs/operations/database-roles.mdx",
     "route": "operations/database-roles"
   },
   {
@@ -182,7 +182,7 @@
     "route": "operations/vault"
   },
   {
-    "source": "documentation/src/content/docs/operations/helm-monitoring.md",
+    "source": "documentation/src/content/docs/operations/helm-monitoring.mdx",
     "route": "operations/helm-monitoring"
   },
   {

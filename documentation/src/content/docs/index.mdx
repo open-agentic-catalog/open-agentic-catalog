@@ -19,7 +19,7 @@ Clients use [Agentic Resource Discovery (ARD)](reference/standards.mdx#discover-
 
 <CatalogOverview />
 
-Local listings pass through review and publication. Administrator-approved sources contribute federated results with their source provenance intact. Discovery returns metadata; it does not grant permission to install, deploy or execute a resource.
+Local listings pass through review and release publication. Host discovery additionally requires snapshot generation and activation. Administrator-approved sources contribute federated results with their source provenance intact. Discovery returns metadata; it does not grant permission to install, deploy or execute a resource.
 
 ## Explore the Catalog UI
 
@@ -90,7 +90,7 @@ Support follows pinned specification versions and formats. See [Standards and in
 
 ## Availability and deployment boundaries
 
-This logical view separates the optional browser client and Go host from backend processes and the Catalog data store. The frame identifies the Catalog service, not a host or OCI image.
+This logical view separates the optional browser client and Go host from backend processes and the Catalog data store. The boxes identify applications and data independently of their hosting.
 
 <WelcomeDeployment />
 
@@ -98,7 +98,7 @@ API and worker containers use the same backend image and share PostgreSQL. The o
 
 PostgreSQL 18 with `pgcrypto` stores Catalog data. Core exact, lexical, filtered, faceted and federated discovery works without embeddings.
 
-[Webhooks](operations/webhooks.mdx) and [OTLP tracing](operations/observability.mdx#distributed-tracing) are available and disabled by default. Prometheus-format metrics are available without a collector; the optional [monitoring chart](operations/helm-monitoring.md) adds Prometheus, Grafana and dashboards. [Optional hybrid search](operations/hybrid-search.mdx) combines keyword and semantic matches through one configured embedding endpoint and pgvector, with keyword fallback during indexing or provider outages.
+[Webhooks](operations/webhooks.mdx) and [OTLP tracing](operations/observability.mdx#distributed-tracing) are available and disabled by default. Prometheus-format metrics are available without a collector; the optional [monitoring chart](operations/helm-monitoring.mdx) adds Prometheus, Grafana and dashboards. [Optional hybrid search](operations/hybrid-search.mdx) combines keyword and semantic matches through one configured embedding endpoint and pgvector, with keyword fallback during indexing or provider outages.
 
 Managed-media providers and scanner integrations remain unavailable; enabling those flags fails startup.
 

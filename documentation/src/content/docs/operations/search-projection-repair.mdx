@@ -24,7 +24,7 @@ Indexed repositories apply these predicates before totals, ranking, identity gro
 
 ## Authority and prerequisites
 
-Apply current migrations and [exact runtime grants](database-roles.md) before repair. Use the current build and operator-controlled schema-owner DSN. PostgreSQL 18 with UTF8 encoding is required. Generated local search fields and indexed ranking vectors need no separate repair.
+Apply current migrations and [exact runtime grants](database-roles.mdx) before repair. Use the current build and operator-controlled schema-owner DSN. PostgreSQL 18 with UTF8 encoding is required. Generated local search fields and indexed ranking vectors need no separate repair.
 
 The command verifies the exact valid sparse index and rejects API and worker database roles. It requires an explicit tenant UUID, applies tenant RLS context, and accepts limits from 1 through 1,000. Drain API and worker processes before this upgrade. Keep them stopped while repairing every tenant, then restart matching upgraded processes. Keep restored runtimes stopped during isolated recovery too. Search returns `DEPENDENCY_UNAVAILABLE` when a tenant has missing or outdated projections; it does not silently omit results.
 

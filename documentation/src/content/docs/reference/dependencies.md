@@ -20,7 +20,7 @@ A stable tool can require an exact prerelease dependency. Review that upstream r
 
 The application chart can provision a separately pulled PgBouncer image with `pgbouncer.enabled=true`; it defaults off and is not embedded in the Catalog image or imported Go dependencies. The selected digest lives in the [chart values](../../../../../deployments/helm/open-agentic-catalog/values.yaml), aligned with the two qualification fixtures. This is optional database-path infrastructure when enabled, rather than a development-only tool. PostgreSQL and its stable writer endpoint remain operator-supplied; migrations and other owner operations stay direct.
 
-Upstream PgBouncer uses ISC and the container recipe MIT, while bundled OS packages include GPL and other licenses. Keep their notices and corresponding-source obligations when redistributing the independent image; this does not widen the Go license allowlist. Record exact source/image identities, both architecture inventories and execution limits with each local qualification. Review updates deliberately with image vulnerability/license scans and both `make test-pgbouncer` and `make test-minikube-pgbouncer`; align the chart/default and both fixtures rather than silently updating a mutable tag. The [pooling runbook](../operations/database-roles.md#connection-pooling-boundary) owns TLS, credentials, budgets and supported session mode.
+Upstream PgBouncer uses ISC and the container recipe MIT, while bundled OS packages include GPL and other licenses. Keep their notices and corresponding-source obligations when redistributing the independent image; this does not widen the Go license allowlist. Record exact source/image identities, both architecture inventories and execution limits with each local qualification. Review updates deliberately with image vulnerability/license scans and both `make test-pgbouncer` and `make test-minikube-pgbouncer`; align the chart/default and both fixtures rather than silently updating a mutable tag. The [pooling runbook](../operations/database-roles.mdx#connection-pooling-boundary) owns TLS, credentials, budgets and supported session mode.
 
 ## Optional local SonarQube tooling
 
@@ -264,7 +264,7 @@ Zod 4.6.6 enforces declared collection limits before it validates elements. The 
 
 ## Optional local monitoring tools
 
-Prometheus and Grafana are optional upstream tools, used by Compose fixtures and the independently installed [monitoring companion chart](../operations/helm-monitoring.md), not Catalog runtime dependencies. The chart packages configuration and image references, not the upstream images. This does not change the permissive Go import policy or authorize linking, bundling, mirroring or redistributing these images with Catalog artifacts.
+Prometheus and Grafana are optional upstream tools, used by Compose fixtures and the independently installed [monitoring companion chart](../operations/helm-monitoring.mdx), not Catalog runtime dependencies. The chart packages configuration and image references, not the upstream images. This does not change the permissive Go import policy or authorize linking, bundling, mirroring or redistributing these images with Catalog artifacts.
 
 `deployments/monitoring/images.json` is the single pin authority for Prometheus 3.15.1 and Grafana OSS 13.2.4. Both indexes provide linux/amd64 and linux/arm64. Runtime and browser qualification covers linux/amd64.
 

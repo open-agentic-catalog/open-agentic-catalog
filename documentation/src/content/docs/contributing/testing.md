@@ -2339,7 +2339,7 @@ Timings are report-only. The bounded `tests.jsonl` output labels all six workloa
 
 See the [pooler harness](../../../../../test/pgbouncer/README.md) for bounds and interpretation. No separate load framework or new timing gate is added.
 
-The [database pooling runbook](../operations/database-roles.md#connection-pooling-boundary) owns enablement, client/upstream TLS, supported settings, capacities, Secret/CA content rollout and operator maintenance. These selected gates supplement `test-integration` and `test-process-postgres`; they do not replace the dynamic repository fault matrix or establish pooler HA, transparent maintenance, older external poolers or ARM64 execution.
+The [database pooling runbook](../operations/database-roles.mdx#connection-pooling-boundary) owns enablement, client/upstream TLS, supported settings, capacities, Secret/CA content rollout and operator maintenance. These selected gates supplement `test-integration` and `test-process-postgres`; they do not replace the dynamic repository fault matrix or establish pooler HA, transparent maintenance, older external poolers or ARM64 execution.
 
 ## Listing artwork verification
 

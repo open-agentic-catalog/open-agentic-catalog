@@ -18,7 +18,6 @@
   --amber-soft: light-dark(#fff1c7, #493b15);
   --purple: light-dark(#6842a0, #c7a9ff);
   --purple-soft: light-dark(#eee6ff, #352655);
-  --diagram-grid: light-dark(rgba(16, 42, 67, 0.055), rgba(202, 222, 243, 0.06));
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
   --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color-scheme: dark;
@@ -27,8 +26,7 @@
   max-width: 100%;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: linear-gradient(var(--diagram-grid) 1px, transparent 1px), linear-gradient(90deg, var(--diagram-grid) 1px, transparent 1px), var(--surface);
-  background-size: 24px 24px;
+  background: var(--surface);
   padding: .5rem;
   margin-block: 1.5rem;
 }
@@ -113,6 +111,12 @@
   fill: var(--ink);
   font-size: 20px;
   font-weight: 780;
+}
+
+.catalog-architecture .svg-node-label {
+  fill: var(--ink);
+  font-size: 16px;
+  font-weight: 650;
 }
 
 .catalog-architecture .svg-copy {
