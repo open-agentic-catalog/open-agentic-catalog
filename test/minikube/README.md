@@ -92,7 +92,7 @@ The certificate phase updates the external database CA ConfigMap and the two ser
 
 The test drains API, worker and pooler Pods before replacing consumers. CA overlap and retirement retain the PostgreSQL Pod; successor leaves require a new PostgreSQL Pod. Fresh verified SQL connections check both server identities, exact roles and backend TLS. Each phase replays the governed smoke workflow and completes a distinct source-sync Job. The report records public certificate/trust hashes, Pod placements, backend identities and Job IDs. Predecessor-only client trust must reject both successor endpoints.
 
-These fixture operations are certificate maintenance, with no schema change or Helm upgrade. The existing coordinator checks still own installation, upgrades and return to direct DSNs. The [database certificate procedure](../../documentation/src/content/docs/operations/database-roles.md#activate-projected-database-certificates-in-kubernetes) explains operator ordering and failure recovery. The separate local drill proves valid old-chain peer rejection after consumer trust retirement.
+These fixture operations are certificate maintenance, with no schema change or Helm upgrade. The existing coordinator checks still own installation, upgrades and return to direct DSNs. The [database certificate procedure](../../documentation/src/content/docs/operations/database-roles.mdx#activate-projected-database-certificates-in-kubernetes) explains operator ordering and failure recovery. The separate local drill proves valid old-chain peer rejection after consumer trust retirement.
 
 It supplements the basic/topology gates and the [local protocol/recovery gate](../pgbouncer/README.md); it does not qualify multi-pooler HA or ARM64 execution. Reports and independently checked cleanup use the existing owned harness.
 
@@ -151,7 +151,7 @@ At each stage, the test checks exact command replay, ungranted Resource-write re
 
 Original workers must remain ready without restarts. Scale-up retains the original APIs; metrics loss retains all three; scale-down retains two of those three.
 
-Each backend pool permits eight connections. The maximum steady-state runtime budget is `3 * 8 + 2 * 8 = 40`. Ordinary PostgreSQL capacity must cover those 40 connections, two owner connections, two observer connections and ten spare connections. This excludes deployment surge and migration overlap. Use the [operator worksheet](../../documentation/src/content/docs/operations/database-roles.md#replica-and-dependency-budget) for production limits.
+Each backend pool permits eight connections. The maximum steady-state runtime budget is `3 * 8 + 2 * 8 = 40`. Ordinary PostgreSQL capacity must cover those 40 connections, two owner connections, two observer connections and ten spare connections. This excludes deployment surge and migration overlap. Use the [operator worksheet](../../documentation/src/content/docs/operations/database-roles.mdx#replica-and-dependency-budget) for production limits.
 
 Failed workload evidence retains at most 32 classified failures, reader lanes, elapsed times and fixed phase labels. It includes no response bodies, credentials or arbitrary problem details. A failed run prints this evidence before cleanup, because it cannot produce a successful final report.
 

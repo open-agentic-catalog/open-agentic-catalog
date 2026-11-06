@@ -92,7 +92,7 @@ Follow [remote command settings](../reference/commands.md#remote-catalog-reads) 
 
 ## Provision permissions and verify
 
-Provision the exact access-token subject, such as the provider-assigned `auth0|...` value, through [Catalog identity setup](database-roles.md#initial-catalog-identity-provisioning). Do not use an email address as a substitute. Auth0 roles, groups and `permissions` arrays do not create Catalog grants.
+Provision the exact access-token subject, such as the provider-assigned `auth0|...` value, through [Catalog identity setup](database-roles.mdx#initial-catalog-identity-provisioning). Do not use an email address as a substitute. Auth0 roles, groups and `permissions` arrays do not create Catalog grants.
 
 Enable `auth.enforceScopes` only after verifying the access token's string `scope` and the requested names. Auth0 permission configuration and Catalog's retained permissions remain separate checks.
 

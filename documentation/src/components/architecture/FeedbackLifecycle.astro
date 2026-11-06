@@ -1,32 +1,31 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="feedback-lifecycle-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 833" role="img" aria-labelledby="feedback-lifecycle-title feedback-lifecycle-desc">
-  <title id="feedback-lifecycle-title">Private feedback states and current-text clearing</title>
-  <desc id="feedback-lifecycle-desc">A human submits feedback for a readable local item. Open feedback can be addressed by a moderator, with one current response. A submitter edit or moderator reopen returns addressed feedback to open and clears the response. From either live state, submitter withdrawal or moderator removal clears the current comment and response. Withdrawn and removed are terminal with no transition between them; minimal context and audit remain, and clearing current text does not erase backups.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 340" role="img" aria-labelledby="feedback-lifecycle-title feedback-lifecycle-desc">
+  <title id="feedback-lifecycle-title">Private feedback states</title>
+  <desc id="feedback-lifecycle-desc">Open feedback can be addressed by a moderator. A submitter edit or moderator reopen clears the response and returns it to open. Either live state can be withdrawn by the submitter or removed by a moderator. Both terminal states clear current text; minimal context and audit remain.</desc>
   <defs><marker id="feedback-lifecycle-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 118 V188" marker-end="url(#feedback-lifecycle-arrow)" />
-  <path class="svg-connector" d="M320 286 V356" marker-end="url(#feedback-lifecycle-arrow)" />
-  <text class="svg-small" x="340" y="334">Moderator: address</text>
-  <path class="svg-connector" d="M320 454 V508 H628 V172 H320 V188" marker-end="url(#feedback-lifecycle-arrow)" />
-  <text class="svg-small" x="340" y="164">Edit / reopen</text>
-  <path class="svg-connector" d="M320 286 V340 H12 V478 H180 V524" marker-end="url(#feedback-lifecycle-arrow)" />
-  <text class="svg-small" x="38" y="500">Withdraw</text>
-  <path class="svg-connector" d="M320 286 V310 H618 V516 H460 V524" marker-end="url(#feedback-lifecycle-arrow)" />
-  <text class="svg-small" x="480" y="500">Remove</text>
-  <path class="svg-connector" d="M320 454 V489 H180 V524" marker-end="url(#feedback-lifecycle-arrow)" />
-  <text class="svg-small" x="192" y="481">Withdraw</text>
-  <path class="svg-connector" d="M320 454 V489 H460 V524" marker-end="url(#feedback-lifecycle-arrow)" />
-  <text class="svg-small" x="472" y="476">Remove</text>
-  <DiagramCard x={60} y={20} width={520} title={"Submit feedback for a readable local item"} tone="core" lines={["Human needs feedback.own and current item read access", "Retain the selected immutable item context"]} />
-  <DiagramCard x={60} y={188} width={520} title={"open"} lines={["Current submitter comment", "No moderator response"]} />
-  <DiagramCard x={60} y={356} width={520} title={"addressed"} tone="authority" lines={["Current comment and optional response", "Moderator may replace the response"]} />
-  <DiagramCard x={60} y={524} width={240} title={"withdrawn: terminal"} tone="warning" lines={["Submitter withdraws", "Clear current", "comment and response"]} />
-  <DiagramCard x={340} y={524} width={240} title={"removed: terminal"} tone="warning" lines={["Moderator removes", "Clear current", "comment and response"]} />
-  <DiagramCard x={60} y={715} width={520} title={"Terminal feedback cannot change again"} tone="warning" lines={["There is no withdrawn-to-removed transition", "Minimal context and audit remain; backups are not erased"]} />
-
+  <path class="svg-connector" d="M190 65 H450" marker-end="url(#feedback-lifecycle-arrow)" />
+  <text class="svg-copy" x="320" y="49" text-anchor="middle">Moderator: address</text>
+  <path class="svg-connector" d="M450 95 H190" marker-end="url(#feedback-lifecycle-arrow)" />
+  <text class="svg-copy" x="320" y="126" text-anchor="middle">Edit / reopen</text>
+  <path class="svg-connector" d="M105 110 V170 H320" />
+  <path class="svg-connector" d="M535 110 V170 H320" />
+  <path class="svg-connector" d="M320 170 V220 H195 V260" marker-end="url(#feedback-lifecycle-arrow)" />
+  <path class="svg-connector" d="M320 220 H445 V260" marker-end="url(#feedback-lifecycle-arrow)" />
+  <text class="svg-copy" x="178" y="205" text-anchor="middle">Submitter: withdraw</text>
+  <text class="svg-copy" x="472" y="205" text-anchor="middle">Moderator: remove</text>
+  <g><rect class="svg-node" x="20" y="40" width="170" height="70" rx="10" />
+<text class="svg-title" x="105.0" y="81.0" text-anchor="middle">open</text></g>
+  <g><rect class="svg-node-authority" x="450" y="40" width="170" height="70" rx="10" />
+<text class="svg-title" x="535.0" y="81.0" text-anchor="middle">addressed</text></g>
+  <g><rect class="svg-node" x="110" y="260" width="170" height="60" rx="10" />
+<text class="svg-title" x="195.0" y="285.0" text-anchor="middle">withdrawn</text>
+<text class="svg-copy" x="195.0" y="307.0" text-anchor="middle">Terminal</text></g>
+  <g><rect class="svg-node" x="360" y="260" width="170" height="60" rx="10" />
+<text class="svg-title" x="445.0" y="285.0" text-anchor="middle">removed</text>
+<text class="svg-copy" x="445.0" y="307.0" text-anchor="middle">Terminal</text></g>
 </svg>
 </div>

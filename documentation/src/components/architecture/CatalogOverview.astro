@@ -2,24 +2,21 @@
 import "../../styles/architecture.css";
 import DiagramCard from "./DiagramCard.astro";
 ---
-
 <div class="catalog-architecture" role="region" aria-labelledby="catalog-overview-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 787" role="img" aria-labelledby="catalog-overview-title catalog-overview-desc">
-  <title id="catalog-overview-title">Catalog at a glance</title>
-  <desc id="catalog-overview-desc">Author and version Agents, MCP Servers, Skills and Plugins, review their listings, then publish approved listings for discovery through the UI or API. Administrator-approved external sources also contribute federated discovery results, retaining their provenance rather than becoming locally reviewed releases. Discovery returns metadata, not permission to execute a resource.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 300" role="img" aria-labelledby="catalog-overview-title catalog-overview-desc">
+  <title id="catalog-overview-title">From authored or federated metadata to discovery</title>
+  <desc id="catalog-overview-desc">Authors prepare revisions, reviewers approve evidence, and publishers release listings. Catalog readers search those releases and metadata from approved sources. Host discovery also requires separate snapshot activation.</desc>
   <defs><marker id="catalog-overview-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 95 V130 H180 V165" marker-end="url(#catalog-overview-arrow)" />
-  <path class="svg-connector" d="M300 214 H340" marker-end="url(#catalog-overview-arrow)" />
-  <path class="svg-connector" d="M460 263 V298 H320 V333" marker-end="url(#catalog-overview-arrow)" />
-  <path class="svg-connector" d="M320 431 V466 H460 V501" marker-end="url(#catalog-overview-arrow)" />
-  <path class="svg-connector" d="M300 550 H340" marker-end="url(#catalog-overview-arrow)" />
-  <DiagramCard x={60} y={20} width={520} title={"Four resource kinds"} tone="core" lines={["Agents, MCP Servers, Skills and Plugins"]} />
-  <DiagramCard x={60} y={165} width={240} title={"Author"} lines={["Version resources", "Prepare listings"]} />
-  <DiagramCard x={340} y={165} width={240} title={"Review"} lines={["Inspect retained evidence", "Approve an exact listing"]} />
-  <DiagramCard x={60} y={333} width={520} title={"Publish"} tone="authority" lines={["Release approved listings", "Build discovery snapshots"]} />
-  <DiagramCard x={60} y={501} width={240} title={"Approved sources"} tone="external" lines={["Administrator-managed", "Retain external", "provenance"]} />
-  <DiagramCard x={340} y={501} width={240} title={"Discover"} tone="authority" lines={["Search and browse", "Use the UI or API"]} />
-  <DiagramCard x={60} y={692} width={520} title={"Discovery returns metadata"} tone="warning" lines={["Discovery does not grant permission to execute a resource."]} />
-
+  <path class="svg-connector" d="M200 58 H230" marker-end="url(#catalog-overview-arrow)" />
+  <path class="svg-connector" d="M410 58 H440" marker-end="url(#catalog-overview-arrow)" />
+  <path class="svg-connector" d="M530 95 V200" marker-end="url(#catalog-overview-arrow)" />
+  <text class="svg-small" x="398" y="152">Catalog reads</text>
+  <path class="svg-connector" d="M290 238 H440" marker-end="url(#catalog-overview-arrow)" />
+  <text class="svg-small" x="326" y="222">Federate</text>
+  <DiagramCard x={20} y={20} width={180} title="Author" lines={["Prepare revisions"]} />
+  <DiagramCard x={230} y={20} width={180} title="Review" lines={["Approve evidence"]} />
+  <DiagramCard x={440} y={20} width={180} title="Release" tone="core" lines={["Publish a listing"]} />
+  <DiagramCard x={20} y={200} width={270} title="Approved sources" tone="external" lines={["Keep source provenance"]} />
+  <DiagramCard x={440} y={200} width={180} title="Discover" tone="core" lines={["Search and browse"]} />
 </svg>
 </div>

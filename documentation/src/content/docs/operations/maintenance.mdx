@@ -2,8 +2,6 @@
 title: Install, upgrade, rotate and remove
 ---
 
-import UIKeyRotation from "../../../components/architecture/UIKeyRotation.astro";
-
 import CoordinatedUpgrade from "../../../components/architecture/CoordinatedUpgrade.astro";
 
 Operators use these procedures to install and maintain their deployments. They select the Kubernetes distribution, replica count, backup schedule and service objectives. Use the [deployment guide](deployment.mdx), [Helm reference](../../../../../deployments/helm/open-agentic-catalog/README.md) and [configuration reference](../reference/configuration.mdx) for exact inputs. Local Compose and Minikube are test environments, not production installation recipes.
@@ -22,7 +20,7 @@ Validate the role-specific configuration with `catalogctl config validate`. Vali
 
 Keep API and worker stopped. Run `catalogctl migrate plan` as the dedicated owner. Review the embedded versions and checksums. Apply migrations with both exact runtime role names.
 
-Require both manifest reports to be compliant before starting either runtime. Follow [database roles](database-roles.md) for provisioning; never substitute an administrator DSN for a runtime role to get past a startup refusal. Production identity provisioning uses the operator command, not the development `bootstrap` shortcut.
+Require both manifest reports to be compliant before starting either runtime. Follow [database roles](database-roles.mdx) for provisioning; never substitute an administrator DSN for a runtime role to get past a startup refusal. Production identity provisioning uses the operator command, not the development `bootstrap` shortcut.
 
 After startup, check the separate API and worker readiness surfaces and perform an authorized read of capabilities/current tenant state. Liveness alone is insufficient. Stop if configuration, privilege or identity checks fail. Retain version/profile identity and redacted reports. Run mutating smoke or full functional tests only on disposable data, not as an automatic production acceptance probe.
 
@@ -90,7 +88,7 @@ kubectl --context my-cluster --namespace catalog apply -f /path/to/catalog-api-h
 kubectl --context my-cluster --namespace catalog get hpa
 ```
 
-Resume its recreator only after the restored HPA targets the intended Deployment. Check `ScalingActive` and current metrics. HPA decisions can change the replica count after this handoff. Use the [external autoscaler example](deployment.mdx#use-an-external-api-autoscaler) and [connection worksheet](database-roles.md#replica-and-dependency-budget) before choosing limits.
+Resume its recreator only after the restored HPA targets the intended Deployment. Check `ScalingActive` and current metrics. HPA decisions can change the replica count after this handoff. Use the [external autoscaler example](deployment.mdx#use-an-external-api-autoscaler) and [connection worksheet](database-roles.mdx#replica-and-dependency-budget) before choosing limits.
 
 Do not restore the HPA if deployment fails. Keep its recreator paused. Inspect Deployment counts, all runtime Pods, including terminating Pods, and the migration Job. A successful scale-to-zero request does not prove that every Pod has stopped. The stop request can also fail. Correct the cause and retry the same target inputs. Restore the HPA only after target readiness and application readback succeed.
 
@@ -153,9 +151,9 @@ For collector mTLS, follow the [client identity and CA replacement procedure](ob
 
 ### Optional PgBouncer maintenance
 
-The [connection pooling runbook](database-roles.md#connection-pooling-boundary) owns enablement, direct owner access, private trust and capacity. With the optional pooler, coordinate runtime DSNs, each PostgreSQL runtime password and its protected `userlist.txt` together. Stage CA overlap before switching certificates. Stop and drain affected API/worker processes before activating replacement credentials, certificates, trust or pooler settings. Existing authenticated sessions do not prove replacement credentials work.
+The [connection pooling runbook](database-roles.mdx#connection-pooling-boundary) owns enablement, direct owner access, private trust and capacity. With the optional pooler, coordinate runtime DSNs, each PostgreSQL runtime password and its protected `userlist.txt` together. Stage CA overlap before switching certificates. Stop and drain affected API/worker processes before activating replacement credentials, certificates, trust or pooler settings. Existing authenticated sessions do not prove replacement credentials work.
 
-For server certificates, follow the [renewal and CA retirement sequence](database-roles.md#replace-database-server-certificates). Renew leaves under the current CA separately from a CA change. Load the applicable old/new trust before switching peer certificates. Replace startup consumers again after removing old trust. Verify both served identities, fresh backend sessions, a useful API read and worker progress.
+For server certificates, follow the [renewal and CA retirement sequence](database-roles.mdx#replace-database-server-certificates). Renew leaves under the current CA separately from a CA change. Load the applicable old/new trust before switching peer certificates. Replace startup consumers again after removing old trust. Verify both served identities, fresh backend sessions, a useful API read and worker progress.
 
 Replace only selected external inputs. Restart the single pooler when its inputs change. Start matching runtimes. Verify readiness and a useful authorized request through genuinely fresh connections.
 
@@ -203,7 +201,12 @@ Revoke the selected external access. Clean only explicitly owned disposable reso
 
 ### Rotate UI session keys
 
-<UIKeyRotation />
+| Stage | Key ring | Writer | Readers | Before the next stage |
+| --- | --- | --- | --- | --- |
+| Add the new pair | `[old, new]` | Old | Old and new | Replace every UI process so all replicas accept both pairs. |
+| Change the writer | `[new, old]` | New | New and old | Finish the second rollout and stop the last old-key writer. |
+| Keep the overlap | `[new, old]` | New | New and old | From that last writer's stop, wait the greater of maximum session lifetime and five minutes. |
+| Retire the old pair | `[new]` | New | New | Complete a third rollout after the overlap window. |
 
 Complete each rollout before the next stage. Start the overlap window when the last old-key writer stops. Keep the old pair for the maximum session lifetime or five minutes, whichever is longer. Emergency removal follows a separate procedure.
 

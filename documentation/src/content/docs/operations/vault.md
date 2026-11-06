@@ -11,7 +11,7 @@ Use this guide when your Kubernetes deployment already uses Vault, or when you w
 | --- | --- |
 | Test the complete integration on your workstation | [Run the isolated local lab](#run-the-isolated-local-lab). |
 | Connect an existing Kubernetes deployment to Vault | [Prepare an operator-managed Vault](#prepare-an-operator-managed-vault). |
-| Deploy without Vault | Follow [Kubernetes deployment](deployment.mdx) and [database roles](database-roles.md). |
+| Deploy without Vault | Follow [Kubernetes deployment](deployment.mdx) and [database roles](database-roles.mdx). |
 
 ## How delivery works
 

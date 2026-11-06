@@ -104,7 +104,7 @@ Exact parent constraints, lifecycle guards, mutable source-run diagnostics, mand
 
 ### 000016 - Audit investigation and export
 
-Nullable legacy-aware format version, prospective bounded insert guard, operator-only exception inventory, exact investigation indexes, and the manifest-v2 audit baseline. Later migrations extend runtime authority; see [exact grants and extension access](../operations/database-roles.md#exact-grants-and-extension-access) for the maintained privilege rules.
+Nullable legacy-aware format version, prospective bounded insert guard, operator-only exception inventory, exact investigation indexes, and the manifest-v2 audit baseline. Later migrations extend runtime authority; see [exact grants and extension access](../operations/database-roles.mdx#exact-grants-and-extension-access) for the maintained privilege rules.
 
 ### 000017 - Bounded search repair
 
@@ -260,7 +260,7 @@ Runtimes receive no table-wide data manipulation language (DML), grant option, s
 
 Reconciliation first revokes runtime and `PUBLIC` execution from every `pgcrypto` function and extension functions in application-visible schemas. It then grants the reviewed overloads. The complete `pgcrypto` allowlist grants `digest(bytea, text)` to API and worker and `digest(text, text)` to API.
 
-When `catalog_semantic_schema` exists, reconciliation also grants the reviewed pgvector functions for each runtime role. These grants remain required when semantic search is disabled. Installing pgvector alone does not authorize them. See [exact grants and extension access](../operations/database-roles.md#exact-grants-and-extension-access) for the reconciliation scope and conditional grants.
+When `catalog_semantic_schema` exists, reconciliation also grants the reviewed pgvector functions for each runtime role. These grants remain required when semantic search is disabled. Installing pgvector alone does not authorize them. See [exact grants and extension access](../operations/database-roles.mdx#exact-grants-and-extension-access) for the reconciliation scope and conditional grants.
 
 A command prepares external results before its atomic write transaction. The external preparation phase cannot modify Catalog state.
 
@@ -330,13 +330,13 @@ Projection-repair completion uses a sparse-index existence probe. Repair only re
 
 Every version-1 mutation bundle is checked against its exact tenant, target, and allowed store action before persistence. Paired public notifications must also match the normalized commit time and closed action, target, digest, and host reference. Schema-owner identity provisioning and realm transitions use this same boundary rather than a separate SQL-only convention.
 
-The migration history above records exact privilege, lifecycle, document-authority, audit, and housekeeping changes. Current formats retain attributed audit, complete provenance, and PostgreSQL document authority. They reject unsupported development formats without conversion or deletion. Apply migrations with application runtimes stopped as described in the [database role guide](../operations/database-roles.md).
+The migration history above records exact privilege, lifecycle, document-authority, audit, and housekeeping changes. Current formats retain attributed audit, complete provenance, and PostgreSQL document authority. They reject unsupported development formats without conversion or deletion. Apply migrations with application runtimes stopped as described in the [database role guide](../operations/database-roles.mdx).
 
 Actors with `audit.read` can combine actor, action, request, paired target, and half-open time filters before a bounded newest-first page limit. A synchronous idempotent export requires `audit.export`. It selects one repeatable-read, oldest-first range with ceilings of 1,000 rows, 64 KiB per record, and 8 MiB per response. Access evidence and the exact replay response commit atomically; the export creates no Job or export object.
 
 The offline verifier proves file self-consistency. The read-only restore comparer requires a separately trusted manifest and external provenance for the same quiescent database recovery point. Classified source, publication, Job, repair, and exact private-evidence operations use typed safe facts. Each evidence bundle binds the exact tenant, target, and allowed store action. The reviewed map requires or forbids a notification for each action. It preserves intentional mappings, including source test to source-revision activation and rollback to publication activation. Audit-only operations bypass the outbox; source and publication events use the reviewed public registry.
 
-[Database role guide](../operations/database-roles.md) - Role attributes, grants, RLS tests, and identity provisioning.
+[Database role guide](../operations/database-roles.mdx) - Role attributes, grants, RLS tests, and identity provisioning.
 
 [Backup and restore](../operations/backup-restore.mdx) - Authoritative state, isolated recovery, verification, and outbound safety.
 

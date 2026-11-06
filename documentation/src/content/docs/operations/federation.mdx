@@ -2,7 +2,6 @@
 title: Connect and maintain a federated Catalog
 ---
 
-import ARDQueryModes from "../../../components/architecture/ARDQueryModes.astro";
 import ANSAssessment from "../../../components/architecture/ANSAssessment.astro";
 
 Connect an upstream Catalog A to a downstream Catalog B. B can retain external observations, query approved upstream discovery, or return approved referral metadata. Each Catalog keeps its own database, identity policy and publication authority.
@@ -279,9 +278,7 @@ Use the [Job detail example](observability.mdx#investigate-one-retained-job) to 
 
 ## Choose indexed, live and referral participation
 
-<ARDQueryModes />
-
-The diagram shows caller ARD Search modes. The tables below distinguish these modes from administrator retrieval settings. Control API Search has no caller ARD mode switch; its continuation is explained in [Search pagination](../guides/integrating.mdx#choose-a-discovery-interface).
+Administrator retrieval settings control source participation. Caller ARD Search modes can narrow those choices. Control API Search has no caller ARD mode switch; its continuation is explained in [Search pagination](../guides/integrating.mdx#choose-a-discovery-interface).
 
 | Setting | Behavior |
 | --- | --- |
@@ -300,13 +297,15 @@ Referral edges require `referrals.enabled`, bounded `maxHops` and `approvedSourc
 
 Caller ARD Search modes are separate from these administrator settings:
 
-| Caller `federation` value | Host-bound ARD Search |
-| --- | --- |
-| `none` | Read only the current host's active local publication snapshot. |
-| `referrals` | Return local results and eligible approved Registry descriptors without an upstream Search contact. |
-| Omitted or `auto` | Query only eligible approved live sources for this host and audience, within configured limits. |
+| Caller `federation` value | Contacts upstream Search | Returns referral descriptors | Host-bound ARD Search results |
+| --- | --- | --- | --- |
+| `none` | No. | No. | Only the current host's active local publication snapshot. |
+| `referrals` | No. | Eligible approved Registries only. | Local results plus the approved descriptors. |
+| Omitted or `auto` | Only eligible approved live sources for this host and audience, within configured limits. | No. | Local results plus admitted live matches. No eligible source means no upstream contact. |
 
 The administrator's `live.federationMode` controls the mode sent upstream; it accepts `none` or `referrals`. Ordinary callers cannot supply source URLs or override topology. Control API Catalog Search merges local releases, indexed observations and eligible live results. It has no caller ARD `federation` switch or source selector.
+
+The [two-Catalog view](../guides/two-catalog-federation.mdx) shows which Catalog makes these requests and where indexed observations persist.
 
 Core Search can continue an unchanged window of up to 50 live candidates. Each continuation that needs live results repeats the approved peer traversal. The token keeps its initial 15-minute expiry. Changed evidence requires a new search; temporary replay failure permits retry with the same token. Ordinary durable continuation makes no peer calls.
 

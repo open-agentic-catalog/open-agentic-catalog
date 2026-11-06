@@ -430,7 +430,7 @@ make helm-package CHART_VERSION=0.1.0 APP_VERSION=0.1.0
 make helm-package CHART_VERSION=0.1.1-rc.1+build.2 APP_VERSION=0.1.0
 ```
 
-The target stages and validates `open-agentic-catalog-<CHART_VERSION>.tgz` and `open-agentic-catalog-monitoring-<CHART_VERSION>.tgz` without rewriting tracked files. Both archives include the project license for their service-owned templates and configuration. The independent monitoring companion includes its shared dashboards, configuration and image pins; the application chart does not depend on it. Charts do not include Go dependencies or inventories of externally referenced Prometheus/Grafana images. Install the companion only when needed; see [optional Helm monitoring](../operations/helm-monitoring.md).
+The target stages and validates `open-agentic-catalog-<CHART_VERSION>.tgz` and `open-agentic-catalog-monitoring-<CHART_VERSION>.tgz` without rewriting tracked files. Both archives include the project license for their service-owned templates and configuration. The independent monitoring companion includes its shared dashboards, configuration and image pins; the application chart does not depend on it. Charts do not include Go dependencies or inventories of externally referenced Prometheus/Grafana images. Install the companion only when needed; see [optional Helm monitoring](../operations/helm-monitoring.mdx).
 
 Chart versions accept SemVer prereleases and `+` build metadata, without a leading `v`.
 

@@ -3,7 +3,6 @@ title: "Domain model and lifecycle"
 ---
 
 import DomainModel from "../../../components/architecture/DomainModel.astro";
-import SearchPagination from "../../../components/architecture/SearchPagination.astro";
 
 Resources, version labels, content revisions, listing metadata, review evidence, releases, and public snapshots have separate identities. A draft correction never rewrites approved history.
 
@@ -11,13 +10,15 @@ Content, listing presentation, and renewable validation keep separate histories.
 
 <DomainModel />
 
+The lines show relationships rather than execution order. A submission binds the exact content revision, listing revision and validation evidence. A release preserves that approved tuple; a snapshot contains eligible releases for one host and audience. Generation and activation are separate commands, described in [publication architecture](publication.mdx).
+
 ## Identity and ownership
 
 ### Tenant and realm
 
 A verified issuer and a dedicated or explicitly mapped external organization resolve to one active Catalog identity realm. A token cannot choose an internal tenant directly.
 
-Schema-owner operators can suspend or reactivate a realm. Before suspending the final active realm, unpublish every active discovery snapshot for that tenant. Disable every configured discovery host for that tenant before that suspension. Reactivation does not enable hosts or activate snapshots. Follow the [identity-realm administration procedure](../operations/database-roles.md#identity-realm-administration).
+Schema-owner operators can suspend or reactivate a realm. Before suspending the final active realm, unpublish every active discovery snapshot for that tenant. Disable every configured discovery host for that tenant before that suspension. Reactivation does not enable hosts or activate snapshots. Follow the [identity-realm administration procedure](../operations/database-roles.mdx#identity-realm-administration).
 
 ### Membership and grants
 
@@ -134,9 +135,19 @@ Go and SQL use the same token and sort-key normalization. Bounded schema-owner r
 
 A closed result union merges local releases, grouped current indexed observations, and bounded live results in deterministic order. Live results come from active administrator-approved sources. Core Search can continue an unchanged window of at most 50 live candidates. Local releases win exact typed-identity collisions. Callers can select supported origin classes and namespace filters, but cannot select individual sources or topology.
 
-<SearchPagination />
+Control and host-bound ARD Search use different durable inputs and continuation formats:
 
-Core Catalog Search continues local/indexed results and an unchanged live window. Core ARD automatic Search combines that window with the local snapshot. Hybrid Search preserves the exact durable order. Live results follow those matches. Live-only Control Search pages without durable queries or embeddings. See the [pagination contract](../reference/api-conventions.md#pagination-and-search-consistency) for request binding and restart behavior.
+| Boundary | Authenticated Control Search | Host-bound ARD `auto` Search |
+| --- | --- | --- |
+| Durable input | Currently authorized local releases and indexed observations. | The active immutable snapshot for the exact host and audience. It does not read Control indexed observations. |
+| Live composition | Close the durable transaction before approved peer calls; admit at most 50 live candidates. | Admit at most 50 live candidates beside local snapshot results. Local matches displaced by live results remain available on later pages. |
+| Identity collisions | Selected authorized durable matches suppress duplicate live identities; local releases take precedence over indexed observations. | Selected local snapshot matches suppress duplicate live entries. |
+| Ordering | Core relevance interleaves by score. Explicit column ordering places durable matches first. Hybrid keeps durable ranks before the live tail. | Core relevance interleaves local and live results. Hybrid keeps snapshot ranks before the live tail. |
+| Continuation | Generation-bound `nextCursor`; live-only selection skips durable queries and embeddings. | Host/audience-bound page token; advance local traversal only for local matches returned. |
+| Binding and lifetime | Query, filters, page size, current access, generations and verified live evidence; fixed 15-minute expiry. | The same request/evidence bindings plus publication host and audience; fixed 15-minute expiry. |
+| Replay failure | Retry the same token after a temporary peer failure; restart after changed evidence or generations. | The same retry/restart distinction applies. First-page live failure preserves healthy local results with partial diagnostics. |
+
+Every page rechecks current access. Neither interface stores a Search session or peer continuation token. Peer traversal repeats only while the admitted live window still needs results. See the [pagination contract](../reference/api-conventions.md#pagination-and-search-consistency) for exact binding, ordering and restart rules, and [two-Catalog federation](../guides/integrating.mdx#test-federation-between-two-catalogs) for the network relationship.
 
 ### Semantic tier
 

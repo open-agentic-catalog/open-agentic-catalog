@@ -1,31 +1,40 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="events-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 1076" role="img" aria-labelledby="events-title events-desc">
-  <title id="events-title">Transactional outbox and optional webhook delivery</title>
-  <desc id="events-desc">For a covered domain workflow, one PostgreSQL transaction commits the state change and bounded audit evidence. It adds an outbox event only when the event classification is public or internal. The outbox does not construct authoritative API state.
-
-  A worker leases events and drains without network access when webhooks are disabled. When enabled, only registered public event types can produce signed CloudEvents for an approved HTTPS receiver; internal and unknown types are not delivered. Delivery is unordered with bounded retries and possible duplicates, not guaranteed receipt. Consumers read current authorized state from the API.</desc>
-  <defs><marker id="arrow-events" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 164 V199 H180 V234" marker-end="url(#arrow-events)" />
-  <path class="svg-connector" d="M320 164 V199 H460 V234" marker-end="url(#arrow-events)" />
-  <path class="svg-connector" d="M460 355 V393 H320 V428" marker-end="url(#arrow-events)" />
-  <path class="svg-connector" d="M320 503 V538 H180 V573" marker-end="url(#arrow-events)" />
-  <path class="svg-connector" d="M320 503 V538 H460 V573" marker-end="url(#arrow-events)" />
-  <path class="svg-connector" d="M460 694 V729 H320 V764" marker-end="url(#arrow-events)" />
-  <path class="svg-connector" d="M320 888 V942 H12 V218 H180 V234" marker-end="url(#arrow-events)" />
-  <text class="svg-small" x="38" y="740">Authorized API read</text>
-  <DiagramCard x={60} y={20} width={520} title={"One PostgreSQL domain commit"} tone="authority" lines={["Save the governed state transition", "and bounded audit atomically", "Add an outbox event only for a", "public or internal classification"]} />
-  <DiagramCard x={60} y={234} width={240} title={["Authoritative API", "state"]} tone="authority" lines={["Current", "tenant-authorized reads"]} />
-  <DiagramCard x={340} y={234} width={240} title={"Transactional outbox"} lines={["Durable event", "and lease state", "No external broker"]} />
-  <DiagramCard x={60} y={428} width={520} title={"Worker leases and classifies the event"} tone="core" lines={["The outbox does not construct authoritative API state"]} />
-  <DiagramCard x={60} y={573} width={240} title={"Webhooks disabled"} tone="warning" lines={["Offline drainer", "No key, receiver", "or network"]} />
-  <DiagramCard x={340} y={573} width={240} title={"Enabled public event"} tone="external" lines={["Approved HTTPS receiver", "Signed CloudEvent", "May repeat; unordered"]} />
-  <DiagramCard x={60} y={764} width={520} title={["Consumer reads current authorized API", "state"]} tone="authority" lines={["Internal and unknown event types are not delivered", "Retries are bounded and receipt is not guaranteed"]} />
-  <DiagramCard x={60} y={958} width={520} title={"Delivery does not change Catalog authority"} tone="warning" lines={["Arrival order, retries and receiver", "availability never change committed state."]} />
-
+<svg class="architecture-svg" viewBox="0 0 640 470" role="img" aria-labelledby="events-title events-desc">
+  <title id="events-title">A domain commit precedes optional delivery</title>
+  <desc id="events-desc">State, required audit and classified outbox evidence commit together. Workers lease committed outbox records. An enabled public event may be sent to a receiver, which reads current authorized API state. Disabled or non-deliverable events drain without HTTPS.</desc>
+  <defs><marker id="events-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <rect class="svg-boundary" x="20" y="20" width="310" height="150" rx="14" />
+  <text class="svg-title" x="175" y="52" text-anchor="middle">One domain transaction</text>
+  <path class="svg-connector" d="M370 105 H310" marker-end="url(#events-arrow)" />
+  <text class="svg-small" x="340" y="86" text-anchor="middle">Lease</text>
+  <path class="svg-connector" d="M495 140 V265" marker-end="url(#events-arrow)" />
+  <text class="svg-small" x="505" y="212" text-anchor="start">Public event</text>
+  <path class="svg-connector" d="M620 105 H632 V415 H620" marker-end="url(#events-arrow)" />
+  <text class="svg-small" x="505" y="374" text-anchor="middle">Disabled / internal</text>
+  <path class="svg-connector" d="M390 300 H250" marker-end="url(#events-arrow)" />
+  <text class="svg-small" x="320" y="283" text-anchor="middle">API read</text>
+  <path class="svg-connector" d="M80 265 V140" marker-end="url(#events-arrow)" />
+  <text class="svg-small" x="91" y="220" text-anchor="start">Read state</text>
+  <rect class="svg-node-authority" x="40" y="80" width="75" height="60" rx="12" />
+  <text class="svg-title" x="77.5" y="117" text-anchor="middle">State</text>
+  <rect class="svg-node" x="130" y="80" width="75" height="60" rx="12" />
+  <text class="svg-title" x="167.5" y="117" text-anchor="middle">Audit</text>
+  <rect class="svg-node" x="220" y="80" width="90" height="60" rx="12" />
+  <text class="svg-title" x="265" y="117" text-anchor="middle">Outbox</text>
+  <rect class="svg-node-core" x="370" y="70" width="250" height="70" rx="12" />
+  <text class="svg-title" x="495" y="98" text-anchor="middle">Worker</text>
+  <text class="svg-copy" x="495" y="122" text-anchor="middle">Classify event</text>
+  <rect class="svg-node-core" x="20" y="265" width="230" height="70" rx="12" />
+  <text class="svg-title" x="135" y="293" text-anchor="middle">Catalog API</text>
+  <text class="svg-copy" x="135" y="317" text-anchor="middle">Current state</text>
+  <rect class="svg-node-external" x="390" y="265" width="230" height="70" rx="12" />
+  <text class="svg-title" x="505" y="293" text-anchor="middle">Receiver</text>
+  <text class="svg-copy" x="505" y="317" text-anchor="middle">Signed HTTPS event</text>
+  <rect class="svg-node" x="390" y="390" width="230" height="55" rx="12" />
+  <text class="svg-title" x="505" y="424.5" text-anchor="middle">Drain locally</text>
 </svg>
 </div>

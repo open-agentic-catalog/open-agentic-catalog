@@ -181,7 +181,7 @@ The table lists exact short selectors. Each expands to `com.open.agentic.catalog
 
 Public `identity.role.assignment.*` selectors differ from audit `identity.role_assignment.*` actions. General access assignments, custom role changes and group administration are audit-only. This includes built-in templates assigned through `/api/v1/access/assignments`. These notifications do not report every change to access. See [access administration](../guides/access-management.mdx#prepare-an-administrator-session) and [audit classification](audit.md#core-operation-classification).
 
-Follow the [realm inventory procedure](database-roles.md#identity-realm-administration) for owner-only reads. Use the [API reference](../../../../../api/openapi/control-v1.yaml) for each target's read requirements. Read current state instead of applying notifications as ordered changes. A later read can return a newer revision or a safe refusal. Preserve [deduplication and reconciliation](#receiver-outages-capacity-and-reconciliation) when deliveries repeat, arrive late or are lost.
+Follow the [realm inventory procedure](database-roles.mdx#identity-realm-administration) for owner-only reads. Use the [API reference](../../../../../api/openapi/control-v1.yaml) for each target's read requirements. Read current state instead of applying notifications as ordered changes. A later read can return a newer revision or a safe refusal. Preserve [deduplication and reconciliation](#receiver-outages-capacity-and-reconciliation) when deliveries repeat, arrive late or are lost.
 
 ### Manage endpoints in the UI
 

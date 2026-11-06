@@ -1,24 +1,29 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="release-visibility-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 1070" role="img" aria-labelledby="release-visibility-title release-visibility-desc">
-  <title id="release-visibility-title">Current Catalog reads and snapshot discovery</title>
-  <desc id="release-visibility-desc">A Publisher publishes an approved release. Eligible current records then become available through authenticated Catalog reads. A Publication Administrator separately builds and inspects a candidate for a host and audience. The administrator then activates it for snapshot discovery. Candidate generation leaves any previous active snapshot unchanged. Later releases do not refresh snapshot bytes automatically; safety withdrawal retires a containing snapshot as a whole.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 420" role="img" aria-labelledby="release-visibility-title release-visibility-desc">
+  <title id="release-visibility-title">Catalog reads and host discovery update separately</title>
+  <desc id="release-visibility-desc">Publishing an eligible release updates authenticated Catalog reads. A separate candidate build and activation changes host discovery. Building a candidate leaves the previous snapshot active. Later releases do not refresh snapshot bytes automatically.</desc>
   <defs><marker id="release-visibility-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 95 V165" marker-end="url(#release-visibility-arrow)" />
-  <path class="svg-connector" d="M320 95 V149 H628 V340 H320 V356" marker-end="url(#release-visibility-arrow)" />
-  <text class="svg-small" x="340" y="332">Separate build</text>
-  <path class="svg-connector" d="M320 500 V570" marker-end="url(#release-visibility-arrow)" />
-  <path class="svg-connector" d="M320 668 V738" marker-end="url(#release-visibility-arrow)" />
-  <DiagramCard x={60} y={20} width={520} title={"Publish the approved release"} tone="core" lines={["Publisher authority and current eligibility"]} />
-  <DiagramCard x={60} y={165} width={520} title={"Current authenticated Catalog reads"} tone="authority" lines={["Eligible released records become", "readable in browse and Search", "This is separate from discovery snapshot activation"]} />
-  <DiagramCard x={60} y={356} width={520} title={"Separately build and inspect a candidate"} tone="core" lines={["Publication Administrator selects the exact host", "Tenant and publication audience", "determine eligible contents", "Any previous active snapshot stays unchanged"]} />
-  <DiagramCard x={60} y={570} width={520} title={"Activate the candidate"} tone="authority" lines={["Recheck retained contents and current eligibility", "Switch this host's active-snapshot pointer"]} />
-  <DiagramCard x={60} y={738} width={520} title={"Snapshot discovery reads"} tone="external" lines={["Well-known manifest, ARD Search and List", "Read active immutable snapshot bytes"]} />
-  <DiagramCard x={60} y={906} width={520} title={"Later releases and corrections"} tone="warning" lines={["Rebuild and activate discovery separately;", "bytes do not refresh automatically", "Safety withdrawal can retire an entire", "snapshot that contains the release"]} />
-
+  <path class="svg-connector" d="M190 165 H210 V85 H450" marker-end="url(#release-visibility-arrow)" />
+  <path class="svg-connector" d="M105 200 V245 H235" marker-end="url(#release-visibility-arrow)" />
+  <path class="svg-connector" d="M405 245 H450" marker-end="url(#release-visibility-arrow)" />
+  <path class="svg-connector" d="M535 280 V350" marker-end="url(#release-visibility-arrow)" />
+  <text class="svg-copy" x="325" y="64" text-anchor="middle">Current eligible release</text>
+  <text class="svg-copy" x="118" y="230" text-anchor="start">Separate build</text>
+  <g><rect class="svg-node-authority" x="20" y="130" width="170" height="70" rx="10" />
+<text class="svg-small" x="105.0" y="171.0" text-anchor="middle">Publish release</text></g>
+  <g><rect class="svg-node-core" x="450" y="50" width="170" height="70" rx="10" />
+<text class="svg-title" x="535.0" y="80.0" text-anchor="middle">Catalog reads</text>
+<text class="svg-copy" x="535.0" y="102.0" text-anchor="middle">Browse + Search</text></g>
+  <g><rect class="svg-node" x="235" y="210" width="170" height="70" rx="10" />
+<text class="svg-small" x="320.0" y="240.0" text-anchor="middle">Build candidate</text>
+<text class="svg-copy" x="320.0" y="262.0" text-anchor="middle">Host + audience</text></g>
+  <g><rect class="svg-node-authority" x="450" y="210" width="170" height="70" rx="10" />
+<text class="svg-small" x="535.0" y="251.0" text-anchor="middle">Activate snapshot</text></g>
+  <g><rect class="svg-node-core" x="450" y="350" width="170" height="50" rx="10" />
+<text class="svg-small" x="535.0" y="381.0" text-anchor="middle">Host discovery</text></g>
 </svg>
 </div>

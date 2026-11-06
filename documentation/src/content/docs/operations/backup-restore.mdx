@@ -127,7 +127,7 @@ Start only reviewed roles and allowed local peers. Observe both source and recei
 
 Check each command's host, port, database and identity against the protected deployment inventory. Use separate source and destination connections. Do not reuse a production connection for restore commands.
 
-Connect directly to PostgreSQL for backup and recovery commands. Do not route schema-owner commands through PgBouncer. See the [database identity requirements](database-roles.md#connection-pooling-boundary).
+Connect directly to PostgreSQL for backup and recovery commands. Do not route schema-owner commands through PgBouncer. See the [database identity requirements](database-roles.mdx#connection-pooling-boundary).
 
 The PostgreSQL examples below run inside the selected database container and use its local socket. For remote databases, supply explicit host and port options. Review inherited PostgreSQL connection settings, including `PGHOST`, `PGPORT`, `PGSERVICE` and `PGSERVICEFILE`. Use a protected password file or the deployment's credential mechanism. Do not put passwords on command lines.
 
@@ -222,7 +222,7 @@ Restore the full schema under the dedicated owner. Create exact API and worker r
 
 Verify exact same-tenant parent references for current revisions, releases, validation runs and source snapshots. Current releases must be active and backed by approved submissions; current source snapshots must be complete. Preserve immutable evidence and terminal or monotonic guards. Do not disable constraints or triggers to hide inconsistencies. Investigate completeness, select another recovery point or use separately reviewed repair that preserves evidence.
 
-Audit requires format version 1 with complete attribution. Restore audit events and reconcile the [current privilege manifest](database-roles.md). Follow the [audit runbook](audit.md) for filters, deterministic exports, offline verification and exact restored-range comparison. Comparison requires a separately trusted manifest bound externally to this recovery point during one period without ordinary writes.
+Audit requires format version 1 with complete attribution. Restore audit events and reconcile the [current privilege manifest](database-roles.mdx). Follow the [audit runbook](audit.md) for filters, deterministic exports, offline verification and exact restored-range comparison. Comparison requires a separately trusted manifest bound externally to this recovery point during one period without ordinary writes.
 
 The partial `(tenant_id, id)` index selects normalized observations with incomplete derived search fields. It supports a bounded post-repair existence check and grants no extra runtime authority. Repair reports `processed`, `hasMore` and `complete`. It does not compute an exact remaining count.
 
@@ -370,7 +370,7 @@ Restore verification checks the indexed license/category projection against reta
 
 Back up `personal_items` with the Catalog database. Restore check set 7 verifies bounded item shapes, human membership/realm ownership, revision chronology and the per-owner quota. It reports fixed findings and item IDs without labels or query text. Stale target access and source generations do not invalidate a saved preference. Restore verification never repairs or substitutes its target.
 
-Apply the [current migrations and exact grants](database-roles.md) through the schema-owner maintenance workflow before restarting runtimes. Saved-item removal deletes that selected row; ordinary audit, idempotency and backup retention remain separate. An older backup can restore previously removed preferences. This feature does not establish compliance retention or backup erasure guarantees.
+Apply the [current migrations and exact grants](database-roles.mdx) through the schema-owner maintenance workflow before restarting runtimes. Saved-item removal deletes that selected row; ordinary audit, idempotency and backup retention remain separate. An older backup can restore previously removed preferences. This feature does not establish compliance retention or backup erasure guarantees.
 
 ### Restore Publisher verification evidence
 

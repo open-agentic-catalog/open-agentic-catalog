@@ -1,30 +1,33 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="coordinated-upgrade-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 1169" role="img" aria-labelledby="coordinated-upgrade-title coordinated-upgrade-desc">
-  <title id="coordinated-upgrade-title">A coordinated Helm image upgrade</title>
-  <desc id="coordinated-upgrade-desc">The operator selects one target chart, values and image, then preflights the owned deployment. The coordinator drains every old API Pod, then every old worker Pod, before the schema owner applies forward migrations and exact runtime grants. Target replicas start from the selected values and must pass readiness and authorized readback.
-
-  If deployment fails after drain, keep or return the runtimes to the stopped state. Correct the cause. Retry the target deployment. Do not substitute raw Helm hooks, automatic SQL rollback or a restart of the old image.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 380" role="img" aria-labelledby="coordinated-upgrade-title coordinated-upgrade-desc">
+  <title id="coordinated-upgrade-title">Stop old runtimes before migration</title>
+  <desc id="coordinated-upgrade-desc">Preflight selects the exact target. All old API Pods stop before worker Pods. The owner applies migrations and exact grants before target replicas start. Failure after drain keeps runtimes stopped for forward recovery.</desc>
   <defs><marker id="coordinated-upgrade-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 141 V211" marker-end="url(#coordinated-upgrade-arrow)" />
-  <path class="svg-connector" d="M320 309 V379" marker-end="url(#coordinated-upgrade-arrow)" />
-  <path class="svg-connector" d="M320 477 V547" marker-end="url(#coordinated-upgrade-arrow)" />
-  <path class="svg-connector" d="M320 645 V715" marker-end="url(#coordinated-upgrade-arrow)" />
-  <path class="svg-connector" d="M320 645 V699 H12 V867 H320 V883" marker-end="url(#coordinated-upgrade-arrow)" />
-  <text class="svg-small" x="38" y="859">Failure</text>
-  <path class="svg-connector" d="M320 813 V837 H628 V875 H320 V883" marker-end="url(#coordinated-upgrade-arrow)" />
-  <text class="svg-small" x="340" y="859">Failure</text>
-  <DiagramCard x={60} y={20} width={520} title={"1. Select and preflight the target"} tone="core" lines={["Operator selects the exact chart,", "values, image and owned deployment", "Pause other deployment controllers"]} />
-  <DiagramCard x={60} y={211} width={520} title={"2. Drain every old API Pod"} lines={["Remove API work before worker drain", "Wait for every selected API Pod to disappear"]} />
-  <DiagramCard x={60} y={379} width={520} title={"3. Drain every old worker Pod"} lines={["No old runtime may overlap migration", "First install skips absent workloads"]} />
-  <DiagramCard x={60} y={547} width={520} title={"4. Apply owner-only migration"} tone="warning" lines={["Hold the migration advisory lock", "Apply forward SQL and reconcile exact runtime grants"]} />
-  <DiagramCard x={60} y={715} width={520} title={"5. Start target replicas and verify"} tone="authority" lines={["Use replica counts from the selected target values", "Check readiness, version and authorized readback"]} />
-  <DiagramCard x={60} y={883} width={520} title={"Failure after drain"} tone="warning" lines={["Keep or return runtimes to stopped state", "Inspect retained evidence, fix the cause and retry forward", "Do not automatically roll back SQL or restart an old image"]} />
-  <DiagramCard x={60} y={1074} width={520} title={"Compose follows equivalent stages"} lines={["Raw Helm hooks do not coordinate old-runtime drain"]} />
-
+  <path class="svg-connector" d="M90 80 V155" marker-end="url(#coordinated-upgrade-arrow)" />
+  <path class="svg-connector" d="M160 195 H175" marker-end="url(#coordinated-upgrade-arrow)" />
+  <path class="svg-connector" d="M315 195 H330" marker-end="url(#coordinated-upgrade-arrow)" />
+  <path class="svg-connector" d="M470 195 H485" marker-end="url(#coordinated-upgrade-arrow)" />
+  <path class="svg-connector" d="M400 235 V300" marker-end="url(#coordinated-upgrade-arrow)" />
+  <path class="svg-connector" d="M555 235 V270 H510 V300" marker-end="url(#coordinated-upgrade-arrow)" />
+  <text class="svg-small" x="535" y="288" text-anchor="start">Failure</text>
+  <rect class="svg-node-core" x="20" y="20" width="600" height="60" rx="12" />
+  <text class="svg-title" x="320" y="57" text-anchor="middle">Preflight the selected target</text>
+  <rect class="svg-node" x="20" y="155" width="140" height="80" rx="12" />
+  <text class="svg-title" x="90" y="202" text-anchor="middle">Stop API</text>
+  <rect class="svg-node" x="175" y="155" width="140" height="80" rx="12" />
+  <text class="svg-title" x="245" y="190" text-anchor="middle">Stop</text>
+  <text class="svg-title" x="245" y="214" text-anchor="middle">workers</text>
+  <rect class="svg-node" x="330" y="155" width="140" height="80" rx="12" />
+  <text class="svg-title" x="400" y="183" text-anchor="middle">Apply SQL</text>
+  <text class="svg-copy" x="400" y="207" text-anchor="middle">Owner only</text>
+  <rect class="svg-node" x="485" y="155" width="140" height="80" rx="12" />
+  <text class="svg-title" x="555" y="183" text-anchor="middle">Start target</text>
+  <text class="svg-copy" x="555" y="207" text-anchor="middle">Verify</text>
+  <rect class="svg-node-warning" x="330" y="300" width="295" height="60" rx="12" />
+  <text class="svg-title" x="477.5" y="337" text-anchor="middle">Keep runtimes stopped</text>
 </svg>
 </div>

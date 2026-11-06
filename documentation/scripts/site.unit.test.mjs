@@ -197,13 +197,13 @@ test('technical diagrams require accessible text and local marker references',()
 });
 
 test('Markdown projections render only explicitly registered diagram components',()=>{
-  const entry = {source:'DESIGN.md',route:'architecture/design',projection:true,diagrams:['TargetContext']};
-  const source = '<!-- markdownlint-disable MD013 -->\n\nBefore.\n\n<!-- diagram: TargetContext -->\n\nAfter.\n';
+  const entry = {source:'DESIGN.md',route:'architecture/design',projection:true,diagrams:['WelcomeDeployment']};
+  const source = '<!-- markdownlint-disable MD013 -->\n\nBefore.\n\n<!-- diagram: WelcomeDeployment -->\n\nAfter.\n';
   const rendered = projectDiagrams(entry,source);
   assert.equal(pagePath(entry),'documentation/src/content/docs/generated/architecture/design.mdx');
   assert.equal(pagePath({...entry,diagrams:undefined}),'documentation/src/content/docs/generated/architecture/design.md');
-  assert(rendered.startsWith('import TargetContext from "../../../../components/architecture/TargetContext.astro";'));
-  assert(rendered.includes('Before.\n\n<TargetContext />\n\nAfter.'));
+  assert(rendered.startsWith('import WelcomeDeployment from "../../../../components/architecture/WelcomeDeployment.astro";'));
+  assert(rendered.includes('Before.\n\n<WelcomeDeployment />\n\nAfter.'));
   assert(!rendered.includes('markdownlint'));
   assert.equal(projectDiagrams({},'Ordinary Markdown.'),'Ordinary Markdown.');
   assert.throws(()=>projectDiagrams(entry,'Missing marker.'),/Expected one diagram marker/);

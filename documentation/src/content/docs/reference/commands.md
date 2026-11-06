@@ -685,8 +685,8 @@ Checkpoint inclusion proves one authenticated tree, not global log consistency. 
 | `catalogctl profiles verify` | Read-only verification of the embedded pinned profile bundle, not validation of an arbitrary user document. |
 | `catalogctl diagnostics` | Bounded safe diagnostics from a newly constructed runtime; use [observability](../operations/observability.mdx) for exact inputs and meaning. |
 | `catalogctl probe` | Bounded loopback-only HTTP probe, including private worker health; not a product client. |
-| `catalogctl migrate plan`, `migrate apply` | Read-only planning versus owner-only forward migration and exact role-grant mutation; [database roles](../operations/database-roles.md). Optional `--semantic` includes the separate derived schema and requires administrator-provisioned pgvector 0.8.7; it does not enable semantic search. |
-| `catalogctl identity provision` | Owner-authorized production realm/principal/membership provisioning; [database roles](../operations/database-roles.md). |
+| `catalogctl migrate plan`, `migrate apply` | Read-only planning versus owner-only forward migration and exact role-grant mutation; [database roles](../operations/database-roles.mdx). Optional `--semantic` includes the separate derived schema and requires administrator-provisioned pgvector 0.8.7; it does not enable semantic search. |
+| `catalogctl identity provision` | Owner-authorized production realm/principal/membership provisioning; [database roles](../operations/database-roles.mdx). |
 | `catalogctl identity provision-development` | Explicit developer identity setup only. |
 | `catalogctl identity realms list`, `suspend`, `reactivate` | Bounded realm inventory and operator-controlled lifecycle; read-only list versus attributed mutations. |
 | `catalogctl restore verify` | Read-only isolated, paginated, per-tenant integrity checks; [backup and restore](../operations/backup-restore.mdx). |

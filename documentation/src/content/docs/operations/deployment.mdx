@@ -4,7 +4,7 @@ title: "Deployment guide"
 
 import Deployment from "../../../components/architecture/Deployment.astro";
 
-Add optional monitoring through the [Compose overlay](../guides/performance-and-monitoring.md) or a [separately installed Helm companion chart](helm-monitoring.md). The companion defaults to `enabled: false`; use `--set enabled=true` or `make monitoring-install` to deploy it. Neither is an application dependency or readiness gate. The product chart remains independent and installs no collectors.
+Add optional monitoring through the [Compose overlay](../guides/performance-and-monitoring.md) or a [separately installed Helm companion chart](helm-monitoring.mdx). The companion defaults to `enabled: false`; use `--set enabled=true` or `make monitoring-install` to deploy it. Neither is an application dependency or readiness gate. The product chart remains independent and installs no collectors.
 
 Monitoring data and credentials stay separate from Catalog PostgreSQL, and worker metrics stay off the product Service and ingress. Operators can use either option or their existing monitoring. They own production discovery, network access, infrastructure collectors, retention and alerting.
 
@@ -18,7 +18,7 @@ These guides describe deployment without a Kubernetes cluster that you must oper
 | Azure Container Apps | Azure Database for PostgreSQL Flexible Server | [Deploy on Azure](azure-container-apps.mdx) |
 | Google Cloud Run | Cloud SQL for PostgreSQL | [Deploy on Google Cloud](google-cloud-run.mdx) |
 
-The procedures are based on public provider documentation and the Catalog's implemented contracts. These cloud deployments have not been tested. Confirm the [database requirements](database-roles.md#required-database-identities) before creating resources. Managed administrator accounts do not necessarily have the authority that Catalog migrations and workers require. Each guide identifies its compatibility checks and limits.
+The procedures are based on public provider documentation and the Catalog's implemented contracts. These cloud deployments have not been tested. Confirm the [database requirements](database-roles.mdx#required-database-identities) before creating resources. Managed administrator accounts do not necessarily have the authority that Catalog migrations and workers require. Each guide identifies its compatibility checks and limits.
 
 ## Artifact and deployment ownership
 
@@ -107,7 +107,7 @@ Complete these decisions before installation or a replica increase:
 | Traffic and identity | Supply ingress or load-balancer routing, HTTPS, DNS, the OIDC issuer/client, Catalog memberships and the exact UI callback. Protect worker operations separately. |
 | External inputs | Provision exact database roles, DSN Secrets, signing/session keys, required trust bundles and any enabled optional credentials before installation. |
 
-The chart installs no PostgreSQL cluster or identity provider. The [database-role guide](database-roles.md#required-database-identities) defines required authority. The [sign-in guide](sign-in.md) defines identity and browser setup. Use the [configuration reference](../reference/configuration.mdx) for effective settings and input precedence.
+The chart installs no PostgreSQL cluster or identity provider. The [database-role guide](database-roles.mdx#required-database-identities) defines required authority. The [sign-in guide](sign-in.md) defines identity and browser setup. Use the [configuration reference](../reference/configuration.mdx) for effective settings and input precedence.
 
 ### Example replica and placement overlay
 
@@ -143,9 +143,9 @@ This overlay leaves ingress, network policy and external infrastructure to the s
 
 The example requires at least two eligible nodes with the selected hostname labels. Hard spread can leave a replacement Pending when only one eligible worker node survives. Check the available capacity and required service level before choosing this behavior. The [maintained topology scenario](#maintained-local-minikube-verification) tests that degraded state with two API and two worker replicas. It does not qualify this overlay for an operator's infrastructure.
 
-For the illustrative [direct PostgreSQL budget](database-roles.md#direct-postgresql-example), retain maximum counts of three API, two worker and two UI replicas. These limits are operator constraints; the values above set desired counts only. Raising the worker and UI desired counts to two stays within those maxima. It does not increase the worksheet's maximum connection ceiling.
+For the illustrative [direct PostgreSQL budget](database-roles.mdx#direct-postgresql-example), retain maximum counts of three API, two worker and two UI replicas. These limits are operator constraints; the values above set desired counts only. Raising the worker and UI desired counts to two stays within those maxima. It does not increase the worksheet's maximum connection ceiling.
 
-Use the [complete worksheet](database-roles.md#replica-and-dependency-budget) before accepting the six-connection pool choice. It includes surge, terminating old processes, direct owner/backup/monitoring clients, fault headroom and PostgreSQL reserves. The example permits 72 runtime connections at maximum overlap, not only the 24 allowed by its four steady-state backend pools. Check pool waits and Job heartbeat progress against the selected workload. UI capacity comes from HTTP admission and issuer/API limits, with no SQL allocation.
+Use the [complete worksheet](database-roles.mdx#replica-and-dependency-budget) before accepting the six-connection pool choice. It includes surge, terminating old processes, direct owner/backup/monitoring clients, fault headroom and PostgreSQL reserves. The example permits 72 runtime connections at maximum overlap, not only the 24 allowed by its four steady-state backend pools. Check pool waits and Job heartbeat progress against the selected workload. UI capacity comes from HTTP admission and issuer/API limits, with no SQL allocation.
 
 Validate the complete values with `helm lint --strict` and render them with `helm template --kube-version 1.34.0`. Review the resulting workloads, references, probes and placement constraints. Follow the [coordinated deployment procedure](maintenance.mdx#coordinated-release-deployment) for installation or release changes.
 
@@ -259,7 +259,7 @@ A useful survivor establishes continuity, not full capacity. Complete these chec
 1. Check the API Service's ready endpoints. Read expected retained state through the restored route with current authorization.
 1. Check worker status, fresh progress and the retained work affected by the incident. Inspect failed Jobs and deliveries; an empty queue is not required.
 1. Verify sign-in and an authorized read when the UI is enabled.
-1. Recheck the [replica and dependency budget](database-roles.md#replica-and-dependency-budget), including terminating overlap, direct clients and fault headroom.
+1. Recheck the [replica and dependency budget](database-roles.mdx#replica-and-dependency-budget), including terminating overlap, direct clients and fault headroom.
 
 If hard spread leaves a replacement Pending, restore an eligible failure domain or review the placement policy before changing it. Do not increase replicas or pool sizes without checking capacity. Preserve original failure evidence even when later requests succeed.
 
@@ -290,17 +290,17 @@ The supported release procedure includes a maintenance interval. It does not pro
 
 These results apply to the recorded local images, configuration, workload and fault controls. The direct writer-recovery interval ends when both selected runtimes become ready. It excludes later repair and final state verification. It is not a deployment recovery-time objective. The known WAL baseline does not establish zero-loss asynchronous replication.
 
-The local pooler drill tests initial TLS refusals, same-CA renewal, CA overlap and old-CA retirement on both database hops. The selected Minikube drill verifies Kubernetes projection, Pod activation and fresh connections after CA replacement. Follow the [server certificate procedure](database-roles.md#replace-database-server-certificates) and verify fresh handshakes on each hop. TCP probes and warm HTTP responses are insufficient.
+The local pooler drill tests initial TLS refusals, same-CA renewal, CA overlap and old-CA retirement on both database hops. The selected Minikube drill verifies Kubernetes projection, Pod activation and fresh connections after CA replacement. Follow the [server certificate procedure](database-roles.mdx#replace-database-server-certificates) and verify fresh handshakes on each hop. TCP probes and warm HTTP responses are insufficient.
 
 ## Optional PostgreSQL pooler
 
-Use the [replica and dependency worksheet](database-roles.md#replica-and-dependency-budget) before choosing pool sizes or scaling limits. Include terminating processes and direct operator clients, even when the runtime uses PgBouncer.
+Use the [replica and dependency worksheet](database-roles.mdx#replica-and-dependency-budget) before choosing pool sizes or scaling limits. Include terminating processes and direct operator clients, even when the runtime uses PgBouncer.
 
 Direct PostgreSQL is the default. The application chart can provision one private PgBouncer with `pgbouncer.enabled=true`, existing authentication/TLS Secrets, verified upstream trust and explicit writer NetworkPolicy peers. This enables a component only: API/worker DSN Secrets must deliberately select its Service, while the migration Secret and other schema-owner commands stay direct. Provision the database CA inputs before the pre-install/pre-upgrade migration hook.
 
 API/worker replicas cannot remove the pooler's single-instance availability limit. Its replacement interrupts that route. Socket probes do not verify writer availability or database credentials.
 
-Session mode, separate exact runtime identities and one `Recreate` replica are enforced; transaction/statement mode, multi-pooler HA and database election are outside the supported boundary. Follow [enablement and budgets](database-roles.md#connection-pooling-boundary) and [credential replacement/disablement](maintenance.mdx#optional-pgbouncer-maintenance). The selected `make test-pgbouncer` and `make test-minikube-pgbouncer` qualifications supplement direct PostgreSQL tests.
+Session mode, separate exact runtime identities and one `Recreate` replica are enforced; transaction/statement mode, multi-pooler HA and database election are outside the supported boundary. Follow [enablement and budgets](database-roles.mdx#connection-pooling-boundary) and [credential replacement/disablement](maintenance.mdx#optional-pgbouncer-maintenance). The selected `make test-pgbouncer` and `make test-minikube-pgbouncer` qualifications supplement direct PostgreSQL tests.
 
 ## Optional MCP ingress certificates
 
@@ -554,7 +554,7 @@ The OIDC verifier accepts an optional bounded `auth.trustBundleFile` through its
 
 ## Required dependencies
 
-- PostgreSQL 18 at the current minor release, UTF8 database encoding and `pgcrypto`, separate exact-manifest NOBYPASSRLS API and BYPASSRLS worker roles, and a dedicated Catalog schema-owning migration role as described in [database roles](database-roles.md), encrypted transport, backups, and point-in-time recovery. The migration role must own or be able to alter extension functions installed in application-visible schemas so it can remove installation-default execution grants. pgvector is not required for core search. [Optional hybrid search](hybrid-search.mdx) additionally requires the pinned vector extension, explicit optional-schema setup and one configured embedding endpoint; installing the extension alone does not enable retrieval.
+- PostgreSQL 18 at the current minor release, UTF8 database encoding and `pgcrypto`, separate exact-manifest NOBYPASSRLS API and BYPASSRLS worker roles, and a dedicated Catalog schema-owning migration role as described in [database roles](database-roles.mdx), encrypted transport, backups, and point-in-time recovery. The migration role must own or be able to alter extension functions installed in application-visible schemas so it can remove installation-default execution grants. pgvector is not required for core search. [Optional hybrid search](hybrid-search.mdx) additionally requires the pinned vector extension, explicit optional-schema setup and one configured embedding endpoint; installing the extension alone does not enable retrieval.
 - A trusted signed-JWT issuer, HTTPS discovery and verification-key path, and Catalog audience. Login and token issuance remain in the owning platform or identity service. The deployment selects dedicated or shared tenancy, and an operator provisions every exact realm, tenant or external-organization mapping, active subject membership, and initial Catalog role before that token can authenticate. The issuer must chain to the embedded public roots or the configured OIDC-specific private bundle. A discovered HTTPS key endpoint may use another origin, but remains subject to the same isolated certificate and hostname verification.
 - The platform identity, deployment-injected secrets, optional credential resolution, and controlled egress required by enabled workflows. A source resolver is not required for public federation or credential-free external representations, and provider declarations alone do not install or validate integrations.
 
@@ -842,7 +842,7 @@ Each connection has its own enablement, network and credential boundary. There i
 | API or worker to the embedding provider | Hybrid search must be enabled; one fixed configured endpoint. | Provider-specific trust and authorization inputs; [hybrid search](hybrid-search.mdx). |
 | Backend process to the OTLP collector | Tracing must be enabled; the configured collector transport remains endpoint-bound. | Separate collector trust and credential files; [tracing setup](observability.mdx#distributed-tracing). |
 
-Keep database access separate through the [database roles and connection budget](database-roles.md). The UI connects to one configured API and its issuer; it has no database access.
+Keep database access separate through the [database roles and connection budget](database-roles.mdx). The UI connects to one configured API and its issuer; it has no database access.
 
 ## Shutdown
 

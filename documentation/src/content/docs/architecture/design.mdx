@@ -2,7 +2,6 @@
 title: "Design principles"
 ---
 
-import TargetContext from "../../../components/architecture/TargetContext.astro";
 import RevisionLifecycle from "../../../components/architecture/RevisionLifecycle.astro";
 import SourceIngestion from "../../../components/architecture/SourceIngestion.astro";
 
@@ -63,21 +62,29 @@ Run disruptive fixtures with explicit ownership and cleanup. Avoid competing wor
 
 One Go codebase provides independently runnable API and worker roles backed by PostgreSQL. The optional UI is a separate client and has no database authority. API clients, IDEs and automation use the same authenticated contracts rather than writing Catalog tables.
 
-This target view includes conditional integrations; it is not a map of an installed deployment. Use the [logical runtime view](deployment.mdx#logical-applications-and-data) for the implemented PostgreSQL topology.
+Use the [logical runtime view](deployment.mdx#logical-applications-and-data) for processes and data connections. Optional capabilities have separate setup and failure rules:
 
-<TargetContext />
+| Capability | Availability |
+| --- | --- |
+| Core discovery and governed authoring | Works with PostgreSQL and no inference provider. |
+| Hybrid search | Implemented, disabled by default; requires a configured embedding endpoint and pgvector. |
+| ANS registration checks | Implemented, disabled by default; requires operator public keys and policy. Results remain private. |
+| External artwork delivery | Implemented without managed-media storage. |
+| Managed media and software assessment | Unavailable; enabling either fails startup. Broad trust and rights remain unassessed. |
 
 PostgreSQL owns metadata, bounded exact standards documents, immutable revisions, publication snapshots, audit and durable work. Core exact, lexical, filtered and faceted discovery requires no vector provider or external search service. Git and OCI references identify externally owned source and runtime artifacts. Complete Plugin packages remain external HTTPS archives; Catalog retains inspection evidence, not the archive itself.
 
 Discovery does not grant trust, approval, installation, deployment or invocation authority. The Catalog does not execute Agent, MCP, Skill or Plugin components. A downstream client must make its own authorization and execution decisions.
 
-The diagram separates core services from optional capabilities. [Hybrid search](../operations/hybrid-search.mdx) uses one configured embedding endpoint plus pgvector. Optional [ANS registration checks](security.mdx#optional-ans-registration-verification) use operator public keys and bounded public evidence; results remain private. External artwork delivery is implemented without managed storage. Managed media storage and software assessment remain unavailable and fail startup if enabled. Broad trust and legal rights remain unassessed.
+See [hybrid search](../operations/hybrid-search.mdx) and [ANS registration checks](security.mdx#optional-ans-registration-verification) for their setup and disclosure boundaries.
 
 ## Identity, revisions and review
 
 A Resource identifies one logical Agent, MCP Server, Skill or Plugin. A ResourceVersion names a version; its immutable VersionRevisions capture candidate content. ListingRevisions carry separately versioned presentation and discovery metadata. A ReviewSubmission binds one exact content revision, listing revision and validation result. Approval seals the version label to that content, and a ListingRelease records the approved tuple.
 
 <RevisionLifecycle />
+
+The review graph ends at a terminal decision. First approval seals the version label. Publishing an approved submission creates a separate ListingRelease. The [release transition table](domain.mdx#release-state-machine) defines its later states, permitted transitions and visibility. These transitions do not activate a host snapshot; see [release visibility](../guides/publishing.mdx#build-and-activate-discovery-separately).
 
 The following rules prevent apparently harmless edits from changing already reviewed meaning:
 
@@ -94,7 +101,7 @@ The [domain model](domain.mdx) owns entity relationships, exact visibility behav
 
 JWT verification establishes identity. Current Catalog membership and scoped permissions establish authority. OAuth scopes may narrow that authority but cannot create it. A token-supplied role, group or internal tenant UUID is not a Catalog grant. Public discovery instead uses the exact configured host, tenant and audience, with token-to-tenant matching on authenticated hosts.
 
-Every tenant-owned lookup, relationship and mutation preserves its tenant predicate. PostgreSQL enforces forced RLS for the API role. Workers use a distinct cross-tenant operational role for bounded claim and maintenance selection; every follow-up operation still names the exact tenant. Runtime roles authenticate directly with their exact grants, cannot assume a stronger role and never run migrations. See [database identities](../operations/database-roles.md).
+Every tenant-owned lookup, relationship and mutation preserves its tenant predicate. PostgreSQL enforces forced RLS for the API role. Workers use a distinct cross-tenant operational role for bounded claim and maintenance selection; every follow-up operation still names the exact tenant. Runtime roles authenticate directly with their exact grants, cannot assume a stronger role and never run migrations. See [database identities](../operations/database-roles.mdx).
 
 A mutating command serializes its scoped idempotency key across replicas. Its domain writes, audit, independently classified outbox records and exact replay response commit atomically. Audit-only actions do not manufacture notifications. Every replay rechecks current authentication, authorization and disclosure. Revision changes also require optimistic concurrency, so replay protection is not a substitute for `If-Match`.
 

@@ -59,7 +59,7 @@ Investigate repeated failure, sustained saturation, increasing observed age or a
 If housekeeping is not progressing:
 
 1. Check worker `/livez`, `/readyz`, and `/status`, then inspect the `housekeeper` component and PostgreSQL dependency state.
-1. Confirm the worker runs the matching binary and configuration for the applied migrations. Compare the diagnostics fields `schema.embeddedVersion` and `schema.runtimePrivilegeManifestVersion` with the [current schema and grant requirements](deployment.mdx#release-sequence); follow [database roles](database-roles.md) if startup detects a mismatch. Do not downgrade grants to a historical housekeeping manifest.
+1. Confirm the worker runs the matching binary and configuration for the applied migrations. Compare the diagnostics fields `schema.embeddedVersion` and `schema.runtimePrivilegeManifestVersion` with the [current schema and grant requirements](deployment.mdx#release-sequence); follow [database roles](database-roles.mdx) if startup detects a mismatch. Do not downgrade grants to a historical housekeeping manifest.
 1. Check failed cycle and batch counters before increasing any database resource. The SQL time and batch bounds are deliberate; a contended row is retried in a later cycle.
 1. Verify that retained rows are genuinely eligible. Pending replay state, inspection use links, live source-sync Jobs, retry children, leases, and webhook deliveries are intentional blockers.
 1. Correct the underlying database, privilege, or lifecycle defect and let automatic retry proceed. Do not bypass guards with ad hoc deletion or invent a manual trigger.

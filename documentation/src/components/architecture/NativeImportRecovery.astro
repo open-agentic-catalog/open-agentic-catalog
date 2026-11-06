@@ -1,28 +1,46 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="native-import-recovery-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 1191" role="img" aria-labelledby="native-import-recovery-title native-import-recovery-desc">
-  <title id="native-import-recovery-title">Resume an interrupted draft import safely</title>
-  <desc id="native-import-recovery-desc">Explicit resume uses the unchanged native manifest or reusable JSON draft, assets, preparation flags and private receipt. It checks the API origin, current Catalog identity, permissions and saved input binding, then reads exact acknowledged drafts. Acknowledged commands are skipped. Remaining commands retain their saved keys; an uncertain command can be repeated only with its original request, concurrency token and key within the permitted replay window. Refused checks, blocked validation, unsafe replay or failed readback stop the invocation. Completion requires exact readback. API commands commit separately, so earlier drafts remain after a stop. Import does not approve, publish or roll back drafts.</desc>
-  <defs><marker id="native-import-recovery-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 167 V237" marker-end="url(#native-import-recovery-arrow)" />
-  <path class="svg-connector" d="M320 358 V428" marker-end="url(#native-import-recovery-arrow)" />
-  <path class="svg-connector" d="M320 549 V619" marker-end="url(#native-import-recovery-arrow)" />
-  <path class="svg-connector" d="M320 358 V412 H12 V794 H320 V810" marker-end="url(#native-import-recovery-arrow)" />
-  <text class="svg-small" x="38" y="786">Mismatch / refusal</text>
-  <path class="svg-connector" d="M320 549 V603 H628 V764 H320 V810" marker-end="url(#native-import-recovery-arrow)" />
-  <text class="svg-small" x="340" y="786">Cannot continue</text>
-  <path class="svg-connector" d="M320 740 V810" marker-end="url(#native-import-recovery-arrow)" />
-  <text class="svg-small" x="200" y="767">Read failed</text>
-  <DiagramCard x={60} y={20} width={520} title={["Keep original inputs and the private", "receipt"]} tone="core" lines={["Unchanged native manifest or reusable JSON draft", "Native assets and preparation flags", "Retain acknowledged IDs and the original command journal"]} />
-  <DiagramCard x={60} y={237} width={520} title={"Recheck binding and saved progress"} lines={["Match API origin, current Catalog", "identity and prepared inputs", "Check current permissions; read exact acknowledged drafts"]} />
-  <DiagramCard x={60} y={428} width={520} title={"Continue the original command sequence"} lines={["Skip acknowledged commands and keep their results", "Keep the exact uncertain request, key and required ETag", "Explicit replay must remain within its permitted window"]} />
-  <DiagramCard x={60} y={619} width={520} title={"Verify complete drafts"} tone="authority" lines={["Exact readback of every acknowledged", "record precedes completion", "Completed reruns send no creation commands"]} />
-  <DiagramCard x={60} y={810} width={520} title={"Stop and investigate"} tone="warning" lines={["Mismatch, refusal, blocked validation,", "unsafe replay or failed readback", "Keep drafts, private receipt and original uncertain keys", "Inspect the stopped step; earlier commits remain"]} />
-  <DiagramCard x={60} y={1024} width={520} title={["Import creates drafts, not published", "releases"]} tone="warning" lines={["API commands commit separately; a", "stopped batch does not undo them", "Import does not approve, publish or roll back drafts"]} />
-
+<svg class="architecture-svg" viewBox="0 0 640 490" role="img" aria-labelledby="native-import-recovery-title native-import-recovery-desc">
+  <title id="native-import-recovery-title">Resume a draft import</title>
+  <desc id="native-import-recovery-desc">Check the original inputs, identity and private receipt before resuming saved commands. Skip acknowledged steps. Reconcile an uncertain step through authoritative reads or permitted exact replay. Complete only after every draft passes readback. A mismatch, refusal or failed readback stops work while preserving the receipt and earlier drafts.</desc>
+  <defs><marker id="native-import-recovery-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
+  <path class="svg-connector" d="M200 110 H230" marker-end="url(#native-import-recovery-arrow)" />
+  <path class="svg-connector" d="M410 110 H440" marker-end="url(#native-import-recovery-arrow)" />
+  <path class="svg-connector" d="M320 170 V230" marker-end="url(#native-import-recovery-arrow)" />
+  <text class="svg-small" x="335" y="208">Uncertain step</text>
+  <path class="svg-connector" d="M230 277 H215 V110 H230" marker-end="url(#native-import-recovery-arrow)" />
+  <text class="svg-small" x="112" y="272">Resolved</text>
+  <path class="svg-connector" d="M110 170 V355 H320 V390" marker-end="url(#native-import-recovery-arrow)" />
+  <text class="svg-small" x="20" y="205">Mismatch</text>
+  <path class="svg-connector" d="M320 325 V390" marker-end="url(#native-import-recovery-arrow)" />
+  <text class="svg-small" x="335" y="379">Refused / unsafe</text>
+  <path class="svg-connector" d="M530 170 V355 H320" />
+  <text class="svg-small" x="546" y="200">Read</text>
+  <text class="svg-small" x="546" y="222">failed</text>
+  <rect class="svg-node" x="20" y="50" width="180" height="120" rx="12" />
+  <text class="svg-title" x="36" y="78">Check receipt</text>
+  <text class="svg-title" x="36" y="104">and inputs</text>
+  <text class="svg-copy" x="36" y="133">Origin and identity</text>
+  <text class="svg-copy" x="36" y="155">Read saved drafts</text>
+  <rect class="svg-node-core" x="230" y="50" width="180" height="120" rx="12" />
+  <text class="svg-title" x="246" y="78">Resume saved</text>
+  <text class="svg-title" x="246" y="104">commands</text>
+  <text class="svg-copy" x="246" y="133">Keep acknowledged</text>
+  <text class="svg-copy" x="246" y="155">steps and keys</text>
+  <rect class="svg-node-authority" x="440" y="50" width="180" height="120" rx="12" />
+  <text class="svg-title" x="456" y="78">Read back</text>
+  <text class="svg-title" x="456" y="104">every draft</text>
+  <text class="svg-copy" x="456" y="133">Then complete</text>
+  <text class="svg-copy" x="456" y="155">the receipt</text>
+  <rect class="svg-node" x="230" y="230" width="180" height="95" rx="12" />
+  <text class="svg-title" x="246" y="260">Reconcile</text>
+  <text class="svg-title" x="246" y="286">saved command</text>
+  <text class="svg-copy" x="246" y="312">Read or exact replay</text>
+  <rect class="svg-node-warning" x="20" y="390" width="600" height="70" rx="12" />
+  <text class="svg-title" x="36" y="419">Stop and investigate</text>
+  <text class="svg-copy" x="36" y="445">Keep prior drafts, the receipt and original uncertain keys.</text>
 </svg>
 </div>

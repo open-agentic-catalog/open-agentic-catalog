@@ -1,26 +1,36 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="embedding-boundary-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 856" role="img" aria-labelledby="embedding-boundary-title embedding-boundary-desc">
-  <title id="embedding-boundary-title">Optional embedding service boundary</title>
-  <desc id="embedding-boundary-desc">API replicas send query text and worker replicas send metadata batches to one configured embeddings endpoint, which returns vectors. A local or hosted model service scales independently and has no Catalog database access. API and worker replicas share PostgreSQL for vector generations, eligibility and indexing Jobs. Core lexical search requires neither a model nor pgvector; hybrid search is disabled by default.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 440" role="img" aria-labelledby="embedding-boundary-title embedding-boundary-desc">
+  <title id="embedding-boundary-title">Query and indexing data sent to inference</title>
+  <desc id="embedding-boundary-desc">API query text and worker metadata batches go to one optional embedding endpoint. Vectors return to their callers. API and worker access PostgreSQL separately; the provider has no database access.</desc>
   <defs><marker id="embedding-boundary-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M180 141 V176 H320 V211" marker-start="url(#embedding-boundary-arrow)" marker-end="url(#embedding-boundary-arrow)" />
-  <text class="svg-small" x="190" y="168">Query / vector</text>
-  <path class="svg-connector" d="M460 141 V176 H320 V211" marker-start="url(#embedding-boundary-arrow)" marker-end="url(#embedding-boundary-arrow)" />
-  <text class="svg-small" x="340" y="199">Metadata / vectors</text>
-  <path class="svg-connector" d="M320 309 V379" marker-end="url(#embedding-boundary-arrow)" />
-  <path class="svg-connector svg-connector-authority" d="M180 141 V195 H12 V554 H320 V570" marker-end="url(#embedding-boundary-arrow)" />
-  <path class="svg-connector svg-connector-authority" d="M460 141 V165 H628 V524 H320 V570" marker-end="url(#embedding-boundary-arrow)" />
-  <DiagramCard x={60} y={20} width={240} title={"API replicas"} tone="core" lines={["Bounded query requests", "Authorized Search", "Lexical fallback"]} />
-  <DiagramCard x={340} y={20} width={240} title={"Worker replicas"} tone="core" lines={["Metadata batches in Jobs", "Provider calls", "outside transactions"]} />
-  <DiagramCard x={60} y={211} width={520} title={"One configured embedding endpoint"} tone="optional" lines={["OpenAI-compatible HTTP API", "Either a local service or a hosted provider"]} />
-  <DiagramCard x={60} y={379} width={520} title={"Independent model replicas"} tone="optional" lines={["Same active model and preprocessing", "No Catalog database credentials or", "model weights in Catalog images"]} />
-  <DiagramCard x={60} y={570} width={520} title={"Shared PostgreSQL + optional pgvector"} tone="authority" lines={["API and workers share eligibility,", "vector generations and indexing Jobs"]} />
-  <DiagramCard x={60} y={738} width={520} title={"Core lexical search remains model-free"} tone="warning" lines={["Hybrid search is disabled by", "default; pgvector is optional too."]} />
-
+  <path class="svg-connector" d="M200 75 H250 V205 H265 V225" marker-end="url(#embedding-boundary-arrow)" />
+  <path class="svg-connector" d="M245 225 H225 V135 H160 V110" marker-end="url(#embedding-boundary-arrow)" />
+  <path class="svg-connector" d="M440 75 H390 V205 H375 V225" marker-end="url(#embedding-boundary-arrow)" />
+  <path class="svg-connector" d="M395 225 H415 V135 H480 V110" marker-end="url(#embedding-boundary-arrow)" />
+  <path class="svg-connector" d="M80 110 V385 H220" marker-end="url(#embedding-boundary-arrow)" />
+  <path class="svg-connector" d="M560 110 V385 H420" marker-end="url(#embedding-boundary-arrow)" />
+  <text class="svg-small" x="265" y="152" text-anchor="start">Query</text>
+  <text class="svg-small" x="150" y="177" text-anchor="middle">Vector</text>
+  <text class="svg-small" x="375" y="178" text-anchor="end">Metadata</text>
+  <text class="svg-small" x="490" y="177" text-anchor="middle">Vectors</text>
+  <text class="svg-small" x="89" y="326" text-anchor="start">Search vectors</text>
+  <text class="svg-small" x="550" y="326" text-anchor="end">Index vectors</text>
+  <rect class="svg-node-core" x="20" y="30" width="180" height="80" rx="12" />
+  <text class="svg-title" x="110" y="58" text-anchor="middle">API</text>
+  <text class="svg-copy" x="110" y="82" text-anchor="middle">Query inference</text>
+  <rect class="svg-node-core" x="440" y="30" width="180" height="80" rx="12" />
+  <text class="svg-title" x="530" y="58" text-anchor="middle">Worker</text>
+  <text class="svg-copy" x="530" y="82" text-anchor="middle">Batch indexing</text>
+  <rect class="svg-node-optional" x="220" y="225" width="200" height="90" rx="12" />
+  <text class="svg-title" x="320" y="253" text-anchor="middle">Embedding</text>
+  <text class="svg-title" x="320" y="277" text-anchor="middle">endpoint</text>
+  <text class="svg-copy" x="320" y="301" text-anchor="middle">Optional; one model</text>
+  <rect class="svg-node-authority" x="220" y="350" width="200" height="70" rx="12" />
+  <text class="svg-title" x="320" y="378" text-anchor="middle">PostgreSQL</text>
+  <text class="svg-copy" x="320" y="402" text-anchor="middle">Derived vectors</text>
 </svg>
 </div>

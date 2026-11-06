@@ -3,7 +3,6 @@ title: Set up a sample Catalog
 ---
 
 import { Tabs, TabItem } from '@astrojs/starlight/components';
-import SampleReceipts from "../../../components/architecture/SampleReceipts.astro";
 
 Use the curated sample when you need known Agents, MCP Servers, Skills and Plugins for the [Search cookbook](search-cookbook.mdx) or [local LangGraph assistant](../../../../../examples/langgraph/README.md). Loading creates governed records and activates discovery; ordinary startup does neither. The development identity selector is local only. For users and passwords, use the separate [OIDC tutorial](../operations/oidc-keycloak.md#run-the-interactive-local-tutorial).
 
@@ -214,7 +213,14 @@ To update an existing release, create a Listing revision through normal authorin
 
 ## Receipts and reruns
 
-<SampleReceipts />
+Select an already ready Catalog and keep the original YAML, native assets and private receipt. The loader locks the receipt before checking ownership and saved progress.
+
+| Receipt state | Next action | Completion check |
+| --- | --- | --- |
+| No receipt | Load the explicitly selected dataset through the governed API sequence. | Read back every created record before saving the receipt. |
+| Matching completed receipt | Verify existing records without new authoring commands or an archive service. | Match the exact retained IDs and content. Evidence reads can still create audit records. |
+| Explicit extension | Add only new entries, preserving prior inputs, IDs and declared ownership. | Verify the complete accumulated selection before saving the extended receipt. |
+| Interrupted or uncertain command | Keep the journal, original request and key. Reconcile through authoritative reads or supported exact replay. | Stop if replay is unavailable or refused, or if readback disagrees with saved state. |
 
 The file and relative assets are easy to expand: copy this complete sample tree, add one unique Resource definition/native file, optionally a new declared namespace/publisher, and append its key to a profile. `demo-check` is a local preview; the loader independently verifies current receipt-owned API records before authoring. Bindings include the dataset, namespace/publisher definitions and complete resource metadata/native bytes; receipts with Plugins also bind their archive origin.
 

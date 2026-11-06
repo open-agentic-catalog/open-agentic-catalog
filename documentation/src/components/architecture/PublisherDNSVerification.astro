@@ -1,21 +1,42 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="publisher-dns-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 734" role="img" aria-labelledby="publisher-dns-title publisher-dns-desc">
-  <title id="publisher-dns-title">Publisher DNS verification</title>
-  <desc id="publisher-dns-desc">A Publisher manager requests a challenge for an exact declared domain. A DNS operator adds the returned TXT value. The manager starts a synchronous check. The API queries its system resolver and records the result. A match records proof and consumes the challenge. A failed renewal preserves earlier proof until expiry. Approval remains a separate command. DNS verification is disabled by default.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 580" role="img" aria-labelledby="publisher-dns-title publisher-dns-desc">
+  <title id="publisher-dns-title">The operator changes DNS; Catalog checks the proof</title>
+  <desc id="publisher-dns-desc">A Publisher manager requests a challenge and gives its TXT instructions to a DNS operator. The operator updates DNS. The manager requests a synchronous Catalog check against its resolver. A match records proof; a negative renewal preserves earlier proof until expiry. Approval is separate.</desc>
   <defs><marker id="publisher-dns-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 118 V188" marker-end="url(#publisher-dns-arrow)" />
-  <path class="svg-connector" d="M320 309 V379" marker-end="url(#publisher-dns-arrow)" />
-  <path class="svg-connector" d="M320 500 V535 H180 V570" marker-end="url(#publisher-dns-arrow)" />
-  <path class="svg-connector" d="M320 500 V535 H460 V570" marker-end="url(#publisher-dns-arrow)" />
-  <DiagramCard x={60} y={20} width={520} title="1. Request a challenge" tone="core" lines={["Publisher manager uses the Catalog API", "Keep the returned record name and value"]} />
-  <DiagramCard x={60} y={188} width={520} title="2. Add the DNS TXT record" tone="external" lines={["DNS operator updates the exact DNS record", "The Catalog never changes DNS", "Wait for the record to become available"]} />
-  <DiagramCard x={60} y={379} width={520} title="3. Check the DNS record" tone="core" lines={["Publisher manager selects Check DNS", "The API queries its system resolver", "One synchronous check; no worker Job"]} />
-  <DiagramCard x={60} y={570} width={240} title="Matched record" tone="authority" lines={["Record proof for the", "exact declared domain", "Consume the challenge", "Approval stays separate"]} />
-  <DiagramCard x={340} y={570} width={240} title="Negative check" tone="warning" lines={["Record the outcome", "A failed renewal keeps", "earlier proof until", "that proof expires"]} />
+  <path class="svg-divider" d="M80 90 V450 M240 90 V450 M400 90 V450 M560 90 V450" />
+  <path class="svg-connector" d="M80 135 H240" marker-end="url(#publisher-dns-arrow)" />
+  <text class="svg-copy" x="160" y="123" text-anchor="middle">Create challenge</text>
+  <path class="svg-connector" d="M240 180 H80" marker-end="url(#publisher-dns-arrow)" />
+  <text class="svg-copy" x="160" y="168" text-anchor="middle">TXT name + value</text>
+  <path class="svg-connector" d="M80 235 H400" marker-end="url(#publisher-dns-arrow)" />
+  <text class="svg-copy" x="240" y="223" text-anchor="middle">Give TXT instructions</text>
+  <path class="svg-connector" d="M400 280 H560" marker-end="url(#publisher-dns-arrow)" />
+  <text class="svg-copy" x="480" y="268" text-anchor="middle">Write TXT</text>
+  <path class="svg-connector" d="M80 335 H240" marker-end="url(#publisher-dns-arrow)" />
+  <text class="svg-copy" x="160" y="323" text-anchor="middle">Check DNS</text>
+  <path class="svg-connector" d="M240 390 H560" marker-end="url(#publisher-dns-arrow)" />
+  <text class="svg-copy" x="400" y="378" text-anchor="middle">Resolve TXT</text>
+  <path class="svg-connector" d="M560 435 H240" marker-end="url(#publisher-dns-arrow)" />
+  <text class="svg-copy" x="400" y="423" text-anchor="middle">TXT answer</text>
+  <path class="svg-connector" d="M240 450 V475 H160 V505" marker-end="url(#publisher-dns-arrow)" />
+  <path class="svg-connector" d="M240 475 H480 V505" marker-end="url(#publisher-dns-arrow)" />
+  <g><rect class="svg-node" x="10" y="25" width="140" height="65" rx="10" />
+<text class="svg-title" x="80.0" y="52.5" text-anchor="middle">Publisher</text>
+<text class="svg-copy" x="80.0" y="74.5" text-anchor="middle">manager</text></g>
+  <g><rect class="svg-node-core" x="170" y="25" width="140" height="65" rx="10" />
+<text class="svg-title" x="240.0" y="63.5" text-anchor="middle">Catalog API</text></g>
+  <g><rect class="svg-node-external" x="330" y="25" width="140" height="65" rx="10" />
+<text class="svg-small" x="400.0" y="63.5" text-anchor="middle">DNS operator</text></g>
+  <g><rect class="svg-node-external" x="490" y="25" width="140" height="65" rx="10" />
+<text class="svg-title" x="560.0" y="63.5" text-anchor="middle">DNS records</text></g>
+  <g><rect class="svg-node-authority" x="20" y="505" width="280" height="55" rx="10" />
+<text class="svg-title" x="160.0" y="538.5" text-anchor="middle">Match: record proof</text></g>
+  <g><rect class="svg-node" x="340" y="505" width="280" height="55" rx="10" />
+<text class="svg-title" x="480.0" y="527.5" text-anchor="middle">Negative result</text>
+<text class="svg-copy" x="480.0" y="549.5" text-anchor="middle">Record outcome</text></g>
 </svg>
 </div>

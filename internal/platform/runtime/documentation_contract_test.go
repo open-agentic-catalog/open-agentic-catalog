@@ -93,7 +93,16 @@ func TestDocumentationContracts(t *testing.T) {
 	})
 
 	t.Run("architecture diagram sources", func(t *testing.T) {
-		for _, name := range []string{"SystemContext", "Deployment", "Components", "CommandPath", "DomainModel", "Publication", "Federation", "Identity", "Events", "RestoreVerification", "TelemetryPaths", "TraceCausality", "BrowserSession", "ClientRetry", "FederationPeers", "WebhookReceiver", "TargetContext", "RevisionLifecycle", "SourceIngestion", "UILayout", "CatalogOverview"} {
+		for _, name := range []string{
+			"ANSAssessment", "BrowserSession", "CatalogMCPConnections", "CatalogOverview", "CommandPath",
+			"CommandRepair", "Components", "ComposeDeployment", "ContextForgeFlows", "CoordinatedUpgrade",
+			"DatabaseConnections", "Deployment", "DomainModel", "EmbeddingBoundary", "Events",
+			"Federation", "FederationPeers", "FeedbackLifecycle", "Identity", "JobLifecycle",
+			"MonitoringDeployment", "NativeImportRecovery", "OutboundChecks", "PluginDelivery", "Publication",
+			"PublisherDNSVerification", "ReleaseVisibility", "RestoreVerification", "RevisionLifecycle", "ScopedAccess",
+			"SearchContinuation", "SemanticGeneration", "SourceIngestion", "SystemContext", "TelemetryPaths",
+			"TestingPyramid", "TraceCausality", "WebhookOutcomes", "WebhookReceiver", "WelcomeDeployment",
+		} {
 			file := "documentation/src/components/architecture/" + name + ".astro"
 			content := readTestFile(t, repository, file)
 			for _, value := range content {
@@ -200,9 +209,9 @@ func TestDocumentationContracts(t *testing.T) {
 
 	t.Run("runtime privilege manifest inventory", func(t *testing.T) {
 		version := strconv.Itoa(database.RuntimePrivilegeManifestVersion())
-		roles := string(readTestFile(t, repository, "documentation/src/content/docs/operations/database-roles.md"))
+		roles := string(readTestFile(t, repository, "documentation/src/content/docs/operations/database-roles.mdx"))
 		if !strings.Contains(roles, "Version "+version+" of the manifest") {
-			t.Errorf("documentation/src/content/docs/operations/database-roles.md does not report current runtime privilege manifest v%s", version)
+			t.Errorf("documentation/src/content/docs/operations/database-roles.mdx does not report current runtime privilege manifest v%s", version)
 		}
 		architecture := string(readTestFile(t, repository, "documentation/src/content/docs/architecture/persistence.md"))
 		if !strings.Contains(architecture, "exact runtime privilege manifest v"+version) {

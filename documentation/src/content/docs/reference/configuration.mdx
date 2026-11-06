@@ -2,7 +2,6 @@
 title: "Configuration reference"
 ---
 
-import ConfigurationPaths from "../../../components/architecture/ConfigurationPaths.astro";
 import { Badge } from "@astrojs/starlight/components";
 
 The service starts with built-in safe defaults. It merges one optional JSON baseline selected by `--config`, then applies allowlisted environment overrides. Finally, it validates the result for the selected process role. `--config` is optional, so Kubernetes can use environment injection alone.
@@ -14,8 +13,6 @@ Precedence is fixed: built-in defaults, optional JSON, environment, then validat
 For response-size and validation tuning, start with [payload and client limits](#payload-and-client-limits). That section distinguishes configurable admission, diagnostic and client budgets from fixed collection and metadata contracts, and shows how to retrieve full retained objects.
 
 ## Configuration delivery and precedence
-
-<ConfigurationPaths />
 
 Launchers prepare deployment inputs before a process starts. Live tenant settings use the separate API described below. The backend and UI then validate their own configuration. The table below defines each entry point's delivery and precedence rules.
 
@@ -294,7 +291,7 @@ Socket timeouts bound connection reads or writes. The cooperative request deadli
 
 The worker operations listener has fixed five-second read, header-read and write timeouts, plus a thirty-second idle timeout. The API socket settings do not change those bounds. `http.shutdownTimeout` still controls worker process shutdown.
 
-Workers renew active leases during execution. A thirty-second lease is not a thirty-second total Job deadline. Handler, outbound-request and retry budgets retain their separate limits. Use the [work and deadline worksheet](../operations/database-roles.md#record-the-other-work-and-deadline-budgets) before changing concurrency or timeouts.
+Workers renew active leases during execution. A thirty-second lease is not a thirty-second total Job deadline. Handler, outbound-request and retry budgets retain their separate limits. Use the [work and deadline worksheet](../operations/database-roles.mdx#record-the-other-work-and-deadline-budgets) before changing concurrency or timeouts.
 
 Enabled features add timing constraints. For hybrid API queries, `semanticSearch.queryTimeout + 250ms` must be shorter than `http.requestTimeout`. Hybrid worker batches require `semanticSearch.batchTimeout` shorter than half of `worker.leaseDuration`. On workers, `webhooks.timeout` must be shorter than `worker.leaseDuration` when webhooks are enabled. Worker ANS acquisition requires `trustVerification.timeout + 5s` no greater than that lease. Follow the [hybrid search](../operations/hybrid-search.mdx) and [ANS verification](#ans-registration-verification) procedures when selecting these budgets.
 
@@ -924,7 +921,7 @@ These variables configure Make, Compose, or validation workflows and are not rea
 | `DEMO_ARCHIVE_TRUST_FILE` | `$(DEMO_ARCHIVE_DIR)/cert.pem` | Public CA for fixed-origin preflight before API mutations; CLI `--archive-trust-file`. Completed verified reruns require neither this file nor archive availability. |
 | `DEMO_EXTEND` | `false` | Explicitly adopt a verified original receipt or append new unchanged-input stable keys. Changes/removals/collisions are refused; completed configured receipts are verified read-only. |
 | `DEMO_TIMEOUT` | `5m` | Whole seed/recovery deadline, positive and at most 10m. Direct CLI equivalent is `--timeout`. |
-| `LOCAL_MONITORING` | `off` | Closed `off`/`on` selector for retained developer Compose only; not read by service binaries. Disposable `test-monitoring` selects its own enabled profile. Kubernetes uses the independently installed [companion chart](../operations/helm-monitoring.md), not this selector. |
+| `LOCAL_MONITORING` | `off` | Closed `off`/`on` selector for retained developer Compose only; not read by service binaries. Disposable `test-monitoring` selects its own enabled profile. Kubernetes uses the independently installed [companion chart](../operations/helm-monitoring.mdx), not this selector. |
 | `MONITORING_CONTEXT`, `MONITORING_NAMESPACE` | Empty | Required explicit cluster context and monitoring namespace for the companion-chart install/status/access/uninstall wrappers. |
 | `MONITORING_RELEASE`, `MONITORING_VALUES` | `catalog-monitoring`, empty | Selected companion release and non-secret values file; install requires the file and explicitly sets the companion chart's `enabled=true`. Plain Helm defaults to `enabled: false`. |
 | `MONITORING_COMPONENT`, `MONITORING_PORT` | `grafana`, `13000` | Loopback access selection; component is `grafana` or `prometheus`, port is 1024-65535. |
@@ -1022,7 +1019,7 @@ Dedicated mode resolves the configured tenant and exact issuer realm. Shared mod
 
 Authentication resolves the active principal without hydrating its assignments. Protected operations evaluate current permissions from Catalog state; an optional OAuth scope narrows but never expands that authority.
 
-Custom roles, groups and assignments are policy data administered through the API or UI, not environment variables or Helm values. Their changes take effect without a process restart; use Refresh My access to reload browser hints. Repeat development provisioning preserves retained custom policy. See [API conventions](api-conventions.md) for the permission and scope matrix and [database roles](../operations/database-roles.md) for initial provisioning.
+Custom roles, groups and assignments are policy data administered through the API or UI, not environment variables or Helm values. Their changes take effect without a process restart; use Refresh My access to reload browser hints. Repeat development provisioning preserves retained custom policy. See [API conventions](api-conventions.md) for the permission and scope matrix and [database roles](../operations/database-roles.mdx) for initial provisioning.
 
 JSON Web Token (JWT) encoding alone does not establish token purpose or provider compatibility. Use an access token intended for this Catalog; a cloud workload credential or JWT-SVID is not automatically interchangeable. Catalog does not consume the SPIFFE Workload API or verify SVIDs as a native authentication profile. A JWT that satisfies the checks above can pass ordinary authentication without additional proof semantics being enforced.
 
@@ -1232,7 +1229,7 @@ Preparation reads the selected `DEMO_STATE_FILE` only as bounded unverified hint
 
 ## Optional database pooler and private trust
 
-PgBouncer is a deployment option, not a new runtime configuration section or required dependency. API/worker keep their distinct `CATALOG_DATABASE_DSN` Secret inputs and configurable pgx pool bounds; operator commands keep their direct owner DSN. The Helm chart's disabled-by-default `pgbouncer` values control its separate component. `databaseTrustBundleConfigMap` mounts only public `ca.pem` in API, worker and migration at `/etc/open-agentic-catalog/database/ca.pem`, which an explicitly configured DSN references using `sslrootcert` with `sslmode=verify-full`. Enabling does not rewrite Secret contents. Follow the [pooling runbook](../operations/database-roles.md#connection-pooling-boundary) for all supported chart settings, both TLS hops, connection budgets, startup timeout limitations and explicit rollout/disablement; unrelated auth/federation trust remains separate.
+PgBouncer is a deployment option, not a new runtime configuration section or required dependency. API/worker keep their distinct `CATALOG_DATABASE_DSN` Secret inputs and configurable pgx pool bounds; operator commands keep their direct owner DSN. The Helm chart's disabled-by-default `pgbouncer` values control its separate component. `databaseTrustBundleConfigMap` mounts only public `ca.pem` in API, worker and migration at `/etc/open-agentic-catalog/database/ca.pem`, which an explicitly configured DSN references using `sslrootcert` with `sslmode=verify-full`. Enabling does not rewrite Secret contents. Follow the [pooling runbook](../operations/database-roles.mdx#connection-pooling-boundary) for all supported chart settings, both TLS hops, connection budgets, startup timeout limitations and explicit rollout/disablement; unrelated auth/federation trust remains separate.
 
 ## Resource ratings
 

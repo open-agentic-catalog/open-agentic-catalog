@@ -80,7 +80,7 @@ function inspect(base) {
     assertHandbookNavigation(page.navigation,entries,base);
     assertNavigationIcons(page.navigationLinks,entries,base,icons);
   }
-  const diagrams = {'':2, 'contributing/testing-map':1, 'reference/standards':1, 'guides/agent-plugins':1, 'architecture/overview':1, 'architecture/deployment':4, 'operations/deployment':1, 'architecture/components':2, 'architecture/domain':2, 'architecture/publication':1, 'architecture/federation':1, 'architecture/security':2, 'architecture/operations':1, 'architecture/catalog-ui':2, 'architecture/design':3, 'operations/backup-restore':1, 'operations/observability':3, 'guides/integrating':3, 'reference/configuration':1, 'guides/access-management':1, 'guides/publishing':3, 'operations/federation':2, 'operations/hybrid-search':2, 'guides/catalog-ui':0, 'operations/maintenance':2, 'operations/webhooks':1, 'operations/idempotency-repair':1, 'guides/local-development':0, 'guides/sample-catalog':1, 'guides/two-catalog-federation':1, 'guides/feedback':1, 'guides/resource-authoring':1, 'guides/mcp-server':1, 'guides/contextforge':1};
+  const diagrams = {'': 2, 'contributing/testing-map': 1, 'reference/standards': 0, 'guides/agent-plugins': 1, 'architecture/overview': 1, 'architecture/deployment': 4, 'operations/deployment': 1, 'architecture/components': 2, 'architecture/domain': 1, 'architecture/publication': 1, 'architecture/federation': 1, 'architecture/security': 2, 'architecture/operations': 1, 'architecture/catalog-ui': 1, 'architecture/design': 2, 'operations/backup-restore': 1, 'operations/observability': 3, 'guides/integrating': 2, 'reference/configuration': 0, 'guides/access-management': 1, 'guides/publishing': 2, 'operations/federation': 1, 'operations/hybrid-search': 2, 'guides/catalog-ui': 0, 'operations/maintenance': 1, 'operations/webhooks': 1, 'operations/idempotency-repair': 1, 'guides/local-development': 0, 'guides/sample-catalog': 0, 'guides/two-catalog-federation': 1, 'guides/feedback': 1, 'guides/resource-authoring': 1, 'guides/mcp-server': 1, 'guides/contextforge': 1, 'operations/helm-monitoring': 1, 'operations/database-roles': 1};
   for (const [route, count] of Object.entries(diagrams)) {
     assert.equal(pages.get(path.join(dist,route,'index.html'))?.diagrams,count,`Documentation diagram count: ${route}`);
   }
@@ -151,6 +151,35 @@ function inspect(base) {
       assert(links.includes(href), `Clickable manual content link: ${route}: ${target}`);
     }
     for (const phrase of phrases) assert(text(content).includes(phrase), `Manual guide content: ${route}: ${phrase}`);
+  }
+  // Replacing an SVG must preserve the decisions in visible, searchable content.
+  const replacements = [
+    ['architecture/design', ['Capability', 'Availability'], ['Hybrid search', 'ANS registration checks', 'Managed media']],
+    ['architecture/catalog-ui', ['Source', 'Responsibility'], ['src/', 'cmd/catalog-ui/', 'internal/']],
+    ['guides/publishing', ['Correction', 'New version label?', 'Supported next step'], ['Unsealed native content', 'Sealed native content']],
+    ['reference/standards', ['Standard', 'What it does', 'How Open Agentic Catalog uses it'], ['Agentic Resource Discovery', 'Model Context Protocol']],
+    ['architecture/domain', ['Boundary', 'Authenticated Control Search', 'Host-bound ARD auto Search'], ['Durable input', 'Continuation', 'Replay failure']],
+    ['operations/federation', ['Caller federation value', 'Contacts upstream Search', 'Returns referral descriptors'], ['none', 'referrals', 'auto']],
+    ['guides/integrating', ['Command outcome', 'Next action'], ['Known success', 'Unknown outcome', 'Stale revision']],
+    ['guides/sample-catalog', ['Receipt state', 'Next action', 'Completion check'], ['Matching completed receipt', 'Explicit extension', 'Interrupted or uncertain command']],
+    ['operations/maintenance', ['Stage', 'Key ring', 'Writer', 'Readers', 'Before the next stage'], ['Add the new pair', 'Keep the overlap', 'Retire the old pair']],
+    ['reference/configuration', ['Entry point', 'Resolution and ownership'], ['Direct backend binary', 'Independent UI']],
+  ];
+  for (const [route, headers, terms] of replacements) {
+    const page = pages.get(path.join(dist, route, 'index.html'));
+    const content = elements(page.document, 'div').find(node => attr(node, 'class')?.split(' ').includes('sl-markdown-content'));
+    const tables = elements(content, 'table').filter(table => {
+      const actual = elements(table, 'th').map(node => text(node).trim().replace(/\s+/g, ' '));
+      return headers.every(header => actual.includes(header));
+    });
+    assert.equal(tables.length, 1, `Diagram replacement table: ${route}`);
+    for (const term of terms) assert(text(tables[0]).includes(term), `Preserved diagram decision: ${route}: ${term}`);
+  }
+  const uiArchitecture = pages.get(path.join(dist, 'architecture/catalog-ui', 'index.html'));
+  assert.equal(uiArchitecture.trees.length, 1, 'UI source tree replaces its directory SVG');
+  const uiSource = fs.readFileSync(path.join(project, 'src/content/docs/architecture/catalog-ui.mdx'), 'utf8').replace(/<FileTree>[\s\S]*?<\/FileTree>/g, '');
+  for (const filename of ['catalog-ui/src/', 'catalog-ui/cmd/catalog-ui/', 'catalog-ui/internal/']) {
+    assert(uiSource.includes(filename), `Searchable UI source path outside FileTree: ${filename}`);
   }
   const callouts = [
     ['guides/resource-authoring', 'Retention is not approval', 'note'],

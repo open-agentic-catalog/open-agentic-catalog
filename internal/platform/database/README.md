@@ -70,7 +70,7 @@ Operational diagnostics units in `operational_snapshot_test.go` exercise the com
 
 Permission-failure cases revoke and restore individual columns only on fixture-owned worker roles. Existing notification lifecycle tests retain loss, retry and evidence-cleanup assertions. Run `make coverage-postgres-check` for the instrumented database suite; its coverage is separate from unit coverage.
 
-The [database-role runbook](../../../documentation/src/content/docs/operations/database-roles.md) owns provisioning and migration ordering; [backup/restore](../../../documentation/src/content/docs/operations/backup-restore.mdx) and the linked repair runbooks own operator procedures. Do not use ad hoc SQL changes or automatic resets as an upgrade workflow.
+The [database-role runbook](../../../documentation/src/content/docs/operations/database-roles.mdx) owns provisioning and migration ordering; [backup/restore](../../../documentation/src/content/docs/operations/backup-restore.mdx) and the linked repair runbooks own operator procedures. Do not use ad hoc SQL changes or automatic resets as an upgrade workflow.
 
 Search consistency tests share the [Catalog lexical corpus](../../catalog/testdata/README.md) with Go scoring tests. Real PostgreSQL tests cover local and indexed matching, cursor traversal and the bounded migration-000027 projection repair without changing immutable evidence. The normalization tests check the frozen SQL Letter/Number class and every lowercase mapping against the pinned Go Unicode tables. A small SQL translation supplements the newer Go mappings absent from PostgreSQL 18's Unicode tables.
 

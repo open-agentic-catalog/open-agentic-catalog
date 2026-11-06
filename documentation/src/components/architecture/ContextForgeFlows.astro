@@ -1,35 +1,45 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="contextforge-flows-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 865" role="img" aria-labelledby="contextforge-flows-title contextforge-flows-desc">
-  <title id="contextforge-flows-title">Catalog metadata and ContextForge runtime connections</title>
-  <desc id="contextforge-flows-desc">The first flow searches Catalog metadata. An MCP client authenticates to a ContextForge virtual server with a ContextForge token. Its Gateway uses a configured Catalog Reader token to call the Catalog API's read-only MCP tools. The second flow discovers and uses a virtual server. catalogctl reads a governed Server Card through the Control API with a Catalog credential. A purple dashed arrow carries the endpoint reference into explicit client setup, not a request or credential. An independent MCP client supplies a separate ContextForge token and calls the virtual server. ContextForge forwards requests to Everything with its upstream test key. The Catalog does not invoke that server. This released Server Card contains no runtime token.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 500" role="img" aria-labelledby="contextforge-flows-title contextforge-flows-desc">
+  <title id="contextforge-flows-title">Metadata lookup and a separate runtime connection</title>
+  <desc id="contextforge-flows-desc">An MCP client can query Catalog tools through ContextForge using separate gateway and Catalog credentials. Independently, catalogctl can discover a released Server Card. Its endpoint reference is a manual setup input, not a credential or request. A separate MCP client supplies a ContextForge token for runtime use.</desc>
   <defs><marker id="contextforge-flows-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <text class="svg-title" x="60" y="40">1. Search metadata</text>
-  <text class="svg-title" x="340" y="40">2. Discover and use</text>
-  <path class="svg-connector" d="M180 165 V235" marker-end="url(#contextforge-flows-arrow)" />
-  <text class="svg-small" x="192" y="202">ContextForge token</text>
-  <path class="svg-connector" d="M180 336 V406" marker-end="url(#contextforge-flows-arrow)" />
-  <text class="svg-small" x="192" y="373">Catalog Reader token</text>
-  <path class="svg-connector" d="M460 165 V235" marker-end="url(#contextforge-flows-arrow)" />
-  <text class="svg-small" x="472" y="202">Catalog credential</text>
-  <path class="svg-connector svg-connector-reference" d="M460 333 V403" marker-end="url(#contextforge-flows-arrow)" />
-  <text class="svg-small" x="472" y="370">Endpoint reference</text>
-  <path class="svg-connector" d="M460 527 V597" marker-end="url(#contextforge-flows-arrow)" />
-  <text class="svg-small" x="472" y="564">ContextForge token</text>
-  <path class="svg-connector" d="M460 698 V768" marker-end="url(#contextforge-flows-arrow)" />
-  <text class="svg-small" x="472" y="735">Upstream test key</text>
-  <DiagramCard x={60} y={90} width={240} title="MCP client" lines={["Select Catalog tools"]} />
-  <DiagramCard x={60} y={235} width={240} title={["ContextForge", "virtual server"]} lines={["Gateway forwards calls"]} />
-  <DiagramCard x={60} y={406} width={240} title="Catalog API /mcp" tone="core" lines={["Six read-only tools", "Return Catalog metadata", "No resource invocation"]} />
-  <DiagramCard x={60} y={597} width={240} title={["Metadata does not", "grant runtime access"]} tone="warning" lines={["Catalog and runtime", "credentials stay separate", "The released card has", "no runtime token"]} />
-  <DiagramCard x={340} y={90} width={240} title="catalogctl" lines={["Search and read a release"]} />
-  <DiagramCard x={340} y={235} width={240} title="Catalog Control API" tone="core" lines={["Return the released", "Server Card and endpoint"]} />
-  <DiagramCard x={340} y={403} width={240} title={["Independent", "MCP client"]} lines={["Explicit client setup", "Add ContextForge token"]} />
-  <DiagramCard x={340} y={597} width={240} title={["ContextForge", "virtual server"]} lines={["Separate runtime access"]} />
-  <DiagramCard x={340} y={768} width={240} title="Everything MCP" tone="external" lines={["Echo and static resources"]} />
+  <text class="svg-title" x="20" y="28" text-anchor="start">1. Query Catalog metadata</text>
+  <path class="svg-connector" d="M170 95 H245" marker-end="url(#contextforge-flows-arrow)" />
+  <text class="svg-copy" x="207" y="81" text-anchor="middle">CF token</text>
+  <path class="svg-connector" d="M395 95 H470" marker-end="url(#contextforge-flows-arrow)" />
+  <text class="svg-copy" x="432" y="81" text-anchor="middle">Reader</text>
+  <text class="svg-title" x="20" y="203" text-anchor="start">2. Discover, then configure a client</text>
+  <path class="svg-connector" d="M170 275 H245" marker-end="url(#contextforge-flows-arrow)" />
+  <text class="svg-copy" x="207" y="261" text-anchor="middle">Catalog</text>
+  <path class="svg-connector svg-connector-reference" d="M320 320 V345 H95 V390" marker-end="url(#contextforge-flows-arrow)" />
+  <text class="svg-copy" x="350" y="366" text-anchor="middle">Manual setup: endpoint reference</text>
+  <path class="svg-connector" d="M170 425 H245" marker-end="url(#contextforge-flows-arrow)" />
+  <text class="svg-copy" x="207" y="411" text-anchor="middle">CF token</text>
+  <path class="svg-connector" d="M395 425 H470" marker-end="url(#contextforge-flows-arrow)" />
+  <text class="svg-copy" x="432" y="411" text-anchor="middle">Test key</text>
+  <g><rect class="svg-node" x="20" y="60" width="150" height="70" rx="10" />
+<text class="svg-title" x="95.0" y="101.0" text-anchor="middle">MCP client</text></g>
+  <g><rect class="svg-node" x="245" y="60" width="150" height="70" rx="10" />
+<text class="svg-title" x="320.0" y="101.0" text-anchor="middle">ContextForge</text></g>
+  <g><rect class="svg-node-core" x="470" y="60" width="150" height="70" rx="10" />
+<text class="svg-title" x="545.0" y="90.0" text-anchor="middle">Catalog API</text>
+<text class="svg-copy" x="545.0" y="112.0" text-anchor="middle">/mcp</text></g>
+  <g><rect class="svg-node" x="20" y="240" width="150" height="70" rx="10" />
+<text class="svg-title" x="95.0" y="281.0" text-anchor="middle">catalogctl</text></g>
+  <g><rect class="svg-node-core" x="245" y="230" width="150" height="90" rx="10" />
+<text class="svg-title" x="320.0" y="259.0" text-anchor="middle">Control API</text>
+<text class="svg-copy" x="320.0" y="281.0" text-anchor="middle">Released</text>
+<text class="svg-copy" x="320.0" y="303.0" text-anchor="middle">Server Card</text></g>
+  <g><rect class="svg-node" x="20" y="390" width="150" height="70" rx="10" />
+<text class="svg-title" x="95.0" y="420.0" text-anchor="middle">MCP client</text>
+<text class="svg-copy" x="95.0" y="442.0" text-anchor="middle">Separate setup</text></g>
+  <g><rect class="svg-node" x="245" y="390" width="150" height="70" rx="10" />
+<text class="svg-title" x="320.0" y="431.0" text-anchor="middle">ContextForge</text></g>
+  <g><rect class="svg-node-external" x="470" y="390" width="150" height="70" rx="10" />
+<text class="svg-small" x="545.0" y="431.0" text-anchor="middle">Everything MCP</text></g>
 </svg>
 </div>

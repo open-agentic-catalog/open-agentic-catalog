@@ -2,6 +2,8 @@
 title: "PostgreSQL roles"
 ---
 
+import DatabaseConnections from "../../../components/architecture/DatabaseConnections.astro";
+
 ## Required database identities
 
 Use three separate database identities in production:
@@ -344,6 +346,10 @@ Drain and reconnect before changing a pooler's mode. PostgreSQL 18 writer admiss
 The application chart can deploy one private pooler using `pgbouncer.enabled=true`; it does not install PostgreSQL, create users, rewrite Secrets or manage database failover. One replica with `Recreate` replacement avoids overlapping instances and ambiguous cancellation routing. Accept a brief outage during replacement. API/worker replicas and their distinct login identities remain independent.
 
 Migrations, privilege reconciliation, bootstrap, repair, backup and restore inspection always use a direct database DSN. Exclude the owner from the pooler authentication file. The optional UI receives neither database credentials nor database trust inputs.
+
+Choose runtime routes explicitly in each role's DSN. These panels show alternatives; API and worker retain distinct logins in both setups. Enabling the pooler does not rewrite those DSNs.
+
+<DatabaseConnections />
 
 ### Enable and route explicitly
 

@@ -31,7 +31,7 @@ Replace both uppercase placeholders before deployment. The directory UUID select
 
 ## Provision the access-token identity
 
-Use the exact access-token `sub` when you [provision Catalog membership](database-roles.md#initial-catalog-identity-provisioning). Catalog does not substitute Entra's `oid`, email, display name or application ID. Keep the issuer and subject together when identifying an account.
+Use the exact access-token `sub` when you [provision Catalog membership](database-roles.mdx#initial-catalog-identity-provisioning). Catalog does not substitute Entra's `oid`, email, display name or application ID. Keep the issuer and subject together when identifying an account.
 
 For automation, use your existing Entra credential mechanism. Microsoft's [client credentials guide](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-client-creds-grant-flow) describes application consent and `api://API_APPLICATION_CLIENT_ID/.default` requests. The resulting token must still meet every Catalog claim requirement. Provision its actual subject as a service membership and assign the required Catalog permissions separately.
 

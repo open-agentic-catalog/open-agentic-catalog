@@ -1,29 +1,40 @@
 ---
 import "../../styles/architecture.css";
-import DiagramCard from "./DiagramCard.astro";
 ---
 
 <div class="catalog-architecture" role="region" aria-labelledby="restore-flow-title" tabindex="0">
-<svg class="architecture-svg" viewBox="0 0 640 1122" role="img" aria-labelledby="restore-flow-title restore-flow-desc">
-  <title id="restore-flow-title">Restore verification before traffic resumes</title>
-  <desc id="restore-flow-desc">Restore a complete recovery point into an isolated database with matching configuration and separately protected keys. Keep API, workers, ingress and outbound traffic stopped. Check the migration plan. Reconcile grants. Verify profiles.
-
-  Then verify every page for every expected tenant. Compare recovery-bound audit evidence when available. Integrity failures stop recovery. Repair only reported derived search drift and repeat verification. Review retained work and keys before operator-approved runtime and traffic resumption.</desc>
+<svg class="architecture-svg" viewBox="0 0 640 470" role="img" aria-labelledby="restore-flow-title restore-flow-desc">
+  <title id="restore-flow-title">Verify a restore before approving traffic</title>
+  <desc id="restore-flow-desc">Restore into isolation, check schema, roles and profiles, then verify every tenant and page. Integrity failures stop recovery. Reported derived drift may be repaired only before complete re-verification. Resume requires reviewed evidence and operator approval.</desc>
   <defs><marker id="restore-flow-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" /></marker></defs>
-  <path class="svg-connector" d="M320 167 V237" marker-end="url(#restore-flow-arrow)" />
-  <path class="svg-connector" d="M320 358 V428" marker-end="url(#restore-flow-arrow)" />
-  <path class="svg-connector" d="M320 549 V619" marker-end="url(#restore-flow-arrow)" />
-  <path class="svg-connector" d="M320 717 V787" marker-end="url(#restore-flow-arrow)" />
-  <path class="svg-connector" d="M320 908 V962 H12 V412 H320 V428" marker-end="url(#restore-flow-arrow)" />
-  <text class="svg-small" x="38" y="763">After derived repair</text>
-  <path class="svg-connector" d="M320 908 V978" marker-end="url(#restore-flow-arrow)" />
-  <text class="svg-small" x="332" y="935">Findings resolved</text>
-  <DiagramCard x={60} y={20} width={520} title={["Restore complete state into an isolated", "database"]} tone="warning" lines={["Keep API, workers, ingress and outbound traffic stopped", "Use matching configuration; protect keys separately", "Retain the expected tenant inventory"]} />
-  <DiagramCard x={60} y={237} width={520} title={"Check schema, roles and pinned profiles"} lines={["Inspect the exact migration plan before apply", "Reconcile exact API and worker", "grants; verify matching profiles"]} />
-  <DiagramCard x={60} y={428} width={520} title={"Verify every tenant and every page"} lines={["Start without a cursor and read all pages", "Retain all reports and findings;", "exit code alone is not a pass"]} />
-  <DiagramCard x={60} y={619} width={520} title={"Compare and review evidence"} lines={["Compare recovery-bound audit when available", "Review every warning before repair"]} />
-  <DiagramCard x={60} y={787} width={520} title={"Resolve findings"} tone="warning" lines={["Integrity failure: stop and investigate", "Repair only reported derived", "search drift, then verify again"]} />
-  <DiagramCard x={60} y={978} width={520} title={["Only resume after verification and", "operator approval"]} tone="authority" lines={["Review keys, retained work and possible side effects", "Then resume runtimes and traffic and check readiness"]} />
-
+  <path class="svg-connector" d="M200 95 H230" marker-end="url(#restore-flow-arrow)" />
+  <path class="svg-connector" d="M410 95 H440" marker-end="url(#restore-flow-arrow)" />
+  <path class="svg-connector" d="M470 140 V200 H110 V380" marker-end="url(#restore-flow-arrow)" />
+  <text class="svg-small" x="95" y="275" text-anchor="end">Clean</text>
+  <text class="svg-small" x="95" y="297" text-anchor="end">Reviewed</text>
+  <path class="svg-connector" d="M530 140 V380" marker-end="url(#restore-flow-arrow)" />
+  <text class="svg-small" x="542" y="285" text-anchor="start">Integrity</text>
+  <path class="svg-connector" d="M500 140 V185 H320 V250" marker-end="url(#restore-flow-arrow)" />
+  <text class="svg-small" x="335" y="222" text-anchor="start">Derived drift</text>
+  <path class="svg-connector" d="M410 290 H630 V25 H530 V50" marker-end="url(#restore-flow-arrow)" />
+  <text class="svg-small" x="515" y="318" text-anchor="middle">Verify again</text>
+  <rect class="svg-node-core" x="20" y="50" width="180" height="90" rx="12" />
+  <text class="svg-title" x="110" y="90" text-anchor="middle">Isolated</text>
+  <text class="svg-title" x="110" y="114" text-anchor="middle">restore</text>
+  <rect class="svg-node" x="230" y="50" width="180" height="90" rx="12" />
+  <text class="svg-title" x="320" y="90" text-anchor="middle">Schema / roles</text>
+  <text class="svg-title" x="320" y="114" text-anchor="middle">and profiles</text>
+  <rect class="svg-node" x="440" y="50" width="180" height="90" rx="12" />
+  <text class="svg-title" x="530" y="90" text-anchor="middle">Verify every</text>
+  <text class="svg-title" x="530" y="114" text-anchor="middle">tenant / page</text>
+  <rect class="svg-node" x="230" y="250" width="180" height="80" rx="12" />
+  <text class="svg-title" x="320" y="285" text-anchor="middle">Repair derived</text>
+  <text class="svg-title" x="320" y="309" text-anchor="middle">search drift</text>
+  <rect class="svg-node-authority" x="20" y="380" width="180" height="70" rx="12" />
+  <text class="svg-title" x="110" y="410" text-anchor="middle">Approve, then</text>
+  <text class="svg-title" x="110" y="434" text-anchor="middle">resume</text>
+  <rect class="svg-node-warning" x="440" y="380" width="180" height="70" rx="12" />
+  <text class="svg-title" x="530" y="410" text-anchor="middle">Stop and</text>
+  <text class="svg-title" x="530" y="434" text-anchor="middle">investigate</text>
 </svg>
 </div>

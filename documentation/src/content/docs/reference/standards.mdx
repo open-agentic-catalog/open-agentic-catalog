@@ -2,7 +2,6 @@
 title: "Standards and interoperability"
 ---
 
-import StandardsEcosystem from "../../../components/architecture/StandardsEcosystem.astro";
 import { Badge } from "@astrojs/starlight/components";
 
 Open Agentic Catalog helps you author, review, publish and find Agents, MCP Servers, Skills and Plugins. It validates their metadata and supported package formats. Your client application installs, connects to or runs the resources you choose.
@@ -19,8 +18,6 @@ This page explains the supported standards, the rules the Catalog applies, and k
 | [Model Context Protocol (MCP)](https://modelcontextprotocol.io/docs/getting-started/intro) | Connects AI applications to tools, data and prompts provided by MCP servers. | Validates server metadata without connecting to servers or invoking their tools. |
 | [Agent Skills](https://agentskills.io/specification) | Defines reusable instructions in `SKILL.md`, with optional supporting files. | Validates Skill documents and supported packages for review and discovery. |
 | [Agent Plugins](https://agent-plugins.org/specification) | Defines a directory that groups Skills, MCP configuration and client-specific extensions. | Validates complete Plugin archives for review and discovery. |
-
-<StandardsEcosystem />
 
 You can use these standards independently. A Skill does not need a Plugin. A compatible client can use a Plugin without an ARD entry.
 

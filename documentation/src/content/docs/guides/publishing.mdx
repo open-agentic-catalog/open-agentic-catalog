@@ -4,8 +4,6 @@ title: Review, publish and maintain a resource
 
 import ReleaseVisibility from "../../../components/architecture/ReleaseVisibility.astro";
 
-import EditChoices from "../../../components/architecture/EditChoices.astro";
-
 import PublisherDNSVerification from "../../../components/architecture/PublisherDNSVerification.astro";
 
 Publish an Agent through independent review, then expose its metadata through a discovery snapshot. Start with the [browser tutorial](#publish-an-agent-in-the-browser), or use the [HTTP walkthrough](#start-the-service-and-check-permissions). The HTTP walkthrough uses the maintained [Agent lifecycle example](../../../../../api/examples/agent-lifecycle.json) and requires a source checkout. For other resource formats, start with [Prepare resource content](resource-authoring.mdx).
@@ -632,6 +630,8 @@ See the [retained comparison example](#inspect-and-compare-retained-snapshots) b
 
 Release publication updates eligible current Catalog reads. Discovery reads change only after separate snapshot activation, or safety withdrawal. Building a candidate leaves the previous active snapshot unchanged.
 
+Later releases and corrections do not refresh retained snapshot bytes. Build and activate another eligible candidate to expose them. Safety withdrawal can retire a whole snapshot containing an affected release.
+
 The Publication Administrator selects a configured host. Inspect its inventory before building:
 
 ```sh
@@ -716,18 +716,17 @@ For unwanted external metadata, use [source containment and forward correction](
 
 Use [Listing relationships](resource-authoring.mdx#describe-listing-relationships) to describe dependencies or related Versions. A `supersedes` relationship does not change release disposition.
 
-<EditChoices />
-
 Choose the correction path before creating a new revision. Revalidation appends evidence; it does not change retained content. If evidence becomes stale, resolve the pending submission before submitting again.
 
 Keep immutable revisions and review evidence. Use a new idempotency key for each correction, and read the current aggregate ETag before changing it.
 
-| Situation | Supported correction |
-| --- | --- |
-| Unsealed version content needs correction | Read `GET /api/v1/resource-versions/{versionId}`. Post `{ "representations": [...] }` to `/api/v1/resource-versions/{versionId}/revisions` with its ETag. Save the returned revision and evidence. Create a listing revision bound to that new VersionRevision before submitting it. The content revision body has no `version` field. |
-| Approved content needs correction | Approval seals the version label. Create a new label through `/api/v1/resources/{resourceId}/versions`, such as `1.0.1`, with corrected native content. Keep the Card's native version consistent with the new label. Create a listing revision bound to the new VersionRevision, then submit, review and publish again. |
-| Only listing text, tags or queries change | Create a new listing revision with the unchanged sealed `versionRevisionId` and the current listing ETag. Submit that exact revision for independent review, then publish it. No content rewrite or new version label is needed. |
-| Reviewer requests changes or rejects | Inspect the recorded reason. Create corrected content when unsealed, or a new version when sealed. Create a corrected listing revision and a fresh submission. `changes_required` and `rejected` submissions are terminal; they cannot later be approved. |
+| Correction | New version label? | Supported next step |
+| --- | --- | --- |
+| Only listing text, tags or queries | No | Create a listing revision with the unchanged `versionRevisionId` and current listing ETag. Submit that revision for independent review, then publish it. |
+| Unsealed native content | No | Read `GET /api/v1/resource-versions/{versionId}`. Post `{ "representations": [...] }` to `/api/v1/resource-versions/{versionId}/revisions` with its ETag. Save the returned revision and evidence, then create a listing revision bound to that VersionRevision before submission. The body has no `version` field. |
+| Sealed native content | Yes | Create a label through `/api/v1/resources/{resourceId}/versions`, such as `1.0.1`, with corrected content. Keep the Card's native version consistent. Create a listing revision bound to the new VersionRevision, then submit, review and publish again. |
+
+Approval seals the version label. If a Reviewer requests changes or rejects a submission, inspect the reason and choose the correction above. Create a corrected listing revision and a fresh submission. The `changes_required` and `rejected` decisions are terminal; those submissions cannot later be approved.
 
 Use the complete listing body from the example for a listing correction; `/revisions` creates a new revision rather than a partial patch. Review binds exact evidence. Revalidation before approval can make a pending submission's evidence stale. An independent Reviewer must request changes or reject that pending submission using its current ETag before a fresh submission can be created. The Catalog permits only one pending submission per listing. After release publication, refresh discovery separately.
 

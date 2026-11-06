@@ -5,7 +5,7 @@ description: "Plan a Catalog deployment on IBM Cloud Code Engine and check the P
 
 Use [IBM Cloud Code Engine](https://cloud.ibm.com/docs/codeengine?topic=codeengine-application-workloads) for separate API and worker applications. Use finite Code Engine jobs for owner commands. This guide applies only if the selected PostgreSQL service supplies the permissions below. No IBM-hosted Catalog deployment or database compatibility test has verified this procedure.
 
-The required PostgreSQL permissions remain unresolved for [IBM Cloud Databases for PostgreSQL](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-user-management). Do not create billable resources until IBM confirms a supported procedure that satisfies every requirement. If the service forbids a requirement, select another PostgreSQL deployment that meets the [database-role contract](database-roles.md). Do not bypass Catalog's database checks.
+The required PostgreSQL permissions remain unresolved for [IBM Cloud Databases for PostgreSQL](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-user-management). Do not create billable resources until IBM confirms a supported procedure that satisfies every requirement. If the service forbids a requirement, select another PostgreSQL deployment that meets the [database-role contract](database-roles.mdx). Do not bypass Catalog's database checks.
 
 ## Check compatibility before provisioning
 
@@ -26,7 +26,7 @@ IBM's [user-management guide](https://cloud.ibm.com/docs/databases-for-postgresq
 
 PostgreSQL 18 permits [BYPASSRLS role creation](https://www.postgresql.org/docs/18/sql-createrole.html) only from a superuser or a role that already has `BYPASSRLS`. Ordinary `CREATEROLE` authority does not establish that capability. SQL-created roles are not a verified solution: inspect their attributes and every incoming and outgoing membership, including creator memberships. `NOINHERIT` does not remove memberships.
 
-IBM's public documentation does not establish a supported procedure for the required worker `BYPASSRLS` attribute and owner extension-function grants. Ask IBM to confirm independent API and worker logins, worker `BYPASSRLS`, and owner access across forced RLS. Also confirm [extension-function grant authority](database-roles.md#prepare-an-isolated-non-superuser-owner). IBM installs extensions in its [read-only `ibm_extension` schema](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-extensions#installing-extensions). Catalog still needs to revoke excess function access and grant only its reviewed digest overloads. Database ownership and successful extension installation alone are insufficient.
+IBM's public documentation does not establish a supported procedure for the required worker `BYPASSRLS` attribute and owner extension-function grants. Ask IBM to confirm independent API and worker logins, worker `BYPASSRLS`, and owner access across forced RLS. Also confirm [extension-function grant authority](database-roles.mdx#prepare-an-isolated-non-superuser-owner). IBM installs extensions in its [read-only `ibm_extension` schema](https://cloud.ibm.com/docs/databases-for-postgresql?topic=databases-for-postgresql-extensions#installing-extensions). Catalog still needs to revoke excess function access and grant only its reviewed digest overloads. Database ownership and successful extension installation alone are insufficient.
 
 Do not use provider group roles, a shared administrator login, `SET ROLE`, disabled RLS or handwritten broad grants as substitutes. If IBM cannot supply the required authority, the managed database is incompatible with this Catalog version. The later Code Engine steps apply only after this prerequisite is established.
 
@@ -277,7 +277,7 @@ catalog_owner_run catalog-owner-bootstrap-v1 \
   --operator release-operator --reason "Initial tenant bootstrap"
 ```
 
-Replace the example tenant, issuer, subject and operator before execution. For shared tenancy, follow the exact [realm and organization mapping procedure](database-roles.md#initial-catalog-identity-provisioning). Do not use `provision-development` or development bearer tokens in production.
+Replace the example tenant, issuer, subject and operator before execution. For shared tenancy, follow the exact [realm and organization mapping procedure](database-roles.mdx#initial-catalog-identity-provisioning). Do not use `provision-development` or development bearer tokens in production.
 
 ## Start the API and worker applications
 

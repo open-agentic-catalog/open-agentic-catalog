@@ -14,7 +14,7 @@ Use PostgreSQL 18 and enable `pgcrypto`. Catalog will not start with another Pos
 | Component | Required deployment behavior |
 | --- | --- |
 | Database | PostgreSQL 18, UTF8, `pgcrypto`, a dedicated Catalog database and schema owner. |
-| Runtime identities | Direct, distinct API and worker logins with the exact attributes and privileges in [PostgreSQL roles](database-roles.md). |
+| Runtime identities | Direct, distinct API and worker logins with the exact attributes and privileges in [PostgreSQL roles](database-roles.mdx). |
 | Worker | A continuously running app with at least one replica. PostgreSQL Jobs, outbox work and housekeeping do not generate HTTP scaling traffic. |
 | Migrations | An explicit owner-only operation after every old API and worker replica has stopped. No startup or init-container migrations. |
 | Images | The reviewed `linux/amd64` backend image, selected by immutable digest. Container Apps currently requires [Linux x86-64 images](https://learn.microsoft.com/en-us/azure/container-apps/containers#limitations). |
@@ -93,7 +93,7 @@ az postgres flexible-server parameter set \
 
 This replaces the server allowlist. On a shared or existing server, preserve its reviewed entries and include `pgcrypto` instead. An allowlist entry does not install the extension or authorize its function grants.
 
-Complete [non-superuser owner preparation](database-roles.md#prepare-an-isolated-non-superuser-owner). Trusted extension installation can leave functions owned by a bootstrap superuser. The owner must reconcile grants for every application-visible extension function, including revocation of `PUBLIC EXECUTE`. Azure's public documentation does not establish that every managed extension ownership arrangement permits this preparation. If Azure refuses a required ownership or grant operation, stop: that server does not meet Catalog's database requirements. Do not use the managed administrator as a runtime identity or bypass the privilege checks.
+Complete [non-superuser owner preparation](database-roles.mdx#prepare-an-isolated-non-superuser-owner). Trusted extension installation can leave functions owned by a bootstrap superuser. The owner must reconcile grants for every application-visible extension function, including revocation of `PUBLIC EXECUTE`. Azure's public documentation does not establish that every managed extension ownership arrangement permits this preparation. If Azure refuses a required ownership or grant operation, stop: that server does not meet Catalog's database requirements. Do not use the managed administrator as a runtime identity or bypass the privilege checks.
 
 Inspect the actual server through a protected SQL session before migration:
 
@@ -129,9 +129,9 @@ SELECT procedure.oid::pg_catalog.regprocedure AS function,
    AND extension.extname = 'pgcrypto';
 ```
 
-Expect `18.x`, `UTF8` and one installed `pgcrypto` row from the first three queries. The runtime attributes must match [PostgreSQL roles](database-roles.md#required-database-identities), and the membership query must return no rows. Require the intended schema owner and the extension-function authority described above. These queries do not replace the owner-only migration and privilege checks. Apply all pending migrations, require compliant privilege reports for both roles, then start the API and worker with their separate database logins.
+Expect `18.x`, `UTF8` and one installed `pgcrypto` row from the first three queries. The runtime attributes must match [PostgreSQL roles](database-roles.mdx#required-database-identities), and the membership query must return no rows. Require the intended schema owner and the extension-function authority described above. These queries do not replace the owner-only migration and privilege checks. Apply all pending migrations, require compliant privilege reports for both roles, then start the API and worker with their separate database logins.
 
-Use direct PostgreSQL connections on port 5432 in this procedure. Do not enable the provider's pooler by assumption. Catalog requires verified session pooling when a pooler is selected; follow the [connection-pooling boundary](database-roles.md#connection-pooling-boundary).
+Use direct PostgreSQL connections on port 5432 in this procedure. Do not enable the provider's pooler by assumption. Catalog requires verified session pooling when a pooler is selected; follow the [connection-pooling boundary](database-roles.mdx#connection-pooling-boundary).
 
 ## Prepare configuration, trust and secrets
 
@@ -429,7 +429,7 @@ az containerapp job start \
   --resource-group "$CATALOG_RESOURCE_GROUP" --name "$CATALOG_OWNER_JOB"
 ```
 
-Require success before runtime startup. Shared tenancy needs the corresponding organization claim and exact mapping from [identity provisioning](database-roles.md#initial-catalog-identity-provisioning). Do not use development provisioning in production.
+Require success before runtime startup. Shared tenancy needs the corresponding organization claim and exact mapping from [identity provisioning](database-roles.mdx#initial-catalog-identity-provisioning). Do not use development provisioning in production.
 
 ## Start, authenticate and verify
 

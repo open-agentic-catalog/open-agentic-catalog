@@ -32,7 +32,7 @@ Use GNU Make from the repository root. Pass overrides after the target, for exam
 
 `make demo-up` preserves the selected workflow file and supported project, deployment and sample inputs through its child targets. Environment and workflow-file selections follow the same precedence as other runtime targets; explicit command-line assignments take priority. Follow the [sample setup procedure](../guides/sample-catalog.mdx#start-the-catalog-with-compose-and-load-sample-data) to select matching origins, ports and a private receipt before loading data.
 
-The [Helm monitoring guide](../operations/helm-monitoring.md) covers `make monitoring-package`, the explicit install/status/access/uninstall commands and `make test-minikube-monitoring`. These operate on the independent companion chart, not the application chart or the Compose `LOCAL_MONITORING` selector.
+The [Helm monitoring guide](../operations/helm-monitoring.mdx) covers `make monitoring-package`, the explicit install/status/access/uninstall commands and `make test-minikube-monitoring`. These operate on the independent companion chart, not the application chart or the Compose `LOCAL_MONITORING` selector.
 
 For tracing, `make test-tracing` and `make test-minikube-tracing` run isolated export and cross-process causality tests. `make trace-viewer-up` starts a separate local Jaeger viewer without starting Catalog; `make trace-viewer-down` removes that viewer and discards its in-memory traces. See [tracing operations](../operations/observability.mdx#distributed-tracing) for application configuration and [local viewing](../operations/observability.mdx#view-traces-locally) for the development commands, ports and cleanup.
 

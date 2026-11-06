@@ -115,7 +115,7 @@ The chart does not deploy a model. Use a separately operated compatible endpoint
 
 <SemanticGeneration />
 
-A replacement generation becomes usable only after every eligible member is accounted for and the current lease and source checks pass. Rejected inputs remain keyword-only. Temporary provider failure retries work without changing authoritative metadata.
+A replacement generation becomes usable only after every eligible member has a vector or permanent rejection and the current lease/source checks pass. Rejected inputs remain keyword-only. Inference runs outside SQL transactions. Temporary provider failure retries work without changing authoritative metadata or replacing the old usable generation.
 
 Workers select eligible local releases, approved indexed-source metadata and active public snapshots for bounded `semantic.reindex` Jobs. Public and private-control vectors stay separate, even for identical text. New metadata remains available to keyword search. Publication never waits for inference.
 
@@ -174,7 +174,15 @@ After a model/profile change or restore, workers reconcile missing or stale deri
 
 <SearchContinuation />
 
-This diagram describes authenticated Control API Search. A continuation preserves its ranking tier; a new query can use a classified fallback. Public discovery follows the same continuation principle with separate snapshot inputs and limits, described below.
+This diagram describes authenticated Control API Search. Cursors bind the caller, query, generation, ranking profile and query-vector fingerprint. Public discovery follows the same continuation principle with separate snapshot inputs and limits, described below.
+
+| Request or condition | Required behavior |
+| --- | --- |
+| Fresh query; classified indexing, provider or work-limit failure | Use keyword fallback. Do not report truncated hybrid success. |
+| Existing lexical cursor; provider changes | Keep lexical continuation, including after provider recovery. |
+| Existing hybrid cursor; dependency unavailable | Retry the same cursor or restart the query. Do not switch its ranking to keyword search. |
+| Changed binding, profile, generation or metadata | Restart pagination with the submitted query and filters. Access denial requires correcting permission, not bypassing it through a new query. |
+| Unclassified database error or caller cancellation | Return the error. These conditions do not permit keyword fallback. |
 
 Authenticated Search combines local and indexed candidates; Control Explore covers local releases only. Public ARD Search/Explore use the active audience-scoped snapshot. Explicit filters apply before matching. Independent keyword and semantic candidates are deduplicated before rank fusion; durable totals and facets cover the full matching set, not a top-k approximation.
 
@@ -188,7 +196,7 @@ These safeguards and the 1,000-item test are not capacity guarantees for larger 
 
 Search and Explore report actual `tier`, `profile`, optional `fallbackReason` and `partialIndex`. The UI labels the returned result, not just configured capability. Public ARD bodies remain unchanged. Headers `Catalog-Search-Tier`, `Catalog-Search-Fallback` and optional `Catalog-Search-Partial-Index: true` report mode without counts or provider identity. Successful empty hybrid results remain empty.
 
-Cursors bind the caller, query, generation, ranking profile and query-vector fingerprint. Model/profile changes, altered permissions or changed metadata can require restarting pagination. A hybrid continuation never silently becomes keyword-ranked during an outage. Restart using the same query and filters; the UI's restart action preserves submitted criteria.
+The UI's restart action preserves submitted criteria. A hybrid continuation never silently becomes keyword-ranked during an outage.
 
 Capabilities report configuration and the API process's last observed provider state without an inference probe. Callers with current `operations.reindex` permission also receive control-index counts and a Job link. These counts are private operational information. Check Job state and `semantic_maintainer` health for worker progress.
 

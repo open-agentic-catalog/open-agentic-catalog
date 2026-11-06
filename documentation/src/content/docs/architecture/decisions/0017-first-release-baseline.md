@@ -24,4 +24,4 @@ Resetting development data requires explicit authorization for the exact environ
 - A general migration/export/backfill system for older development builds was rejected as unnecessary scope.
 - Cleanup can break unreleased development clients/configurations; migrate maintained fixtures and examples in the same change and document reset/refusal behavior. Current-only tests replace obsolete acceptance tests while retaining adversarial coverage.
 
-See [migration requirements](../../operations/database-roles.md#migration-drain-and-provisioning-requirements) for schema changes and deployment sequencing.
+See [migration requirements](../../operations/database-roles.mdx#migration-drain-and-provisioning-requirements) for schema changes and deployment sequencing.

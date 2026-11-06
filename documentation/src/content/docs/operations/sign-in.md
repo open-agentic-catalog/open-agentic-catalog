@@ -121,7 +121,7 @@ Use dedicated tenancy unless you need an explicit organization mapping within on
 3. Select one tenant mapping. Dedicated mode uses `auth.tenancyMode: dedicated` and `auth.dedicatedTenantId`; omit `organizationClaim`. Shared mode uses `auth.tenancyMode: shared` and `auth.organizationClaim`; omit `dedicatedTenantId`. Shared tokens must contain the configured claim as one bounded string.
 4. Decide whether to enable `auth.enforceScopes`. When enabled, the token's OAuth scopes limit permitted actions. Scopes never grant Catalog permissions. Arrange the required scopes with the issuer and the client that obtains the token.
 5. Configure issuer trust before starting the API. Use [OIDC private trust](../reference/configuration.mdx#oidc-private-trust) for private certificate authorities. This API trust input does not configure the UI, federation or webhooks.
-6. Apply migrations and provision the initial Catalog identity through the [schema-owner bootstrap procedure](database-roles.md#initial-catalog-identity-provisioning). Provision the exact issuer realm, tenant or external organization mapping, subject membership and initial administrator authority.
+6. Apply migrations and provision the initial Catalog identity through the [schema-owner bootstrap procedure](database-roles.mdx#initial-catalog-identity-provisioning). Provision the exact issuer realm, tenant or external organization mapping, subject membership and initial administrator authority.
 7. Start the API with its own least-privilege database identity. Obtain a token through the issuer's supported client procedure. Verify an authenticated `GET /api/v1/me` and an intended authorized read.
 
 Unknown realms, organization mappings and subjects fail authentication. Suspended memberships and ambiguous selectors also fail closed. Signing in at the issuer does not create a Catalog membership. Token-carried tenant UUIDs, roles, groups and namespace grants do not grant Catalog authority.
@@ -240,7 +240,7 @@ The retained developer Compose stack uses local development identities. `LOCAL_U
 Use RSA signing keys of 4096 bits or fewer when your issuer publishes RSA JWKs. The API and UI reject larger RSA JWKs. This limit bounds key parsing; it does not change the supported signature algorithms.
 
 1. Run offline configuration validation with the selected profile: `catalogctl config validate --config /etc/catalog/config.json --role api`. This checks settings, not issuer reachability.
-2. Provision the initial administrator with the exact access-token issuer and subject through the [schema-owner procedure](database-roles.md#initial-catalog-identity-provisioning).
+2. Provision the initial administrator with the exact access-token issuer and subject through the [schema-owner procedure](database-roles.mdx#initial-catalog-identity-provisioning).
 3. Use a protected API access-token file for `catalogctl remote capabilities --base-url https://catalog.example.com --token-file /run/secrets/catalog-api-token`.
 4. Read `GET /api/v1/me` through your approved HTTP client or the UI's **My access** page. Confirm the subject, tenant and actor type. Check one permitted read and one action outside that membership's authority.
 5. If enabled, sign in through the UI and test the [human CLI client](../reference/commands.md#human-cli-login) separately. Test expiry, sign-out and current membership suspension.
@@ -272,7 +272,7 @@ For a subject-only change, keep the realm. An administrator in that realm can pr
 2. Record the existing tenant UUID and display name, runtime profiles, client settings and protected credential locations.
 3. Confirm the new issuer metadata, access-token subjects, API audience and any shared-tenancy organization mapping.
 4. Preserve the existing tenant UUID and exact display name in the provisioning inputs.
-5. Provision a new realm's initial administrator through [schema-owner identity bootstrap](database-roles.md#initial-catalog-identity-provisioning) when the issuer changes.
+5. Provision a new realm's initial administrator through [schema-owner identity bootstrap](database-roles.mdx#initial-catalog-identity-provisioning) when the issuer changes.
 6. Validate the replacement API and worker profiles before deployment.
 7. Replace the runtime inputs through the normal [deployment procedure](maintenance.mdx#coordinated-release-deployment).
 8. Update the UI issuer, client settings and private trust through [configuration delivery](#deliver-the-configuration).
@@ -281,11 +281,11 @@ For a subject-only change, keep the realm. An administrator in that realm can pr
 11. Verify an allowed read and an out-of-scope refusal using each representative new identity.
 12. Retire the old identity path only after the new administrator and required service clients work.
 
-Membership histories and private ownership remain bound to their retained IDs. The new identity cannot inherit old bookmarks or saved searches. No identity merge or automatic transfer is available. Assignment and group-member writes require the administrator's authenticated realm. A new-realm administrator cannot revoke old-realm assignments; use the documented [membership lifecycle and realm controls](database-roles.md#tenant-membership-administration).
+Membership histories and private ownership remain bound to their retained IDs. The new identity cannot inherit old bookmarks or saved searches. No identity merge or automatic transfer is available. Assignment and group-member writes require the administrator's authenticated realm. A new-realm administrator cannot revoke old-realm assignments; use the documented [membership lifecycle and realm controls](database-roles.mdx#tenant-membership-administration).
 
 Use a separate [CLI login file](../reference/commands.md#human-cli-login) for the new issuer and account. Keep the old file separate from new credentials. Fresh UI sign-in is required after an issuer or client-ID change; replacing files alone does not update running clients.
 
-If verification fails, stop the transition. Keep old memberships and the old realm available until recovery is verified. For a subject-policy change, restore the prior provider mapping before using the old membership. Restore the previous complete API/UI settings and trust through the deployment procedure. Then sign in again. Reactivate a suspended realm through the schema-owner [realm procedure](database-roles.md#identity-realm-administration) when necessary.
+If verification fails, stop the transition. Keep old memberships and the old realm available until recovery is verified. For a subject-policy change, restore the prior provider mapping before using the old membership. Restore the previous complete API/UI settings and trust through the deployment procedure. Then sign in again. Reactivate a suspended realm through the schema-owner [realm procedure](database-roles.mdx#identity-realm-administration) when necessary.
 
 Do not offboard an old membership as a reversible test; offboarding is terminal. Respect the final-active-realm safeguards before suspension. A configuration rollback does not recreate revoked grants or offboarded memberships.
 

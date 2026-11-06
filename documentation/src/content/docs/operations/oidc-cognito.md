@@ -38,7 +38,7 @@ Use this `auth` object in your complete backend profile:
 }
 ```
 
-Replace the region and user-pool placeholders. Use the actual user-pool issuer, not the hosted login domain. Provision the exact access-token subject through [Catalog identity setup](database-roles.md#initial-catalog-identity-provisioning). Cognito usernames, groups and email addresses do not replace it.
+Replace the region and user-pool placeholders. Use the actual user-pool issuer, not the hosted login domain. Provision the exact access-token subject through [Catalog identity setup](database-roles.mdx#initial-catalog-identity-provisioning). Cognito usernames, groups and email addresses do not replace it.
 
 The Catalog backend can discover signing keys from the configured issuer. The separate browser/CLI restrictions apply to their login exchanges, not to ordinary API bearer verification.
 
