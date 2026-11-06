@@ -8,40 +8,93 @@ The repository provides image builds, inspection, license files, software bills 
 
 ## GitHub Actions
 
-Use **Images and charts** (`images.yml`) to build and inspect backend/UI images for `linux/amd64` and `linux/arm64`. A separate job validates and packages the application and monitoring Helm charts. See [workflow selection and reports](testing.md#github-actions) for the other checks.
+Pushes to `main` build and inspect AMD64 backend/UI images and package both Helm charts. These builds never publish images or packages. TypeScript contribution checks also build a VSIX after its unit checks.
 
-| Input | Default | Effect |
+Use **Images and charts** (`images.yml`) manually to include both `linux/amd64` and `linux/arm64`. The separate chart job validates and packages the application and monitoring charts. See [workflow selection and reports](testing.md#github-actions).
+
+| Manual input | Default | Effect |
 | --- | --- | --- |
-| `upload_artifacts` | `false` | Upload selected reports and chart archives with seven-day retention. The maintainer enables hosted uploads; local act skips them. |
-| `scan` | `false` | Refresh the advisory database and scan each job's exact local image for High and Critical findings. Findings fail the scan. |
-| `release_candidate` | `false` | Require `make release-check` before images or charts build. This requires clean source at the exact `v<VERSION>` tag without metadata overrides. |
+| `upload_artifacts` | `false` | Retain selected reports for seven days. Package archives stay on the temporary runner. Local act skips uploads. |
+| `scan` | `false` | Scan each exact image for High and Critical findings. |
+| `release_candidate` | `false` | Require clean source at the exact `v<VERSION>` tag before building. |
 
-All builds run `version-check`. Make derives version, full commit and source state from the complete checkout and tags. CI does not bump `VERSION`, regenerate checked-in clients or update locks. Local image tags use run/attempt/architecture values; they do not copy SemVer build metadata containing `+`.
+All builds run `version-check`. Make derives the version, full commit and source state from the checkout. CI never bumps `VERSION`, creates tags or updates locks. A branch commit can have release version metadata when tagged. That metadata does not enable publishing.
 
-The backend AMD64 job builds, inspects and executes both version commands through `container-verify`. The other image jobs build and inspect without executing their binaries. ARM64 inspection therefore proves packaging properties, not runtime behavior. Every UI image build also renders the bundled manual from its source.
+The backend AMD64 build executes both version commands and packages its extracted CLI. Other image jobs inspect binaries without executing them. ARM64 inspection does not establish native runtime behavior. Every UI image build also renders the bundled manual.
 
 ### Run checks for a release candidate
 
-1. Prepare `VERSION`, generated clients and locks. Run the applicable local checks.
-2. Commit the reviewed source. Create and verify its signed `v<VERSION>` tag yourself.
-3. Select **Qualified release candidates** at that tag. Enable `upload_artifacts` for the exact handoff between jobs.
-4. Review source, security, clients, charts, scans and the three AMD64 runtime results.
-5. Configure the protected `release` environment. Prepare the matching GitHub release yourself.
-6. Select `publish=true` only when you approve registry and release-asset delivery.
+The **Qualified release candidates** workflow (`release.yml`) runs for pushed `v*` tags and manual selections. It requires the exact `v<VERSION>` ref and clean source. Root `VERSION` remains `0.1.0` until the maintainer deliberately changes it. `release-check` checks the tag and source, not the tag signature.
 
-Agents do not perform these external steps. Repository settings and hosted qualification belong to the maintainer. `release-check` requires clean source and the matching tag; it does not verify the tag signature.
+| Event or selection | Checks and internal handoff | External delivery |
+| --- | --- | --- |
+| Push to `main` or a pull request | Selected contribution checks; `main` also builds images and charts. | None. |
+| Push the exact `v<VERSION>` tag | Complete source, client, chart, image and runtime checks. Internal artifact uploads are required. | Disabled unless `RELEASE_PUBLISH_ENABLED` equals `true` and the protected job is approved. |
+| Manual at the exact tag, `upload_artifacts=true`, `publish=false` | The same complete checks and internal handoff. | None, even when the repository switch is enabled. |
+| Manual at the exact tag, both inputs `true` | The same complete checks and internal handoff. | Requires the repository switch and protected job approval. |
+| A branch, wrong tag or local act release invocation | Refused by release policy. | None. |
 
-The workflow builds backend/UI candidates once for `linux/amd64` and `linux/arm64`. Each candidate contains its Docker archive, inspection, SPDX inventory, notices and bounded scan summary. Raw scan output stays private. Later jobs load those archives and admit their exact image IDs. They run the existing API, Compose UI and OIDC UI journeys without rebuilding application images. ARM64 receives inspection and scanning, without native execution.
+Tag events have no manual input defaults. The policy job supplies effective upload and publish values to dependent jobs. Uploads between release jobs are Actions artifacts, not public release downloads. Ordinary verification tokens have read-only repository permissions.
 
-Successful SDK checks retain Python wheel/sdist, TypeScript tarball and Rust crate packages. Go retains its source manifest. The release gate verifies their current source, package hashes and run receipts. It also requires both qualified Helm packages. Chart versions remain independent of the application version.
+The workflow builds backend/UI candidates once for AMD64 and ARM64. Each candidate retains its image archive, inspection, SPDX inventory, notices and bounded scan summary. Raw scan output stays private. Later jobs run existing AMD64 API, Compose UI and OIDC UI journeys against those images. They do not rebuild application images.
 
-### Artifact evidence and distribution
+Ordinary client checks build and test SDK packages and the VSIX without uploading those files. Even `upload_artifacts=true` uploads only selected reports. Release qualification enables the internal package handoff at the exact version tag. It also runs `test-vscode` on Linux and retains the exact VSIX after successful cleanup. The editor receipt binds the source and tested TypeScript SDK. Raw editor reports, SSH fixtures and tool paths stay private. No Windows or macOS execution is claimed.
 
-`output/release/qualified/` contains the admitted release set and `SHA256SUMS`. `release.json` identifies source, build, platforms and required results. Image IDs, archive hashes, registry manifest digests and index digests are different identities. The protected delivery job publishes retained images and assembles indexes from their platform members. It attaches the selected packages and evidence to the maintainer-prepared GitHub release.
+### Download release packages
 
-Publishing is opt-in and unavailable under act. Verification jobs receive no registry credentials. Delivery records completed operations even if a later operation fails. Rerun only the failed delivery job to reuse its original candidate key. Do not rebuild after a partial push. Expired artifacts require a new qualification and review.
+Files become available only after a maintainer publishes a completed GitHub Release. Use its exact tag's assets, not development build directories. No packages are published to npm, PyPI, crates.io, the Go proxy or the VS Code Marketplace.
 
-The separate **Images and charts** workflow remains useful for manual packaging checks. Its reports do not qualify another image. Ordinary functional runs still build fixture images unless explicit candidate inputs are supplied. See the [local candidate commands](../../../../../test/ci/README.md#exact-candidate-qualification) for preparation and verification without hosted execution.
+| Download | Contents or use |
+| --- | --- |
+| `catalogctl-<version>-linux-amd64.tar.gz` | Static Linux AMD64 CLI and existing backend license notices. |
+| `catalogctl-<version>-linux-arm64.tar.gz` | Static Linux ARM64 CLI and notices; cross-built and inspected. |
+| `open-agentic-catalog-go-<version>.tar.gz` | Go SDK source module. Extract it and use a local module replacement. |
+| `open_agentic_catalog-<python-version>-py3-none-any.whl` | Install with `python -m pip install /path/to/file.whl`. |
+| `open_agentic_catalog-<python-version>.tar.gz` | Python source distribution. RC versions use PEP 440, for example `0.2.0rc1`. |
+| `open-agentic-catalog-client-<version>.tgz` | Install with `npm install /path/to/file.tgz --ignore-scripts --no-audit --no-fund`. |
+| `open-agentic-catalog-<version>.crate` | Extract it and set the Rust dependency's `path` to that directory. |
+| `open-agentic-catalog-<version>.vsix` | Use **Extensions: Install from VSIX** in VS Code. |
+| `open-agentic-catalog-<chart-version>.tgz` | Application Helm chart. Its version is independent of the application version. |
+| `open-agentic-catalog-monitoring-<chart-version>.tgz` | Optional monitoring chart, with its own version. |
+| `release.json`, `release-evidence.tar.gz`, `SHA256SUMS` | Source identity, bounded test/package evidence and public download checksums. |
+
+Download all listed assets into one directory. Run `sha256sum -c SHA256SUMS` there before installation. Each entry uses the download's basename. Internal image archives stay in the Actions handoff and are excluded from this public checksum list. `release.json` retains their hashes separately. Checksums detect changed bytes; they are not signatures.
+
+Extract the CLI archive for your architecture. Run `./catalogctl version` and `./catalogctl --help` from the extracted directory. Keep its notices with the binary. The release checks execute these commands on AMD64 and inspect ARM64 without executing it.
+
+Use the [Go](../../../../../sdk/go/README.md#install-the-sdk), [Python](../../../../../sdk/python/README.md#install-the-sdk), [TypeScript](../../../../../sdk/typescript/README.md#install-the-sdk) and [Rust](../../../../../sdk/rust/README.md#install-from-local-source) instructions for SDK setup. Each SDK still supports source installation. Consumers can download runtime dependencies during installation.
+
+After container delivery, pull explicit versions:
+
+```sh
+docker pull ghcr.io/open-agentic-catalog/open-agentic-catalog:0.1.0
+docker pull ghcr.io/open-agentic-catalog/catalog-ui:0.1.0
+```
+
+Both indexes contain `linux/amd64` and `linux/arm64` members. No floating `latest` tag is created. Helm users set `image.repository`, `image.tag`, `ui.image.repository` and `ui.image.tag` through existing chart values. Set `ui.enabled=true` when required. Use the chart's digest values when selecting immutable image digests. [Deployment instructions](../operations/deployment.mdx) own configuration, Secrets, PostgreSQL and migration prerequisites. A downloaded chart alone does not configure those dependencies.
+
+### Configure and approve delivery
+
+The maintainer configures these GitHub settings. Agents never configure them or perform publication during local verification.
+
+1. Create the `release` environment with required reviewers and release-tag restrictions.
+2. Enable `RELEASE_PUBLISH_ENABLED=true` only after approval protection is configured.
+3. Prepare the reviewed commit and signed `v<VERSION>` tag, then push the tag yourself.
+4. Create a matching draft GitHub Release with release notes before approving delivery.
+5. Review all required workflow results, then approve the protected delivery job.
+6. Verify the completed draft's assets and GHCR images before publishing the draft yourself.
+
+Open **Settings > Environments** to configure `release`. Add required reviewers and allow only the `v*` tag pattern. For a sole maintainer, leave **Prevent self-review** unchecked so you can approve your own run. Add `RELEASE_PUBLISH_ENABLED` under **Settings > Secrets and variables > Actions > Variables**, as a repository variable. The policy job does not use variables from the `release` environment.
+
+The `environment: release` declaration does not create required-reviewer protection. Only the delivery job requests `contents: write` and `packages: write`. It authenticates with the built-in `GITHUB_TOKEN`; no ecosystem registry credentials are needed. Existing GHCR packages must allow this repository's workflow to write them. See [GHCR permissions and visibility](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
+
+New GHCR packages are private by default. After the first successful delivery, set both packages to **Public** in their package settings. Verify anonymous pulls before publishing the draft release. A successful image push does not establish public visibility.
+
+Delivery checks the remote tag's commit, existing release assets and versioned image tags before its first write. A differing asset or image stops delivery. Identical files are skipped; missing files are uploaded without deleting existing assets. Delivery never creates a release or edits release notes. A published release is accepted only when all expected files and images already match; it receives no writes.
+
+GHCR images can be public before the draft release is published. Registry and release uploads cannot commit atomically. The job records completed operations and partial failures. Rerun the failed delivery job with its original seven-day artifact handoff. Do not rerun successful build jobs after partial delivery. If those artifacts expire, stop for maintainer review or choose a new version. Never rebuild the same version silently or delete partial uploads automatically.
+
+After publishing, verify public asset checksums and anonymous pulls of both versioned images. Check both platform entries in each index. Actual hosted events, approval protection, token permissions and public visibility require a maintainer-run check. Local tests use intercepted publisher calls and never upload files or images.
 
 ## Prerequisites and identities
 
@@ -119,7 +172,7 @@ Reinstall SDK tools after lock changes. For Rust, run `make sdk-tools-install SD
 
 If you use the extension, package the updated TypeScript SDK, [refresh its local SDK lock](#refresh-the-local-sdk-lock), reinstall extension tools and repeat its checks/package qualification.
 
-SDK packages remain local; no npm, PyPI or crates.io release is published. A future Go submodule release uses `sdk/go/v<version>` tags. Package names do not establish registry ownership. SDK packages and OpenAPI `info.version` follow root `VERSION`; `/api/v1` remains the API route family.
+SDK packages are prepared locally and distributed as GitHub Release downloads after maintainer approval. No npm, PyPI or crates.io publication or Go submodule tag is created. Package names do not establish registry ownership. SDK packages and OpenAPI `info.version` follow root `VERSION`; `/api/v1` remains the API route family.
 
 | `PART` | Change |
 | --- | --- |

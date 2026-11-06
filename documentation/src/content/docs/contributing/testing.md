@@ -41,11 +41,13 @@ Add the boundary-specific checks below. Use [coverage accounting](#coverage-acco
 
 ## GitHub Actions
 
-The workflows under `.github/workflows/` call existing Make targets. Contribution checks run on pull requests and pushes to `main`. Other verification selections remain manual. Pages also prepares the manual on `main`; external delivery requires maintainer activation.
+The workflows under `.github/workflows/` call existing Make targets. Contribution checks run on pull requests and pushes to `main`. Pushes to `main` also build AMD64 images and charts. Release checks run on exact version tags or manual selection. Other verification selections remain manual. Pages also prepares the manual on `main`; external delivery requires maintainer activation.
 
 Local act commands use disposable source copies and exclude developer credentials. Run `make workflow-local-tools-install`, then `make workflow-local-list`. The [local runner guide](../../../../../test/ci/README.md#local-workflow-commands) lists prerequisites, fixed selections and current qualification limits. Setup and parser checks do not establish that full application jobs pass locally. Agents do not dispatch hosted workflows or upload project data.
 
 Local results remain under ignored `output/artifacts/workflows/<run-id>/`. `run.json` records the source, inputs, selected files, execution outcome and wrapper cleanup. Required reports must exist before the wrapper can pass. Timeout and interruption return nonzero, while retaining available selected reports. The [result guide](../../../../../test/ci/README.md#read-local-results) explains missing reports and cleanup failures. The owned Docker controls qualify report export, nested mounts, loopback access and cancellation; full application jobs remain a separate check.
+
+The release helper units cover event admission, current source/package receipts, public checksums and delivery retries with intercepted commands. Functional fixtures use disposable Git tags and local files. They never publish. Run the selected installed-editor and archive-consumer tests before treating package tests as complete.
 
 ### Choose and run a workflow
 
@@ -55,10 +57,10 @@ The workflow files must exist on the repository's default branch. Open **Actions
 | --- | --- | --- |
 | **Contribution checks** (`contributions.yml`) | Automatic changed-path selection, or manual full selection. | Always run lint and isolated units. Select UI, docs and SDKs conservatively. Require `Contribution checks complete` in branch protection. |
 | **Manual website and PDF** (`pages.yml`) | `deploy`: false. Optional `PAGES_ENABLED` repository variable for `main`. | Build the final Pages base and export the same completed manual. Deploy only from `main` through `github-pages`. |
-| **Qualified release candidates** (`release.yml`) | Explicit `upload_artifacts`; optional `publish`, false by default. | Qualify retained images, source, clients and charts before protected delivery. See the [candidate procedure](build-and-release.md#run-checks-for-a-release-candidate). |
+| **Qualified release candidates** (`release.yml`) | Tag checks supply required handoff uploads. Manual runs require `upload_artifacts=true`; `publish` defaults to false. | Qualify retained images, source, clients and charts before protected delivery. See the [candidate procedure](build-and-release.md#run-checks-for-a-release-candidate). |
 | **Source quality** (`quality.yml`) | `suite`: `all` (default), `unit`, `source`, `lint`, `ui` or `docs`. | Separate jobs run `coverage-unit` and Python tooling units; `check verify` and API validator tests; lint-only `check`; `test-ui`; or `docs-check` followed by `docs-site-check`. |
-| **SDK and editor checks** (`clients.yml`) | `language`: `all` (default), `go`, `python`, `typescript` or `rust`. | Go runs `webhook-report-check`, which includes its SDK gate, and separate `client-go-check`. Other languages run `sdk-check`; TypeScript adds `vscode-check`. |
-| **Images and charts** (`images.yml`) | `scan` and `release_candidate`, both false by default. | Backend/UI image builds, inspection, SBOMs and both Helm packages. See [artifact and release checks](build-and-release.md#github-actions). |
+| **SDK and editor checks** (`clients.yml`) | `language`: `all` (default), `go`, `python`, `typescript` or `rust`. | Go runs `webhook-report-check`, which includes its SDK gate, and separate `client-go-check`. Other languages run `sdk-check`; TypeScript adds editor units and VSIX packaging. `release_checks=true` also runs Linux installed-editor tests. |
+| **Images and charts** (`images.yml`) | `scan` and `release_candidate`, both false by default. | AMD64 builds on `main`, both architectures manually, image inspection, SBOMs, a native CLI archive and both Helm packages. See [artifact and release checks](build-and-release.md#github-actions). |
 | **Disposable functional qualification** (`functional.yml`) | `suite`: `coverage-postgres-check` (default), `test-process-postgres`, `test-functional`, `test-ui-compose`, `test-ui-oidc`, `test-backup-restore`, `test-federation-peers` or `test-webhook-report`. | Exactly the selected existing target, with its disposable services and cleanup. Federation peers include locked UI and Chromium setup for browser pagination. |
 | **Extended coverage or source security** (`extended.yml`) | `suite`: `full-coverage` (default) or `source-security`. | `coverage-full` alone, or `security` and `ui-deps-check`. These scans use downloaded advisory data without npm registry audit submission. |
 | **Focused assertion assurance** (`assurance.yml`) | `suite`: `go-properties` (default), `go-fuzz`, `go-mutation`, `formal`, `ui-properties` or `ui-mutation`. | The selected existing property, fuzz, mutation or formal target. `mutation_package` selects one reviewed package for Go mutation. |
@@ -86,15 +88,17 @@ Jobs use `CATALOG_ENV_FILE=/dev/null` and do not load deployment credentials. Th
 
 ### Read results and artifacts
 
-Open the run to inspect each selected job, its logs and summary. Manual report workflows default `upload_artifacts` to false. Automatic contribution checks do not upload artifacts. Pages uses its separate opt-in deployment controls. Hosted uploads require the maintainer to select true; act always skips them. When enabled, uploads use explicit paths and seven-day retention. They exclude credentials, raw fixture directories and the complete `output/` tree.
+Open the run to inspect each selected job, its logs and summary. Manual report workflows default `upload_artifacts` to false. Automatic contribution checks do not upload artifacts. Pages uses its separate opt-in deployment controls. Ordinary hosted report uploads require the maintainer to select true; act always skips them. When enabled, uploads use explicit paths and seven-day retention. They exclude credentials, raw fixture directories and the complete `output/` tree.
 
 | Selection | Available evidence and limits |
 | --- | --- |
 | Units and coverage | Selected Go profiles and UI component coverage. `coverage-full` produces a fresh weighted union of unit, local, PostgreSQL and process coverage. Do not add or average overlapping percentages. |
 | Clients | Job summaries and available package manifests; Rust also retains its coverage summary. SDK HTTP/TLS and installed-consumer checks are functional tests. `vscode-check` does not run an installed editor. |
-| Images and charts | Image summaries, SPDX JSON inventories and chart archives. Image archives are not uploaded. |
+| Images and charts | Image/chart summaries and SPDX JSON inventories. Ordinary checks upload neither image nor chart archives. |
 | Assurance | Property/proof reports and reduced mutation counts. Raw mutants, source diffs and verifier logs are excluded. Failed fuzzing can retain bounded synthetic counterexamples. |
 | Benchmarks | Source/environment information and measured samples. There is no timing threshold, application load test or comparison against another runner. |
+
+Package uploads belong to release qualification only. Ordinary client checks build SDK packages and the VSIX, then discard the runner without uploading them. Manual `release_checks=true` runs installed-editor tests; it does not enable package uploads. The release workflow alone passes the internal `retain_packages` input at a version tag. Pages delivery keeps its separate opt-in controls.
 
 Go properties use a fixed seed and 1,000 checks. Go fuzzing runs each maintained target for ten seconds with two workers. Mutation completion does not imply zero survivors; inspect survivors and timeouts before drawing conclusions. The formal selection proves the maintained Job retry helper, not the whole service. See [assertion-strength checks](#mutation-testing-and-assertion-strength) and [formal verification](#focused-formal-verification) for interpretation.
 

@@ -664,9 +664,9 @@ Frontend changes use `make ui-install` and one-time `make ui-browser-install`, t
 
 ### Tooling and dead code
 
-Contribution checks run existing lint/unit targets on pull requests and pushes to `main`. Changed inputs select UI, documentation and SDK checks. Successful SDK checks retain package receipts bound to their source and run.
+Contribution checks run existing lint/unit targets on pull requests and pushes to `main`. Changed inputs select UI, documentation and SDK checks. Successful SDK checks prepare local package receipts bound to their source and run. Ordinary hosted checks can upload selected reports, but only release qualification uploads SDK, VSIX, chart and image archives.
 
-Pages prepares matching HTML and PDF output; delivery requires maintainer activation. Manual release qualification tests exact backend/UI candidates through existing AMD64 API and browser journeys. ARM64 receives inspection and scans. Protected delivery remains maintainer-operated. Local verification never publishes or uploads. The [workflow guide](.github/WORKFLOWS.md) describes selections and qualification limits.
+Pages prepares matching HTML and PDF output; delivery requires maintainer activation. Version-tag and manual release qualification tests exact backend/UI candidates through existing AMD64 API and browser journeys. Main merges build AMD64 images and charts without publication. ARM64 receives inspection and scans. Release downloads include all SDKs, Linux CLI archives, the tested VSIX, charts and checksums. GHCR delivery requires explicit activation and protected-environment approval. Draft creation and final publication remain maintainer-operated. Local verification never publishes or uploads. The [workflow guide](.github/WORKFLOWS.md) describes selections and qualification limits.
 
 The documentation job in Source quality runs `make docs-check`, then `make docs-site-check`, with separate summary outcomes. Its `docs` prerequisite profile installs pinned Markdownlint, Go and the documentation Node/npm toolchain. The job needs no Docker socket or other source linters.
 

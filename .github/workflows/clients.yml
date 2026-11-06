@@ -9,10 +9,21 @@ on:
       upload_artifacts:
         type: boolean
         default: false
+      release_checks:
+        type: boolean
+        default: false
+      retain_packages:
+        description: Internal release handoff; unavailable to manual dispatch
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       upload_artifacts:
         description: Upload selected reports only when the maintainer explicitly enables it
+        type: boolean
+        default: false
+      release_checks:
+        description: Run installed-editor tests without retaining packages
         type: boolean
         default: false
       language:
@@ -118,22 +129,47 @@ jobs:
         run: make client-go-check
       # sdk-check already retains a qualified tarball and manifest. The editor
       # installer requires its SHA-512 to match the checked-in extension lock.
-      - name: Install editor tools against the qualified TypeScript package
+      - name: Install editor build tools against the qualified TypeScript package
         if: ${{ matrix.language == 'typescript' }}
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: make vscode-tools-install
+        run: make -C extensions/vscode tools-install
       - name: Check editor types, lint and isolated units
         id: editor_checks
         if: ${{ matrix.language == 'typescript' }}
         run: make vscode-check
+      - name: Check VSIX packaging without publishing
+        if: matrix.language == 'typescript' && !inputs.release_checks
+        run: make vscode-package
+      - name: Install Linux editor system prerequisites
+        if: matrix.language == 'typescript' && inputs.release_checks
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xvfb xauth openssh-client openssh-server libgtk-3-0t64 libsecret-1-0
+      - name: Install pinned editor test fixtures
+        if: matrix.language == 'typescript' && inputs.release_checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: make vscode-tools-install
+      - name: Test and stage the exact release VSIX
+        if: matrix.language == 'typescript' && inputs.release_checks
+        run: >-
+          python3.12 -B test/ci/release_packages.py editor
+          --output "output/artifacts/qualified-editor/$SDK_RUN_ID"
+      - name: Transfer only the tested VSIX and bounded receipt
+        if: ${{ success() && matrix.language == 'typescript' && inputs.release_checks && inputs.retain_packages && startsWith(github.ref, 'refs/tags/v') && inputs.upload_artifacts && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-editor-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 7
+          if-no-files-found: error
+          path: output/artifacts/qualified-editor/${{ env.SDK_RUN_ID }}/
       - name: Stage the exact qualified SDK outputs
+        if: inputs.retain_packages && startsWith(github.ref, 'refs/tags/v') && inputs.upload_artifacts
         run: >-
           python3.12 -B test/ci/admission.py stage-sdk --language "$SDK_LANGUAGE"
           --run "$SDK_RUN_ID"
           --output "output/artifacts/qualified-sdk/$SDK_RUN_ID"
       - name: Upload the qualified SDK package set
-        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        if: ${{ success() && inputs.retain_packages && startsWith(github.ref, 'refs/tags/v') && inputs.upload_artifacts && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: qualified-sdk-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.language }}
@@ -198,7 +234,7 @@ jobs:
           name: clients-${{ matrix.language }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ runner.arch }}
           retention-days: 7
           if-no-files-found: error
-          # Go retains a source manifest, without a package archive.
+          # Packages use the separate qualified handoff above.
           # The receiver profile contains only its independent module's units.
           path: |
             ${{ runner.temp }}/ci-client-summary.md

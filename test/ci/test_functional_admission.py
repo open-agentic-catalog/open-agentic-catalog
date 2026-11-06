@@ -111,3 +111,56 @@ class AdmissionFunctionalTests(unittest.TestCase):
             with patch.object(a, "source_identity", return_value=source), patch.object(c, "run", side_effect=AssertionError("must not start Docker")):
                 with self.assertRaises(ValueError):
                     c.admit(descriptor, "backend", load=True)
+
+
+class ReleaseTagFunctionalTests(unittest.TestCase):
+    def test_annotated_fixture_tag_resolves_commit_and_dirty_source_still_refuses(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("release_fixture_versioning", a.ROOT / "test/packaging/versioning.py")
+        versioning = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(versioning)
+        with tempfile.TemporaryDirectory(prefix="catalog-release-tag-") as temporary:
+            root = Path(temporary)
+            environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+            def git(*args):
+                return subprocess.check_output(["git", "-C", str(root), *args], env=environment, stderr=subprocess.DEVNULL, timeout=20).decode().strip()
+            git("init", "-q")
+            git("config", "user.name", "Local fixture")
+            git("config", "user.email", "fixture@example.invalid")
+            git("config", "commit.gpgsign", "false")
+            (root / "VERSION").write_text("0.1.0\n")
+            git("add", "VERSION")
+            git("commit", "-qm", "Disposable release policy fixture")
+            git("-c", "tag.gpgsign=false", "tag", "-a", "v0.1.0", "-m", "Disposable fixture tag")
+            self.assertNotEqual(git("rev-parse", "v0.1.0"), git("rev-parse", "HEAD"))
+            self.assertEqual(versioning.release(root)["commit"], git("rev-parse", "v0.1.0^{commit}"))
+            self.assertEqual(versioning.release(root)["version"], "0.1.0")
+            with self.assertRaises(ValueError):
+                a.release_intent({"GITHUB_EVENT_NAME": "workflow_dispatch", "GITHUB_REF": "refs/heads/main"}, "0.1.0")
+            (root / "VERSION").write_text("0.1.1\n")
+            with self.assertRaises(ValueError):
+                versioning.release(root)
+
+    def test_flat_download_directory_passes_standard_checksum_verification(self):
+        import shutil
+        import release_delivery as delivery
+        import test_unit_admission as fixtures
+        with tempfile.TemporaryDirectory(prefix="catalog-downloads-") as temporary, patch.object(a, "source_identity", return_value=fixtures.SOURCE):
+            root = Path(temporary)
+            inputs = root / "inputs"
+            inputs.mkdir()
+            fixtures.AdmissionTests().release_fixture(inputs)
+            results = dict.fromkeys(("source", "security", "clients", "charts", "candidates", "runtime"), "success")
+            assembled = root / "assembled"
+            value = delivery.assemble(inputs, results, assembled)
+            downloads = root / "downloads"
+            downloads.mkdir()
+            for name, source in delivery.public_assets(assembled, value).items():
+                shutil.copyfile(source, downloads / name)
+            shutil.copyfile(assembled / "SHA256SUMS", downloads / "SHA256SUMS")
+            result = subprocess.run(["sha256sum", "-c", "SHA256SUMS"], cwd=downloads, capture_output=True, timeout=20)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(len(result.stdout.splitlines()), 12)
+            (downloads / "open-agentic-catalog-0.1.0.vsix").write_bytes(b"changed")
+            failed = subprocess.run(["sha256sum", "-c", "SHA256SUMS"], cwd=downloads, capture_output=True, timeout=20)
+            self.assertNotEqual(failed.returncode, 0)

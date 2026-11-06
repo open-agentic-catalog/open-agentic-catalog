@@ -1,6 +1,8 @@
 name: Qualified release candidates
 
 on:
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       upload_artifacts:
@@ -37,19 +39,27 @@ jobs:
     timeout-minutes: 10
     outputs:
       key: ${{ steps.identity.outputs.key }}
+      upload: ${{ steps.intent.outputs.upload }}
+      publish: ${{ steps.intent.outputs.publish }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Admit the explicit exact-tag handoff
-        env:
-          UPLOAD: ${{ inputs.upload_artifacts }}
+      - name: Install the policy toolchain
+        run: python3.12 -B test/ci/tools.py install --profile unit
+      - name: Admit the exact tagged source
         run: |
-          [[ -z "${ACT:-}" && "$UPLOAD" == true ]] || { printf '%s\n' 'Use local candidate commands under act; hosted handoff requires explicit upload consent.' >&2; exit 2; }
-          python3.12 -B test/ci/tools.py install --profile unit
           make version-check
           make release-check
+      - name: Resolve tag and manual release intent
+        id: intent
+        env:
+          INPUT_UPLOAD: ${{ inputs.upload_artifacts }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+          RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}
+        run: |
+          python3.12 -B test/ci/admission.py release-policy >> "$GITHUB_OUTPUT"
       - id: identity
         env:
           KEY: ${{ github.run_id }}-${{ github.run_attempt }}
@@ -64,7 +74,9 @@ jobs:
     uses: ./.github/workflows/clients.yml
     with:
       language: all
-      upload_artifacts: ${{ inputs.upload_artifacts }}
+      upload_artifacts: ${{ needs.policy.outputs.upload == 'true' }}
+      release_checks: true
+      retain_packages: true
   security:
     needs: policy
     uses: ./.github/workflows/extended.yml
@@ -128,8 +140,22 @@ jobs:
           selected_image="$IMAGE"
           if [[ "$PRODUCT" == ui ]]; then selected_image="$UI_IMAGE"; fi
           python3.12 -B test/ci/candidate.py seal --directory "$ARTIFACT_OUTPUT" --image "$selected_image" --product "$PRODUCT" --platform "$CONTAINER_PLATFORM" --scan-directory "$ARTIFACT_OUTPUT-scan-private"
+      - name: Package the retained backend CLI without recompilation
+        if: matrix.product == 'backend'
+        run: >-
+          python3.12 -B test/ci/release_packages.py cli
+          --candidate "$ARTIFACT_OUTPUT/candidate.json" --platform "$CONTAINER_PLATFORM"
+          --output "output/release/cli-${{ matrix.arch }}"
+      - name: Transfer the retained CLI package
+        if: ${{ success() && matrix.product == 'backend' && needs.policy.outputs.upload == 'true' && !env.ACT }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: release-cli-${{ needs.policy.outputs.key }}-${{ matrix.arch }}
+          retention-days: 7
+          if-no-files-found: error
+          path: output/release/cli-${{ matrix.arch }}/
       - name: Transfer only this candidate
-        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        if: ${{ success() && needs.policy.outputs.upload == 'true' && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: candidate-${{ needs.policy.outputs.key }}-${{ matrix.product }}-${{ matrix.arch }}
@@ -155,7 +181,7 @@ jobs:
       - run: make helm-package
       - run: python3.12 -B test/ci/release_delivery.py charts --directory "$ARTIFACT_OUTPUT"
       - name: Transfer the qualified charts
-        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        if: ${{ success() && needs.policy.outputs.upload == 'true' && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: release-charts-${{ needs.policy.outputs.key }}
@@ -212,7 +238,7 @@ jobs:
           --backend "$CATALOG_CANDIDATE_BACKEND" --ui "$CATALOG_CANDIDATE_UI"
           --output "output/release/runtime-$SUITE.json"
       - name: Transfer the runtime result
-        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        if: ${{ success() && needs.policy.outputs.upload == 'true' && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: release-runtime-${{ needs.policy.outputs.key }}-${{ matrix.suite }}
@@ -243,7 +269,7 @@ jobs:
       - name: Assemble exact source, package and runtime evidence
         run: python3.12 -B test/ci/release_delivery.py assemble --directory output/release/inputs --results "$RESULTS" --output output/release/qualified
       - name: Transfer the completed release set
-        if: ${{ success() && inputs.upload_artifacts && !env.ACT }}
+        if: ${{ success() && needs.policy.outputs.upload == 'true' && !env.ACT }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: qualified-release-${{ needs.policy.outputs.key }}
@@ -252,7 +278,7 @@ jobs:
           path: output/release/qualified/
   deliver:
     needs: [policy, qualify]
-    if: ${{ inputs.publish && needs.policy.result == 'success' && startsWith(github.ref, 'refs/tags/v') }}
+    if: ${{ needs.policy.outputs.publish == 'true' && needs.policy.result == 'success' && vars.RELEASE_PUBLISH_ENABLED == 'true' && github.repository == 'open-agentic-catalog/open-agentic-catalog' && startsWith(github.ref, 'refs/tags/v') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     environment: release
@@ -276,6 +302,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_PUBLISH: 'true'
+          RELEASE_PUBLISH_ENABLED: ${{ vars.RELEASE_PUBLISH_ENABLED }}
+          INPUT_UPLOAD: ${{ inputs.upload_artifacts }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
         run: python3.12 -B test/ci/release_delivery.py publish --directory output/release/delivery
       - name: Report completed and partial delivery
         if: ${{ always() }}

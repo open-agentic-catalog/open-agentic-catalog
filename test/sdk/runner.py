@@ -15,6 +15,8 @@ import tempfile
 import tarfile
 import zipfile
 
+import go_archive
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 SDK = ROOT / "sdk/go"
@@ -151,7 +153,7 @@ def generate(go, destination, work, env):
          "-o", destination, ROOT / "api/openapi/control-v1.yaml"], ROOT, env)
 
 
-def qualify(go, work, env):
+def qualify(go, work, env, archive):
     # Reuse the existing suite with the SDK import and safe error wording.
     # Keep its independent schema, workflow and negative assertions intact.
     # Application dependencies remain in this separate test module.
@@ -171,6 +173,7 @@ def qualify(go, work, env):
     run([go, "vet", "-tags=functional", "./..."], consumer, env)
     with tempfile.TemporaryDirectory(prefix="catalog-sdk-go-consumer-") as directory:
         external = Path(directory)
+        extracted = go_archive.extract(archive, SDK, external)
         (external / "go.mod").write_text("module sdk-consumer.example/test\n\ngo 1.27.3\n")
         shutil.copyfile(SDK / "go.sum", external / "go.sum")
         shutil.copyfile(HERE / "external_test.go.txt", external / "consumer_test.go")
@@ -180,7 +183,7 @@ def qualify(go, work, env):
             if len(examples) != 1:
                 raise RuntimeError("Expected one Go README example for " + helper)
             (external / ("readme_" + helper + "_test.go")).write_text("package consumer_test\n\n" + examples[0] + "\n")
-        run([go, "mod", "edit", "-require=" + SDK_MODULE + "@v0.0.0", "-replace=" + SDK_MODULE + "=" + str(SDK)], external, env)
+        run([go, "mod", "edit", "-require=" + SDK_MODULE + "@v0.0.0", "-replace=" + SDK_MODULE + "=" + str(extracted)], external, env)
         # The only local replacement is the SDK. No application module or download.
         run([go, "mod", "tidy"], external, dict(env, GOFLAGS=""))
         run([go, "test", "-race", "-count=1", "./..."], external, env)
@@ -248,7 +251,8 @@ def check(action):
             report_coverage(go, work / "local.out", "Unit plus local HTTP/TLS functional", env)
             run([go, "vet", "-tags=functional", "./..."], SDK, env)
             lint_and_licenses(go, env)
-            qualify(go, work, env)
+            archive = go_archive.build(SDK, (ROOT / "VERSION").read_text().strip(), work)
+            qualify(go, work, env, archive)
             for pattern in ("test_unit_*.py", "test_functional_*.py"):
                 run([sys.executable, "-B", "-m", "unittest", "discover", "-s", HERE, "-p", pattern], ROOT, env)
         if inputs() != before or any(digest(path) != value for path, value in original.items()):
@@ -257,8 +261,7 @@ def check(action):
         print(f"Failed SDK output retained: {work}", file=sys.stderr)
         raise
     if action == "check":
-        retain("go", [], {"goSha256": digest(go), "inputs": before},
-               source_files=[*sorted(SDK.glob("*.go")), *(SDK / n for n in ("go.mod", "go.sum", "README.md", "LICENSE", "NOTICE"))])
+        retain("go", [archive], {"goSha256": digest(go), "inputs": before}, source_files=go_archive.sources(SDK))
     shutil.rmtree(work)
     print("Go SDK " + action + " passed; owned output cleaned")
 
@@ -285,9 +288,10 @@ def package():
     go = installed()
     env = environment(offline=True)
     run([go, "build", "./..."], SDK, env)
-    # Go remains a source module. Do not manufacture a binary distribution.
-    return retain("go", [], {"goSha256": digest(go), "inputs": inputs()},
-                  source_files=[*sorted(SDK.glob("*.go")), *(SDK / n for n in ("go.mod", "go.sum", "README.md", "LICENSE", "NOTICE"))])
+    # Go remains a source module. The archive is checked by an outside consumer.
+    with tempfile.TemporaryDirectory(prefix="catalog-sdk-go-package-") as directory:
+        archive = go_archive.build(SDK, (ROOT / "VERSION").read_text().strip(), Path(directory))
+        return retain("go", [archive], {"goSha256": digest(go), "inputs": inputs()}, source_files=go_archive.sources(SDK))
 
 
 def selected(action, language):

@@ -33,6 +33,8 @@ class RunnerUnits(unittest.TestCase):
         (runner.COMPAT / "generate.yaml").write_text("config\n")
         (runner.SDK / "client.gen.go").write_text("generated\n")
         (runner.SDK / "README.md").write_text("# Go SDK\n")
+        for name in ("LICENSE", "NOTICE"):
+            (runner.SDK / name).write_text(name)
         (runner.ROOT / "Makefile").write_text("\n".join(pin + " := v1.0.0" for pin, _ in runner.ANALYZERS.values()))
         self.go = self.root / "native/bin/go"
         self.go.parent.mkdir(parents=True)

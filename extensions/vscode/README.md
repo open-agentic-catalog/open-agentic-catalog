@@ -46,7 +46,7 @@ For a complete password login and indexed discovery exercise across independent 
 
 ## Install the local package
 
-The extension is distributed as a local VSIX, with no automatic Marketplace publication. Obtain it from your maintainer or [build it from source](#develop-and-test).
+The extension is distributed as a local VSIX, with no automatic Marketplace publication. Download `open-agentic-catalog-<version>.vsix` from a maintainer-published GitHub Release, obtain it from your maintainer or [build it from source](#develop-and-test). Download the release assets and `SHA256SUMS` into one directory. Run `sha256sum -c SHA256SUMS` there before installation.
 
 1. Open the Command Palette in VS Code.
 2. Run **Extensions: Install from VSIX**.
