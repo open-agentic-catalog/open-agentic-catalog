@@ -1,0 +1,87 @@
+# Assign reviewers by component. All components currently belong to @crivetimihai.
+# Replace individual component owners as maintainers join the project.
+# Owners must have write access to the repository.
+# The last matching rule wins; owners from separate rules do not accumulate.
+# List multiple owners on the same line.
+# Any listed owner can satisfy a required Code Owner review for that rule.
+
+# Default owner for all files, including new components and root configuration.
+* @crivetimihai
+
+# Shared test harnesses, conformance checks, performance tests and test tooling.
+# Component-specific test ownership below overrides this rule.
+/test/ @crivetimihai
+
+# Backend: Catalog domain, API and worker processes, CLI and Go dependencies.
+/cmd/ @crivetimihai
+/internal/ @crivetimihai
+/go.mod @crivetimihai
+/go.sum @crivetimihai
+
+# HTTP API contracts, examples, events and generated-client compatibility tests.
+/api/ @crivetimihai
+/test/apigenerated/ @crivetimihai
+/test/clientcompat/ @crivetimihai
+
+# Service-owned schemas and pinned upstream standards profiles.
+/schemas/ @crivetimihai
+
+# Database migrations, repositories and exact runtime privilege manifests.
+/migrations/ @crivetimihai
+/internal/platform/database/ @crivetimihai
+
+# Web UI: React application, Go host, assets and colocated tests.
+/catalog-ui/ @crivetimihai
+
+# SDK overview and shared generation, packaging and compatibility tests.
+/sdk/ @crivetimihai
+/test/sdk/ @crivetimihai
+
+# Go SDK.
+/sdk/go/ @crivetimihai
+
+# Python SDK.
+/sdk/python/ @crivetimihai
+
+# TypeScript SDK.
+/sdk/typescript/ @crivetimihai
+
+# Rust SDK.
+/sdk/rust/ @crivetimihai
+
+# VS Code extension, packaging and installed-editor tests.
+/extensions/vscode/ @crivetimihai
+/test/vscode/ @crivetimihai
+
+# Runnable examples and sample Catalog content.
+/examples/ @crivetimihai
+/samples/ @crivetimihai
+
+# Reader documentation, site tooling and root project guides.
+/documentation/ @crivetimihai
+/*.md @crivetimihai
+
+# Runtime configuration, containers, Compose, Helm and monitoring assets.
+/config/ @crivetimihai
+/deployments/ @crivetimihai
+/compose*.yaml @crivetimihai
+/Containerfile @crivetimihai
+/.containerignore @crivetimihai
+/.dockerignore @crivetimihai
+
+# Shared build commands, versioning, packaging and local contribution hooks.
+/Makefile @crivetimihai
+/VERSION @crivetimihai
+/test/packaging/ @crivetimihai
+/test/hooks/ @crivetimihai
+
+# GitHub workflows, contribution templates and local CI verification tools.
+/.github/ @crivetimihai
+/test/ci/ @crivetimihai
+
+# Coding-agent instructions and task-specific skills.
+/AGENTS.md @crivetimihai
+/.agents/ @crivetimihai
+
+# Keep ownership changes under maintainer review.
+/.github/CODEOWNERS @crivetimihai
