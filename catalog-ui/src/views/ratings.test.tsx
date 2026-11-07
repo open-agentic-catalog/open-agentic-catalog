@@ -615,6 +615,69 @@ it("keeps local, peer and import signals distinct", () => {
     screen.getByRole("link", { name: "Imported here" }).getAttribute("href"),
   ).toBe("/unit/resources/resource-1");
 });
+it.each([
+  { ratings: { count: 0 }, expected: "No ratings yet" },
+  {
+    ratings: { count: 2, average: 4 },
+    expected: "Ratings: 4.0 / 5 (2)",
+  },
+])(
+  "labels the local aggregate as $expected without peer or import claims",
+  ({ ratings, expected }) => {
+    // This presentation unit supplies only the projection consumed by the labels.
+    const item = { type: "local", ratings } as SearchResult;
+    render(<RatingLabels item={item} basePath="/unit" />);
+    expect(screen.getByText(expected)).toBeTruthy();
+    expect(screen.queryByText(/Ratings here|Peer-reported rating/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Imported here" })).toBeNull();
+  },
+);
+
+it("reads a populated foreign aggregate without granting score or sharing actions", async () => {
+  const foreign = {
+    origin: "foreign" as const,
+    sourceId: "source-1",
+    presentationGeneration: 2,
+    identifier: target.identifier,
+    kind: "agent" as const,
+    versionPresent: false,
+  };
+  const w = setup({
+    target: foreign,
+    count: 2,
+    average: 3.5,
+    changedEntry: false,
+  });
+  const access: Access = {
+    ...w.props.access,
+    permissions: ["federation.discover"],
+    availablePermissions: ["federation.discover"],
+    scopeEnforcement: true,
+    scopes: ["catalog.read"],
+  };
+  render(
+    <RatingEntry {...w.props} access={access} request={{ target: foreign }} />,
+  );
+  expect(w.post).not.toHaveBeenCalled();
+  click("Ratings for this version");
+  expect(await screen.findByText("Ratings here: 3.5 / 5 (2)")).toBeTruthy();
+  expect(screen.getByText(/This source did not supply a version/)).toBeTruthy();
+  expect(screen.queryByRole("radio")).toBeNull();
+  expect(screen.queryByRole("button", { name: "Submit rating" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Withdraw rating" })).toBeNull();
+  expect(screen.queryByRole("checkbox", { name: /Allow my score/ })).toBeNull();
+  expect(screen.queryByText(/Peer-reported rating/)).toBeNull();
+  expect(w.post).toHaveBeenCalledOnce();
+  expect(w.post).toHaveBeenCalledWith(
+    "/api/v1/ratings/read",
+    expect.objectContaining({ body: { target: foreign } }),
+  );
+  expect(w.get).not.toHaveBeenCalled();
+  expect(w.patch).not.toHaveBeenCalled();
+  expect(w.remove).not.toHaveBeenCalled();
+  expect(w.props.onFailure).not.toHaveBeenCalled();
+});
+
 it("preserves absent foreign versions and binds the actual live source proof", () => {
   const item = {
     identifier: target.identifier,

@@ -29,6 +29,7 @@ import { editorDraft } from "./draft-editor";
 import { newRepresentation } from "./representations";
 import { readDraftFile, writeDraftFile, type DraftFile } from "./draft-file";
 import { artworkIRI } from "./artwork";
+import { deferred } from "../../tests/unit/fixtures";
 
 screenLifecycle("/unit/resources/new");
 const click = (name: string) => {
@@ -269,6 +270,171 @@ it("requires AIR helper input to be applied or cleared before download", async (
   click("Use AIR identifier");
   click("Download draft JSON");
   expect(screen.queryByRole("alert")).toBeNull();
+});
+it("preserves exact content and refuses export until an incomplete Listing lookup is explicitly recovered", async () => {
+  const workspace = screenWorkspace();
+  const currentListing = {
+    ...listing,
+    candidateRevisionId: listingRevision.id,
+  };
+  const metadata = {
+    ...listingRevision,
+    displayName: "Retained Listing",
+    description: "Current metadata stays separate from the unsaved content.",
+    tags: ["operations, support"],
+    categories: ["Tools"],
+    representativeQueries: ["How can this help?"],
+    documentationUrl: "https://docs.example.test/helper",
+    supportUrl: "https://support.example.test/helper",
+    termsUrl: "https://terms.example.test/helper",
+    license: "Apache-2.0",
+  };
+  readReplies(workspace.get, {
+    "/api/v1/catalog-listings/{listingId}": currentListing,
+    "/api/v1/listing-revisions/{revisionId}": metadata,
+    "/api/v1/publishers": { items: [publisher] },
+  });
+  const reads = workspace.get.getMockImplementation()!;
+  const pending = deferred<ReturnType<typeof etagReply>>();
+  const recovered = deferred<ReturnType<typeof etagReply>>();
+  const lookup = vi
+    .fn<(...args: unknown[]) => Promise<unknown>>()
+    .mockReturnValueOnce(pending.promise)
+    .mockReturnValueOnce(recovered.promise);
+  workspace.get.mockImplementation((path, ...options) =>
+    path === "/api/v1/resources/{resourceId}/listings"
+      ? lookup(...options)
+      : reads(path, ...options),
+  );
+  render(
+    <AuthoringWorkspace
+      {...workspace.props}
+      access={administrator}
+      resource={resource}
+    />,
+  );
+  const content = '{ "name": "Unsent helper", "extension": [true, "literal"] }';
+  change("Version label", "unsaved-version");
+  change("Standards document (JSON)", content);
+  const label = screen.getByLabelText("Version label");
+  const document = screen.getByLabelText("Standards document (JSON)");
+  fireEvent.click(screen.getByLabelText("Include Listing details"));
+  click("Next: Listing details");
+  const details = await screen.findByRole("region", {
+    name: "Listing details",
+  });
+  await waitFor(() => expect(lookup).toHaveBeenCalledOnce());
+  expect(lookup.mock.calls[0]![0]).toMatchObject({
+    params: { path: { resourceId: resource.id }, query: { limit: 2 } },
+  });
+  expect(
+    (lookup.mock.calls[0]![0] as { signal: AbortSignal }).signal,
+  ).toBeInstanceOf(AbortSignal);
+  const refuse = () => {
+    click("Download draft JSON");
+    expect(
+      screen.getByText(
+        "Wait for the complete Listing lookup before downloading draft JSON.",
+      ),
+    ).toBeTruthy();
+    expect(create).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("link", { name: "Save catalog-draft.json" }),
+    ).toBeNull();
+    expect(label).toHaveProperty("value", "unsaved-version");
+    expect(document).toHaveProperty("value", content);
+    expect(workspace.post).not.toHaveBeenCalled();
+    expect(workspace.patch).not.toHaveBeenCalled();
+    expect(workspace.remove).not.toHaveBeenCalled();
+  };
+  refuse();
+  await act(async () =>
+    pending.resolve(
+      etagReply({ items: [currentListing], nextCursor: "unfinished-page" }),
+    ),
+  );
+  await within(details).findByText("This page could not be loaded.");
+  expect(workspace.props.onFailure).toHaveBeenCalledWith(
+    new Error(
+      "The Listing lookup is incomplete or does not match this Resource. No new Listing will be created.",
+    ),
+  );
+  expect(workspace.get.mock.calls.map(([path]) => path)).toEqual([
+    "/api/v1/resources/{resourceId}/listings",
+  ]);
+  refuse();
+  fireEvent.click(within(details).getByRole("button", { name: "Reload" }));
+  await waitFor(() => expect(lookup).toHaveBeenCalledTimes(2));
+  refuse();
+  await act(async () =>
+    recovered.resolve(etagReply({ items: [currentListing] })),
+  );
+  await within(details).findByLabelText("Display name");
+  await waitFor(() =>
+    expect(within(details).getByLabelText("Display name")).toHaveProperty(
+      "value",
+      metadata.displayName,
+    ),
+  );
+  click("Download draft JSON");
+  expect(create).toHaveBeenCalledOnce();
+  expect(
+    screen.getByRole("link", { name: "Save catalog-draft.json" }),
+  ).toBeTruthy();
+  const text = await new Promise<string>((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.readAsText(create.mock.calls[0]![0]);
+  });
+  const downloaded = readDraftFile(text);
+  expect(downloaded).toMatchObject({
+    format: "open-agentic-catalog-draft-v1",
+    kind: "agent",
+    canonicalIdentifier: resource.canonicalIdentifier,
+    version: "unsaved-version",
+    representations: [
+      {
+        role: "primary",
+        mediaType: "application/a2a-agent-card+json",
+        profileId: "",
+        input: { mode: "data", text: content },
+      },
+    ],
+  });
+  expect(downloaded.listing).toEqual({
+    displayName: metadata.displayName,
+    description: metadata.description,
+    visibility: "private",
+    tags: ["operations, support"],
+    categories: ["Tools"],
+    representativeQueries: ["How can this help?"],
+    documentationUrl: metadata.documentationUrl,
+    supportUrl: metadata.supportUrl,
+    termsUrl: metadata.termsUrl,
+    license: "Apache-2.0",
+    relationships: [],
+    extensions: "{}",
+    artwork: { schemaVersion: 1 },
+  });
+  expect(workspace.get).toHaveBeenCalledWith(
+    "/api/v1/catalog-listings/{listingId}",
+    expect.objectContaining({
+      params: { path: { listingId: listing.id } },
+    }),
+  );
+  expect(workspace.get).toHaveBeenCalledWith(
+    "/api/v1/listing-revisions/{revisionId}",
+    expect.objectContaining({
+      params: { path: { revisionId: listingRevision.id } },
+    }),
+  );
+  expect(workspace.props.onFailure).toHaveBeenCalledOnce();
+  expect(lookup).toHaveBeenCalledTimes(2);
+  expect(label).toHaveProperty("value", "unsaved-version");
+  expect(document).toHaveProperty("value", content);
+  expect(workspace.post).not.toHaveBeenCalled();
+  expect(workspace.patch).not.toHaveBeenCalled();
+  expect(workspace.remove).not.toHaveBeenCalled();
 });
 it("captures a minimal Listing and rejects lossy server extension exports until text is entered", async () => {
   const { props, get } = screenWorkspace();

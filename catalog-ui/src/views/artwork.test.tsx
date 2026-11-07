@@ -24,6 +24,7 @@ import { ArtworkGallery, ArtworkIcon, artworkPresentation } from "./Artwork";
 import { foreignArtworkTarget, SourceArtworkControls } from "./SourceArtwork";
 import { deferred, workspace } from "../../tests/unit/fixtures";
 import { makeAPI, type Client } from "../api/client";
+import { flushSync } from "react-dom";
 
 const id = "00000000-0000-7000-8000-000000000001";
 const asset = {
@@ -601,6 +602,59 @@ it("caps concurrent image reads and cancels queued cards on unmount", async () =
   expect(post).toHaveBeenCalledTimes(4);
   expect(create).not.toHaveBeenCalled();
 });
+it("releases a queued image's handed-off slot when its card is removed before the read starts", async () => {
+  const { props, post } = transport();
+  const { create } = attachments();
+  const first = deferred<Awaited<ReturnType<typeof post>>>();
+  const rest = deferred<Awaited<ReturnType<typeof post>>>();
+  post
+    .mockImplementation(() => rest.promise)
+    .mockImplementationOnce(() => first.promise);
+  const images = (keys: number[]) => (
+    <>
+      {keys.map((key) => (
+        <ArtworkGallery key={key} client={props.client} item={gallery} />
+      ))}
+    </>
+  );
+  const view = render(images([0, 1, 2, 3, 4]));
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(4));
+  await act(async () => {
+    first.reject(new Error("Controlled first image failure"));
+    // A completed request releases a slot before the queued await resumes.
+    // Remove the card through a normal parent render in that microtask gap.
+    await new Promise<void>((resolve) => {
+      queueMicrotask(() => {
+        flushSync(() => view.rerender(images([0, 1, 2, 3])));
+        resolve();
+      });
+    });
+  });
+  expect(post).toHaveBeenCalledTimes(4);
+  expect(create).not.toHaveBeenCalled();
+  // Three requests still own slots. One fresh card may read; the second must
+  // wait, proving the cancelled handoff released exactly one slot.
+  view.rerender(images([0, 1, 2, 3, 5, 6]));
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(5));
+  await act(async () => Promise.resolve());
+  expect(post).toHaveBeenCalledTimes(5);
+  expect(create).not.toHaveBeenCalled();
+  view.unmount();
+  await act(async () =>
+    rest.resolve({
+      data: new Uint8Array([1, 2, 3]).buffer,
+      response: new Response(null, {
+        headers: { "Content-Type": "image/svg+xml" },
+      }),
+    }),
+  );
+  expect(post).toHaveBeenCalledTimes(5);
+  expect(create).not.toHaveBeenCalled();
+  const fresh = transport();
+  render(<ArtworkGallery client={fresh.props.client} item={gallery} />);
+  await screen.findByAltText("Robot dashboard");
+  expect(fresh.post).toHaveBeenCalledOnce();
+});
 it("clears already displayed private image attachments when the session is invalidated", async () => {
   const { revoke } = attachments();
   vi.stubGlobal(
@@ -627,6 +681,56 @@ it("clears already displayed private image attachments when the session is inval
   act(() => client.invalidate());
   expect(screen.queryByAltText("Robot dashboard")).toBeNull();
   expect(revoke).toHaveBeenCalledWith("blob:owned");
+});
+it("invalidates an unfinished image read and discards its digest-valid late reply without a Blob", async () => {
+  const { props } = workspace();
+  const { create, revoke } = attachments();
+  const pending = deferred<Response>();
+  const fetch = vi.fn<(...args: unknown[]) => Promise<Response>>(
+    () => pending.promise,
+  );
+  vi.stubGlobal("fetch", fetch);
+  const client = makeAPI({
+    basePath: "/unit",
+    authMode: "development",
+    documentationUrl: "",
+  });
+  render(
+    <ArtworkGallery
+      client={client}
+      item={gallery}
+      onFailure={props.onFailure}
+    />,
+  );
+  await waitFor(() => expect(fetch).toHaveBeenCalledOnce());
+  const request = fetch.mock.calls[0]![0] as Request;
+  expect(request.url).toBe(
+    location.origin + "/unit/_catalog/api/v1/artwork/read",
+  );
+  expect(request.signal.aborted).toBe(false);
+  act(() => client.invalidate());
+  expect(request.signal.aborted).toBe(true);
+  expect(create).not.toHaveBeenCalled();
+  expect(revoke).not.toHaveBeenCalled();
+  // The transport ignores cancellation and returns valid bytes; only current
+  // session/lifetime checks may refuse this otherwise admissible attachment.
+  await act(async () =>
+    pending.resolve(
+      new Response(new Uint8Array([1, 2, 3]), {
+        headers: {
+          "Content-Type": "image/png",
+          "Content-Digest": `sha-256=:${createHash("sha256")
+            .update(new Uint8Array([1, 2, 3]))
+            .digest("base64")}:`,
+        },
+      }),
+    ),
+  );
+  expect(screen.queryByAltText("Robot dashboard")).toBeNull();
+  expect(create).not.toHaveBeenCalled();
+  expect(revoke).not.toHaveBeenCalled();
+  expect(props.onFailure).not.toHaveBeenCalled();
+  expect(fetch).toHaveBeenCalledOnce();
 });
 it.each([401, 403])(
   "reports %s for shell reconciliation without automatic image retries",

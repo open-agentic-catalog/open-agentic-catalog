@@ -314,7 +314,7 @@ it("protects moderator drafts before changing the exact resource filter", async 
 });
 
 it("shows general resource feedback without inventing release or revision context", async () => {
-  const { props, get, post } = screenWorkspace();
+  const { props, get, post, patch } = screenWorkspace();
   readReplies(get, {
     "/api/v1/feedback": {
       items: [{ ...item, releaseId: undefined, versionRevisionId: undefined }],
@@ -339,6 +339,31 @@ it("shows general resource feedback without inventing release or revision contex
   ).toBeTruthy();
   expect(screen.getByText(/Do not include credentials/)).toBeTruthy();
   expect(post).not.toHaveBeenCalled();
+  openEditor("Edit or withdraw your feedback");
+  const form = screen
+    .getByRole("button", { name: "Save feedback changes" })
+    .closest("form")!;
+  fireEvent.change(within(form).getByLabelText("Feedback comment"), {
+    target: { value: "Corrected general resource feedback" },
+  });
+  click("Save feedback changes");
+  const dialog = await screen.findByRole("dialog");
+  const summary = within(dialog).getByLabelText("Command summary").textContent;
+  expect(summary).toContain("General resource feedback");
+  expect(summary).not.toContain("release-1");
+  expect(summary).not.toContain("revision-1");
+  expect(patch).not.toHaveBeenCalled();
+  click("Cancel");
+  const currentForm = screen
+    .getByRole("button", { name: "Save feedback changes" })
+    .closest("form")!;
+  expect(within(currentForm).getByLabelText("Feedback comment")).toHaveProperty(
+    "value",
+    "Corrected general resource feedback",
+  );
+  expect(get).toHaveBeenCalledOnce();
+  expect(post).not.toHaveBeenCalled();
+  expect(patch).not.toHaveBeenCalled();
 });
 
 it("shows exact version guidance beside an eligible submission form", async () => {
@@ -937,6 +962,56 @@ it("retains only entered feedback response drafts and disables a prepared comman
       ) as HTMLTextAreaElement | null
     )?.value,
   ).not.toBe("Retain this private response");
+});
+
+it("protects an entered direct-case response when its moderator read scope is withdrawn", async () => {
+  const w = screenWorkspace();
+  const caseId = "00000000-0000-7000-8000-000000000091";
+  history.replaceState(null, "", "/unit/feedback/" + caseId);
+  readReplies(w.get, {
+    "/api/v1/feedback/{feedbackId}": { ...item, id: caseId },
+  });
+  const access = {
+    ...administrator,
+    permissions: ["feedback.moderate" as const],
+    availablePermissions: ["feedback.moderate" as const],
+    scopeEnforcement: true,
+    scopes: ["catalog.read" as const, "tenant.admin" as const],
+  };
+  const view = render(<Feedback {...w.props} access={access} id={caseId} />);
+  await screen.findByText(item.comment, { selector: "p" });
+  expect(w.get).toHaveBeenCalledOnce();
+  expect(w.get).toHaveBeenCalledWith(
+    "/api/v1/feedback/{feedbackId}",
+    expect.objectContaining({ params: { path: { feedbackId: caseId } } }),
+  );
+  openEditor("Respond or manage feedback");
+  change("Moderator response (optional)", "Keep this unsent case response");
+  view.rerender(
+    <Feedback
+      {...w.props}
+      access={{ ...access, scopes: ["tenant.admin"] }}
+      id={caseId}
+    />,
+  );
+  expect(screen.getByRole("alert").textContent).toContain(
+    "Feedback case reads require feedback.moderate and catalog.read scope when enforced.",
+  );
+  expect(screen.getByRole("alert").textContent).toContain(
+    "Entered drafts remain protected.",
+  );
+  expect(
+    screen.getByRole("link", { name: "Review My access" }).getAttribute("href"),
+  ).toBe("/unit/access");
+  expect(screen.queryByText(item.comment, { selector: "p" })).toBeNull();
+  const draft = screen.getByLabelText("Moderator response (optional)");
+  expect(draft).toHaveProperty("value", "Keep this unsent case response");
+  expect(draft.closest("fieldset")).toHaveProperty("disabled", true);
+  expect(w.get).toHaveBeenCalledOnce();
+  expect(w.post).not.toHaveBeenCalled();
+  expect(w.patch).not.toHaveBeenCalled();
+  expect(w.remove).not.toHaveBeenCalled();
+  expect(w.props.onFailure).not.toHaveBeenCalled();
 });
 
 it("leads inline moderator detail with full text and dates before deliberate identifiers without extra reads", async () => {

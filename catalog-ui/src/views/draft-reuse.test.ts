@@ -10,6 +10,55 @@ const base = {
   contentDigest: "sha256:retained",
 };
 const signal = () => new AbortController().signal;
+
+/** Keep a complete rooted inventory so only the selected document field can fail. */
+function retainedPlugin() {
+  const manifest = '{ "name":"helper", "version":"1.0.0" }\n';
+  const skill = "---\nname: helper\ndescription: Help\n---\nExact Skill text\n";
+  const digest = "sha256:" + "a".repeat(64);
+  const documents = [
+    { path: "bundle/plugin.json", content: manifest },
+    { path: "bundle/skills/helper/SKILL.md", content: skill },
+  ];
+  const files = [
+    ...documents.map((doc) => ({
+      path: doc.path,
+      size: new TextEncoder().encode(doc.content).byteLength,
+      digest,
+      executable: false,
+    })),
+    {
+      path: "bundle/scripts/helper.py",
+      size: 10,
+      digest,
+      executable: true,
+    },
+  ];
+  return {
+    representations: [
+      {
+        ...base,
+        mediaType: "application/zip",
+        url: "https://metadata.example/plugin.zip",
+        contentDigest: digest,
+        plugin: {
+          rootDirectory: "bundle",
+          expandedSize: files.reduce((size, file) => size + file.size, 0),
+          files,
+          documents,
+          assessments: {
+            malware: "not_assessed" as const,
+            secrets: "not_assessed" as const,
+            license: "not_assessed" as const,
+            sbom: "not_assessed" as const,
+            provenance: "not_assessed" as const,
+          },
+        },
+      },
+    ],
+  };
+}
+
 async function artifact(text: string | Uint8Array) {
   const bytes =
     typeof text === "string" ? new TextEncoder().encode(text) : text;
@@ -220,3 +269,63 @@ it("rejects an over-limit source before reading any documents", async () => {
   ).rejects.toThrow("sixteen");
   expect(get).not.toHaveBeenCalled();
 });
+
+it("stages exact rooted Plugin documents without an optional MCP document or archive fetch", async () => {
+  const { props, get } = workspace();
+  const input = retainedPlugin();
+  const before = structuredClone(input);
+  const [draft] = await reuseDraft(props.client, "plugin", input, signal());
+  expect(draft).toMatchObject({
+    role: "primary",
+    mode: "url",
+    url: "https://metadata.example/plugin.zip",
+    expectedDigest: "sha256:" + "a".repeat(64),
+    pluginPreparation: {
+      preparing: false,
+      manifest: '{ "name":"helper", "version":"1.0.0" }\n',
+      mcp: "",
+      skills: [
+        {
+          content:
+            "---\nname: helper\ndescription: Help\n---\nExact Skill text\n",
+        },
+      ],
+      sourceFiles: [
+        { path: "bundle/plugin.json", retained: true },
+        { path: "bundle/skills/helper/SKILL.md", retained: true },
+        { path: "bundle/scripts/helper.py", retained: false },
+      ],
+    },
+  });
+  expect(draft?.pluginPreparation?.skills).toHaveLength(1);
+  expect(input).toEqual(before);
+  expect(get).not.toHaveBeenCalled();
+});
+
+it.each(["document content", "document path", "inventory path"] as const)(
+  "rejects incomplete retained Plugin %s without mutating input or making a read",
+  async (field) => {
+    const { props, get } = workspace();
+    const input = retainedPlugin();
+    const valid = structuredClone(input);
+    const [control] = await reuseDraft(props.client, "plugin", input, signal());
+    expect(control?.pluginPreparation?.manifest).toBe(
+      '{ "name":"helper", "version":"1.0.0" }\n',
+    );
+    expect(input).toEqual(valid);
+    const plugin = input.representations[0]!.plugin;
+    if (field === "document content")
+      Object.assign(plugin.documents[0]!, { content: undefined });
+    else if (field === "document path")
+      Object.assign(plugin.documents[0]!, { path: undefined });
+    else Object.assign(plugin.files[0]!, { path: false });
+    const damaged = structuredClone(input);
+    await expect(
+      reuseDraft(props.client, "plugin", input, signal()),
+    ).rejects.toThrow(
+      "The retained Plugin documents are incomplete. Supply the original archive.",
+    );
+    expect(input).toEqual(damaged);
+    expect(get).not.toHaveBeenCalled();
+  },
+);

@@ -113,6 +113,109 @@ it("creates a private override from missing head and captures target, modes and 
     ).params.header,
   ).not.toHaveProperty("If-Match");
 });
+it.each([false, true])(
+  "keeps version presence %s distinct through artwork confirmation and the exact command",
+  async (versionPresent) => {
+    const w = screenWorkspace();
+    const { version: _version, ...withoutVersion } = target;
+    const expected = {
+      ...withoutVersion,
+      versionPresent,
+      ...(versionPresent ? { version: "" } : {}),
+    };
+    w.get.mockResolvedValue({
+      error: {},
+      response: new Response(null, { status: 404 }),
+    });
+    w.post.mockResolvedValue(
+      etagReply({
+        ...head,
+        target: { ...withoutVersion, versionPresent },
+        icon: { mode: "suppress" },
+        reason: "Keep this exact entry separate",
+      }),
+    );
+    render(
+      <SourceArtworkControls
+        {...w.props}
+        access={administrator}
+        item={{ ...item, versionPresent, version: undefined }}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Manage local artwork" }),
+    );
+    await screen.findByLabelText("Icon behavior");
+    expect(w.get.mock.calls[0]?.[0]).toBe(
+      "/api/v1/federation/sources/{sourceId}/artwork",
+    );
+    const read = w.get.mock.calls[0]?.[1] as { params: unknown };
+    expect(read.params).toEqual({
+      path: { sourceId: id },
+      query: {
+        presentationGeneration: 2,
+        identifier: target.identifier,
+        versionPresent,
+        ...(versionPresent ? { version: "" } : {}),
+        kind: "agent",
+      },
+    });
+    fireEvent.change(screen.getByLabelText("Icon behavior"), {
+      target: { value: "suppress" },
+    });
+    fireEvent.change(screen.getByLabelText("Artwork override reason"), {
+      target: { value: "Keep this exact entry separate" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save local artwork override" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    const summary = within(dialog).getByLabelText("Command summary");
+    const facts = Object.fromEntries(
+      Array.from(summary.querySelectorAll("dt"), (label): [string, string] => [
+        label.textContent ?? "",
+        label.nextElementSibling?.textContent ?? "",
+      ]),
+    );
+    expect(facts).toMatchObject({
+      "Source ID": id,
+      "Entry identifier": target.identifier,
+      "Version presence": versionPresent ? "Present" : "Absent",
+      Version: versionPresent ? "(empty)" : "Not supplied",
+      "Resource kind": "agent",
+      "Presentation generation": "2",
+    });
+    expect(w.post).not.toHaveBeenCalled();
+    await act(async () =>
+      fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" })),
+    );
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(w.post).toHaveBeenCalledOnce();
+    const options = w.post.mock.calls[0]?.[1] as {
+      params: {
+        path: { sourceId: string };
+        header: Record<string, string>;
+      };
+      body: unknown;
+    };
+    expect(w.post.mock.calls[0]?.[0]).toBe(
+      "/api/v1/federation/sources/{sourceId}/artwork",
+    );
+    expect(options.params.path).toEqual({ sourceId: id });
+    expect(options.params.header["Idempotency-Key"]).toBeTruthy();
+    expect(options.params.header).not.toHaveProperty("If-Match");
+    expect(options.body).toEqual({
+      target: expected,
+      icon: { mode: "suppress" },
+      screenshots: { mode: "inherit" },
+      reason: "Keep this exact entry separate",
+    });
+    expect(w.get).toHaveBeenCalledOnce();
+    expect(w.patch).not.toHaveBeenCalled();
+    expect(w.remove).not.toHaveBeenCalled();
+    expect(w.props.onFailure).not.toHaveBeenCalled();
+  },
+);
 it("updates with the head ETag and keeps live proof in POST only", async () => {
   const w = screenWorkspace();
   w.get.mockResolvedValue(

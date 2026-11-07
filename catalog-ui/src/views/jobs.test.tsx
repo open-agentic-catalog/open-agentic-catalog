@@ -230,6 +230,66 @@ it("applies exact Job filters, resets continuation, clears them and restores bro
   view.unmount();
 });
 
+it("loads an unknown exact Job type from the URL and avoids duplicate history or reads for unchanged filters", async () => {
+  history.replaceState(
+    null,
+    "",
+    "/unit/jobs?kind=extension.scan&state=waiting",
+  );
+  const { props, get } = jobWorkspace();
+  get.mockResolvedValue(reply({ items: [] }));
+  const push = vi.spyOn(history, "pushState");
+  const mutate = vi.fn(() => {
+    throw new Error("Job filter controls must not mutate state");
+  });
+  Object.assign(props.client.api, {
+    POST: mutate,
+    PATCH: mutate,
+    PUT: mutate,
+    DELETE: mutate,
+  });
+  render(<Jobs {...props} />);
+  await screen.findByText("No jobs match these filters.");
+  expect(screen.getByLabelText("Job type")).toHaveProperty("value", "custom");
+  expect(screen.getByLabelText("Exact job type code")).toHaveProperty(
+    "value",
+    "extension.scan",
+  );
+  expect(get.mock.calls[0]?.[0]).toBe("/api/v1/jobs");
+  expect(
+    (get.mock.calls[0]?.[1] as { params: { query: unknown } }).params.query,
+  ).toEqual({ limit: 25, kind: "extension.scan", state: "waiting" });
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Apply Job filters" }));
+  });
+  expect(get).toHaveBeenCalledOnce();
+  expect(push).not.toHaveBeenCalled();
+  fireEvent.change(screen.getByLabelText("Job type"), {
+    target: { value: "source.sync" },
+  });
+  expect(screen.queryByLabelText("Exact job type code")).toBeNull();
+  expect(screen.getByLabelText("Job type")).toHaveProperty(
+    "value",
+    "source.sync",
+  );
+  expect(get).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("button", { name: "Apply Job filters" }));
+  await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+  expect(
+    (get.mock.calls[1]?.[1] as { params: { query: unknown } }).params.query,
+  ).toEqual({ limit: 25, kind: "source.sync", state: "waiting" });
+  expect(push).toHaveBeenCalledExactlyOnceWith(
+    null,
+    "",
+    "/unit/jobs?kind=source.sync&state=waiting",
+  );
+  expect(location.pathname + location.search).toBe(
+    "/unit/jobs?kind=source.sync&state=waiting",
+  );
+  expect(props.onFailure).not.toHaveBeenCalled();
+  expect(mutate).not.toHaveBeenCalled();
+});
+
 it("holds filter submission while loading and prepares an exact subpath Job destination", async () => {
   const { props, get } = jobWorkspace();
   let resolve!: (value: ReturnType<typeof reply>) => void;
@@ -621,6 +681,60 @@ it("shows retained outcome and parent evidence without granting a source reader 
   expect(screen.queryByRole("button", { name: "Retry job" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reload job" }));
   await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+});
+
+it("distinguishes an active cancellation request from its retained terminal flag after explicit reload", async () => {
+  const { props, get } = jobWorkspace();
+  get
+    .mockResolvedValueOnce(
+      reply({
+        ...job,
+        state: "running",
+        attempt: 1,
+        progress: 20,
+        cancellationRequested: true,
+      } satisfies components["schemas"]["Job"]),
+    )
+    .mockResolvedValue(
+      reply({
+        ...job,
+        state: "cancelled",
+        attempt: 1,
+        progress: 20,
+        cancellationRequested: true,
+      } satisfies components["schemas"]["Job"]),
+    );
+  const mutate = vi.fn(() => {
+    throw new Error("A retained cancellation flag must not submit a command");
+  });
+  Object.assign(props.client.api, {
+    POST: mutate,
+    PATCH: mutate,
+    PUT: mutate,
+    DELETE: mutate,
+  });
+  render(<Jobs {...props} id={job.id} />);
+  expect((await screen.findByText("Yes")).getAttribute("data-tone")).toBe(
+    "warning",
+  );
+  expect(get).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("button", { name: "Reload job" }));
+  await screen.findByText("Cancelled");
+  expect(screen.getByText("Yes").getAttribute("data-tone")).toBe("neutral");
+  expect(
+    screen.getByText(
+      "Cancellation was requested. Check the recorded state above; completed side effects are not undone.",
+    ),
+  ).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Cancel job" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Retry job" })).toBeNull();
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(get.mock.calls.map(([path]) => path)).toEqual([
+    "/api/v1/jobs/{jobId}",
+    "/api/v1/jobs/{jobId}",
+  ]);
+  expect(props.onFailure).not.toHaveBeenCalled();
+  expect(mutate).not.toHaveBeenCalled();
 });
 
 it.each([

@@ -382,6 +382,85 @@ it.each([
   },
 );
 
+it.each([
+  { name: "lower-only", from: "2026-09-01T11:55:00.123Z", before: "" },
+  { name: "upper-only", from: "", before: "2026-09-01T12:00:00.456Z" },
+  { name: "unbounded", from: "", before: "" },
+])(
+  "stages $name audit bounds privately and reads only the explicitly submitted range",
+  async ({ from, before }) => {
+    vi.stubEnv("TZ", "UTC");
+    try {
+      const w = screenWorkspace();
+      w.get.mockResolvedValue(etagReply({ items: [] }));
+      const storage = vi.spyOn(Storage.prototype, "setItem");
+      const initialURL = location.href;
+      const initialHistory = history.state as unknown;
+      const action = "historical.partial.audit";
+      const note = "Private optional audit interval";
+      const bounds = {
+        ...(from ? { occurredFrom: from } : {}),
+        ...(before ? { occurredBefore: before } : {}),
+      };
+      function Controls() {
+        const handoff = useInvestigation()!;
+        return (
+          <button
+            onClick={() =>
+              handoff.stage({ criteria: { action, ...bounds }, note })
+            }
+          >
+            Stage optional interval
+          </button>
+        );
+      }
+      render(
+        <InvestigationProvider>
+          <Controls />
+          <Audit {...w.props} access={administrator} />
+        </InvestigationProvider>,
+      );
+      click("Stage optional interval");
+      expect(await screen.findByText(new RegExp(note))).toHaveProperty(
+        "textContent",
+        `${note} Initially staged UTC interval: ${from || "unbounded"} to ${before || "unbounded"} (exclusive). Adjust the local-time controls to change it.`,
+      );
+      expect(screen.getByLabelText("Time range")).toHaveProperty(
+        "value",
+        "custom",
+      );
+      expect(
+        screen.getByLabelText("Occurred from (inclusive, local time)"),
+      ).toHaveProperty("value", from.replace(/Z$/, ""));
+      expect(
+        screen.getByLabelText("Occurred before (exclusive, local time)"),
+      ).toHaveProperty("value", before.replace(/Z$/, ""));
+      expect(w.get).not.toHaveBeenCalled();
+      expect(w.post).not.toHaveBeenCalled();
+      expect(storage).not.toHaveBeenCalled();
+      click("Search audit events");
+      await screen.findByText(/No matching events/);
+      expect(w.get).toHaveBeenCalledOnce();
+      expect(w.get.mock.calls[0]?.[0]).toBe("/api/v1/audit-events");
+      const options = w.get.mock.calls[0]?.[1] as {
+        params: { query: Record<string, unknown> };
+      };
+      expect(options.params.query).toEqual({ action, ...bounds, limit: 25 });
+      expect(w.post).not.toHaveBeenCalled();
+      expect(w.patch).not.toHaveBeenCalled();
+      expect(w.remove).not.toHaveBeenCalled();
+      expect(location.href).toBe(initialURL);
+      expect(history.state as unknown).toEqual(initialHistory);
+      expect(storage).not.toHaveBeenCalled();
+      for (const value of [action, note, from, before].filter(Boolean)) {
+        expect(JSON.stringify(history.state)).not.toContain(value);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  },
+);
+
 it("retains structured historical acknowledgement independently of the dialog completion callback", async () => {
   const w = screenWorkspace();
   const done = vi.fn();

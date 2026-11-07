@@ -8,6 +8,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { RevisionComparison, metadataChanges } from "./RevisionComparison";
 import { workspace, reply, deferred } from "../../tests/unit/fixtures";
@@ -28,6 +29,12 @@ function click(name: string) {
 }
 function choose(name: string, value: string) {
   fireEvent.change(screen.getByLabelText(name), { target: { value } });
+}
+/** Compare read arguments exactly after checking their opaque cancellation signal. */
+function readArguments([path, input]: unknown[]) {
+  const { signal, ...options } = input as Record<string, unknown>;
+  expect(signal).toBeInstanceOf(AbortSignal);
+  return [path, options];
 }
 const rows = {
   items: [
@@ -116,6 +123,87 @@ it("loads only explicit bounded choices and compares exact Listing IDs without m
   click("Close comparison choices");
   expect(screen.queryByLabelText("Before revision")).toBeNull();
 });
+it.each(["listing", "version"] as const)(
+  "keeps later %s history choices bound to the selected parent without eager content reads",
+  async (kind) => {
+    const f = fixture(kind);
+    const original = f.get.getMockImplementation()!;
+    const historyPath =
+      kind === "listing"
+        ? "/api/v1/catalog-listings/{listingId}/revisions"
+        : "/api/v1/resource-versions/{versionId}/revisions";
+    const parent =
+      kind === "listing"
+        ? { listingId: "listing-1" }
+        : { versionId: "version-1" };
+    const cursor = "next-owned-history-page";
+    const mutate = vi.fn(() => {
+      throw new Error("Revision comparison must not mutate state");
+    });
+    Object.assign(f.props.client.api, {
+      POST: mutate,
+      PATCH: mutate,
+      PUT: mutate,
+      DELETE: mutate,
+    });
+    f.get.mockImplementation((path, options) => {
+      if (path !== historyPath) return original(path, options);
+      const query = (options as { params: { query: { cursor?: string } } })
+        .params.query;
+      return Promise.resolve(
+        query.cursor
+          ? reply({ items: [rows.items[1]] })
+          : reply({ items: [rows.items[0]], nextCursor: cursor }),
+      );
+    });
+    render(<RevisionComparison {...f.props} fixedAfter="after" />);
+    expect(f.get).not.toHaveBeenCalled();
+    click("Choose revisions to compare");
+    await screen.findByRole("option", { name: "Revision 1 / before" });
+    choose("Before revision", "before");
+    fireEvent.click(
+      within(
+        screen.getByRole("group", {
+          name: "Before revision choices pagination",
+        }),
+      ).getByRole("button", { name: "Next page" }),
+    );
+    await screen.findByRole("option", { name: "Revision 2 / after" });
+    expect(screen.getByLabelText("Before revision")).toHaveProperty(
+      "value",
+      "before",
+    );
+    expect(f.get.mock.calls.map(readArguments)).toEqual([
+      [
+        historyPath,
+        {
+          params: { path: parent, query: { limit: 25 } },
+        },
+      ],
+      [
+        historyPath,
+        {
+          params: { path: parent, query: { limit: 25, cursor } },
+        },
+      ],
+    ]);
+    expect(mutate).not.toHaveBeenCalled();
+    click("Compare selected revisions");
+    await screen.findByLabelText("Compared revisions");
+    expect(
+      f.get.mock.calls
+        .slice(2)
+        .map(([path, options]) => [
+          path,
+          (options as { params: { path: { revisionId: string } } }).params.path,
+        ]),
+    ).toEqual([
+      [`/api/v1/${kind}-revisions/{revisionId}`, { revisionId: "before" }],
+      [`/api/v1/${kind}-revisions/{revisionId}`, { revisionId: "after" }],
+    ]);
+    expect(mutate).not.toHaveBeenCalled();
+  },
+);
 it("fixes the review after-side to submitted evidence and explains decoded document limits", async () => {
   const f = fixture("version");
   render(<RevisionComparison {...f.props} fixedAfter="after" />);
@@ -267,6 +355,130 @@ it.each([false, true])(
       text,
     );
     expect(document.querySelector("script")).toBeNull();
+  },
+);
+
+it.each([
+  {
+    difference: "whitespace",
+    before: '{"n":1.0,"literal":"<script>read only</script>"}',
+    after: '{ "n":1.0, "literal":"<script>read only</script>" }',
+  },
+  {
+    difference: "numeric token spelling",
+    before: '{"n":1.0,"literal":"<script>read only</script>"}',
+    after: '{"n":1e0,"literal":"<script>read only</script>"}',
+  },
+])(
+  "preserves different exact documents despite equal decoded JSON: $difference",
+  async ({ before, after }) => {
+    const f = fixture("version");
+    expect(JSON.parse(before)).toEqual(JSON.parse(after));
+    const stored = await Promise.all(
+      [before, after].map(async (text) => {
+        const bytes = new TextEncoder().encode(text);
+        const hash = new Uint8Array(
+          await crypto.subtle.digest("SHA-256", bytes),
+        );
+        return {
+          bytes,
+          id: Array.from(hash, (byte) =>
+            byte.toString(16).padStart(2, "0"),
+          ).join(""),
+          digest: `sha-256=:${btoa(String.fromCharCode(...hash))}:`,
+        };
+      }),
+    );
+    expect(stored[0]!.id).not.toBe(stored[1]!.id);
+    const original = f.get.getMockImplementation()!;
+    const mutate = vi.fn(() => {
+      throw new Error("Inspecting retained bytes must not mutate state");
+    });
+    Object.assign(f.props.client.api, {
+      POST: mutate,
+      PATCH: mutate,
+      PUT: mutate,
+      DELETE: mutate,
+    });
+    f.get.mockImplementation(async (path, options) => {
+      if (path === "/api/v1/artifacts/{artifactId}/content") {
+        const id = (options as { params: { path: { artifactId: string } } })
+          .params.path.artifactId;
+        const content = stored.find((item) => item.id === id);
+        if (!content) throw new Error("Unexpected retained document");
+        return {
+          data: content.bytes.buffer,
+          response: new Response(null, {
+            headers: {
+              "Content-Type": "application/json",
+              "Content-Digest": content.digest,
+            },
+          }),
+        };
+      }
+      const result = (await original(path, options)) as {
+        data: unknown;
+        response: Response;
+      };
+      if (path !== "/api/v1/version-revisions/{revisionId}") return result;
+      const id = (options as { params: { path: { revisionId: string } } })
+        .params.path.revisionId;
+      const content = stored[id === "before" ? 0 : 1]!;
+      const body = result.data as { revision: typeof versionRevision };
+      return {
+        ...result,
+        data: {
+          ...body,
+          revision: {
+            ...body.revision,
+            representations: [
+              {
+                ...representation,
+                id: "document-" + id,
+                artifactId: content.id,
+                contentDigest: "sha256:" + content.id,
+                size: content.bytes.byteLength,
+              },
+            ],
+          },
+        },
+      };
+    });
+    render(<RevisionComparison {...f.props} />);
+    await select();
+    const contentReads = () =>
+      f.get.mock.calls.filter(
+        ([path]) => path === "/api/v1/artifacts/{artifactId}/content",
+      );
+    expect(contentReads()).toEqual([]);
+    expect(mutate).not.toHaveBeenCalled();
+    click("Inspect selected documents");
+    await screen.findByText(
+      "Exact retained documents differ, including any whitespace or numeric token changes.",
+    );
+    const beforePanel = screen.getByRole("heading", {
+      name: "Before document",
+    }).parentElement!;
+    const afterPanel = screen.getByRole("heading", {
+      name: "After document",
+    }).parentElement!;
+    expect(
+      within(beforePanel).getByLabelText("JSON document").textContent,
+    ).toBe(before);
+    expect(within(afterPanel).getByLabelText("JSON document").textContent).toBe(
+      after,
+    );
+    expect(contentReads().map(readArguments)).toEqual(
+      stored.map((content) => [
+        "/api/v1/artifacts/{artifactId}/content",
+        {
+          params: { path: { artifactId: content.id } },
+          parseAs: "arrayBuffer",
+        },
+      ]),
+    );
+    expect(document.querySelector("script")).toBeNull();
+    expect(mutate).not.toHaveBeenCalled();
   },
 );
 
