@@ -3307,9 +3307,27 @@ try {
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
       await signIn();
       await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+      const connectedContractReply = page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          new URL(response.url()).pathname === basePath + "/_reference",
+      );
       await page.goto(origin + basePath + "/api-reference");
       await expect(
         page.getByRole("heading", { name: "API reference", exact: true }),
+      ).toBeVisible();
+      const connectedContract = await connectedContractReply;
+      expect(connectedContract.status()).toBe(200);
+      expect(
+        (await connectedContract.json()).document.paths[
+          "/api/v1/catalog/search"
+        ].post.operationId,
+      ).toBe("searchCatalog");
+      await expect(
+        page.getByText("Last loaded API contract.", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("navigation", { name: "API areas", exact: true }),
       ).toBeVisible();
       await page.goto(origin + basePath + "/catalog");
       await expect(

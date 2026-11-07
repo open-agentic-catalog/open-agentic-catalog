@@ -9,7 +9,7 @@ import {
   localPorts,
   runtimeEnvironment,
   startCatalog,
-  startupFailureStage,
+  startupFailureDiagnostic,
 } from "./browser-fixture.mjs";
 
 test("demo startup stages accept only complete fixed messages", () => {
@@ -25,15 +25,15 @@ test("demo startup stages accept only complete fixed messages", () => {
     "listener.address-in-use",
     "listener.serve",
   ]) {
-    assert.equal(
-      startupFailureStage(`Demo sample tool failed (stage: ${stage}).\n`),
-      stage,
+    assert.deepEqual(
+      startupFailureDiagnostic(`Demo sample tool failed (stage: ${stage}).\n`),
+      { operationStage: stage },
     );
-    assert.equal(
-      startupFailureStage(
+    assert.deepEqual(
+      startupFailureDiagnostic(
         `private text\nDemo sample tool failed (stage: ${stage}).\r\n`,
       ),
-      stage,
+      { operationStage: stage },
     );
   }
   for (const text of [
@@ -45,7 +45,108 @@ test("demo startup stages accept only complete fixed messages", () => {
     "prefix Demo sample tool failed (stage: prepared.read).\n",
     "Demo sample tool failed (stage: listener.serve)",
   ])
-    assert.equal(startupFailureStage(text), undefined);
+    assert.equal(startupFailureDiagnostic(text), undefined);
+});
+
+test("Go UI startup diagnostics project only reviewed stage/code pairs from both terminal formats", () => {
+  const record = {
+    time: "2026-01-01T00:00:00Z",
+    level: "ERROR",
+    msg: "PRIVATE_SENTINEL",
+    service: "catalog-ui",
+    role: "ui",
+    environment: "development",
+    version: "0.1.0-dev+fixture",
+    event: "process.failed",
+    component: "process",
+    command: "catalog-ui",
+    stage: "listener",
+    error_code: "INTERNAL",
+    error_type: "diagnostics.formattedError",
+  };
+  const text = (stage, code, role = "ui") => {
+    const message = JSON.stringify('PRIVATE_SENTINEL "quoted"');
+    return `time=2026-01-01T00:00:00Z level=ERROR msg=${message} service=catalog-ui role=${role} environment=development version=0.1.0-dev+fixture event=process.failed component=process command=catalog-ui stage=${stage} error_code=${code} error_type=diagnostics.formattedError\n`;
+  };
+  for (const stage of ["configuration", "host_initialization", "listener"])
+    for (const code of ["INTERNAL", "INTERNAL_PANIC"])
+      for (const line of [
+        JSON.stringify({ ...record, stage, error_code: code }) + "\n",
+        text(stage, code),
+        text(stage, code, "unknown").replace("\n", "\r\n"),
+      ]) {
+        const diagnostic = startupFailureDiagnostic(line);
+        assert.deepEqual(diagnostic, {
+          operationStage: stage,
+          errorCode: code,
+        });
+        assert.equal(
+          JSON.stringify(diagnostic).includes("PRIVATE_SENTINEL"),
+          false,
+        );
+      }
+  assert.deepEqual(
+    startupFailureDiagnostic(
+      JSON.stringify({
+        ...record,
+        msg: 'PRIVATE_SENTINEL , "stage":"private", {"event":"other"}',
+      }) + "\n",
+    ),
+    { operationStage: "listener", errorCode: "INTERNAL" },
+  );
+  for (const change of [
+    { level: "WARN" },
+    { service: "catalogd" },
+    { role: "api" },
+    { event: "http.request_failed" },
+    { component: "http" },
+    { command: "catalogctl" },
+    { stage: "PRIVATE_SENTINEL" },
+    { stage: { private: "PRIVATE_SENTINEL" } },
+    { error_code: "PRIVATE_SENTINEL" },
+    { detail: "PRIVATE_SENTINEL" },
+  ])
+    assert.equal(
+      startupFailureDiagnostic(JSON.stringify({ ...record, ...change }) + "\n"),
+      undefined,
+    );
+  for (const line of [
+    text("PRIVATE_SENTINEL", "INTERNAL"),
+    text("listener", "PRIVATE_SENTINEL"),
+    text("listener", "INTERNAL").replace(
+      "command=catalog-ui",
+      "command=catalogctl",
+    ),
+    text("listener", "INTERNAL").replace("role=ui", "role=api"),
+    text("listener", "INTERNAL").replace("level=ERROR", "level=WARN"),
+    text("listener", "INTERNAL").replace("\n", " PRIVATE_SENTINEL\n"),
+    text("listener", "INTERNAL").trimEnd(),
+    JSON.stringify(record),
+    JSON.stringify(record).slice(0, -1) + "\n",
+    JSON.stringify({ msg: text("listener", "INTERNAL") }) + "\n",
+    "private prelude\n" + text("listener", "INTERNAL"),
+    text("listener", "INTERNAL") + "private suffix\n",
+    text("listener", "INTERNAL") + text("configuration", "INTERNAL"),
+    JSON.stringify(record).replace(
+      '"stage":"listener"',
+      '"stage":"private","stage":"listener"',
+    ) + "\n",
+    JSON.stringify(record).replace(
+      '"stage":"listener"',
+      '"st\\u0061ge":"listener"',
+    ) + "\n",
+    JSON.stringify(record).replace(
+      '"stage":"listener"',
+      '"s\\u0074age":"PRIVATE_SENTINEL","stage":"listener"',
+    ) + "\n",
+    JSON.stringify(record).replace(
+      '"stage":"listener"',
+      '"stage":"PRIVATE_SENTINEL","s\\u0074age":"listener"',
+    ) + "\n",
+    "null\n",
+    "[]\n",
+  ])
+    assert.equal(startupFailureDiagnostic(line), undefined);
 });
 
 test("runtime fixtures cannot inherit a configured database, identity or target", () => {

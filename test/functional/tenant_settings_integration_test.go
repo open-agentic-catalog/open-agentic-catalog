@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -28,7 +29,7 @@ import (
 // manifests keep the qualification focused on scheduling rather than indexing.
 func configureProcessTenantSettings(t *testing.T, f processFixture, cfg *config.Config) string {
 	t.Helper()
-	peer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	peer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
 			t.Error("unexpected request or credential at owned settings peer")
 			w.WriteHeader(http.StatusBadRequest)
@@ -38,13 +39,17 @@ func configureProcessTenantSettings(t *testing.T, f processFixture, cfg *config.
 		_, _ = io.WriteString(w, `{"entries":[]}`)
 	}))
 	t.Cleanup(peer.Close)
+	trustFile := filepath.Join(f.directory, "settings-peer-ca.pem")
+	if err := os.WriteFile(trustFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: peer.Certificate().Raw}), 0600); err != nil {
+		t.Fatal(err)
+	}
 	cfg.Environment = "test"
 	cfg.Worker.SourceMaintenanceInterval.Duration = time.Minute
 	cfg.Worker.DependencyRetryInitialDelay.Duration = time.Second
 	cfg.Worker.DependencyRetryCeiling.Duration = time.Second
 	policy := config.FederationPolicy{SchemaVersion: 1, PolicyID: "process-settings", Revision: 1,
 		Public:          config.FederationPublicPolicy{Mode: "allowlist", Origins: []string{}},
-		PrivateProfiles: []config.FederationPrivateProfile{{Name: "process-settings", Origins: []string{peer.URL}, AddressRanges: []string{"127.0.0.1/32"}, AssignedTenantIDs: []string{"00000000-0000-7000-8000-000000000001", "00000000-0000-7000-8000-000000000002"}, TransportRef: "direct"}}}
+		PrivateProfiles: []config.FederationPrivateProfile{{Name: "process-settings", Origins: []string{peer.URL}, AddressRanges: []string{"127.0.0.1/32"}, AssignedTenantIDs: []string{"00000000-0000-7000-8000-000000000001", "00000000-0000-7000-8000-000000000002"}, TrustBundleFile: trustFile, TransportRef: "direct"}}}
 	raw, err := json.Marshal(policy)
 	if err != nil {
 		t.Fatal(err)

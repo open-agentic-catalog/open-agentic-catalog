@@ -791,6 +791,21 @@ export async function packagedJourneys({
   await field("Agents").check();
   await field("Enable live queries").check();
   await field("I acknowledge queries are sent to this upstream").check();
+  const topologyAPIPath = new URL(origin + "/_catalog/api/v1").pathname;
+  const topologyRequests = [];
+  const observeTopologyRequest = (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (!pathname.startsWith(topologyAPIPath + "/")) return;
+    const path = pathname.slice(topologyAPIPath.length);
+    if (
+      path === "/publication/hosts" ||
+      /^\/catalog\/(search|explore|resources)$/.test(path) ||
+      path === "/federation/sources:live-search" ||
+      (request.method() !== "GET" && path.startsWith("/federation/"))
+    )
+      topologyRequests.push({ method: request.method(), path });
+  };
+  page.on("request", observeTopologyRequest);
   await openDisclosure(page, "Advanced source participation");
   await button("Edit topology as JSON").click();
   await field("Topology JSON").fill('{"unexpected":true}');
@@ -808,10 +823,58 @@ export async function packagedJourneys({
   );
   await button("Use guided topology").click();
   await button("Add discovery assignment").click();
+  expect(topologyRequests).toEqual([]);
+  const hostInventoryResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname ===
+        topologyAPIPath + "/publication/hosts",
+  );
+  await button("Load configured host choices").click();
+  const hostInventory = await hostInventoryResponse;
+  expect(hostInventory.status()).toBe(200);
+  expect((await hostInventory.json()).items).toEqual([
+    expect.objectContaining({ host: "127.0.0.1", mode: "anonymous" }),
+    expect.objectContaining({
+      host: "private.catalog.test",
+      mode: "authenticated",
+    }),
+  ]);
+  const configuredSourceHost = page.getByRole("combobox", {
+    name: "Configured discovery host 1",
+    exact: true,
+  });
+  await expect(
+    configuredSourceHost.locator("option:not([value='']):not([disabled])"),
+  ).toHaveText([
+    "127.0.0.1 (anonymous)",
+    "private.catalog.test (authenticated)",
+  ]);
+  await configuredSourceHost.selectOption("127.0.0.1");
+  await expect(field("Discovery host 1")).toHaveValue("127.0.0.1");
+  // Manual entry remains independent of publication inventory and preserves
+  // the exact authenticated host selected for this owned source.
   await field("Discovery host 1").fill("private.catalog.test");
   await page
     .getByRole("combobox", { name: "Discovery audience 1", exact: true })
     .selectOption("authenticated");
+  await button("Add discovery assignment").click();
+  await field("Discovery host 2").fill("127.0.0.1");
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await button("Remove discovery assignment 2").click();
+  await expect(field("Discovery host 2")).toHaveValue("127.0.0.1");
+  page.once("dialog", (dialog) => dialog.accept());
+  await button("Remove discovery assignment 2").click();
+  await expect(field("Discovery host 2")).toHaveCount(0);
+  await expect(field("Discovery host 1")).toHaveValue("private.catalog.test");
+  await expect(
+    page.getByRole("combobox", { name: "Discovery audience 1", exact: true }),
+  ).toHaveValue("authenticated");
+  await button("Hide configured host choices").click();
+  await expect(configuredSourceHost).toHaveCount(0);
+  expect(topologyRequests).toEqual([
+    { method: "GET", path: "/publication/hosts" },
+  ]);
   const topology = {
     referrals: { enabled: false },
     nesting: { enabled: false },
@@ -852,6 +915,30 @@ export async function packagedJourneys({
   await link("Open source").click();
   const sourceURL = page.url();
   const sourceID = new URL(sourceURL).pathname.split("/").pop();
+  await expect(button("Sync history")).toBeVisible();
+  const sourceReadback = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname ===
+        `${topologyAPIPath}/federation/sources/${sourceID}`,
+  );
+  await page.reload();
+  const retainedSource = await sourceReadback;
+  expect(retainedSource.status()).toBe(200);
+  expect(await retainedSource.json()).toMatchObject({
+    id: sourceID,
+    ...topology,
+    scope: {
+      kinds: ["agent"],
+      excludedIdentifiers: ["legacy:browser-hidden"],
+    },
+  });
+  await expect(button("Sync history")).toBeVisible();
+  expect(topologyRequests).toEqual([
+    { method: "GET", path: "/publication/hosts" },
+    { method: "POST", path: "/federation/sources" },
+  ]);
+  page.off("request", observeTopologyRequest);
   // Verification is deliberately off in this existing fixture. Exercise real
   // UI-to-API refusal, not a mocked positive verdict or a second ANS campaign.
   const unavailableAssessment = async (selection, reason) => {
@@ -1749,9 +1836,43 @@ export async function packagedJourneys({
   ).toBeVisible();
   await expect(link(sourceID)).toBeVisible();
   await expect(page.getByText(/Selected version:/)).toBeVisible();
+  const adoptionEvidenceReads = [];
+  const observeAdoptionEvidence = (request) => {
+    const path = new URL(request.url()).pathname;
+    if (
+      path.startsWith(topologyAPIPath + "/") &&
+      /\/observations\/[0-9a-f-]{36}\/raw$/.test(path)
+    )
+      adoptionEvidenceReads.push(path);
+  };
+  page.on("request", observeAdoptionEvidence);
+  const occurrenceReply = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      /\/api\/v1\/observations\/[0-9a-f-]{36}\/occurrences$/.test(
+        new URL(response.url()).pathname,
+      ),
+  );
   await page.locator('a[href*="/observations/"]').first().click();
   const observationURL = page.url();
-  await expect(page.locator("pre")).toHaveCount(0);
+  const occurrenceResponse = await occurrenceReply;
+  expect(occurrenceResponse.status()).toBe(200);
+  const occurrenceInventory = await occurrenceResponse.json();
+  expect(occurrenceInventory.items.length).toBeGreaterThan(0);
+  const adoptionOccurrence = occurrenceInventory.items[0];
+  const observationID = new URL(observationURL).pathname.split("/").at(-1);
+  expect(adoptionOccurrence.observationId).toBe(observationID);
+  expect(adoptionOccurrence.evidenceComplete).toBe(true);
+  const selectedRawPath = `${topologyAPIPath}/observations/${observationID}/raw`;
+  const adoptionRawPanel = page.locator("section.workspace-panel").filter({
+    has: page.getByRole("heading", { name: "Exact raw entry", exact: true }),
+  });
+  expect(adoptionEvidenceReads).toEqual([]);
+  await expect(adoptionRawPanel).toHaveCount(0);
+  await expect(button("Read exact raw entry")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
   const occurrences = page.locator("section.workspace-panel").filter({
     has: page.getByRole("heading", {
       name: "Saved occurrences",
@@ -1764,8 +1885,32 @@ export async function packagedJourneys({
     .click();
   if (captureDocumentation)
     await captureDocumentation("source-retained-occurrence", occurrences);
+  const rawEntryReply = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === selectedRawPath,
+  );
   await button("Read exact raw entry").click();
-  await expect(page.locator("pre").first()).toContainText("Functional");
+  expect((await rawEntryReply).status()).toBe(200);
+  await expect(adoptionRawPanel.locator("pre")).toContainText("Functional");
+  expect(adoptionEvidenceReads).toEqual([selectedRawPath]);
+  const adoptionPath = new URL(
+    `${origin}/_catalog/api/v1/observations/${observationID}:adopt`,
+  ).pathname;
+  const adoptionWrites = [];
+  const adoptionMetadataRequests = [];
+  const adoptionDocumentation = "https://adoption-metadata.invalid/guide";
+  const observeAdoption = (request) => {
+    const url = new URL(request.url());
+    if (
+      url.pathname.includes("/_catalog/api/v1/") &&
+      !["GET", "HEAD", "OPTIONS"].includes(request.method())
+    )
+      adoptionWrites.push({ method: request.method(), path: url.pathname });
+    if (url.hostname === new URL(adoptionDocumentation).hostname)
+      adoptionMetadataRequests.push(url.href);
+  };
+  page.on("request", observeAdoption);
   await button("Use this occurrence for adoption").first().click();
   await chooseNamedOption(
     field("Destination namespace"),
@@ -1775,6 +1920,8 @@ export async function packagedJourneys({
     field("Local publisher"),
     /^Demo Publisher \/ [0-9a-f-]{36}$/i,
   );
+  const adoptionNamespaceID = await field("Destination namespace").inputValue();
+  const adoptionPublisherID = await field("Local publisher").inputValue();
   await button("Edit local metadata overrides as JSON").click();
   await field("Local metadata overrides JSON").fill(
     '{"publisherId":"not-an-adoption-override"}',
@@ -1799,6 +1946,92 @@ export async function packagedJourneys({
     });
     await captureDocumentation("source-adoption-preparation", adoption);
   }
+  const adoptionMetadata = page.getByRole("group", {
+    name: "Local metadata overrides",
+    exact: true,
+  });
+  const documentationOverride = adoptionMetadata.getByRole("checkbox", {
+    name: "Override local documentation url",
+    exact: true,
+  });
+  const localVisibility = adoptionMetadata.getByRole("combobox", {
+    name: "Local visibility",
+    exact: true,
+  });
+  await documentationOverride.check();
+  await field("Local documentation URL").fill(
+    "http://adoption-metadata.invalid/guide",
+  );
+  await button("Adopt as local draft").click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Use a credential-free HTTPS link.",
+  );
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(adoptionWrites).toEqual([]);
+  await field("Local documentation URL").fill(adoptionDocumentation);
+  await localVisibility.selectOption("tenant");
+  await localVisibility.selectOption("");
+  await field("Override local license").check();
+  await expect(field("Local license")).toHaveValue("");
+  await field("Override local categories").check();
+  await button("Add local category").click();
+  await field("Local category 1").fill("temporary, literal category");
+  await button("Remove local category 1").click();
+  await expect(field("Local category 1")).toHaveCount(0);
+  await expect(button("Add local category")).toBeFocused();
+  const prepareAndCancelAdoption = async (expectedMetadata) => {
+    await button("Adopt as local draft").click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    const summary = dialog.getByLabel("Command summary", { exact: true });
+    const value = (name) =>
+      summary
+        .getByText(name, { exact: true })
+        .locator("xpath=following-sibling::dd[1]");
+    for (const [name, expected] of [
+      ["Observation ID", observationID],
+      ["Source ID", adoptionOccurrence.sourceId],
+      ["Source revision", String(adoptionOccurrence.sourceRevision)],
+      ["Snapshot ID", adoptionOccurrence.snapshotId],
+      ["Entry location", adoptionOccurrence.entryLocation],
+      ["Retrieval digest", adoptionOccurrence.retrievalDigest],
+      ["Namespace ID", adoptionNamespaceID],
+      ["Publisher ID", adoptionPublisherID],
+    ])
+      await expect(value(name)).toHaveText(expected);
+    expect(
+      JSON.parse(await value("Local metadata overrides").textContent()),
+    ).toEqual(expectedMetadata);
+    expect(adoptionWrites).toEqual([]);
+    expect(adoptionEvidenceReads).toEqual([selectedRawPath]);
+    expect(adoptionMetadataRequests).toEqual([]);
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    expect(adoptionWrites).toEqual([]);
+  };
+  await prepareAndCancelAdoption({
+    version: "1.0.0",
+    displayName: "Guided adopted resource",
+    documentationUrl: adoptionDocumentation,
+    license: "",
+    categories: [],
+  });
+  await documentationOverride.uncheck();
+  await field("Override local license").uncheck();
+  await field("Override local categories").uncheck();
+  await expect(field("Local documentation URL")).toHaveCount(0);
+  await expect(field("Local license")).toHaveCount(0);
+  await expect(button("Add local category")).toHaveCount(0);
+  await prepareAndCancelAdoption({
+    version: "1.0.0",
+    displayName: "Guided adopted resource",
+  });
+  await expect(field("Local display name")).toHaveValue(
+    "Guided adopted resource",
+  );
+  await localVisibility.selectOption("private");
+  await documentationOverride.check();
+  await field("Local documentation URL").fill(adoptionDocumentation);
   const adoptionLicense = (
     "Apache-2.0; " + "Local qualification declaration. ".repeat(12)
   ).trim();
@@ -1813,11 +2046,34 @@ export async function packagedJourneys({
       response.url().endsWith(":adopt"),
   );
   await command("Adopt as local draft");
-  const adopted = await (await adoptionReply).json();
+  const adoptionResponse = await adoptionReply;
+  expect(adoptionResponse.status()).toBe(201);
+  expect(new URL(adoptionResponse.url()).pathname).toBe(adoptionPath);
+  expect(adoptionResponse.request().headers()["idempotency-key"]).toMatch(
+    /^[0-9a-f-]{36}$/i,
+  );
+  expect(adoptionResponse.request().postDataJSON()).toEqual({
+    snapshotId: adoptionOccurrence.snapshotId,
+    retrievalDigest: adoptionOccurrence.retrievalDigest,
+    entryLocation: adoptionOccurrence.entryLocation,
+    namespaceId: adoptionNamespaceID,
+    publisherId: adoptionPublisherID,
+    version: "1.0.0",
+    displayName: "Guided adopted resource",
+    documentationUrl: adoptionDocumentation,
+    visibility: "private",
+    license: adoptionLicense,
+    categories: ["operations, tools"],
+  });
+  expect(adoptionWrites).toEqual([{ method: "POST", path: adoptionPath }]);
+  expect(adoptionEvidenceReads).toEqual([selectedRawPath]);
+  expect(adoptionMetadataRequests).toEqual([]);
+  const adopted = await adoptionResponse.json();
   expect(adopted.listingRevision.displayName).toBe("Guided adopted resource");
   expect(adopted.listingRevision.categories).toEqual(["operations, tools"]);
   expect(adopted.listingRevision.visibility).toBe("private");
   expect(adopted.listingRevision.license).toBe(adoptionLicense);
+  expect(adopted.listingRevision.documentationUrl).toBe(adoptionDocumentation);
   await expect(page.getByRole("status")).toContainText("Local draft created.");
   await link("Open adopted resource").click();
   await page.reload();
@@ -1839,6 +2095,12 @@ export async function packagedJourneys({
   expect(readback.categories).toEqual(["operations, tools"]);
   expect(readback.visibility).toBe("private");
   expect(readback.license).toBe(adoptionLicense);
+  expect(readback.documentationUrl).toBe(adoptionDocumentation);
+  expect(adoptionWrites).toEqual([{ method: "POST", path: adoptionPath }]);
+  expect(adoptionEvidenceReads).toEqual([selectedRawPath]);
+  expect(adoptionMetadataRequests).toEqual([]);
+  page.off("request", observeAdoption);
+  page.off("request", observeAdoptionEvidence);
   await expect(link("Back to listing")).toBeVisible();
   await page.goto(observationURL);
   await expect(button("Read exact raw entry")).toBeVisible();
