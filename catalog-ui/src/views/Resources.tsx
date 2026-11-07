@@ -3,7 +3,7 @@ import { resourceKindPreset } from "./overview-values";
 import { ScrollableTable } from "./ScrollableTable";
 import { compareTableText, usePageSort } from "./table-sort";
 import { LifecycleOverview } from "./LifecycleOverview";
-import { characterText } from "./input-validation";
+import { characterText, trimGoWhitespace } from "./input-validation";
 const AuthoringWorkspace = lazy(() =>
   import("./AuthoringWorkspace").then((module) => ({
     default: module.AuthoringWorkspace,
@@ -82,11 +82,6 @@ export default function Resources(props: WorkspaceProps) {
   );
 }
 
-/** Match Go's Unicode whitespace rules without removing opaque identifier data such as BOM. */
-function resourceIdentifierInput(value: string) {
-  return value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
-}
-
 /** Page governed resources by kind and exact identity, resetting continuation on filter changes. */
 function ResourceList(props: WorkspaceProps) {
   const sortHint = useId();
@@ -157,7 +152,7 @@ function ResourceList(props: WorkspaceProps) {
         className="workspace-toolbar"
         onSubmit={(event) => {
           event.preventDefault();
-          const value = resourceIdentifierInput(identifierInput);
+          const value = trimGoWhitespace(identifierInput);
           try {
             if (value) characterText(value, "Canonical identifier", 512, 1);
           } catch {

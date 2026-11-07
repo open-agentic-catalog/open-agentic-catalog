@@ -642,3 +642,92 @@ it("keeps focus on a moved interface when identical objects leave the document b
   expect(screen.getByLabelText("Interface 2 HTTPS URL")).toBe(firstURL);
   expect(document.activeElement).toBe(firstURL);
 });
+
+it.each([
+  ["tags", 0, false],
+  ["tags", 0, true],
+  ["tags", 1, false],
+  ["tags", 1, true],
+  ["abilities", 0, false],
+  ["abilities", 0, true],
+  ["abilities", 1, false],
+  ["abilities", 1, true],
+] as const)(
+  "keeps surviving %s row validation when removing row %i (survivor touched=%s)",
+  async (kind, remove, touched) => {
+    const skills = Array.from({ length: 3 }, () => ({
+      id: "",
+      name: "",
+      description: "",
+      tags: ["", "", ""],
+    }));
+    const original = { ...sample, skills, opaque: { keep: ["exact", 2] } };
+    const test = await editor(JSON.stringify(original));
+    const label = (index: number) =>
+      kind === "tags"
+        ? `Ability 1 tag ${index + 1}`
+        : `Ability ${index + 1} name`;
+    const survivor = screen.getByLabelText(label(remove + 1));
+    fireEvent.blur(screen.getByLabelText(label(touched ? remove + 1 : remove)));
+    expect(survivor.getAttribute("aria-invalid")).toBe(touched ? "true" : null);
+    click(
+      kind === "tags"
+        ? `Remove ability 1 tag ${remove + 1}`
+        : `Remove ability ${remove + 1}`,
+    );
+    expect(screen.getByLabelText(label(remove))).toBe(survivor);
+    expect(survivor.getAttribute("aria-invalid")).toBe(touched ? "true" : null);
+    expect(document.activeElement).toBe(survivor);
+    const expected = structuredClone(original);
+    if (kind === "tags") expected.skills[0]!.tags.splice(remove, 1);
+    else expected.skills.splice(remove, 1);
+    expect(test.card()).toEqual(expected);
+  },
+);
+
+it("resets Agent row validation on an explicit same-length document import", async () => {
+  const skills = [{ id: "", name: "", description: "", tags: ["", ""] }];
+  const content = JSON.stringify(
+    { ...sample, skills, opaque: "retained" },
+    null,
+    4,
+  );
+  const test = await editor(content);
+  const old = screen.getByLabelText("Ability 1 tag 1");
+  fireEvent.blur(old);
+  fireEvent.blur(screen.getByLabelText("Ability 1 name"));
+  const bytes = new TextEncoder().encode(content);
+  fireEvent.change(screen.getByLabelText("Document file"), {
+    target: {
+      files: [
+        {
+          name: "replacement.json",
+          size: bytes.length,
+          arrayBuffer: async () => bytes.buffer,
+        },
+      ],
+    },
+  });
+  await screen.findByRole("button", { name: "Use loaded document" });
+  click("Use loaded document");
+  await waitFor(() =>
+    expect(screen.getByLabelText("Standards document (JSON)")).toBe(
+      document.activeElement,
+    ),
+  );
+  advanced(false);
+  const replacement = screen.getByLabelText("Ability 1 tag 1");
+  expect(replacement).not.toBe(old);
+  expect(replacement.hasAttribute("aria-invalid")).toBe(false);
+  expect(
+    screen.getByLabelText("Ability 1 name").hasAttribute("aria-invalid"),
+  ).toBe(false);
+  expect(test.value().content).toBe(content);
+});
+
+it("preserves a wide opaque native Agent version through the editor entry point", async () => {
+  const version = "release" + " ".repeat(40_000) + "suffix";
+  const test = await editor("", version);
+  change("Agent name", "Wide version");
+  expect(test.card().version).toBe(version);
+});

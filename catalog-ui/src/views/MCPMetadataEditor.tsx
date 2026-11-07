@@ -1,6 +1,7 @@
 import { controlIcons } from "../shell/Icon";
 import { useEffect, useRef, useState } from "react";
 import { Field } from "./workspace";
+import { useEditorRowKeys } from "./editor-row-keys";
 import { NativeChoice } from "./NativeChoice";
 import type { RepresentationDraft } from "./representations";
 import {
@@ -92,6 +93,7 @@ function Requirements({
   environment?: boolean;
 }) {
   const focus = useRef<string | undefined>(undefined);
+  const rowKeys = useEditorRowKeys();
   useEffect(() => {
     if (focus.current === undefined) return;
     document.getElementById(focus.current)?.focus();
@@ -111,7 +113,10 @@ function Requirements({
             value.map((old, at) => (at === index ? { ...old, ...patch } : old)),
           );
         return (
-          <fieldset key={index} className="workspace-panel workspace-fields">
+          <fieldset
+            key={rowKeys.key(index)}
+            className="workspace-panel workspace-fields"
+          >
             <legend>
               {label} {index + 1}
             </legend>
@@ -157,6 +162,7 @@ function Requirements({
                   value.length === 1
                     ? `${id}-add`
                     : `${id}-${Math.min(index, value.length - 2)}-name`;
+                rowKeys.remove(index);
                 onChange(value.filter((_, at) => at !== index));
               }}
             >
@@ -191,6 +197,7 @@ function ProtocolVersions({
   onChange: (value: string[]) => void;
 }) {
   const focus = useRef<string | undefined>(undefined);
+  const rowKeys = useEditorRowKeys();
   useEffect(() => {
     if (focus.current === undefined) return;
     document.getElementById(focus.current)?.focus();
@@ -204,7 +211,7 @@ function ProtocolVersions({
         2025-11-25. The Catalog version is separate.
       </p>
       {value.map((item, index) => (
-        <div key={index} className="mcp-value-row">
+        <div key={rowKeys.key(index)} className="mcp-value-row">
           <NativeChoice
             id={`${id}-${index}`}
             label={`${label} protocol version ${index + 1}`}
@@ -226,6 +233,7 @@ function ProtocolVersions({
                 value.length === 1
                   ? `${id}-add`
                   : `${id}-${Math.min(index, value.length - 2)}`;
+              rowKeys.remove(index);
               onChange(value.filter((_, at) => at !== index));
             }}
           >
@@ -328,6 +336,8 @@ export default function MCPMetadataEditor({
   useEffect(() => {
     if (!doc) current.current.onAdvanced(true);
   }, [doc]);
+  const remoteRows = useEditorRowKeys(origin);
+  const packageRows = useEditorRowKeys(origin);
   const remotes = doc?.remotes ?? [];
   const packages = doc?.packages ?? [];
   const registryTypes = [
@@ -400,6 +410,7 @@ export default function MCPMetadataEditor({
       )}
       {doc && (
         <fieldset
+          key={origin}
           hidden={advanced}
           disabled={advanced}
           className="workspace-fields mcp-guided-fields"
@@ -465,7 +476,7 @@ export default function MCPMetadataEditor({
                 });
               return (
                 <fieldset
-                  key={index}
+                  key={remoteRows.key(index)}
                   className="workspace-panel workspace-fields"
                 >
                   <legend>Endpoint {index + 1}</legend>
@@ -514,14 +525,15 @@ export default function MCPMetadataEditor({
                   />
                   <button
                     type="button"
-                    onClick={() =>
+                    onClick={() => {
+                      remoteRows.remove(index);
                       patch(
                         { remotes: remotes.filter((_, at) => at !== index) },
                         remotes.length === 1
                           ? `${value.editorID}-mcp-add-remote`
                           : `${value.editorID}-mcp-remote-${Math.min(index, remotes.length - 2)}`,
-                      )
-                    }
+                      );
+                    }}
                   >
                     {controlIcons.remove} Remove endpoint {index + 1}
                   </button>
@@ -563,7 +575,7 @@ export default function MCPMetadataEditor({
                 );
                 return (
                   <fieldset
-                    key={index}
+                    key={packageRows.key(index)}
                     className="workspace-panel workspace-fields"
                   >
                     <legend>Package {index + 1}</legend>
@@ -693,7 +705,8 @@ export default function MCPMetadataEditor({
                     </p>
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        packageRows.remove(index);
                         patch(
                           {
                             packages: packages.filter((_, at) => at !== index),
@@ -701,8 +714,8 @@ export default function MCPMetadataEditor({
                           packages.length === 1
                             ? `${value.editorID}-mcp-add-package`
                             : `${value.editorID}-mcp-package-${Math.min(index, packages.length - 2)}`,
-                        )
-                      }
+                        );
+                      }}
                     >
                       {controlIcons.remove} Remove package {index + 1}
                     </button>

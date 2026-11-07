@@ -94,6 +94,14 @@ function scalar(source: string): string {
   throw new Error("unsupported YAML");
 }
 
+/** The key matcher owns one required separator; scan the rest without competing with the value. */
+function frontmatterValue(line: string, start: number): string | undefined {
+  while (line[start] === " ") start++;
+  const value = line.slice(start);
+  // Match the previous dot's exact line-terminator behavior, only in the value.
+  return /[\r\n\u2028\u2029]/u.test(value) ? undefined : value;
+}
+
 export function readSkillDocument(content: string): {
   document?: SkillDocument;
   reason?: string;
@@ -124,30 +132,30 @@ export function readSkillDocument(content: string): {
       if (!line.trim() || /^ *#/u.test(line)) continue;
       if (metadata && line.startsWith("  ")) {
         const pair =
-          /^ {2}("(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^\s:][^:]*): +(.*)$/u.exec(
-            line,
-          );
+          /^ {2}("(?:[^"\\]|\\.)*"|'(?:[^']|'')*'|[^\s:][^:]*): /u.exec(line);
         if (!pair) return { reason };
+        const value = frontmatterValue(line, pair[0].length);
+        if (value === undefined) return { reason };
         const key = scalar(pair[1]!.trim());
         if (metadataKeys.has(key)) return { reason };
         metadataKeys.add(key);
-        document.metadata!.push([key, scalar(pair[2]!.trim())]);
+        document.metadata!.push([key, scalar(value.trim())]);
         continue;
       }
-      const pair = /^([a-z-]+):(?: +(.*))?$/u.exec(line);
+      const pair = /^([a-z-]+):(?: |$)/u.exec(line);
       if (!pair || seen.has(pair[1]!)) return { reason };
+      const value = frontmatterValue(line, pair[0].length);
+      if (value === undefined) return { reason };
       const key = pair[1]!;
       seen.add(key);
-      metadata = key === "metadata" && !pair[2]?.trim();
+      metadata = key === "metadata" && !value.trim();
       if (key === "metadata") {
-        if (pair[2] && pair[2].trim() !== "{}") return { reason };
+        if (value && value.trim() !== "{}") return { reason };
         metadataBlock = metadata;
         document.metadata = [];
       } else {
         if (!fields.includes(key as (typeof fields)[number])) return { reason };
-        document[key as (typeof fields)[number]] = scalar(
-          (pair[2] ?? "").trim(),
-        );
+        document[key as (typeof fields)[number]] = scalar(value.trim());
       }
     }
     if (metadataBlock && !document.metadata!.length) return { reason };

@@ -192,7 +192,8 @@ export function nativeIcons(value: unknown): NativeIcon[] {
         !object(icon) ||
         !imageURL(icon.src) ||
         (icon.mimeType !== undefined &&
-          !["image/png", "image/jpeg"].includes(String(icon.mimeType)))
+          icon.mimeType !== "image/png" &&
+          icon.mimeType !== "image/jpeg")
       )
         continue;
       const theme = bounded(icon.theme, 16) ? icon.theme : "any theme";

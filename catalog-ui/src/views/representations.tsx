@@ -500,6 +500,7 @@ export function RepresentationEditor({
               fallback={<p role="status">Loading Plugin authoring...</p>}
             >
               <PluginAuthoring
+                origin={documentOrigin}
                 value={value}
                 onChange={onChange}
                 version={version}

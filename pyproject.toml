@@ -1,6 +1,6 @@
 # Shared development tools only; this repository is not a Python package.
 [dependency-groups]
-dev = ["ruff==0.17.0", "jsonschema==4.26.0", "bump-my-version==1.5.1"]
+dev = ["ruff==0.17.0", "jsonschema==4.26.0", "bump-my-version==1.5.1", "coverage==7.16.2"]
 
 [tool.uv]
 required-version = "==0.13.4"

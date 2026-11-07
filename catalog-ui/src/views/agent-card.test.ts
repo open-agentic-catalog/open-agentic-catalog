@@ -69,6 +69,14 @@ it("starts only new Cards with an unsigned JSON-RPC interface, Text modes and no
   expect(readAgentCard("", "nightly").card).toEqual(newAgentCard("nightly"));
 });
 
+it("preserves long interior whitespace in a native version before field validation", () => {
+  const version = "release" + " ".repeat(40_000) + "candidate🙂";
+  expect(agentVersion(`\u0085 ${version} \u0085`)).toBe(version);
+  expect(readAgentCard("", `\u0085${version}\u0085`).card?.version).toBe(
+    version,
+  );
+});
+
 it("keeps advanced values and ordered interfaces while patching only an explicitly edited field", () => {
   const original = JSON.stringify(imported, null, 4);
   const read = readAgentCard(original, "do not overwrite");

@@ -1,5 +1,16 @@
 import { safeLink } from "../api/client";
 
+const goWhitespace = /\p{White_Space}/u;
+
+/** Trim Go's Unicode whitespace in linear time, preserving BOM and opaque interior text. */
+export function trimGoWhitespace(value: string): string {
+  let start = 0;
+  let end = value.length;
+  while (start < end && goWhitespace.test(value[start]!)) start++;
+  while (end > start && goWhitespace.test(value[end - 1]!)) end--;
+  return value.slice(start, end);
+}
+
 const documentErrors = {
   size: "Choose a non-empty document up to 2 MiB.",
   encoding: "Choose a document encoded as UTF-8.",

@@ -1,5 +1,7 @@
 # Local artifact tooling
 
+Install the locked shared tools with `make dev-tools-install` before the native packaging regressions. The Go packaging wrapper prefers `.tools/dev/bin/python` when installed and otherwise uses `python3` from PATH, matching the interoperability wrapper. It retains the virtual-environment executable path and requires no activation. Direct Python Make recipes retain their explicit `PYTHON` override; the Go wrapper owns its interpreter selection.
+
 `image.py` inspects an existing local image, executes native version checks when requested, extracts its included license files or generates a Trivy SPDX SBOM. Its default backend profile stays strict; `--profile ui` checks the separate UI host and delegates build-bound evidence to `ui.py`. That evidence partitions React assets and the required static manual. Both inventories must match actual files and notices from the selected image. The SBOM and scan include frontend production dependencies and reviewed manual browser suppliers, keeping build-only packages separate. The `ui-container-inspect` and `ui-sbom` targets select `UI_IMAGE`, while backend targets select `IMAGE`.
 
 Standalone SBOM validation compares each extracted binary's linked module versions and compiler standard library with its native SPDX application graph. The qualified converter uses `APPLICATION CONTAINS main module` and `main module DEPENDS_ON package` relationships. Package source information binds each node to its binary path. Duplicate module identities in different application nodes remain valid. Missing or empty main-module versions remain valid when the binary reports `(devel)` or an empty version. Validation runs before standards, frontend and manual supplements, without an advisory database or current-checkout dependency inventory.
@@ -132,6 +134,8 @@ Preserve source staging, complete package test selection, all-skipped-baseline r
 ## Local SonarQube
 
 The optional [SonarQube harness](../sonarqube/README.md) owns pinned image acquisition, loopback startup, source/coverage ingestion, status and retained-data shutdown. Its `test_unit_sonarqube.py` decisions join the native unit selection; `test_functional_sonarqube.py` exercises Make isolation and a real local HTTP boundary in the packaging functional suite. Actual image/analyzer/persistence qualification remains an explicit workflow, separate from those native regressions.
+
+`sonarqube_coverage.py` validates source-bound native receipts and normalizes conventional Python XML plus native Node LCOV. Its isolated tests cover inventory, counters, paths, stale reports, disjoint selections and report isolation from analyzed source. The scanner mounts prepared artifacts separately and read-only. `tooling_coverage.py` prepares and publishes native Python data without discovering or running tests; `coverage-tooling-python` instruments the unchanged Make owner loop. The Node producer in `catalog-ui/scripts/tooling-coverage.mjs` uses the native runner for existing unit files or the complete packaged Compose script. Their functional controls exercise actual installed tools and failure publication. Raw Go/frontend inputs remain caller-selected; native receipts add exact source/test and report identity checks. These are local measurement inputs, not signed execution attestations.
 
 ## Coverage tools and local image scans
 

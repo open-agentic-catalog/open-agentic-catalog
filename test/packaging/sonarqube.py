@@ -19,6 +19,7 @@ import urllib.parse
 import urllib.request
 
 from application_coverage import encode
+from sonarqube_coverage import lcov_lines, python_coverage, tooling_reports, validate_native_lcov
 from unit_coverage import parse_profile
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -28,6 +29,7 @@ LABEL = "org.open-agentic-catalog.sonarqube.owner"
 PROJECT = "open-agentic-catalog"
 PROFILE = "Open Agentic Catalog"
 MODULE = "github.com/open-agentic-catalog/open-agentic-catalog/"
+COVERAGE_MOUNT = "/coverage"
 EXTENSIONS = {".go", ".mod", ".sum", ".ts", ".tsx", ".mjs", ".js", ".py", ".css", ".json", ".yaml", ".yml", ".sh"}
 EXCLUDED = ("schemas/upstream/", "specs/", "test/clientcompat/go/generated/", "documentation/src/content/docs/generated/")
 
@@ -126,7 +128,10 @@ def coverage(raw, kind, sources):
             raise Failure("empty Go coverage")
         return encode(normalized)
     else:
-        lines = raw.decode().splitlines()
+        try:
+            lines = lcov_lines(raw.decode())
+        except ValueError:
+            raise Failure("invalid LCOV line framing") from None
         normalized = []
         files = 0
         in_record = False
@@ -157,6 +162,57 @@ def coverage(raw, kind, sources):
         if not files or in_record or not normalized or normalized[-1] != "end_of_record":
             raise Failure("invalid or empty LCOV")
     return "\n".join(normalized) + "\n"
+
+
+def coverage_inputs(sources, artifacts):
+    """Prepare explicitly selected reports before issuing a scanner token."""
+    if artifacts.resolve().is_relative_to(sources.resolve()):
+        raise Failure("coverage reports must remain outside the analyzed source snapshot")
+    evidence, paths, javascript_sources = {}, {}, set()
+    for variable, kind, property_name in [("SONAR_GO_COVERAGE", "go", "sonar.go.coverage.reportPaths"),
+                                          ("SONAR_JS_COVERAGE", "js", "sonar.javascript.lcov.reportPaths")]:
+        value = os.environ.get(variable)
+        if not value:
+            continue
+        path = (ROOT / value).resolve()
+        if not path.is_relative_to(ROOT) or not path.is_file() or path.stat().st_size > (256 << 20 if kind == "go" else 32 << 20):
+            raise Failure("select a bounded coverage report inside this checkout")
+        raw = path.read_bytes()
+        name = "coverage-" + kind + (".out" if kind == "go" else ".info")
+        normalized = coverage(raw, kind, sources)
+        (artifacts / name).write_text(normalized)
+        if kind == "js":
+            javascript_sources.update(line[3:] for line in lcov_lines(normalized) if line.startswith("SF:"))
+        paths.setdefault(property_name, []).append(COVERAGE_MOUNT + "/" + name)
+        evidence[kind] = {"path": str(path.relative_to(ROOT)), "sha256": hashlib.sha256(raw).hexdigest(),
+                          "freshness": "caller-selected; regenerate against current source"}
+    try:
+        tooling = tooling_reports(os.environ.get("SONAR_TOOLING_REPORTS"), ROOT, sources)
+        python_selected = False
+        for index, item in enumerate(tooling):
+            if item["kind"] == "python":
+                if python_selected:
+                    raise ValueError("select one native Python coverage receipt per scan")
+                python_selected = True
+                normalized = python_coverage(item["raw"], ROOT, sources, item["declaredSources"])
+                property_name, suffix = "sonar.python.coverage.reportPaths", ".xml"
+            else:
+                normalized = coverage(item["raw"], "js", sources)
+                validate_native_lcov(normalized, sources, item["declaredSources"])
+                observed = {line[3:] for line in lcov_lines(normalized) if line.startswith("SF:")}
+                if observed & javascript_sources:
+                    raise ValueError("native Node coverage sources overlap; select one profile for those files")
+                javascript_sources.update(observed)
+                property_name, suffix = "sonar.javascript.lcov.reportPaths", ".info"
+            name = "coverage-tooling-" + str(index) + suffix
+            (artifacts / name).write_text(normalized)
+            paths.setdefault(property_name, []).append(COVERAGE_MOUNT + "/" + name)
+            item_evidence = {key: value for key, value in item.items() if key not in {"raw", "declaredSources"}}
+            item_evidence["freshness"] = "successful native receipt; exact source inventory and hashes match the snapshot"
+            evidence.setdefault("tooling", []).append(item_evidence)
+    except ValueError as error:
+        raise Failure(str(error)) from None
+    return "".join(key + "=" + ",".join(values) + "\n" for key, values in paths.items()), evidence
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -241,7 +297,9 @@ class Local:
         if self.state is None:
             if self.inspect("volume", self.name + "_data"):
                 raise Failure("retained SonarQube data requires its original credentials.json")
-            self.state = {"password": secrets.token_urlsafe(32), "port": self.port, "initialized": False}
+            # Keep 256 random bits and guarantee every server-required class.
+            password = secrets.token_urlsafe(32) + "aA0!"
+            self.state = {"password": password, "port": self.port, "initialized": False}
             write_json(self.credentials, self.state)
         self.compose("up", "-d", "--pull", "never")
         deadline = time.monotonic() + 240
@@ -325,9 +383,10 @@ class Local:
                 raise
             self.api("/api/projects/create", {"project": PROJECT, "name": "Open Agentic Catalog", "visibility": "private"}, password=password)
         directory = Path(tempfile.mkdtemp(prefix="scan-", dir=STATE))
-        source, work = directory / "source", directory / "work"
+        source, work, artifacts = directory / "source", directory / "work", directory / "coverage"
         source.mkdir()
         work.mkdir()
+        artifacts.mkdir()
         report = {"status": "incomplete", "images": self.images, "coverage": {}}
         token_name = "catalog-scan-" + secrets.token_hex(8)
         scanner = self.name + "-scan-" + secrets.token_hex(6)
@@ -338,20 +397,8 @@ class Local:
             # Docker cannot create a nested mountpoint inside a read-only bind.
             (source / "catalog-ui/node_modules").mkdir(exist_ok=True)
             properties = (CONFIG / "sonar-project.properties").read_text()
-            for variable, kind, property_name in [("SONAR_GO_COVERAGE", "go", "sonar.go.coverage.reportPaths"),
-                                                  ("SONAR_JS_COVERAGE", "js", "sonar.javascript.lcov.reportPaths")]:
-                value = os.environ.get(variable)
-                if not value:
-                    continue
-                path = (ROOT / value).resolve()
-                if not path.is_relative_to(ROOT) or not path.is_file() or path.stat().st_size > (256 << 20 if kind == "go" else 32 << 20):
-                    raise Failure("select a bounded coverage report inside this checkout")
-                raw = path.read_bytes()
-                name = "coverage-" + kind + (".out" if kind == "go" else ".info")
-                (source / name).write_text(coverage(raw, kind, source))
-                properties += property_name + "=" + name + "\n"
-                report["coverage"][kind] = {"path": str(path.relative_to(ROOT)), "sha256": hashlib.sha256(raw).hexdigest(),
-                                             "freshness": "caller-selected; regenerate against current source"}
+            coverage_properties, report["coverage"] = coverage_inputs(source, artifacts)
+            properties += coverage_properties
             report["configurationSha256"] = hashlib.sha256(properties.encode()).hexdigest()
             (source / "sonar-project.properties").write_text(properties)
             token = self.api("/api/user_tokens/generate", {"name": token_name, "type": "PROJECT_ANALYSIS_TOKEN", "projectKey": PROJECT}, password=password)["token"]
@@ -361,6 +408,7 @@ class Local:
                               "--network", "container:" + self.name, "--memory", "8g", "--cpus", "2", "--user", str(os.getuid()) + ":" + str(os.getgid()),
                               "--security-opt", "no-new-privileges:true", "--cap-drop", "ALL", "--env-file", "/dev/stdin",
                               "-v", str(source) + ":/usr/src:ro", "-v", str(work) + ":/tmp/sonar-work",
+                              "-v", str(artifacts) + ":" + COVERAGE_MOUNT + ":ro",
                               "-v", str(modules) + ":/usr/src/catalog-ui/node_modules:ro", self.images["scanner"], data=environment, seconds=600)
             (directory / "scanner.log").write_bytes(raw.replace(token.encode(), b"[redacted]"))
             task = dict(line.split("=", 1) for line in (work / "report-task.txt").read_text().splitlines() if "=" in line)
@@ -406,6 +454,7 @@ class Local:
             write_json(directory / "report.json", report)
             shutil.rmtree(source)
             shutil.rmtree(work)
+            shutil.rmtree(artifacts)
             print("SonarQube report: " + str((directory / "report.json").relative_to(ROOT)))
         if report.get("cleanup") != "passed":
             raise Failure("scanner cleanup failed")

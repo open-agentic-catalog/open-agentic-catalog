@@ -393,6 +393,173 @@ class RustRunnerUnits(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             generation.client_source("changed upstream template", {"symbols": []})
 
+    @staticmethod
+    def raw_client(types=("Owned",)):
+        operations, symbols = [], []
+        for index, result_type in enumerate(types):
+            name = "owned_" + str(index)
+            symbols.append({"name": name, "operation": {
+                "consumption": "buffered", "response_statuses": ["200"],
+                "response_excluded_statuses": [],
+            }})
+            operations.append(
+                "    pub async fn " + name + "(&self) -> Result<" + result_type + ", ApiOpError<OwnedError>> {\n"
+                '        let mut req = self.http.get("owned");\n'
+                "        if let Some(api_key) = &self.api_key {\n"
+                "            req = req.bearer_auth(api_key);\n"
+                "        }\n"
+                "        for (name, value) in &self.custom_headers {\n"
+                "            if name.is_empty() {\n"
+                "                continue;\n"
+                "            }\n"
+                "            req = req.header(name, value);\n"
+                "        }\n"
+                "        let response = req.send().await?;\n"
+                "        let body = __read_bounded_response_body(response, self.max_response_body_bytes,).await?;\n"
+                "        serde_json::from_str(&body_text)\n"
+                "        Ok(())\n"
+                "    }\n"
+            )
+        return (
+            "fn __pct_encode_path_segment(s: &str) -> String { s.into() }\n"
+            "impl HttpClient {\n" + "".join(operations) + "}\n",
+            {"symbols": symbols},
+        )
+
+    def test_client_repair_preserves_exact_valid_output(self):
+        source, bindings = self.raw_client()
+        expected = '''//! Generated operations from the complete Control OpenAPI.
+//! Regenerate with make sdk-generate SDK_LANGUAGE=rust; do not edit.
+#![allow(clippy::format_in_format_args, clippy::let_unit_value, clippy::too_many_arguments)]
+use super::types::*;
+use crate::{Client, Error as HttpError, ApiError, ApiOpError, Response};
+fn __pct_encode_path_segment(s: &str) -> String { s.into() }
+impl Client {
+    pub async fn owned_0(&self) -> Result<Response<Owned>, ApiOpError<OwnedError>> {
+        let req = self.http.get("owned");
+        let response = self.send(req).await?;
+        let body = response.body.clone();
+        serde_json::from_slice(&raw_body)
+        Ok(Response::new((), status_code, headers, raw_body))
+    }
+}
+'''
+        self.assertEqual(generation.client_source(source, bindings), expected)
+        # The pinned template permits horizontal padding and a trailing comma.
+        padded = source.replace(
+            "Result<Owned, ApiOpError<OwnedError>>",
+            "Result< \tOwned, \tApiOpError<OwnedError> \t, \t>",
+        )
+        self.assertEqual(generation.client_source(padded, bindings), expected)
+        multiline = source.replace(
+            "Result<Owned, ApiOpError<OwnedError>>",
+            "Result<\n            Owned,\n            ApiOpError<OwnedError>,\n        >",
+        )
+        self.assertEqual(generation.client_source(multiline, bindings), expected)
+        header = "        for (name, value) in &self.custom_headers {\n"
+        nested = source.replace(header, header + "    " + header)
+        self.assertEqual(generation.client_source(nested, bindings), expected)
+
+    def test_client_repair_keeps_every_operation_and_managed_transport(self):
+        types = ("Owned", "Vec<Owned>", "Option<Owned>", "()", "bytes::Bytes")
+        source, bindings = self.raw_client(types)
+        rendered = generation.client_source(source, bindings)
+        self.assertEqual(rendered.count("pub async fn "), len(types))
+        self.assertEqual(rendered.count("self.send(req).await?"), len(types))
+        for index, result_type in enumerate(types):
+            self.assertIn(
+                "pub async fn owned_" + str(index) + "(&self) -> Result<Response<" + result_type + ">, ApiOpError<OwnedError>>",
+                rendered,
+            )
+        for forbidden in ("self.api_key", "self.custom_headers", "req.send()", "__read_bounded", "serde_json::from_str"):
+            self.assertNotIn(forbidden, rendered)
+
+    def test_client_repair_refuses_changed_header_and_signature_layouts(self):
+        source, bindings = self.raw_client()
+        header = "        for (name, value) in &self.custom_headers {\n"
+        for name, changed, rejection in (
+            ("missing header end", source.replace("        }\n        let response", "                x\n" * 12 + "        let response"), "identity boilerplate"),
+            ("wrong body indent", source.replace("            if name", "          if name"), "identity boilerplate"),
+            ("extra header", source.replace("        let response", header + "        }\n        let response"), "identity boilerplate"),
+            ("nested unterminated headers", source.replace(header, header + ("    " + header) * 12).replace("        }\n        let response", "        let response"), "identity boilerplate"),
+            ("missing comma", source.replace("Owned, ApiOpError", " " * 4096 + "Owned ApiOpError"), "result signature"),
+            ("repeated result opener", source.replace("Result<Owned, ApiOpError<OwnedError>> {", "Result<" + ") -> Result<" * 12 + "Owned ApiOpError<OwnedError>> {"), "result signature"),
+            ("missing closing type", source.replace("OwnedError>> {", "OwnedError>" + " " * 4096 + " {"), "result signature"),
+            ("type crosses body brace", source.replace("Result<Owned", "Result<Owned {\n"), "result signature"),
+        ):
+            with self.subTest(layout=name), self.assertRaisesRegex(RuntimeError, rejection):
+                generation.client_source(changed, bindings)
+
+    def test_client_repair_retains_identity_count_inventory_and_survivor_guards(self):
+        source, bindings = self.raw_client()
+        for name, changed, rejection in (
+            ("missing auth", source.replace("&self.api_key", "&different_key"), "identity boilerplate"),
+            ("missing send", source.replace("req.send()", "other.send()"), "send boundary"),
+            ("wrong operation", source.replace("fn owned_0", "fn unbound"), "operation inventory"),
+            ("unmanaged survivor", source + "// reqwest_retry\n", "Unmanaged Rust transport"),
+        ):
+            with self.subTest(layout=name), self.assertRaisesRegex(RuntimeError, rejection):
+                generation.client_source(changed, bindings)
+
+    def test_client_repair_keeps_request_mutability_with_its_own_method(self):
+        source, bindings = self.raw_client(("Owned", "Owned"))
+        first, second = source.split("    pub async fn owned_1", 1)
+        blank_lines = "        \n" * 64
+        first = first.replace("        let response", blank_lines + "        let response")
+        second = second.replace(
+            "        let response",
+            blank_lines + "        req = req.query(&query);\n        let response",
+        )
+        rendered = generation.client_source(first + "    pub async fn owned_1" + second, bindings)
+        immutable, mutable = rendered.split("    pub async fn owned_1", 1)
+        self.assertIn('let req = self.http.get("owned");', immutable)
+        self.assertNotIn("let mut req =", immutable)
+        self.assertIn('let mut req = self.http.get("owned");', mutable)
+        self.assertIn("req = req.query(&query);", mutable)
+        self.assertEqual(rendered.count(blank_lines), 2)
+
+    def test_client_repair_refuses_changed_ends_without_borrowing_another_method(self):
+        source, bindings = self.raw_client(("Owned", "Owned"))
+        end = "\n    }\n"
+        for name, changed in (
+            ("first missing", source.replace(end, "\n    // missing end\n", 1)),
+            ("last missing", "\n    // missing end\n".join(source.rsplit(end, 1))),
+            ("wrong indentation", source.replace(end, "\n        }\n", 1)),
+            ("CRLF closing", source.replace(end, "\n    }\r\n", 1)),
+            ("trailing closing comment", source.replace(end, "\n    } // changed\n", 1)),
+            ("extra closing", source.replace(end, end + "    }\n", 1)),
+        ):
+            with self.subTest(layout=name), self.assertRaisesRegex(RuntimeError, "method boundary"):
+                generation.client_source(changed, bindings)
+        # Inventory refusal precedes scanning even a malformed first method.
+        extra = source.replace(end, "\n    // missing end\n", 1)
+        extra += "    pub async fn unbound(&self) -> Result<Owned, ApiOpError<OwnedError>> {\n"
+        with self.assertRaisesRegex(RuntimeError, "operation inventory"):
+            generation.client_source(extra, bindings)
+
+    def test_streaming_removal_uses_only_its_exact_validated_method(self):
+        source, bindings = self.raw_client(("Owned", "Owned"))
+        bindings["symbols"][0]["operation"]["consumption"] = "streaming"
+        rendered = generation.client_source(source, bindings)
+        self.assertNotIn("pub async fn owned_0", rendered)
+        self.assertIn("pub async fn owned_1", rendered)
+        self.assertEqual(rendered.count("self.send(req).await?"), 1)
+        self.assertNotIn("self.api_key", rendered)
+        self.assertNotIn("self.custom_headers", rendered)
+        for parameters in (
+            "<__Param0: AsRef<str>>",
+            "<\n        __Param0: AsRef<str>,\n        __Param1: AsRef<str>,\n    >",
+        ):
+            generic = source.replace("fn owned_0(", "fn owned_0" + parameters + "(")
+            with self.subTest(generic_parameters=parameters):
+                self.assertEqual(generation.client_source(generic, bindings), rendered)
+        for streaming_index in (0, 1):
+            source, bindings = self.raw_client(("Owned", "Owned"))
+            bindings["symbols"][streaming_index]["operation"]["consumption"] = "streaming"
+            source = source.replace("\n    }\n", "\n    // missing end\n", 1)
+            with self.subTest(streaming_index=streaming_index), self.assertRaisesRegex(RuntimeError, "method boundary"):
+                generation.client_source(source, bindings)
+
     def test_license_policy_includes_tests_builds_and_unpublished_crates(self):
         import tomllib
 

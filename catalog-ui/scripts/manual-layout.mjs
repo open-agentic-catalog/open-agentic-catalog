@@ -13,10 +13,12 @@ export async function manualLayout(page, baseURL) {
       .evaluate((root) => root.style.fontSize),
   };
   const results = [];
+  const diagramURL = new URL("architecture/overview/", baseURL).href;
+  const configurationURL = new URL("reference/configuration/", baseURL).href;
   try {
-    await page.goto(new URL("architecture/overview/", baseURL).href);
+    await page.goto(diagramURL);
     const diagram = page.getByRole("region", {
-      name: "Open Agentic Catalog system context",
+      name: "People and systems around the Catalog",
       exact: true,
     });
     await expect(diagram).toHaveAttribute("tabindex", "0");
@@ -64,15 +66,15 @@ export async function manualLayout(page, baseURL) {
       }
     }
 
-    await page.goto(new URL("reference/configuration/", baseURL).href);
     const note = page.locator(".starlight-aside").filter({
       has: page.locator(".starlight-aside__title", {
         hasText: "Current implementation",
       }),
     });
     const title = note.locator(".starlight-aside__title");
-    await expect(title).toHaveText("Current implementation");
     for (const theme of ["light", "dark"]) {
+      await page.goto(configurationURL);
+      await expect(title).toHaveText("Current implementation");
       await page.locator("html").evaluate((root) => {
         root.style.fontSize = "";
       });
@@ -111,7 +113,13 @@ export async function manualLayout(page, baseURL) {
       expect(metrics.titleFits).toBe(true);
       expect(metrics.iconFits).toBe(true);
       expect(metrics.overflow).toBe("visible");
-      const diagram = page.locator(".catalog-architecture").first();
+      // The configuration reference owns the callout; the overview owns the figure.
+      await page.goto(diagramURL);
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      await page.locator("html").evaluate((root) => {
+        root.style.fontSize = "200%";
+      });
+      await expect(diagram).toHaveAttribute("tabindex", "0");
       await diagram.evaluate((region) => {
         region.scrollLeft = 0;
       });

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Field } from "./workspace";
+import { useEditorRowKeys } from "./editor-row-keys";
 import { NativeChoice } from "./NativeChoice";
 import { controlIcons } from "../shell/Icon";
 import { suggestResourceName } from "./resource-identity";
@@ -96,6 +97,7 @@ function AgentValues({
   const container = useRef<HTMLFieldSetElement>(null);
   const focus = useRef<number | undefined>(undefined);
   const rows = value.length ? value : [""];
+  const rowKeys = useEditorRowKeys();
   useEffect(() => {
     if (focus.current === undefined) return;
     container
@@ -112,7 +114,7 @@ function AgentValues({
       <legend>{label}</legend>
       {media && <p>Choose Text or JSON, or enter a custom media type.</p>}
       {rows.map((item, index) => (
-        <div key={index} className="agent-value-row">
+        <div key={rowKeys.key(index)} className="agent-value-row">
           {media && (
             <Field label={`${label} ${index + 1}`}>
               <select
@@ -153,6 +155,7 @@ function AgentValues({
               type="button"
               onClick={() => {
                 focus.current = Math.min(index, rows.length - 2);
+                rowKeys.remove(index);
                 onChange(rows.filter((_, at) => at !== index));
               }}
             >
@@ -200,6 +203,7 @@ export default function AgentCardEditor({
   const linkedOrigin = useRef(origin);
   const rowFocus = useRef<string | undefined>(undefined);
   const interfaceRows = useRef({ origin, keys: [] as number[], next: 0 });
+  const abilityRows = useEditorRowKeys(origin);
   const [linked, setLinked] = useState(false);
   const current = useRef({
     value,
@@ -310,6 +314,7 @@ export default function AgentCardEditor({
       )}
       {card && (
         <fieldset
+          key={origin}
           hidden={advanced}
           disabled={advanced || signed}
           className="workspace-fields agent-guided-fields"
@@ -512,7 +517,7 @@ export default function AgentCardEditor({
               const suggestion = suggestResourceName(item.name ?? "");
               return (
                 <fieldset
-                  key={index}
+                  key={abilityRows.key(index)}
                   className="workspace-panel workspace-fields"
                 >
                   <legend>Ability {index + 1}</legend>
@@ -553,14 +558,15 @@ export default function AgentCardEditor({
                   {abilities.length > 1 && (
                     <button
                       type="button"
-                      onClick={() =>
+                      onClick={() => {
+                        abilityRows.remove(index);
                         edit(
                           {
                             skills: abilities.filter((_, at) => at !== index),
                           },
                           `${value.editorID}-agent-ability-name-${Math.min(index, abilities.length - 2)}`,
-                        )
-                      }
+                        );
+                      }}
                     >
                       {controlIcons.remove} Remove ability {index + 1}
                     </button>

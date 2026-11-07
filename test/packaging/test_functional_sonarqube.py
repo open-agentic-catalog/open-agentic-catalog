@@ -33,7 +33,8 @@ class SonarFunctionalTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in ("Makefile", "go.mod", "test/sonarqube/images.json", "test/packaging/sonarqube.py",
-                         "test/packaging/application_coverage.py", "test/packaging/unit_coverage.py"):
+                         "test/packaging/application_coverage.py", "test/packaging/unit_coverage.py",
+                         "test/packaging/sonarqube_coverage.py"):
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)
                 target.write_bytes((sonar.ROOT / name).read_bytes())

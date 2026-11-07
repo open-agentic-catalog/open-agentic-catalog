@@ -119,21 +119,29 @@ class Archive(unittest.TestCase):
 
     def test_valid_and_mismatch(self):
         digest = hashlib.sha256(b"LICENSE\0" + hashlib.sha256(b"x").digest()).hexdigest()
+        raw = self.archive(["repo/LICENSE"])
         with tempfile.TemporaryDirectory() as name:
             destination = Path(name)
             with patch.object(r, "SOURCE_DIGEST", digest):
-                self.assertEqual(r.extract_source(self.archive(["repo/LICENSE"]), destination), digest)
+                self.assertEqual(r.extract_source(raw, destination), digest)
             self.assertEqual((destination / "LICENSE").read_bytes(), b"x")
             with self.assertRaisesRegex(ValueError, "digest mismatch"):
-                r.extract_source(self.archive(["repo/LICENSE"]), destination)
+                r.extract_source(raw, destination)
     def test_unsafe_members(self):
-        for names, kind in [(["/absolute"], tarfile.REGTYPE), (["repo/../escape"], tarfile.REGTYPE),
-                            (["repo/link"], tarfile.SYMTYPE), (["repo/file", "other/file"], tarfile.REGTYPE),
-                            (["repo/file", "repo/file"], tarfile.REGTYPE), (["repo/device"], tarfile.CHRTYPE)]:
+        for names, kind, rejection in [
+            (["/absolute"], tarfile.REGTYPE, "unsafe source archive path"),
+            (["repo/../escape"], tarfile.REGTYPE, "unsafe source archive path"),
+            (["repo/link"], tarfile.SYMTYPE, "source archive contains a link or special file"),
+            (["repo/file", "other/second"], tarfile.REGTYPE, "multiple source archive roots"),
+            (["repo/file", "repo/file"], tarfile.REGTYPE, "duplicate source archive path"),
+            (["repo/device"], tarfile.CHRTYPE, "source archive contains a link or special file"),
+        ]:
+            raw = self.archive(names, kind)
             with self.subTest(names=names), tempfile.TemporaryDirectory() as name:
-                with self.assertRaises(ValueError):
-                    r.extract_source(self.archive(names, kind), Path(name))
-                self.assertEqual(list(Path(name).iterdir()), [])
+                destination = Path(name)
+                with self.assertRaisesRegex(ValueError, "^" + rejection + "$"):
+                    r.extract_source(raw, destination)
+                self.assertEqual(list(destination.iterdir()), [])
 
 
 class Assertions(unittest.TestCase):

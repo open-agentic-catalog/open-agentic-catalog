@@ -148,6 +148,10 @@ it("restricts administration and creates scoped grants with explicit identity an
   const { props, get, post } = screenWorkspace();
   const view = render(<Members {...props} />);
   expect(screen.getByRole("alert")).toBeTruthy();
+  expect(
+    screen.getByRole("link", { name: "Review My access" }).parentElement
+      ?.textContent,
+  ).toContain("required. Review My access");
   expect(get).not.toHaveBeenCalled();
   readReplies(get, {
     "/api/v1/memberships": {

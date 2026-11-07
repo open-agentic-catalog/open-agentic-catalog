@@ -145,6 +145,10 @@ class GitVersionTests(unittest.TestCase):
                     {name: value for name, value in npm["packages"].items() if name})
         original_dependencies = dependencies()
         for part, new in expected:
+            # Git must detect each same-size bump despite coarse cached timestamps.
+            for name in {rule["filename"] for rule in v.bump_files()}:
+                os.utime(self.root / name, (946684800, 946684800))
+            self.git("update-index", "--refresh")
             previous = v.base_version(self.root)
             before = self.git("rev-parse", "HEAD")
             with redirect_stdout(io.StringIO()), patch.dict(os.environ, {"BUMPVERSION_COMMIT": "true", "BUMPVERSION_TAG": "true", "GIT_DIR": str(v.ROOT / ".git")}):

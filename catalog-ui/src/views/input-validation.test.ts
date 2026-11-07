@@ -6,7 +6,23 @@ import {
   atField,
   InputError,
   listingLink,
+  trimGoWhitespace,
 } from "./input-validation";
+
+it("trims the complete Go White_Space set while retaining opaque Unicode text", () => {
+  const whitespace =
+    "\t\n\v\f\r \u0085\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000";
+  const opaque = "\ufeffCafé:e\u0301:🙂 \u0085 inner\ufeff";
+  expect(trimGoWhitespace(whitespace + opaque + whitespace)).toBe(opaque);
+  expect(trimGoWhitespace(whitespace)).toBe("");
+  expect(trimGoWhitespace("")).toBe("");
+  expect(trimGoWhitespace(" \u200b\u180e\ud800x\udfff ")).toBe(
+    "\u200b\u180e\ud800x\udfff",
+  );
+  expect(
+    trimGoWhitespace("\u0085" + "a" + " ".repeat(40_000) + "b\u0085"),
+  ).toBe("a" + " ".repeat(40_000) + "b");
+});
 
 it.each([
   ["a".repeat(500), 500, true],

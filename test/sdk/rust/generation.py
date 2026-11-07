@@ -30,6 +30,23 @@ def contract_operations(source):
     return operations
 
 
+def _method_spans(text, names):
+    # Streaming variants can have one-line or multiline generic parameters.
+    declarations = list(re.finditer(r"^ {4}pub async fn (\w+)(?=[<(])", text, re.M))
+    if len(declarations) != len(names) or {match[1] for match in declarations} != names:
+        raise RuntimeError("Rust generated operation inventory changed")
+    spans = []
+    closing = "\n    }\n"
+    for index, declaration in enumerate(declarations):
+        limit = declarations[index + 1].start() if index + 1 < len(declarations) else len(text)
+        end = text.find(closing, declaration.end(), limit)
+        # Adjacent closing lines share the delimiter's boundary LF.
+        if end < 0 or text.find(closing, end + len(closing) - 1, limit) >= 0:
+            raise RuntimeError("Rust generator method boundary changed")
+        spans.append((declaration, end + len(closing)))
+    return spans
+
+
 def client_source(source, bindings):
     """Retain generated operations/codecs; replace unsafe transport boilerplate."""
     methods = [s for s in bindings["symbols"] if s.get("operation")]
@@ -48,17 +65,20 @@ use crate::{Client, Error as HttpError, ApiError, ApiOpError, Response};
 """ + source[source.index(marker) :]
     source = source.replace("impl HttpClient {", "impl Client {")
     source = source.replace("ApiOpError::Api(", "ApiOpError::api(")
+
     # The tool emits additional, unbounded streaming variants for wildcard
     # downloads. Keep their ordinary bounded byte methods, not those variants.
-    for name in streaming:
-        source, removed = re.subn(
-            r"^    pub async fn " + re.escape(name) + r"[^\n]*\n.*?^    }\n",
-            "",
-            source,
-            flags=re.M | re.S,
-        )
-        if removed != 1:
-            raise RuntimeError("Rust generator binary variants changed")
+    spans = _method_spans(source, {method["name"] for method in methods})
+    pieces, end, removed = [], 0, 0
+    for declaration, stop in spans:
+        if declaration[1] in streaming:
+            pieces.append(source[end:declaration.start()])
+            end = stop
+            removed += 1
+    if removed != len(streaming):
+        raise RuntimeError("Rust generator binary variants changed")
+    pieces.append(source[end:])
+    source = "".join(pieces)
     source = re.sub(
         r"^    ///(?:Select `\*/\*` as binary_stream|Success chunks are returned live).*\n",
         "",
@@ -71,9 +91,10 @@ use crate::{Client, Error as HttpError, ApiError, ApiOpError, Response};
         source,
     )
     source, headers = re.subn(
-        r"        for \(name, value\) in &self.custom_headers \{\n(?:            .*\n|                .*\n)*?        }\n",
+        r"^        for \(name, value\) in &self.custom_headers \{\n(?: {12}[^\n]*\n)*        }\n",
         "",
         source,
+        flags=re.M,
     )
     if auth != len(expected) or headers != len(expected):
         raise RuntimeError("Rust generator identity boilerplate changed")
@@ -85,32 +106,37 @@ use crate::{Client, Error as HttpError, ApiError, ApiOpError, Response};
     if sends != len(expected):
         raise RuntimeError("Rust generator send boundary changed")
 
-    def remove_unused_mut(match):
-        body = match[0]
-        return (
-            body
-            if re.search(r"^\s+req =", body, re.M)
-            else body.replace("let mut req =", "let req =")
-        )
-
-    source = re.sub(
-        r"^    pub async fn \w+\(.*?^    }",
-        remove_unused_mut,
-        source,
-        flags=re.M | re.S,
-    )
+    # Repair each method within its own validated bounds. Neither a missing
+    # method end nor fake result openers may borrow from the next operation.
+    spans = _method_spans(source, expected)
+    pieces, end = [], 0
+    for declaration, stop in spans:
+        body = source.find("{", declaration.end(), stop)
+        result = source.find(") -> Result<", declaration.end(), body) if body >= 0 else -1
+        # Keep multiline signatures, with unambiguous whitespace ownership,
+        # and never search again within a failed signature or cross its body.
+        signature = re.fullmatch(
+            r"\) -> Result<\s*([^,\s{}][^,{}]*),\s*ApiOpError<([^>{}]+)>\s*(?:,\s*)?> \{",
+            source[result:body + 1],
+        ) if body >= 0 and result >= 0 else None
+        if signature is None:
+            raise RuntimeError("Rust generator result signature changed")
+        method = (source[declaration.start():result]
+                  + ") -> Result<Response<" + signature[1] + ">, ApiOpError<" + signature[2] + ">> {"
+                  + source[body + 1:stop])
+        # Match one LF-delimited line at a time; \s must not rescan across
+        # long blank-line runs while looking for a surviving req assignment.
+        if not any(re.match(r"\s+req =", line) for line in method.split("\n")):
+            method = method.replace("let mut req =", "let req =")
+        pieces.extend((source[end:declaration.start()], method))
+        end = stop
+    pieces.append(source[end:])
+    source = "".join(pieces)
     source = re.sub(
         r"__read_bounded_response_body\(\s*response,\s*self.max_response_body_bytes,\s*\)\s*\.await\?",
         "response.body.clone()",
         source,
     )
-    source, signatures = re.subn(
-        r"\) -> Result<\s*([^,]+),\s*ApiOpError<([^>]+)>\s*,?\s*> \{",
-        r") -> Result<Response<\1>, ApiOpError<\2>> {",
-        source,
-    )
-    if signatures != len(expected):
-        raise RuntimeError("Rust generator result signature changed")
     source = source.replace(
         "Ok(body) => Ok(body)",
         "Ok(body) => Ok(Response::new(body, status_code, headers, raw_body))",

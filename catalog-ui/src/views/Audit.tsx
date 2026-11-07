@@ -235,7 +235,7 @@ function AuditInvestigation(props: WorkspaceProps) {
       !permits(props.access, "audit.export", "audit.export") ? (
         <p role="alert">
           This page requires audit.read or audit.export permission and the
-          matching OAuth scope when scopes are enforced.
+          matching OAuth scope when scopes are enforced.{" "}
           <a href={`${props.runtime.basePath}/access`}>Review My access</a>
         </p>
       ) : (

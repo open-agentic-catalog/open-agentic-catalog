@@ -1,6 +1,6 @@
 // MCP fields patch native metadata; pinned backend schemas remain authoritative.
 import { object } from "../api/values";
-import { listingLink } from "./input-validation";
+import { listingLink, trimGoWhitespace } from "./input-validation";
 import { parseJSONObject } from "./json-input";
 
 export const mcpFormats = {
@@ -46,8 +46,7 @@ export type MCPDocument = Record<string, unknown> & {
 };
 
 /** Match Go whitespace rules while retaining arbitrary resource version labels. */
-export const mcpVersion = (value: string) =>
-  value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
+export const mcpVersion = (value: string) => trimGoWhitespace(value);
 
 export function mcpFormat(media: string): MCPFormat | undefined {
   return media === mcpFormats.card.media

@@ -234,5 +234,12 @@ func qualifyAbruptPooledWriterLoss(ctx context.Context, t *testing.T, f processF
 	case <-time.After(30 * time.Second):
 		t.Fatal("original execution did not unwind before repair")
 	}
-	qualifyPooledRecoveredWork(ctx, t, f, releaseRetryBarrier, cfg, peerCfg, workers, roleDSN, reservation, accepted.Job.ID, outboxID, outboxDocument, resource.ID, grantID, processes, public)
+	qualifyPooledRecoveredWork(ctx, t, f, releaseRetryBarrier, cfg, peerCfg, workers, roleDSN, pooledRecoveryBindings{
+		reservationID:  reservation,
+		jobID:          accepted.Job.ID,
+		outboxID:       outboxID,
+		outboxDocument: outboxDocument,
+		resourceID:     resource.ID,
+		grantID:        grantID,
+	}, processes, public)
 }

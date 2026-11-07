@@ -606,3 +606,184 @@ it("preserves the full document when generated formatting exceeds the guided inp
   change("Catalog version", "2.0.0");
   expect(test.value().content).toBe(retained);
 });
+
+it.each([
+  ["headers", 0, false],
+  ["headers", 0, true],
+  ["headers", 1, false],
+  ["headers", 1, true],
+  ["protocols", 0, false],
+  ["protocols", 0, true],
+  ["protocols", 1, false],
+  ["protocols", 1, true],
+  ["endpoints", 0, false],
+  ["endpoints", 0, true],
+  ["endpoints", 1, false],
+  ["endpoints", 1, true],
+  ["packages", 0, false],
+  ["packages", 0, true],
+  ["packages", 1, false],
+  ["packages", 1, true],
+] as const)(
+  "keeps surviving MCP %s state when removing row %i (survivor touched=%s)",
+  async (kind, remove, touched) => {
+    const remotes = Array.from({ length: 3 }, () => ({
+      type: "streamable-http",
+      url: "",
+      supportedProtocolVersions: ["", "", ""],
+      headers: Array.from({ length: 3 }, () => ({ name: "", isSecret: true })),
+    }));
+    const packages = Array.from({ length: 3 }, () => ({
+      registryType: "npm",
+      identifier: "",
+      transport: { type: "stdio" },
+      environmentVariables: [{ name: "" }],
+    }));
+    const original =
+      kind === "packages"
+        ? { ...registry, packages, opaque: "keep" }
+        : { ...card, remotes, opaque: "keep" };
+    const test = await editor(
+      JSON.stringify(original),
+      kind === "packages" ? "registry" : "card",
+    );
+    if (kind === "headers") open("Endpoint 1 headers");
+    if (kind === "protocols") open("Endpoint 1 protocol versions (optional)");
+    const label = (index: number) =>
+      ({
+        headers: `Endpoint 1 headers ${index + 1} name`,
+        protocols: `Endpoint 1 custom protocol version ${index + 1}`,
+        endpoints: `Endpoint ${index + 1} URL`,
+        packages: `Package ${index + 1} identifier`,
+      })[kind];
+    const survivor = screen.getByLabelText(label(remove + 1));
+    fireEvent.blur(screen.getByLabelText(label(touched ? remove + 1 : remove)));
+    expect(survivor.getAttribute("aria-invalid")).toBe(touched ? "true" : null);
+    if (kind === "endpoints") open(`Endpoint ${remove + 2} headers`);
+    let environment: HTMLElement | undefined;
+    if (kind === "packages") {
+      open(`Package ${remove + 2} environment`);
+      environment = screen.getByLabelText(
+        `Package ${remove + 2} environment 1 name`,
+      );
+      fireEvent.blur(environment);
+    }
+    const action = {
+      headers: `Remove endpoint 1 headers ${remove + 1}`,
+      protocols: `Remove endpoint 1 protocol version ${remove + 1}`,
+      endpoints: `Remove endpoint ${remove + 1}`,
+      packages: `Remove package ${remove + 1}`,
+    }[kind];
+    click(action);
+    expect(screen.getByLabelText(label(remove))).toBe(survivor);
+    expect(survivor.getAttribute("aria-invalid")).toBe(touched ? "true" : null);
+    expect(document.activeElement).toBe(
+      kind === "protocols"
+        ? screen.getByLabelText(`Endpoint 1 protocol version ${remove + 1}`)
+        : survivor,
+    );
+    if (kind === "endpoints")
+      expect(
+        screen.getByText(`Endpoint ${remove + 1} headers`).closest("details"),
+      ).toHaveProperty("open", true);
+    if (kind === "packages") {
+      expect(
+        screen
+          .getByText(`Package ${remove + 1} environment`)
+          .closest("details"),
+      ).toHaveProperty("open", true);
+      expect(
+        screen.getByLabelText(`Package ${remove + 1} environment 1 name`),
+      ).toBe(environment);
+      expect(environment!.getAttribute("aria-invalid")).toBe("true");
+    }
+    const expected = structuredClone(original);
+    if ("packages" in expected) expected.packages.splice(remove, 1);
+    else if (kind === "headers") expected.remotes[0]!.headers.splice(remove, 1);
+    else if (kind === "protocols")
+      expected.remotes[0]!.supportedProtocolVersions.splice(remove, 1);
+    else expected.remotes.splice(remove, 1);
+    expect(test.document()).toEqual(expected);
+  },
+);
+
+it.each(["card", "registry"] as const)(
+  "resets %s row state on explicit same-length MCP import",
+  async (format) => {
+    const original =
+      format === "card"
+        ? {
+            ...card,
+            remotes: [
+              {
+                type: "streamable-http",
+                url: "",
+                supportedProtocolVersions: [""],
+                headers: [{ name: "" }],
+              },
+            ],
+          }
+        : {
+            ...registry,
+            packages: [
+              {
+                registryType: "npm",
+                identifier: "",
+                transport: { type: "stdio" },
+                environmentVariables: [{ name: "" }],
+              },
+            ],
+          };
+    const content = JSON.stringify(original, null, 4);
+    const test = await editor(content, format);
+    const label = format === "card" ? "Endpoint 1 URL" : "Package 1 identifier";
+    const old = screen.getByLabelText(label);
+    fireEvent.blur(old);
+    if (format === "card") {
+      open("Endpoint 1 headers");
+      fireEvent.blur(screen.getByLabelText("Endpoint 1 headers 1 name"));
+      open("Endpoint 1 protocol versions (optional)");
+      fireEvent.blur(
+        screen.getByLabelText("Endpoint 1 custom protocol version 1"),
+      );
+    } else {
+      open("Package 1 environment");
+      fireEvent.blur(screen.getByLabelText("Package 1 environment 1 name"));
+    }
+    await importDocument(content);
+    advanced(false);
+    expect(screen.getByLabelText(label)).not.toBe(old);
+    expect(screen.getByLabelText(label).hasAttribute("aria-invalid")).toBe(
+      false,
+    );
+    if (format === "card") {
+      open("Endpoint 1 headers");
+      expect(
+        screen
+          .getByLabelText("Endpoint 1 headers 1 name")
+          .hasAttribute("aria-invalid"),
+      ).toBe(false);
+      open("Endpoint 1 protocol versions (optional)");
+      expect(
+        screen
+          .getByLabelText("Endpoint 1 custom protocol version 1")
+          .hasAttribute("aria-invalid"),
+      ).toBe(false);
+    } else {
+      open("Package 1 environment");
+      expect(
+        screen
+          .getByLabelText("Package 1 environment 1 name")
+          .hasAttribute("aria-invalid"),
+      ).toBe(false);
+    }
+    expect(test.value().content).toBe(content);
+  },
+);
+
+it("preserves a wide opaque native MCP version through the editor entry point", async () => {
+  const version = "release" + " ".repeat(40_000) + "suffix";
+  const test = await editor("", "card", version);
+  change("MCP server name", "com.example/wide-version");
+  expect(test.document().version).toBe(version);
+});

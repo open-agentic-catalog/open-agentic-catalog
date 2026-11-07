@@ -78,21 +78,21 @@ class Acquisition(unittest.TestCase):
             return raw.getvalue()
 
         cases = [
-            [("../escaped", tarfile.REGTYPE, "")],
-            [("/escaped", tarfile.REGTYPE, "")],
-            [("root/a", tarfile.LNKTYPE, "root/b")],
-            [("root/docs/LICENSE.md", tarfile.SYMTYPE, "../../escaped")],
-            [("root/a", tarfile.CHRTYPE, "")],
-            [("one/a", tarfile.REGTYPE, ""), ("two/b", tarfile.REGTYPE, "")],
-            [("root/a", tarfile.REGTYPE, ""), ("root/a", tarfile.REGTYPE, "")],
+            ([("../escaped", tarfile.REGTYPE, "")], "unsafe Gateway archive path"),
+            ([("/escaped", tarfile.REGTYPE, "")], "unsafe Gateway archive path"),
+            ([("root/a", tarfile.LNKTYPE, "root/b")], "unsupported Gateway archive entry"),
+            ([("root/docs/LICENSE.md", tarfile.SYMTYPE, "../../escaped")], "unreviewed Gateway archive link"),
+            ([("root/a", tarfile.CHRTYPE, "")], "unsupported Gateway archive entry"),
+            ([("one/a", tarfile.REGTYPE, ""), ("two/b", tarfile.REGTYPE, "")], "Gateway archive has multiple roots"),
+            ([("root/a", tarfile.REGTYPE, ""), ("root/a", tarfile.REGTYPE, "")], "duplicate or oversized Gateway source entry"),
         ]
-        for entries in cases:
-            with (
-                self.subTest(entries=entries),
-                tempfile.TemporaryDirectory() as temporary,
-                self.assertRaises(ValueError),
-            ):
-                tools.extract(archive(entries), Path(temporary), "wrong")
+        for entries, rejection in cases:
+            raw = archive(entries)
+            with self.subTest(entries=entries), tempfile.TemporaryDirectory() as temporary:
+                destination = Path(temporary)
+                with self.assertRaisesRegex(ValueError, "^" + rejection + "$"):
+                    tools.extract(raw, destination, "wrong")
+                self.assertEqual(list(destination.iterdir()), [])
         entries = [
             ("root/LICENSE", tarfile.REGTYPE, ""),
             ("root/docs/LICENSE.md", tarfile.SYMTYPE, "../LICENSE"),
@@ -105,11 +105,11 @@ class Acquisition(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = tools.extract(archive(entries), Path(temporary), expected)
             self.assertEqual(tools.tree_digest(root), expected)
-        with (
-            tempfile.TemporaryDirectory() as temporary,
-            self.assertRaisesRegex(ValueError, "exact pin"),
-        ):
-            tools.extract(archive(entries), Path(temporary), "wrong")
+        raw = archive(entries)
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary)
+            with self.assertRaisesRegex(ValueError, "exact pin"):
+                tools.extract(raw, destination, "wrong")
 
 
 class Pagination(unittest.TestCase):

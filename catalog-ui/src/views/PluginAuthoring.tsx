@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { RepresentationDraft } from "./representations";
 import { Field } from "./workspace";
+import { useEditorRowKeys } from "./editor-row-keys";
 import { reportInvalidFields } from "./authoring";
 import { LocalPreview } from "./NativeStarter";
 import { CodeBlock } from "./CodeBlock";
@@ -91,6 +92,7 @@ function JSONFields<T>({
   source,
   read,
   onChange,
+  onReplace,
   children,
 }: {
   filename: string;
@@ -98,6 +100,7 @@ function JSONFields<T>({
   source: string;
   read: (source: string) => T;
   onChange: (source: string) => void;
+  onReplace?: (source: string) => void;
   children: (value: T, update: (value: T) => void) => React.ReactNode;
 }) {
   const [advanced, setAdvanced] = useState(false);
@@ -130,7 +133,7 @@ function JSONFields<T>({
               rows={10}
               maxLength={2 * 1024 * 1024}
               value={source}
-              onChange={(event) => onChange(event.target.value)}
+              onChange={(event) => (onReplace ?? onChange)(event.target.value)}
             />
           </Field>
           <LocalPreview content={source} filename={filename} preview={false} />
@@ -314,15 +317,39 @@ export default function PluginAuthoring({
   value,
   onChange,
   version,
+  origin = 0,
 }: {
   value: RepresentationDraft;
   onChange: (value: RepresentationDraft) => void;
   version?: string | undefined;
+  origin?: number;
 }) {
   const preparation = value.pluginPreparation ?? newPluginPreparation();
+  const [mcpGeneration, setMCPGeneration] = useState(0);
+  const lifetime = `${value.editorID}:${origin}:${mcpGeneration}`;
+  const serverRows = useEditorRowKeys(lifetime);
   const serverOrder = useRef<string[]>([]);
+  const orderedLifetime = useRef(lifetime);
+  if (orderedLifetime.current !== lifetime) {
+    serverOrder.current = [];
+    orderedLifetime.current = lifetime;
+  }
   const controls = useRef<HTMLElement>(null);
   const focusArchive = useRef(false);
+  const focusServer = useRef<number | undefined>(undefined);
+  useLayoutEffect(() => {
+    if (focusServer.current === undefined) return;
+    const rows =
+      controls.current!.querySelectorAll<HTMLElement>(".plugin-server");
+    if (rows.length)
+      rows
+        .item(Math.min(focusServer.current, rows.length - 1))
+        .querySelector("input")
+        ?.focus();
+    else
+      document.getElementById(`${value.editorID}-plugin-add-server`)?.focus();
+    focusServer.current = undefined;
+  }, [preparation.mcp, value.editorID]);
   useLayoutEffect(() => {
     if (focusArchive.current) {
       focusArchive.current = false;
@@ -337,6 +364,11 @@ export default function PluginAuthoring({
   const [preview, setPreview] = useState(false);
   const change = (patch: Partial<PluginPreparation>) =>
     onChange({ ...value, pluginPreparation: { ...preparation, ...patch } });
+  // Raw MCP edits and explicit preparation replacement start new row identities.
+  const replaceMCP = (mcp: string) => {
+    setMCPGeneration((generation) => generation + 1);
+    change({ mcp });
+  };
   const update = (patch: Partial<RepresentationDraft>) =>
     onChange({ ...value, ...patch });
   let files: ReturnType<typeof pluginFiles> = [];
@@ -484,6 +516,7 @@ export default function PluginAuthoring({
             source={preparation.mcp}
             read={pluginMCP}
             onChange={(mcp) => change({ mcp })}
+            onReplace={replaceMCP}
           >
             {(mcp, write) => (
               <>
@@ -505,8 +538,8 @@ export default function PluginAuthoring({
                       });
                     return (
                       <fieldset
-                        key={index}
-                        className="workspace-panel workspace-fields"
+                        key={serverRows.key(index)}
+                        className="workspace-panel workspace-fields plugin-server"
                       >
                         <legend>MCP server {index + 1}</legend>
                         <TextField
@@ -653,13 +686,19 @@ export default function PluginAuthoring({
                               window.confirm(
                                 "Remove this MCP server from the prepared files?",
                               )
-                            )
+                            ) {
+                              focusServer.current = index;
+                              serverRows.remove(index);
+                              serverOrder.current = rows
+                                .filter((_, at) => at !== index)
+                                .map(([key]) => key);
                               write({
                                 ...mcp,
                                 mcpServers: Object.fromEntries(
                                   rows.filter((_, at) => at !== index),
                                 ),
                               });
+                            }
                           }}
                         >
                           {controlIcons.remove} Remove MCP server {index + 1}
@@ -670,7 +709,9 @@ export default function PluginAuthoring({
                 )}
                 <button
                   type="button"
+                  id={`${value.editorID}-plugin-add-server`}
                   onClick={() => {
+                    focusServer.current = Object.keys(mcp.mcpServers).length;
                     let name = "server";
                     for (let n = 2; Object.hasOwn(mcp.mcpServers, name); n++)
                       name = `server-${n}`;
@@ -697,7 +738,7 @@ export default function PluginAuthoring({
                     "Remove mcp.json and all of its server configuration?",
                   )
                 )
-                  change({ mcp: "" });
+                  replaceMCP("");
               }}
             >
               {controlIcons.remove} Remove MCP configuration
@@ -716,6 +757,7 @@ export default function PluginAuthoring({
                   )
                 )
                   return;
+                setMCPGeneration((generation) => generation + 1);
                 change({
                   manifest: pluginStarterFiles[0]!.content,
                   mcp: pluginStarterFiles[1]!.content,

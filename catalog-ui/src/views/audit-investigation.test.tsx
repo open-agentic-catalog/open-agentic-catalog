@@ -371,6 +371,10 @@ it.each([
       );
       expect(screen.queryByText(/Explicit handoff/)).toBeNull();
       expect(screen.queryByText(/No matching events/)).toBeNull();
+      expect(
+        screen.getByRole("link", { name: "Review My access" }).parentElement
+          ?.textContent,
+      ).toContain("enforced. Review My access");
       expect(w.get).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllEnvs();
