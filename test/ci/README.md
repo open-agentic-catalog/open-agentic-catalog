@@ -118,6 +118,10 @@ The Markdown CLI installer applies `dependencyCutoff` from `pins.json` through n
 
 `admission.py` owns changed-path selection, fixed outcomes and qualified SDK staging. Its units run without Git, Docker or network calls. Functional tests exercise process admission separately. `candidate.py` owns exact image archives. `release_delivery.py` assembles admitted results and assets. Only its explicitly selected protected hosted `publish` command can perform external delivery. Never run that command locally.
 
+Root `pyproject.toml` and `uv.lock` changes select UI, documentation and every SDK language. Those jobs consume the shared Python installer or locked development tools. Changes beneath a specific SDK or documentation directory retain their existing selection. Selected failures, cancellations and unexpected skips fail the completion gate.
+
+`fuzz_corpus.py` collects new synthetic Go counterexamples after a failed fuzz measurement. Its package allowlist has a unit contract against `make test-fuzz`. Collection uses untracked, nonignored Git paths and preserves source files. It accepts regular files with hexadecimal names and the Go corpus header, within 1 MiB per file and 16 MiB total. Reports stay under ignored `output/`; redirected paths and existing destination files are refused. Collection does not change the failed measurement result. Unit cases and the native functional selection test the helper and the workflow's actual shell command without a fuzz campaign or upload.
+
 For an SDK handoff, run the existing check and stage its actual output:
 
 ```sh

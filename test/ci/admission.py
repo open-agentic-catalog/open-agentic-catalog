@@ -74,7 +74,7 @@ def select(paths, projected=()):
     for name in paths:
         if not name or name.startswith("/") or ".." in Path(name).parts:
             raise ValueError("Invalid changed path")
-        if name.startswith(shared) or name in {"VERSION", "Makefile", "go.mod", "go.sum", "Containerfile", ".dockerignore", ".golangci.yaml", "ruff.toml", ".pre-commit-config.yaml"}:
+        if name.startswith(shared) or name in {"VERSION", "Makefile", "go.mod", "go.sum", "Containerfile", ".dockerignore", ".golangci.yaml", "pyproject.toml", "uv.lock", "ruff.toml", ".pre-commit-config.yaml"}:
             selected.update(LANGUAGES)
             ui = docs = True
         elif name.startswith("sdk/"):
