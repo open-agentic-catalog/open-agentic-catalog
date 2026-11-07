@@ -271,9 +271,21 @@ make ui-coverage CATALOG_ENV_FILE=/dev/null
 make sonarqube-scan SONAR_GO_COVERAGE=coverage/unit.out SONAR_JS_COVERAGE=output/coverage/catalog-ui/lcov.info
 ```
 
-For full Go functional/PostgreSQL coverage, generate `coverage/full.out` with `make coverage-full` separately, using its documented prerequisites, then select that file instead of `coverage/unit.out`. Import reports only after their generating gates pass against the same source. The runner records report hashes but does not prove freshness. Omitting the variables imports no coverage, even if older reports exist on disk.
+For full Go functional/PostgreSQL coverage, generate `coverage/full.out` with `make coverage-full` separately, using its documented prerequisites, then select that file instead of `coverage/unit.out`. Import reports only after their generating gates pass against the same source. Those raw inputs record hashes but do not independently prove freshness.
 
-After successful ingestion, open the project's issues and measures to review source locations, rule explanations, duplication and coverage. Sonar's line/condition denominator includes tooling without imported coverage, so its percentage differs from Go weighted statement coverage and frontend-only coverage. No Python coverage is imported by these commands.
+Native tooling coverage is also explicit:
+
+```sh
+make coverage-tooling-python
+make coverage-tooling-node TOOLING_NODE_PROFILE=docs-unit
+make coverage-tooling-node TOOLING_NODE_PROFILE=ui-unit
+```
+
+The Python target needs the locked shared development tools. It instruments the existing owner-isolated units and emits conventional XML, including native zero-hit analysis for unexecuted modules. Node uses its installed native test runner and LCOV reporter. Its unit profiles preserve the owning native file selections; they do not replace Vitest. `TOOLING_NODE_PROFILE=compose` instead runs the complete existing disposable packaged browser gate and measures its Node scripts, including manual layout. Browser-evaluated callbacks remain browser execution.
+
+Each producer prints a successful receipt path. Select those exact paths through the space-separated `SONAR_TOOLING_REPORTS` variable on `sonarqube-scan`. Receipts bind source/test inventories and report hashes; stale, incomplete or contradictory inputs fail before scanner execution. Select one Python receipt and disjoint observed Node files. Native UI unit and Compose profiles can overlap with different branch identities; import them in separate scans. See [native tooling imports](../../../../../test/sonarqube/README.md#native-tooling-reports) for commands and limits. Omitting all coverage variables imports no coverage, even when older reports exist.
+
+After successful ingestion, open the project's issues and measures to review source locations, rule explanations, duplication and coverage. Sonar's line/condition denominator includes tooling without imported coverage, so its percentage differs from Go weighted statement coverage and frontend-only coverage. Keep each test scope identified and never add percentages.
 
 Reports and token-redacted scanner output are retained in the printed `output/sonarqube/scan-*/` directory. Each JSON report distinguishes analysis/cleanup status from quality-gate status. A completed scan may report quality gate `ERROR` while exiting successfully because that policy is report-only.
 

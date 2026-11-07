@@ -66,10 +66,22 @@ test("group archival refuses active members, then succeeds after explicit cleanu
   await form
     .getByRole("button", { name: "Change group state", exact: true })
     .click();
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Confirm", exact: true })
-    .click();
+  const [refusedArchiveResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname ===
+          `/_catalog/api/v1/access/groups/${group.data.id}:archive`,
+    ),
+    page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Confirm", exact: true })
+      .click(),
+  ]);
+  expect(refusedArchiveResponse.status()).toBe(409);
+  expect(object(await refusedArchiveResponse.json()).detail).toBe(
+    "revoke active members before group archival",
+  );
   await expect(form.getByRole("alert")).toContainText(/\(CONFLICT\)/);
   const retained = await catalog.admin<{ state: string; revision: number }>(
     "GET",

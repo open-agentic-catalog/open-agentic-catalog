@@ -6,12 +6,20 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/id"
 )
 
 func TestPostgresCurrentSelfAccessUsesScopedLivePolicy(t *testing.T) {
-	_, store, service, admin, alice, direct := authorizationCoreFixture(t)
+	_, store, _, admin, alice, direct := authorizationCoreFixture(t)
+	// Policy transitions use retained seed time rather than elapsed host time.
+	service, err := identity.NewService(identity.ServiceOptions{Store: store, Clock: clock.NewFake(direct.GrantedAt.Add(time.Second).Truncate(time.Microsecond)), IDs: id.Generator{}, CursorKey: []byte("01234567890123456789012345678901")})
+	if err != nil {
+		t.Fatal(err)
+	}
 	ctx := identity.WithActor(t.Context(), admin)
 	role, err := service.SaveRoleDefinition(ctx, "", 0, identity.RoleDefinitionInput{Name: "Scoped author", Permissions: []identity.Permission{"namespace.read", "resource.create"}, Reason: "Qualify compact self context"}, false, "role")
 	if err != nil {

@@ -160,6 +160,86 @@ it("requires a revision, an explicit read and selection, then applies only the d
   ).toHaveProperty("disabled", true);
 });
 
+it("replaces previous native icon choices when the newly selected private Agent has malformed hints", async () => {
+  const { props, get } = setup();
+  const icons = vi.fn();
+  const fetch = vi.fn();
+  vi.stubGlobal("fetch", fetch);
+  const privateAgent = {
+    ...representation,
+    mediaType: "application/vnd.open-agentic-catalog.agent+json",
+    validationState: "valid",
+    normalizedFacts: {
+      name: "Private Agent",
+      description: "Current description",
+    },
+  };
+  get.mockResolvedValue({
+    response: new Response(),
+    data: {
+      ...bundle,
+      revision: {
+        ...bundle.revision,
+        representations: [
+          {
+            ...privateAgent,
+            id: "valid-icons",
+            data: {
+              name: "Private Agent",
+              framework: "custom",
+              icons: [
+                {
+                  src: "https://images.example/previous.png",
+                  mimeType: "image/png",
+                },
+              ],
+            },
+          },
+          {
+            ...privateAgent,
+            id: "malformed-icons",
+            data: {
+              name: "Private Agent",
+              framework: "custom",
+              icons: [
+                {
+                  src: "https://images.example/current.png",
+                  mimeType: { toString: "ordinary JSON field" },
+                },
+                {
+                  src: "https://images.example/array.png",
+                  mimeType: ["image/png"],
+                },
+              ],
+            },
+          },
+        ],
+      },
+    },
+  });
+  render(<ListingPrefill {...props} onNativeIcons={icons} />);
+  await choose("valid-icons");
+  expect(icons).toHaveBeenLastCalledWith([
+    {
+      url: "https://images.example/previous.png",
+      label: "any theme; size unspecified",
+    },
+  ]);
+  fireEvent.change(screen.getByLabelText("Prefill representation"), {
+    target: { value: "malformed-icons" },
+  });
+  expect(icons).toHaveBeenLastCalledWith([]);
+  expect(screen.getByText("Private Agent")).toBeTruthy();
+  expect(screen.getByText("Current description")).toBeTruthy();
+  expect(
+    screen.getByRole("button", { name: "Use suggested name and description" }),
+  ).toHaveProperty("disabled", false);
+  expect(props.onApply).not.toHaveBeenCalled();
+  expect(props.onFailure).not.toHaveBeenCalled();
+  expect(get).toHaveBeenCalledOnce();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
 it.each(["name", "description"])(
   "protects existing %s text until replacement is confirmed",
   async (field) => {

@@ -204,12 +204,85 @@ class SonarTests(unittest.TestCase):
             local.compose = mock.Mock()
             local.ready = mock.Mock(side_effect=[ConnectionResetError(), {"status": "UP"}])
             local.api = mock.Mock(return_value={"valid": True})
-            with mock.patch.object(sonar, "ROOT", root), mock.patch.object(sonar.time, "sleep"), \
+            with mock.patch.object(sonar, "ROOT", root), mock.patch.object(sonar.secrets, "token_urlsafe") as generate, \
+                    mock.patch.object(sonar.time, "sleep"), \
                     mock.patch.object(sonar.time, "monotonic", side_effect=[0, 1]), contextlib.redirect_stdout(io.StringIO()):
                 local.up()
+            generate.assert_not_called()
             self.assertEqual(local.ready.call_count, 2)
             self.assertEqual(json.loads(local.credentials.read_text())["password"], "retained-secret")
             local.api.assert_called_once_with("/api/authentication/validate", password="retained-secret")
+
+    def test_first_start_guarantees_password_classes_before_initialization(self):
+        for random_part in ("a" * 43, "A" * 43, "0" * 43, "-" * 43):
+            with self.subTest(random_class=random_part[0]), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                local = object.__new__(sonar.Local)
+                local.state, local.name = None, "owned"
+                local.credentials = root / "credentials.json"
+                local.port, local.base = 19000, "http://127.0.0.1:19000"
+                local.inspect = mock.Mock(return_value=None)
+                local.ready, local.compose = mock.Mock(), mock.Mock()
+                local.api = mock.Mock(side_effect=[{"valid": False}, {}, {"valid": True}])
+                output = io.StringIO()
+                with mock.patch.object(sonar, "ROOT", root), \
+                        mock.patch.object(sonar.secrets, "token_urlsafe", return_value=random_part) as generate, \
+                        contextlib.redirect_stdout(output):
+                    local.up()
+                generate.assert_called_once_with(32)
+                password = local.state["password"]
+                for alphabet in ("abcdefghijklmnopqrstuvwxyz", "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "0123456789", "!"):
+                    self.assertTrue(any(char in alphabet for char in password), "required password class missing")
+                self.assertTrue(password.startswith(random_part), "random entropy was discarded")
+                self.assertNotIn(password, output.getvalue())
+                self.assertEqual(local.credentials.stat().st_mode & 0o777, 0o600)
+                self.assertTrue(json.loads(local.credentials.read_text())["initialized"])
+                local.inspect.assert_called_once_with("volume", "owned_data")
+                local.api.assert_has_calls([
+                    mock.call("/api/authentication/validate", password=password),
+                    mock.call("/api/users/change_password", {
+                        "login": "admin", "previousPassword": "admin", "password": password,
+                    }, password="admin"),
+                    mock.call("/api/authentication/validate", password=password),
+                ])
+
+    def test_first_start_refusal_retains_pending_password_for_retry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            local = object.__new__(sonar.Local)
+            local.state, local.name = None, "owned"
+            local.credentials = root / "credentials.json"
+            local.port, local.base = 19000, "http://127.0.0.1:19000"
+            local.inspect = mock.Mock(return_value=None)
+            local.ready, local.compose = mock.Mock(), mock.Mock()
+            local.api = mock.Mock(side_effect=[{"valid": False}, sonar.Failure("first-start refusal")])
+            output = io.StringIO()
+            with mock.patch.object(sonar, "ROOT", root), \
+                    mock.patch.object(sonar.secrets, "token_urlsafe", return_value="a" * 43) as generate, \
+                    contextlib.redirect_stdout(output):
+                with self.assertRaisesRegex(sonar.Failure, "first-start refusal"):
+                    local.up()
+                pending = json.loads(local.credentials.read_text())
+                self.assertFalse(pending["initialized"])
+                self.assertEqual(local.state, pending)
+                local.api = mock.Mock(side_effect=[{"valid": False}, {}, {"valid": True}])
+                local.up()
+                generate.assert_called_once_with(32)
+            self.assertEqual(local.state["password"], pending["password"])
+            self.assertTrue(json.loads(local.credentials.read_text())["initialized"])
+            self.assertNotIn(pending["password"], output.getvalue())
+
+    def test_missing_credentials_never_reinitialize_retained_data(self):
+        local = object.__new__(sonar.Local)
+        local.state, local.name = None, "owned"
+        local.inspect = mock.Mock(return_value={"Name": "owned_data"})
+        local.compose, local.api = mock.Mock(), mock.Mock()
+        with mock.patch.object(sonar.secrets, "token_urlsafe") as generate:
+            with self.assertRaisesRegex(sonar.Failure, "original credentials"):
+                local.up()
+        generate.assert_not_called()
+        local.compose.assert_not_called()
+        local.api.assert_not_called()
 
     def test_scanner_failure_revokes_token_redacts_log_and_preserves_unowned_container(self):
         for cleanup_case in ("absent", "unowned", "docker-unavailable"):

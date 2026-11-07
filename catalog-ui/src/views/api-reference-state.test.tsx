@@ -22,6 +22,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   history.replaceState(null, "", "/api-reference");
 });
 
@@ -101,6 +102,248 @@ function deferred<T>() {
   });
   return { promise, resolve, reject };
 }
+
+function parameterFixture(parameters: unknown[], inherited: unknown[] = []) {
+  const value = fixture();
+  return {
+    ...value,
+    document: {
+      ...value.document,
+      components: {
+        ...value.document.components,
+        parameters: {
+          Beta: {
+            in: "query",
+            name: "beta",
+            description: "Original beta",
+            example: "  original example\r\n",
+          },
+        },
+      },
+      paths: {
+        "/read": {
+          parameters: inherited,
+          get: { ...value.document.paths["/read"].get, parameters },
+        },
+      },
+    },
+  };
+}
+const parameterRows = () =>
+  Array.from(
+    screen
+      .getByRole("region", { name: "Operation parameters" })
+      .querySelectorAll<HTMLElement>(".api-contract-field"),
+  );
+const parameterDetails = (row: HTMLElement) =>
+  within(row).getByText("Complete decoded data").closest("details")!;
+async function openParameter(row: HTMLElement) {
+  fireEvent.click(within(row).getByText("Complete decoded data"));
+  await within(parameterDetails(row)).findByRole("group", {
+    name: "JSON document",
+  });
+}
+
+it("keeps parameter disclosures on their resolved identities through failed refresh, insertion, reorder and removal", async () => {
+  const beta = { $ref: "#/components/parameters/Beta" };
+  // A matching name in another location is a distinct parameter.
+  const headerBeta = { in: "header", name: "beta" };
+  const inheritedBeta = {
+    in: "query",
+    name: "beta",
+    description: "Overridden",
+  };
+  const inserted = { in: "header", name: "inserted" };
+  const first = parameterFixture([beta], [headerBeta, inheritedBeta]);
+  const pending = deferred<ReturnType<typeof parameterFixture>>();
+  const replacement = parameterFixture(
+    [beta],
+    [inserted, headerBeta, inheritedBeta],
+  );
+  replacement.document.info.title = "Inserted";
+  replacement.document.components.parameters.Beta.description = "Current beta";
+  const currentExample = "  current β example\r\n";
+  replacement.document.components.parameters.Beta.example = currentExample;
+  const reordered = parameterFixture(
+    [beta],
+    [inheritedBeta, inserted, headerBeta],
+  );
+  reordered.document.info.title = "Reordered";
+  const removed = parameterFixture([beta], [inheritedBeta, headerBeta]);
+  removed.document.info.title = "Removed";
+  const reference = vi
+    .fn()
+    .mockResolvedValueOnce(first)
+    .mockReturnValueOnce(pending.promise)
+    .mockResolvedValueOnce(replacement)
+    .mockResolvedValueOnce(reordered)
+    .mockResolvedValueOnce(removed);
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  const fetch = vi.fn().mockRejectedValue(new Error("Unexpected network"));
+  vi.stubGlobal("navigator", { clipboard: { writeText } });
+  vi.stubGlobal("fetch", fetch);
+  const { onFailure } = mount(reference);
+  await screen.findByText("Read record");
+  change("Search API operations", "Read");
+  change("HTTP method", "GET");
+  change("API area", "Stable");
+  fireEvent.click(screen.getByText("Read record").closest("summary")!);
+  await screen.findByRole("heading", { name: "Parameters" });
+  definitions();
+  change("Search definitions", "Field00");
+  change("Component kind", "schemas");
+  fireEvent.click(screen.getByRole("button", { name: "Open schemas/Field00" }));
+  endpoints();
+  const [headerBetaRow, betaRow] = parameterRows() as [
+    HTMLElement,
+    HTMLElement,
+  ];
+  expect(parameterRows()).toHaveLength(2);
+  expect(betaRow.textContent).toContain("Original beta");
+  expect(betaRow.textContent).not.toContain("Overridden");
+  await openParameter(betaRow);
+  const betaDetails = parameterDetails(betaRow);
+  const yaml = screen
+    .getByRole("link", { name: "Download OpenAPI YAML" })
+    .getAttribute("href");
+  fireEvent.click(screen.getByRole("button", { name: "Refresh contract" }));
+  expect(screen.getByText(/Last loaded API contract; refreshing/)).toBeTruthy();
+  expect(parameterRows()).toEqual([headerBetaRow, betaRow]);
+  expect(betaDetails.open).toBe(true);
+  expect(
+    screen
+      .getByRole("link", { name: "Download OpenAPI YAML" })
+      .getAttribute("href"),
+  ).toBe(yaml);
+  await act(async () =>
+    pending.reject(new Error("private dependency details")),
+  );
+  expect(
+    screen.getByText(/Last loaded API contract; refresh failed/),
+  ).toBeTruthy();
+  expect(parameterRows()).toEqual([headerBetaRow, betaRow]);
+  expect(betaDetails.open).toBe(true);
+  expect(screen.getByRole("alert").textContent).not.toContain(
+    "private dependency details",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Refresh contract" }));
+  await screen.findByText("Inserted");
+  const insertedRow = parameterRows()[0]!;
+  expect(parameterRows()).toEqual([insertedRow, headerBetaRow, betaRow]);
+  expect(parameterDetails(insertedRow).open).toBe(false);
+  expect(parameterDetails(headerBetaRow).open).toBe(false);
+  expect(parameterDetails(betaRow)).toBe(betaDetails);
+  expect(betaDetails.open).toBe(true);
+  expect(within(betaRow).getByText("Current beta")).toBeTruthy();
+  expect(
+    within(betaDetails).getByRole("group", { name: "JSON document" })
+      .textContent,
+  ).toContain('"$ref": "#/components/parameters/Beta"');
+  fireEvent.click(
+    within(betaRow).getByRole("button", { name: "Copy beta example" }),
+  );
+  await within(betaRow).findByText("Copied.");
+  expect(writeText).toHaveBeenCalledExactlyOnceWith(currentExample);
+  await openParameter(insertedRow);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh contract" }));
+  await screen.findByText("Reordered");
+  expect(parameterRows()).toEqual([betaRow, insertedRow, headerBetaRow]);
+  expect(betaDetails.open).toBe(true);
+  expect(parameterDetails(insertedRow).open).toBe(true);
+  expect(parameterDetails(headerBetaRow).open).toBe(false);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh contract" }));
+  await screen.findByText("Removed");
+  expect(parameterRows()).toEqual([betaRow, headerBetaRow]);
+  expect(insertedRow.isConnected).toBe(false);
+  expect(betaDetails.open).toBe(true);
+  expect(parameterDetails(headerBetaRow).open).toBe(false);
+  expect(screen.getByText("Read record").closest("details")).toHaveProperty(
+    "open",
+    true,
+  );
+  expect(screen.getByLabelText("Search API operations")).toHaveProperty(
+    "value",
+    "Read",
+  );
+  expect(screen.getByLabelText("HTTP method")).toHaveProperty("value", "GET");
+  expect(screen.getByLabelText("API area")).toHaveProperty("value", "Stable");
+  definitions();
+  expect(search()).toHaveProperty("value", "Field00");
+  expect(screen.getByLabelText("Component kind")).toHaveProperty(
+    "value",
+    "schemas",
+  );
+  expect(
+    within(selected()).getByRole("heading", { level: 3 }).textContent,
+  ).toBe("#/components/schemas/Field00");
+  expect(reference).toHaveBeenCalledTimes(5);
+  expect(onFailure).toHaveBeenCalledOnce();
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+it("retains unresolved occurrences during failed reads and resets their disclosures on a replacement projection", async () => {
+  const missing = { $ref: "#/missing" };
+  const beta = { $ref: "#/components/parameters/Beta" };
+  const first = parameterFixture([
+    beta,
+    missing,
+    missing,
+    null,
+    { marker: "old" },
+    ["opaque"],
+  ]);
+  const pending = deferred<ReturnType<typeof parameterFixture>>();
+  const raw = [missing, beta, { marker: "new" }, missing, false, ["different"]];
+  const replacement = parameterFixture(raw);
+  replacement.document.info.title = "Replacement";
+  const reference = vi
+    .fn()
+    .mockResolvedValueOnce(first)
+    .mockReturnValueOnce(pending.promise)
+    .mockResolvedValueOnce(replacement);
+  const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+  mount(reference);
+  await screen.findByText("Read record");
+  fireEvent.click(screen.getByText("Read record").closest("summary")!);
+  await screen.findByRole("heading", { name: "Parameters" });
+  const initial = parameterRows();
+  expect(initial).toHaveLength(6);
+  await openParameter(initial[0]!);
+  await openParameter(initial[1]!);
+  await openParameter(initial[4]!);
+  expect(parameterDetails(initial[2]!).open).toBe(false);
+  change("Search API operations", "Read");
+  expect(parameterRows()).toEqual(initial);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh contract" }));
+  expect(parameterRows()).toEqual(initial);
+  expect(parameterDetails(initial[1]!).open).toBe(true);
+  await act(async () => pending.reject(new Error("failed read")));
+  expect(parameterRows()).toEqual(initial);
+  expect(parameterDetails(initial[4]!).open).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh contract" }));
+  await screen.findByText("Replacement");
+  const current = parameterRows();
+  expect(current).toHaveLength(6);
+  expect(current[1]).toBe(initial[0]);
+  expect(parameterDetails(current[1]!).open).toBe(true);
+  expect(
+    current
+      .filter((_, index) => index !== 1)
+      .every((row) => !parameterDetails(row).open),
+  ).toBe(true);
+  expect(initial.slice(1).every((row) => !row.isConnected)).toBe(true);
+  for (const [index, row] of current.entries()) {
+    if (index !== 1) await openParameter(row);
+    const source: unknown = JSON.parse(
+      within(parameterDetails(row)).getByRole("group", {
+        name: "JSON document",
+      }).textContent!,
+    );
+    expect(source).toEqual(raw[index]);
+  }
+  expect(consoleError).not.toHaveBeenCalled();
+  expect(reference).toHaveBeenCalledTimes(3);
+});
 
 it("pages every definition after complete search and preserves arbitrary kinds, exact names and falsy data", async () => {
   const { reference } = mount();

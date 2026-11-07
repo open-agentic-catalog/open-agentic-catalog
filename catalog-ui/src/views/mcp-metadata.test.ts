@@ -98,6 +98,15 @@ it("retains Go version whitespace semantics without stripping a BOM", () => {
     "Advanced JSON",
   );
 });
+
+it("preserves long interior whitespace when starting native metadata", () => {
+  const version = "release" + " ".repeat(40_000) + "candidate🙂";
+  expect(mcpVersion(`\u0085 ${version} \u0085`)).toBe(version);
+  expect(
+    readMCPDocument("", mcpFormats.card.media, `\u0085${version}\u0085`)
+      .document?.version,
+  ).toBe(version);
+});
 it.each([
   ["card", card],
   ["registry", registry],

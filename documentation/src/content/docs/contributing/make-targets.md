@@ -140,10 +140,12 @@ Run each target separately; these opt-in targets bypass Catalog workflow env fil
 | --- | --- |
 | `sonarqube-tools-install` | Acquire pinned Community Build and scanner images. |
 | `sonarqube-up` | Start a loopback-only local dashboard; `SONAR_PORT` defaults to 19000. |
-| `sonarqube-scan` | Ingest current source; optional `SONAR_GO_COVERAGE` and `SONAR_JS_COVERAGE` select existing reports. |
+| `sonarqube-scan` | Ingest current source; `SONAR_GO_COVERAGE`, `SONAR_JS_COVERAGE` and `SONAR_TOOLING_REPORTS` explicitly select coverage inputs. |
 | `sonarqube-status` | Check the owned server's pinned version/readiness and print its URL. |
 | `sonarqube-credentials` | Display the saved dashboard URL, username and password in a private terminal; works without a running server. |
 | `sonarqube-down` | Stop the owned service/network, retaining analysis volumes and private credentials. |
+| `coverage-tooling-python` | Instrument the existing owner-isolated Python units and publish native XML plus a source-bound receipt. |
+| `coverage-tooling-node` | Measure native scripts with `TOOLING_NODE_PROFILE=ui-unit`, `docs-unit` or the complete packaged `compose` selection. |
 
 The default dashboard is `http://127.0.0.1:19000/dashboard?id=open-agentic-catalog`. See [SonarQube login](../contributing/testing.md#log-in-to-sonarqube) for the generated admin password and [coverage imports](../contributing/testing.md#scan-and-import-coverage) for the complete commands.
 

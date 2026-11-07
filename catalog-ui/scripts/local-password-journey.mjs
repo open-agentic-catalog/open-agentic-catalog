@@ -110,12 +110,10 @@ export async function localPasswordJourney({
     console.log("Local passwords: " + value);
   };
   const checked = (value) => checks.push(value);
-  const contexts = [];
   async function newPage() {
     const context = await browser.newContext({
       viewport: { width: 1280, height: 900 },
     });
-    contexts.push(context);
     await context.route("**/*", (route) =>
       allowed.has(new URL(route.request().url()).origin)
         ? route.continue()

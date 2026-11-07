@@ -77,7 +77,7 @@ export default function Authorization(props: WorkspaceProps) {
         <p role="alert" className="notice error">
           You do not have access to access administration. Direct tenant
           administrator access and tenant.admin when scopes are enforced are
-          required.
+          required.{" "}
           <a href={`${props.runtime.basePath}/access`}>Review My access</a>
         </p>
       )}

@@ -67,6 +67,13 @@ endif
 CATALOG_ENV_FILE ?= .env
 # Keep the launcher dry-run safe while passing the resolved recursive Make path.
 PITR_MAKE_COMMAND := $(MAKE)
+TOOLING_COVERAGE_MAKE := $(MAKE)
+ifneq ($(filter coverage-tooling-python coverage-tooling-node,$(MAKECMDGOALS)),)
+ifneq ($(words $(MAKECMDGOALS)),1)
+$(error Tooling coverage targets must run alone)
+endif
+override CATALOG_ENV_FILE := /dev/null
+endif
 ifneq ($(filter test-postgres-pitr-prepare test-postgres-pitr,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error PostgreSQL PITR targets must run alone)
@@ -904,13 +911,14 @@ security: ## Scan called Go symbols, source dependencies, secrets, and deploymen
 sonarqube-up sonarqube-scan sonarqube-status sonarqube-credentials sonarqube-down: export SONAR_PORT := $(SONAR_PORT)
 sonarqube-scan: export SONAR_GO_COVERAGE := $(SONAR_GO_COVERAGE)
 sonarqube-scan: export SONAR_JS_COVERAGE := $(SONAR_JS_COVERAGE)
+sonarqube-scan: export SONAR_TOOLING_REPORTS := $(SONAR_TOOLING_REPORTS)
 sonarqube-tools-install: ## Pull the pinned local SonarQube Community Build and scanner images
 	$(PYTHON) -B test/packaging/sonarqube.py install
 
 sonarqube-up: ## Start the local SonarQube dashboard; SONAR_PORT defaults to 19000
 	$(PYTHON) -B test/packaging/sonarqube.py up
 
-sonarqube-scan: ## Ingest current source and optional SONAR_GO_COVERAGE / SONAR_JS_COVERAGE reports
+sonarqube-scan: ## Ingest current source and selected Go, frontend and native tooling coverage
 	$(PYTHON) -B test/packaging/sonarqube.py scan
 
 sonarqube-status: ## Check the owned SonarQube server and print its dashboard URL
@@ -972,9 +980,28 @@ test-unit: ## Run isolated Go units, including Minikube helpers without a cluste
 # tests and retains its existing explicit selection.
 PYTHON_UNIT_DIRS := ci clientcompat demo embeddings formal functional hooks interoperability mcp-scanner monitoring packaging performance pgbouncer sdk search-relevance vscode
 test-tooling-unit: ## Run isolated Python helper tests in their owning directories
-	@set -eu; test -n "$(PYTHON_UNIT_DIRS)" || { echo "No Python unit owners selected" >&2; exit 1; }; for owner in $(PYTHON_UNIT_DIRS); do \
+	@set -eu; test -n "$(PYTHON_UNIT_DIRS)" || { echo "No Python unit owners selected" >&2; exit 1; }; \
+		unit_coverage=$(call shell-quote,$(TOOLING_PYTHON_COVERAGE_DIR)); \
+		unset COVERAGE_PROCESS_START COVERAGE_PROCESS_CONFIG COVERAGE_FILE; \
+		if [ -n "$$unit_coverage" ]; then export COVERAGE_PROCESS_START="$(CURDIR)/$$unit_coverage/coverage.ini"; fi; \
+		for owner in $(PYTHON_UNIT_DIRS); do \
+		if [ -n "$$unit_coverage" ]; then export COVERAGE_FILE="$(CURDIR)/$$unit_coverage/data/.coverage.$$owner"; fi; \
 		(cd "test/$$owner" && $(PYTHON) -B -c 'import sys, unittest; suite = unittest.defaultTestLoader.discover(".", pattern="test_unit_*.py"); assert suite.countTestCases() > 0, "No unit tests discovered"; sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())'); \
+		if [ -n "$$unit_coverage" ]; then (unset COVERAGE_PROCESS_START COVERAGE_PROCESS_CONFIG COVERAGE_FILE; $(PYTHON) -B test/packaging/tooling_coverage.py record-owner --output "$$unit_coverage" --owner "$$owner"); fi; \
 	done
+
+.PHONY: coverage-tooling-python coverage-tooling-node
+coverage-tooling-python: ## Measure the existing isolated Python helper selection with native coverage
+	@set -eu; unset COVERAGE_PROCESS_START COVERAGE_PROCESS_CONFIG COVERAGE_FILE; mkdir -p output/coverage/tooling-python; \
+		unit_coverage_base="$$(mktemp -d output/coverage/tooling-python/run-XXXXXX)"; \
+		unit_coverage="$$unit_coverage_base/profile"; \
+		$(PYTHON) -B test/packaging/tooling_coverage.py prepare --output "$$unit_coverage" --owners $(PYTHON_UNIT_DIRS); \
+		$(TOOLING_COVERAGE_MAKE) --no-print-directory test-tooling-unit TOOLING_PYTHON_COVERAGE_DIR="$$unit_coverage"; \
+		$(PYTHON) -B test/packaging/tooling_coverage.py finish --output "$$unit_coverage"
+
+TOOLING_NODE_PROFILE ?= ui-unit
+coverage-tooling-node: ## Measure native Node scripts; TOOLING_NODE_PROFILE=ui-unit|docs-unit|compose
+	node catalog-ui/scripts/tooling-coverage.mjs $(call shell-quote,$(TOOLING_NODE_PROFILE))
 
 test-race: ## Run the broad local suite with the race detector
 	$(GO) test -tags=functional -race $(GO_SOURCE_PACKAGES) -shuffle=on -count=1

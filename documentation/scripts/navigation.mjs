@@ -7,7 +7,15 @@ const text = node => node.value ?? (node.childNodes ?? []).map(text).join('');
 
 export function assertIconAssets(css, assets) {
   const icons = new Set();
-  for (const [, value] of css.matchAll(/url\(\s*([^)]*?)\s*\)/g)) {
+  let cursor = 0;
+  while (cursor < css.length) {
+    const start = css.indexOf('url(', cursor);
+    if (start === -1) break;
+    const end = css.indexOf(')', start + 4);
+    // The CSS parser owns malformed syntax; keep ignoring an unmatched final token.
+    if (end === -1) break;
+    const value = css.slice(start + 4, end).trim();
+    cursor = end + 1;
     const target = value.replace(/^(['"])(.*)\1$/, '$2');
     assert(target === '' || /^\.\.\/assets\/navigation\/[a-z-]+\.svg$/.test(target), `Nonlocal navigation mask: ${target}`);
   }

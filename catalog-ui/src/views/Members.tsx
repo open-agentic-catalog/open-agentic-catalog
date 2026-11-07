@@ -91,7 +91,7 @@ export default function Members(props: WorkspaceProps) {
       {!authorized && (
         <p role="alert" className="notice error">
           The access.manage permission is required. When scopes are enforced,
-          tenant.admin is also required.
+          tenant.admin is also required.{" "}
           <a href={`${props.runtime.basePath}/access`}>Review My access</a>
         </p>
       )}

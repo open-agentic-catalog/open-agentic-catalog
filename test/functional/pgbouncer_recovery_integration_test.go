@@ -289,7 +289,16 @@ func pooledPublicRead(ctx context.Context, t *testing.T, cfg config.Config) sett
 	return result
 }
 
-func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixture, releaseRetryBarrier func(), cfg, peer config.Config, workers []config.Config, roleDSN func(string) string, reservation, jobID, outboxID, outboxDocument, resourceID, grantID string, processes []json.RawMessage, public settingsExchange) {
+type pooledRecoveryBindings struct {
+	reservationID  string
+	jobID          string
+	outboxID       string
+	outboxDocument string
+	resourceID     string
+	grantID        string
+}
+
+func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixture, releaseRetryBarrier func(), cfg, peer config.Config, workers []config.Config, roleDSN func(string) string, bindings pooledRecoveryBindings, processes []json.RawMessage, public settingsExchange) {
 	t.Helper()
 	// A second owner session remains free while the transaction holds its lock.
 	owner, err := pgx.Connect(ctx, os.Getenv("CATALOG_TEST_PGBOUNCER_PROMOTED_OWNER_DSN"))
@@ -322,7 +331,7 @@ func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixt
 	if problem.Code != "DEPENDENCY_UNAVAILABLE" {
 		t.Fatal("pending reservation refusal changed")
 	}
-	plan := pooledRepairPlan(ctx, t, f, os.Getenv("CATALOG_TEST_PGBOUNCER_PROMOTED_OWNER_DSN"), cfg, reservation)
+	plan := pooledRepairPlan(ctx, t, f, os.Getenv("CATALOG_TEST_PGBOUNCER_PROMOTED_OWNER_DSN"), cfg, bindings.reservationID)
 	if plan.Active || !plan.Eligible || plan.State != "interrupted" {
 		t.Fatal("interrupted command is not safely repairable")
 	}
@@ -331,7 +340,7 @@ func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixt
 		t.Fatal("repair has no retained audit receipt")
 	}
 	var receiptMatches bool
-	if err := owner.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_events WHERE tenant_id=$1 AND id=$2 AND target_id=$3 AND action='idempotency.reservation_released')`, f.tenantID, repaired.AuditEventID, reservation).Scan(&receiptMatches); err != nil || !receiptMatches {
+	if err := owner.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM audit_events WHERE tenant_id=$1 AND id=$2 AND target_id=$3 AND action='idempotency.reservation_released')`, f.tenantID, repaired.AuditEventID, bindings.reservationID).Scan(&receiptMatches); err != nil || !receiptMatches {
 		t.Fatal("repair receipt does not identify its retained audit event")
 	}
 	// A stale reviewed plan cannot apply again.
@@ -356,7 +365,7 @@ func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixt
 		}
 	}
 
-	f.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/access/assignments/"+grantID+":revoke", "local-admin", `{"reason":"Current authority must govern recovered replay"}`, 200, map[string]string{"If-Match": `"rev-1"`, "Idempotency-Key": "pooled-recovery-revoke"})
+	f.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/access/assignments/"+bindings.grantID+":revoke", "local-admin", `{"reason":"Current authority must govern recovered replay"}`, 200, map[string]string{"If-Match": `"rev-1"`, "Idempotency-Key": "pooled-recovery-revoke"})
 	for _, address := range []string{cfg.HTTP.Address, peer.HTTP.Address} {
 		pooledExchange(ctx, t, address, http.MethodPost, "/api/v1/namespaces", "local-reader", body, "pooled-abrupt-pending", "", 403)
 	}
@@ -365,7 +374,7 @@ func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixt
 	var newOwner, state string
 	deadline := time.Now().Add(75 * time.Second)
 	for {
-		if err := owner.QueryRow(ctx, `SELECT state,attempt,coalesce(lease_owner,'') FROM jobs WHERE tenant_id=$1 AND id=$2`, f.tenantID, jobID).Scan(&state, &attempt, &newOwner); err != nil {
+		if err := owner.QueryRow(ctx, `SELECT state,attempt,coalesce(lease_owner,'') FROM jobs WHERE tenant_id=$1 AND id=$2`, f.tenantID, bindings.jobID).Scan(&state, &attempt, &newOwner); err != nil {
 			t.Fatal("read recovering Job")
 		}
 		if state == "running" && attempt >= 2 && newOwner != "" && newOwner != oldOwner {
@@ -395,11 +404,11 @@ func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixt
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.Complete(ctx, f.tenantID, jobID, oldOwner, time.Now().UTC(), json.RawMessage(`{"stale":true}`)); catalog.ErrorCodeOf(err) != catalog.CodeConflict {
+	if _, err := store.Complete(ctx, f.tenantID, bindings.jobID, oldOwner, time.Now().UTC(), json.RawMessage(`{"stale":true}`)); catalog.ErrorCodeOf(err) != catalog.CodeConflict {
 		t.Fatalf("stale Job owner completion was not refused: code=%s", catalog.ErrorCodeOf(err))
 	}
 	var unchanged bool
-	if err := owner.QueryRow(ctx, `SELECT state='running' AND attempt=$3 AND lease_owner=$4 AND lease_expires_at>clock_timestamp() AND result IS NULL FROM jobs WHERE tenant_id=$1 AND id=$2`, f.tenantID, jobID, attempt, newOwner).Scan(&unchanged); err != nil || !unchanged {
+	if err := owner.QueryRow(ctx, `SELECT state='running' AND attempt=$3 AND lease_owner=$4 AND lease_expires_at>clock_timestamp() AND result IS NULL FROM jobs WHERE tenant_id=$1 AND id=$2`, f.tenantID, bindings.jobID, attempt, newOwner).Scan(&unchanged); err != nil || !unchanged {
 		t.Fatal("stale completion changed the current lease or result")
 	}
 	releaseRetryBarrier()
@@ -407,10 +416,10 @@ func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixt
 	for {
 		var acknowledged bool
 		var retained string
-		if err := owner.QueryRow(ctx, `SELECT (SELECT state='succeeded' AND attempt=$3 FROM jobs WHERE tenant_id=$1 AND id=$2),published_at IS NOT NULL AND lease_owner IS NULL AND lease_expires_at IS NULL,(to_jsonb(e)-ARRAY['published_at','lease_owner','lease_expires_at','cleanup_after','dispatch_after'])::text FROM outbox_events e WHERE tenant_id=$1 AND id=$4`, f.tenantID, jobID, attempt, outboxID).Scan(&unchanged, &acknowledged, &retained); err != nil {
+		if err := owner.QueryRow(ctx, `SELECT (SELECT state='succeeded' AND attempt=$3 FROM jobs WHERE tenant_id=$1 AND id=$2),published_at IS NOT NULL AND lease_owner IS NULL AND lease_expires_at IS NULL,(to_jsonb(e)-ARRAY['published_at','lease_owner','lease_expires_at','cleanup_after','dispatch_after'])::text FROM outbox_events e WHERE tenant_id=$1 AND id=$4`, f.tenantID, bindings.jobID, attempt, bindings.outboxID).Scan(&unchanged, &acknowledged, &retained); err != nil {
 			t.Fatal("observe Job completion and exact outbox acknowledgement")
 		}
-		if retained != outboxDocument {
+		if retained != bindings.outboxDocument {
 			t.Fatal("pre-barrier event identity or content changed")
 		}
 		if unchanged && acknowledged {
@@ -426,8 +435,8 @@ func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixt
 		outbox         int
 	}{
 		{"namespace.created", namespace.ID, 1},
-		{"idempotency.reservation_released", reservation, 0},
-		{"resource.created", resourceID, 1},
+		{"idempotency.reservation_released", bindings.reservationID, 0},
+		{"resource.created", bindings.resourceID, 1},
 	} {
 		var audits, events int
 		if err := owner.QueryRow(ctx, `SELECT (SELECT count(*) FROM audit_events WHERE tenant_id=$1 AND action=$2 AND target_id=$3),(SELECT count(*) FROM outbox_events WHERE tenant_id=$1 AND data->>'action'=$2 AND data->>'targetId'=$3)`, f.tenantID, check.action, check.target).Scan(&audits, &events); err != nil || audits != 1 || events != check.outbox {
@@ -435,11 +444,11 @@ func qualifyPooledRecoveredWork(ctx context.Context, t *testing.T, f processFixt
 		}
 	}
 	var snapshots int
-	if err := owner.QueryRow(ctx, `SELECT count(*) FROM source_snapshots WHERE tenant_id=$1 AND id=(SELECT result->>'id' FROM jobs WHERE tenant_id=$1 AND id=$2)::uuid AND state='complete'`, f.tenantID, jobID).Scan(&snapshots); err != nil || snapshots != 1 {
+	if err := owner.QueryRow(ctx, `SELECT count(*) FROM source_snapshots WHERE tenant_id=$1 AND id=(SELECT result->>'id' FROM jobs WHERE tenant_id=$1 AND id=$2)::uuid AND state='complete'`, f.tenantID, bindings.jobID).Scan(&snapshots); err != nil || snapshots != 1 {
 		t.Fatalf("source retry retained %d complete snapshots", snapshots)
 	}
 	var completedAudits, completedEvents int
-	if err := owner.QueryRow(ctx, `SELECT (SELECT count(*) FROM audit_events WHERE tenant_id=$1 AND action='source.sync.completed' AND details->'facts'->>'jobId'=$2),(SELECT count(*) FROM outbox_events WHERE tenant_id=$1 AND data->>'action'='source.sync.completed' AND subject=(SELECT result->>'id' FROM jobs WHERE tenant_id=$1 AND id=$2::uuid))`, f.tenantID, jobID).Scan(&completedAudits, &completedEvents); err != nil || completedAudits != 1 || completedEvents != 1 {
+	if err := owner.QueryRow(ctx, `SELECT (SELECT count(*) FROM audit_events WHERE tenant_id=$1 AND action='source.sync.completed' AND details->'facts'->>'jobId'=$2),(SELECT count(*) FROM outbox_events WHERE tenant_id=$1 AND data->>'action'='source.sync.completed' AND subject=(SELECT result->>'id' FROM jobs WHERE tenant_id=$1 AND id=$2::uuid))`, f.tenantID, bindings.jobID).Scan(&completedAudits, &completedEvents); err != nil || completedAudits != 1 || completedEvents != 1 {
 		t.Fatalf("source Job logical transitions: audits=%d events=%d", completedAudits, completedEvents)
 	}
 	for i, address := range []string{cfg.HTTP.Address, peer.HTTP.Address, workers[0].Worker.OperationsAddress, workers[1].Worker.OperationsAddress} {

@@ -165,75 +165,92 @@ it("refreshes active context without replacing the captured comparison or silent
   expect(w.get).toHaveBeenCalledTimes(3);
   expect(w.post).not.toHaveBeenCalled();
 });
-it("pages all four comparison sections independently without reading more snapshots", async () => {
-  const w = screenWorkspace();
-  const entries = Array.from({ length: 26 }, (_, i) => ({
-    ...entry,
-    identifier: `urn:example:entry-${i}`,
-  }));
-  w.get.mockResolvedValueOnce(etagReply(baseline)).mockResolvedValueOnce(
-    etagReply({
-      ...snapshot,
-      ard: {
-        entries: [
-          ...entries,
-          ...entries.map((item) => ({
-            ...item,
-            metadata: { catalogReleaseId: "registry:self" },
-          })),
-        ],
-      },
-      aiCatalog: { entries },
-      exclusions: entries.map((item, index) => ({
-        resourceId: `resource-${index}`,
-        identifier: item.identifier,
-        profiles: ["ard"],
-        reasons: ["blocked"],
-      })),
-    }),
-  );
-  await prepare(w);
-  await screen.findByRole("heading", {
-    name: "ARD resource entries: 26 changed occurrences",
-  });
-  const regions = [
-    "ARD resource entries",
-    "ARD Registry self-entries",
-    "AI Catalog resource entries",
-    "Publication exclusions",
-  ].map((name) => screen.getByRole("region", { name }));
-  const pagers = regions.map((region) =>
-    within(region).getByRole("group", {
-      name: `${region.getAttribute("aria-label")} comparison pagination`,
-    }),
-  );
-  const expectPage = (region: HTMLElement, last: boolean) => {
-    expect(region.querySelectorAll("details")).toHaveLength(last ? 1 : 25);
-    expect(region.textContent).toContain(`urn:example:entry-${last ? 25 : 0}`);
-    expect(region.textContent).not.toContain(
-      `urn:example:entry-${last ? 0 : 25}`,
+it.each([false, true])(
+  "pages all four comparison sections independently without transferring disclosure state (duplicate identities: %s)",
+  async (duplicates) => {
+    const w = screenWorkspace();
+    const entries = Array.from({ length: 26 }, (_, i) => ({
+      ...entry,
+      identifier: `urn:example:entry-${duplicates && i === 1 ? 0 : i}`,
+    }));
+    w.get.mockResolvedValueOnce(etagReply(baseline)).mockResolvedValueOnce(
+      etagReply({
+        ...snapshot,
+        ard: {
+          entries: [
+            ...entries,
+            ...entries.map((item) => ({
+              ...item,
+              metadata: { catalogReleaseId: "registry:self" },
+            })),
+          ],
+        },
+        aiCatalog: { entries },
+        exclusions: entries.map((item, index) => ({
+          resourceId: `resource-${index}`,
+          identifier: item.identifier,
+          profiles: ["ard"],
+          reasons: ["blocked"],
+        })),
+      }),
     );
-  };
-  for (const region of regions) expectPage(region, false);
-  for (const [index, pager] of pagers.entries()) {
-    fireEvent.click(within(pager).getByRole("button", { name: "Next page" }));
-    for (const [otherIndex, other] of regions.entries())
-      expectPage(other, otherIndex <= index);
-    expect(
-      within(pager).queryByRole("button", { name: "Next page" }),
-    ).toBeNull();
-  }
-  for (const [index, pager] of pagers.entries()) {
-    fireEvent.click(within(pager).getByRole("button", { name: "First page" }));
-    for (const [otherIndex, other] of regions.entries())
-      expectPage(other, otherIndex > index);
-    expect(
-      within(pager).queryByRole("button", { name: "First page" }),
-    ).toBeNull();
-  }
-  expect(w.get).toHaveBeenCalledTimes(2);
-  expect(w.post).not.toHaveBeenCalled();
-});
+    await prepare(w);
+    await screen.findByRole("heading", {
+      name: "ARD resource entries: 26 changed occurrences",
+    });
+    const regions = [
+      "ARD resource entries",
+      "ARD Registry self-entries",
+      "AI Catalog resource entries",
+      "Publication exclusions",
+    ].map((name) => screen.getByRole("region", { name }));
+    const pagers = regions.map((region) =>
+      within(region).getByRole("group", {
+        name: `${region.getAttribute("aria-label")} comparison pagination`,
+      }),
+    );
+    const expectPage = (region: HTMLElement, last: boolean) => {
+      expect(region.querySelectorAll("details")).toHaveLength(last ? 1 : 25);
+      expect(region.textContent).toContain(
+        `urn:example:entry-${last ? 25 : 0}`,
+      );
+      expect(region.textContent).not.toContain(
+        `urn:example:entry-${last ? 0 : 25}`,
+      );
+    };
+    for (const region of regions) expectPage(region, false);
+    for (const [index, pager] of pagers.entries()) {
+      const first = regions[index]!.querySelector("details")!;
+      first.open = true;
+      fireEvent.click(within(pager).getByRole("button", { name: "Next page" }));
+      const next = regions[index]!.querySelector("details")!;
+      expect(next.open).toBe(false);
+      expect(document.activeElement).toBe(pager);
+      for (const [otherIndex, other] of regions.entries())
+        expectPage(other, otherIndex <= index);
+      expect(
+        within(pager).queryByRole("button", { name: "Next page" }),
+      ).toBeNull();
+    }
+    for (const [index, pager] of pagers.entries()) {
+      fireEvent.click(
+        within(pager).getByRole("button", { name: "First page" }),
+      );
+      expect(regions[index]!.querySelector("details")).toHaveProperty(
+        "open",
+        false,
+      );
+      expect(document.activeElement).toBe(pager);
+      for (const [otherIndex, other] of regions.entries())
+        expectPage(other, otherIndex > index);
+      expect(
+        within(pager).queryByRole("button", { name: "First page" }),
+      ).toBeNull();
+    }
+    expect(w.get).toHaveBeenCalledTimes(2);
+    expect(w.post).not.toHaveBeenCalled();
+  },
+);
 it.each(["id", "tenant", "host", "audience", "malformed", "missing"])(
   "rejects a %s baseline and recovers through explicit reread",
   async (failure) => {

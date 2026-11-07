@@ -240,7 +240,7 @@ function Changes({
       </h3>
       {!changes.length && <p>No entry changes.</p>}
       {changes.slice(page * 25, (page + 1) * 25).map((change, index) => (
-        <details key={index}>
+        <details key={page * 25 + index}>
           <summary>
             <ChangeLabel change={change.change} /> {change.identity} (occurrence{" "}
             {page * 25 + index + 1})

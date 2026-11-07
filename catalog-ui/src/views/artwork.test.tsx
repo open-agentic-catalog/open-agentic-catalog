@@ -181,6 +181,49 @@ it("bounds native choices and ignores unsupported or malformed hints without req
     }),
   ).toHaveLength(16);
 });
+it.each([
+  ["omitted", undefined, true],
+  ["PNG", "image/png", true],
+  ["JPEG", "image/jpeg", true],
+  ["unsupported string", "image/svg+xml", false],
+  ["null", null, false],
+  ["number", 1, false],
+  ["array", ["image/png"], false],
+  ["object", {}, false],
+  ["shadowed toString", { toString: "ordinary JSON field" }, false],
+])(
+  "checks the %s MIME hint without coercing it or losing valid neighbors",
+  (_label, mimeType, accepted) => {
+    const declared = {
+      url: "https://images.example/native.png",
+      label: "Declared native icon",
+    };
+    const candidate = {
+      url: "https://images.example/candidate.png",
+      label: "dark; 32x32",
+    };
+    const neighbor = {
+      url: "https://images.example/neighbor.jpg",
+      label: "any theme; size unspecified",
+    };
+    expect(
+      nativeIcons({
+        iconUrl: declared.url,
+        icons: [
+          {
+            src: candidate.url,
+            ...(mimeType === undefined ? {} : { mimeType }),
+            theme: "dark",
+            sizes: ["32x32"],
+          },
+          { src: neighbor.url, mimeType: "image/jpeg" },
+        ],
+      }),
+    ).toEqual(
+      accepted ? [declared, candidate, neighbor] : [declared, neighbor],
+    );
+  },
+);
 it("binds exact local, indexed and live source authority and rejects malformed projection", () => {
   expect(artworkPresentation(local)?.target).toEqual({
     origin: "local",

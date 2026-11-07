@@ -122,7 +122,7 @@ Inspection accepts version/commit values of 1-128 ASCII letters, digits, dots, u
 
 ## Shared development tools
 
-Root `pyproject.toml` is dependency-only: its dev group pins Ruff 0.17.0, jsonschema 4.26.0 and bump-my-version 1.5.1; `uv.lock` locks their transitive dependencies. It is not a Python application package. The installer requires [uv](https://github.com/astral-sh/uv) 0.13.4 and an installed Python 3.12-3.14 interpreter. Python 3.12.3 is the qualified local baseline. Install uv explicitly if the existing executable is older; do not upgrade a personal tool environment implicitly:
+Root `pyproject.toml` is dependency-only: its dev group pins Ruff 0.17.0, jsonschema 4.26.0, bump-my-version 1.5.1 and coverage 7.16.2; `uv.lock` locks their transitive dependencies. Coverage instruments the optional native tooling selection. It is not a Python application package. The installer requires [uv](https://github.com/astral-sh/uv) 0.13.4 and an installed Python 3.12-3.14 interpreter. Python 3.12.3 is the qualified local baseline. Install uv explicitly if the existing executable is older; do not upgrade a personal tool environment implicitly:
 
 ```sh
 python3 -m venv output/uv-bootstrap
@@ -137,6 +137,8 @@ make dev-tools-install
 It does not download Python, build source distributions, rewrite a stale lock, change personal `.venv` environments or install npm/browser/scanner/SDK tools. Repeat installation is safe. Installation fails if the environment is incomplete or redirected. Inspect the environment. Do not replace retained files blindly. `make clean` removes `.tools/dev`, not the explicit bootstrap under output or personal environments.
 
 Normal Make targets prefer `.tools/dev/bin/python` and `.tools/dev/bin/ruff` when available; `PYTHON`, `RUFF` and `BUMPVERSION` command-line overrides remain explicit. Without the shared environment, stdlib helpers use system Python and Ruff uses PATH; targets that require missing or wrong packages fail. Checks and version commands never install tools or use auto-syncing uv run.
+
+The packaging and interoperability Go functional wrappers also prefer the installed `.tools/dev/bin/python` without activation. They retain the virtual-environment executable path and fall back to `python3` from PATH when it is absent. `PYTHON` overrides select direct Make recipes; each Go wrapper owns its interpreter selection.
 
 Maintain pins deliberately with uv 0.13.4. Update `pyproject.toml`. Regenerate `uv.lock` with `uv lock --python /path/to/python --no-python-downloads`. Rerun locked installation, pin-parity, conformance and tooling tests. Review licenses and advisories. Keep `ruff.toml` as the rule authority.
 

@@ -58,6 +58,80 @@ it("recognizes simple imported YAML, comments and single quotes without altering
       .document?.metadata,
   ).toEqual([]);
 });
+it("preserves skipped CR lines and quoted metadata keys while keeping raw value CR in Advanced", () => {
+  const body = "\r\n# Body\u0085\u2028\u2029\rraw\r\n";
+  const content =
+    "---\n \r \n # comment\rcontinues\nname: a\ndescription: 'Keep this.'\nmetadata:\n  'raw\rkey: suffix': 'value'\n  \"escaped\\rkey\": \"escaped\\rvalue\\u0085\\u2028\\u2029\"\n---\n" +
+    body;
+  expect(readSkillDocument(content)).toEqual({
+    document: {
+      name: "a",
+      description: "Keep this.",
+      metadata: [
+        ["raw\rkey: suffix", "value"],
+        ["escaped\rkey", "escaped\rvalue\u0085\u2028\u2029"],
+      ],
+      body,
+    },
+  });
+  for (const line of [
+    "description: 'raw\rvalue'",
+    "metadata:\n  key: 'raw\rvalue'",
+  ]) {
+    const invalid = `---\nname: a\n${line.startsWith("metadata:") ? "description: valid\n" : ""}${line}\n---\n${body}`;
+    expect(readSkillDocument(invalid)).toEqual(
+      readSkillDocument("plain Markdown"),
+    );
+  }
+});
+
+it.each(["ordinary", "metadata"])(
+  "keeps a long malformed %s field in Advanced without changing valid long space values",
+  (kind) => {
+    const spaces = " ".repeat(40_000);
+    const field =
+      kind === "ordinary"
+        ? `description:${spaces}\rtext`
+        : `metadata:\n  key:${spaces}\rtext`;
+    const content = `---\nname: a\n${kind === "metadata" ? "description: valid\n" : ""}${field}\n---\nBody\r\n`;
+    expect(readSkillDocument(content)).toEqual(
+      readSkillDocument("plain Markdown"),
+    );
+    const value = `left${spaces}right`;
+    const valid =
+      kind === "ordinary"
+        ? `description: '${value}'`
+        : `description: valid\nmetadata:\n  key: '${value}'`;
+    expect(
+      readSkillDocument(`---\nname: a\n${valid}\n---\nBody\r\n`).document,
+    ).toEqual({
+      name: "a",
+      description: kind === "ordinary" ? value : "valid",
+      ...(kind === "metadata" ? { metadata: [["key", value]] } : {}),
+      body: "Body\r\n",
+    });
+  },
+);
+
+it.each(["\u0085", "\u2028", "\u2029"])(
+  "retains raw header separator %j in Advanced while allowing it in body text",
+  (separator) => {
+    const header = `---\nname: a\ndescription: 'before${separator}after'\n---\nbody`;
+    expect(readSkillDocument(header)).toEqual(
+      readSkillDocument("plain Markdown"),
+    );
+    expect(
+      readSkillDocument(`---\nname: a\ndescription: valid\n---\n${separator}`)
+        .document?.body,
+    ).toBe(separator);
+  },
+);
+
+it("keeps a BOM before the header in Advanced", () => {
+  expect(
+    readSkillDocument("\ufeff---\nname: a\ndescription: valid\n---\nbody"),
+  ).toEqual(readSkillDocument("plain Markdown"));
+});
 describe("advanced input remains available without guessed YAML conversions", () => {
   it.each([
     "plain Markdown",
@@ -115,6 +189,11 @@ it("enforces the complete document byte limit and duplicate metadata keys before
   expect(
     writeSkillDocument({ ...document, body: "a".repeat(500_000 - overhead) }),
   ).toHaveLength(500_000);
+  expect(
+    readSkillDocument(
+      writeSkillDocument({ ...document, body: "a".repeat(500_000 - overhead) }),
+    ).document?.body,
+  ).toHaveLength(500_000 - overhead);
   expect(() =>
     writeSkillDocument({ ...document, body: "a".repeat(500_001 - overhead) }),
   ).toThrow("500,000");

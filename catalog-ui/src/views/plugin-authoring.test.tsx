@@ -596,3 +596,163 @@ it("identifies retained Plugin documents and files that require the original arc
   ).toContain("Original package required");
   expect(test.changed).not.toHaveBeenCalled();
 });
+
+it.each([
+  [0, false],
+  [0, true],
+  [1, false],
+  [1, true],
+] as const)(
+  "retains surviving Plugin server state after removing row %i (survivor touched=%s)",
+  (remove, touched) => {
+    const servers = Object.fromEntries(
+      ["first", "middle", "last"].map((name) => [
+        name,
+        { type: "stdio", command: "", env: { FIRST: "one", SECOND: "two" } },
+      ]),
+    );
+    const preparation = {
+      ...newPluginPreparation(),
+      preparing: true,
+      mcp: jsonText({ ...pluginMCP(""), mcpServers: servers }),
+    };
+    const test = editor({ pluginPreparation: preparation });
+    const row = (index: number) =>
+      screen.getByRole("group", { name: `MCP server ${index + 1}` });
+    const survivor = within(row(remove + 1)).getByRole("textbox", {
+      name: "Command",
+    });
+    fireEvent.blur(
+      within(row(touched ? remove + 1 : remove)).getByRole("textbox", {
+        name: "Command",
+      }),
+    );
+    expect(survivor.getAttribute("aria-invalid")).toBe(touched ? "true" : null);
+    const disclosure = within(row(remove + 1))
+      .getByText("Optional connection fields")
+      .closest("details")!;
+    act(() => {
+      disclosure.open = true;
+    });
+    fireEvent.change(
+      within(row(remove + 1)).getByRole("textbox", {
+        name: "Environment variable 2 name",
+      }),
+      { target: { value: "FIRST" } },
+    );
+    expect(within(row(remove + 1)).getByRole("alert").textContent).toContain(
+      "different name",
+    );
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    click(`Remove MCP server ${remove + 1}`);
+    expect(within(row(remove)).getByRole("textbox", { name: "Command" })).toBe(
+      survivor,
+    );
+    expect(survivor.getAttribute("aria-invalid")).toBe(touched ? "true" : null);
+    expect(
+      within(row(remove))
+        .getByText("Optional connection fields")
+        .closest("details"),
+    ).toBe(disclosure);
+    expect(disclosure.open).toBe(true);
+    expect(within(row(remove)).getByRole("alert").textContent).toContain(
+      "different name",
+    );
+    expect(document.activeElement).toBe(
+      within(row(remove)).getByRole("textbox", {
+        name: `Server ${remove + 1} name`,
+      }),
+    );
+    const expected = { ...servers };
+    delete expected[["first", "middle", "last"][remove]!];
+    expect(test.mcp().mcpServers).toEqual(expected);
+  },
+);
+
+it("focuses the add control after removing the last server and gives a new server fresh state", () => {
+  const test = editor();
+  prepare();
+  click("Add MCP server");
+  expect(document.activeElement).toBe(screen.getByLabelText("Server 1 name"));
+  const removed = screen.getByRole("textbox", { name: "Command" });
+  fireEvent.blur(removed);
+  expect(removed.getAttribute("aria-invalid")).toBe("true");
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  click("Remove MCP server 1");
+  expect(test.mcp().mcpServers).toEqual({});
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Add MCP server" }),
+  );
+  click("Add MCP server");
+  expect(document.activeElement).toBe(screen.getByLabelText("Server 1 name"));
+  const added = screen.getByRole("textbox", { name: "Command" });
+  expect(added).not.toBe(removed);
+  expect(added.hasAttribute("aria-invalid")).toBe(false);
+  expect(test.mcp().mcpServers).toEqual({
+    server: { type: "stdio", command: "" },
+  });
+});
+
+it("resets Plugin server state only at explicit preparation replacement boundaries", () => {
+  const preparation = {
+    ...newPluginPreparation(),
+    preparing: true,
+    mcp: jsonText({
+      ...pluginMCP(""),
+      mcpServers: { first: { type: "stdio", command: "" } },
+    }),
+  };
+  let latest: RepresentationDraft;
+  function Harness() {
+    const [value, setValue] = useState<RepresentationDraft>({
+      ...newRepresentation("plugin"),
+      pluginPreparation: preparation,
+    });
+    const [origin, setOrigin] = useState(0);
+    latest = value;
+    return (
+      <>
+        <button onClick={() => setOrigin((v) => v + 1)}>
+          Replace preparation
+        </button>
+        <PluginAuthoring value={value} onChange={setValue} origin={origin} />
+      </>
+    );
+  }
+  render(<Harness />);
+  const command = screen.getByRole("textbox", { name: "Command" });
+  fireEvent.blur(command);
+  expect(command.getAttribute("aria-invalid")).toBe("true");
+  change("Server 1 name", "1");
+  expect(screen.getByRole("textbox", { name: "Command" })).toBe(command);
+  click("Replace preparation");
+  const replaced = screen.getByRole("textbox", { name: "Command" });
+  expect(replaced).not.toBe(command);
+  expect(replaced.hasAttribute("aria-invalid")).toBe(false);
+  fireEvent.blur(replaced);
+  click("Edit Plugin MCP JSON");
+  const content = latest!.pluginPreparation!.mcp;
+  change("Plugin MCP JSON", content + " ");
+  click("Use Plugin MCP fields");
+  expect(
+    screen
+      .getByRole("textbox", { name: "Command" })
+      .hasAttribute("aria-invalid"),
+  ).toBe(false);
+  expect(latest!.pluginPreparation!.mcp).toBe(content + " ");
+  const beforeExample = screen.getByRole("group", { name: "MCP server 1" });
+  const details = within(beforeExample)
+    .getByText("Optional connection fields")
+    .closest("details")!;
+  act(() => {
+    details.open = true;
+  });
+  vi.spyOn(window, "confirm").mockReturnValue(true);
+  click("Use Plugin example");
+  const example = screen.getByRole("group", { name: "MCP server 1" });
+  expect(example).not.toBe(beforeExample);
+  expect(
+    within(example).getByText("Optional connection fields").closest("details"),
+  ).toHaveProperty("open", false);
+  expect(latest!.pluginPreparation!.mcp).toBe(pluginStarterFiles[1]!.content);
+});

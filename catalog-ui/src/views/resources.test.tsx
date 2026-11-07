@@ -822,7 +822,7 @@ it.each(["\ufeffOpaque:e\u0301:🙂\ufeff", "Café:e\u0301:🙂"])(
     get.mockResolvedValue(reply({ items: [] }));
     render(<Resources {...props} />);
     await screen.findByText("No resources match these filters.");
-    change("Exact canonical identifier", ` \t${identifier}\n `);
+    change("Exact canonical identifier", ` \t\u0085${identifier}\u0085\n `);
     click("Find resource");
     await waitFor(() =>
       expect(get.mock.calls.at(-1)?.[1]).toHaveProperty(
@@ -832,6 +832,25 @@ it.each(["\ufeffOpaque:e\u0301:🙂\ufeff", "Café:e\u0301:🙂"])(
     );
   },
 );
+
+it("rejects long exact lookup input without changing the last query or issuing a request", async () => {
+  const { props, get } = screenWorkspace();
+  get.mockResolvedValue(reply({ items: [] }));
+  render(<Resources {...props} />);
+  await screen.findByText("No resources match these filters.");
+  const requests = get.mock.calls.length;
+  const value = "\u0085a" + " ".repeat(40_000) + "b\u0085";
+  change("Exact canonical identifier", value);
+  click("Find resource");
+  expect(screen.getByRole("alert").textContent).toBe(
+    "Enter an identifier of 1 to 512 characters without NUL.",
+  );
+  expect(screen.getByLabelText("Exact canonical identifier")).toHaveProperty(
+    "value",
+    value,
+  );
+  expect(get).toHaveBeenCalledTimes(requests);
+});
 
 it.each([
   ["boundary BOM", "\ufeffOpaque:e\u0301:🙂\ufeff", " \t"],

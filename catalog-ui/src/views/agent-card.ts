@@ -1,6 +1,6 @@
 // Guided edits patch the current Card; the backend owns pinned ProtoJSON validation.
 import { object } from "../api/values";
-import { listingLink } from "./input-validation";
+import { listingLink, trimGoWhitespace } from "./input-validation";
 import { parseJSONObject } from "./json-input";
 
 export type AgentInterface = Record<string, unknown> & {
@@ -27,7 +27,7 @@ export type AgentCard = Record<string, unknown> & {
 
 /** Use the backend's whitespace rules without changing opaque version labels. */
 export function agentVersion(value: string): string {
-  return value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
+  return trimGoWhitespace(value);
 }
 
 /** Defaults belong only to a new Card and advertise no optional capabilities. */

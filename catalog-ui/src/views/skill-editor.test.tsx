@@ -268,6 +268,47 @@ it("stages Markdown and imports it only after an explicit action, then focuses t
     "imported-notes",
   );
 });
+it.each(["ordinary", "metadata"])(
+  "imports a long malformed %s field unchanged and retains the raw correction path",
+  async (kind) => {
+    const test = await editor(sample);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    open("Import an existing Skill document");
+    const field =
+      kind === "ordinary"
+        ? `description:${" ".repeat(40_000)}\rtext`
+        : `description: valid\nmetadata:\n  key:${" ".repeat(40_000)}\rtext`;
+    const content = `---\nname: imported-notes\n${field}\n---\nBody\r\n\u0085`;
+    const bytes = new TextEncoder().encode(content);
+    fireEvent.change(screen.getByLabelText("Document file"), {
+      target: {
+        files: [
+          {
+            name: "SKILL.md",
+            size: bytes.length,
+            arrayBuffer: async () => bytes.buffer,
+          },
+        ],
+      },
+    });
+    await screen.findByRole("button", { name: "Use loaded document" });
+    expect(test.changed).toHaveBeenLastCalledWith(
+      expect.objectContaining({ content: sample, documentStaged: true }),
+    );
+    expect(test.value().content).toBe(sample);
+    click("Use loaded document");
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByLabelText("Text content"),
+      ),
+    );
+    expect(test.value().content).toBe(content);
+    open("Advanced SKILL.md", false);
+    expect(await screen.findByText(/Your input is unchanged/)).toBeTruthy();
+    expect(test.value().content).toBe(content);
+    expect(screen.queryByLabelText("Skill name")).toBeNull();
+  },
+);
 it("preserves an uploaded archive and handoff while adding a primary document for discovery", async () => {
   let current: RepresentationDraft[];
   const packageRow = {

@@ -1,5 +1,5 @@
 // Readable contract declarations never execute requests or evaluate current grants.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   localValue,
   object,
@@ -546,6 +546,33 @@ export function OperationContract({
   document,
   onReference,
 }: Context & { operation: Operation }) {
+  const parameters = useRef<{
+    document?: Document;
+    source?: unknown[];
+    next: number;
+    rows: { key: string; raw: unknown }[];
+  }>({ next: 0, rows: [] });
+  if (
+    parameters.current.document !== document ||
+    parameters.current.source !== operation.parameters
+  ) {
+    const current = parameters.current;
+    current.document = document;
+    current.source = operation.parameters;
+    current.rows = operation.parameters.slice(0, summaryLimit).map((raw) => {
+      const fields = object(localValue(document, raw));
+      return {
+        // Match the projector's exact identity after inheritance/overrides.
+        key:
+          text(fields.in) && text(fields.name)
+            ? JSON.stringify([fields.in, fields.name])
+            : `unresolved:${current.next++}`,
+        raw,
+      };
+    });
+  }
+  // Anonymous declarations have no stable semantic identity. Their fresh tokens
+  // reset only these rows when a replacement projection arrives.
   return (
     <div className="api-operation-contract">
       <CopyReference
@@ -573,9 +600,9 @@ export function OperationContract({
       <section aria-label="Operation parameters">
         <h3>Parameters</h3>
         {!operation.parameters.length && <p>No parameters.</p>}
-        {operation.parameters.slice(0, summaryLimit).map((raw, index) => (
+        {parameters.current.rows.map(({ raw, key }) => (
           <Field
-            key={index}
+            key={key}
             raw={raw}
             document={document}
             onReference={onReference}

@@ -2057,7 +2057,10 @@ it.each(["roles", "groups"] as const)(
         name: kind === "roles" ? "Roles" : "Groups",
       }),
     ).toBeTruthy();
-    expect(screen.getByRole("link", { name: "Review My access" })).toBeTruthy();
+    const accessLink = screen.getByRole("link", { name: "Review My access" });
+    expect(accessLink.parentElement?.textContent).toContain(
+      "required. Review My access",
+    );
     expect(
       screen.queryByRole("heading", {
         name: kind === "roles" ? role.name : group.name,
