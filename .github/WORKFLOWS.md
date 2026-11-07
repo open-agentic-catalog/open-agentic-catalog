@@ -21,6 +21,8 @@ Agents do not dispatch hosted jobs, upload project data or publish artifacts. Th
 
 Quality allows `all`, `unit`, `source`, `lint`, `ui` or `docs`. The `lint` selection runs `make check` without broad regression or API launcher tests. Clients allow `all`, `go`, `python`, `typescript` or `rust`. The default `all` retains complete coverage for those workflows. A focused selection leaves other suites unselected; it does not establish their results. SDK jobs still use at most two concurrent runners and retain the existing language/runtime checks.
 
+Contribution selection treats root `pyproject.toml` and `uv.lock` as shared tooling inputs. Either change selects UI, documentation and all four SDK languages. The baseline lint and unit jobs remain unconditional.
+
 The `docs` selection runs `docs-check`, then `docs-site-check`. Its summary reports Markdown/contracts and site outcomes separately. The docs profile installs pinned Markdownlint alongside Go and the documentation Node toolchain. The job needs no Docker socket or other source linters.
 
 The Go selection runs `webhook-report-check`, which includes `sdk-check SDK_LANGUAGE=go`. It checks the independent publication-report receiver without running the SDK gate twice. `client-go-check` remains a separate generated-client result. The `coverage/publication-report-unit.out` profile contains receiver unit coverage, excluding SDK and functional coverage. Existing upload guards also protect this selected file.
@@ -28,6 +30,8 @@ The Go selection runs `webhook-report-check`, which includes `sdk-check SDK_LANG
 The functional workflow also offers `test-backup-restore`, `test-federation-peers` and `test-webhook-report`. Select one suite per run. Federation peers install locked UI dependencies, Chromium system libraries and the browser before the campaign. Backup/restore and receiver tests use the non-UI prerequisite profile. Summaries describe the selected scope; raw database backups, fixture state and credentials are not exported.
 
 Assurance selects `go-properties`, `go-fuzz`, `go-mutation`, `formal`, `ui-properties` or `ui-mutation`. Go mutation also selects one of the thirteen reviewed packages. Property checks use fixed seeds and bounded counts; Go fuzzing uses ten seconds per maintained target and two workers. Formal acquisition has a step-scoped token; proof execution does not. UI property/mutation selections need locked npm packages but no browser installation.
+
+After failed fuzzing, [the corpus collector](../test/ci/fuzz_corpus.py) retains bounded synthetic counterexamples from every maintained fuzz package. Its tests check the package selection against `make test-fuzz`. Collection preserves the failed measurement outcome and excludes tracked, ignored and unrelated files. Source files remain in place for the final source-change check.
 
 The published [testing guide](../documentation/src/content/docs/contributing/testing.md#github-actions) covers workflow selection, runner requirements, reports and failures. The [build and release guide](../documentation/src/content/docs/contributing/build-and-release.md#github-actions) covers image inputs, the tagged-candidate procedure, artifact identity and distribution boundaries.
 

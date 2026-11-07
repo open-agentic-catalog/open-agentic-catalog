@@ -150,38 +150,7 @@ jobs:
           steps.measurement.outcome == 'failure'
         run: |
           set -euo pipefail
-          python3.12 - <<'PY'
-          import os
-          from pathlib import Path
-          import re
-          import subprocess
-          roots = ('cmd/catalogctl', 'internal/artwork', 'internal/jsondoc',
-                   'internal/platform/cliauth', 'internal/audit', 'internal/catalog',
-                   'internal/identity', 'internal/platform/httpserver',
-                   'internal/platform/fetcher', 'internal/adapter',
-                   'internal/publication', 'internal/standards/anstrust',
-                   'internal/standards', 'internal/federation')
-          paths = subprocess.run(['git', 'ls-files', '--others', '--exclude-standard', '-z'],
-                                 check=True, capture_output=True, timeout=30).stdout.split(b'\0')
-          destination = Path(os.environ['REPORT_DIRECTORY']) / 'fuzz-corpus'
-          total = 0
-          for name in filter(None, paths):
-              source = Path(os.fsdecode(name))
-              relative = source.as_posix()
-              if not any(relative.startswith(root + '/testdata/fuzz/') for root in roots):
-                  continue
-              if (source.is_symlink() or any(parent.is_symlink() for parent in source.parents)
-                      or not re.fullmatch(r'[0-9a-f]{16,64}', source.name)
-                      or not source.is_file() or source.stat().st_size > 1 << 20):
-                  raise SystemExit('Unexpected fuzz counterexample file')
-              data = source.read_bytes()
-              total += len(data)
-              if not data.startswith(b'go test fuzz v1\n') or total > 16 << 20:
-                  raise SystemExit('Unexpected or excessive fuzz counterexamples')
-              target = destination / source
-              target.parent.mkdir(parents=True, exist_ok=True)
-              target.write_bytes(data)
-          PY
+          python3.12 -B test/ci/fuzz_corpus.py --output "$REPORT_DIRECTORY/fuzz-corpus"
       - name: Reject unexpected source changes
         if: always() && steps.checkout.outcome == 'success'
         run: |

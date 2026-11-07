@@ -25,6 +25,27 @@ class AdmissionTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.assertEqual(a.select([name])["languages"], list(a.LANGUAGES))
 
+    def test_shared_python_inputs_select_all_consumers(self):
+        expected = {"ui": True, "docs": True, "languages": ["go", "python", "typescript", "rust"]}
+        for name in ("pyproject.toml", "uv.lock", "ruff.toml", "test/ci/pins.json",
+                     "test/ci/tools.py", "test/packaging/versioning.py"):
+            with self.subTest(name=name):
+                self.assertEqual(a.select([name]), expected)
+        results = dict.fromkeys(("baseline", "unit", "ui", "docs", "clients"), "success")
+        plan = a.select(["uv.lock"])
+        self.assertEqual(set(a.outcomes(plan, results).values()), {"passed"})
+        for job in ("ui", "docs", "clients"):
+            for outcome in ("failure", "cancelled", "skipped"):
+                with self.subTest(job=job, outcome=outcome), self.assertRaises(ValueError):
+                    a.outcomes(plan, {**results, job: outcome})
+
+    def test_nested_manifests_keep_their_own_selection(self):
+        for name in ("misc/pyproject.toml", "misc/uv.lock", "uv.lock.notes", "pyproject.toml.example"):
+            with self.subTest(name=name):
+                self.assertEqual(a.select([name]), {"ui": False, "docs": False, "languages": []})
+        self.assertEqual(a.select(["documentation/uv.lock"]), {"ui": False, "docs": True, "languages": []})
+        self.assertEqual(a.select(["sdk/python/pyproject.toml"]), {"ui": False, "docs": True, "languages": ["python"]})
+
     def test_independent_language_and_projected_document_inputs(self):
         for language in a.LANGUAGES:
             self.assertEqual(a.select([f"sdk/{language}/client.code"])["languages"], [language])
