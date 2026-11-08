@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   mkdtemp,
+  link,
   mkdir,
   readFile,
   readdir,
@@ -104,7 +105,7 @@ test("host-local credential access excludes competing writes and requires explic
     /host_storage_unavailable/u,
   );
 });
-const { Session, connections, binding } = await import(
+const { Session, connections, binding, ClientError } = await import(
   pathToFileURL(process.env.CATALOG_VSCODE_LIB)
 );
 test("native notifications distinguish stale reads from committed credential changes", async (t) => {
@@ -555,4 +556,211 @@ test("invalid or unavailable host storage fails closed without replacement or st
     /host_storage_unavailable/u,
   );
   assert.deepEqual(await readdir(root), ["connection-host-id"]);
+});
+
+test("credential writer releases safe refusals but retains uncertain storage failures", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "catalog-writer-failures-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const access = credentialAccess(directory);
+  const cases = [
+    { error: new Error("ordinary failure"), uncertain: false, retained: false },
+    ...[
+      "connection_changed",
+      "credential_update_pending",
+      "sign_in_required",
+    ].map((code) => ({
+      error: new ClientError(code),
+      uncertain: true,
+      retained: false,
+    })),
+    {
+      error: new ClientError("host_storage_unavailable"),
+      uncertain: true,
+      retained: true,
+    },
+    {
+      error: Object.assign(new Error("not a classified refusal"), {
+        code: "connection_changed",
+      }),
+      uncertain: true,
+      retained: true,
+    },
+  ];
+  for (const { error, uncertain, retained } of cases) {
+    await assert.rejects(
+      access.run(
+        "writer",
+        async () => {
+          throw error;
+        },
+        uncertain,
+      ),
+      (actual) => actual === error,
+    );
+    const remaining = await readdir(directory);
+    assert.equal(
+      remaining.filter((name) => name.endsWith(".lock")).length,
+      Number(retained),
+    );
+    let calls = 0;
+    const next = () => access.run("writer", async () => ++calls);
+    if (retained) {
+      await assert.rejects(next(), { code: "credential_in_use" });
+      assert.equal(calls, 0, "an uncertain owner cannot be stolen");
+      assert.equal(await access.run("independent-key", async () => 42), 42);
+      await access.recover("writer", async () => {});
+    }
+    assert.equal(await next(), 1);
+    assert.equal(calls, 1);
+  }
+});
+
+test("failed credential recovery preserves the generation and ownership until clearing succeeds", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "catalog-recovery-failure-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const access = credentialAccess(directory);
+  await access.record("writer", "accepted-secret");
+  await assert.rejects(
+    access.run(
+      "writer",
+      async () => {
+        throw new Error("uncertain write");
+      },
+      true,
+    ),
+  );
+  const before = await readdir(directory);
+  const [generation] = before.filter((name) => name.endsWith(".state"));
+  const original = await readFile(join(directory, generation));
+  const failure = new Error("clear refused");
+  await assert.rejects(
+    access.recover("writer", async () => {
+      throw failure;
+    }),
+    (error) => error === failure,
+  );
+  assert.deepEqual(await readdir(directory), before);
+  assert.deepEqual(await readFile(join(directory, generation)), original);
+  assert.equal(await access.current("writer", "accepted-secret"), true);
+  await assert.rejects(
+    access.run("writer", async () => assert.fail("must remain locked")),
+    { code: "credential_in_use" },
+  );
+  let cleared = 0;
+  await access.recover("writer", async () => {
+    cleared++;
+    assert.equal(await access.current("writer", "accepted-secret"), true);
+    await assert.rejects(
+      access.run("writer", async () =>
+        assert.fail("clear still owns the lock"),
+      ),
+      { code: "credential_in_use" },
+    );
+  });
+  assert.equal(cleared, 1);
+  assert.deepEqual(await readdir(directory), [generation]);
+  assert.equal(await access.current("writer", undefined), true);
+  assert.equal(await access.current("writer", "accepted-secret"), false);
+  assert.equal(await access.run("writer", async () => "released"), "released");
+});
+
+test("credential recovery refuses substituted or multiply linked locks before clearing storage", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "catalog-recovery-lock-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const access = credentialAccess(directory);
+  await assert.rejects(
+    access.run(
+      "writer",
+      async () => {
+        throw new Error("uncertain");
+      },
+      true,
+    ),
+  );
+  const [name] = await readdir(directory);
+  const path = join(directory, name),
+    target = join(directory, "target");
+  await writeFile(target, "");
+  for (const kind of ["symlink", "hardlink", "directory"]) {
+    await rm(path, { recursive: true, force: true });
+    if (kind === "symlink") await symlink("target", path);
+    else if (kind === "hardlink") await link(target, path);
+    else await mkdir(path);
+    await assert.rejects(
+      access.recover("writer", async () =>
+        assert.fail("unsafe lock must not clear credentials"),
+      ),
+      { code: "host_storage_unavailable" },
+    );
+    assert.equal(await readFile(target, "utf8"), "");
+    assert.deepEqual(await readdir(directory), [name, "target"].sort());
+  }
+  await rm(path, { recursive: true });
+  let cleared = 0;
+  await access.recover("writer", async () => {
+    cleared++;
+  });
+  assert.equal(
+    cleared,
+    1,
+    "explicit recovery may clear credentials when no lock exists",
+  );
+  assert.equal(await access.current("writer", undefined), true);
+});
+
+test("credential generation refuses truncated, linked and non-file state without altering its target", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "catalog-credential-state-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const access = credentialAccess(directory);
+  await access.record("writer", "accepted-secret");
+  assert.equal(await access.current("writer", "accepted-secret"), true);
+  const [name] = await readdir(directory);
+  const path = join(directory, name),
+    target = join(directory, "target");
+  const original = await readFile(path);
+  await writeFile(target, original);
+  for (const kind of ["truncated", "symlink", "hardlink", "directory"]) {
+    await rm(path, { recursive: true, force: true });
+    if (kind === "truncated") await writeFile(path, original.subarray(1));
+    else if (kind === "symlink") await symlink("target", path);
+    else if (kind === "hardlink") await link(target, path);
+    else await mkdir(path);
+    await assert.rejects(access.current("writer", "accepted-secret"), {
+      code: "host_storage_unavailable",
+    });
+    assert.deepEqual(await readFile(target), original);
+  }
+  await rm(path, { recursive: true });
+  await access.record("writer", "accepted-secret");
+  assert.equal(await access.current("writer", "accepted-secret"), true);
+  assert.deepEqual(await readdir(directory), [name, "target"].sort());
+});
+
+test("unavailable credential storage refuses reads, writes and recovery before callbacks", async (t) => {
+  const directory = await mkdtemp(
+    join(tmpdir(), "catalog-credential-storage-"),
+  );
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, "not-a-directory");
+  await writeFile(path, "preserve this file");
+  const access = credentialAccess(path);
+  let calls = 0;
+  await assert.rejects(
+    access.run("writer", async () => {
+      calls++;
+    }),
+    { code: "host_storage_unavailable" },
+  );
+  await assert.rejects(
+    access.recover("writer", async () => {
+      calls++;
+    }),
+    { code: "host_storage_unavailable" },
+  );
+  await assert.rejects(access.current("writer", "secret"), {
+    code: "host_storage_unavailable",
+  });
+  assert.equal(calls, 0);
+  assert.equal(await readFile(path, "utf8"), "preserve this file");
+  assert.deepEqual(await readdir(directory), ["not-a-directory"]);
 });

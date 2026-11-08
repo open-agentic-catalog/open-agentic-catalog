@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
+import {
+  generateKeyPair,
+  exportJWK,
+  SignJWT,
+} from "../node_modules/jose/dist/webapi/index.js";
 const {
   connections,
   binding,
@@ -911,4 +916,439 @@ test("an old transport failure is classified as a changed connection without rep
   assert.equal(f.session.diagnostics(), undefined);
   assert.equal((await f.session.test()).identity.subject, "reader");
   await f.session.dispose();
+});
+
+test("verified consumer bindings survive token and permission changes but separate accounts", async (t) => {
+  let principal = { ...me };
+  const f = fixture((url) =>
+    json(url.endsWith("/me") ? principal : { resourceKinds: ["agent"] }),
+  );
+  t.after(() => f.session.dispose());
+  await f.session.select(connection);
+  await f.session.manual("first-private-token");
+  await f.session.test();
+  const account = f.session.consumerBinding();
+  assert.match(account, /^[a-f0-9]{64}$/u);
+  principal = { ...principal, permissions: [], availablePermissions: [] };
+  await f.session.test();
+  assert.equal(f.session.consumerBinding(), account);
+
+  await f.session.manual("replacement-private-token");
+  await f.session.test();
+  assert.equal(
+    f.session.consumerBinding(),
+    account,
+    "verified account caches must not depend on the current access-token bytes",
+  );
+
+  // A fresh sign-in can select another account. It cannot inherit its cache.
+  await f.session.manual("another-account-token");
+  principal = { ...me, subject: "another-reader" };
+  await f.session.test();
+  assert.notEqual(f.session.consumerBinding(), account);
+  assert.doesNotMatch(
+    f.session.consumerBinding(),
+    /private-token|another-reader/u,
+  );
+});
+
+test("late network creation closes only the abandoned connection before reading its credentials", async (t) => {
+  const entered = Promise.withResolvers();
+  const delayed = Promise.withResolvers();
+  const reads = [];
+  let firstClosed = 0,
+    secondClosed = 0;
+  const second = connections([
+    { ...definition, id: "second", origin: "https://second.example" },
+  ])[0];
+  const session = new Session(
+    {
+      get: async (key) => {
+        reads.push(key);
+        return undefined;
+      },
+      store: async () => assert.fail("selection must not write credentials"),
+      delete: async () => assert.fail("selection must not delete credentials"),
+    },
+    "test-host",
+    async (selected) => {
+      if (selected.id === connection.id) {
+        entered.resolve();
+        return delayed.promise;
+      }
+      return {
+        fetch: async () => assert.fail("selection must not make requests"),
+        close: async () => secondClosed++,
+      };
+    },
+  );
+  t.after(() => session.dispose());
+  const abandoned = assert.rejects(session.select(connection), {
+    code: "connection_changed",
+  });
+  t.after(async () => {
+    delayed.resolve({
+      fetch: async () => assert.fail(),
+      close: async () => {},
+    });
+    await abandoned;
+  });
+  await entered.promise;
+  await session.select(second);
+  const guard = session.guard(second);
+  delayed.resolve({
+    fetch: async () => assert.fail("abandoned transport must not be used"),
+    close: async () => firstClosed++,
+  });
+  await abandoned;
+  guard();
+  assert.equal(session.connection(), second);
+  assert.deepEqual(reads, ["openAgenticCatalog:test-host:second"]);
+  assert.equal(firstClosed, 1);
+  assert.equal(secondClosed, 0);
+  await session.dispose();
+  assert.equal(secondClosed, 1);
+});
+
+test("concurrent account probes stay verifying until both settle and disposed listeners stop notifications", async (t) => {
+  const entered = Promise.withResolvers();
+  const replies = [Promise.withResolvers(), Promise.withResolvers()];
+  let probes = 0;
+  const f = fixture((url) => {
+    if (!url.endsWith("/me")) return json({ resourceKinds: ["agent"] });
+    const reply = replies[probes++];
+    if (probes === 2) entered.resolve();
+    return reply.promise;
+  });
+  t.after(() => f.session.dispose());
+  await f.session.select(connection);
+  await f.session.manual("reader-token");
+  const states = [];
+  let changes = 0;
+  const status = f.session.onStatusChange(() =>
+    states.push(f.session.connectionState()),
+  );
+  const changed = f.session.onChange(() => changes++);
+  t.after(() => {
+    status.dispose();
+    changed.dispose();
+  });
+  const first = f.session.test();
+  const second = f.session.test();
+  t.after(async () => {
+    for (const reply of replies) reply.resolve(json(me));
+    await Promise.allSettled([first, second]);
+  });
+  await entered.promise;
+  assert.equal(f.session.connectionState(), "verifying");
+  replies[0].resolve(json(me));
+  await first;
+  assert.equal(f.session.connectionState(), "verifying");
+  assert.ok(states.length > 0);
+  assert.ok(states.every((state) => state === "verifying"));
+  replies[1].resolve(json(me));
+  await second;
+  assert.equal(states.at(-1), "verified");
+  assert.equal(changes, 0, "verification does not invalidate an account");
+  const signal = f.session.cancellation();
+  const notifications = states.length;
+  status.dispose();
+  changed.dispose();
+  await f.session.signOut();
+  assert.equal(signal.aborted, true);
+  assert.equal(changes, 0);
+  assert.equal(states.length, notifications);
+});
+
+test("removing an unselected connection deletes only its secret and preserves active access", async (t) => {
+  const f = fixture((url) =>
+    json(url.endsWith("/me") ? me : { resourceKinds: ["agent"] }),
+  );
+  t.after(() => f.session.dispose());
+  await f.session.select(connection);
+  await f.session.manual("active-token");
+  await f.session.test();
+  const key = "openAgenticCatalog:test-host:local";
+  const retained = f.saved.get(key);
+  f.saved.set("openAgenticCatalog:test-host:unused", "other-secret");
+  const guard = f.session.guard(connection);
+  const signal = f.session.cancellation();
+  await f.session.remove("unused");
+  guard();
+  assert.equal(f.session.cancellation(), signal);
+  assert.equal(signal.aborted, false);
+  assert.equal(f.session.connectionState(), "verified");
+  assert.deepEqual([...f.saved], [[key, retained]]);
+  assert.equal(f.closed(), 0);
+  assert.equal((await f.session.test()).identity.subject, me.subject);
+});
+
+const sessionIssuer = "https://issuer.example";
+const sessionOIDC = connections([
+  {
+    ...definition,
+    auth: "oidc",
+    oidc: {
+      issuer: sessionIssuer,
+      clientId: "client",
+      audience: "catalog",
+      scopes: ["openid"],
+    },
+  },
+])[0];
+const sessionMetadata = {
+  issuer: sessionIssuer,
+  authorization_endpoint: sessionIssuer + "/authorize",
+  token_endpoint: sessionIssuer + "/token",
+  jwks_uri: sessionIssuer + "/keys",
+  response_types_supported: ["code"],
+  code_challenge_methods_supported: ["S256"],
+};
+
+// Sign only local synthetic tokens under a fixed clock; all issuer I/O is injected.
+async function sessionSigner(t) {
+  const now = 1800000000000;
+  t.mock.timers.enable({ apis: ["Date"], now });
+  const { privateKey, publicKey } = await generateKeyPair("ES256");
+  const jwk = { ...(await exportJWK(publicKey)), kid: "session", alg: "ES256" };
+  return {
+    now,
+    jwk,
+    sign: (audience, claims = {}) =>
+      new SignJWT(claims)
+        .setProtectedHeader({ alg: "ES256", kid: "session" })
+        .setIssuer(sessionIssuer)
+        .setSubject(me.subject)
+        .setAudience(audience)
+        .setIssuedAt(now / 1000)
+        .setExpirationTime(now / 1000 + 3600)
+        .sign(privateKey),
+  };
+}
+
+test("failed OIDC discovery clears signing state and refused exchange consumes its callback once", async (t) => {
+  let discoveryFails = true,
+    exchanges = 0;
+  const f = fixture((url) => {
+    if (url.endsWith("/token")) {
+      exchanges++;
+      return new Response("private issuer refusal", { status: 400 });
+    }
+    assert.equal(url, sessionIssuer + "/.well-known/openid-configuration");
+    return json(
+      discoveryFails
+        ? { ...sessionMetadata, issuer: "https://wrong.example" }
+        : sessionMetadata,
+    );
+  });
+  t.after(() => f.session.dispose());
+  await f.session.select(sessionOIDC);
+  const states = [];
+  const subscription = f.session.onStatusChange(() =>
+    states.push(f.session.connectionState()),
+  );
+  t.after(() => subscription.dispose());
+  await assert.rejects(f.session.startLogin("vscode://extension/oidc"), {
+    code: "invalid_issuer_metadata",
+  });
+  assert.ok(states.includes("signing_in"));
+  assert.equal(states.at(-1), "signed_out");
+  assert.equal(f.session.connectionState(), "signed_out");
+  await assert.rejects(f.session.waitForLogin(new AbortController().signal), {
+    code: "no_pending_login",
+  });
+
+  discoveryFails = false;
+  const login = new URL(await f.session.startLogin("vscode://extension/oidc"));
+  const callback = `vscode://extension/oidc?code=owned&state=${login.searchParams.get("state")}`;
+  const waiting = assert.rejects(
+    f.session.waitForLogin(new AbortController().signal),
+    { code: "issuer_refused" },
+  );
+  await assert.rejects(f.session.callback(callback), {
+    code: "issuer_refused",
+  });
+  await waiting;
+  assert.equal(f.session.connectionState(), "signed_out");
+  assert.equal(f.session.snapshot(), undefined);
+  assert.equal(f.saved.size, 0);
+  await assert.rejects(f.session.callback(callback), {
+    code: "no_pending_login",
+  });
+  assert.equal(exchanges, 1);
+});
+
+test("OIDC callback completes only after bound credentials are stored and cannot spend the code twice", async (t) => {
+  const signer = await sessionSigner(t);
+  let nonce,
+    accessToken,
+    exchanges = 0;
+  const persisted = Promise.withResolvers();
+  const save = Promise.withResolvers();
+  const f = fixture(async (url) => {
+    if (url.endsWith("/.well-known/openid-configuration"))
+      return json(sessionMetadata);
+    if (url.endsWith("/keys")) return json({ keys: [signer.jwk] });
+    assert.equal(url, sessionIssuer + "/token");
+    exchanges++;
+    accessToken = await signer.sign("catalog");
+    return json({
+      access_token: accessToken,
+      id_token: await signer.sign("client", { nonce }),
+      token_type: "Bearer",
+      expires_in: 3600,
+    });
+  });
+  t.after(() => f.session.dispose());
+  const store = f.secrets.store;
+  f.secrets.store = async (key, value) => {
+    persisted.resolve({ key, value });
+    await save.promise;
+    await store(key, value);
+  };
+  await f.session.select(sessionOIDC);
+  const authorization = new URL(
+    await f.session.startLogin("vscode://extension/oidc"),
+  );
+  nonce = authorization.searchParams.get("nonce");
+  const callback = `vscode://extension/oidc?code=owned&state=${authorization.searchParams.get("state")}`;
+  let completed = false;
+  const waiting = f.session
+    .waitForLogin(new AbortController().signal)
+    .then(() => {
+      completed = true;
+    });
+  const finishing = f.session.callback(callback);
+  t.after(async () => {
+    save.resolve();
+    await Promise.allSettled([finishing, waiting]);
+  });
+  const pending = await persisted.promise;
+  assert.equal(completed, false);
+  assert.equal(f.saved.size, 0);
+  assert.equal(f.session.connectionState(), "signing_in");
+  assert.equal(pending.key, "openAgenticCatalog:test-host:local");
+  assert.deepEqual(JSON.parse(pending.value), {
+    binding: binding(sessionOIDC, "test-host"),
+    accessToken,
+    subject: me.subject,
+    expiresAt: signer.now + 3600000,
+    nonce,
+  });
+  save.resolve();
+  await Promise.all([finishing, waiting]);
+  assert.equal(completed, true);
+  assert.equal(f.session.connectionState(), "unverified");
+  assert.equal(f.saved.get(pending.key), pending.value);
+  await assert.rejects(f.session.callback(callback), {
+    code: "no_pending_login",
+  });
+  assert.equal(exchanges, 1);
+});
+
+test("concurrent reads share one renewal and adopt its token only after persistence", async (t) => {
+  const signer = await sessionSigner(t);
+  const selected = {
+    ...sessionOIDC,
+    oidc: { ...sessionOIDC.oidc, refresh: true },
+  };
+  const entered = Promise.withResolvers();
+  const renew = Promise.withResolvers();
+  const persisting = Promise.withResolvers();
+  const commit = Promise.withResolvers();
+  const accessToken = await signer.sign("catalog");
+  const requests = [];
+  const f = fixture(async (url, init) => {
+    requests.push({ url, init });
+    if (url.endsWith("/.well-known/openid-configuration"))
+      return json(sessionMetadata);
+    if (url.endsWith("/keys")) return json({ keys: [signer.jwk] });
+    if (url.endsWith("/token")) {
+      entered.resolve();
+      await renew.promise;
+      return json({
+        access_token: accessToken,
+        refresh_token: "next:refresh",
+        token_type: "Bearer",
+        expires_in: 3600,
+      });
+    }
+    assert.equal(url, "https://catalog.example/api/v1/me");
+    assert.equal(
+      new Headers(init.headers).get("authorization"),
+      `Bearer ${accessToken}`,
+    );
+    return json(me);
+  });
+  t.after(() => f.session.dispose());
+  let writes = 0;
+  const store = f.secrets.store;
+  f.secrets.store = async (key, value) => {
+    writes++;
+    persisting.resolve();
+    await commit.promise;
+    await store(key, value);
+  };
+  const key = "openAgenticCatalog:test-host:local";
+  const original = JSON.stringify({
+    binding: binding(selected, "test-host"),
+    accessToken: "old-access",
+    refreshToken: "old:refresh",
+    subject: me.subject,
+    nonce: "original-nonce",
+    expiresAt: signer.now + 30000,
+  });
+  f.saved.set(key, original);
+  await f.session.select(selected);
+  const guard = f.session.guard(selected);
+  const signal = f.session.cancellation();
+  const first = f.session.read("/api/v1/me");
+  const second = f.session.read("/api/v1/me");
+  t.after(async () => {
+    renew.resolve();
+    commit.resolve();
+    await Promise.allSettled([first, second]);
+  });
+  await entered.promise;
+  assert.equal(f.saved.get(key), original);
+  assert.equal(requests.filter((r) => r.url.endsWith("/token")).length, 1);
+  assert.equal(
+    requests.some((r) => r.url.startsWith(connection.origin)),
+    false,
+  );
+  renew.resolve();
+  await persisting.promise;
+  assert.equal(f.saved.get(key), original);
+  assert.equal(
+    requests.some((r) => r.url.startsWith(connection.origin)),
+    false,
+  );
+  commit.resolve();
+  const responses = await Promise.all([first, second]);
+  assert.deepEqual(
+    responses.map((r) => JSON.parse(r.text())),
+    [me, me],
+  );
+  assert.equal(requests.filter((r) => r.url.endsWith("/token")).length, 1);
+  assert.equal(writes, 1);
+  const exchange = requests.find((r) => r.url.endsWith("/token"));
+  assert.deepEqual(
+    Object.fromEntries(new URLSearchParams(exchange.init.body)),
+    {
+      grant_type: "refresh_token",
+      client_id: "client",
+      refresh_token: "old:refresh",
+    },
+  );
+  assert.deepEqual(JSON.parse(f.saved.get(key)), {
+    binding: binding(selected, "test-host"),
+    accessToken,
+    refreshToken: "next:refresh",
+    subject: me.subject,
+    nonce: "original-nonce",
+    expiresAt: signer.now + 3600000,
+  });
+  guard();
+  assert.equal(f.session.cancellation(), signal);
+  assert.equal(signal.aborted, false);
 });
