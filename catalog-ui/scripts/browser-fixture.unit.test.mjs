@@ -162,10 +162,11 @@ test("runtime fixtures cannot inherit a configured database, identity or target"
   assert.equal(env.CATALOG_DATABASE_DSN, "unrelated");
 });
 test("fixture port allocation rejects invalid candidates before opening a socket", async () => {
-  await assert.rejects(
-    localPorts(() => 6000),
-    /dynamic\/private/,
-  );
+  for (const port of [4045, 6000])
+    await assert.rejects(
+      localPorts(() => port),
+      /dynamic\/private/,
+    );
 });
 test("fixture startup rejects invalid options before allocation", async () => {
   const directory = await mkdtemp(join(tmpdir(), "ui-harness-test-"));

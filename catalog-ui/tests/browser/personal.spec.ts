@@ -1,4 +1,10 @@
-import { test, expect, login, confirmCommand } from "./fixtures";
+import {
+  test,
+  expect,
+  login,
+  confirmCommand,
+  confirmPersonalCommand,
+} from "./fixtures";
 import type { components } from "../../src/api/schema";
 
 for (const base of ["root", "subpath"]) {
@@ -403,8 +409,7 @@ for (const base of ["root", "subpath"]) {
     await page
       .getByRole("button", { name: "Update saved item", exact: true })
       .click();
-    await confirmCommand(page);
-    const updated = await updatedReply;
+    const updated = await confirmPersonalCommand(page, updatedReply, 200);
     expect(updated.status()).toBe(200);
     expect(updated.request().headers()["if-match"]).toBe('"rev-1"');
     expect(updated.request().headers()["idempotency-key"]).toBeTruthy();

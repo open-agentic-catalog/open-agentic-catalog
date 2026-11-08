@@ -3,6 +3,35 @@ import test from "node:test";
 import { personalCommandOutcome } from "./personal-evidence.mjs";
 
 const timeRefusal = "saved item transition time is before its retained update";
+test("saved-search update diagnostics retain exact success and unclassified-refusal outcomes", () => {
+  for (const [status, problem] of [
+    [
+      200,
+      {
+        id: "private-id",
+        label: "private-label",
+        search: { text: "private-query" },
+      },
+    ],
+    [409, { code: "CONFLICT", detail: "private-unclassified-refusal" }],
+  ]) {
+    const value = personalCommandOutcome({
+      status,
+      method: "PATCH",
+      problem,
+      requestId: "owned-request-123",
+    });
+    assert.deepEqual(value, {
+      operation: "personal.update",
+      status,
+      code: status === 409 ? "CONFLICT" : undefined,
+      refusal: "unclassified",
+      requestId: "owned-request-123",
+    });
+    assert.doesNotMatch(JSON.stringify(value), /private/);
+  }
+});
+
 test("private command diagnostics classify only the exact transition refusal", () => {
   assert.deepEqual(
     personalCommandOutcome({

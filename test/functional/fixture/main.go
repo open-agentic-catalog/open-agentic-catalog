@@ -330,6 +330,7 @@ func serve(arguments []string) error {
 	registerPressureFixture(mux)
 	mux.HandleFunc("GET /healthz", func(writer http.ResponseWriter, _ *http.Request) { writer.WriteHeader(http.StatusOK) })
 	mux.HandleFunc("GET /.well-known/ard.json", state.manifest)
+	registerArtworkSourceFixture(mux, state)
 	if *credentials {
 		mux.HandleFunc("GET /credentials/{kind}/manifest.json", credentialManifest(*directory))
 	}

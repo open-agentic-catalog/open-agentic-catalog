@@ -414,6 +414,361 @@ test("root: create a new Version from a sealed source through populated fields",
   });
 });
 
+test("subpath: browse source history and explicitly reuse the selected retained revision", async ({
+  page,
+  catalog,
+}) => {
+  const profileId = "agent-skills-69ef37e";
+  const firstDocument =
+    '---\nname: history-first\ndescription: "The first immutable source document."\n---\n# First\n\nKeep the first source.\n';
+  const selectedDocument =
+    '---\nname: history-selected\ndescription: "The second immutable revision of the first Version."\n---\n# Selected\n\nRead the retained second revision.\n';
+  const otherDocument =
+    '---\nname: history-other\ndescription: "A distinct source from another Version."\n---\n# Other\n\nRead the other Version.\n';
+  const resource = await catalog.admin("POST", "/api/v1/resources", {
+    namespaceId: catalog.receipt.namespaceId,
+    kind: "skill",
+    canonicalIdentifier: "urn:air:catalog.example.com:authoring:source-history",
+  });
+  const resourceId = text(resource.data.id);
+  const representation = (document: string) => ({
+    role: "primary",
+    mediaType: "application/agent-skills+md",
+    profileId,
+    content: document,
+  });
+  const first = await catalog.admin(
+    "POST",
+    `/api/v1/resources/${resourceId}/versions`,
+    {
+      version: "history one",
+      representations: [representation(firstDocument)],
+    },
+  );
+  const firstVersion = text(object(first.data.version).id);
+  const selected = await catalog.admin(
+    "POST",
+    `/api/v1/resource-versions/${firstVersion}/revisions`,
+    { representations: [representation(selectedDocument)] },
+    first.etag,
+  );
+  const other = await catalog.admin(
+    "POST",
+    `/api/v1/resources/${resourceId}/versions`,
+    {
+      version: "history two",
+      representations: [representation(otherDocument)],
+    },
+  );
+  for (const bundle of [first, selected, other])
+    expect(object(bundle.data.evidence).state).toBe("complete");
+  const selectedRevision = text(object(selected.data.revision).id);
+  const otherVersion = text(object(other.data.version).id);
+  const otherRevision = text(object(other.data.revision).id);
+  const artifactId = text(
+    object(required(array(object(selected.data.revision).representations)[0]))
+      .artifactId,
+  );
+  const sourceReads: string[] = [];
+  const parentReads: string[] = [];
+  const artifactReads: string[] = [];
+  const writes: { path: string; body: unknown; key: string | undefined }[] = [];
+  const outside: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (
+      ["http:", "https:"].includes(url.protocol) &&
+      url.origin !== catalog.origin
+    )
+      outside.push(url.origin);
+    if (!url.pathname.includes("/_catalog/api/v1/")) return;
+    if (request.method() === "GET") {
+      if (url.pathname.includes("/version-revisions/"))
+        sourceReads.push(url.pathname);
+      if (/\/resource-versions\/[^/]+$/.test(url.pathname))
+        parentReads.push(url.pathname);
+      if (url.pathname.includes("/artifacts/"))
+        artifactReads.push(url.pathname);
+    } else
+      writes.push({
+        path: url.pathname,
+        body: object(request.postDataJSON()),
+        key: request.headers()["idempotency-key"],
+      });
+  });
+  await login(
+    page,
+    catalog,
+    "local-contributor",
+    `/versions/new?resource=${resourceId}`,
+  );
+  await page.getByLabel("Version label", { exact: true }).fill("history three");
+  await page
+    .getByLabel("Skill name", { exact: true })
+    .fill("keep-unsaved-name");
+  await page
+    .getByLabel("Skill description", { exact: true })
+    .fill("Keep my unsaved description.");
+  await openDisclosure(page, "Start from an existing revision");
+  const history = page.getByRole("region", {
+    name: "Start from an existing revision",
+    exact: true,
+  });
+  const [versionsResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        new URL(response.url()).pathname.endsWith(
+          `/resources/${resourceId}/versions`,
+        ),
+    ),
+    history
+      .getByRole("button", { name: "Browse source history", exact: true })
+      .click(),
+  ]);
+  expect(versionsResponse.status()).toBe(200);
+  expect(
+    Object.fromEntries(new URL(versionsResponse.url()).searchParams),
+  ).toEqual({ limit: "25" });
+  expect(array(object(await versionsResponse.json()).items)).toHaveLength(2);
+  const versions = history.getByRole("combobox", {
+    name: "Source Version",
+    exact: true,
+  });
+  await expect(
+    versions.getByRole("option", { name: "history one (draft)", exact: true }),
+  ).toHaveAttribute("value", firstVersion);
+  await expect(
+    versions.getByRole("option", { name: "history two (draft)", exact: true }),
+  ).toHaveAttribute("value", otherVersion);
+  const revisionHistory = async (versionId: string, expectedIds: string[]) => {
+    const [response] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          new URL(response.url()).pathname.endsWith(
+            `/resource-versions/${versionId}/revisions`,
+          ),
+      ),
+      versions.selectOption(versionId),
+    ]);
+    expect(response.status()).toBe(200);
+    expect(Object.fromEntries(new URL(response.url()).searchParams)).toEqual({
+      limit: "25",
+    });
+    expect(
+      array(object(await response.json()).items)
+        .map((value) => text(object(value).id))
+        .sort(),
+    ).toEqual([...expectedIds].sort());
+  };
+  await revisionHistory(otherVersion, [otherRevision]);
+  await history
+    .getByRole("combobox", { name: "Source Revision", exact: true })
+    .selectOption(otherRevision);
+  await expect(page.getByLabel("Skill name", { exact: true })).toHaveValue(
+    "keep-unsaved-name",
+  );
+  expect(sourceReads).toEqual([]);
+  await revisionHistory(firstVersion, [
+    text(object(first.data.revision).id),
+    selectedRevision,
+  ]);
+  const revisions = history.getByRole("combobox", {
+    name: "Source Revision",
+    exact: true,
+  });
+  await expect(revisions).toHaveValue("");
+  await expect(
+    revisions.getByRole("option", {
+      name: "Revision 1 by local-admin",
+      exact: true,
+    }),
+  ).toHaveAttribute("value", text(object(first.data.revision).id));
+  await expect(
+    revisions.getByRole("option", {
+      name: "Revision 2 by local-admin",
+      exact: true,
+    }),
+  ).toHaveAttribute("value", selectedRevision);
+  await revisions.selectOption(selectedRevision);
+  await history
+    .getByLabel(
+      "Use retained document bytes instead of HTTPS references, where available",
+      { exact: true },
+    )
+    .check();
+  expect(sourceReads).toEqual([]);
+  expect(artifactReads).toEqual([]);
+  expect(writes).toEqual([]);
+  const replacementMessage =
+    "Replace the current content and staged files with this exact revision?";
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toBe(replacementMessage);
+    await dialog.dismiss();
+  });
+  await history
+    .getByRole("button", { name: "Load source revision", exact: true })
+    .click();
+  await expect(page.getByLabel("Skill name", { exact: true })).toHaveValue(
+    "keep-unsaved-name",
+  );
+  await expect(
+    page.getByLabel("Skill description", { exact: true }),
+  ).toHaveValue("Keep my unsaved description.");
+  expect(sourceReads).toEqual([]);
+  expect(artifactReads).toEqual([]);
+  expect(writes).toEqual([]);
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toBe(replacementMessage);
+    await dialog.accept();
+  });
+  await history
+    .getByRole("button", { name: "Load source revision", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Selected source", { exact: true }),
+  ).toContainText(selectedRevision);
+  await expect(page.getByLabel("Skill name", { exact: true })).toHaveValue(
+    "history-selected",
+  );
+  await expect(
+    page.getByLabel("Skill description", { exact: true }),
+  ).toHaveValue("The second immutable revision of the first Version.");
+  await expect(page.getByLabel("Version label", { exact: true })).toHaveValue(
+    "history three",
+  );
+  expect(sourceReads).toEqual([
+    `${catalog.basePath}/_catalog/api/v1/version-revisions/${selectedRevision}`,
+  ]);
+  expect(artifactReads).toEqual([
+    `${catalog.basePath}/_catalog/api/v1/artifacts/${artifactId}/content`,
+  ]);
+  expect(parentReads).toEqual([
+    `${catalog.basePath}/_catalog/api/v1/resource-versions/${firstVersion}`,
+  ]);
+  expect(writes).toEqual([]);
+  await page
+    .getByRole("button", { name: "Create version", exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(selectedRevision);
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Cancel", exact: true })
+    .click();
+  await expect(page.getByLabel("Skill name", { exact: true })).toHaveValue(
+    "history-selected",
+  );
+  expect(writes).toEqual([]);
+  await page
+    .getByRole("button", { name: "Create version", exact: true })
+    .click();
+  const [response] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith(
+          `/resources/${resourceId}/versions`,
+        ),
+    ),
+    confirmCommand(page),
+  ]);
+  expect(response.status()).toBe(201);
+  const saved = object(await response.json());
+  expect(object(saved.evidence).state).toBe("complete");
+  expect(writes).toEqual([
+    {
+      path: `${catalog.basePath}/_catalog/api/v1/resources/${resourceId}/versions`,
+      body: {
+        version: "history three",
+        representations: [
+          {
+            role: "primary",
+            mediaType: "application/agent-skills+md",
+            profileId,
+            content: selectedDocument,
+          },
+        ],
+      },
+      key: expect.any(String),
+    },
+  ]);
+  expect(required(writes[0]).key).toBeTruthy();
+  const savedRevision = await catalog.admin(
+    "GET",
+    `/api/v1/version-revisions/${text(object(saved.revision).id)}`,
+  );
+  const savedRepresentation = object(
+    required(array(object(savedRevision.data.revision).representations)[0]),
+  );
+  expect(savedRepresentation).toMatchObject({
+    artifactId,
+    size: Buffer.byteLength(selectedDocument),
+    validationState: "valid",
+  });
+  const retainedContent = await page.request.get(
+    `${catalog.origin}${catalog.basePath}/_catalog/api/v1/artifacts/${artifactId}/content`,
+    { headers: { "X-Catalog-Request": "1" } },
+  );
+  expect(retainedContent.status()).toBe(200);
+  expect(await retainedContent.text()).toBe(selectedDocument);
+  for (const bundle of [first, selected, other]) {
+    const unchanged = await catalog.admin(
+      "GET",
+      `/api/v1/version-revisions/${text(object(bundle.data.revision).id)}`,
+    );
+    expect(unchanged.data.revision).toEqual(bundle.data.revision);
+  }
+  const unchangedVersion = await catalog.admin(
+    "GET",
+    `/api/v1/resource-versions/${firstVersion}`,
+  );
+  expect(unchangedVersion.data).toEqual(selected.data.version);
+  expect(unchangedVersion.etag).toBe(selected.etag);
+  const unchangedOtherVersion = await catalog.admin(
+    "GET",
+    `/api/v1/resource-versions/${otherVersion}`,
+  );
+  expect(unchangedOtherVersion.data).toEqual(other.data.version);
+  expect(unchangedOtherVersion.etag).toBe(other.etag);
+  for (const source of [
+    {
+      versionId: firstVersion,
+      revisions: [text(object(first.data.revision).id), selectedRevision],
+    },
+    { versionId: otherVersion, revisions: [otherRevision] },
+  ]) {
+    const history = await catalog.admin(
+      "GET",
+      `/api/v1/resource-versions/${source.versionId}/revisions?limit=25`,
+    );
+    expect(history.data.nextCursor).toBeUndefined();
+    expect(
+      array(history.data.items)
+        .map((revision) => text(object(revision).id))
+        .sort(),
+    ).toEqual([...source.revisions].sort());
+  }
+  const finalHistory = await catalog.admin(
+    "GET",
+    `/api/v1/resources/${resourceId}/versions?limit=25`,
+  );
+  expect(finalHistory.data.nextCursor).toBeUndefined();
+  expect(
+    array(finalHistory.data.items)
+      .map((version) => text(object(version).id))
+      .sort(),
+  ).toEqual(
+    [firstVersion, otherVersion, text(object(saved.version).id)].sort(),
+  );
+  expect(
+    array(finalHistory.data.items)
+      .map((value) => text(object(value).version))
+      .sort(),
+  ).toEqual(["history one", "history three", "history two"]);
+  expect(outside).toEqual([]);
+});
+
 test("subpath: retain a native-version finding and correct it without replacing the Version", async ({
   page,
   catalog,

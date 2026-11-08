@@ -32,7 +32,13 @@ const baseline = () =>
     )
     .sort();
 
-for (const cause of ["SIGTERM", "SIGINT", "UNHANDLED", "STEP_FAILURE"]) {
+for (const cause of [
+  "SIGTERM",
+  "SIGINT",
+  "UNHANDLED",
+  "STEP_FAILURE",
+  "BROWSER_CLOSE_FAILURE",
+]) {
   test(
     `packaged ${cause} drains pending browser failures and removes its owned fixture`,
     { timeout: 300000 },
@@ -55,6 +61,13 @@ const cause = ${JSON.stringify(cause)};
 const launch = chromium.launch.bind(chromium);
 chromium.launch = async (...args) => {
   const browser = await launch(...args);
+  if (cause === "BROWSER_CLOSE_FAILURE") {
+    const close = browser.close.bind(browser);
+    browser.close = async () => {
+      await close();
+      throw new Error("SYNTHETIC_PRIVATE_BROWSER_CLOSE");
+    };
+  }
   const newContext = browser.newContext.bind(browser);
   browser.newContext = async (...options) => {
     const context = await newContext(...options);
@@ -69,7 +82,7 @@ chromium.launch = async (...args) => {
           wait(() => false);
           console.log("owned-pending-browser-wait-ready");
           if (cause === "UNHANDLED") Promise.reject(new Error("synthetic owned task failure"));
-          if (cause === "STEP_FAILURE") {
+          if (cause === "STEP_FAILURE" || cause === "BROWSER_CLOSE_FAILURE") {
             const failed = Promise.reject(new Error("synthetic owned step failure"));
             void failed.catch(() => {});
             return failed;
@@ -97,6 +110,9 @@ chromium.launch = async (...args) => {
       const closed = once(child, "close");
       let signaled = false;
       let observed = "";
+      let browserCleanupFailure = false;
+      let privateSentinel = false;
+      let diagnosticFragment = "";
       const projects = new Set();
       child.stdout.on("data", (data) => {
         observed = (observed + data).slice(-8192);
@@ -112,7 +128,14 @@ chromium.launch = async (...args) => {
         }
       });
       // Native fixture output can contain private inputs; it is not copied into reports.
-      child.stderr.resume();
+      child.stderr.on("data", (data) => {
+        const text = diagnosticFragment + data.toString();
+        browserCleanupFailure ||= text.includes("Owned browser cleanup failed");
+        privateSentinel ||= text.includes("SYNTHETIC_PRIVATE_BROWSER_CLOSE");
+        // Only a short transient chunk-boundary fragment is kept; reports
+        // retain booleans, never native stderr or private error messages.
+        diagnosticFragment = text.slice(-64);
+      });
       const graceful = setTimeout(() => child.kill("SIGTERM"), 210000);
       const force = setTimeout(() => child.kill("SIGKILL"), 240000);
       const report = {
@@ -133,6 +156,17 @@ chromium.launch = async (...args) => {
           code,
           1,
           "An interrupted campaign must fail after its cleanup",
+        );
+        if (cause === "BROWSER_CLOSE_FAILURE")
+          assert.equal(
+            browserCleanupFailure,
+            true,
+            "Browser-close failure control did not reach mandatory cleanup",
+          );
+        assert.equal(
+          privateSentinel,
+          false,
+          "Private browser-close exception escaped the safe failure projection",
         );
         assert.deepEqual(
           (await readdir(scratch)).filter((name) =>
