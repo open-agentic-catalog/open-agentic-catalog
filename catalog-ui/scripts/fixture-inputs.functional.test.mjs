@@ -9,9 +9,10 @@ import { promisify } from "node:util";
 const run = promisify(execFile);
 const moduleURL = new URL("./fixture-inputs.mjs", import.meta.url).href;
 const child = `
-import { writeFixtureInput } from ${JSON.stringify(moduleURL)};
+import { createFixtureStateDirectory, writeFixtureInput } from ${JSON.stringify(moduleURL)};
 process.umask(Number.parseInt(process.argv[1], 8));
 await writeFixtureInput(process.argv[2], "mask control\\n");
+await createFixtureStateDirectory(process.argv[2] + ".state");
 `;
 
 for (const mask of ["022", "077"]) {
@@ -31,6 +32,7 @@ for (const mask of ["022", "077"]) {
       );
       assert.equal(await readFile(path, "utf8"), "mask control\n");
       assert.equal((await stat(path)).mode & 0o777, 0o444);
+      assert.equal((await stat(path + ".state")).mode & 0o777, 0o777);
       assert.equal((await stat(parent)).mode & 0o777, 0o700);
       assert.equal(process.umask(), parentMask);
     },

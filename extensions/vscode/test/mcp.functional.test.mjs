@@ -179,3 +179,86 @@ test("real native-document acquisition refuses redirects, private CA reuse, exce
     /mcp_document_unavailable/u,
   );
 });
+
+test("real chunked MCP documents preserve UTF-8 bytes, close overflowing streams and recover after truncation", async (t) => {
+  const prefix = Buffer.from('{"text":"Café 😀","padding":"');
+  const suffix = Buffer.from('"}\n');
+  const exact = Buffer.concat([
+    prefix,
+    Buffer.alloc(1024 ** 2 - prefix.length - suffix.length, "x"),
+    suffix,
+  ]);
+  let mode = "exact";
+  const closed = Promise.withResolvers();
+  const requests = [];
+  const server = createServer((req, res) => {
+    requests.push({
+      path: req.url,
+      authorization: req.headers.authorization,
+      cookie: req.headers.cookie,
+    });
+    res.writeHead(200, { "content-type": "application/json" });
+    if (mode === "overflow") {
+      res.on("close", closed.resolve);
+      res.write(Buffer.concat([exact, Buffer.from("\n")]));
+      return; // The reader must close this response; the server never ends it.
+    }
+    if (mode === "truncated") {
+      res.flushHeaders();
+      res.write('{"PRIVATE":"unfinished response');
+      setImmediate(() => res.destroy());
+      return;
+    }
+    const boundary = exact.indexOf(0xc3) + 1;
+    res.write(exact.subarray(0, boundary));
+    setImmediate(() => res.end(exact.subarray(boundary)));
+  });
+  await listenFixture(server);
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  });
+  const read = () =>
+    mcpDocument(
+      { url: `http://127.0.0.1:${server.address().port}/card` },
+      {
+        origin: "https://uncontacted-catalog.invalid",
+        allowLoopbackHTTP: true,
+        timeoutMs: 1000,
+      },
+      async () => true,
+    );
+  assert.equal(exact.length, 1024 ** 2);
+  assert.deepEqual(await read(), exact);
+  mode = "overflow";
+  await assert.rejects(read(), { code: "mcp_document_too_large" });
+  let timer;
+  try {
+    await Promise.race([
+      closed.promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("overflowing MCP response did not close")),
+          3000,
+        );
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+  mode = "truncated";
+  await assert.rejects(read(), (error) => {
+    assert.equal(error.code, "mcp_document_unavailable");
+    assert.doesNotMatch(error.message, /PRIVATE|unfinished/u);
+    return true;
+  });
+  mode = "exact";
+  assert.deepEqual(await read(), exact);
+  assert.equal(requests.length, 4, "each explicit read makes one request");
+  assert.ok(
+    requests.every(
+      ({ path, authorization, cookie }) =>
+        path === "/card" && !authorization && !cookie,
+    ),
+  );
+});

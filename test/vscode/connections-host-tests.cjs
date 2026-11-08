@@ -86,15 +86,17 @@ exports.run = async (api) => {
     stage("added anonymous connection");
     assert.deepEqual(configuration().slice(0, -1), before);
     assert.equal(configuration().at(-1).auth, "anonymous");
-    // Edit can be canceled without saving, and applies only to its exact row.
+    // Cancel after changing a real draft, preserving every retained definition.
+    const beforeCanceledEdit = structuredClone(configuration());
     const canceled = vscode.commands.executeCommand(
       "openAgenticCatalog.editConnection",
     );
     await pick("Edit a Catalog connection", "Owned setup");
-    await title("Connection name");
+    await input("Connection name", "Canceled native draft name");
+    await title("Connection security");
     await ui.key("Escape");
     await canceled;
-    assert.equal(configuration().at(-1).label, "Owned setup");
+    assert.deepEqual(configuration(), beforeCanceledEdit);
     const editing = vscode.commands.executeCommand(
       "openAgenticCatalog.editConnection",
     );

@@ -33,10 +33,88 @@ export function browserSelections(args, exclusive) {
 }
 
 /** Retain bounded startup evidence; never expose child text or launch arguments. */
-export function startupFailureStage(text) {
-  return /(?:^|\n)Demo sample tool failed \(stage: (sample\.load|prepared\.(?:write|read)|tls\.(?:prepare|not-yet-valid|expired|hostname)|listener\.(?:address|address-in-use|serve))\)\.(?:\r?\n|$)/.exec(
-    text,
-  )?.[1];
+export function startupFailureDiagnostic(text) {
+  const demo =
+    /(?:^|\n)Demo sample tool failed \(stage: (sample\.load|prepared\.(?:write|read)|tls\.(?:prepare|not-yet-valid|expired|hostname)|listener\.(?:address|address-in-use|serve))\)\.(?:\r?\n|$)/.exec(
+      text,
+    )?.[1];
+  if (demo) return { operationStage: demo };
+  // Go emits one complete terminal record on stderr. Do not infer a failure
+  // from a partial record, quoted message or a mixture of unrelated lines.
+  const lines = text.split("\n");
+  if (lines.length !== 2 || lines[1] !== "") return;
+  const line = lines[0].replace(/\r$/, "");
+  let failure;
+  if (line.startsWith("{")) {
+    try {
+      failure = JSON.parse(line);
+    } catch {
+      return;
+    }
+    const fields = [
+      "time",
+      "level",
+      "msg",
+      "service",
+      "role",
+      "environment",
+      "version",
+      "event",
+      "component",
+      "command",
+      "stage",
+      "error_code",
+      "error_type",
+    ];
+    if (
+      !failure ||
+      Array.isArray(failure) ||
+      Object.keys(failure).length !== fields.length ||
+      fields.some((key) => typeof failure[key] !== "string")
+    )
+      return;
+    // This profile has only flat string fields. Tokenize complete strings so
+    // escaped duplicate keys cannot be skipped or message text read as keys.
+    const strings = line.match(/"(?:[^"\\]|\\.)*"/g) ?? [];
+    const keys = strings
+      .filter((_, index) => index % 2 === 0)
+      .map((key) => key.slice(1, -1));
+    if (
+      strings.length !== fields.length * 2 ||
+      keys.some((key) => !fields.includes(key)) ||
+      new Set(keys).size !== fields.length
+    )
+      return;
+  } else {
+    const terminal =
+      /^time=\S{1,64} level=ERROR msg=(?:"(?:[^"\\]|\\.)*"|[^\s"]+) service=catalog-ui role=(?:ui|unknown) environment=(?:development|production|unknown) version=[A-Za-z0-9._+-]{1,128} event=process\.failed component=process command=catalog-ui stage=(configuration|host_initialization|listener) error_code=(INTERNAL|INTERNAL_PANIC) error_type=\*?[A-Za-z0-9_.]{1,128}$/.exec(
+        line,
+      );
+    if (terminal)
+      failure = {
+        level: "ERROR",
+        service: "catalog-ui",
+        role: "ui",
+        event: "process.failed",
+        component: "process",
+        command: "catalog-ui",
+        stage: terminal[1],
+        error_code: terminal[2],
+      };
+  }
+  if (
+    failure?.level === "ERROR" &&
+    failure.service === "catalog-ui" &&
+    ["ui", "unknown"].includes(failure.role) &&
+    failure.event === "process.failed" &&
+    failure.component === "process" &&
+    failure.command === "catalog-ui" &&
+    ["configuration", "host_initialization", "listener"].includes(
+      failure.stage,
+    ) &&
+    ["INTERNAL", "INTERNAL_PANIC"].includes(failure.error_code)
+  )
+    return { operationStage: failure.stage, errorCode: failure.error_code };
 }
 
 /** Retain bounded startup evidence; never expose child text or launch arguments. */
@@ -119,19 +197,19 @@ export function startProcess(command, args, options = {}) {
     );
   });
   const diagnostics = () => {
-    const operationStage = startupFailureStage(stderr.toString());
+    const failure = startupFailureDiagnostic(stderr.toString());
     return JSON.stringify({
       exitCode: child.exitCode,
       signal: child.signalCode,
       spawnError,
-      stderr: operationStage
+      stderr: failure
         ? "classified"
         : /EADDRINUSE|bind: address already in use/.test(stderr.toString())
           ? "address-in-use"
           : stderr.length
             ? "unclassified"
             : "empty",
-      ...(operationStage ? { operationStage } : {}),
+      ...failure,
       truncated,
       ...(collectStages
         ? {

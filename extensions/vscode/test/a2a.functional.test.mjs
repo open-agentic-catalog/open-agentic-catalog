@@ -10,13 +10,14 @@ import { a2aPeer } from "../../../test/vscode/a2a-peer.mjs";
 const { a2aPlan, a2aSettings, A2AConversation, a2aClient } = await import(
   process.env.CATALOG_VSCODE_LIB
 );
-const make = (card, settings, headers = {}) => {
+const make = (card, settings, headers = {}, changed = () => {}) => {
   const plan = a2aPlan(Buffer.from(JSON.stringify(card)), settings);
   return new A2AConversation(
     plan,
     a2aClient(plan, plan.interfaces[0], settings, headers),
     async () => {},
     () => {},
+    changed,
   );
 };
 const until = async (predicate) => {
@@ -27,6 +28,34 @@ const until = async (predicate) => {
   }
   throw Error("Owned A2A deadline");
 };
+
+async function within(promise, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(Error(label)), 3000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+const lifecycleCard = (origin) => ({
+  name: "Owned lifecycle agent",
+  version: "1",
+  supportedInterfaces: [
+    {
+      url: origin + "/rpc",
+      protocolBinding: "JSONRPC",
+      protocolVersion: "1.0",
+    },
+  ],
+  capabilities: { streaming: true },
+  defaultInputModes: ["text/plain"],
+  defaultOutputModes: ["text/plain"],
+});
 
 test("Real TLS + unchanged official Hello World: streaming, readback, consent-free transport controls and cancellation", async (t) => {
   const dir = await mkdtemp(resolve("output/vscode/a2a-tls-"));
@@ -397,4 +426,289 @@ test("Real HTTP/SSE boundaries: direct Messages, no redirects, byte/type/identit
     await until(() => closed >= contacts);
     assert.equal(stolen, 0);
   }
+});
+
+test("real terminal A2A streams close without peer EOF and discard queued post-terminal artifacts", async (t) => {
+  const requests = [],
+    closed = Promise.withResolvers();
+  let responseEnded = false;
+  const server = createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    const request = JSON.parse(body);
+    requests.push({ method: request.method, headers: req.headers });
+    res.once("finish", () => {
+      responseEnded = true;
+    });
+    res.once("close", closed.resolve);
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    const results = [
+      {
+        task: {
+          id: "terminal-task",
+          contextId: "terminal-context",
+          status: { state: "TASK_STATE_WORKING" },
+        },
+      },
+      {
+        artifactUpdate: {
+          taskId: "terminal-task",
+          contextId: "terminal-context",
+          artifact: {
+            artifactId: "answer",
+            name: "Visible answer",
+            parts: [{ text: "Café 😀" }],
+          },
+          lastChunk: true,
+        },
+      },
+      {
+        statusUpdate: {
+          taskId: "terminal-task",
+          contextId: "terminal-context",
+          status: { state: "TASK_STATE_COMPLETED" },
+        },
+      },
+      {
+        artifactUpdate: {
+          taskId: "terminal-task",
+          contextId: "terminal-context",
+          artifact: {
+            artifactId: "late",
+            parts: [{ text: "PRIVATE queued text" }],
+          },
+          lastChunk: true,
+        },
+      },
+    ];
+    const bytes = Buffer.from(
+      results
+        .map(
+          (result) =>
+            `data: ${JSON.stringify({ jsonrpc: "2.0", id: request.id, result })}\n\n`,
+        )
+        .join(""),
+    );
+    const boundary = bytes.indexOf(Buffer.from("é")) + 1;
+    // Split real response writes; Fetch may choose another reader chunk layout.
+    res.write(bytes.subarray(0, boundary));
+    setImmediate(() => res.write(bytes.subarray(boundary)));
+    // No end(): completion must stop the HTTP reader, not wait for EOF/deadline.
+  });
+  await listenFixture(server);
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  });
+  const c = make(
+    lifecycleCard(`http://127.0.0.1:${server.address().port}`),
+    a2aSettings({
+      allowLoopbackHTTP: true,
+      timeoutMs: 1000,
+      streamTimeoutMs: 5000,
+    }),
+    { "X-Target-Key": "owned-lifecycle-credential" },
+  );
+  t.after(() => c.disconnect(true));
+  await within(
+    c.send("complete without EOF", true),
+    "terminal stream waited for EOF",
+  );
+  await within(
+    closed.promise,
+    "terminal stream did not close its HTTP response",
+  );
+  assert.equal(responseEnded, false, "only the client closed this response");
+  assert.equal(c.state.status, "completed");
+  assert.equal(c.state.uncertain, false);
+  assert.equal(c.state.busy, false);
+  assert.equal(c.state.error, undefined);
+  assert.deepEqual(c.state.artifacts, [
+    { id: "answer", name: "Visible answer", parts: ["Café 😀"], last: true },
+  ]);
+  assert.doesNotMatch(c.export(), /PRIVATE queued text/u);
+  assert.deepEqual(
+    requests.map(({ method }) => method),
+    ["SendStreamingMessage"],
+  );
+  assert.equal(
+    requests[0].headers["x-target-key"],
+    "owned-lifecycle-credential",
+  );
+  assert.equal(requests[0].headers.authorization, undefined);
+  assert.equal(requests[0].headers.cookie, undefined);
+});
+
+test("real interrupted A2A streams require explicit task readback and disconnect clears local evidence without cancellation", async (t) => {
+  const requests = [],
+    streams = new Map(),
+    closures = new Map();
+  const server = createServer(async (req, res) => {
+    let raw = "";
+    for await (const chunk of req) raw += chunk;
+    const request = JSON.parse(raw);
+    requests.push(request);
+    if (request.method === "GetTask") {
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: request.id,
+          result: {
+            id: "recover-task",
+            contextId: "recover-context",
+            status: { state: "TASK_STATE_COMPLETED" },
+            artifacts: [
+              {
+                artifactId: "recovered",
+                name: "Recovered answer",
+                parts: [{ text: "Recovered Café 😀" }],
+              },
+            ],
+          },
+        }),
+      );
+    }
+    const clear =
+        request.params.message.parts[0].text === "clear private evidence",
+      taskId = clear ? "clear-task" : "recover-task",
+      contextId = clear ? "clear-context" : "recover-context",
+      label = clear ? "clear" : "recover";
+    streams.set(label, res);
+    res.once("close", () => closures.get(label).resolve());
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    for (const result of [
+      {
+        task: {
+          id: taskId,
+          contextId,
+          status: { state: "TASK_STATE_WORKING" },
+        },
+      },
+      {
+        artifactUpdate: {
+          taskId,
+          contextId,
+          artifact: {
+            artifactId: "partial",
+            parts: [
+              {
+                text: clear
+                  ? "PRIVATE local transcript"
+                  : "Acknowledged partial text",
+              },
+            ],
+          },
+        },
+      },
+    ])
+      res.write(
+        `data: ${JSON.stringify({ jsonrpc: "2.0", id: request.id, result })}\n\n`,
+      );
+    // Each response remains open until the controlled connection loss/disconnect.
+  });
+  await listenFixture(server);
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  });
+  const card = lifecycleCard(`http://127.0.0.1:${server.address().port}`),
+    settings = a2aSettings({
+      allowLoopbackHTTP: true,
+      timeoutMs: 1000,
+      streamTimeoutMs: 5000,
+    }),
+    acknowledged = Promise.withResolvers();
+  closures.set("recover", Promise.withResolvers());
+  const c = make(card, settings, {}, () => {
+    if (c.state.artifacts[0]?.parts[0] === "Acknowledged partial text")
+      acknowledged.resolve();
+  });
+  t.after(() => c.disconnect(true));
+  const sending = c.send("lose this transport", true),
+    failed = assert.rejects(sending, { code: "a2a_request_failed" });
+  t.after(() => Promise.allSettled([sending, failed]));
+  await within(
+    acknowledged.promise,
+    "task was not acknowledged before connection loss",
+  );
+  streams.get("recover").destroy();
+  await failed;
+  await within(
+    closures.get("recover").promise,
+    "interrupted stream did not close",
+  );
+  assert.equal(c.state.status, "working");
+  assert.equal(c.state.task, "recover-task");
+  assert.equal(c.state.context, "recover-context");
+  assert.equal(c.state.uncertain, true);
+  assert.equal(c.state.error, "a2a_request_failed");
+  assert.equal(c.state.busy, false);
+  await assert.rejects(c.send("must not replay"), {
+    code: "a2a_task_not_ready",
+  });
+  assert.deepEqual(
+    requests.map(({ method }) => method),
+    ["SendStreamingMessage"],
+  );
+  await c.read();
+  assert.equal(c.state.status, "completed");
+  assert.equal(c.state.uncertain, false);
+  assert.equal(c.state.error, undefined);
+  assert.deepEqual(
+    c.state.artifacts.map(({ id, name, parts }) => ({ id, name, parts })),
+    [
+      {
+        id: "recovered",
+        name: "Recovered answer",
+        parts: ["Recovered Café 😀"],
+      },
+    ],
+  );
+  assert.deepEqual(
+    requests.map(({ method }) => method),
+    ["SendStreamingMessage", "GetTask"],
+  );
+  assert.equal(requests[1].params.id, "recover-task");
+
+  const privateObserved = Promise.withResolvers();
+  closures.set("clear", Promise.withResolvers());
+  const cleared = make(card, settings, {}, () => {
+    if (cleared.state.artifacts[0]?.parts[0] === "PRIVATE local transcript")
+      privateObserved.resolve();
+  });
+  t.after(() => cleared.disconnect(true));
+  const clearing = cleared.send("clear private evidence", true),
+    interrupted = assert.rejects(clearing, { code: "a2a_request_interrupted" });
+  t.after(() => Promise.allSettled([clearing, interrupted]));
+  await within(
+    privateObserved.promise,
+    "private evidence was not received before disconnect",
+  );
+  cleared.disconnect(true);
+  await interrupted;
+  await within(
+    closures.get("clear").promise,
+    "disconnect did not close the real HTTP response",
+  );
+  assert.deepEqual(cleared.state, {
+    status: "ready",
+    messages: [],
+    artifacts: [],
+    busy: false,
+    connected: false,
+    uncertain: false,
+  });
+  assert.doesNotMatch(
+    cleared.export(),
+    /PRIVATE local transcript|clear-task|clear-context/u,
+  );
+  await assert.rejects(cleared.send("must not reconnect"), {
+    code: "a2a_disconnected",
+  });
+  await assert.rejects(cleared.cancel(), { code: "a2a_cancel_unavailable" });
+  assert.deepEqual(
+    requests.map(({ method }) => method),
+    ["SendStreamingMessage", "GetTask", "SendStreamingMessage"],
+  );
 });

@@ -60,6 +60,466 @@ test("real child process uses literal arguments, bounds output and cancels witho
   );
 });
 
+async function registryEvent(event, label, operation) {
+  let timer;
+  try {
+    const waiting = [
+      event,
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`Owned registry ${label} did not complete`)),
+          3000,
+        );
+      }),
+    ];
+    if (operation)
+      waiting.push(
+        operation.then(() => {
+          assert.fail(`Acquisition completed before owned registry ${label}`);
+        }),
+      );
+    return await Promise.race(waiting);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// A real credentialed OCI peer. Only loopback TLS requests participate; the
+// private acquisition path deliberately does not run ORAS or use ambient auth.
+async function privateRegistry(t) {
+  const { createServer, get } = await import("node:https");
+  const { readFile } = await import("node:fs/promises");
+  const { execFileSync } = await import("node:child_process");
+  const { files, zip, hash, representation } =
+    await import("./package-fixtures.mjs");
+  const { skillPlan, acquirePackage } = await import(
+    process.env.CATALOG_VSCODE_LIB
+  );
+  const directory = await mkdtemp(join(tmpdir(), "oac-private-oci-")),
+    servers = [];
+  t.after(async () => {
+    await Promise.all(
+      servers.map(
+        (server) =>
+          new Promise((done) => {
+            server.closeAllConnections();
+            server.close(done);
+          }),
+      ),
+    );
+    await rm(directory, { recursive: true, force: true });
+  });
+  execFileSync(
+    "openssl",
+    [
+      "req",
+      "-x509",
+      "-newkey",
+      "rsa:2048",
+      "-nodes",
+      "-days",
+      "1",
+      "-subj",
+      "/CN=localhost",
+      "-addext",
+      "subjectAltName=IP:127.0.0.1",
+      "-keyout",
+      join(directory, "key"),
+      "-out",
+      join(directory, "cert"),
+    ],
+    { stdio: "ignore", timeout: 15000 },
+  );
+  const tls = {
+      key: await readFile(join(directory, "key")),
+      cert: await readFile(join(directory, "cert")),
+    },
+    entries = files(),
+    archive = zip(entries),
+    seen = [],
+    foreign = [],
+    basic =
+      "Basic " +
+      Buffer.from("registry-reader:source-secret").toString("base64"),
+    bearer = "Bearer registry.token";
+  const state = {
+    token: "valid",
+    challenge: "valid",
+    blob: "valid",
+    repeat: false,
+  };
+  const start = async (handler) => {
+    const server = createServer(tls, handler);
+    servers.push(server);
+    await listenFixture(server);
+    return `https://127.0.0.1:${server.address().port}`;
+  };
+  const foreignOrigin = await start((req, res) => {
+    foreign.push({ path: req.url, headers: req.headers });
+    res.end('{"token":"must-not-be-read"}');
+  });
+  // Prove that this exact target is reachable with the same trust input before
+  // using zero contacts as evidence of a credential-origin or redirect fence.
+  const probeAbort = new AbortController(),
+    probeTimer = setTimeout(() => probeAbort.abort(), 3000);
+  try {
+    const probe = await new Promise((done, fail) => {
+      const request = get(
+        foreignOrigin + "/token",
+        {
+          ca: tls.cert,
+          rejectUnauthorized: true,
+          agent: false,
+          signal: probeAbort.signal,
+        },
+        (response) => {
+          const chunks = [];
+          response.on("data", (chunk) => chunks.push(chunk));
+          response.on("error", fail);
+          response.on("end", () =>
+            done({
+              status: response.statusCode,
+              bytes: Buffer.concat(chunks).toString("utf8"),
+            }),
+          );
+        },
+      );
+      request.on("error", fail);
+    });
+    assert.deepEqual(probe, {
+      status: 200,
+      bytes: '{"token":"must-not-be-read"}',
+    });
+    assert.equal(foreign.length, 1);
+    assert.equal(foreign[0].path, "/token");
+    assert.equal(foreign[0].headers.authorization, undefined);
+    assert.equal(foreign[0].headers.cookie, undefined);
+    foreign.length = 0;
+  } finally {
+    clearTimeout(probeTimer);
+    probeAbort.abort();
+  }
+  let origin, manifest;
+  const began = Promise.withResolvers(),
+    disconnected = Promise.withResolvers();
+  origin = await start((req, res) => {
+    const url = new URL(req.url, origin);
+    seen.push({
+      path: url.pathname,
+      method: req.method,
+      query: Object.fromEntries(url.searchParams),
+      queryCount: url.searchParams.size,
+      headers: req.headers,
+    });
+    if (url.pathname === "/token") {
+      if (state.token === "redirect") {
+        res.writeHead(302, { location: foreignOrigin + "/token" });
+        res.end();
+        return;
+      }
+      res.setHeader("content-type", "application/json");
+      res.end(
+        JSON.stringify({
+          token:
+            state.token === "invalid"
+              ? "contains a space"
+              : state.token === "oversize"
+                ? "x".repeat(8193)
+                : "registry.token",
+        }),
+      );
+      return;
+    }
+    if (req.headers.authorization !== bearer || state.repeat) {
+      const realm =
+        state.challenge === "foreign"
+          ? foreignOrigin + "/token"
+          : origin + "/token";
+      res.writeHead(401, {
+        "www-authenticate":
+          state.challenge === "malformed"
+            ? 'Basic realm="owned"'
+            : `Bearer realm="${realm}",service="owned-registry",scope="repository:${state.challenge === "scope" ? "other/repository" : "skills/owned"}:pull"`,
+      });
+      res.end("owned challenge");
+      return;
+    }
+    if (url.pathname.startsWith("/v2/skills/owned/manifests/")) {
+      res.setHeader(
+        "content-type",
+        "application/vnd.oci.image.manifest.v1+json",
+      );
+      res.end(manifest);
+    } else if (url.pathname.startsWith("/v2/skills/owned/blobs/")) {
+      res.setHeader("content-type", "application/agent-skills+zip");
+      if (state.blob === "pending") {
+        res.once("close", disconnected.resolve);
+        res.write(archive.subarray(0, 2));
+        began.resolve();
+      } else
+        res.end(
+          state.blob === "wrong"
+            ? Buffer.alloc(archive.length)
+            : state.blob === "large"
+              ? Buffer.alloc(archive.length + 1)
+              : archive,
+        );
+    } else {
+      res.writeHead(404);
+      res.end();
+    }
+  });
+  const layer = {
+    mediaType: "application/agent-skills+zip",
+    digest: hash(archive),
+    size: archive.length,
+  };
+  const document = () => ({
+    schemaVersion: 2,
+    mediaType: "application/vnd.oci.image.manifest.v1+json",
+    config: {
+      mediaType: "application/vnd.oci.empty.v1+json",
+      digest: hash("{}"),
+      size: 2,
+    },
+    layers: [{ ...layer }],
+  });
+  const acquire = (
+    value = document(),
+    signal = AbortSignal.timeout(10000),
+    corrupt = false,
+  ) => {
+    const exact = Buffer.from(JSON.stringify(value));
+    manifest = corrupt
+      ? Buffer.from(
+          JSON.stringify({
+            ...value,
+            annotations: {
+              "org.opencontainers.image.description": "changed bytes",
+            },
+          }),
+        )
+      : exact;
+    const input = representation(entries);
+    input.handoff.oci.reference = `${new URL(origin).host}/skills/owned@${hash(exact)}`;
+    const plan = skillPlan(input, hash("owned registry account"));
+    return acquirePackage(
+      plan,
+      plan.sources.find((source) => source.type === "oci"),
+      directory,
+      { timeoutMs: 10000, caFile: join(directory, "cert") },
+      signal,
+      {
+        type: "oci",
+        origin,
+        scheme: "basic",
+        username: "registry-reader",
+        token: "source-secret",
+      },
+    );
+  };
+  const expectContent = (content) =>
+    assert.deepEqual(
+      [...content].sort(),
+      entries
+        .map((entry) => [
+          entry.path,
+          { bytes: entry.bytes, executable: entry.executable },
+        ])
+        .sort(),
+    );
+  const counts = () => ({
+    manifests: seen.filter((r) => r.path.includes("/manifests/")).length,
+    tokens: seen.filter((r) => r.path === "/token").length,
+    blobs: seen.filter((r) => r.path.includes("/blobs/")).length,
+  });
+  return {
+    acquire,
+    expectContent,
+    document,
+    manifestPath: `/v2/skills/owned/manifests/${hash(Buffer.from(JSON.stringify(document())))}`,
+    layer,
+    archive,
+    origin,
+    basic,
+    bearer,
+    state,
+    seen,
+    foreign,
+    counts,
+    began,
+    disconnected,
+  };
+}
+
+test("real private OCI authentication binds one token exchange to the selected origin and repository", async (t) => {
+  const f = await privateRegistry(t);
+  f.expectContent(await f.acquire());
+  assert.deepEqual(f.counts(), { manifests: 2, tokens: 1, blobs: 1 });
+  assert.deepEqual(
+    f.seen.map((request) => request.path),
+    [
+      f.manifestPath,
+      "/token",
+      f.manifestPath,
+      `/v2/skills/owned/blobs/${f.layer.digest}`,
+    ],
+  );
+  assert.ok(f.seen.every((request) => request.method === "GET"));
+  assert.deepEqual(
+    f.seen.map((request) => request.headers.authorization),
+    [f.basic, f.basic, f.bearer, f.bearer],
+  );
+  assert.deepEqual(f.seen[1].query, {
+    scope: "repository:skills/owned:pull",
+    service: "owned-registry",
+  });
+  assert.equal(f.seen[1].queryCount, 2);
+  assert.equal(
+    f.seen[0].headers.accept,
+    "application/vnd.oci.image.manifest.v1+json",
+  );
+  assert.equal(f.seen[3].headers.accept, "application/agent-skills+zip");
+  for (const [field, value, code, delta] of [
+    [
+      "challenge",
+      "malformed",
+      "unsupported_oci_authentication",
+      { manifests: 1, tokens: 0, blobs: 0 },
+    ],
+    [
+      "challenge",
+      "foreign",
+      "package_credential_origin_mismatch",
+      { manifests: 1, tokens: 0, blobs: 0 },
+    ],
+    [
+      "challenge",
+      "scope",
+      "package_credential_origin_mismatch",
+      { manifests: 1, tokens: 0, blobs: 0 },
+    ],
+    [
+      "token",
+      "redirect",
+      "package_archive_unavailable",
+      { manifests: 1, tokens: 1, blobs: 0 },
+    ],
+    [
+      "token",
+      "invalid",
+      "invalid_package_credentials",
+      { manifests: 1, tokens: 1, blobs: 0 },
+    ],
+    [
+      "token",
+      "oversize",
+      "invalid_package_credentials",
+      { manifests: 1, tokens: 1, blobs: 0 },
+    ],
+    [
+      "repeat",
+      true,
+      "package_archive_unavailable",
+      { manifests: 2, tokens: 1, blobs: 0 },
+    ],
+  ]) {
+    const prior = f.state[field],
+      before = f.counts();
+    f.state[field] = value;
+    try {
+      await assert.rejects(f.acquire(), { code });
+      const after = f.counts();
+      assert.deepEqual(
+        Object.fromEntries(
+          Object.keys(after).map((key) => [key, after[key] - before[key]]),
+        ),
+        delta,
+      );
+      assert.deepEqual(
+        f.foreign,
+        [],
+        "No credential or token reaches another origin, including redirects",
+      );
+    } finally {
+      f.state[field] = prior;
+    }
+  }
+  assert.ok(f.seen.every((request) => !request.headers.cookie));
+  f.expectContent(await f.acquire());
+});
+
+test("real private OCI acquisition verifies exact manifest and layer evidence and closes a cancelled blob", async (t) => {
+  const f = await privateRegistry(t);
+  f.expectContent(await f.acquire());
+  for (const [value, corrupt, code] of [
+    [f.document(), true, "package_integrity_failed"],
+    [{ ...f.document(), schemaVersion: 3 }, false, "unsupported_oci_manifest"],
+    [
+      { ...f.document(), layers: [f.layer, f.layer] },
+      false,
+      "ambiguous_package_layer",
+    ],
+    [
+      { ...f.document(), layers: [{ ...f.layer, size: f.layer.size + 1 }] },
+      false,
+      "package_integrity_failed",
+    ],
+    [
+      {
+        ...f.document(),
+        layers: [{ ...f.layer, digest: "sha256:" + "a".repeat(64) }],
+      },
+      false,
+      "package_integrity_failed",
+    ],
+    [
+      {
+        ...f.document(),
+        layers: [{ ...f.layer, urls: [f.origin + "/must-not-follow"] }],
+      },
+      false,
+      "package_integrity_failed",
+    ],
+  ]) {
+    const before = f.counts();
+    await assert.rejects(f.acquire(value, undefined, corrupt), { code });
+    const after = f.counts();
+    assert.equal(after.manifests - before.manifests, 2);
+    assert.equal(after.tokens - before.tokens, 1);
+    assert.equal(
+      after.blobs,
+      before.blobs,
+      "Refused manifest evidence must not authorize a blob request",
+    );
+  }
+  for (const [mode, code] of [
+    ["wrong", "package_integrity_failed"],
+    ["large", "package_size_limit"],
+  ]) {
+    f.state.blob = mode;
+    const before = f.counts();
+    await assert.rejects(f.acquire(), { code });
+    assert.equal(f.counts().blobs, before.blobs + 1);
+  }
+  f.state.blob = "pending";
+  const controller = new AbortController(),
+    operation = f.acquire(undefined, controller.signal),
+    rejected = assert.rejects(operation, { code: "package_cancelled" });
+  try {
+    await registryEvent(f.began.promise, "blob readiness", operation);
+    controller.abort();
+    await rejected;
+    await registryEvent(f.disconnected.promise, "blob disconnect");
+  } finally {
+    controller.abort();
+    await Promise.allSettled([rejected]);
+  }
+  f.state.blob = "valid";
+  f.expectContent(await f.acquire());
+  assert.deepEqual(f.foreign, []);
+});
+
 test("real HTTPS Plugin download verifies private trust, identity and streaming limits without credentials", async (t) => {
   const { createServer } = await import("node:https");
   const { readFile } = await import("node:fs/promises");

@@ -1,6 +1,7 @@
 // Browser actions against the invocation-owned PostgreSQL stack and the
 // existing functional HTTPS origin. No successful API response is mocked.
 import { expect } from "@playwright/test";
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 /** Open only the named native disclosure and its containing disclosures through real summary clicks. */
@@ -791,6 +792,21 @@ export async function packagedJourneys({
   await field("Agents").check();
   await field("Enable live queries").check();
   await field("I acknowledge queries are sent to this upstream").check();
+  const topologyAPIPath = new URL(origin + "/_catalog/api/v1").pathname;
+  const topologyRequests = [];
+  const observeTopologyRequest = (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (!pathname.startsWith(topologyAPIPath + "/")) return;
+    const path = pathname.slice(topologyAPIPath.length);
+    if (
+      path === "/publication/hosts" ||
+      /^\/catalog\/(search|explore|resources)$/.test(path) ||
+      path === "/federation/sources:live-search" ||
+      (request.method() !== "GET" && path.startsWith("/federation/"))
+    )
+      topologyRequests.push({ method: request.method(), path });
+  };
+  page.on("request", observeTopologyRequest);
   await openDisclosure(page, "Advanced source participation");
   await button("Edit topology as JSON").click();
   await field("Topology JSON").fill('{"unexpected":true}');
@@ -808,10 +824,58 @@ export async function packagedJourneys({
   );
   await button("Use guided topology").click();
   await button("Add discovery assignment").click();
+  expect(topologyRequests).toEqual([]);
+  const hostInventoryResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname ===
+        topologyAPIPath + "/publication/hosts",
+  );
+  await button("Load configured host choices").click();
+  const hostInventory = await hostInventoryResponse;
+  expect(hostInventory.status()).toBe(200);
+  expect((await hostInventory.json()).items).toEqual([
+    expect.objectContaining({ host: "127.0.0.1", mode: "anonymous" }),
+    expect.objectContaining({
+      host: "private.catalog.test",
+      mode: "authenticated",
+    }),
+  ]);
+  const configuredSourceHost = page.getByRole("combobox", {
+    name: "Configured discovery host 1",
+    exact: true,
+  });
+  await expect(
+    configuredSourceHost.locator("option:not([value='']):not([disabled])"),
+  ).toHaveText([
+    "127.0.0.1 (anonymous)",
+    "private.catalog.test (authenticated)",
+  ]);
+  await configuredSourceHost.selectOption("127.0.0.1");
+  await expect(field("Discovery host 1")).toHaveValue("127.0.0.1");
+  // Manual entry remains independent of publication inventory and preserves
+  // the exact authenticated host selected for this owned source.
   await field("Discovery host 1").fill("private.catalog.test");
   await page
     .getByRole("combobox", { name: "Discovery audience 1", exact: true })
     .selectOption("authenticated");
+  await button("Add discovery assignment").click();
+  await field("Discovery host 2").fill("127.0.0.1");
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await button("Remove discovery assignment 2").click();
+  await expect(field("Discovery host 2")).toHaveValue("127.0.0.1");
+  page.once("dialog", (dialog) => dialog.accept());
+  await button("Remove discovery assignment 2").click();
+  await expect(field("Discovery host 2")).toHaveCount(0);
+  await expect(field("Discovery host 1")).toHaveValue("private.catalog.test");
+  await expect(
+    page.getByRole("combobox", { name: "Discovery audience 1", exact: true }),
+  ).toHaveValue("authenticated");
+  await button("Hide configured host choices").click();
+  await expect(configuredSourceHost).toHaveCount(0);
+  expect(topologyRequests).toEqual([
+    { method: "GET", path: "/publication/hosts" },
+  ]);
   const topology = {
     referrals: { enabled: false },
     nesting: { enabled: false },
@@ -852,6 +916,30 @@ export async function packagedJourneys({
   await link("Open source").click();
   const sourceURL = page.url();
   const sourceID = new URL(sourceURL).pathname.split("/").pop();
+  await expect(button("Sync history")).toBeVisible();
+  const sourceReadback = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname ===
+        `${topologyAPIPath}/federation/sources/${sourceID}`,
+  );
+  await page.reload();
+  const retainedSource = await sourceReadback;
+  expect(retainedSource.status()).toBe(200);
+  expect(await retainedSource.json()).toMatchObject({
+    id: sourceID,
+    ...topology,
+    scope: {
+      kinds: ["agent"],
+      excludedIdentifiers: ["legacy:browser-hidden"],
+    },
+  });
+  await expect(button("Sync history")).toBeVisible();
+  expect(topologyRequests).toEqual([
+    { method: "GET", path: "/publication/hosts" },
+    { method: "POST", path: "/federation/sources" },
+  ]);
+  page.off("request", observeTopologyRequest);
   // Verification is deliberately off in this existing fixture. Exercise real
   // UI-to-API refusal, not a mocked positive verdict or a second ANS campaign.
   const unavailableAssessment = async (selection, reason) => {
@@ -1749,9 +1837,43 @@ export async function packagedJourneys({
   ).toBeVisible();
   await expect(link(sourceID)).toBeVisible();
   await expect(page.getByText(/Selected version:/)).toBeVisible();
+  const adoptionEvidenceReads = [];
+  const observeAdoptionEvidence = (request) => {
+    const path = new URL(request.url()).pathname;
+    if (
+      path.startsWith(topologyAPIPath + "/") &&
+      /\/observations\/[0-9a-f-]{36}\/raw$/.test(path)
+    )
+      adoptionEvidenceReads.push(path);
+  };
+  page.on("request", observeAdoptionEvidence);
+  const occurrenceReply = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      /\/api\/v1\/observations\/[0-9a-f-]{36}\/occurrences$/.test(
+        new URL(response.url()).pathname,
+      ),
+  );
   await page.locator('a[href*="/observations/"]').first().click();
   const observationURL = page.url();
-  await expect(page.locator("pre")).toHaveCount(0);
+  const occurrenceResponse = await occurrenceReply;
+  expect(occurrenceResponse.status()).toBe(200);
+  const occurrenceInventory = await occurrenceResponse.json();
+  expect(occurrenceInventory.items.length).toBeGreaterThan(0);
+  const adoptionOccurrence = occurrenceInventory.items[0];
+  const observationID = new URL(observationURL).pathname.split("/").at(-1);
+  expect(adoptionOccurrence.observationId).toBe(observationID);
+  expect(adoptionOccurrence.evidenceComplete).toBe(true);
+  const selectedRawPath = `${topologyAPIPath}/observations/${observationID}/raw`;
+  const adoptionRawPanel = page.locator("section.workspace-panel").filter({
+    has: page.getByRole("heading", { name: "Exact raw entry", exact: true }),
+  });
+  expect(adoptionEvidenceReads).toEqual([]);
+  await expect(adoptionRawPanel).toHaveCount(0);
+  await expect(button("Read exact raw entry")).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
   const occurrences = page.locator("section.workspace-panel").filter({
     has: page.getByRole("heading", {
       name: "Saved occurrences",
@@ -1764,8 +1886,32 @@ export async function packagedJourneys({
     .click();
   if (captureDocumentation)
     await captureDocumentation("source-retained-occurrence", occurrences);
+  const rawEntryReply = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" &&
+      new URL(response.url()).pathname === selectedRawPath,
+  );
   await button("Read exact raw entry").click();
-  await expect(page.locator("pre").first()).toContainText("Functional");
+  expect((await rawEntryReply).status()).toBe(200);
+  await expect(adoptionRawPanel.locator("pre")).toContainText("Functional");
+  expect(adoptionEvidenceReads).toEqual([selectedRawPath]);
+  const adoptionPath = new URL(
+    `${origin}/_catalog/api/v1/observations/${observationID}:adopt`,
+  ).pathname;
+  const adoptionWrites = [];
+  const adoptionMetadataRequests = [];
+  const adoptionDocumentation = "https://adoption-metadata.invalid/guide";
+  const observeAdoption = (request) => {
+    const url = new URL(request.url());
+    if (
+      url.pathname.includes("/_catalog/api/v1/") &&
+      !["GET", "HEAD", "OPTIONS"].includes(request.method())
+    )
+      adoptionWrites.push({ method: request.method(), path: url.pathname });
+    if (url.hostname === new URL(adoptionDocumentation).hostname)
+      adoptionMetadataRequests.push(url.href);
+  };
+  page.on("request", observeAdoption);
   await button("Use this occurrence for adoption").first().click();
   await chooseNamedOption(
     field("Destination namespace"),
@@ -1775,6 +1921,8 @@ export async function packagedJourneys({
     field("Local publisher"),
     /^Demo Publisher \/ [0-9a-f-]{36}$/i,
   );
+  const adoptionNamespaceID = await field("Destination namespace").inputValue();
+  const adoptionPublisherID = await field("Local publisher").inputValue();
   await button("Edit local metadata overrides as JSON").click();
   await field("Local metadata overrides JSON").fill(
     '{"publisherId":"not-an-adoption-override"}',
@@ -1799,6 +1947,92 @@ export async function packagedJourneys({
     });
     await captureDocumentation("source-adoption-preparation", adoption);
   }
+  const adoptionMetadata = page.getByRole("group", {
+    name: "Local metadata overrides",
+    exact: true,
+  });
+  const documentationOverride = adoptionMetadata.getByRole("checkbox", {
+    name: "Override local documentation url",
+    exact: true,
+  });
+  const localVisibility = adoptionMetadata.getByRole("combobox", {
+    name: "Local visibility",
+    exact: true,
+  });
+  await documentationOverride.check();
+  await field("Local documentation URL").fill(
+    "http://adoption-metadata.invalid/guide",
+  );
+  await button("Adopt as local draft").click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Use a credential-free HTTPS link.",
+  );
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(adoptionWrites).toEqual([]);
+  await field("Local documentation URL").fill(adoptionDocumentation);
+  await localVisibility.selectOption("tenant");
+  await localVisibility.selectOption("");
+  await field("Override local license").check();
+  await expect(field("Local license")).toHaveValue("");
+  await field("Override local categories").check();
+  await button("Add local category").click();
+  await field("Local category 1").fill("temporary, literal category");
+  await button("Remove local category 1").click();
+  await expect(field("Local category 1")).toHaveCount(0);
+  await expect(button("Add local category")).toBeFocused();
+  const prepareAndCancelAdoption = async (expectedMetadata) => {
+    await button("Adopt as local draft").click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    const summary = dialog.getByLabel("Command summary", { exact: true });
+    const value = (name) =>
+      summary
+        .getByText(name, { exact: true })
+        .locator("xpath=following-sibling::dd[1]");
+    for (const [name, expected] of [
+      ["Observation ID", observationID],
+      ["Source ID", adoptionOccurrence.sourceId],
+      ["Source revision", String(adoptionOccurrence.sourceRevision)],
+      ["Snapshot ID", adoptionOccurrence.snapshotId],
+      ["Entry location", adoptionOccurrence.entryLocation],
+      ["Retrieval digest", adoptionOccurrence.retrievalDigest],
+      ["Namespace ID", adoptionNamespaceID],
+      ["Publisher ID", adoptionPublisherID],
+    ])
+      await expect(value(name)).toHaveText(expected);
+    expect(
+      JSON.parse(await value("Local metadata overrides").textContent()),
+    ).toEqual(expectedMetadata);
+    expect(adoptionWrites).toEqual([]);
+    expect(adoptionEvidenceReads).toEqual([selectedRawPath]);
+    expect(adoptionMetadataRequests).toEqual([]);
+    await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    expect(adoptionWrites).toEqual([]);
+  };
+  await prepareAndCancelAdoption({
+    version: "1.0.0",
+    displayName: "Guided adopted resource",
+    documentationUrl: adoptionDocumentation,
+    license: "",
+    categories: [],
+  });
+  await documentationOverride.uncheck();
+  await field("Override local license").uncheck();
+  await field("Override local categories").uncheck();
+  await expect(field("Local documentation URL")).toHaveCount(0);
+  await expect(field("Local license")).toHaveCount(0);
+  await expect(button("Add local category")).toHaveCount(0);
+  await prepareAndCancelAdoption({
+    version: "1.0.0",
+    displayName: "Guided adopted resource",
+  });
+  await expect(field("Local display name")).toHaveValue(
+    "Guided adopted resource",
+  );
+  await localVisibility.selectOption("private");
+  await documentationOverride.check();
+  await field("Local documentation URL").fill(adoptionDocumentation);
   const adoptionLicense = (
     "Apache-2.0; " + "Local qualification declaration. ".repeat(12)
   ).trim();
@@ -1813,11 +2047,34 @@ export async function packagedJourneys({
       response.url().endsWith(":adopt"),
   );
   await command("Adopt as local draft");
-  const adopted = await (await adoptionReply).json();
+  const adoptionResponse = await adoptionReply;
+  expect(adoptionResponse.status()).toBe(201);
+  expect(new URL(adoptionResponse.url()).pathname).toBe(adoptionPath);
+  expect(adoptionResponse.request().headers()["idempotency-key"]).toMatch(
+    /^[0-9a-f-]{36}$/i,
+  );
+  expect(adoptionResponse.request().postDataJSON()).toEqual({
+    snapshotId: adoptionOccurrence.snapshotId,
+    retrievalDigest: adoptionOccurrence.retrievalDigest,
+    entryLocation: adoptionOccurrence.entryLocation,
+    namespaceId: adoptionNamespaceID,
+    publisherId: adoptionPublisherID,
+    version: "1.0.0",
+    displayName: "Guided adopted resource",
+    documentationUrl: adoptionDocumentation,
+    visibility: "private",
+    license: adoptionLicense,
+    categories: ["operations, tools"],
+  });
+  expect(adoptionWrites).toEqual([{ method: "POST", path: adoptionPath }]);
+  expect(adoptionEvidenceReads).toEqual([selectedRawPath]);
+  expect(adoptionMetadataRequests).toEqual([]);
+  const adopted = await adoptionResponse.json();
   expect(adopted.listingRevision.displayName).toBe("Guided adopted resource");
   expect(adopted.listingRevision.categories).toEqual(["operations, tools"]);
   expect(adopted.listingRevision.visibility).toBe("private");
   expect(adopted.listingRevision.license).toBe(adoptionLicense);
+  expect(adopted.listingRevision.documentationUrl).toBe(adoptionDocumentation);
   await expect(page.getByRole("status")).toContainText("Local draft created.");
   await link("Open adopted resource").click();
   await page.reload();
@@ -1839,6 +2096,12 @@ export async function packagedJourneys({
   expect(readback.categories).toEqual(["operations, tools"]);
   expect(readback.visibility).toBe("private");
   expect(readback.license).toBe(adoptionLicense);
+  expect(readback.documentationUrl).toBe(adoptionDocumentation);
+  expect(adoptionWrites).toEqual([{ method: "POST", path: adoptionPath }]);
+  expect(adoptionEvidenceReads).toEqual([selectedRawPath]);
+  expect(adoptionMetadataRequests).toEqual([]);
+  page.off("request", observeAdoption);
+  page.off("request", observeAdoptionEvidence);
   await expect(link("Back to listing")).toBeVisible();
   await page.goto(observationURL);
   await expect(button("Read exact raw entry")).toBeVisible();
@@ -2115,6 +2378,17 @@ export async function packagedJourneys({
   await waitJob("cancelled");
   await expect(button("Retry job")).toHaveCount(0);
   await worker(true);
+
+  phase("compose-alternate-source-artwork");
+  await alternateSourceArtworkJourney({
+    page,
+    origin,
+    sourceId: sourceID,
+    indexedURL,
+    currentHead: resetOverride,
+    currentETag: resetReply.headers().etag,
+    waitJob,
+  });
 
   phase("compose-source-change");
   for (const action of ["pause", "resume"]) {
@@ -2541,6 +2815,406 @@ export async function packagedJourneys({
   );
 }
 
+// A real overlapping Registry contribution gets its own local artwork history.
+// Setup uses supported API commands; only the alternate picker/save is the new
+// browser workflow. The original source and every legacy count stay unchanged.
+async function alternateSourceArtworkJourney({
+  page,
+  origin,
+  sourceId,
+  indexedURL,
+  currentHead,
+  currentETag,
+  waitJob,
+}) {
+  const button = (name) => page.getByRole("button", { name, exact: true });
+  const request = (method, path, body, etag) =>
+    page.evaluate(
+      async ({ url, method, body, etag, key }) => {
+        const response = await fetch(url, {
+          method,
+          credentials: "same-origin",
+          cache: "no-store",
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            "X-Catalog-Request": "1",
+            ...(body === undefined
+              ? {}
+              : { "Content-Type": "application/json" }),
+            ...(key ? { "Idempotency-Key": key } : {}),
+            ...(etag ? { "If-Match": etag } : {}),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+        const content = await response.text();
+        return {
+          status: response.status,
+          etag: response.headers.get("ETag"),
+          data: content ? JSON.parse(content) : undefined,
+        };
+      },
+      {
+        url: origin + "/_catalog" + path,
+        method,
+        body,
+        etag,
+        key: method === "GET" ? undefined : randomUUID(),
+      },
+    );
+  const { sourceId: _currentSource, ...entry } = currentHead.target;
+  expect(_currentSource).toBe(sourceId);
+  const currentPath = `/api/v1/federation/sources/${sourceId}/artwork`;
+  const query = new URLSearchParams(
+    Object.entries(entry).map(([key, value]) => [key, String(value)]),
+  );
+  const currentBefore = await request("GET", currentPath + "?" + query);
+  expect(currentBefore).toEqual({
+    status: 200,
+    etag: currentETag,
+    data: currentHead,
+  });
+  const currentHistory = await request(
+    "GET",
+    currentPath + "/history?" + query + "&limit=25",
+  );
+  expect(currentHistory.status).toBe(200);
+  expect(currentHistory.data.nextCursor).toBeUndefined();
+  expect(currentHistory.data.items.map((item) => item.revision)).toEqual([
+    1, 2,
+  ]);
+  const selection = new URLSearchParams(new URL(indexedURL).search);
+  const indexedPath = "/api/v1/catalog/indexed-record?" + selection;
+  const original = await request("GET", indexedPath);
+  expect(original.status).toBe(200);
+  expect(original.data.indexed.presentationSourceId).toBe(sourceId);
+  expect(original.data.indexed.sourceIds).toEqual([sourceId]);
+  const manifestURL =
+    "https://federation-fixture:8443/artwork-alternate/.well-known/ard.json";
+  const inspection = await request(
+    "POST",
+    "/api/v1/federation/source-inspections",
+    {
+      url: manifestURL,
+      networkProfile: "functional-fixture",
+    },
+  );
+  expect(inspection.status).toBe(201);
+  expect(inspection.data).toMatchObject({
+    requestedUrl: manifestURL,
+    resolvedUrl: manifestURL,
+    registryListUrl:
+      "https://federation-fixture:8443/artwork-alternate/ard/v1/agents",
+  });
+  const connected = await request("POST", "/api/v1/federation/sources", {
+    inspectionId: inspection.data.id,
+    displayName: "Owned alternate artwork contribution",
+    scope: { kinds: ["agent"], identifiers: [entry.identifier] },
+    retrievalMode: "indexed",
+    updateMode: "manual_review",
+    networkProfile: "functional-fixture",
+    reason: "Qualify independent artwork for one overlapping contribution",
+  });
+  expect(connected.status).toBe(201);
+  const alternateId = connected.data.id;
+  expect(alternateId).toMatch(/^[0-9a-f-]{36}$/);
+  expect(alternateId).not.toBe(sourceId);
+  expect(connected.data.endpoint).toBe(manifestURL);
+  expect(connected.data.registryListUrl).toBe(inspection.data.registryListUrl);
+  await page.goto(origin + `/sources/${alternateId}`);
+  await page
+    .getByRole("combobox", { name: "Source action", exact: true })
+    .selectOption("sync");
+  await button("Synchronize source").click();
+  const syncPath = `/api/v1/federation/sources/${alternateId}:sync`;
+  const [syncReply] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url() === origin + "/_catalog" + syncPath,
+    ),
+    page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Confirm", exact: true })
+      .click(),
+  ]);
+  expect(syncReply.status()).toBe(202);
+  const accepted = await syncReply.json();
+  expect(accepted.job.kind).toBe("source.sync");
+  expect(accepted.existing).toBe(false);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page
+    .getByRole("link", { name: "Inspect synchronization Job", exact: true })
+    .click();
+  await waitJob("succeeded");
+  const completed = await request("GET", `/api/v1/jobs/${accepted.job.id}`);
+  expect(completed.status).toBe(200);
+  expect(completed.data.state).toBe("succeeded");
+  const alternate = await request(
+    "GET",
+    `/api/v1/federation/sources/${alternateId}`,
+  );
+  expect(alternate.status).toBe(200);
+  expect(alternate.data.presentationGeneration).toBe(1);
+  const snapshot = await request(
+    "GET",
+    `/api/v1/federation/snapshots/${alternate.data.lastCompleteSnapshotId}`,
+  );
+  expect(snapshot.status).toBe(200);
+  expect(snapshot.data).toMatchObject({
+    sourceId: alternateId,
+    state: "complete",
+    enumerationComplete: true,
+  });
+  const target = {
+    ...entry,
+    sourceId: alternateId,
+    presentationGeneration: alternate.data.presentationGeneration,
+  };
+  const alternateQuery = new URLSearchParams(
+    Object.entries(target)
+      .filter(([key]) => key !== "sourceId")
+      .map(([key, value]) => [key, String(value)]),
+  );
+  const alternatePath = `/api/v1/federation/sources/${alternateId}/artwork`;
+  const initialHead = await request("POST", alternatePath, {
+    target,
+    icon: { mode: "inherit" },
+    screenshots: { mode: "inherit" },
+    reason: "Retain an initial head for the alternate contribution",
+  });
+  expect(initialHead.status).toBe(200);
+  expect(initialHead.data).toMatchObject({ target, revision: 1 });
+  expect(initialHead.etag).toBe('"rev-1"');
+  const withBoth = await request("GET", indexedPath);
+  expect(withBoth.status).toBe(200);
+  expect(withBoth.data.indexed.sourceIds).toEqual(
+    [sourceId, alternateId].sort(),
+  );
+  expect(withBoth.data.indexed.presentationSourceId).toBe(sourceId);
+  expect(withBoth.data.artwork).toEqual(original.data.artwork);
+  const writes = [];
+  const reads = [];
+  const outside = [];
+  const observe = (request) => {
+    const url = new URL(request.url());
+    if (
+      ["http:", "https:"].includes(url.protocol) &&
+      url.origin !== new URL(origin).origin
+    )
+      outside.push(url.origin);
+    if (
+      url.pathname.includes("/federation/sources/") &&
+      /\/artwork(?:\/history)?$/.test(url.pathname)
+    ) {
+      if (request.method() === "GET") reads.push(url.pathname);
+      else
+        writes.push({
+          method: request.method(),
+          path: url.pathname,
+          body: request.postDataJSON(),
+          etag: request.headers()["if-match"],
+          key: request.headers()["idempotency-key"],
+        });
+    }
+  };
+  page.on("request", observe);
+  try {
+    await page.goto(indexedURL);
+    const [currentReply] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          new URL(response.url()).pathname ===
+            new URL(origin + "/_catalog" + currentPath).pathname,
+      ),
+      button("Manage local artwork").click(),
+    ]);
+    expect(currentReply.status()).toBe(200);
+    expect(await currentReply.json()).toEqual(currentHead);
+    expect(currentReply.headers().etag).toBe(currentETag);
+    const contributions = page.getByRole("combobox", {
+      name: "Artwork contribution source",
+      exact: true,
+    });
+    await expect(contributions).toHaveValue(sourceId);
+    await expect(
+      contributions.getByRole("option", {
+        name: `${sourceId} (current presentation)`,
+        exact: true,
+      }),
+    ).toHaveAttribute("value", sourceId);
+    await expect(
+      contributions.getByRole("option", {
+        name: `${alternateId} (alternate contribution)`,
+        exact: true,
+      }),
+    ).toHaveAttribute("value", alternateId);
+    expect(reads).toEqual([
+      new URL(origin + "/_catalog" + currentPath).pathname,
+    ]);
+    const [sourceReply, headReply] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          response.url() ===
+            origin + `/_catalog/api/v1/federation/sources/${alternateId}`,
+      ),
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          new URL(response.url()).pathname ===
+            new URL(origin + "/_catalog" + alternatePath).pathname,
+      ),
+      contributions.selectOption(alternateId),
+    ]);
+    expect(sourceReply.status()).toBe(200);
+    expect((await sourceReply.json()).presentationGeneration).toBe(
+      target.presentationGeneration,
+    );
+    expect(headReply.status()).toBe(200);
+    expect(headReply.headers().etag).toBe(initialHead.etag);
+    expect(await headReply.json()).toEqual(initialHead.data);
+    expect(Object.fromEntries(new URL(headReply.url()).searchParams)).toEqual(
+      Object.fromEntries(alternateQuery),
+    );
+    await expect(
+      page.getByText(
+        "Editing an alternate contribution. This does not change which source supplies the current presentation.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await page
+      .getByRole("combobox", { name: "Icon behavior", exact: true })
+      .selectOption("suppress");
+    await page
+      .getByRole("textbox", { name: "Artwork override reason", exact: true })
+      .fill("Restrict the alternate contribution only");
+    await button("Save local artwork override").click();
+    const facts = page
+      .getByRole("dialog")
+      .getByLabel("Command summary", { exact: true });
+    for (const [label, value] of [
+      ["Source ID", alternateId],
+      ["Presentation generation", String(target.presentationGeneration)],
+      ["Override revision", initialHead.etag],
+    ])
+      await expect(
+        facts
+          .locator("dt")
+          .filter({ hasText: new RegExp(`^${label}$`) })
+          .locator("+ dd"),
+      ).toHaveText(value);
+    expect(writes).toEqual([]);
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await expect(
+      page.getByRole("textbox", {
+        name: "Artwork override reason",
+        exact: true,
+      }),
+    ).toHaveValue("Restrict the alternate contribution only");
+    expect(await request("GET", alternatePath + "?" + alternateQuery)).toEqual(
+      initialHead,
+    );
+    expect(writes).toEqual([]);
+    await button("Save local artwork override").click();
+    const [savedReply] = await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === "POST" &&
+          response.url() === origin + "/_catalog" + alternatePath,
+      ),
+      page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Confirm", exact: true })
+        .click(),
+    ]);
+    expect(savedReply.status()).toBe(200);
+    const saved = await savedReply.json();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    expect(saved).toMatchObject({
+      target,
+      revision: 2,
+      icon: { mode: "suppress" },
+      screenshots: { mode: "inherit" },
+      reason: "Restrict the alternate contribution only",
+    });
+    expect(writes).toEqual([
+      {
+        method: "POST",
+        path: new URL(origin + "/_catalog" + alternatePath).pathname,
+        body: {
+          target,
+          icon: { mode: "suppress" },
+          screenshots: { mode: "inherit" },
+          reason: "Restrict the alternate contribution only",
+        },
+        etag: initialHead.etag,
+        key: expect.any(String),
+      },
+    ]);
+    expect(writes[0].key).toBeTruthy();
+    expect(await request("GET", alternatePath + "?" + alternateQuery)).toEqual({
+      status: 200,
+      etag: savedReply.headers().etag,
+      data: saved,
+    });
+    const history = await request(
+      "GET",
+      alternatePath + "/history?" + alternateQuery + "&limit=25",
+    );
+    expect(history.status).toBe(200);
+    expect(history.data.items).toEqual([initialHead.data, saved]);
+    expect(history.data.nextCursor).toBeUndefined();
+    expect(await request("GET", currentPath + "?" + query)).toEqual(
+      currentBefore,
+    );
+    expect(
+      await request("GET", currentPath + "/history?" + query + "&limit=25"),
+    ).toEqual(currentHistory);
+    expect(await request("GET", indexedPath)).toEqual(withBoth);
+    expect(outside).toEqual([]);
+  } finally {
+    page.off("request", observe);
+  }
+  // Keep the existing source-removal journey's exact empty-list assertion.
+  // Removal retains the new source's evidence; it deletes no unrelated state.
+  const currentAlternate = await request(
+    "GET",
+    `/api/v1/federation/sources/${alternateId}`,
+  );
+  expect(currentAlternate.status).toBe(200);
+  const removal = await request(
+    "POST",
+    `/api/v1/federation/sources/${alternateId}/change-previews`,
+    { intent: "remove" },
+  );
+  expect(removal.status).toBe(200);
+  expect(removal.data.currentMatched).toBe(1);
+  expect(
+    (
+      await request(
+        "POST",
+        `/api/v1/federation/sources/${alternateId}:remove`,
+        {
+          changePreviewDigest: removal.data.digest,
+          reason: "Finish owned alternate artwork qualification",
+        },
+        currentAlternate.etag,
+      )
+    ).status,
+  ).toBe(204);
+  const sources = await request("GET", "/api/v1/federation/sources?limit=25");
+  expect(sources.status).toBe(200);
+  expect(sources.data.items.map((source) => source.id)).toEqual([sourceId]);
+  expect(sources.data.nextCursor).toBeUndefined();
+  expect(await request("GET", currentPath + "?" + query)).toEqual(
+    currentBefore,
+  );
+}
+
 // One full persisted author/reviewer/publisher/reader journey. Routing and
 // cookies are tested separately at both paths, not with duplicate mutations.
 async function publicationJourney({
@@ -2869,4 +3543,314 @@ async function publicationJourney({
     ),
   ).toBeVisible();
   await expect(link("Public discovery snapshots")).toHaveCount(0);
+}
+
+// One persisted private-feedback handoff complements the memory-browser and
+// packaged API transition matrices. Only role prerequisites use direct commands.
+export async function privateFeedbackJourney({ page, origin, network, api }) {
+  const button = (name) => page.getByRole("button", { name, exact: true });
+  const field = (name) => page.getByRole("textbox", { name, exact: true });
+  const visit = (path) => page.goto(origin + path);
+  const login = async (alias) => {
+    await page.getByLabel("Account", { exact: true }).click();
+    await button("Sign out").click();
+    await page.locator(`[data-login-alias="${alias}"]`).click();
+    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  };
+  const comment = "Owned packaged feedback <script>inert report</script>";
+  const responseText = "Owned moderator response retained after API restart";
+  const responseParagraph = page
+    .getByText(responseText, { exact: true })
+    .and(page.locator("p"));
+  const request = (method, path, body, etag) =>
+    page.evaluate(
+      async ({ url, method, body, etag, key }) => {
+        const response = await fetch(url, {
+          method,
+          credentials: "same-origin",
+          cache: "no-store",
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            "X-Catalog-Request": "1",
+            ...(body === undefined
+              ? {}
+              : { "Content-Type": "application/json" }),
+            ...(key ? { "Idempotency-Key": key } : {}),
+            ...(etag ? { "If-Match": etag } : {}),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+        return {
+          status: response.status,
+          etag: response.headers.get("ETag"),
+          cache: response.headers.get("Cache-Control"),
+          data: await response.json(),
+        };
+      },
+      {
+        url: origin + "/_catalog" + path,
+        method,
+        body,
+        etag,
+        key: method === "GET" ? undefined : randomUUID(),
+      },
+    );
+  // The existing owner seed publishes this release through governed commands.
+  // Select one bounded exact target without depending on another browser journey.
+  const targets = await request(
+    "GET",
+    "/api/v1/catalog/resources?kind=agent&limit=1",
+  );
+  expect(targets.status).toBe(200);
+  expect(targets.data.items).toHaveLength(1);
+  const releaseId = targets.data.items[0].release.id;
+  expect(releaseId).toMatch(/^[0-9a-f-]{36}$/);
+  const target = await request("GET", `/api/v1/catalog/resources/${releaseId}`);
+  expect(target.status).toBe(200);
+  expect(target.data.release.id).toBe(releaseId);
+  expect(target.data.release.state).toBe("published");
+  const resourceId = target.data.resource.id;
+  const versionRevisionId = target.data.versionRevision.id;
+  const releaseURL = origin + `/releases/${releaseId}`;
+  await login("local-template-library-member");
+  const initialPermissions = await request("GET", "/api/v1/me");
+  expect(initialPermissions.status).toBe(200);
+  expect(initialPermissions.data.actorType).toBe("human");
+  expect(initialPermissions.data.availablePermissions).not.toContain(
+    "feedback.moderate",
+  );
+  expect(initialPermissions.data.availablePermissions).not.toContain(
+    "resource.read",
+  );
+  await login("local-admin");
+  const members = await request("GET", "/api/v1/memberships?limit=100");
+  expect(members.status).toBe(200);
+  expect(members.data.nextCursor).toBeFalsy();
+  const moderator = members.data.items.find(
+    (member) => member.subject === "local-template-library-member",
+  );
+  expect(moderator?.id).toMatch(/^[0-9a-f-]{36}$/);
+  const role = await request("POST", "/api/v1/access/roles", {
+    name: "Owned packaged feedback moderation",
+    permissions: ["feedback.moderate"],
+    reason: "Qualify private moderation without Resource reads",
+  });
+  expect(role.status).toBe(201);
+  expect(role.data.permissions).toEqual(["feedback.moderate"]);
+  const assignment = await request("POST", "/api/v1/access/assignments", {
+    membershipId: moderator.id,
+    roleDefinitionId: role.data.id,
+    reason: "Grant only the owned feedback moderation permission",
+  });
+  expect(assignment.status).toBe(201);
+  await login("local-reader");
+  await visit(`/catalog/${releaseId}`);
+  await page.getByText("Item feedback", { exact: true }).click();
+  const writes = [];
+  const feedbackPath = new URL(origin + "/_catalog/api/v1/feedback").pathname;
+  const observe = (request) => {
+    const url = new URL(request.url());
+    if (
+      !["GET", "HEAD", "OPTIONS"].includes(request.method()) &&
+      url.pathname.startsWith(feedbackPath)
+    )
+      writes.push({
+        method: request.method(),
+        path: url.pathname,
+        key: request.headers()["idempotency-key"],
+        etag: request.headers()["if-match"],
+        body: request.postDataJSON(),
+      });
+  };
+  page.on("request", observe);
+  const commit = async (label, method, path, status) => {
+    await button(label).click();
+    const [reply] = await Promise.all([
+      page.waitForResponse(
+        (reply) =>
+          reply.request().method() === method &&
+          reply.url() === origin + "/_catalog" + path,
+      ),
+      page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Confirm", exact: true })
+        .click(),
+    ]);
+    expect(reply.status()).toBe(status);
+    expect(reply.request().headers()["idempotency-key"]).toBeTruthy();
+    expect(reply.headers()["cache-control"]).toBe("no-store");
+    const receipt = await reply.json();
+    expect(receipt).toEqual({
+      id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      revision: expect.any(Number),
+    });
+    expect(reply.headers().etag).toBe(`"rev-${receipt.revision}"`);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    return receipt;
+  };
+  try {
+    await page
+      .getByRole("combobox", { name: "Category", exact: true })
+      .selectOption("documentation");
+    await field("Feedback comment").fill(comment);
+    await button("Submit feedback").click();
+    expect(writes).toEqual([]);
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Cancel", exact: true })
+      .click();
+    await expect(field("Feedback comment")).toHaveValue(comment);
+    expect(writes).toEqual([]);
+    const created = await commit(
+      "Submit feedback",
+      "POST",
+      "/api/v1/feedback",
+      201,
+    );
+    expect(created.revision).toBe(1);
+    const path = `/api/v1/feedback/${created.id}`;
+    const own = await request("GET", path);
+    expect(own.status).toBe(200);
+    expect(own.cache).toBe("no-store");
+    expect(own.etag).toBe('"rev-1"');
+    expect(own.data).toMatchObject({
+      id: created.id,
+      resourceId,
+      releaseId,
+      versionRevisionId,
+      state: "open",
+      revision: 1,
+      category: "documentation",
+      comment,
+    });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({
+      method: "POST",
+      body: {
+        resourceId,
+        releaseId,
+        versionRevisionId,
+        category: "documentation",
+        comment,
+      },
+    });
+
+    await login("local-template-library-member");
+    const permissions = await request("GET", "/api/v1/me");
+    expect(permissions.status).toBe(200);
+    expect(permissions.data.availablePermissions).toContain(
+      "feedback.moderate",
+    );
+    expect(permissions.data.availablePermissions).not.toContain(
+      "resource.read",
+    );
+    network.expectFailure(
+      "GET",
+      `/_catalog/api/v1/resources/${resourceId}`,
+      403,
+    );
+    const forbiddenResource = await request(
+      "GET",
+      `/api/v1/resources/${resourceId}`,
+    );
+    expect(forbiddenResource.status).toBe(403);
+    expect(forbiddenResource.data.code).toBe("FORBIDDEN");
+    expect(forbiddenResource.data).not.toHaveProperty("canonicalIdentifier");
+    await visit(`/feedback/${created.id}`);
+    await expect(page.getByText(comment, { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Resource and versions", exact: true }),
+    ).toHaveCount(0);
+    await openDisclosure(page, "Respond or manage feedback");
+    await field("Moderator response (optional)").fill(responseText);
+    const addressed = await commit(
+      "Address feedback",
+      "POST",
+      path + ":address",
+      200,
+    );
+    expect(addressed).toEqual({ id: created.id, revision: 2 });
+    expect(writes).toHaveLength(2);
+    expect(writes[1]).toMatchObject({
+      method: "POST",
+      etag: own.etag,
+      body: { response: responseText },
+    });
+    const persisted = await request("GET", path);
+    expect(persisted.status).toBe(200);
+    expect(persisted.data).toMatchObject({
+      ...own.data,
+      state: "addressed",
+      revision: 2,
+      response: responseText,
+      updatedAt: expect.any(String),
+    });
+    expect(persisted.etag).toBe('"rev-2"');
+    await api(false);
+    await api(true);
+    await page.reload();
+    await expect(page.getByText(comment, { exact: true })).toBeVisible();
+    await expect(responseParagraph).toBeVisible();
+    expect(await request("GET", path)).toEqual(persisted);
+
+    await login("local-contributor");
+    const other = await request("GET", "/api/v1/me");
+    expect(other.status).toBe(200);
+    expect(other.data.availablePermissions).toContain("feedback.own");
+    expect(other.data.availablePermissions).not.toContain("feedback.moderate");
+    network.expectFailure("GET", "/_catalog" + path, 404);
+    const [denied] = await Promise.all([
+      page.waitForResponse(
+        (reply) =>
+          reply.url() === origin + "/_catalog" + path &&
+          reply.request().method() === "GET",
+      ),
+      visit(`/my-feedback/${created.id}`),
+    ]);
+    expect(denied.status()).toBe(404);
+    expect((await denied.json()).code).toBe("NOT_FOUND");
+    await expect(page.getByRole("alert")).toContainText("NOT_FOUND");
+    await expect(page.getByText(comment, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(responseText, { exact: true })).toHaveCount(0);
+    await expect(button("Withdraw feedback")).toHaveCount(0);
+    expect(writes).toHaveLength(2);
+    await login("local-reader");
+    await visit(`/my-feedback/${created.id}`);
+    await expect(responseParagraph).toBeVisible();
+    expect(await request("GET", path)).toEqual(persisted);
+  } finally {
+    page.off("request", observe);
+  }
+  // Restore the exact template before later authorization journeys use it.
+  await login("local-admin");
+  const revoked = await request(
+    "POST",
+    `/api/v1/access/assignments/${assignment.data.id}:revoke`,
+    {
+      reason: "Finish owned private-feedback qualification",
+    },
+    `"rev-${assignment.data.revision}"`,
+  );
+  expect(revoked.status).toBe(200);
+  expect(revoked.data).toMatchObject({
+    id: assignment.data.id,
+    membershipId: moderator.id,
+    roleDefinitionId: role.data.id,
+    state: "revoked",
+    revision: assignment.data.revision + 1,
+  });
+  const retainedAssignment = await request(
+    "GET",
+    `/api/v1/access/assignments?roleDefinitionId=${role.data.id}&membershipId=${moderator.id}&limit=25`,
+  );
+  expect(retainedAssignment.status).toBe(200);
+  expect(retainedAssignment.data.items).toEqual([revoked.data]);
+  expect(retainedAssignment.data.nextCursor).toBeFalsy();
+  await login("local-template-library-member");
+  const restored = await request("GET", "/api/v1/me");
+  expect(restored.status).toBe(200);
+  expect(restored.data.availablePermissions).toContain("library.own");
+  expect(restored.data.availablePermissions).not.toContain("feedback.moderate");
+  await login("local-reader");
+  await page.goto(releaseURL);
 }

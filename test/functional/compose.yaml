@@ -4,6 +4,7 @@ x-functional-discovery-hosts: &functional-discovery-hosts >-
 services:
   api:
     environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_api:catalog-api@postgres:5432/catalog?sslmode=disable&connect_timeout=2
       CATALOG_DATABASE_MAX_CONN_LIFETIME: 45m
       CATALOG_DATABASE_MAX_CONN_IDLE_TIME: 3m
       CATALOG_DATABASE_HEALTH_CHECK_PERIOD: 15s
@@ -14,6 +15,7 @@ services:
       CATALOG_DISCOVERY_HOSTS: *functional-discovery-hosts
   worker:
     environment:
+      CATALOG_DATABASE_DSN: postgres://catalog_worker:catalog-worker@postgres:5432/catalog?sslmode=disable&connect_timeout=2
       CATALOG_DATABASE_MAX_CONN_LIFETIME: 45m
       CATALOG_DATABASE_MAX_CONN_IDLE_TIME: 3m
       CATALOG_DATABASE_HEALTH_CHECK_PERIOD: 15s

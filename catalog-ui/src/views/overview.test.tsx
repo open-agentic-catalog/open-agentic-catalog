@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   cleanup,
   fireEvent,
@@ -184,6 +184,94 @@ it("keeps failed reads separate and omits misleading limited charts", async () =
     ),
   ).toBeNull();
 });
+
+it.each(["published", "deprecated"] as const)(
+  "keeps valid capped directory and %s counts explicit lower bounds",
+  async (limitedRelease) => {
+    const f = workspace();
+    f.props.access = {
+      ...f.props.access,
+      permissions: [
+        "resource.read_history",
+        "namespace.read",
+        "publisher.read",
+      ],
+      availablePermissions: [
+        "resource.read_history",
+        "namespace.read",
+        "publisher.read",
+      ],
+      namespaceGrants: [],
+      scopeEnforcement: true,
+      scopes: ["catalog.read", "publishers.read"],
+    };
+    f.get.mockImplementation(async (path: unknown) => {
+      if (path === "/api/v1/overview/reviews") return reply(reviewFixture());
+      if (path === "/api/v1/overview/releases")
+        return reply({
+          ...scope,
+          published:
+            limitedRelease === "published"
+              ? { value: 10000, limited: true }
+              : { value: 1, limited: false },
+          deprecated:
+            limitedRelease === "deprecated"
+              ? { value: 10000, limited: true }
+              : { value: 1, limited: false },
+        });
+      if (
+        path === "/api/v1/overview/namespaces" ||
+        path === "/api/v1/overview/publishers"
+      )
+        return reply({ ...scope, count: { value: 10000, limited: true } });
+      throw new Error("Unexpected capped Overview read");
+    });
+    const mutate = vi.fn(() => {
+      throw new Error("Overview summary reads must not mutate state");
+    });
+    Object.assign(f.props.client.api, {
+      POST: mutate,
+      PATCH: mutate,
+      PUT: mutate,
+      DELETE: mutate,
+    });
+    render(<Overview {...f.props} />);
+    const releases = screen.getByRole("region", { name: "Current releases" });
+    await within(releases).findByText("Counts marked + exceed 10,000.");
+    expect(
+      [...releases.querySelectorAll("dd")].map((node) => node.textContent),
+    ).toEqual(
+      limitedRelease === "published" ? ["10,000+", "1"] : ["1", "10,000+"],
+    );
+    for (const [name, kind] of [
+      ["Namespaces", "namespaces"],
+      ["Publishers", "publishers"],
+    ] as const) {
+      const panel = screen.getByRole("region", { name });
+      await within(panel).findByText(`More than 10,000 ${kind}.`);
+      expect(panel.querySelector(".overview-number")?.textContent).toBe(
+        "10,000+",
+      );
+      expect(
+        within(panel)
+          .getByRole("link", { name: `Manage ${kind}` })
+          .getAttribute("href"),
+      ).toBe("/unit/" + kind);
+    }
+    expect(f.get.mock.calls.map(([path]) => path).sort()).toEqual([
+      "/api/v1/overview/namespaces",
+      "/api/v1/overview/publishers",
+      "/api/v1/overview/releases",
+      "/api/v1/overview/reviews",
+    ]);
+    expect(
+      screen.queryByRole("region", { name: "Local resources" }),
+    ).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(f.props.onFailure).not.toHaveBeenCalled();
+    expect(mutate).not.toHaveBeenCalled();
+  },
+);
 
 it("does not read denied or unknown views and follows Back/Forward view changes", async () => {
   const f = workspace();

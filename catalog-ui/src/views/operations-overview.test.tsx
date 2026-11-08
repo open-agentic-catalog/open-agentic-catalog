@@ -378,3 +378,54 @@ it("uses singular Source labels and keeps count definitions available in a discl
   expect(panel.textContent).toContain("1 source still uses an earlier sync");
   expect(panel.querySelector("details")).toBeNull();
 });
+
+it("keeps zero historical evidence distinct from a plural current count after explicit refresh", async () => {
+  const f = operations();
+  f.props.access = {
+    ...f.props.access,
+    permissions: [...f.props.access.permissions, "resource.read"],
+    availablePermissions: [
+      ...f.props.access.availablePermissions,
+      "resource.read",
+    ],
+  };
+  let sources = sourcesFixture();
+  sources.historicalComplete = 0;
+  delete sources.problems[0]!.lastComplete;
+  f.get.mockImplementation(async (path: unknown) => {
+    if (path === "/api/v1/overview/sources") return reply(sources);
+    if (path === "/api/v1/overview/jobs") return reply(jobsFixture());
+    if (path === "/api/v1/capabilities") return reply(capabilities);
+    throw new Error("Unexpected Operations Overview read");
+  });
+  render(<Overview {...f.props} />);
+  await screen.findByText("Example source");
+  const panel = screen.getByRole("region", { name: "Federation sources" });
+  expect(within(panel).queryByText(/still uses? an earlier sync/)).toBeNull();
+  expect(within(panel).getByText("Not available")).toBeTruthy();
+  expect(
+    screen.getByRole("link", { name: "Content" }).getAttribute("aria-current"),
+  ).toBeNull();
+  expect(
+    screen
+      .getByRole("link", { name: "Operations" })
+      .getAttribute("aria-current"),
+  ).toBe("page");
+  expect(f.get.mock.calls.map(([path]) => path).sort()).toEqual([
+    "/api/v1/capabilities",
+    "/api/v1/overview/jobs",
+    "/api/v1/overview/sources",
+  ]);
+  sources = { ...sourcesFixture(), historicalComplete: 2 };
+  expect(f.get).toHaveBeenCalledTimes(3);
+  fireEvent.click(screen.getByRole("button", { name: "Refresh" }));
+  expect(
+    await screen.findByText("2 sources still use an earlier sync."),
+  ).toBeTruthy();
+  expect(f.get).toHaveBeenCalledTimes(6);
+  expect(
+    f.get.mock.calls.filter(([path]) => path === "/api/v1/overview/resources"),
+  ).toEqual([]);
+  expect(f.props.onFailure).not.toHaveBeenCalled();
+  expect(f.mutate).not.toHaveBeenCalled();
+});

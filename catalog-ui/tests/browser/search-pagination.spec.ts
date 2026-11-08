@@ -6,7 +6,10 @@ import { visibleFocus } from "./keyboard";
 import { searchContinuationRefusal } from "../../scripts/search-continuation-evidence.mjs";
 import type { Response } from "@playwright/test";
 
-async function requireSearchPage(response: Response, step: "retry" | "next") {
+async function requireSearchPage(
+  response: Response,
+  step: "retry" | "next" | "previous" | "first",
+) {
   if (response.status() !== 200) {
     let refusal = "unclassified";
     try {
@@ -52,10 +55,13 @@ test("search pages contain disjoint real releases and submitting filters resets 
       response.request().method() === "POST" &&
       response.url().endsWith("/api/v1/catalog/search"),
   );
-  await login(page, catalog);
+  const [searchResponse] = await Promise.all([
+    initialSearch,
+    login(page, catalog),
+  ]);
+  expect(searchResponse.status()).toBe(200);
   const cards = page.locator("article.resource-card");
   await expect(cards).toHaveCount(24);
-  const searchResponse = await initialSearch;
   const searchBytes = await searchResponse.body();
   expect(searchBytes.length).toBeLessThan(64 << 10);
   expect(searchBytes.toString()).not.toContain("large-retained-card:");
@@ -63,10 +69,10 @@ test("search pages contain disjoint real releases and submitting filters resets 
   const previewResponse = page.waitForResponse((response) =>
     response.url().endsWith("/api/v1/catalog/resources/" + releases[3]),
   );
-  await page
-    .getByRole("button", { name: "Paged agent 00", exact: true })
-    .click();
-  const detail = await previewResponse;
+  const [detail] = await Promise.all([
+    previewResponse,
+    page.getByRole("button", { name: "Paged agent 00", exact: true }).click(),
+  ]);
   expect(detail.status()).toBe(200);
   const revision = object(object(await detail.json()).versionRevision);
   const representation = object(array(revision.representations)[0]);
@@ -109,10 +115,10 @@ test("search pages contain disjoint real releases and submitting filters resets 
       response.url().endsWith("/api/v1/catalog/search") &&
       response.request().method() === "POST",
   );
-  await page
-    .getByRole("button", { name: "Retry this page", exact: true })
-    .click();
-  const retryResponse = await retryRead;
+  const [retryResponse] = await Promise.all([
+    retryRead,
+    page.getByRole("button", { name: "Retry this page", exact: true }).click(),
+  ]);
   expect(retryResponse.request().postDataJSON()).toEqual(failedBody);
   await requireSearchPage(retryResponse, "retry");
   await expect(page.getByRole("alert")).toHaveCount(0);
@@ -140,11 +146,6 @@ test("search pages contain disjoint real releases and submitting filters resets 
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth),
   ).toBeLessThanOrEqual(320);
-  const previousRead = page.waitForResponse(
-    (response) =>
-      response.url().endsWith("/api/v1/catalog/search") &&
-      response.request().method() === "POST",
-  );
   const next = page.getByRole("button", { name: /Next page/ });
   const previous = page.getByRole("button", {
     name: "Previous page",
@@ -153,9 +154,17 @@ test("search pages contain disjoint real releases and submitting filters resets 
   await next.focus();
   await page.keyboard.press("Shift+Tab");
   await visibleFocus(previous);
-  await page.keyboard.press("Enter");
+  const [previousResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/catalog/search") &&
+        response.request().method() === "POST",
+    ),
+    page.keyboard.press("Enter"),
+  ]);
+  await requireSearchPage(previousResponse, "previous");
   expect(
-    object((await previousRead).request().postDataJSON()).cursor,
+    object(previousResponse.request().postDataJSON()).cursor,
   ).toBeUndefined();
   await expect(cards).toHaveCount(24);
   await expect.poll(names).toEqual(first);
@@ -164,7 +173,15 @@ test("search pages contain disjoint real releases and submitting filters resets 
   ).toHaveCount(0);
   await next.focus();
   await visibleFocus(next);
-  await page.keyboard.press("Enter");
+  const [repeatedNextResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/catalog/search") &&
+        response.request().method() === "POST",
+    ),
+    page.keyboard.press("Enter"),
+  ]);
+  await requireSearchPage(repeatedNextResponse, "next");
   await expect.poll(names).toEqual(second);
   await next.focus();
   const thirdPageRead = page.waitForResponse(
@@ -172,20 +189,40 @@ test("search pages contain disjoint real releases and submitting filters resets 
       response.url().endsWith("/api/v1/catalog/search") &&
       response.request().method() === "POST",
   );
-  await page.keyboard.press("Enter");
-  await requireSearchPage(await thirdPageRead, "next");
+  const [thirdPageResponse] = await Promise.all([
+    thirdPageRead,
+    page.keyboard.press("Enter"),
+  ]);
+  await requireSearchPage(thirdPageResponse, "next");
   await expect(cards).toHaveCount(1);
   const third = await names();
   expect(new Set([...first, ...second, ...third]).size).toBe(releases.length);
   await expect(next).toHaveCount(0);
-  await previous.click();
+  const [secondPreviousResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/catalog/search") &&
+        response.request().method() === "POST",
+    ),
+    previous.click(),
+  ]);
+  await requireSearchPage(secondPreviousResponse, "previous");
   await expect.poll(names).toEqual(second);
   await previous.focus();
   await page.keyboard.press("Shift+Tab");
   await visibleFocus(
     page.getByRole("button", { name: "First page", exact: true }),
   );
-  await page.keyboard.press("Enter");
+  const [firstResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/catalog/search") &&
+        response.request().method() === "POST",
+    ),
+    page.keyboard.press("Enter"),
+  ]);
+  await requireSearchPage(firstResponse, "first");
+  expect(object(firstResponse.request().postDataJSON()).cursor).toBeUndefined();
   await expect(cards).toHaveCount(24);
   await expect.poll(names).toEqual(first);
   // Restore ordinary presentation for the existing filter and error checks.
@@ -213,8 +250,10 @@ test("search pages contain disjoint real releases and submitting filters resets 
       response.url().endsWith("/api/v1/catalog/search") &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: /Next page/ }).click();
-  const malformedResponse = await malformedRead;
+  const [malformedResponse] = await Promise.all([
+    malformedRead,
+    page.getByRole("button", { name: /Next page/ }).click(),
+  ]);
   const malformedProblem = object(await malformedResponse.json());
   expect(malformedResponse.status()).toBe(400);
   expect(malformedProblem.code).toBe("INVALID_ARGUMENT");
@@ -231,25 +270,38 @@ test("search pages contain disjoint real releases and submitting filters resets 
       response.request().method() === "POST" &&
       response.url().endsWith("/api/v1/catalog/search"),
   );
-  await page
-    .getByRole("button", { name: "Start a new search", exact: true })
-    .click();
-  const response = await restarted;
+  const [response] = await Promise.all([
+    restarted,
+    page
+      .getByRole("button", { name: "Start a new search", exact: true })
+      .click(),
+  ]);
   expect(response.status()).toBe(200);
   expect(object(response.request().postDataJSON()).cursor).toBeUndefined();
   await expect(cards).toHaveCount(24);
   expect(await names()).toEqual(first);
 
-  await page.getByRole("button", { name: /Next page/ }).click();
+  const [restartedNextResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/catalog/search") &&
+        response.request().method() === "POST",
+    ),
+    page.getByRole("button", { name: /Next page/ }).click(),
+  ]);
+  await requireSearchPage(restartedNextResponse, "next");
   await expect.poll(names).toEqual(second);
   await page
     .getByRole("searchbox", { name: "Search Catalog", exact: true })
     .fill("Paged agent");
-  const searched = page.waitForResponse((response) =>
-    response.url().endsWith("/api/v1/catalog/search"),
-  );
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  const searchedResponse = await searched;
+  const [searchedResponse] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/catalog/search") &&
+        response.request().method() === "POST",
+    ),
+    page.getByRole("button", { name: "Search", exact: true }).click(),
+  ]);
   expect(searchedResponse.status()).toBe(200);
   expect(object(await searchedResponse.json()).durableTotal).toBe(46);
   await expect(cards).toHaveCount(24);
@@ -285,8 +337,10 @@ test("search pages contain disjoint real releases and submitting filters resets 
       response.url().endsWith("/api/v1/catalog/search") &&
       response.request().method() === "POST",
   );
-  await page.getByRole("button", { name: /Next page/ }).click();
-  const reboundResponse = await reboundRead;
+  const [reboundResponse] = await Promise.all([
+    reboundRead,
+    page.getByRole("button", { name: /Next page/ }).click(),
+  ]);
   const reboundProblem = object(await reboundResponse.json());
   expect(reboundResponse.status()).toBe(400);
   expect(
@@ -301,10 +355,12 @@ test("search pages contain disjoint real releases and submitting filters resets 
       response.url().endsWith("/api/v1/catalog/search") &&
       response.request().method() === "POST",
   );
-  await page
-    .getByRole("button", { name: "Start a new search", exact: true })
-    .click();
-  const recoveredResponse = await recoveredRead;
+  const [recoveredResponse] = await Promise.all([
+    recoveredRead,
+    page
+      .getByRole("button", { name: "Start a new search", exact: true })
+      .click(),
+  ]);
   expect(recoveredResponse.status()).toBe(200);
   expect(object(recoveredResponse.request().postDataJSON())).toEqual(
     appliedRequest,
@@ -336,10 +392,10 @@ test("search pages contain disjoint real releases and submitting filters resets 
       response.url().endsWith("/api/v1/catalog/search") &&
       response.request().method() === "POST",
   );
-  await page
-    .getByRole("button", { name: "Apply filters", exact: true })
-    .click();
-  const selected = await filtered;
+  const [selected] = await Promise.all([
+    filtered,
+    page.getByRole("button", { name: "Apply filters", exact: true }).click(),
+  ]);
   expect(selected.status()).toBe(200);
   expect(object(selected.request().postDataJSON())).toMatchObject({
     license: "Apache-2.0",

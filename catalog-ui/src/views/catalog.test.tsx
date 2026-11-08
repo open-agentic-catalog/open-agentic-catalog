@@ -91,6 +91,48 @@ it("applies fixed origin presets after history navigation without retaining priv
   ).toHaveProperty("value", "");
   expect(location.search).toBe("?origin=local");
   expect(history.state).toEqual({ catalogNavigation: 1 });
+  post.mockResolvedValue(
+    reply({
+      ...results,
+      items: [local],
+      durableTotal: 2,
+      liveCount: 0,
+      partial: false,
+      diagnostics: [],
+      nextCursor: "private-origin-cursor",
+    }),
+  );
+  change("Search Catalog", "private submitted text");
+  click("Search");
+  await screen.findByRole("button", { name: "Local helper" });
+  change("Search Catalog", "private pending draft");
+  click(/Next page/);
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(4));
+  expect((post.mock.calls.at(-1)?.[1] as { body: unknown }).body).toEqual({
+    text: "private submitted text",
+    origins: ["local"],
+    limit: 24,
+    cursor: "private-origin-cursor",
+  });
+  await act(async () => {
+    history.pushState({ catalogNavigation: 2 }, "", "/unit/catalog");
+    window.dispatchEvent(
+      new PopStateEvent("popstate", { state: { catalogNavigation: 2 } }),
+    );
+  });
+  await waitFor(() => expect(post).toHaveBeenCalledTimes(5));
+  expect((post.mock.calls.at(-1)?.[1] as { body: unknown }).body).toEqual({
+    text: "",
+    limit: 24,
+  });
+  expect(
+    screen.getByRole("searchbox", { name: "Search Catalog" }),
+  ).toHaveProperty("value", "");
+  expect(location.pathname).toBe("/unit/catalog");
+  expect(location.search).toBe("");
+  expect(location.hash).toBe("");
+  expect(history.state).toEqual({ catalogNavigation: 2 });
+  expect(JSON.stringify(history.state)).not.toMatch(/private|cursor|origins/);
 });
 /** Reuse semantic owners instead of rescanning every result for each toolbar action. */
 function catalogControls() {
@@ -213,6 +255,74 @@ const results = {
   partial: true,
   diagnostics: [{ status: "failed", message: "One source timed out" }],
 };
+
+it("reports one non-live match with the exact singular count and no detail reads", async () => {
+  const w = screenWorkspace();
+  w.post.mockResolvedValue(
+    reply({
+      tier: "core",
+      items: [local],
+      durableTotal: 1,
+      liveCount: 0,
+      partial: false,
+    }),
+  );
+  render(<Catalog {...w.props} />);
+  await screen.findByText("Showing 1 of 1 match");
+  expect(screen.getByRole("button", { name: "Local helper" })).toBeTruthy();
+  expect(w.post).toHaveBeenCalledExactlyOnceWith(
+    "/api/v1/catalog/search",
+    expect.objectContaining({ body: { text: "", limit: 24 } }),
+  );
+  expect(w.get).not.toHaveBeenCalled();
+  expect(w.patch).not.toHaveBeenCalled();
+  expect(w.remove).not.toHaveBeenCalled();
+  expect(w.explore).not.toHaveBeenCalled();
+  expect(w.props.onFailure).not.toHaveBeenCalled();
+});
+
+it("keeps a named-search draft when refresh is declined and reads again only after approval", async () => {
+  const w = screenWorkspace();
+  w.post.mockResolvedValue(reply(results));
+  render(<Catalog {...w.props} access={administrator} />);
+  await screen.findByRole("button", { name: "Local helper" });
+  fireEvent.click(
+    screen.getByText("Save this named search", { selector: "summary" }),
+  );
+  change("Saved label", "Private unsent library label");
+  const confirmation = vi.spyOn(window, "confirm").mockReturnValue(false);
+  click("Refresh results");
+  expect(confirmation).toHaveBeenCalledOnce();
+  expect(w.post).toHaveBeenCalledOnce();
+  expect(screen.getByLabelText("Saved label")).toHaveProperty(
+    "value",
+    "Private unsent library label",
+  );
+  expect(screen.getByRole("button", { name: "Local helper" })).toBeTruthy();
+  confirmation.mockReturnValue(true);
+  click("Refresh results");
+  await waitFor(() => expect(w.post).toHaveBeenCalledTimes(2));
+  await screen.findByRole("button", { name: "Local helper" });
+  expect(confirmation).toHaveBeenCalledTimes(2);
+  expect(w.post.mock.calls.map(([path]) => path)).toEqual([
+    "/api/v1/catalog/search",
+    "/api/v1/catalog/search",
+  ]);
+  const refresh = w.post.mock.calls[1]?.[1] as { body: unknown };
+  expect(refresh.body).toEqual({ text: "", limit: 24 });
+  expect(screen.getByLabelText("Saved label")).toHaveProperty(
+    "value",
+    "Private unsent library label",
+  );
+  expect(w.get).not.toHaveBeenCalled();
+  expect(w.patch).not.toHaveBeenCalled();
+  expect(w.remove).not.toHaveBeenCalled();
+  expect(location.pathname).toBe("/unit/catalog");
+  expect(location.search).toBe("");
+  expect(location.hash).toBe("");
+  expect(history.state as unknown).toEqual({ catalogNavigation: 0 });
+  expect(w.props.onFailure).not.toHaveBeenCalled();
+});
 
 it("rejects a different release in a local preview before enabling record actions", async () => {
   const w = screenWorkspace();
@@ -1988,6 +2098,92 @@ it("restores submitted criteria and layout after same-tab full-record navigation
     "ariaPressed",
     "true",
   );
+});
+
+it("returns a full record to its applied Explore page without submitting Catalog search or private history state", async () => {
+  history.replaceState(null, "", "/unit/explore");
+  const { props, post, get, patch, remove, explore } = screenWorkspace();
+  get.mockImplementation(async (path, options) => {
+    if (path === "/api/v1/catalog/resources") {
+      const { params } = options as {
+        params: { query: { cursor?: string } };
+      };
+      return reply({
+        items: [record],
+        ...(params.query.cursor ? {} : { nextCursor: "private-browse-cursor" }),
+      });
+    }
+    if (path === "/api/v1/catalog/resources/{catalogRecordId}")
+      return reply(record);
+    throw new Error("Unexpected Explore return request");
+  });
+  const browseQueries = () =>
+    get.mock.calls
+      .filter(([path]) => path === "/api/v1/catalog/resources")
+      .map(
+        ([, options]) =>
+          (options as { params: { query: unknown } }).params.query,
+      );
+  const scroll = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+  const scrollY = vi.spyOn(window, "scrollY", "get").mockReturnValue(683);
+  render(<Catalog {...props} access={administrator} />);
+  await screen.findByRole("link", { name: "Local helper" });
+  change("Kind", "agent");
+  await waitFor(() => expect(browseQueries()).toHaveLength(2));
+  change("Visibility", "public");
+  await waitFor(() => expect(browseQueries()).toHaveLength(3));
+  click(/Next page/);
+  await waitFor(() =>
+    expect(browseQueries()).toEqual([
+      { limit: 25 },
+      { kind: "agent", limit: 25 },
+      { kind: "agent", visibility: "public", limit: 25 },
+      {
+        kind: "agent",
+        visibility: "public",
+        limit: 25,
+        cursor: "private-browse-cursor",
+      },
+    ]),
+  );
+  fireEvent.click(screen.getByRole("link", { name: "Local helper" }));
+  const back = await screen.findByRole("link", { name: /Back to Explore/ });
+  expect(back.getAttribute("href")).toBe("/unit/explore");
+  const returnToResults = await screen.findByRole("link", {
+    name: "Return to results",
+  });
+  expect(returnToResults.getAttribute("href")).toBe("/unit/explore");
+  expect(get).toHaveBeenCalledTimes(5);
+  expect(location.pathname).toBe(`/unit/catalog/${record.release.id}`);
+  expect(get.mock.calls.at(-1)).toMatchObject([
+    "/api/v1/catalog/resources/{catalogRecordId}",
+    { params: { path: { catalogRecordId: record.release.id } } },
+  ]);
+  expect(screen.queryByRole("link", { name: /Back to Catalog/ })).toBeNull();
+  scrollY.mockReturnValue(17);
+  fireEvent.click(back);
+  await screen.findByRole("link", { name: "Local helper" });
+  await waitFor(() => expect(scroll).toHaveBeenLastCalledWith(0, 683));
+  expect(location.pathname).toBe("/unit/explore");
+  expect(location.search).toBe("");
+  expect(location.hash).toBe("");
+  expect(screen.getByLabelText("Kind")).toHaveProperty("value", "agent");
+  expect(screen.getByLabelText("Visibility")).toHaveProperty("value", "public");
+  expect(screen.getByRole("button", { name: "First page" })).toHaveProperty(
+    "disabled",
+    false,
+  );
+  expect(browseQueries()).toHaveLength(4);
+  expect(get).toHaveBeenCalledTimes(5);
+  expect(history.state).toEqual({ catalogNavigation: 2 });
+  expect(JSON.stringify(history.state)).not.toMatch(
+    /private|agent|public|cursor/,
+  );
+  expect(post).not.toHaveBeenCalled();
+  expect(patch).not.toHaveBeenCalled();
+  expect(remove).not.toHaveBeenCalled();
+  expect(explore).not.toHaveBeenCalled();
+  expect(props.onFailure).not.toHaveBeenCalled();
 });
 
 it.each([false, true])(

@@ -1917,3 +1917,380 @@ test("current-page identities and retained document arrays are not shortened by 
     await f.close();
   }
 });
+
+test("local Search evidence preserves presentation and ratings only for its exact embedded identity", () => {
+  const releaseId = "00000000-0000-7000-8000-000000000002",
+    listingRevisionId = "00000000-0000-7000-8000-000000000003",
+    namespaceId = "00000000-0000-7000-8000-000000000004";
+  const local = {
+    ...summary(),
+    resource: { ...summary().resource, namespaceId },
+    listingRevision: { ...summary().listingRevision, id: listingRevisionId },
+    release: { ...summary().release, id: releaseId },
+    display: {
+      publisherName: "Reviewed publisher",
+      namespaceName: "Namespace label",
+      license: "Apache-2.0",
+    },
+  };
+  const value = {
+    id: "local:search-result",
+    type: "local",
+    identifier: "urn:air:example.com:test:agent",
+    version: "1.0.0",
+    kind: "agent",
+    displayName: "Search title",
+    score: 80,
+    local,
+    publisher: "must not replace the directory label",
+    ratings: { count: 2, average: 4.5 },
+    artwork: { descriptor: { icon: { alt: "Catalog icon" } } },
+  };
+  const item = searchItem(value);
+  assert.equal(item.releaseId, releaseId);
+  assert.equal(item.listingRevisionId, listingRevisionId);
+  assert.equal(item.namespaceId, namespaceId);
+  assert.equal(item.visibility, "public");
+  assert.equal(item.publisher, "Reviewed publisher");
+  assert.equal(item.namespace, "Namespace label");
+  assert.equal(item.license, "Apache-2.0");
+  assert.equal(item.ratings, "4.5 / 5 (2 ratings)");
+  assert.deepEqual(item.artworkTarget, {
+    origin: "local",
+    listingRevisionId,
+  });
+  for (const changed of [
+    { ...local, version: { version: "2.0.0" } },
+    {
+      ...local,
+      resource: {
+        ...local.resource,
+        canonicalIdentifier: "urn:air:example.com:test:other",
+      },
+    },
+    { ...local, resource: { ...local.resource, kind: "skill" } },
+  ]) {
+    assert.throws(() => searchItem({ ...value, local: changed }), {
+      code: "invalid_response",
+    });
+  }
+  assert.equal(
+    localItem({ ...summary(), ratings: { count: 0 } }).ratings,
+    "No ratings",
+  );
+  assert.equal(
+    localItem({ ...summary(), ratings: { count: 2, average: 4.5 } }).ratings,
+    "4.5 / 5 (2 ratings)",
+  );
+  for (const ratings of [
+    { count: -1, average: 4.5 },
+    { count: 2, average: 0 },
+    { count: 2, average: 6 },
+    { count: 2, average: "4.5" },
+    { count: 2, average: Number.NaN },
+  ])
+    assert.throws(() => localItem({ ...summary(), ratings }), {
+      code: "invalid_response",
+    });
+});
+
+test("live Search projections bind source, version and receipt while labeling peer ratings separately", () => {
+  const identifier = "urn:air:peer.example:test:agent";
+  for (const ver of [{}, { version: "" }, { version: "1.0.0" }]) {
+    const entry = {
+      identifier,
+      ...ver,
+      url: "https://peer.example/metadata.json",
+    };
+    const value = {
+      id: "live:result",
+      type: "live",
+      identifier,
+      ...ver,
+      kind: "agent",
+      displayName: "Peer agent",
+      score: 1,
+      live: { sourceId: id, source: "https://peer.example", entry },
+      artwork: {
+        receipt: "bounded-receipt",
+        descriptor: { icon: { alt: "Peer" } },
+      },
+      ratings: { count: 1, average: 3 },
+      peerRatings: { count: 2, average: 4.5, reporter: "https://peer.example" },
+    };
+    const item = searchItem(value);
+    assert.deepEqual(item.raw, entry);
+    assert.equal(item.versionPresent, Object.hasOwn(ver, "version"));
+    assert.equal(item.version, ver.version);
+    assert.equal(
+      item.ratings,
+      "3.0 / 5 (1 ratings); Peer-reported: 4.5 / 5 (2 ratings)",
+    );
+    assert.deepEqual(item.references, [
+      {
+        label: "Responding source",
+        value: "https://peer.example",
+        url: "https://peer.example/",
+      },
+      {
+        label: "Metadata document",
+        value: "https://peer.example/metadata.json",
+        url: "https://peer.example/metadata.json",
+      },
+      {
+        label: "Peer rating reporter",
+        value: "https://peer.example",
+        url: "https://peer.example/",
+      },
+    ]);
+    assert.deepEqual(item.artworkTarget, {
+      origin: "live",
+      receipt: "bounded-receipt",
+      descriptor: { icon: { alt: "Peer" } },
+    });
+    const changedEntry = Object.hasOwn(ver, "version")
+      ? { identifier }
+      : { identifier, version: "" };
+    for (const live of [
+      { ...value.live, source: "https://user:secret@peer.example" },
+      { ...value.live, sourceId: "not-an-id" },
+      {
+        ...value.live,
+        entry: { ...entry, identifier: "urn:air:other.example:test:agent" },
+      },
+      { ...value.live, entry: changedEntry },
+    ])
+      assert.throws(() => searchItem({ ...value, live }), {
+        code: "invalid_response",
+      });
+  }
+});
+
+test("indexed artwork targets require the retained source and generation and preserve absent or empty versions", () => {
+  const identifier = "urn:air:peer.example:test:plugin";
+  for (const ver of [
+    { versionPresent: false },
+    { versionPresent: true, version: "" },
+  ]) {
+    const value = {
+      id: "indexed:artwork",
+      type: "indexed",
+      identifier,
+      ...ver,
+      kind: "plugin",
+      displayName: "Plugin",
+      score: 1,
+      artwork: { descriptor: {} },
+      indexed: {
+        sourceIds: [id],
+        sourceCount: 1,
+        conflict: false,
+        sameSourceConflict: false,
+        presentationSourceId: id,
+        presentationGeneration: 7,
+      },
+    };
+    assert.deepEqual(searchItem(value).artworkTarget, {
+      origin: "indexed",
+      target: {
+        sourceId: id,
+        presentationGeneration: 7,
+        identifier,
+        ...ver,
+        kind: "plugin",
+      },
+    });
+    for (const missing of ["presentationSourceId", "presentationGeneration"]) {
+      const indexed = { ...value.indexed };
+      delete indexed[missing];
+      assert.equal(searchItem({ ...value, indexed }).artworkTarget, undefined);
+    }
+    for (const indexed of [
+      { ...value.indexed, presentationSourceId: "not-an-id" },
+      { ...value.indexed, presentationGeneration: 1.5 },
+    ])
+      assert.throws(() => searchItem({ ...value, indexed }), {
+        code: "invalid_response",
+      });
+  }
+});
+
+test("artwork screenshot reads use the exact slot and return JPEG bytes with bounded attribution", async (t) => {
+  const jpeg = Buffer.from([255, 216, 255, 224, 1, 2, 3]);
+  const descriptor = {
+    screenshots: [
+      {
+        alt: "Screenshot alt",
+        caption: "Overview",
+        rights: { attribution: "Example author" },
+      },
+    ],
+  };
+  const f = setup({
+    handler: (url, options, response) => {
+      if (url.endsWith("/artwork/read")) {
+        assert.deepEqual(JSON.parse(options.body), {
+          origin: "local",
+          listingRevisionId: id,
+          slot: "screenshot",
+          index: 0,
+        });
+        return new Response(jpeg, {
+          headers: {
+            "content-type": "image/jpeg",
+            "content-digest": `sha-256=:${createHash("sha256").update(jpeg).digest("base64")}:`,
+          },
+        });
+      }
+      return response(
+        url.endsWith(id)
+          ? { ...summary(), versionRevision: { representations: [] } }
+          : { items: [{ ...summary(), artwork: { descriptor } }], total: 1 },
+      );
+    },
+  });
+  t.after(() => f.close());
+  await f.start();
+  await f.browser.search();
+  await f.browser.select(f.browser.state.page.items[0].key);
+  assert.deepEqual(await f.browser.image(1), {
+    index: 1,
+    value: `data:image/jpeg;base64,${jpeg.toString("base64")}`,
+    alt: "Screenshot alt",
+    caption: "Overview · Example author",
+  });
+  const calls = f.calls.length;
+  for (const index of [-1, 9, 1.5, Number.NaN])
+    await assert.rejects(f.browser.image(index), {
+      code: "artwork_unavailable",
+    });
+  assert.equal(
+    f.calls.length,
+    calls,
+    "invalid slots send no verification or image request",
+  );
+});
+
+test("artwork media, magic bytes and response digest are checked before caching a data URL", async (t) => {
+  const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  let imageBytes = png,
+    mime = "image/png",
+    digest = `sha-256=:${createHash("sha256").update(png).digest("base64")}:`;
+  const f = setup({
+    handler: (url, _options, response) => {
+      if (url.endsWith("/artwork/read"))
+        return new Response(imageBytes, {
+          headers: { "content-type": mime, "content-digest": digest },
+        });
+      return response(
+        url.endsWith(id)
+          ? { ...summary(), versionRevision: { representations: [] } }
+          : {
+              items: [
+                {
+                  ...summary(),
+                  artwork: { descriptor: { icon: { alt: "Icon" } } },
+                },
+              ],
+              total: 1,
+            },
+      );
+    },
+  });
+  t.after(() => f.close());
+  await f.start();
+  const select = async () => {
+    await f.browser.search();
+    await f.browser.select(f.browser.state.page.items[0].key);
+  };
+  await select();
+  assert.equal((await f.browser.image(0)).caption, "Native icon declaration");
+  for (const [label, body, type, contentDigest, code] of [
+    ["unsupported media", png, "image/svg+xml", digest, "invalid_response"],
+    [
+      "PNG signature",
+      Buffer.from("not a PNG"),
+      "image/png",
+      `sha-256=:${createHash("sha256").update("not a PNG").digest("base64")}:`,
+      "invalid_response",
+    ],
+    ["JPEG signature", png, "image/jpeg", digest, "invalid_response"],
+    [
+      "digest mismatch",
+      png,
+      "image/png",
+      `sha-256=:${createHash("sha256").update("different image bytes").digest("base64")}:`,
+      "document_integrity_failed",
+    ],
+  ]) {
+    await select();
+    imageBytes = body;
+    mime = type;
+    digest = contentDigest;
+    await assert.rejects(f.browser.image(0), { code }, label);
+    assert.equal(f.browser.state.image, undefined, label);
+    assert.equal(f.browser.state.detail, undefined, label);
+    assert.equal(f.browser.state.error, code, label);
+    assert.equal(f.browser.state.busy, false, label);
+  }
+});
+
+test("a late artwork response cannot attach private image bytes to a newer search", async (t) => {
+  const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  let enter, release;
+  const entered = new Promise((resolve) => {
+    enter = resolve;
+  });
+  const gate = new Promise((resolve) => {
+    release = resolve;
+  });
+  const f = setup({
+    handler: async (url, _options, response) => {
+      if (url.endsWith("/artwork/read")) {
+        enter();
+        await gate;
+        return new Response(png, {
+          headers: {
+            "content-type": "image/png",
+            "content-digest": `sha-256=:${createHash("sha256").update(png).digest("base64")}:`,
+          },
+        });
+      }
+      if (new URL(url).searchParams.get("kind") === "plugin")
+        return response({ items: [], total: 0 });
+      return response(
+        url.endsWith(id)
+          ? { ...summary(), versionRevision: { representations: [] } }
+          : {
+              items: [
+                {
+                  ...summary(),
+                  artwork: { descriptor: { icon: { alt: "Old icon" } } },
+                },
+              ],
+              total: 1,
+            },
+      );
+    },
+  });
+  t.after(async () => {
+    release();
+    await f.close();
+  });
+  await f.start();
+  await f.browser.search();
+  await f.browser.select(f.browser.state.page.items[0].key);
+  const pending = f.browser.image(0);
+  const rejected = assert.rejects(pending, { code: "cancelled" });
+  await entered;
+  const replacement = await f.browser.search({ ...emptyQuery, kind: "plugin" });
+  release();
+  await rejected;
+  assert.equal(f.browser.state.page, replacement);
+  assert.deepEqual(replacement.items, []);
+  assert.equal(f.browser.state.query.kind, "plugin");
+  assert.equal(f.browser.state.image, undefined);
+  assert.equal(f.browser.state.detail, undefined);
+  assert.equal(f.browser.state.error, undefined);
+  assert.equal(f.browser.state.busy, false);
+});

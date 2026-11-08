@@ -206,6 +206,164 @@ test("startup diagnostics classify a real occupied port without disclosing child
   }
 });
 
+test(
+  "compiled UI startup diagnostics classify owned failures and preserve a valid listener control",
+  { timeout: 120000 },
+  async () => {
+    const directory = await mkdtemp(
+      join(tmpdir(), "ui-startup-PRIVATE_SENTINEL-"),
+    );
+    const root = fileURLToPath(new URL("../../", import.meta.url));
+    const binary = join(directory, "catalog-ui");
+    const filename = join(directory, "ui.json");
+    const assets = join(directory, "assets");
+    let child;
+    let occupied;
+    try {
+      const build = startProcess(
+        "go",
+        ["build", "-mod=readonly", "-o", binary, "./catalog-ui/cmd/catalog-ui"],
+        { cwd: root, timeout: 60000 },
+      );
+      try {
+        assert.equal(await build.done, 0, build.diagnostics());
+      } finally {
+        await stopProcess(build);
+      }
+      await mkdir(join(assets, "assets"), { recursive: true });
+      await writeFile(
+        join(assets, "assets/app.js"),
+        "export const ready = true;",
+      );
+      await writeFile(
+        join(assets, "index.html"),
+        '<script src="./assets/app.js"></script>',
+      );
+      const keysFile = join(directory, "keys.json");
+      const usersFile = join(directory, "users.json");
+      await writeFile(
+        keysFile,
+        JSON.stringify([{ hash: "ab".repeat(64), block: "cd".repeat(32) }]),
+        { mode: 0o600 },
+      );
+      await writeFile(
+        usersFile,
+        JSON.stringify([
+          { alias: "reader", label: "Reader", token: "PRIVATE_SENTINEL" },
+        ]),
+        { mode: 0o600 },
+      );
+      const failed = async (file, stage, origin = "http://127.0.0.1:1") => {
+        child = startProcess(binary, ["--config", file], {
+          cwd: root,
+          timeout: 10000,
+        });
+        try {
+          assert.equal(await child.done, 1, child.diagnostics());
+          const projected = JSON.parse(child.diagnostics());
+          assert.deepEqual(projected, {
+            exitCode: 1,
+            signal: null,
+            spawnError: "none",
+            stderr: "classified",
+            operationStage: stage,
+            errorCode: "INTERNAL",
+            truncated: false,
+          });
+          assert.equal(child.diagnostics().includes("PRIVATE_SENTINEL"), false);
+          assert.equal(child.diagnostics().includes(directory), false);
+          await assert.rejects(ready(origin, child), (error) => {
+            assert.match(
+              error.message,
+              new RegExp('"operationStage":"' + stage + '"'),
+            );
+            assert.equal(error.message.includes("PRIVATE_SENTINEL"), false);
+            return true;
+          });
+        } finally {
+          await stopProcess(child);
+          child = undefined;
+        }
+      };
+      await failed(
+        join(directory, "PRIVATE_SENTINEL-missing.json"),
+        "configuration",
+      );
+      for (const logFormat of ["text", "json"]) {
+        let connections = 0;
+        occupied = createServer((socket) => {
+          connections++;
+          socket.destroy();
+        });
+        await new Promise((resolve, reject) => {
+          occupied.once("error", reject);
+          occupied.listen(0, "127.0.0.1", resolve);
+        });
+        const origin = `http://127.0.0.1:${occupied.address().port}`;
+        const configuration = {
+          logFormat,
+          logLevel: "error",
+          listen: occupied.address().address + ":" + occupied.address().port,
+          environment: "development",
+          origin,
+          upstream: "http://127.0.0.1:1",
+          assets,
+          cookieName: "catalog-ui-startup",
+          keysFile,
+          sessionSeconds: 3600,
+          requestBytes: 4096,
+          responseBytes: 8192,
+          timeoutSeconds: 5,
+          authMode: "development",
+          developmentUsersFile: usersFile,
+          documentationUrl: `https://fixture.invalid/${basename(directory)}`,
+        };
+        await writeFile(filename, JSON.stringify(configuration), {
+          mode: 0o600,
+        });
+        await failed(filename, "listener", origin);
+        assert.equal(occupied.listening, true);
+        assert.equal(connections, 0);
+        await new Promise((resolve) => occupied.close(resolve));
+        occupied = undefined;
+        // The identical valid inputs must start once only our reservation is released.
+        child = startProcess(binary, ["--config", filename], {
+          cwd: root,
+          timeout: 15000,
+        });
+        await ready(origin, child);
+        const runtime = await fetch(origin + "/runtime.json", {
+          redirect: "error",
+          signal: AbortSignal.timeout(2000),
+        });
+        assert.equal(runtime.status, 200);
+        assert.equal(
+          (await runtime.json()).documentationUrl,
+          configuration.documentationUrl,
+        );
+        assert.equal(JSON.parse(child.diagnostics()).stderr, "empty");
+        await stopProcess(child);
+        assert.equal(await child.done, 0);
+        child = undefined;
+        await writeFile(
+          filename,
+          JSON.stringify({
+            ...configuration,
+            keysFile: join(directory, "PRIVATE_SENTINEL-missing-key"),
+          }),
+          { mode: 0o600 },
+        );
+        await failed(filename, "host_initialization");
+      }
+    } finally {
+      if (child) await stopProcess(child);
+      if (occupied?.listening)
+        await new Promise((resolve) => occupied.close(resolve));
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
 test("startup diagnostics drain noisy stderr with a fixed retention limit", async () => {
   const child = startProcess(process.execPath, [
     "-e",

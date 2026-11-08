@@ -10,6 +10,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
+import { gzipSync } from "node:zlib";
 import {
   generateKeyPair,
   exportJWK,
@@ -23,6 +24,7 @@ const {
   transport,
   executionHost,
   credentialAccess,
+  issuerJSON,
 } = await import(pathToFileURL(process.env.CATALOG_VSCODE_LIB));
 const subject = "local-reader";
 const me = {
@@ -61,6 +63,354 @@ function memory() {
     },
   };
 }
+
+async function bounded(promise, label) {
+  let timer;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(label)), 3000);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+test("switching Catalog origins closes an old response and preserves the new verified session", async (t) => {
+  const entered = Promise.withResolvers(),
+    closed = Promise.withResolvers(),
+    seen = [];
+  let oldResponse;
+  const server = (name, token) =>
+    createServer((req, res) => {
+      seen.push({
+        name,
+        path: req.url,
+        authorization: req.headers.authorization,
+      });
+      res.setHeader("content-type", "application/json");
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.writeHead(401);
+        res.end("{}");
+        return;
+      }
+      if (name === "old" && req.url === "/api/v1/catalog/resources") {
+        oldResponse = res;
+        res.once("close", closed.resolve);
+        res.flushHeaders();
+        res.write('{"private":"old unfinished bytes');
+        entered.resolve();
+        return;
+      }
+      res.end(
+        JSON.stringify(
+          req.url === "/api/v1/me"
+            ? { ...me, subject: `${name}-reader` }
+            : { resourceKinds: ["agent"] },
+        ),
+      );
+    });
+  const oldOrigin = await listen(server("old", "old-origin-token"), t);
+  const newOrigin = await listen(server("new", "new-origin-token"), t);
+  const definitions = connections([
+    {
+      id: "old",
+      label: "Old",
+      origin: oldOrigin,
+      mode: "control",
+      auth: "manual",
+      allowLoopbackHTTP: true,
+      timeoutMs: 5000,
+    },
+    {
+      id: "new",
+      label: "New",
+      origin: newOrigin,
+      mode: "control",
+      auth: "manual",
+      allowLoopbackHTTP: true,
+      timeoutMs: 5000,
+    },
+  ]);
+  const secrets = memory(),
+    session = new Session(secrets, "origin-switch", transport);
+  let rejected;
+  t.after(async () => {
+    await session.dispose();
+    await Promise.allSettled(rejected ? [rejected] : []);
+  });
+  await session.select(definitions[0]);
+  await session.manual("old-origin-token");
+  assert.equal((await session.test()).identity.subject, "old-reader");
+  const originalSecret = secrets.data.get(
+    "openAgenticCatalog:origin-switch:old",
+  );
+  assert.equal(typeof originalSecret, "string");
+  assert.ok(originalSecret.length > 0);
+  const oldGuard = session.guard(definitions[0]);
+  const oldSignal = session.cancellation();
+  const pending = session.read("/api/v1/catalog/resources");
+  rejected = assert.rejects(pending, { code: "connection_changed" });
+  await bounded(
+    Promise.race([entered.promise, pending]),
+    "old response did not start",
+  );
+  assert.equal(oldSignal.aborted, false);
+  await session.select(definitions[1]);
+  await rejected;
+  await bounded(closed.promise, "old Catalog response did not close");
+  assert.equal(oldResponse.destroyed, true);
+  assert.equal(oldSignal.aborted, true);
+  assert.throws(oldGuard, { code: "connection_changed" });
+  assert.equal(session.diagnostics(), undefined);
+  await session.manual("new-origin-token");
+  assert.equal((await session.test()).identity.subject, "new-reader");
+  const newGuard = session.guard(definitions[1]),
+    newSignal = session.cancellation();
+  assert.equal((await session.json("/api/v1/me")).subject, "new-reader");
+  newGuard();
+  assert.equal(newSignal.aborted, false);
+  assert.equal(session.snapshot().identity.subject, "new-reader");
+  assert.equal(session.diagnostics(), undefined);
+  assert.equal(
+    secrets.data.get("openAgenticCatalog:origin-switch:old"),
+    originalSecret,
+  );
+  assert.equal(secrets.data.size, 2);
+  assert.deepEqual(
+    seen.map(({ name, path }) => ({ name, path })),
+    [
+      { name: "old", path: "/api/v1/me" },
+      { name: "old", path: "/api/v1/capabilities" },
+      { name: "old", path: "/api/v1/catalog/resources" },
+      { name: "new", path: "/api/v1/me" },
+      { name: "new", path: "/api/v1/capabilities" },
+      { name: "new", path: "/api/v1/me" },
+    ],
+  );
+  assert.ok(
+    seen.every(
+      ({ name, authorization }) =>
+        authorization === `Bearer ${name}-origin-token`,
+    ),
+  );
+});
+
+test("real issuer HTTP preserves exact chunked UTF-8 bounds and closes oversized metadata and token bodies", async (t) => {
+  const value = { label: "Café 😀" },
+    prefix = Buffer.from(JSON.stringify(value)),
+    requests = [],
+    closures = new Map();
+  const server = createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    requests.push({
+      path: req.url,
+      method: req.method,
+      body,
+      accept: req.headers.accept,
+      encoding: req.headers["accept-encoding"],
+      contentType: req.headers["content-type"],
+      authorization: req.headers.authorization,
+      cookie: req.headers.cookie,
+    });
+    const token = req.url.startsWith("/token"),
+      limit = token ? 65536 : 262144;
+    res.writeHead(200, { "content-type": "application/json" });
+    if (req.url.endsWith("-over")) {
+      res.once("close", () => closures.get(req.url).resolve());
+      res.write(
+        Buffer.concat([prefix, Buffer.alloc(limit + 1 - prefix.length, " ")]),
+      );
+      return;
+    }
+    // No Content-Length: split UTF-8 bytes across chunked response writes.
+    // Fetch may coalesce those writes into a different reader chunk layout.
+    const boundary = prefix.indexOf(0xc3) + 1;
+    res.write(prefix.subarray(0, boundary));
+    res.write(prefix.subarray(boundary));
+    res.end(Buffer.alloc(limit - prefix.length, " "));
+  });
+  const origin = await listen(server, t),
+    connection = connections([
+      {
+        id: "wire-issuer",
+        label: "Owned issuer",
+        origin,
+        mode: "control",
+        auth: "manual",
+        allowLoopbackHTTP: true,
+      },
+    ])[0],
+    client = await transport(connection);
+  t.after(() => client.close());
+  for (const kind of ["metadata", "token"]) {
+    const body =
+      kind === "token"
+        ? new URLSearchParams({
+            grant_type: "authorization_code",
+            code: "wire-code:once",
+            client_id: "public-client",
+          })
+        : undefined;
+    const read = (suffix) =>
+      issuerJSON(
+        client.fetch,
+        `${origin}/${kind}${suffix}`,
+        AbortSignal.timeout(3000),
+        body,
+      );
+    assert.deepEqual(await read(""), value);
+    const closed = Promise.withResolvers();
+    closures.set(`/${kind}-over`, closed);
+    await assert.rejects(read("-over"), { code: "issuer_response_too_large" });
+    await bounded(closed.promise, "oversized issuer response did not close");
+    assert.deepEqual(
+      await read(""),
+      value,
+      "a refused body must leave subsequent explicit issuer reads usable",
+    );
+  }
+  assert.equal(requests.length, 6);
+  for (const request of requests) {
+    const token = request.path.startsWith("/token");
+    assert.equal(request.method, token ? "POST" : "GET");
+    assert.equal(
+      request.body,
+      token
+        ? "grant_type=authorization_code&code=wire-code%3Aonce&client_id=public-client"
+        : "",
+    );
+    assert.equal(request.accept, "application/json");
+    assert.equal(request.encoding, "identity");
+    assert.equal(
+      request.contentType,
+      token ? "application/x-www-form-urlencoded" : undefined,
+    );
+    assert.equal(request.authorization, undefined);
+    assert.equal(request.cookie, undefined);
+  }
+});
+
+test("real issuer HTTP refuses encoded data and redirects before disclosing a token form to another peer", async (t) => {
+  const value = { label: "Café 😀" },
+    bytes = Buffer.from(JSON.stringify(value)),
+    targetRequests = [],
+    requests = [],
+    closures = new Map();
+  const target = createServer((req, res) => {
+    targetRequests.push({ path: req.url, method: req.method });
+    json(res, value);
+  });
+  const targetOrigin = await listen(target, t);
+  const server = createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    requests.push({ path: req.url, method: req.method, body });
+    if (req.url === "/valid") return json(res, value);
+    if (req.url === "/invalid-utf8") {
+      res.writeHead(200, { "content-type": "application/json" });
+      return res.end(
+        Buffer.concat([
+          Buffer.from('{"label":"'),
+          Buffer.from([0xc3, 0x28]),
+          Buffer.from('"}'),
+        ]),
+      );
+    }
+    res.once("close", () => closures.get(req.url).resolve());
+    if (req.url === "/encoded") {
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "content-encoding": "gzip",
+      });
+      res.write(gzipSync(bytes));
+      return;
+    }
+    res.writeHead(307, {
+      "content-type": "application/json",
+      location: targetOrigin + "/redirected",
+    });
+    res.write(bytes);
+  });
+  const origin = await listen(server, t),
+    connection = connections([
+      {
+        id: "wire-refusal",
+        label: "Owned issuer refusal",
+        origin,
+        mode: "control",
+        auth: "manual",
+        allowLoopbackHTTP: true,
+      },
+    ])[0],
+    client = await transport(connection);
+  t.after(() => client.close());
+  // Calibrate both actual peers before asserting that a redirect contacts none.
+  assert.deepEqual(
+    await issuerJSON(
+      client.fetch,
+      targetOrigin + "/calibrate",
+      AbortSignal.timeout(3000),
+    ),
+    value,
+  );
+  assert.deepEqual(targetRequests, [{ path: "/calibrate", method: "GET" }]);
+  targetRequests.length = 0;
+  assert.deepEqual(
+    await issuerJSON(
+      client.fetch,
+      origin + "/valid",
+      AbortSignal.timeout(3000),
+    ),
+    value,
+  );
+  for (const [path, body, expected] of [
+    ["/encoded", undefined, { code: "issuer_refused" }],
+    ["/invalid-utf8", undefined, { code: "invalid_issuer_response" }],
+    ["/redirect-get", undefined, { name: "TypeError" }],
+    [
+      "/redirect-post",
+      new URLSearchParams({
+        code: "private-wire-code",
+        grant_type: "authorization_code",
+      }),
+      { name: "TypeError" },
+    ],
+  ]) {
+    const closed = Promise.withResolvers();
+    closures.set(path, closed);
+    await assert.rejects(
+      issuerJSON(client.fetch, origin + path, AbortSignal.timeout(3000), body),
+      expected,
+    );
+    if (path !== "/invalid-utf8")
+      await bounded(closed.promise, "refused issuer response did not close");
+    assert.deepEqual(
+      targetRequests,
+      [],
+      "a refused redirect cannot forward the code or even contact another peer",
+    );
+    assert.deepEqual(
+      await issuerJSON(
+        client.fetch,
+        origin + "/valid",
+        AbortSignal.timeout(3000),
+      ),
+      value,
+    );
+  }
+  const exchange = requests.find(
+    (request) => request.path === "/redirect-post",
+  );
+  assert.deepEqual(exchange, {
+    path: "/redirect-post",
+    method: "POST",
+    body: "code=private-wire-code&grant_type=authorization_code",
+  });
+});
 
 test("real local OIDC: PKCE, nonce, signature, audience, rotation and concurrent refresh", async (t) => {
   const { publicKey, privateKey } = await generateKeyPair("RS256");

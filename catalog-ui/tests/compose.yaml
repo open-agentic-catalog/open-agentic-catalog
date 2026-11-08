@@ -6,10 +6,12 @@ services:
       - ${CATALOG_UI_FIXTURE}/api.json:/config/config.json:ro
   api:
     ports: !override
-      - "127.0.0.1:0:8080"
+      - "127.0.0.1:${CATALOG_COMPOSE_HTTP_PORT:?owned API port required}:8080"
     volumes:
       - ${CATALOG_UI_FIXTURE}/api.json:/config/config.json:ro
       - ${CATALOG_UI_FIXTURE}/server.pem:/fixture/server.pem:ro
+      # Seed CLI receipts must survive deliberate API stop/start; /tmp is tmpfs.
+      - ${CATALOG_UI_FIXTURE}/seed-state:/seed-state:rw
   ui-browser:
     image: ${UI_IMAGE:?owned UI image required}
     pull_policy: never

@@ -269,13 +269,14 @@ test("replacement publication retains extension metadata and navigable supersede
   });
 });
 
-test("reader pages real release history under a subpath without hydrating each revision", async ({
+test("reader pages real release history under a subpath and publisher bounds replacement guidance", async ({
   page,
   catalog,
+  network,
 }) => {
   const item = catalog.receipt.items.find((i) => i.key === "order-agent")!;
   const expected = [item.releaseId!];
-  for (let index = 0; index < 25; index++) {
+  const publishHistoryRelease = async (index: number) => {
     const listing = await catalog.admin(
       "GET",
       `/api/v1/catalog-listings/${item.listingId}`,
@@ -317,7 +318,10 @@ test("reader pages real release history under a subpath without hydrating each r
       },
       revision.etag,
     );
-    expected.push(text(object(object(published.data).release).id));
+    return text(object(object(published.data).release).id);
+  };
+  for (let index = 0; index < 25; index++) {
+    expected.push(await publishHistoryRelease(index));
   }
   const requests: string[] = [];
   page.on("request", (request) => {
@@ -437,4 +441,200 @@ test("reader pages real release history under a subpath without hydrating each r
   await page.goBack();
   await expect(listingFilter).toHaveValue(item.listingId);
   await expect(rows).toHaveCount(25);
+
+  // A real concurrent publication makes the displayed release stale. The new
+  // current release is eligible guidance without fabricating two active releases.
+  // History pages are loaded only after explicit chooser actions.
+  await signOut(page);
+  const historyPath = `/api/v1/catalog-listings/${item.listingId}/releases`;
+  const choices: URL[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "GET" &&
+      /\/api\/v1\/catalog-listings\/[^/]+\/releases$/.test(
+        new URL(request.url()).pathname,
+      )
+    )
+      choices.push(new URL(request.url()));
+  });
+  await login(page, catalog, "local-publisher", `/releases/${currentID}`);
+  await page
+    .getByRole("combobox", { name: "Disposition", exact: true })
+    .selectOption("deprecate");
+  const choose = page.getByRole("button", {
+    name: "Choose same-listing replacement",
+    exact: true,
+  });
+  await expect(choose).toBeVisible();
+  expect(choices).toEqual([]);
+  const viewed = await catalog.admin(
+    "GET",
+    `/api/v1/listing-releases/${currentID}`,
+  );
+  expect(viewed.data).toMatchObject({
+    id: currentID,
+    state: "published",
+    revision: 1,
+  });
+  const successorID = await publishHistoryRelease(25);
+  const updatedOrder = [...expected, successorID].sort();
+  const concurrent = await catalog.admin(
+    "GET",
+    `/api/v1/listing-releases/${currentID}`,
+  );
+  expect(concurrent.data).toMatchObject({
+    id: currentID,
+    state: "superseded",
+    replacementReleaseId: successorID,
+    revision: 2,
+  });
+  const initialChoices = nextHistoryReply();
+  await choose.click();
+  const initialChoiceData = object(await (await initialChoices).json());
+  expect(
+    array(initialChoiceData.items).map((row) => text(object(row).id)),
+  ).toEqual(updatedOrder.slice(0, 25));
+  const selection = page.getByRole("combobox", {
+    name: "Same-listing replacement",
+    exact: true,
+  });
+  const replacement = page.getByRole("textbox", {
+    name: "Replacement release ID",
+    exact: true,
+  });
+  const successorOnFirst = updatedOrder.slice(0, 25).includes(successorID);
+  await expect(selection.locator('option:not([value=""])')).toHaveCount(
+    successorOnFirst ? 1 : 0,
+  );
+  if (successorOnFirst) {
+    await selection.selectOption(successorID);
+    await expect(replacement).toHaveValue(successorID);
+  }
+  expect(choices).toHaveLength(1);
+  expect([...choices[0]!.searchParams.entries()]).toEqual([["limit", "25"]]);
+  const moreChoices = nextHistoryReply();
+  await page
+    .getByRole("group", {
+      name: "Same-listing replacement choices pagination",
+      exact: true,
+    })
+    .getByRole("button", { name: "Next page", exact: true })
+    .click();
+  const lastChoiceData = object(await (await moreChoices).json());
+  expect(
+    array(lastChoiceData.items).map((row) => text(object(row).id)),
+  ).toEqual(updatedOrder.slice(25));
+  expect(lastChoiceData.nextCursor).toBeUndefined();
+  await expect(selection.locator('option:not([value=""])')).toHaveCount(1);
+  await expect(
+    selection.locator(`option[value="${successorID}"]`),
+  ).toContainText("published");
+  if (successorOnFirst) await expect(selection).toHaveValue(successorID);
+  else await selection.selectOption(successorID);
+  await expect(replacement).toHaveValue(successorID);
+  expect(choices).toHaveLength(2);
+  expect(choices[1]!.searchParams.get("limit")).toBe("25");
+  expect(choices[1]!.searchParams.get("cursor")).toBe(
+    text(initialChoiceData.nextCursor),
+  );
+  const firstChoicesAgain = nextHistoryReply();
+  await page
+    .getByRole("group", {
+      name: "Same-listing replacement choices pagination",
+      exact: true,
+    })
+    .getByRole("button", { name: "First page", exact: true })
+    .click();
+  await firstChoicesAgain;
+  await expect(selection).toHaveValue(successorID);
+  await expect(replacement).toHaveValue(successorID);
+  await expect(selection.locator('option:not([value=""])')).toHaveCount(1);
+  expect(choices).toHaveLength(3);
+  expect([...choices[2]!.searchParams.entries()]).toEqual([["limit", "25"]]);
+  const crossListingID = required(
+    catalog.receipt.items.find((row) => row.key === "order-mcp")?.releaseId,
+  );
+  const eagerReleaseReads: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() === "GET" &&
+      /\/api\/v1\/listing-releases\/[^/]+$/.test(
+        new URL(request.url()).pathname,
+      )
+    )
+      eagerReleaseReads.push(new URL(request.url()).pathname);
+  });
+  await replacement.fill(crossListingID);
+  await expect(selection).toHaveValue(crossListingID);
+  await page
+    .getByRole("button", { name: "Hide same-listing replacement", exact: true })
+    .click();
+  await expect(selection).toHaveCount(0);
+  await expect(replacement).toHaveValue(crossListingID);
+  expect(choices).toHaveLength(3);
+  expect(eagerReleaseReads).toEqual([]);
+  await page
+    .getByRole("textbox", { name: "Reason", exact: true })
+    .fill("Explicit cross-listing deprecation guidance");
+  network.expectFailure(
+    "POST",
+    `/_catalog/api/v1/listing-releases/${currentID}:deprecate`,
+    412,
+  );
+  const changed = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith(
+        `/api/v1/listing-releases/${currentID}:deprecate`,
+      ),
+  );
+  await page
+    .getByRole("button", { name: "Change release disposition", exact: true })
+    .click();
+  await expect(
+    page.getByLabel("Command summary", { exact: true }),
+  ).toContainText(crossListingID);
+  expect(eagerReleaseReads).toEqual([]);
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Confirm", exact: true }).click();
+  const reply = await changed;
+  expect(reply.status()).toBe(412);
+  expect(reply.request().headers()["if-match"]).toBe(viewed.etag);
+  expect(object(reply.request().postDataJSON()).replacementId).toBe(
+    crossListingID,
+  );
+  expect(object(await reply.json()).code).toBe("PRECONDITION_FAILED");
+  await expect(dialog.getByRole("alert")).toContainText("The record changed.");
+  await expect(
+    page.getByText("Release deprecated.", { exact: true }),
+  ).toHaveCount(0);
+  const retained = await catalog.admin(
+    "GET",
+    `/api/v1/listing-releases/${currentID}`,
+  );
+  expect(retained.data).toEqual(concurrent.data);
+  expect(retained.etag).toBe(concurrent.etag);
+  expect(
+    (await catalog.admin("GET", `/api/v1/catalog-listings/${item.listingId}`))
+      .data.currentReleaseId,
+  ).toBe(successorID);
+  await dialog
+    .getByRole("button", { name: "Back to form", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(replacement).toHaveValue(crossListingID);
+  await expect(
+    page.getByRole("textbox", { name: "Reason", exact: true }),
+  ).toHaveValue("Explicit cross-listing deprecation guidance");
+  expect(choices).toHaveLength(3);
+  expect(choices.map((url) => url.origin + url.pathname)).toEqual(
+    Array(3).fill(
+      catalog.origin + catalog.basePath + "/_catalog" + historyPath,
+    ),
+  );
+  expect(
+    requests.filter((path) =>
+      /\/(version-revisions|listing-revisions)\//.test(path),
+    ),
+  ).toEqual([]);
 });

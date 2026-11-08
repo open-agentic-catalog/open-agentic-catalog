@@ -1,10 +1,16 @@
 // Real browser fixtures own their service lifetime and require every failure to be accounted for.
 import { required } from "../required";
-import { test as base, expect, type Page } from "@playwright/test";
+import {
+  test as base,
+  expect,
+  type Page,
+  type Response,
+} from "@playwright/test";
 import { fileURLToPath } from "node:url";
 import { writeFile } from "node:fs/promises";
 import { startCatalog } from "../../scripts/browser-fixture.mjs";
 import { networkObserver } from "../../scripts/network-observer.mjs";
+import { personalCommandOutcome } from "../../scripts/personal-evidence.mjs";
 
 import { collectBrowserCoverage } from "../../scripts/e2e-coverage.mjs";
 
@@ -243,6 +249,35 @@ export async function confirmCommand(page: Page) {
     .getByRole("button", { name: "Confirm", exact: true })
     .click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
+}
+
+/** Check a prepared personal command before a refused command's still-open dialog can time out. */
+export async function confirmPersonalCommand(
+  page: Page,
+  response: Promise<Response>,
+  status: number,
+) {
+  const [reply] = await Promise.all([
+    response,
+    page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Confirm", exact: true })
+      .click(),
+  ]);
+  const problem: unknown = await reply.json().catch(() => undefined);
+  expect(
+    reply.status(),
+    JSON.stringify(
+      personalCommandOutcome({
+        status: reply.status(),
+        method: reply.request().method(),
+        problem,
+        requestId: reply.headers()["x-request-id"],
+      }),
+    ),
+  ).toBe(status);
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  return reply;
 }
 
 /** Trigger a real reload without waiting for the navigation deliberately cancelled by the user. */

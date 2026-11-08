@@ -12,16 +12,22 @@ import {
   writeFile,
   rm,
 } from "node:fs/promises";
-import { writeFixtureInput } from "./fixture-inputs.mjs";
+import {
+  createFixtureStateDirectory,
+  writeFixtureInput,
+} from "./fixture-inputs.mjs";
 import { request } from "node:http";
 import { createServer, get, request as tlsRequest } from "node:https";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { setTimeout as delay } from "node:timers/promises";
 import { chromium, expect } from "@playwright/test";
 import { localPorts, runtimeEnvironment } from "./browser-fixture.mjs";
 import { networkObserver } from "./network-observer.mjs";
+import { browserErrors, browserFailureLocation } from "./browser-errors.mjs";
+import { calibrateBrowserErrors } from "./browser-error-calibration.mjs";
+import { waitForPackagedReadiness } from "./packaged-readiness.mjs";
+import { collectReadinessEvidence } from "./packaged-readiness-evidence.mjs";
 import { waitForStableNetwork } from "./network-readiness.mjs";
 import {
   humanRealm,
@@ -47,7 +53,10 @@ import {
 } from "./rotation-evidence.mjs";
 import { authorizationJourney } from "./authorization-journey.mjs";
 import { authorizationQualificationJourney } from "./authorization-qualification-journey.mjs";
-import { packagedJourneys } from "./packaged-journeys.mjs";
+import {
+  packagedJourneys,
+  privateFeedbackJourney,
+} from "./packaged-journeys.mjs";
 import { mcpRealm } from "./mcp-fixture.mjs";
 import { mcpJourney, mcpDisabled } from "./mcp-journey.mjs";
 import { cliOIDCJourney } from "./cli-oidc-journey.mjs";
@@ -288,51 +297,111 @@ if (localPasswords) {
   }
 }
 /** Resolve an invocation-owned Compose service only when its published port is loopback-bound. */
+const knownPublishedPorts = new Map();
 async function publishedPort(service) {
   const value = (await compose("port", service, "8080")).trim();
   if (!/^127\.0\.0\.1:\d+$/.test(value))
     throw new Error("Owned loopback port not found");
-  return Number(value.split(":")[1]);
+  const port = Number(value.split(":")[1]);
+  knownPublishedPorts.set(service, port);
+  return port;
+}
+const readinessEvidence = (service, attemptedPort, listener) =>
+  collectReadinessEvidence({
+    project,
+    service,
+    attemptedPort,
+    phase: phase === "compose-ui-restart" ? "ui_restart" : "listener",
+    listener,
+    interrupted: () => interrupted,
+    run: (args, timeout) =>
+      command([...baseCompose, ...args], timeout / 1000, true),
+  });
+let readinessFailureRecorded = false;
+async function retainReadinessEvidence(service, attemptedPort, listener) {
+  readinessFailureRecorded = true;
+  try {
+    const evidence = await readinessEvidence(service, attemptedPort, listener);
+    console.error(`Owned readiness evidence: ${JSON.stringify(evidence)}`);
+    const output = join(root, "output/playwright", project);
+    await mkdir(output, { recursive: true });
+    await writeFile(join(output, "readiness.json"), JSON.stringify(evidence), {
+      mode: 0o600,
+    });
+  } catch {
+    // Diagnostic failure cannot replace the original readiness/test refusal.
+    console.error("Owned readiness evidence unavailable");
+  }
 }
 /** Poll bounded fixture readiness using the supplied private trust when HTTPS is required. */
 async function ready(url, ca) {
-  const deadline = Date.now() + 120000;
-  while (Date.now() < deadline && !interrupted) {
+  try {
+    await waitForPackagedReadiness({
+      interrupted: () => interrupted,
+      probe: async (timeout) =>
+        ca
+          ? await new Promise((done, fail) => {
+              const req = get(
+                url,
+                {
+                  ca,
+                  timeout,
+                  signal: AbortSignal.timeout(Math.ceil(timeout)),
+                  lookup: (_host, options, cb) =>
+                    options.all
+                      ? cb(null, [{ address: "127.0.0.1", family: 4 }])
+                      : cb(null, "127.0.0.1", 4),
+                },
+                (res) => {
+                  res.resume();
+                  done(res.statusCode);
+                },
+              );
+              req.on("error", fail);
+              req.on("timeout", () =>
+                req.destroy(
+                  Object.assign(new Error("Owned readiness timeout"), {
+                    code: "ETIMEDOUT",
+                  }),
+                ),
+              );
+            })
+          : await fetch(url, {
+              signal: AbortSignal.timeout(Math.ceil(timeout)),
+              redirect: "error",
+            }).then(async (res) => {
+              await res.body?.cancel();
+              return res.status;
+            }),
+    });
+  } catch (error) {
+    console.error(
+      `Owned listener readiness: ${JSON.stringify(error.diagnostic)}`,
+    );
     try {
-      const status = ca
-        ? await new Promise((done, fail) => {
-            const req = get(
-              url,
-              {
-                ca,
-                timeout: 1000,
-                lookup: (_host, options, cb) =>
-                  options.all
-                    ? cb(null, [{ address: "127.0.0.1", family: 4 }])
-                    : cb(null, "127.0.0.1", 4),
-              },
-              (res) => {
-                res.resume();
-                done(res.statusCode);
-              },
-            );
-            req.on("error", fail);
-            req.on("timeout", () => req.destroy(new Error("timeout")));
-          })
-        : await fetch(url, {
-            signal: AbortSignal.timeout(1000),
-            redirect: "error",
-          }).then(async (res) => {
-            await res.body?.cancel();
-            return res.status;
-          });
-      if (status === 200) return;
+      const target = new URL(url);
+      if (
+        target.protocol === "http:" &&
+        target.hostname === "127.0.0.1" &&
+        target.pathname === "/readyz"
+      ) {
+        const service = [...knownPublishedPorts].find(
+          ([service, port]) =>
+            ["api", "ui-browser"].includes(service) &&
+            port === Number(target.port),
+        )?.[0];
+        if (service)
+          await retainReadinessEvidence(
+            service,
+            Number(target.port),
+            error.diagnostic,
+          );
+      }
     } catch {
-      /* Bounded startup reads, never mutation retries. */
+      console.error("Owned readiness diagnostic target unavailable");
     }
-    await delay(200);
+    throw error;
   }
-  throw new Error("Owned packaged listener did not become ready");
 }
 let phase = "setup";
 let mcpChecks = [];
@@ -340,12 +409,19 @@ let mcpCleanup = false;
 let mcpBuild;
 let outcomes;
 let lastPage;
+let browserObservationCalibrated = false;
+let readinessEvidenceCalibrated = false;
+const jsErrors = browserErrors();
 try {
+  await createFixtureStateDirectory(join(directory, "seed-state"));
   let apiPort, uiPort, ratingsSubject, ratingsFilename;
   let issuer;
+  // Docker-assigned host ports can be rejected by browser/Node fetch (4045,
+  // for example). Reuse the same private range as the other browser fixtures.
+  const [apiHostPort, uiHostPort, documentationPort] = await localPorts();
   Object.assign(env, {
-    CATALOG_COMPOSE_HTTP_PORT: "8080",
-    CATALOG_UI_PORT: "0",
+    CATALOG_COMPOSE_HTTP_PORT: String(apiHostPort),
+    CATALOG_UI_PORT: String(uiHostPort),
   });
   await command([
     "openssl",
@@ -374,8 +450,6 @@ try {
   await writeFixtureInput(join(directory, "server-key.pem"), key);
   const cert = await readFile(join(directory, "server.pem"));
   await writeFixtureInput(join(directory, "server.pem"), cert);
-  // The host ephemeral range can include browser-blocked ports.
-  const [documentationPort, proxyPort] = await localPorts();
   let documentationAvailable = true;
   const documentationRequests = [];
   documentationServer = createServer({ key, cert }, (incoming, outgoing) => {
@@ -403,6 +477,13 @@ try {
     documentationServer.listen(documentationPort, "127.0.0.1", done);
   });
   const documentationOrigin = `https://127.0.0.1:${documentationServer.address().port}`;
+  // API/UI ports are not bound until Compose starts. Exclude those two from
+  // the next three distinct candidates while the documentation listener is held.
+  const proxyPort = (await localPorts()).find(
+    (port) => port !== apiHostPort && port !== uiHostPort,
+  );
+  if (proxyPort === undefined)
+    throw new Error("Owned browser proxy port is unavailable");
   let dropNextSettingsReply = false;
   let droppedSettingsReplies = 0;
   const settingsFault = {
@@ -698,7 +779,7 @@ try {
         )
           throw new Error("Owned Compose public URL substitution mismatch");
     }
-    env.CATALOG_COMPOSE_HTTP_PORT = "8080";
+    env.CATALOG_COMPOSE_HTTP_PORT = String(apiHostPort);
     delete env.CATALOG_PUBLIC_BASE_URL;
     mcpChecks.push(
       "API and worker preserve default, custom-port and explicit public URLs",
@@ -905,21 +986,24 @@ try {
     mcpChecks.push(...(await mcpDisabled(mcpOrigin, cert)));
   }
   phase = "catalog-seed";
-  await compose(
-    "exec",
-    "-T",
-    "api",
-    "/usr/local/bin/catalogctl",
-    "seed-demo",
-    "--sample-set",
-    "minimal",
-    "--base-url",
-    "http://127.0.0.1:8080",
-    "--state-file",
-    "/tmp/browser-demo.json",
-    "--timeout",
-    "60s",
+  const { status: initialSeedStatus, ...initialSeedReport } = JSON.parse(
+    await compose(
+      "exec",
+      "-T",
+      "api",
+      "/usr/local/bin/catalogctl",
+      "seed-demo",
+      "--sample-set",
+      "minimal",
+      "--base-url",
+      "http://127.0.0.1:8080",
+      "--state-file",
+      "/seed-state/browser-demo.json",
+      "--timeout",
+      "60s",
+    ),
   );
+  expect(initialSeedStatus).toBe("created");
   let foreignNamespace;
   if (mcp) {
     const response = await fetch(
@@ -1242,6 +1326,31 @@ try {
     }
     uiPort = await publishedPort("ui-browser");
     await ready(`http://127.0.0.1:${uiPort}/readyz`);
+    if (!readinessEvidenceCalibrated) {
+      const previousPhase = phase;
+      phase = "owned-readiness-evidence-calibration";
+      for (const service of ["api", "ui-browser"]) {
+        const port = knownPublishedPorts.get(service);
+        expect(Number.isInteger(port)).toBe(true);
+        expect(port).toBeGreaterThanOrEqual(49152);
+        expect(port).toBeLessThanOrEqual(65535);
+        const evidence = await readinessEvidence(service, port, {
+          lastStatus: 200,
+        });
+        expect(evidence.container.status).toBe("available");
+        expect(evidence.container.state).toBe("running");
+        expect(evidence.published).toEqual({
+          status: "available",
+          host: "loopback",
+          port,
+          containerPort: 8080,
+        });
+        expect(evidence.internalProbe.status).toBe("ready");
+      }
+      readinessEvidenceCalibrated = true;
+      phase = previousPhase;
+      console.log("Owned readiness evidence calibration passed");
+    }
     // Match actual host output to the version supplied to the image build.
     // Both profiles select JSON for bounded incident diagnostics. Host functional
     // tests separately qualify omitted-format text defaults and both formats.
@@ -1273,7 +1382,6 @@ try {
         ...(providerLedger?.results() || []),
       ],
     };
-    let jsErrors = 0;
     // Docker veth changes notify the host browser and can cancel an in-flight
     // POST with ERR_NETWORK_CHANGED. Finish topology changes before opening
     // Chromium; never mask a failed login with a retry or a fixed sleep.
@@ -1283,7 +1391,17 @@ try {
       await waitForStableNetwork({ interrupted: () => interrupted });
       phase = browserPhase;
       browser = await launchBrowser();
+      if (!browserObservationCalibrated) {
+        phase = `${mode}-browser-error-calibration`;
+        await calibrateBrowserErrors(browser);
+        browserObservationCalibrated = true;
+        phase = browserPhase;
+      }
       context = await browser.newContext();
+      jsErrors.observe(context, [
+        origin,
+        ...(issuer ? [new URL(issuer).origin] : []),
+      ]);
       collector = await collectBrowserCoverage(context, coverageOutput);
       coverageContexts++;
       coverageBrowser = browser.version();
@@ -1319,13 +1437,13 @@ try {
         )
           console.error(`Browser transport category: ${category}`);
       });
-      page.on("pageerror", () => jsErrors++);
     };
     await openBrowser();
     if (publisherDNSOnly) {
       await collector.finish();
       await context.close();
       await browser.close();
+      expect(jsErrors.results()).toEqual([]);
       continue;
     }
     // Qualify actual immutable manual bytes through the packaged Go host,
@@ -2286,6 +2404,26 @@ try {
     await page.goto(origin + basePath + "/catalog");
     await expect(page.locator("article.resource-card")).toHaveCount(3);
     expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
+    if (mode === "compose" && !basePath) {
+      phase = "compose-private-feedback";
+      console.log(`Checking ${phase}`);
+      await privateFeedbackJourney({
+        page,
+        origin,
+        network: ledger,
+        api: async (running) => {
+          await compose(running ? "start" : "stop", "api");
+          if (running) {
+            apiPort = await publishedPort("api");
+            await ready(`http://127.0.0.1:${apiPort}/readyz`);
+          }
+          await waitForStableNetwork({ interrupted: () => interrupted });
+        },
+      });
+      console.log(
+        "Packaged private feedback, minimal moderation, restart and owner isolation passed",
+      );
+    }
     if (mode === "compose" && basePath) {
       // Initial root/subpath checks finish before mutations alter the seed.
       await packagedJourneys({
@@ -2877,6 +3015,7 @@ try {
       await page.getByLabel("Account", { exact: true }).click();
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
       const memberContext = await browser.newContext();
+      jsErrors.observe(memberContext, [origin]);
       const memberCollector = await collectBrowserCoverage(
         memberContext,
         coverageOutput,
@@ -2889,7 +3028,6 @@ try {
         ledger.failure(r.method(), r.url(), r.failure()?.errorText),
       );
       const memberPage = await memberContext.newPage();
-      memberPage.on("pageerror", () => jsErrors++);
       await memberCollector.ready(memberPage);
       try {
         const authorizationDiagnostics = async (response) => {
@@ -3133,21 +3271,26 @@ try {
             await compose("run", "--rm", "--no-deps", "provision");
             if (!basePath) {
               phase = "compose-root-repeat-seed";
-              await compose(
-                "exec",
-                "-T",
-                "api",
-                "/usr/local/bin/catalogctl",
-                "seed-demo",
-                "--sample-set",
-                "minimal",
-                "--base-url",
-                "http://127.0.0.1:8080",
-                "--state-file",
-                "/tmp/browser-demo.json",
-                "--timeout",
-                "60s",
-              );
+              const { status: repeatedSeedStatus, ...repeatedSeedReport } =
+                JSON.parse(
+                  await compose(
+                    "exec",
+                    "-T",
+                    "api",
+                    "/usr/local/bin/catalogctl",
+                    "seed-demo",
+                    "--sample-set",
+                    "minimal",
+                    "--base-url",
+                    "http://127.0.0.1:8080",
+                    "--state-file",
+                    "/seed-state/browser-demo.json",
+                    "--timeout",
+                    "60s",
+                  ),
+                );
+              expect(repeatedSeedStatus).toBe("already_matched");
+              expect(repeatedSeedReport).toEqual(initialSeedReport);
             }
             const policyRead = async (path) => {
               const response = await page.evaluate(
@@ -3307,9 +3450,27 @@ try {
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
       await signIn();
       await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+      const connectedContractReply = page.waitForResponse(
+        (response) =>
+          response.request().method() === "GET" &&
+          new URL(response.url()).pathname === basePath + "/_reference",
+      );
       await page.goto(origin + basePath + "/api-reference");
       await expect(
         page.getByRole("heading", { name: "API reference", exact: true }),
+      ).toBeVisible();
+      const connectedContract = await connectedContractReply;
+      expect(connectedContract.status()).toBe(200);
+      expect(
+        (await connectedContract.json()).document.paths[
+          "/api/v1/catalog/search"
+        ].post.operationId,
+      ).toBe("searchCatalog");
+      await expect(
+        page.getByText("Last loaded API contract.", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("navigation", { name: "API areas", exact: true }),
       ).toBeVisible();
       await page.goto(origin + basePath + "/catalog");
       await expect(
@@ -3321,13 +3482,22 @@ try {
         ),
       ).toBe(true);
     }
-    expect(jsErrors).toBe(0);
     expect(outcomes.results()).toEqual([]);
     await collector.finish();
     await context.close();
     await browser.close();
+    expect(outcomes.results()).toEqual([]);
+    expect(jsErrors.results()).toEqual([]);
   }
   if (mode === "compose" && !coverage) {
+    const publisherLedger = networkObserver(origin, "/browser");
+    const previousOutcomes = outcomes;
+    outcomes = {
+      results: () => [
+        ...(previousOutcomes?.results() ?? []),
+        ...publisherLedger.results(),
+      ],
+    };
     await publisherVerificationJourney({
       origin: origin + "/browser",
       fixtureRequest,
@@ -3396,6 +3566,21 @@ try {
         await waitForStableNetwork({ interrupted: () => interrupted });
         browser = await launchBrowser();
         const context = await browser.newContext();
+        jsErrors.observe(context, [origin]);
+        context.on("response", (reply) =>
+          publisherLedger.observe(
+            reply.request().method(),
+            reply.url(),
+            reply.status(),
+          ),
+        );
+        context.on("requestfailed", (request) =>
+          publisherLedger.failure(
+            request.method(),
+            request.url(),
+            request.failure()?.errorText,
+          ),
+        );
         const page = await context.newPage();
         lastPage = page;
         page.setDefaultTimeout(15000);
@@ -3411,8 +3596,13 @@ try {
         : `Packaged UI ${mode} passed (root and subpath)`,
   );
 } catch (error) {
+  if (!readinessFailureRecorded && phase === "compose-ui-restart")
+    await retainReadinessEvidence(
+      "ui-browser",
+      knownPublishedPorts.get("ui-browser"),
+    );
   const site = String(error?.stack).match(
-    /(?:packaged-(?:journeys|test)|authorization(?:-qualification)?-journey|mcp-journey|cli-oidc-journey|ratings-oidc-journey|publisher-verification-journey)\.mjs:\d+:\d+/,
+    /(?:packaged-(?:journeys|test)|authorization(?:-qualification)?-journey|mcp-journey|cli-oidc-journey|ratings-oidc-journey|publisher-verification-journey|manual-layout)\.mjs:\d+:\d+/,
   )?.[0];
   if (site) console.error(`Failing packaged assertion: ${site}`);
   if (
@@ -3424,6 +3614,9 @@ try {
     `Packaged UI test failed during ${phase}; private command/browser payloads were not recorded`,
   );
   if (outcomes) console.error(outcomes.results());
+  console.error(
+    `Owned browser error categories: ${JSON.stringify(jsErrors.results())}`,
+  );
   if (!interrupted && lastPage && !lastPage.isClosed()) {
     if (mode === "compose") {
       const output = join(root, "output/playwright", project);
@@ -3443,15 +3636,36 @@ try {
     }
     // Route names and counts only: no query parameters, form values or DOM
     // dumps from the provider, which can contain login credentials/state.
-    console.error(
-      `Browser protocol: ${new URL(lastPage.url()).protocol}; route: ${new URL(lastPage.url()).pathname}; catalog cards: ${await lastPage.locator("article.resource-card").count()}; provider input error: ${await lastPage.locator("#input-error").count()}`,
-    );
+    try {
+      const location = browserFailureLocation(lastPage.url());
+      console.error(
+        `Browser protocol: ${location.protocol}; route: ${location.route}; catalog cards: ${await lastPage.locator("article.resource-card").count()}; provider input error: ${await lastPage.locator("#input-error").count()}`,
+      );
+    } catch {
+      console.error("Owned browser failure diagnostics unavailable");
+    }
   }
   process.exitCode = 1;
 } finally {
   cleaning = true;
   clearTimeout(stopTimer);
-  await browser?.close();
+  try {
+    await browser?.close();
+    if (browser) console.log("Owned browser cleanup passed");
+  } catch {
+    process.exitCode = 1;
+    console.error("Owned browser cleanup failed");
+  }
+  if (jsErrors.results().length) {
+    process.exitCode = 1;
+    console.error(
+      `Owned browser error categories after cleanup: ${JSON.stringify(jsErrors.results())}`,
+    );
+  }
+  if (outcomes?.results().length) {
+    process.exitCode = 1;
+    console.error(outcomes.results());
+  }
   if (documentationServer) {
     documentationServer.closeAllConnections();
     await new Promise((done) => documentationServer.close(done));
@@ -3486,6 +3700,7 @@ try {
     try {
       await rm(privateDirectory, { recursive: true, force: true });
       mcpCleanup = true;
+      console.log("Owned infrastructure and private fixture cleanup passed");
     } catch {
       process.exitCode = 1;
       console.error("Owned private fixture cleanup failed");

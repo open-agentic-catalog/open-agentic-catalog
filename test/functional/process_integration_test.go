@@ -235,6 +235,7 @@ func TestPostgresProcesses(t *testing.T) {
 	}
 	stop = qualifyProcessTenantSettings(ctx, t, fixture, owner, cfg, peerConfig, stop, roleDSN("api"), roleDSN("worker"), settingsPeer)
 	qualifyProcessImport(ctx, t, fixture, owner, dsn, cfg.HTTP.Address, peerConfig.HTTP.Address, tenant, namespace.ID)
+	auditExportPath := retainProcessAuditRange(ctx, t, fixture, owner, cfg.HTTP.Address, tenant, namespace.ID)
 	// Qualify ratings composition through compiled processes and exact runtime
 	// logins. Repository tests own the complete vote and publication fault matrix.
 	checkRatings := func(revision int64) {
@@ -457,6 +458,7 @@ func TestPostgresProcesses(t *testing.T) {
 	fixture.request(ctx, cfg.Worker.OperationsAddress, "GET", "/api/v1/namespaces", "local-admin", "", 404)
 	fixture.request(ctx, cfg.Worker.OperationsAddress, "GET", "/api/v1/ratings", "local-admin", "", 404)
 	stop()
+	qualifyProcessOperators(ctx, t, fixture, dsn, configuration, tenant, cfg.Auth.DevelopmentTokens["other-tenant-admin"].TenantID, auditExportPath)
 	// A worker login cannot be admitted as an API runtime.
 	fixture.run(ctx, fixture.command(ctx, "catalogd", roleDSN("worker"), "api", "--config", configuration), 1, `msg="operation failed; check configuration and dependency availability"`, "event=process.failed", "stage=startup", "error_code=INTERNAL")
 	if os.Getenv("CATALOG_TEST_PGBOUNCER_DSN") != "" {
