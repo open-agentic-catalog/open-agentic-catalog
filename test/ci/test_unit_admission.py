@@ -133,6 +133,27 @@ class AdmissionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             c.image_identity(changed, value)
 
+    def test_runtime_candidate_admission_binds_native_host_without_enabling_emulation(self):
+        for machine, platform in (("x86_64", "linux/amd64"), ("aarch64", "linux/arm64"), ("arm64", "linux/arm64")):
+            with self.subTest(machine=machine), patch.object(c.host_platform, "system", return_value="Linux"), patch.object(c.host_platform, "machine", return_value=machine):
+                self.assertEqual(c.native_platform(), platform)
+                value = {"imageId": "sha256:" + "c" * 64, "platform": platform}
+                with patch.object(a, "source_identity", return_value=SOURCE), patch.object(c, "read_candidate", return_value=value) as read, \
+                        patch.object(c, "run", return_value='[{}]') as run, patch.object(c, "image_identity") as inspect:
+                    self.assertEqual(c.admit(Path("/owned/candidate.json"), "backend", load=True, platform=platform), value)
+                    read.assert_called_once_with(Path("/owned/candidate.json"), identity=SOURCE, product="backend", platform=platform)
+                    self.assertEqual(run.call_args_list[0].args[0], ["docker", "image", "load", "--input", "/owned/image.tar"])
+                    self.assertEqual(run.call_args_list[1].args[0], ["docker", "image", "inspect", value["imageId"]])
+                    inspect.assert_called_once_with({}, value)
+                foreign = "linux/arm64" if platform == "linux/amd64" else "linux/amd64"
+                with patch.object(c, "read_candidate", side_effect=AssertionError("read before native refusal")), patch.object(c, "run", side_effect=AssertionError("process before native refusal")):
+                    with self.assertRaisesRegex(ValueError, "not native"):
+                        c.admit(Path("/owned/candidate.json"), "backend", platform=foreign)
+        for system, machine in (("Darwin", "arm64"), ("Windows", "x86_64"), ("Linux", "ppc64le")):
+            with self.subTest(system=system, machine=machine), patch.object(c.host_platform, "system", return_value=system), patch.object(c.host_platform, "machine", return_value=machine):
+                with self.assertRaisesRegex(ValueError, "native Linux"):
+                    c.native_platform()
+
     def test_external_delivery_is_refused_locally_and_under_act(self):
         for environment in ({}, {"ACT": "true", "GITHUB_ACTIONS": "true", "RELEASE_PUBLISH": "true"}, {"GITHUB_ACTIONS": "true"}):
             with self.assertRaises(ValueError):

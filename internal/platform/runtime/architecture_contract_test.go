@@ -25,13 +25,24 @@ type dependencyOwnership struct {
 
 var domainPackageDirectories = []string{
 	"internal/adapter",
+	"internal/artwork",
+	"internal/audit",
 	"internal/catalog",
+	"internal/draftfile",
+	"internal/events",
 	"internal/federation",
+	"internal/feedback",
+	"internal/housekeeping",
 	"internal/identity",
 	"internal/jobs",
 	"internal/jsondoc",
+	"internal/overview",
+	"internal/personal",
 	"internal/publication",
+	"internal/ratings",
+	"internal/safeerr",
 	"internal/standards",
+	"internal/tenantsettings",
 	"internal/webhook",
 }
 
@@ -44,6 +55,36 @@ var providerDependencies = []dependencyOwnership{
 
 func TestArchitectureContracts(t *testing.T) {
 	repository := openTestRepository(t)
+	// A new first-party root needs an explicit ownership decision. Platform
+	// composition, generated protocol bindings and composed test journeys are
+	// deliberately outside the domain-to-platform dependency rule.
+	excluded := map[string]string{
+		"internal/a2apb":       "generated pinned protocol bindings",
+		"internal/integration": "composed application test journeys",
+		"internal/platform":    "concrete adapters and composition",
+	}
+	entries, err := fs.ReadDir(repository.FS(), "internal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := make(map[string]bool)
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		directory := "internal/" + entry.Name()
+		seen[directory] = true
+		if !isDomainDirectory(directory) && excluded[directory] == "" {
+			t.Errorf("%s needs an explicit architecture ownership disposition", directory)
+		}
+	}
+	protected := make(map[string]bool)
+	for _, directory := range domainPackageDirectories {
+		if !seen[directory] || protected[directory] || excluded[directory] != "" {
+			t.Errorf("invalid, duplicate or excluded protected domain %s", directory)
+		}
+		protected[directory] = true
+	}
 	moduleFile := string(readTestFile(t, repository, "go.mod"))
 	if !strings.HasPrefix(moduleFile, "module "+serviceModulePath+"\n") {
 		t.Fatalf("architecture analyzer module path %q does not match go.mod", serviceModulePath)
@@ -207,6 +248,59 @@ func TestArchitectureAnalyzer(t *testing.T) {
 			}
 			t.Fatalf("findings %#v do not contain %q", findings, test.wantMessage)
 		})
+	}
+}
+
+func TestArchitectureDomainOwnership(t *testing.T) {
+	t.Parallel()
+	// Literal controls are independent of the list consumed by the analyzer:
+	// removing a protected root must break its own denial control.
+	for _, root := range []string{
+		"adapter", "artwork", "audit", "catalog", "draftfile", "events",
+		"federation", "feedback", "housekeeping", "identity", "jobs", "jsondoc",
+		"overview", "personal", "publication", "ratings", "safeerr", "standards",
+		"tenantsettings", "webhook",
+	} {
+		t.Run(root, func(t *testing.T) {
+			for _, suffix := range []string{"/bad.go", "/nested/bad.go"} {
+				findings, err := analyzeArchitectureFile("internal/"+root+suffix,
+					[]byte(`package fixture; import _ "`+serviceModulePath+`/internal/platform/database"`))
+				if err != nil || len(findings) != 1 || !strings.Contains(findings[0].message, "domain package cannot import platform implementation") {
+					t.Fatalf("%s%s: findings=%v err=%v", root, suffix, findings, err)
+				}
+			}
+			// A dependency-neutral domain edge is legitimate.
+			findings, err := analyzeArchitectureFile("internal/"+root+"/good.go",
+				[]byte(`package fixture; import _ "`+serviceModulePath+`/internal/catalog"`))
+			if err != nil || len(findings) != 0 {
+				t.Fatalf("allowed domain edge: findings=%v err=%v", findings, err)
+			}
+		})
+	}
+	for _, filename := range []string{
+		"internal/platform/runtime/wire.go", "internal/integration/journey.go",
+		"internal/a2apb/binding.go", "internal/catalogneighbor/file.go",
+	} {
+		findings, err := analyzeArchitectureFile(filename,
+			[]byte(`package fixture; import _ "`+serviceModulePath+`/internal/platform/database"`))
+		if err != nil || len(findings) != 0 {
+			t.Fatalf("unprotected neighbor %s: findings=%v err=%v", filename, findings, err)
+		}
+	}
+	for _, test := range []struct {
+		file, imported string
+		allowed        bool
+	}{
+		{"internal/federation/fetch.go", "internal/platform/fetcher", true},
+		{"internal/federation/sub/fetch.go", "internal/platform/fetcher", false},
+		{"internal/federation/fetch.go", "internal/platform/fetcher/neighbor", false},
+		{"internal/catalog/fetch.go", "internal/platform/fetcher", false},
+	} {
+		findings, err := analyzeArchitectureFile(test.file,
+			[]byte(`package fixture; import _ "`+serviceModulePath+`/`+test.imported+`"`))
+		if err != nil || (len(findings) == 0) != test.allowed {
+			t.Fatalf("exact federation exception %s -> %s: findings=%v err=%v", test.file, test.imported, findings, err)
+		}
 	}
 }
 

@@ -27,7 +27,7 @@ def checked_directory(path):
             raise ValueError("Unsafe fuzz corpus directory")
 
 
-def collect(root, paths, output):
+def collect(root, paths, output, *, packages=PACKAGES):
     """Copy admitted files into ignored reports without replacing existing files."""
     root = root.absolute()
     checked_directory(root)
@@ -45,7 +45,7 @@ def collect(root, paths, output):
         path = Path(name)
         if path.is_absolute() or ".." in path.parts:
             raise ValueError("Unsafe fuzz counterexample path")
-        package = next((item for item in PACKAGES if path.is_relative_to(Path(item) / "testdata/fuzz")), None)
+        package = next((item for item in packages if path.is_relative_to(Path(item) / "testdata/fuzz")), None)
         if package is None:
             continue
         tail = path.relative_to(Path(package) / "testdata/fuzz")

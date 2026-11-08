@@ -12,7 +12,7 @@ import urllib.parse
 
 from federation import wait_until
 from http_client import decode, request
-from runner import Failure
+from runner import Failure, write_document
 
 PROJECT = "open-agentic-catalog-trace-viewer"
 
@@ -22,6 +22,41 @@ def selected(environment):
     if mode not in ("off", "on"):
         raise Failure("invalid-tracing-viewer-selection")
     return mode == "on"
+
+
+def browser_selected(environment):
+    mode = environment.get("CATALOG_TRACING_BROWSER", "off")
+    if mode not in ("off", "on") or (mode == "on" and not selected(environment)):
+        raise Failure("invalid-tracing-browser-selection")
+    return mode == "on"
+
+
+def qualify_browser(environment, command, backend, case, window):
+    directory = Path(environment["CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY"])
+    filename = directory / "tracing-browser-input.json"
+    # The exact identity projection was checked against the original decoded
+    # exports and retained backend above. No synthetic viewer spans are made.
+    write_document(filename, {"origin": backend["queryUrl"], "spans": case, "window": window})
+    try:
+        raw = command(["node", "test/tracing/browser.mjs", str(filename)], environment, 180, capture=True)
+        result = decode(raw)
+        if not isinstance(result, dict):
+            raise Failure("tracing-browser-incomplete")
+        controls = result.get("controls")
+        rounded_window = [window[0] // 60000000 * 60000000, (window[1] + 59999999) // 60000000 * 60000000]
+        if (result.get("status") != "passed" or result.get("attemptTraceId") != case["attempt"]["traceId"]
+                or result.get("linkedTraceId") != case["enqueue"]["traceId"] or result.get("highlightedSpanId") != case["enqueue"]["spanId"]
+                or result.get("parentSpanId") != case["request"]["spanId"] or result.get("diagnostics") != "passed"
+                or result.get("wrongLinkRefused") is not True
+                or result.get("searchWindowMicros") != rounded_window or not isinstance(result.get("browser"), str) or not result["browser"]
+                or not isinstance(controls, list) or len(controls) != 3
+                or controls[:2] != [{"selection": "wrongInstallation", "count": 0}, {"selection": "wrongService", "count": 0}]
+                or not isinstance(controls[2], dict)
+                or controls[2].get("selection") != "correct" or type(controls[2].get("count")) is not int or not 1 <= controls[2]["count"] <= 20):
+            raise Failure("tracing-browser-incomplete")
+        return result
+    finally:
+        filename.unlink(missing_ok=True)
 
 
 def viewer_identity(value, expected_image):
@@ -204,7 +239,10 @@ def qualify(environment, command, capture, case, job, source, api_process, worke
     wait_until("actual Jaeger trace retention", stored, timeout=60)
     window = [min(stored_times) - 1_000_000, max(stored_times) + 1_000_000]
     filters = filter_controls(backend["queryUrl"], case, window)
-    return {"status": "passed", "backend": backend, "installation": case["attempt"]["installation"],
+    result = {"status": "passed", "backend": backend, "installation": case["attempt"]["installation"],
             "job": {"id": job["id"], "kind": job["kind"], "state": job["state"]}, "sourceId": source["id"],
             "apiInstance": api_process["instanceId"], "workerInstance": worker_process["instanceId"],
             "sampleRatio": 1, "filterControls": filters, "searchWindowMicros": window, "replayUsesOriginalCause": True, "relay": "unchanged-privacy-checked-otlp", "spans": case}
+    if browser_selected(environment):
+        result["browser"] = qualify_browser(environment, command, backend, case, window)
+    return result

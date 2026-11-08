@@ -1,9 +1,10 @@
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 import os
 from pathlib import Path
 import tempfile
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -11,6 +12,47 @@ import runner
 
 
 class RunnerUnits(unittest.TestCase):
+    def test_check_invalidates_every_selected_receipt_before_preflight(self):
+        languages = ("go", "python", "typescript", "rust")
+        for selection in (*languages, "all"):
+            expected = languages if selection == "all" else (selection,)
+            with self.subTest(selection=selection):
+                for language in languages:
+                    directory = self.root / "output/artifacts/sdk" / language
+                    directory.mkdir(parents=True, exist_ok=True)
+                    for name in ("qualification.json", "manifest.json", "package.bin"):
+                        (directory / name).write_text("previous " + language)
+                def preflight(language):
+                    self.assertEqual(language, expected[0])
+                    for selected in languages:
+                        directory = self.root / "output/artifacts/sdk" / selected
+                        for name in ("qualification.json", "manifest.json"):
+                            self.assertEqual((directory / name).exists(), selected not in expected)
+                        self.assertEqual((directory / "package.bin").read_text(), "previous " + selected)
+                    raise RuntimeError("synthetic preflight refusal")
+                with patch.object(sys, "argv", ["runner.py", "check", "--language", selection]), \
+                     patch.object(runner, "qualification_context", side_effect=preflight), \
+                     patch.object(runner, "selected") as selected, \
+                     redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                    self.assertEqual(runner.main(), 1)
+                selected.assert_not_called()
+
+    def test_go_native_discovery_and_execution_share_tags_and_require_completion(self):
+        from types import SimpleNamespace
+        observed = []
+        required = {("sdk", "TestRequired")}
+        adapter = SimpleNamespace(go_discovery=lambda raw: required,
+                                  require_go=lambda raw, identities: observed.append((raw, identities)))
+        with patch.object(runner, "completion_adapter", return_value=adapter), \
+             patch.object(runner, "run", side_effect=["native discovery", "native execution"]) as run, \
+             redirect_stdout(io.StringIO()):
+            runner.required_go_tests("/qualified/go", ["-tags=functional", "-race", "-count=1", "./..."], runner.SDK, {"offline":"yes"})
+        self.assertEqual(observed, [("native execution", required)])
+        self.assertIn("-tags=functional", run.call_args_list[0].args[0])
+        self.assertIn("-list=^Test", run.call_args_list[0].args[0])
+        self.assertIn("-json", run.call_args_list[1].args[0])
+        self.assertEqual(run.call_args_list[0].args[1:], run.call_args_list[1].args[1:])
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -31,6 +73,8 @@ class RunnerUnits(unittest.TestCase):
         (runner.ROOT / "api/openapi").mkdir(parents=True)
         (runner.ROOT / "api/openapi/control-v1.yaml").write_text("contract\n")
         (runner.COMPAT / "generate.yaml").write_text("config\n")
+        (runner.ROOT / "test/packaging").mkdir(parents=True)
+        (runner.ROOT / "test/packaging/completion.py").write_text("owned completion adapter\n")
         (runner.SDK / "client.gen.go").write_text("generated\n")
         (runner.SDK / "README.md").write_text("# Go SDK\n")
         for name in ("LICENSE", "NOTICE"):
@@ -175,6 +219,14 @@ class RunnerUnits(unittest.TestCase):
         def generate(go, path, work, env):
             path.write_text("generated\n")
             (runner.ROOT / "api/openapi/control-v1.yaml").write_text("unexpected rewrite")
+        with patch.object(runner, "generate", side_effect=generate), self.assertRaisesRegex(RuntimeError, "changed its inputs"):
+            runner.check("generate")
+
+    def test_shared_completion_drift_refuses_the_existing_source_guard(self):
+        self.stamp()
+        def generate(go, path, work, env):
+            path.write_text("generated\n")
+            (runner.ROOT / "test/packaging/completion.py").write_text("changed completion policy\n")
         with patch.object(runner, "generate", side_effect=generate), self.assertRaisesRegex(RuntimeError, "changed its inputs"):
             runner.check("generate")
 

@@ -919,6 +919,28 @@ def qualify_report_curated(stamp):
          "-run=^TestRustReportCurated$", "-count=1", "-timeout=120s", "-v"], env=env)
 
 
+def coverage_totals(files, sources):
+    """Admit unique native LLVM rows, retaining its actual line denominator."""
+    allowed = {path.resolve() for path in sources}
+    seen = set()
+    totals = {"count": 0, "covered": 0}
+    for file in files:
+        path = Path(file["filename"]).resolve()
+        if path not in allowed or path in seen:
+            raise RuntimeError("Rust coverage includes an unselected or duplicate source")
+        seen.add(path)
+        values = file["summary"]["lines"]
+        if (any(type(values[key]) is not int or values[key] < 0 for key in totals)
+                or values["covered"] > values["count"]):
+            raise RuntimeError("Rust coverage line counts are invalid")
+        for key in totals:
+            totals[key] += values[key]
+    if totals["count"] == 0:
+        raise RuntimeError("Rust handwritten coverage is empty")
+    totals["percent"] = 100 * totals["covered"] / totals["count"]
+    return totals
+
+
 def measure_coverage(work, stamp):
     """Use the pinned compiler's native tools; merge actual unit/HTTP profiles."""
     target = TOOLS / "build-coverage"
@@ -991,15 +1013,7 @@ def measure_coverage(work, stamp):
             )
         )
         files = data["data"][0]["files"]
-        totals = {"count": 0, "covered": 0}
-        for file in files:
-            if Path(file["filename"]).resolve() not in sources:
-                raise RuntimeError("Rust coverage includes an unselected source")
-            for key in totals:
-                totals[key] += file["summary"]["lines"][key]
-        if totals["count"] == 0:
-            raise RuntimeError("Rust handwritten coverage is empty")
-        totals["percent"] = 100 * totals["covered"] / totals["count"]
+        totals = coverage_totals(files, sources)
         print(
             f"Rust {label} handwritten line coverage: {totals['covered']}/{totals['count']} ({totals['percent']:.2f}%)",
             flush=True,

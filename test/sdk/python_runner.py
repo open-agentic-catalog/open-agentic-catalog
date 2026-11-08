@@ -27,7 +27,7 @@ def run(args, *, cwd=ROOT, env=None, capture=False):
 
 
 def identity():
-    paths = [PROJECT / "pyproject.toml", PROJECT / "uv.lock", SDK / "pyproject.toml"]
+    paths = [PROJECT / "pyproject.toml", PROJECT / "uv.lock", SDK / "pyproject.toml", HERE / "python-runtimes.json"]
     for directory in (ROOT, ROOT / "sdk/go", ROOT / "test/clientcompat/go"):
         paths.extend(directory / name for name in ("go.mod", "go.sum"))
     return {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest() for p in paths}
@@ -70,6 +70,7 @@ def install():
             if len(data) > 64 * 1024**2 or hashlib.sha256(data).hexdigest() != expected:
                 raise RuntimeError("Locked runtime wheel digest/size mismatch")
             target.write_bytes(data)
+    runtimes = install_runtimes(qualified_uv, env, cutoff)
     import runner as go_runner
     go_env = go_runner.environment()
     go = Path(run(["go", "env", "GOROOT"], env=go_env, capture=True).strip()) / "bin/go"
@@ -79,7 +80,69 @@ def install():
                                 "uv_hash": hashlib.sha256(qualified_uv.read_bytes()).hexdigest(),
                                 "go": str(go), "go_hash": hashlib.sha256(go.read_bytes()).hexdigest(),
                                 "generator_hash": hashlib.sha256(generator_jar().read_bytes()).hexdigest(),
-                                "inventory": metadata}, sort_keys=True) + "\n")
+                                "inventory": metadata, "runtimes": runtimes,
+                                "toolPython": python_identity(PYTHON)}, sort_keys=True) + "\n")
+
+
+def python_identity(python):
+    return json.loads(run([python, "-I", "-c", "import json,sys; print(json.dumps({'version':sys.version.split()[0], 'executable':sys.executable, 'implementation':sys.implementation.name}))"],
+                          env=environment(), capture=True))
+
+
+def install_runtimes(uv, env, cutoff):
+    """Acquisition belongs only to the explicit SDK tools installer."""
+    versions = json.loads((HERE / "python-runtimes.json").read_text())
+    managed = HERE / ".tools/python-runtimes"
+    selected = dict(env, UV_PYTHON_INSTALL_DIR=str(managed))
+    run([uv, "--no-config", "python", "install", "--no-bin", "--no-registry", "--install-dir", managed, *versions], env=selected)
+    result = {}
+    for version in versions:
+        executable = Path(run([uv, "--no-config", "python", "find", "--managed-python", "--no-python-downloads", version], env=selected, capture=True).strip())
+        runtime = HERE / ".tools/python-qualification" / version
+        run([uv, "--no-config", "sync", "--no-python-downloads", "--exclude-newer", cutoff,
+             "--project", PROJECT, "--locked", "--python", executable],
+            env=dict(selected, UV_PROJECT_ENVIRONMENT=str(runtime)))
+        python = runtime / "bin/python"
+        metadata = json.loads(run([python, "-I", PROJECT / "inventory.py"], env=env, capture=True))
+        wheels = json.loads(run([python, "-I", PROJECT / "inventory.py", PROJECT / "uv.lock"], env=env, capture=True))
+        wheelhouse = runtime / "wheels"
+        wheelhouse.mkdir(exist_ok=True)
+        for wheel in wheels:
+            target = wheelhouse / wheel["url"].rsplit("/", 1)[-1]
+            expected = wheel["hash"].removeprefix("sha256:")
+            if not target.is_file() or hashlib.sha256(target.read_bytes()).hexdigest() != expected:
+                with urllib.request.urlopen(wheel["url"], timeout=30) as response:
+                    data = response.read(64 * 1024**2 + 1)
+                if len(data) > 64 * 1024**2 or hashlib.sha256(data).hexdigest() != expected:
+                    raise RuntimeError("Locked runtime wheel digest/size mismatch")
+                target.write_bytes(data)
+        identity = python_identity(python)
+        if identity["version"] != version or identity["implementation"] != "cpython":
+            raise RuntimeError("Python SDK runtime identity mismatch")
+        result[version] = {"python": str(python), "sha256": hashlib.sha256(python.read_bytes()).hexdigest(),
+                           "identity": identity, "inventory": metadata,
+                           "wheels": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in sorted(wheelhouse.glob("*.whl"))}}
+    return result
+
+
+def runtime_installations(stamp):
+    expected = set(json.loads((HERE / "python-runtimes.json").read_text()))
+    runtimes = stamp.get("runtimes", {})
+    if set(runtimes) != expected:
+        raise RuntimeError("Python runtime qualification missing; run make sdk-tools-install SDK_LANGUAGE=python")
+    for version, value in runtimes.items():
+        python = Path(value["python"])
+        if (hashlib.sha256(python.read_bytes()).hexdigest() != value["sha256"]
+                or python_identity(python) != value["identity"] or value["identity"]["version"] != version):
+            raise RuntimeError("Python runtime qualification identity drift; reinstall")
+        actual = json.loads(run([python, "-I", PROJECT / "inventory.py"], env=environment(), capture=True))
+        if actual != value["inventory"]:
+            raise RuntimeError("Python runtime qualification dependency drift; reinstall")
+        wheelhouse = python.parent.parent / "wheels"
+        if not value["wheels"] or any(hashlib.sha256((wheelhouse / name).read_bytes()).hexdigest() != digest
+                                      for name, digest in value["wheels"].items()):
+            raise RuntimeError("Python runtime qualification wheel drift; reinstall")
+    return runtimes
 
 
 def installed():
@@ -239,9 +302,10 @@ def package():
 
 def check(action):
     stamp = installed()
+    runtimes = runtime_installations(stamp) if action == "check" else {}
     package_version()
     before = identity()
-    watched = [ROOT / "api/openapi/control-v1.yaml", ROOT / "VERSION", *SDK.rglob("*.py"), *PROJECT.rglob("*.py"), *PROJECT.rglob("*.mustache"), PROJECT / "generate.json", Path(__file__), HERE / "python_consumer_functional_test.go.txt", HERE / "python_service_read_functional_test.go.txt", SERVICE_READ]
+    watched = [ROOT / "api/openapi/control-v1.yaml", ROOT / "VERSION", ROOT / "test/packaging/completion.py", HERE / "runner.py", *SDK.rglob("*.py"), *PROJECT.rglob("*.py"), *PROJECT.rglob("*.mustache"), PROJECT / "generate.json", Path(__file__), HERE / "python_consumer_functional_test.go.txt", HERE / "python_service_read_functional_test.go.txt", SERVICE_READ]
     original = {str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in watched}
     parent = ROOT / "output/sdk"
     parent.mkdir(parents=True, exist_ok=True)
@@ -264,7 +328,7 @@ def check(action):
             env = environment()
             tests = PROJECT / "tests"
             run([PYTHON, "-B", "-m", "coverage", "run", "--data-file=" + str(work / "unit.coverage"),
-                 "--source=catalog_sdk", "--omit=*/generated/*", "-m", "unittest", "discover", "-s", tests, "-p", "test_unit_*.py"], env=env)
+                 "--source=catalog_sdk", "--omit=*/generated/*", ROOT / "test/packaging/completion.py", "python", "--directory", tests, "--pattern", "test_unit_*.py"], env=env)
             print("Isolated unit handwritten Python SDK coverage:", flush=True)
             run([PYTHON, "-m", "coverage", "report", "--data-file=" + str(work / "unit.coverage"), "--show-missing"], env=env)
             run([TOOLS / "bin/ruff", "check", "--config", ROOT / "ruff.toml", SDK, PROJECT, HERE / "python_runner.py", SERVICE_READ], env=env)
@@ -273,7 +337,7 @@ def check(action):
             run([TOOLS / "bin/mypy", "--follow-imports=silent", "--ignore-missing-imports", *maintained], env=env)
             shutil.copyfile(work / "unit.coverage", work / "local.coverage")
             run([PYTHON, "-m", "coverage", "run", "--append", "--data-file=" + str(work / "local.coverage"),
-                 "--source=catalog_sdk", "--omit=*/generated/*", "-m", "unittest", "discover", "-s", tests, "-p", "test_functional_*.py"], env=env)
+                 "--source=catalog_sdk", "--omit=*/generated/*", ROOT / "test/packaging/completion.py", "python", "--directory", tests, "--pattern", "test_functional_*.py"], env=env)
             print("Unit plus local HTTP/TLS handwritten Python SDK coverage:", flush=True)
             run([PYTHON, "-m", "coverage", "report", "--data-file=" + str(work / "local.coverage"), "--show-missing"], env=env)
             files = build_packages(work, env)
@@ -282,13 +346,16 @@ def check(action):
                 qualify_package(work, env, consumers)
                 qualify_catalog(work, Path(stamp["go"]), consumers / "wheel", "catalog")
                 qualify_catalog(work, Path(stamp["go"]), consumers / "sdist", "catalog-sdist")
+                for version, runtime in runtimes.items():
+                    qualify_runtime(work, env, consumers, version, runtime, stamp)
         if action != "generate" and original != {str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in watched}:
             raise RuntimeError("Python SDK check changed source inputs")
         if before != identity():
             raise RuntimeError("Python SDK input drift")
         if action != "generate":
             import runner as shared
-            shared.retain("python", files, dict(stamp, rebuiltWheelSha256=hashlib.sha256(next((work / "rebuilt").glob("*.whl")).read_bytes()).hexdigest()), source_files=package_sources())
+            shared.retain("python", files, dict(stamp, invokerPython=python_identity(sys.executable),
+                          rebuiltWheelSha256=hashlib.sha256(next((work / "rebuilt").glob("*.whl")).read_bytes()).hexdigest()), source_files=package_sources())
     except BaseException:
         print("Failed Python SDK output retained: " + str(work), file=sys.stderr)
         raise
@@ -315,7 +382,35 @@ def qualify_catalog(work, go, runtime=None, label="catalog"):
     shutil.copyfile(HERE / "python_consumer_functional_test.go.txt", consumer / "python_functional_test.go")
     shutil.copyfile(HERE / "python_service_read_functional_test.go.txt", consumer / "python_service_read_functional_test.go")
     run([go, "mod", "edit", "-require=" + go_runner.SDK_MODULE + "@v0.0.0", "-replace=" + go_runner.SDK_MODULE + "=" + str(go_runner.SDK)], cwd=consumer, env=selected)
-    run([go, "test", "-tags=functional", "-race", "-run=^(TestPythonSDKCatalogWorkflow|TestPythonSDKServiceRead)$", "-count=1", "-timeout=75s", "-v", "./..."], cwd=consumer, env=selected)
+    run(go_runner.focused_go_command(go, ["-tags=functional", "-race", "-run=^(TestPythonSDKCatalogWorkflow|TestPythonSDKServiceRead)$", "-count=1", "-timeout=75s", "-v", "./..."],
+                                    ("TestPythonSDKCatalogWorkflow", "TestPythonSDKServiceRead")), cwd=consumer, env=selected)
+
+
+def qualify_runtime(work, env, consumers, version, runtime, stamp):
+    """One unchanged wheel and sdist-rebuilt wheel across the supported minors."""
+    python = Path(runtime["python"])
+    print("Python SDK runtime qualification " + version, flush=True)
+    for profile in ("unit", "functional"):
+        run([python, "-B", "-m", "coverage", "run", "--data-file=" + str(work / (version + "-" + profile + ".coverage")),
+             "--source=catalog_sdk", "--omit=*/generated/*", ROOT / "test/packaging/completion.py", "python",
+             "--directory", PROJECT / "tests", "--pattern", "test_" + profile + "_*.py"], env=env)
+    clean = dict(env)
+    clean.pop("PYTHONPATH", None)
+    runtime_work = consumers / version
+    runtime_work.mkdir()
+    constraints = runtime_work / "constraints.txt"
+    constraints.write_text("\n".join(name + "==" + value for name, value in runtime["inventory"]["runtime"].items()
+                                      if name != "open-agentic-catalog") + "\n")
+    expected = runtime_work / "runtime.json"
+    expected.write_text(json.dumps(runtime["inventory"]["runtime"], sort_keys=True))
+    for label, artifact in (("wheel", next((work / "dist").glob("*.whl"))),
+                            ("sdist", next((work / "rebuilt").glob("*.whl")))):
+        consumer = runtime_work / label
+        run([python, "-m", "venv", "--without-pip", consumer], env=clean)
+        run([stamp["uv"], "--no-config", "pip", "install", "--offline", "--no-index", "--find-links", python.parent.parent / "wheels",
+             "--python", consumer / "bin/python", "--constraint", constraints, artifact], env=clean)
+        run([consumer / "bin/python", "-I", PROJECT / "consumer.py", expected], cwd=consumers, env=clean)
+        qualify_catalog(work, Path(stamp["go"]), consumer, "catalog-" + version + "-" + label)
 
 
 def qualify_package(work, env, consumers):

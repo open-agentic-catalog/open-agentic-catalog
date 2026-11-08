@@ -184,6 +184,41 @@ for (const mode of ["assertion failure", "changed source"]) {
   });
 }
 
+for (const profile of ["ui-unit", "docs-unit"]) {
+  for (const mode of ["skipped", "todo", "empty", "missing sibling cases"]) {
+    test(`${profile} ${mode} required execution refuses a receipt despite a healthy sibling`, async (t) => {
+      const root = await fixture(t);
+      const owner = profile === "ui-unit" ? "catalog-ui" : "documentation";
+      const scripts = join(root, owner, "scripts");
+      await writeFile(join(scripts, "helper.mjs"), "export const value = 1;\n");
+      await writeFile(
+        join(scripts, "good.unit.test.mjs"),
+        'import {test} from "node:test"; import {value} from "./helper.mjs"; test("good",()=>{if(value!==1)throw Error("bad");});\n',
+      );
+      const body = {
+        skipped: 'test.skip("required",()=>{});',
+        todo: 'test.todo("required");',
+        empty: "",
+        "missing sibling cases": 'test("parent",()=>{});',
+      }[mode];
+      await writeFile(
+        join(scripts, "required.unit.test.mjs"),
+        'import {test} from "node:test";\n' + body,
+      );
+      if (mode === "missing sibling cases")
+        await writeFile(
+          join(scripts, "empty.unit.test.mjs"),
+          "// No registered test cases.\n",
+        );
+      await assert.rejects(produce(root, profile), /Required native tests/);
+      assert.deepEqual(
+        await readdir(join(root, "output/coverage/tooling-node")),
+        [],
+      );
+    });
+  }
+}
+
 for (const [label, names] of [
   [
     "non-LF controls",

@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -39,8 +40,7 @@ def qualify_ard_example(work, stamp, consumer):
          "--noUncheckedIndexedAccess", "--exactOptionalPropertyTypes", "--module", "NodeNext",
          "--moduleResolution", "NodeNext", "--target", "ES2022", "--types", "node",
          "--typeRoots", SDK / "node_modules/@types", example / "index.mts"])
-    run([stamp["node"], "--test", "--test-timeout=30000", "--experimental-test-coverage",
-         "--test-coverage-include=" + str(example / "index.mts"),
+    run([stamp["node"], PROJECT / "required-tests.mjs", "unit", example / "index.mts",
          *tests], env=env)
     catalog_work = work / "ard-catalog"
     catalog_work.mkdir()
@@ -180,7 +180,10 @@ def qualify_catalog(work, stamp, runtime=None, *, workflow=None, fixture=None, p
     shutil.copyfile(fixture or HERE / "typescript_consumer_functional_test.go.txt", consumer / "typescript_functional_test.go")
     go = Path(stamp["go"])
     run([go, "mod", "edit", "-require=" + go_runner.SDK_MODULE + "@v0.0.0", "-replace=" + go_runner.SDK_MODULE + "=" + str(go_runner.SDK)], cwd=consumer, env=env)
-    run([go, "test", "-tags=functional", "-race", "-run=" + pattern, "-count=1", "-timeout=" + timeout, "-v", "./..."], cwd=consumer, env=env)
+    names = pattern.removeprefix("^").removesuffix("$").removeprefix("(").removesuffix(")").split("|")
+    if not all(re.fullmatch(r"Test\w+", name) for name in names):
+        raise RuntimeError("Catalog SDK qualification requires exact test owners")
+    run(go_runner.focused_go_command(go, ["-tags=functional", "-race", "-run=" + pattern, "-count=1", "-timeout=" + timeout, "-v", "./..."], names), cwd=consumer, env=env)
 
 
 def build_package(work, stamp):
@@ -220,17 +223,29 @@ def package():
 def check(action):
     stamp = installed()
     runtimes = stamp["runtimes"] if action == "check" else {"primary": {"node": stamp["node"]}}
+    qualified = {}
     for version, runtime in runtimes.items():
         print("SDK qualification Node " + version, flush=True)
-        check_runtime(action, dict(stamp, node=runtime["node"]))
+        node_hash = runtime.get("hash", stamp["node_hash"])
+        result = check_runtime(action, dict(stamp, node=runtime["node"], node_hash=node_hash, qualifiedRuntime=version))
+        if action == "check":
+            qualified[version] = {"nodeSha256": node_hash, "artifacts": result["artifacts"]}
+    if action == "check":
+        # Keep each separately built package identity. Archive metadata need not
+        # be byte-identical across independent builds of unchanged source.
+        manifest = ROOT / "output/artifacts/sdk/typescript/manifest.json"
+        value = json.loads(manifest.read_text())
+        value["tools"]["qualifiedRuntimeBuilds"] = qualified
+        manifest.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
 def check_runtime(action, stamp):
+    result = None
     node, npm = Path(stamp["node"]), Path(stamp["npm"])
     manifest = json.loads((SDK / "package.json").read_text())
     if manifest["version"] != (ROOT / "VERSION").read_text().strip():
         raise RuntimeError("SDK version differs from VERSION")
-    watched = [ROOT / "api/openapi/control-v1.yaml", ROOT / "VERSION", *(SDK / name for name in ("README.md", "LICENSE", "NOTICE")), SDK / "package.json", SDK / "package-lock.json", SDK / "tsconfig.json", SDK / "eslint.config.mjs", *SDK.glob("src/*.ts"), *PROJECT.glob("*.mjs"), *PROJECT.glob("*.ts"), Path(__file__), HERE / "typescript_consumer_functional_test.go.txt"]
+    watched = [ROOT / "api/openapi/control-v1.yaml", ROOT / "VERSION", ROOT / "test/packaging/completion.py", ROOT / "catalog-ui/scripts/native-test-completion.mjs", HERE / "runner.py", *(SDK / name for name in ("README.md", "LICENSE", "NOTICE")), SDK / "package.json", SDK / "package-lock.json", SDK / "tsconfig.json", SDK / "eslint.config.mjs", *SDK.glob("src/*.ts"), *PROJECT.glob("*.mjs"), *PROJECT.glob("*.ts"), Path(__file__), HERE / "typescript_consumer_functional_test.go.txt"]
     watched.extend(p for p in ard_example_sources() if p.is_file())
     original = {p: digest(p) for p in watched}
     parent = ROOT / "output/sdk"
@@ -253,8 +268,8 @@ def check_runtime(action, stamp):
             run([node, SDK / "node_modules/eslint/bin/eslint.js", "--config", SDK / "eslint.config.mjs", "--no-config-lookup", "--max-warnings=0", SDK / "src/index.ts", SDK / "eslint.config.mjs", *sorted(PROJECT.glob("*.mjs"))])
             run([node, SDK / "node_modules/prettier/bin/prettier.cjs", "--check", ARD_EXAMPLE / "index.mts", ARD_EXAMPLE / "package.json", *sorted((PROJECT / "ard-example").glob("*.mjs"))])
             run([node, SDK / "node_modules/eslint/bin/eslint.js", "--config", SDK / "eslint.config.mjs", "--no-config-lookup", "--max-warnings=0", ARD_EXAMPLE / "index.mts", *sorted((PROJECT / "ard-example").glob("*.mjs"))])
-            run([node, "--test", "--test-timeout=30000", "--experimental-test-coverage", "--test-coverage-include=" + str(package / "dist/index.js"), *sorted(PROJECT.glob("*.unit.test.mjs"))], env=env)
-            run([node, "--test", "--test-timeout=30000", *sorted(PROJECT.glob("*.functional.test.mjs"))], env=env)
+            run([node, PROJECT / "required-tests.mjs", "unit", package / "dist/index.js", *sorted(PROJECT.glob("*.unit.test.mjs"))], env=env)
+            run([node, PROJECT / "required-tests.mjs", "functional", package / "dist/index.js", *sorted(PROJECT.glob("*.functional.test.mjs"))], env=env)
             run([node, PROJECT / "contract.mjs"], env=env)
             run([node, PROJECT / "typecheck.mjs"], env=env)
             with tempfile.TemporaryDirectory(prefix="catalog-sdk-npm-consumer-") as directory:
@@ -269,13 +284,14 @@ def check_runtime(action, stamp):
                 raise RuntimeError("SDK check changed inputs")
         if action != "generate":
             import runner as shared
-            shared.retain("typescript", [archive], stamp, source_files=package_sources())
+            result = shared.retain("typescript", [archive], stamp, source_files=package_sources())
         print("TypeScript SDK " + action + " passed", flush=True)
     except BaseException:
         print("Failed TypeScript SDK output retained: " + str(work), file=sys.stderr)
         raise
     shutil.rmtree(work)
     print("Owned TypeScript SDK output cleaned", flush=True)
+    return result
 
 
 if __name__ == "__main__":

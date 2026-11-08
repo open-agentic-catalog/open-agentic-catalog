@@ -65,6 +65,11 @@ elif tool == "go":
     if args[0] == "list":
         print("app/a")
     elif args[0] == "test":
+        if "-json" in args:
+            assert args[args.index("-run") + 1] == "^TestPostgresProcesses$", args
+            assert "-tags=integration" in args and "./test/functional" in args, args
+            for action, name in (("run", "TestPostgresProcesses"), ("pass", "TestPostgresProcesses"), ("pass", None)):
+                print(json.dumps({"Action": action, "Package": "app/test/functional", **({"Test": name} if name else {})}))
         for arg in args:
             if arg.startswith("-coverprofile="):
                 pathlib.Path(arg.split("=", 1)[1]).write_text(profile)
@@ -73,7 +78,10 @@ elif tool == "go":
 elif tool == "python":
     if args[0] == "-B":
         args = args[1:]
-    if args[0].endswith("unit_coverage.py"):
+    if args[0].endswith("completion.py"):
+        # Execute the real admission adapter against native-shaped Go events.
+        os.execv(sys.executable, [sys.executable, "-B", *args])
+    elif args[0].endswith("unit_coverage.py"):
         print("unit fixture report")
     elif args[0].endswith("application_coverage.py"):
         if args[1] == "snapshot":
@@ -111,6 +119,8 @@ elif tool != "child-make":
                     results.mkdir(parents=True)
                     (root / "Makefile").write_bytes((ROOT / "Makefile").read_bytes())
                     (root / "go.mod").write_text("module app\n\ngo 1.27.0\n")
+                    (root / "test/packaging").mkdir(parents=True)
+                    shutil.copyfile(ROOT / "test/packaging/completion.py", root / "test/packaging/completion.py")
                     previous = results / output
                     previous.write_text("retained successful output")
                     report = results / "full.txt"
@@ -335,6 +345,8 @@ else:
             root = Path(directory)
             (root / "Makefile").write_bytes((ROOT / "Makefile").read_bytes())
             (root / "go.mod").write_text("module app\ngo 1.27.0\n")
+            (root / "test/packaging").mkdir(parents=True)
+            shutil.copyfile(ROOT / "test/packaging/completion.py", root / "test/packaging/completion.py")
             compose, go = root / "compose", root / "go"
             log = root / "calls"
             compose.write_text("#!" + sys.executable + "\n" + '''
@@ -347,18 +359,31 @@ if 'port' in args:
 if 'down' in args:
     raise SystemExit(int(os.environ['CLEANUP_EXIT']))
 ''')
-            go.write_text("#!" + sys.executable + "\nimport os\nraise SystemExit(int(os.environ['TEST_EXIT']))\n")
+            go.write_text("#!" + sys.executable + "\n" + '''
+import json, os, sys
+assert sys.argv[1] == 'test' and '-json' in sys.argv
+assert sys.argv[sys.argv.index('-run') + 1] == '^TestPostgresProcesses$'
+if int(os.environ['TEST_EXIT']):
+    raise SystemExit(int(os.environ['TEST_EXIT']))
+events = [('run', 'TestPostgresProcesses'), ('pass', 'TestPostgresProcesses')]
+if os.environ['COMPLETE_EVENTS'] == 'true':
+    events.append(('pass', None))
+for action, name in events:
+    print(json.dumps({'Action': action, 'Package': 'app/test/functional', **({'Test': name} if name else {})}))
+''')
             for executable in (compose, go):
                 executable.chmod(0o700)
             environment = {key: value for key, value in os.environ.items()
                            if not key.startswith("CATALOG_") and key not in ("MAKEFLAGS", "MFLAGS")}
-            for test_exit, cleanup_exit in ((0, 0), (7, 0), (0, 9)):
+            for test_exit, cleanup_exit, complete in ((0, 0, True), (7, 0, True), (0, 9, True), (0, 0, False)):
                 log.write_text("")
                 result = subprocess.run(["make", "--no-print-directory", "test-process-postgres", "CATALOG_ENV_FILE=/dev/null",
                                          "COMPOSE=" + str(compose), "GO=" + str(go)], cwd=root,
-                                        env=environment | {"CALLS": str(log), "TEST_EXIT": str(test_exit), "CLEANUP_EXIT": str(cleanup_exit)},
+                                        env=environment | {"CALLS": str(log), "TEST_EXIT": str(test_exit), "CLEANUP_EXIT": str(cleanup_exit), "COMPLETE_EVENTS": str(complete).lower()},
                                         capture_output=True, text=True, timeout=20, check=False)
-                self.assertEqual(result.returncode == 0, test_exit == cleanup_exit == 0, result.stderr)
+                self.assertEqual(result.returncode == 0, test_exit == cleanup_exit == 0 and complete, result.stderr)
+                if not complete:
+                    self.assertIn("Required Go test missing or incomplete: TestPostgresProcesses", result.stderr)
                 calls = [json.loads(line) for line in log.read_text().splitlines()]
                 self.assertIn("up", calls[0])
                 self.assertIn("down", calls[-1])

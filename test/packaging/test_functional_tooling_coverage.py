@@ -14,12 +14,6 @@ import xml.etree.ElementTree as ET
 import tooling_coverage as coverage
 
 
-DISCOVER = ('import sys, unittest; '
-            'suite = unittest.defaultTestLoader.discover(".", pattern="test_unit_*.py"); '
-            'assert suite.countTestCases() > 0, "No unit tests discovered"; '
-            'sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())')
-
-
 class ToolingCoverageFunctionalTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -50,7 +44,7 @@ class ToolingCoverageFunctionalTests(unittest.TestCase):
         environment["COVERAGE_FILE"] = str(self.directory / "data" / (".coverage." + name))
         if startup:
             environment["COVERAGE_PROCESS_START"] = str(self.directory / "coverage.ini")
-        return subprocess.run([sys.executable, "-B", "-c", DISCOVER], cwd=self.root / "test" / name,
+        return subprocess.run([sys.executable, "-B", Path(__file__).with_name("completion.py"), "python"], cwd=self.root / "test" / name,
                               env=environment, capture_output=True, text=True, timeout=30, check=False)
 
     def complete(self):
@@ -60,7 +54,7 @@ class ToolingCoverageFunctionalTests(unittest.TestCase):
             coverage.record_owner("output/run", owner)
 
     def make_fixture(self):
-        for name in ("Makefile", "go.mod", "test/packaging/tooling_coverage.py"):
+        for name in ("Makefile", "go.mod", "test/packaging/tooling_coverage.py", "test/packaging/completion.py"):
             self.write(name, (self.repository / name).read_text())
         (self.root / ".env").write_text("$(error hostile workflow file loaded)\n")
         result = subprocess.run(["git", "init", "--quiet"], cwd=self.root, env=self.make_environment(),
@@ -162,11 +156,12 @@ class ToolingCoverageFunctionalTests(unittest.TestCase):
         self.assertEqual(receipt["reports"][0]["sha256"], coverage.digest(report))
         filenames = {item.attrib["filename"] for item in ET.parse(report).findall(".//class")}
         self.assertEqual(filenames, {"test/alpha/helper.py", "test/beta/helper.py", "test/namespace/unseen.py",
-                                     "test/packaging/tooling_coverage.py"})
+                                     "test/packaging/tooling_coverage.py", "test/packaging/completion.py"})
 
     def test_make_failure_and_zero_tests_stop_owner_loop_and_do_not_finish(self):
         self.make_fixture()
         for body, expected in (("class Case(unittest.TestCase):\n    def test_failure(self):\n        self.fail('synthetic Make failure')\n", "synthetic Make failure"),
+                               ("class Case(unittest.TestCase):\n    @unittest.skip('synthetic Make skip')\n    def test_required(self): pass\n", "failed, skipped or did not complete"),
                                ("", "No unit tests discovered")):
             with self.subTest(expected=expected):
                 (self.root / "test/alpha/test_unit_helper.py").write_text("import unittest\n" + body)

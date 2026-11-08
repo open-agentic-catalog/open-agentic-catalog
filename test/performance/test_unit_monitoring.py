@@ -1,5 +1,7 @@
 import copy
 import json
+from pathlib import Path
+import tempfile
 import unittest
 from unittest.mock import patch
 
@@ -15,6 +17,56 @@ class MonitoringEvidenceTests(unittest.TestCase):
 
     def targets(self):
         return [{"health": "up", "labels": copy.deepcopy(labels)} for labels in self.expected_targets]
+
+    def test_browser_is_separately_selected_and_uses_the_observed_absolute_window(self):
+        self.assertFalse(runner.browser_selection("monitoring", {}))
+        self.assertTrue(runner.browser_selection("monitoring", {"CATALOG_MONITORING_BROWSER": "on"}))
+        for mode, value in (("load", "on"), ("monitoring", "true"), ("monitoring", "")):
+            with self.assertRaisesRegex(runner.Failure, "browser-selection"):
+                runner.browser_selection(mode, {"CATALOG_MONITORING_BROWSER": value})
+        measured = {"startedAtUnixMillis": 1000000, "finishedAtUnixMillis": 1120000, "clockAdjustmentMillis": 0}
+        self.assertEqual([1000000, 1120000], runner.browser_window({"measured": measured}))
+        for key, value in (("startedAtUnixMillis", True), ("startedAtUnixMillis", 0), ("finishedAtUnixMillis", 1000000),
+                           ("finishedAtUnixMillis", 1240001), ("clockAdjustmentMillis", 1)):
+            with self.subTest(key=key, value=value), self.assertRaises(runner.Failure):
+                runner.browser_window({"measured": measured | {key: value}})
+
+    def test_browser_receipt_requires_complete_controls_and_always_removes_private_input(self):
+        workload = {"measured": {"startedAtUnixMillis": 1000000, "finishedAtUnixMillis": 1120000, "clockAdjustmentMillis": 0}}
+        result = {"status": "passed", "window": [1000000, 1120000], "roles": ["api", "worker", "All"], "browser": "pinned",
+                  "deployment": "local", "dataSource": "catalog-prometheus", "diagnostics": "passed", "nativeImportAndUpdate": True,
+                  "controlledZero": True, "controlledUnavailable": True, "provisionedUnchanged": True,
+                  "controls": [{"fault": fault, "refused": True} for fault in ("selector", "dataSource", "asset")]}
+        for fault in (None, "missing-import", "missing-control", "wrong-window", "unexpected-diagnostics", "empty", "process"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                value = copy.deepcopy(result)
+                if fault == "missing-import":
+                    del value["nativeImportAndUpdate"]
+                elif fault == "missing-control":
+                    value["controls"].pop()
+                elif fault == "wrong-window":
+                    value["window"] = [1, 2]
+                elif fault == "unexpected-diagnostics":
+                    value["diagnostics"] = "failed"
+                elif fault == "empty":
+                    value = []
+                def command(arguments, environment, seconds, capture):
+                    self.assertEqual(arguments[:2], ["node", str(runner.ROOT / "test/monitoring/browser.mjs")])
+                    self.assertEqual((environment, seconds, capture), ({"PATH": "owned"}, 240, True))
+                    supplied = json.loads((directory / "monitoring-browser-input.json").read_text())
+                    self.assertEqual(supplied, {"origin": "http://127.0.0.1:1234", "uid": "catalog-browser-" + "a" * 24,
+                                                "passwordFile": str(directory / "grafana-password"), "window": [1000000, 1120000]})
+                    if fault == "process":
+                        raise runner.Failure("child-failed")
+                    return json.dumps(value).encode()
+                with patch.object(runner.local, "command", side_effect=command):
+                    if fault:
+                        with self.assertRaises(runner.Failure):
+                            runner.qualify_monitoring_browser(directory, {"PATH": "owned"}, "http://127.0.0.1:1234", "a" * 24, workload)
+                    else:
+                        self.assertEqual(runner.qualify_monitoring_browser(directory, {"PATH": "owned"}, "http://127.0.0.1:1234", "a" * 24, workload), result)
+                self.assertFalse((directory / "monitoring-browser-input.json").exists())
 
     def samples(self, timestamp=100, evaluated=200):
         return [{"metric": copy.deepcopy(labels), "value": [evaluated, str(timestamp)]} for labels in self.expected_targets]

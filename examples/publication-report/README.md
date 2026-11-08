@@ -37,6 +37,8 @@ The functional target owns a fresh PostgreSQL instance, HTTPS listeners, synthet
 
 The focused functional target uses a controlled API to test receiver failures, duplicate delivery and interrupted processing. It keeps those fault cases separate from the Catalog sender campaign.
 
+It also observes two independent PostgreSQL sessions waiting on the admission lock before releasing them into the last inbox slot. Distinct events compete for that slot; equal IDs acknowledge one retained receipt. Completed-receipt pruning stays bounded and never removes pending work. Process checks reject a second `serve` or `reconcile`, allow read-only `render`, then kill the owned processor with pending work and complete that same receipt through a fresh process.
+
 Run the real Catalog delivery scenario separately:
 
 ```sh

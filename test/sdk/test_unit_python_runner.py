@@ -67,6 +67,37 @@ def mock_generation(destination, changed_source=None):
 
 
 class PythonRunnerUnits(unittest.TestCase):
+    def test_all_declared_runtime_identities_dependencies_and_wheels_are_required(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            versions = ["3.12.15", "3.13.16", "3.14.8"]
+            (root / "python-runtimes.json").write_text(json.dumps(versions))
+            runtimes = {}
+            for version in versions:
+                python = root / version / "bin/python"
+                python.parent.mkdir(parents=True)
+                python.write_bytes(b"qualified interpreter")
+                wheel = python.parent.parent / "wheels/runtime.whl"
+                wheel.parent.mkdir()
+                wheel.write_bytes(b"locked wheel")
+                runtimes[version] = {"python":str(python), "sha256":hashlib.sha256(python.read_bytes()).hexdigest(),
+                                     "identity":{"version":version}, "inventory":{"runtime":{"selected":"1.0"}},
+                                     "wheels":{"runtime.whl":hashlib.sha256(wheel.read_bytes()).hexdigest()}}
+            with patch.object(runner, "HERE", root), \
+                 patch.object(runner, "python_identity", side_effect=lambda path: {"version":path.parent.parent.name}), \
+                 patch.object(runner, "run", return_value=json.dumps({"runtime":{"selected":"1.0"}})):
+                self.assertEqual(runner.runtime_installations({"runtimes":runtimes}), runtimes)
+                for version in versions:
+                    with self.assertRaisesRegex(RuntimeError, "qualification missing"):
+                        runner.runtime_installations({"runtimes":{key:value for key,value in runtimes.items() if key != version}})
+                wheel.write_bytes(b"changed")
+                with self.assertRaisesRegex(RuntimeError, "wheel drift"):
+                    runner.runtime_installations({"runtimes":runtimes})
+                wheel.write_bytes(b"locked wheel")
+                python.write_bytes(b"changed interpreter")
+                with self.assertRaisesRegex(RuntimeError, "identity drift"):
+                    runner.runtime_installations({"runtimes":runtimes})
+
     def test_package_manifest_binds_runtime_generated_code_typing_and_notices(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -171,8 +202,13 @@ class PythonRunnerUnits(unittest.TestCase):
             with patch.object(go_runner, "COMPAT", compat), patch.object(runner, "run") as run:
                 runner.qualify_catalog(work, native_go)
             self.assertEqual(len(run.call_args_list), 2)
+            self.assertEqual(run.call_args_list[0].args[0][0], native_go)
+            completion = run.call_args_list[1].args[0]
+            self.assertIn(native_go, completion)
+            self.assertIn("TestPythonSDKCatalogWorkflow", completion)
+            self.assertIn("TestPythonSDKServiceRead", completion)
+            self.assertIn("-json", completion)
             for call in run.call_args_list:
-                self.assertEqual(call.args[0][0], native_go)
                 env = call.kwargs["env"]
                 self.assertEqual(env["GOTOOLCHAIN"], "local")
                 self.assertEqual(env["GOPROXY"], "off")

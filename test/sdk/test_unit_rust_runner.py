@@ -15,6 +15,21 @@ from rust import generation
 
 
 class RustRunnerUnits(unittest.TestCase):
+    def test_native_llvm_coverage_requires_unique_selected_rows_and_valid_counts(self):
+        sources = [Path("/fixture/lib.rs"), Path("/fixture/transport.rs")]
+        rows = [{"filename": str(sources[0]), "summary": {"lines": {"count": 0, "covered": 0}}},
+                {"filename": str(sources[1]), "summary": {"lines": {"count": 20, "covered": 15}}}]
+        self.assertEqual(rust.coverage_totals(rows, sources), {"count":20, "covered":15, "percent":75.0})
+        with self.assertRaisesRegex(RuntimeError, "duplicate"):
+            rust.coverage_totals(rows + [rows[1]], sources)
+        with self.assertRaisesRegex(RuntimeError, "unselected"):
+            rust.coverage_totals(rows, sources[:1])
+        with self.assertRaisesRegex(RuntimeError, "empty"):
+            rust.coverage_totals(rows[:1], sources)
+        for count, covered in ((1, 2), (-1, 0), (2, -1), (True, 0), (2, 1.5)):
+            with self.assertRaisesRegex(RuntimeError, "invalid"):
+                rust.coverage_totals([{"filename":str(sources[1]), "summary":{"lines":{"count":count,"covered":covered}}}], sources)
+
     def test_core_install_never_acquires_or_executes_the_analyzer(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

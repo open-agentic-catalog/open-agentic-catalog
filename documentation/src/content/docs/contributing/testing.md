@@ -1167,6 +1167,8 @@ For [retry telemetry](../operations/observability.mdx#retry-signals), unit tests
 
 `make test-monitoring` evaluates the shipped dashboard expressions with the pinned Prometheus tool, including missing/idle series, counter resets and observation-weighted means across healthy replicas. Python fixture units validate inventory and extraction. They do not execute PromQL.
 
+Add `MONITORING_BROWSER=on` to check native Grafana controls after the workload, using its recorded absolute time range. The browser imports and updates only an invocation-owned dashboard. Optional `TRACING_VIEWER=on TRACING_BROWSER=on` adds exact Jaeger filter and causal-link navigation to `test-tracing`; start and stop the separate owned viewer explicitly. These checks require installed Playwright/Chromium and preserve independent application readiness. See the [monitoring](../../../../../test/monitoring/README.md) and [tracing](../../../../../test/tracing/README.md) harnesses.
+
 These boundary and query assertions supplement statement coverage. A fully covered metrics helper does not establish correct emission or dashboard semantics by itself.
 
 The Compose discovery journey compares a reader's real UI results with `catalogctl remote search` over the same approved source, including provenance, missing versions, indexed continuation and partial upstream failure. A composed HTTP test reuses the pinned connector request against published Catalog output. Component tests cover sparse inline/URL metadata without automatic retrieval. These checks qualify Catalog HTTP and client behavior, not execution of external assistant instructions or MCP transport.
@@ -1626,8 +1628,10 @@ This is a deductive proof of explicit arithmetic obligations under the documente
 | Source | Assertions |
 | --- | --- |
 | `internal/jsondoc/property_test.go` | JSON trees, duplicate names, trailing values, lossless raw text and exact typed control envelopes. |
-| `internal/identity/property_test.go` | Authorization equivalence and independent role decisions. |
-| `internal/catalog/cursor_property_test.go` | Lexical/hybrid cursor fields, binding, signatures and expiry. |
+| `internal/identity/property_test.go`, `retained_property_test.go` | Projection equivalence and current retained direct/group policy decisions against an independent model. |
+| `internal/catalog/cursor_property_test.go`, `search_traversal_property_test.go` | Lexical/hybrid cursor binding and expiry, typed identity precedence and complete generated lexical traversal. |
+| `internal/jobs/property_test.go` | Bounded lease histories, tenant and owner fences, expiry, cancellation evidence and terminal state. |
+| `internal/platform/demodata/manifest_property_test.go` | Selected execution identities, authoring-order/comment invariance and selected versus unselected changes. |
 | `internal/platform/config/federation_policy_property_test.go` | Policy canonicalization and duplicate rejection. |
 | `internal/audit/export_property_test.go` | Export model agreement, deterministic bytes and invalid selections. |
 | `internal/platform/idempotency/property_test.go` | Short memory-store sequences: scope isolation, ownership, conflicts and defensive response copies. |

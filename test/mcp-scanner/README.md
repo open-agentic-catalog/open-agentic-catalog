@@ -50,6 +50,8 @@ Run `make test-mcp-scanner-compose` after native scanner setup and checks. The [
 
 This target builds the current backend and one inert MCP fixture. It owns one Compose project with an internal network and loopback review ports. The receiver runs on the host and binds to that project's private bridge. This permits native network-disabled scanner execution without mounting a Docker socket into a container.
 
+The local Docker engine must publish the loopback ports on the internal bridge. An unbound `:0` result fails setup. Keep the internal network and loopback checks enabled; do not redirect the campaign to retained services.
+
 The campaign uses real authoring, independent review, publication, worker delivery, current scoped reads and a separate receiver database/account. It requires native benign and finding reports, durable acceptance before restart, duplicate/stale delivery controls, unchanged sealed evidence and zero tool invocations. It checks incorrect credentials/trust, revoked access, a failed scanner process and a release published while the endpoint is disabled. The process-failure control exits without fabricating a YARA report; native analyzer-error controls remain in `mcp-scanner-check`.
 
 Persistent reports and selected private scan evidence stay under ignored `output/review/mcp-scanner/`. Tests do not acquire a missing scanner or substitute an executable double for native qualification.

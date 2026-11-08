@@ -633,6 +633,8 @@ Functional tests exercise a real boundary or a composed application workflow. A 
 
 Go tests stay beside source. Untagged files contain isolated tests and inert shared helpers. `functional` enables local listeners, subprocesses and composed workflows; `integration` enables PostgreSQL; `helm` and `minikube` mark their harness selections. Isolated Minikube helpers can be selected without creating a cluster. Python uses `test_unit_*.py` versus `test_functional_*.py`; Node tooling uses `.unit.test.mjs` versus `.functional.test.mjs`. Test selection includes initializers and cleanup, not only test bodies.
 
+Required SDK selections and isolated Python/Node tooling owners require native test completion, including required files and discovered cases. Focused architecture, documentation, conformance and process gates require every declared Go test to pass. Compile-only and optional functional selections keep their separate policies. Bounded properties compare retained authorization, Job lease histories, lexical traversal and sample execution identities with independent expectations. The Skill archive fuzzer also validates generated inventories and unsafe neighbors.
+
 ### Core commands
 
 | Target | What actually runs |

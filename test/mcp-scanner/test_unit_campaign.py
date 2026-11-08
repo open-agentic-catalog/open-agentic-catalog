@@ -72,6 +72,17 @@ class CampaignUnits(unittest.TestCase):
         self.assertEqual(args[args.index("--env-file") + 1], self.directory / "compose.env")
         self.assertEqual(args[-2:], ["config", "--quiet"])
 
+    def test_sql_keeps_timeout_separate_from_database_creation(self):
+        for statement in ("CREATE DATABASE owned_receiver", "SELECT 1; SELECT 2"):
+            with self.subTest(statement=statement), mock.patch.object(campaign, "compose", return_value=b"result\n") as child:
+                self.assertEqual(campaign.sql(self.directory, statement, "receiver"), "result")
+            child.assert_called_once()
+            args = child.call_args.args[1:]
+            commands = [args[index + 1] for index, value in enumerate(args) if value in ("-c", "-Atc", "--command")]
+            self.assertEqual(commands, ["SET statement_timeout='5s'", statement])
+            self.assertEqual(args[args.index("-d") + 1], "receiver")
+            self.assertIn("ON_ERROR_STOP=1", args)
+
     def test_case_completion_is_closed_and_unique(self):
         campaign.mark(self.directory, campaign.CASES[0])
         self.assertEqual(campaign.owner(self.directory)["completed"], [campaign.CASES[0]])

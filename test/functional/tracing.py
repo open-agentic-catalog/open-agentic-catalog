@@ -33,6 +33,7 @@ def main():
         write_document(Path("output/functional") / ("run-" + suffix) / "tracing.json", {"phase": name, "recovery": recovery})
 
     viewer_selected = tracing_viewer.selected(env)
+    tracing_viewer.browser_selected(env)
     phase("setup")
     for name, scheme in (("CATALOG_FUNCTIONAL_BASE_URL", "http"), ("CATALOG_FUNCTIONAL_FIXTURE_URL", "https")):
         if not re.fullmatch(scheme + r"://127\.0\.0\.1:[0-9]{1,5}", env[name]):

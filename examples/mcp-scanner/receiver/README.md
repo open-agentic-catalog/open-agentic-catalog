@@ -38,6 +38,16 @@ Build writes `bin/examples/mcp-scan-receiver`. The check runs isolated units, re
 
 The PostgreSQL target owns its database container, receiver database/account, HTTPS listeners and receiver process. It uses controlled Catalog responses and a Python executable double. It verifies the adapter without installing or executing MCP Scanner. The separate offline check qualifies actual YARA after approved installation.
 
+Concurrent admission checks observe two independent PostgreSQL sessions waiting at the actual admission lock before release. They verify the last capacity slot, equal-ID acknowledgement at capacity, pending-receipt preservation and bounded completed-receipt pruning. These inbox assertions do not depend on the scanner double's behavior.
+
+Run the independent module's existing event fuzzer separately:
+
+```sh
+make test-mcp-scanner-receiver-fuzz FUZZ_TIME=10s
+```
+
+The selected budget accepts 1 to 60 seconds. The target requires the installed Go toolchain and cached module dependencies; it makes no scanner, database or network request. It first requires native seed-owner completion, then runs the bounded campaign with two workers. Reports bind source and Go identities under `output/mcp-scanner-receiver-fuzz/`. A failing campaign preserves its exit status even if bounded counterexample retention fails. Only new synthetic files for `FuzzEventAdmission` are eligible; retained input files remain untouched. Review and minimize an actual counterexample before adding a permanent regression. This selection is separate from root-module `test-fuzz`.
+
 ## Prepare private inputs
 
 Create a private directory outside the checkout:

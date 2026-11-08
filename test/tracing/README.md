@@ -32,6 +32,12 @@ Search controls use Jaeger's `/api/v3/trace-summaries` endpoint and a time windo
 
 The functional report includes `tracingViewer` when selected. Its `backend`, `installation`, `spans`, `apiInstance`, `workerInstance` and synthetic Job/source references provide private local evidence. The safe span projection is also retained in `output/functional/run-<id>/tracing-viewer-spans.json`. The `filterControls` and `searchWindowMicros` fields record the search checks. Browser navigation through the actual link is a separate check: Captures and export counters alone cannot satisfy this backend-retention check.
 
+With the pinned UI Playwright/Chromium tools already installed, run `make test-tracing TRACING_VIEWER=on TRACING_BROWSER=on` to automate this native viewer interaction before fixture cleanup. The separate browser selection requires the viewer; `TRACING_BROWSER=on` with the viewer disabled fails. It uses the fresh decoded and retained handoff, with no reconstructed or synthetic traces. A fixed custom range encloses the stored span times in whole minutes, matching Jaeger's native date/time control precision.
+
+The browser submits wrong-installation and wrong-service/current-instance filters and requires successful empty results, then finds and opens the exact worker attempt. It follows the real cross-trace link into its new tab, verifies the linked trace URL and highlighted enqueue span ID, expands the creating HTTP parent, and checks its exact span ID. Unexpected console, HTTP or request failures refuse qualification. Browser evidence remains separate under `tracingViewer.browser`; neither ordinary tracing nor application readiness requires Chromium or Jaeger. The browser closes its context; stop the separately started owned viewer afterward as documented below.
+
+A focused control changes only the owned page's causal-link target to the replay trace and requires the exact link assertion to refuse it. The original target is restored before actual link navigation. The backend data and fresh exports remain unchanged, and a healthy viewer alone cannot satisfy the causal-link check.
+
 1. Open the report's `backend.queryUrl` in a browser.
 2. Select `open-agentic-catalog-worker` under Service.
 3. Enter `service.namespace=<installation>` under Attributes, using the report's installation value.
