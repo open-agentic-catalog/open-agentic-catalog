@@ -20,7 +20,7 @@ export interface CredentialAccess {
     action: () => Promise<T>,
     uncertain?: boolean,
   ): Promise<T>;
-  recover(key: string, clear: () => Promise<void>): Promise<void>;
+  recover(key: string, clear: () => Promise<void | string>): Promise<void>;
   current(key: string, value: string | undefined): Promise<boolean>;
   record(key: string, value: string | undefined): Promise<void>;
 }
@@ -97,6 +97,7 @@ export function credentialAccess(directory: string): CredentialAccess {
               "connection_changed",
               "credential_update_pending",
               "sign_in_required",
+              "package_credential_limit",
             ].includes(error.code));
         throw error;
       } finally {
@@ -117,8 +118,10 @@ export function credentialAccess(directory: string): CredentialAccess {
       }
       if (info && (!info.isFile() || info.nlink !== 1 || info.size !== 0))
         throw new ClientError("host_storage_unavailable");
-      await clear();
-      await record(key, undefined);
+      // A bounded index cleanup can retain entries. Publish its exact remaining
+      // generation before releasing ownership; ordinary login cleanup returns void.
+      const remaining = await clear();
+      await record(key, remaining ?? undefined);
       if (info) await unlink(name);
     },
   };

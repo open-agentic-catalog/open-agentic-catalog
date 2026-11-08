@@ -2494,6 +2494,8 @@ Run each target separately. Conflicting extension writers refuse concurrent invo
 
 The runtime selection uses the same prerequisite, source and artifact checks as the full aggregate. It writes `output/vscode/runtime-qualification.json` with its explicit scope and unselected tooling phase. It leaves the full aggregate's historical report separate; require current matching inputs for either report. The [connection and credential test map](../../../../../test/vscode/README.md#connection-and-credential-test-ownership) identifies isolated and real-boundary coverage for setup, settings, expiry, renewal, removal and diagnostics.
 
+Extension report admission checks executed file selection, skips/todos and the declared core source inventory. Actual editor checks include scoped asynchronous renderer-error observation, real artwork and conversation actions, and remote Skill installation/removal. See the [additional controls and limits](../../../../../test/vscode/README.md#additional-assertion-and-native-controls).
+
 The [inspection and local-tool map](../../../../../test/vscode/README.md#inspection-references-and-local-tools) covers exact references, large native document collections, sixteen-tab accounting, source/VSIX Help, per-request consumer replay consent and real MCP preparation cancellation. It also distinguishes private-filesystem units from actual editor removal/recovery, a valid concurrent store writer and read-only inventory comparison. The native progress token is cancellable; VS Code 1.141.0's provider token is not. Keep that limit distinct from native ownership of running processes.
 
 ### Put tests at the correct boundary

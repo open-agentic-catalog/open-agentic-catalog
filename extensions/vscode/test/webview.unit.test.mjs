@@ -63,7 +63,8 @@ test("CDP deadlines retain the phase and caller without replaying unanswered com
               return;
             }
             reply({ result: { value: true } });
-          } else assert.fail("Unexpected CDP command " + request.method);
+          } else if (request.method === "Network.enable") reply({});
+          else assert.fail("Unexpected CDP command " + request.method);
         });
       }
       close() {
@@ -217,6 +218,9 @@ test("CDP read waits rediscover destroyed frames without replaying actions or hi
             }
             break;
           }
+          case "Network.enable":
+            reply({});
+            break;
           case "Input.dispatchMouseEvent":
             if (request.params.type === "mousePressed") {
               presses++;
@@ -358,7 +362,8 @@ test("CDP setup skips only confirmed vanished sessions and reaches the current r
               return;
             }
             reply({ result: { value: true } });
-          } else assert.fail("Unexpected CDP method " + request.method);
+          } else if (request.method === "Network.enable") reply({});
+          else assert.fail("Unexpected CDP method " + request.method);
         });
       }
       close() {
@@ -405,5 +410,122 @@ test("CDP setup skips only confirmed vanished sessions and reaches the current r
       view.close();
     }
     assert.equal(closed, true);
+  }
+});
+
+test("owned-surface observer subscribes before resuming startup and rejects safe asynchronous error counts", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "catalog-cdp-observer-unit-"));
+  const original = globalThis.WebSocket;
+  await writeFile(
+    join(directory, "DevToolsActivePort"),
+    "1234\n/observer-unit\n",
+  );
+  t.after(async () => {
+    globalThis.WebSocket = original;
+    await rm(directory, { recursive: true, force: true });
+  });
+  for (const mode of ["clean", "failed", "short", "vanished"]) {
+    const failed = ["failed", "short"].includes(mode);
+    const calls = [];
+    let closed = false;
+    globalThis.WebSocket = class extends EventTarget {
+      constructor() {
+        super();
+        queueMicrotask(() => this.dispatchEvent(new Event("open")));
+      }
+      emit(value) {
+        this.dispatchEvent(
+          new MessageEvent("message", { data: JSON.stringify(value) }),
+        );
+      }
+      send(encoded) {
+        const request = JSON.parse(encoded);
+        calls.push(request);
+        queueMicrotask(() => {
+          const reply = (result) => this.emit({ id: request.id, result });
+          if (request.method === "Target.setDiscoverTargets") reply({});
+          else if (request.method === "Target.setAutoAttach") {
+            if (!request.sessionId && request.params.autoAttach)
+              this.emit({
+                method: "Target.attachedToTarget",
+                params: {
+                  sessionId: "startup",
+                  targetInfo: {
+                    targetId: "startup",
+                    type: "iframe",
+                    url: "vscode-webview://owned/index.html?extensionId=open-agentic-catalog.open-agentic-catalog",
+                  },
+                },
+              });
+            reply({});
+          } else if (request.method === "Target.getTargets")
+            reply({ targetInfos: [] });
+          else if (request.method === "Runtime.enable") {
+            this.emit({
+              method: "Runtime.executionContextCreated",
+              sessionId: "startup",
+              params: {
+                context: {
+                  id: 77,
+                  auxData: { isDefault: true, frameId: "frame" },
+                },
+              },
+            });
+            reply({});
+          } else if (request.method === "Network.enable") {
+            if (mode === "vanished")
+              this.emit({
+                id: request.id,
+                error: { message: "Session with given id not found." },
+              });
+            else reply({});
+          } else if (request.method === "Runtime.runIfWaitingForDebugger") {
+            assert.ok(
+              calls.findIndex((c) => c.method === "Network.enable") <
+                calls.indexOf(request),
+            );
+            if (mode === "vanished") {
+              this.emit({
+                id: request.id,
+                error: { message: "Session with given id not found." },
+              });
+              return;
+            }
+            if (failed)
+              this.emit({
+                method: "Runtime.exceptionThrown",
+                sessionId: "startup",
+                params: {
+                  exceptionDetails: {
+                    executionContextId: 77,
+                    text: "private transcript token sentinel",
+                  },
+                },
+              });
+            if (mode === "short")
+              this.emit({
+                method: "Target.detachedFromTarget",
+                params: { sessionId: "startup" },
+              });
+            reply({});
+          } else if (request.method === "Runtime.evaluate")
+            reply({ result: { value: true } });
+          else assert.fail("Unexpected CDP command " + request.method);
+        });
+      }
+      close() {
+        closed = true;
+      }
+    };
+    const monitor = await webview("observer", directory);
+    if (failed)
+      await assert.rejects(monitor.finish(), (error) => {
+        assert.match(error.message, /Unexpected owned renderer errors/u);
+        assert.equal(error.message.includes("private"), false);
+        return true;
+      });
+    else await monitor.finish();
+    assert.equal(closed, true);
+    assert.deepEqual(monitor.errorCounts(), failed ? { exception: 1 } : {});
   }
 });

@@ -74,6 +74,67 @@ function code(expected) {
   };
 }
 
+test("A2A JSON response bytes admit the exact ceiling and reject one additional legal byte", async () => {
+  const ceiling = 1024 * 1024;
+  for (const size of [ceiling, ceiling + 1]) {
+    let disposed = 0,
+      canceled = 0;
+    const events = [];
+    const client = port(
+      async (_, init) => {
+        const id = JSON.parse(init.body).id,
+          raw = Buffer.from(JSON.stringify(message(id, "reply é 😀"))),
+          bytes = Buffer.concat([raw, Buffer.alloc(size - raw.length, 0x20)]);
+        assert.equal(bytes.length, size);
+        assert.deepEqual(
+          JSON.parse(bytes.toString()),
+          message(id, "reply é 😀"),
+        );
+        let offset = 0;
+        return new Response(
+          new ReadableStream(
+            {
+              pull(controller) {
+                if (offset === bytes.length) controller.close();
+                else {
+                  const end = Math.min(offset + 8191, bytes.length);
+                  controller.enqueue(bytes.subarray(offset, end));
+                  offset = end;
+                }
+              },
+              cancel() {
+                canceled++;
+              },
+            },
+            { highWaterMark: 0 },
+          ),
+          { headers: { "content-type": "application/json" } },
+        );
+      },
+      async () => {
+        disposed++;
+      },
+    );
+    const operation = send(
+      client,
+      new AbortController().signal,
+      false,
+      (value) => events.push(value),
+    );
+    if (size === ceiling) {
+      await operation;
+      assert.equal(events.length, 1);
+      assert.equal(events[0].message.parts[0].text, "reply é 😀");
+      assert.equal(canceled, 0);
+    } else {
+      await assert.rejects(operation, code("a2a_response_limit"));
+      assert.deepEqual(events, []);
+      assert.equal(canceled, 1);
+    }
+    assert.equal(disposed, 1);
+  }
+});
+
 test("A2A task read and cancellation preserve tenant and separately selected transport settings", async () => {
   const configured = a2aSettings({
     timeoutMs: 1000,

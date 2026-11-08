@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { createServer as secureServer } from "node:https";
 import { readFile } from "node:fs/promises";
 import { createHash, randomBytes } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { a2aPeer } from "./a2a-peer.mjs";
 import { listenFixture } from "./listen.mjs";
 import {
@@ -28,6 +29,50 @@ export async function peers(options = {}) {
     wrongCode: 0,
   };
   let origin, documentOrigin;
+  const artworkPNG = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jQ1kAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const artworkTarget = {
+    sourceId: "00000000-0000-7000-8000-000000000004",
+    presentationGeneration: 1,
+    identifier: "urn:air:owned.example:team:artwork",
+    versionPresent: true,
+    version: "",
+    kind: "mcp_server",
+  };
+  const artwork = { badDigest: false, reads: [] };
+  const artworkRecord = () => ({
+    id: "indexed:artwork",
+    type: "indexed",
+    identifier: artworkTarget.identifier,
+    versionPresent: true,
+    version: "",
+    kind: "mcp_server",
+    displayName: "Owned native artwork",
+    description: "A credential-free image loaded explicitly through Catalog.",
+    tags: [],
+    score: 1,
+    indexed: {
+      sourceIds: [artworkTarget.sourceId],
+      sourceCount: 1,
+      conflict: false,
+      sameSourceConflict: false,
+      presentationSourceId: artworkTarget.sourceId,
+      presentationGeneration: 1,
+    },
+    artwork: {
+      descriptor: {
+        schemaVersion: 1,
+        icon: {
+          url: "https://uncontacted.invalid/icon.png",
+          alt: "Owned native icon",
+          caption: "Owned native caption",
+          rights: { basis: "owned", attribution: "Owned fixture" },
+        },
+      },
+    },
+  });
   const inspection = {
     scenario: "legacy",
     manifests: 0,
@@ -131,6 +176,82 @@ export async function peers(options = {}) {
       const url = new URL(request.url, origin);
       if (url.pathname === "/owned-runner-stats" && options.runnerStatus)
         return reply(response, options.runnerStatus());
+      if (url.pathname === "/owned-test/artwork") {
+        if (request.method === "POST") {
+          let body = "";
+          for await (const chunk of request) {
+            body += chunk;
+            if (body.length > 256) return reply(response, {}, 413);
+          }
+          const value = JSON.parse(body);
+          if (typeof value.badDigest !== "boolean")
+            return reply(response, {}, 400);
+          artwork.badDigest = value.badDigest;
+        }
+        return reply(response, { reads: artwork.reads, target: artworkTarget });
+      }
+      if (request.headers.authorization === "Bearer artwork-reader") {
+        if (request.headers.cookie) return reply(response, {}, 403);
+        if (url.pathname === "/api/v1/me")
+          return reply(response, {
+            tenantId: artworkTarget.sourceId,
+            realmId: artworkTarget.sourceId,
+            membershipId: artworkTarget.sourceId,
+            subject: "artwork-reader",
+            permissions: [],
+            availablePermissions: ["resource.read", "federation.discover"],
+          });
+        if (url.pathname === "/api/v1/capabilities")
+          return reply(response, {
+            resourceKinds: ["agent", "mcp_server", "skill", "plugin"],
+          });
+        if (url.pathname === "/api/v1/catalog/search")
+          return reply(response, {
+            items: [artworkRecord()],
+            partial: false,
+            durableTotal: 1,
+            liveCount: 0,
+          });
+        if (url.pathname === "/api/v1/catalog/indexed-record")
+          return reply(response, artworkRecord());
+        if (url.pathname === "/api/v1/artwork/read") {
+          let body = "";
+          for await (const chunk of request) {
+            body += chunk;
+            if (body.length > 4096) return reply(response, {}, 413);
+          }
+          const value = JSON.parse(body);
+          artwork.reads.push(value);
+          if (
+            !isDeepStrictEqual(value, {
+              origin: "indexed",
+              target: artworkTarget,
+              slot: "icon",
+            })
+          )
+            return reply(response, {}, 400);
+          response.setHeader("content-type", "image/png");
+          response.setHeader(
+            "content-digest",
+            `sha-256=:${createHash("sha256")
+              .update(artwork.badDigest ? "different bytes" : artworkPNG)
+              .digest("base64")}:`,
+          );
+          return response.end(artworkPNG);
+        }
+        return reply(response, {}, 404);
+      }
+      if (url.pathname === "/owned-test/agent") {
+        if (request.method === "POST") agent.releaseInterrupted();
+        return reply(response, {
+          ...agent.interruptedStatus(),
+          methods: agent.seen.map(({ request: value }) => ({
+            method: value.method,
+            task: value.params.id ?? value.params.message?.taskId,
+            prompt: value.params.message?.parts[0]?.text,
+          })),
+        });
+      }
       if (url.pathname === "/owned-test/inspection") {
         if (request.method === "POST") {
           let body = "";

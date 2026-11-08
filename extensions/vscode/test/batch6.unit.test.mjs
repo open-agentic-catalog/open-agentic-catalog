@@ -1,5 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 const {
   query,
   requestFor,
@@ -17,9 +20,15 @@ const {
   windowsDirectory,
   nativeEnvironmentAllowed,
   stopPackageProcess,
+  credentialAccess,
 } = await import(process.env.CATALOG_VSCODE_LIB);
 const account = "a".repeat(64),
   other = "b".repeat(64);
+async function packageAccess(t) {
+  const directory = await mkdtemp(join(tmpdir(), "catalog-package-access-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  return credentialAccess(directory);
+}
 test("combined Control filters preserve API arrays, all-category matching and local constraints", () => {
   const q = query(
     {
@@ -76,14 +85,18 @@ test("combined Control filters preserve API arrays, all-category matching and lo
     "/api/v1/catalog/search",
   );
 });
-test("package credentials bind the source family, HTTPS origin and account without settings storage", async () => {
+test("package credentials bind the source family, HTTPS origin and account without settings storage", async (t) => {
+  const access = await packageAccess(t);
   const saved = new Map(),
-    credentials = new PackageCredentials({
-      keys: async () => [...saved.keys()],
-      get: async (key) => saved.get(key),
-      store: async (key, value) => saved.set(key, value),
-      delete: async (key) => saved.delete(key),
-    });
+    credentials = new PackageCredentials(
+      {
+        keys: async () => [...saved.keys()],
+        get: async (key) => saved.get(key),
+        store: async (key, value) => saved.set(key, value),
+        delete: async (key) => saved.delete(key),
+      },
+      access,
+    );
   const git = { type: "git", repository: "https://git.owned.test/repo" },
     oci = {
       type: "oci",
@@ -321,7 +334,7 @@ test("validated filters and persisted references capture immutable selections", 
   for (const key of ["CATALOG_TOKEN", "SSH_AUTH_SOCK", "DOCKER_AUTH_CONFIG"])
     assert.equal(nativeEnvironmentAllowed(key, "win32"), false);
 });
-test("offline bounded package forgetting keeps other credential namespaces and reports partial failures", async () => {
+test("offline bounded package forgetting keeps other credential namespaces and reports partial failures", async (t) => {
   const data = new Map([["openAgenticCatalog.login", "Catalog sentinel"]]);
   let fail;
   const secrets = {
@@ -333,7 +346,7 @@ test("offline bounded package forgetting keeps other credential namespaces and r
       data.delete(key);
     },
   };
-  const store = new PackageCredentials(secrets);
+  const store = new PackageCredentials(secrets, await packageAccess(t));
   for (let i = 0; i < 50; i++)
     await store.save(account, {
       type: "git",

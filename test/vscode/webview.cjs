@@ -3,12 +3,28 @@
 const { readFile, writeFile } = require("node:fs/promises");
 const { join } = require("node:path");
 const assert = require("node:assert/strict");
+const { rendererErrors } = require("./renderer-errors.cjs");
 const pause = () => new Promise((resolve) => setTimeout(resolve, 100));
 const contextGone = (error) =>
   error.message === "CDP session detached" ||
   /^CDP Runtime\.evaluate failed: (?:Cannot find context with specified id|Session with given id not found|Execution context was destroyed)\.?$/u.test(
     error.message,
   );
+const setupGone = (error) =>
+  contextGone(error) ||
+  /^CDP (?:Runtime\.enable|Network\.enable|Runtime\.runIfWaitingForDebugger|Target\.setAutoAttach) failed: Session with given id not found\.?$/u.test(
+    error.message,
+  );
+const ownedTarget = (info) => {
+  try {
+    return (
+      new URL(info.url).searchParams.get("extensionId") ===
+      "open-agentic-catalog.open-agentic-catalog"
+    );
+  } catch {
+    return false;
+  }
+};
 exports.webview = async (
   workbench = false,
   directory = process.env.CATALOG_VSCODE_DEBUG_DIR,
@@ -22,6 +38,13 @@ exports.webview = async (
     waiting = new Map(),
     contexts = [],
     detachedSessions = new Set();
+  const errors = rendererErrors();
+  const observer = workbench === "observer";
+  const background = new Set();
+  const attachedIds = new Set();
+  const sessions = new Map();
+  let observationFailure = false;
+  let closing = false;
   let sequence = 0;
   let phase = "discovery";
   const surface =
@@ -38,6 +61,7 @@ exports.webview = async (
   });
   socket.addEventListener("message", (event) => {
     const m = JSON.parse(event.data);
+    errors.observe(m);
     if (m.id) {
       const pending = waiting.get(m.id);
       if (pending) {
@@ -48,6 +72,20 @@ exports.webview = async (
           pending.reject(pending.failure);
         } else pending.resolve(m.result);
       }
+    } else if (m.method === "Target.attachedToTarget" && observer) {
+      attachedIds.add(m.params.targetInfo.targetId);
+      sessions.set(m.params.sessionId, m.params.targetInfo.targetId);
+      if (ownedTarget(m.params.targetInfo))
+        errors.ownSession(m.params.sessionId);
+      const operation = initialize(m.params.sessionId).catch(() => {
+        observationFailure = true;
+      });
+      background.add(operation);
+      void operation.finally(() => background.delete(operation));
+    } else if (m.method === "Target.targetInfoChanged" && observer) {
+      if (ownedTarget(m.params.targetInfo))
+        for (const [session, id] of sessions)
+          if (id === m.params.targetInfo.targetId) errors.ownSession(session);
     } else if (m.method === "Target.detachedFromTarget") {
       const sessionId = m.params.sessionId;
       detachedSessions.add(sessionId);
@@ -99,8 +137,38 @@ exports.webview = async (
       );
     });
   let target;
+  const ownedExpression =
+    "typeof document !== 'undefined' && (document.getElementById('catalog') !== null || document.querySelector('h1')?.textContent === 'VS Code Catalog client')";
+  const initialize = async (sessionId) => {
+    let failure;
+    try {
+      await rpc("Runtime.enable", {}, sessionId);
+      await rpc("Network.enable", {}, sessionId);
+      if (observer && !closing)
+        await rpc(
+          "Target.setAutoAttach",
+          {
+            autoAttach: true,
+            waitForDebuggerOnStart: true,
+            flatten: true,
+            filter: [{ type: "page" }, { type: "iframe" }, { exclude: true }],
+          },
+          sessionId,
+        );
+    } catch (error) {
+      if (!setupGone(error)) failure = error;
+    } finally {
+      if (observer && !detachedSessions.has(sessionId)) {
+        try {
+          await rpc("Runtime.runIfWaitingForDebugger", {}, sessionId);
+        } catch (error) {
+          if (!setupGone(error)) failure ??= error;
+        }
+      }
+    }
+    if (failure) throw failure;
+  };
   try {
-    const attachedIds = new Set();
     async function attach() {
       const targets = (await rpc("Target.getTargets")).targetInfos;
       for (const t of targets.filter((t) =>
@@ -114,6 +182,8 @@ exports.webview = async (
             targetId: t.targetId,
             flatten: true,
           });
+          sessions.set(attached.sessionId, t.targetId);
+          if (ownedTarget(t)) errors.ownSession(attached.sessionId);
         } catch (error) {
           // A hidden editor frame may disappear after Target.getTargets.
           // Discovery is read-only; no user action has been delivered.
@@ -125,7 +195,7 @@ exports.webview = async (
           throw error;
         }
         try {
-          await rpc("Runtime.enable", {}, attached.sessionId);
+          await initialize(attached.sessionId);
         } catch (error) {
           // A startup frame can disappear after attachment as well. Continue
           // only confirmed session loss during this read-only discovery step;
@@ -146,8 +216,9 @@ exports.webview = async (
           const result = await rpc(
             "Runtime.evaluate",
             {
-              expression:
-                workbench === "browser"
+              expression: observer
+                ? ownedExpression
+                : workbench === "browser"
                   ? "typeof document !== 'undefined' && document.getElementById('owned-browser-login') !== null"
                   : workbench === true
                     ? "typeof document !== 'undefined' && document.querySelector('.monaco-workbench') !== null"
@@ -160,8 +231,10 @@ exports.webview = async (
             context.sessionId,
           );
           if (result.result.value) {
+            if (observer || (workbench !== true && workbench !== "browser"))
+              errors.own(context.sessionId, context.id, context.frameId);
             target = context;
-            break;
+            if (!observer) break;
           }
         } catch (error) {
           // Only confirmed frame loss permits another read-only discovery.
@@ -169,7 +242,79 @@ exports.webview = async (
         }
       }
     };
+    if (observer) {
+      await rpc("Target.setDiscoverTargets", { discover: true });
+      await rpc("Target.setAutoAttach", {
+        autoAttach: true,
+        waitForDebuggerOnStart: true,
+        flatten: true,
+        filter: [{ type: "page" }, { type: "iframe" }, { exclude: true }],
+      });
+    }
     await attach();
+    if (observer) {
+      let stopped = false,
+        timer,
+        polling;
+      const poll = async () => {
+        try {
+          await discover();
+        } catch {
+          observationFailure = true;
+        }
+        if (!stopped)
+          timer = setTimeout(() => {
+            polling = poll();
+          }, 100);
+      };
+      polling = poll();
+      return {
+        errorCounts: () => errors.counts(),
+        async finish(expectedErrors = {}) {
+          closing = true;
+          stopped = true;
+          clearTimeout(timer);
+          try {
+            await polling;
+            await discover();
+            await rpc("Target.setAutoAttach", {
+              autoAttach: false,
+              waitForDebuggerOnStart: false,
+              flatten: true,
+            });
+            for (const session of sessions.keys())
+              if (!detachedSessions.has(session)) {
+                try {
+                  await rpc(
+                    "Target.setAutoAttach",
+                    {
+                      autoAttach: false,
+                      waitForDebuggerOnStart: false,
+                      flatten: true,
+                    },
+                    session,
+                  );
+                } catch (error) {
+                  if (!setupGone(error)) throw error;
+                }
+              }
+            while (background.size) await Promise.all([...background]);
+            assert.equal(
+              observationFailure,
+              false,
+              "Owned renderer observation failed",
+            );
+            assert.deepEqual(
+              errors.counts(),
+              expectedErrors,
+              "Unexpected owned renderer errors",
+            );
+          } finally {
+            socket.close();
+          }
+        },
+      };
+    }
     const deadline = Date.now() + 10000;
     while (!target && Date.now() < deadline) {
       await discover();
@@ -296,7 +441,23 @@ exports.webview = async (
           target.sessionId,
         );
       },
-      close: () => socket.close(),
+      errorCounts: () => errors.counts(),
+      assertHealthy: async () => {
+        await evaluate("0");
+        assert.deepEqual(
+          errors.counts(),
+          {},
+          "Unexpected owned renderer errors",
+        );
+      },
+      close: (expectedErrors = {}) => {
+        socket.close();
+        assert.deepEqual(
+          errors.counts(),
+          expectedErrors,
+          "Unexpected owned renderer errors",
+        );
+      },
     };
   } catch (error) {
     socket.close();

@@ -46,7 +46,9 @@ export async function a2aPeer(tls, work = join(root, "output/vscode")) {
     pathToFileURL(join(directory, "sample.mjs")).href
   );
   const seen = [],
-    tasks = new Map();
+    tasks = new Map(),
+    interrupted = new Map();
+  let interruptedClosed = 0;
   let handler,
     closed = false;
   const serve = async (req, res) => {
@@ -127,6 +129,14 @@ export async function a2aPeer(tls, work = join(root, "output/vscode")) {
               `data: ${JSON.stringify({ jsonrpc: "2.0", id: request.id, result })}\n\n`,
             );
           publish({ task });
+          if (prompt === "owned-interrupted") {
+            interrupted.set(task.id, res);
+            res.once("close", () => {
+              interrupted.delete(task.id);
+              interruptedClosed++;
+            });
+            return;
+          }
           const update = (text, append, lastChunk) => ({
             artifactUpdate: {
               taskId: task.id,
@@ -218,6 +228,16 @@ export async function a2aPeer(tls, work = join(root, "output/vscode")) {
     origin,
     card,
     seen,
+    interruptedStatus: () => ({
+      held: interrupted.size,
+      closed: interruptedClosed,
+    }),
+    releaseInterrupted() {
+      for (const [id, response] of interrupted) {
+        tasks.get(id).status.state = "TASK_STATE_COMPLETED";
+        response.destroy();
+      }
+    },
     async close() {
       if (closed) return;
       closed = true;

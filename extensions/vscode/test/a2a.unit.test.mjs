@@ -120,9 +120,22 @@ test("A2A Card selection validates settings, binding, text modes and declared au
     { securityRequirements: [{}] },
   ])
     assert.throws(() => a2aPlan(bytes({ ...card, ...change }), settings));
-  assert.throws(() =>
-    a2aPlan(Buffer.from('{"name":"a","name":"b"}'), settings),
-  );
+  const acceptedCard = JSON.stringify(card);
+  assert.equal(a2aPlan(Buffer.from(acceptedCard), settings).name, card.name);
+  for (const [from, to] of [
+    ['"name":"Local agent"', '"name":"Earlier agent","name":"Local agent"'],
+    [
+      '"name":"Local agent"',
+      '"na\\u006de":"Earlier agent","name":"Local agent"',
+    ],
+    ['"streaming":true', '"streaming":false,"streaming":true'],
+  ]) {
+    const duplicate = acceptedCard.replace(from, to);
+    assert.deepEqual(JSON.parse(duplicate), card);
+    assert.throws(() => a2aPlan(Buffer.from(duplicate), settings), {
+      code: "invalid_a2a_card",
+    });
+  }
   assert.throws(() => a2aPlan(Buffer.from([0xff]), settings));
   assert.throws(
     () => a2aPlan(Buffer.alloc(a2aLimits.response + 1), settings),
@@ -484,7 +497,7 @@ test("Official SDK transport pins method/endpoint/version and target credentials
   });
 });
 
-test("Wire validation precedes SDK coercion; malformed/refused/large/redirect responses close bodies and transport", async () => {
+test("Wire validation precedes SDK coercion; malformed/refused/redirect responses close bodies and transport", async () => {
   for (const response of [
     () =>
       new Response(
@@ -504,10 +517,6 @@ test("Wire validation precedes SDK coercion; malformed/refused/large/redirect re
       new Response("PRIVATE", {
         status: 302,
         headers: { location: "https://external.example" },
-      }),
-    () =>
-      new Response(Buffer.alloc(a2aLimits.response + 1), {
-        headers: { "content-type": "application/json" },
       }),
     () =>
       new Response(

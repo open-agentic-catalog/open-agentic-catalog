@@ -18,6 +18,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { peers } from "./host-peers.mjs";
 const { webview } = createRequire(import.meta.url)("./webview.cjs");
+const root = resolve(import.meta.dirname, "../..");
 const pause = () => new Promise((done) => setTimeout(done, 100));
 async function waitFile(path, timeout = 30000) {
   const deadline = performance.now() + timeout;
@@ -53,7 +54,7 @@ async function stop(child) {
 }
 /** Real SSH remoting and real browser dispatch, all on the owned Linux host. */
 export async function qualifyRemote(parent, tools, host, vsix) {
-  const reportPath = resolve("output/vscode/remote-qualification.json");
+  const reportPath = join(root, "output/vscode/remote-qualification.json");
   const packageSHA256 = createHash("sha256")
     .update(await readFile(vsix))
     .digest("hex");
@@ -131,6 +132,37 @@ export async function qualifyRemote(parent, tools, host, vsix) {
       resolve(import.meta.dirname, "remote-host-tests.cjs"),
       join(driver, "index.cjs"),
     );
+    await copyFile(
+      resolve(import.meta.dirname, "webview.cjs"),
+      join(driver, "webview.cjs"),
+    );
+    await copyFile(
+      resolve(import.meta.dirname, "renderer-errors.cjs"),
+      join(driver, "renderer-errors.cjs"),
+    );
+    const remoteGit = join(work, "remote-tools/git"),
+      uiGit = join(work, "ui-tools/git");
+    await mkdir(dirname(remoteGit), { recursive: true });
+    await mkdir(dirname(uiGit), { recursive: true });
+    await writeFile(
+      remoteGit,
+      `#!/bin/sh
+printf '%s\n' remote-git >> '${join(work, "remote-git.log")}'
+exec /usr/bin/git "$@"
+`,
+      { mode: 0o700 },
+    );
+    await writeFile(
+      uiGit,
+      `#!/bin/sh
+printf '%s\n' ui-git >> '${join(work, "ui-git.log")}'
+exit 91
+`,
+      { mode: 0o700 },
+    );
+    await writeFile(join(work, "ui-only-sentinel"), "Preserve the UI host.\n", {
+      mode: 0o600,
+    });
     await writeFile(
       join(driver, "package.json"),
       JSON.stringify({
@@ -144,7 +176,20 @@ export async function qualifyRemote(parent, tools, host, vsix) {
       }),
     );
     const machine = {
+      "openAgenticCatalog.packageTools": {
+        gitPath: remoteGit,
+        caFile: process.env.CATALOG_VSCODE_REMOTE_SOURCE_CA,
+        timeoutMs: 10000,
+      },
       "openAgenticCatalog.connections": [
+        {
+          id: "remote-skill",
+          label: "Owned real Catalog Skill",
+          origin: process.env.CATALOG_VSCODE_REMOTE_CATALOG,
+          mode: "control",
+          auth: "manual",
+          allowLoopbackHTTP: true,
+        },
         {
           id: "remote-oidc",
           label: "Owned remote OIDC",
@@ -276,6 +321,7 @@ export async function qualifyRemote(parent, tools, host, vsix) {
       },
     );
     const userSettings = {
+      "openAgenticCatalog.packageTools": { gitPath: uiGit, timeoutMs: 10000 },
       "remote.SSH.configFile": sshConfig,
       "remote.SSH.serverInstallPath": { [alias]: remoteHome },
       "remote.SSH.remotePlatform": { [alias]: "linux" },
@@ -374,10 +420,38 @@ export async function qualifyRemote(parent, tools, host, vsix) {
         const result = JSON.parse(
           await readFile(join(work, "result.json"), "utf8"),
         );
+        if (!result.passed) {
+          await native
+            .screenshot(join(dirname(reportPath), "remote-failure-native.png"))
+            .catch(() => {});
+          await browser
+            .screenshot(join(dirname(reportPath), "remote-failure-browser.png"))
+            .catch(() => {});
+        }
         assert.equal(result.passed, true, result.error);
         assert.equal(
           await readFile(join(work, "workspace/remote-owned.txt"), "utf8"),
           "Written by the real SSH extension host.\n",
+        );
+        assert.equal(result.remoteSkillInstalled, true);
+        assert.equal(result.remoteSkillCompared, true);
+        assert.equal(result.remoteSkillRestored, true);
+        assert.equal(result.remoteSkillRemovedOffline, true);
+        assert.equal(result.missingRemoteToolRefused, true);
+        assert.match(
+          await readFile(join(work, "remote-git.log"), "utf8"),
+          /^(?:remote-git\n)+$/u,
+        );
+        await assert.rejects(readFile(join(work, "ui-git.log")), {
+          code: "ENOENT",
+        });
+        await assert.rejects(
+          readFile(join(user, ".agents/skills/owned-skill/SKILL.md")),
+          { code: "ENOENT" },
+        );
+        assert.equal(
+          await readFile(join(work, "ui-only-sentinel"), "utf8"),
+          "Preserve the UI host.\n",
         );
         assert.equal(
           await readFile(join(work, "browser-dispatch"), "utf8"),
@@ -389,7 +463,7 @@ export async function qualifyRemote(parent, tools, host, vsix) {
           "Wrong-session callback never contacts token endpoint; correct browser callback exchanges exactly once",
         );
         await writeFile(
-          resolve("output/vscode/remote-qualification.json"),
+          join(root, "output/vscode/remote-qualification.json"),
           JSON.stringify(
             {
               ...result,
@@ -424,14 +498,10 @@ export async function qualifyRemote(parent, tools, host, vsix) {
       }
       if (performance.now() > deadline) {
         await native.screenshot(
-          resolve(
-            "output/vscode-design-review/batch-6/remote-failure-native.png",
-          ),
+          join(dirname(reportPath), "remote-failure-native.png"),
         );
         await browser.screenshot(
-          resolve(
-            "output/vscode-design-review/batch-6/remote-failure-browser.png",
-          ),
+          join(dirname(reportPath), "remote-failure-browser.png"),
         );
         throw new Error("Remote/browser workflow deadline: " + diagnostics);
       }
@@ -505,7 +575,7 @@ export async function qualifyRemote(parent, tools, host, vsix) {
         }) + "\n",
       );
     if (passed) {
-      const path = resolve("output/vscode/remote-qualification.json"),
+      const path = join(root, "output/vscode/remote-qualification.json"),
         report = JSON.parse(await readFile(path, "utf8"));
       report.cleanup = "passed";
       report.status = "passed";
@@ -515,7 +585,7 @@ export async function qualifyRemote(parent, tools, host, vsix) {
 }
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   await qualifyRemote(
-    resolve("output/vscode"),
+    join(root, "output/vscode"),
     process.env.CATALOG_VSCODE_REMOTE_TOOLS,
     process.env.CATALOG_VSCODE_HOST,
     process.env.CATALOG_VSCODE_VSIX,

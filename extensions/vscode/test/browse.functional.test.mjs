@@ -1,5 +1,6 @@
 import test from "node:test";
 import { listenFixture } from "../../../test/vscode/listen.mjs";
+import { fixtureWait } from "../../../test/vscode/wait.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
@@ -363,12 +364,20 @@ test("actual HTTP browse cancellation and timeout stop at verification or API re
     const arrived = new Promise((resolve) => {
       reached = resolve;
     });
-    const pending = assert.rejects(browser.search(browser.state.query, true), {
-      code: "request_canceled",
-    });
-    await arrived;
-    browser.cancel();
-    await pending;
+    const operation = browser.search(browser.state.query, true),
+      pending = assert.rejects(operation, { code: "request_canceled" });
+    try {
+      await fixtureWait(arrived, "Catalog browse readiness", operation);
+      browser.cancel();
+      await pending;
+    } finally {
+      browser.cancel();
+      release?.();
+      await fixtureWait(
+        Promise.allSettled([pending]),
+        "Catalog browse operation cleanup",
+      );
+    }
     assert.equal(browser.state.busy, false);
     assert.equal(browser.state.canNext, true);
     assert.deepEqual(

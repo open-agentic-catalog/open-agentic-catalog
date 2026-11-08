@@ -67,6 +67,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const packageCredentials = new CatalogPackageCredentials(
     context.secrets,
     session,
+    credentialAccess(context.globalStorageUri.fsPath),
   );
   const mcp = new CatalogMcp(context, browser, session);
   const plugins: CatalogPlugins = new CatalogPlugins(
