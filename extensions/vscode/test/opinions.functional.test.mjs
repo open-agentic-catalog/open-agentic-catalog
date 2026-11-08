@@ -6,12 +6,15 @@ const { Session, Opinions, connections } = await import(
   process.env.CATALOG_VSCODE_LIB
 );
 const id = "00000000-0000-7000-8000-000000000001";
+const resourceId = "00000000-0000-7000-8000-000000000002";
+const versionRevisionId = "00000000-0000-7000-8000-000000000003";
 test("real HTTP opinion commands accept 201, retain private text, enforce ETags and recover an uncertain committed write", async (t) => {
   const calls = [],
     records = new Map(),
     receipts = new Map();
   let lostAccess = false,
-    dropReply = false;
+    dropReply = false,
+    refuseReplay = false;
   const server = createServer(async (req, res) => {
     const reply = (status, body, revision) => {
       res.writeHead(status, {
@@ -29,6 +32,7 @@ test("real HTTP opinion commands accept 201, retain private text, enforce ETags 
       path: req.url,
       method: req.method,
       body,
+      raw,
       headers: req.headers,
     });
     if (req.url === "/api/v1/catalog/resources/" + id)
@@ -36,11 +40,11 @@ test("real HTTP opinion commands accept 201, retain private text, enforce ETags 
         ? reply(404, {})
         : reply(200, {
             resource: {
-              id,
+              id: resourceId,
               kind: "agent",
               canonicalIdentifier: "urn:air:owned.test:team:agent",
             },
-            versionRevision: { id },
+            versionRevision: { id: versionRevisionId },
             version: { version: "1" },
             release: { id },
           });
@@ -59,6 +63,7 @@ test("real HTTP opinion commands accept 201, retain private text, enforce ETags 
           : reply(404, {});
     const key = req.headers["idempotency-key"];
     assert.ok(key);
+    if (refuseReplay && receipts.has(key)) return reply(403, {});
     if (receipts.has(key))
       return reply(200, receipts.get(key), receipts.get(key).revision);
     if (current && req.headers["if-match"] !== `"rev-${current.revision}"`)
@@ -137,19 +142,68 @@ test("real HTTP opinion commands accept 201, retain private text, enforce ETags 
   );
   assert.equal(api.hasPending(), false);
   const feedback = await api.feedbackContext(item);
+  assert.deepEqual(feedback, { resourceId, releaseId: id, versionRevisionId });
   dropReply = true;
   await assert.rejects(
     api.submitFeedback(feedback, "problem", "Private HTTP sentinel"),
   );
   assert.equal(api.hasPending(), true);
   const first = calls.at(-1);
+  assert.deepEqual(first.body, {
+    category: "problem",
+    comment: "Private HTTP sentinel",
+    resourceId,
+    releaseId: id,
+    versionRevisionId,
+  });
+  const originalRevision = records.get("feedback").revision;
+  const replayStart = calls.length;
+  refuseReplay = true;
+  await assert.rejects(api.recover(), {
+    code: "access_refused",
+    status: 403,
+  });
+  assert.equal(
+    api.hasPending(),
+    true,
+    "a later refusal cannot settle a lost reply",
+  );
+  const refused = calls.at(-1);
+  assert.equal(
+    refused.headers["idempotency-key"],
+    first.headers["idempotency-key"],
+  );
+  assert.equal(refused.raw, first.raw);
+  assert.equal(refused.method, first.method);
+  assert.equal(refused.path, first.path);
+  assert.equal(records.get("feedback").revision, originalRevision);
+  await assert.rejects(
+    api.submitFeedback(
+      feedback,
+      "suggestion",
+      "Must not replace an uncertain command",
+    ),
+    { code: "opinion_outcome_uncertain" },
+  );
+  assert.equal(
+    calls.length,
+    replayStart + 1,
+    "no implicit retry or replacement write",
+  );
+  refuseReplay = false;
   await api.recover();
   const repeat = calls.at(-1);
   assert.equal(
     repeat.headers["idempotency-key"],
     first.headers["idempotency-key"],
   );
+  assert.equal(repeat.raw, first.raw);
+  assert.equal(repeat.method, first.method);
+  assert.equal(repeat.path, first.path);
   assert.deepEqual(repeat.body, first.body);
+  assert.equal(records.get("feedback").revision, originalRevision);
+  assert.equal(calls.length, replayStart + 2);
+  assert.equal(api.hasPending(), false);
   records.get("feedback").state = "addressed";
   records.get("feedback").response = "Private response";
   const read = await api.get("feedback", id);

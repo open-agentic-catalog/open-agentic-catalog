@@ -402,3 +402,197 @@ test("actual HTTP browse cancellation and timeout stop at verification or API re
   await browser.search(browser.state.query, true);
   assert.equal(browser.state.error, undefined);
 });
+
+test("real retained-document reads are lazy, preserve bytes and recheck access before artifact traffic", async (t) => {
+  const bytes = Buffer.from(
+    JSON.stringify({
+      $schema:
+        "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+      name: "io.example/owned",
+      description: "Café 😀",
+      version: "1.0.0",
+      remotes: [
+        { type: "streamable-http", url: "https://uncontacted.invalid/mcp" },
+      ],
+    }) + "\n",
+  );
+  const artifact = createHash("sha256").update(bytes).digest("hex");
+  const releasePath = `/api/v1/catalog/resources/${id}`;
+  const artifactPath = `/api/v1/artifacts/${artifact}/content`;
+  const summary = {
+    resource: {
+      id,
+      namespaceId: id,
+      kind: "mcp_server",
+      canonicalIdentifier: identifier,
+    },
+    version: { version: "1.0.0" },
+    listingRevision: {
+      id,
+      publisherId: id,
+      visibility: "public",
+      displayName: "Owned",
+      description: "Owned",
+      tags: [],
+    },
+    release: { id, state: "published" },
+  };
+  let size = bytes.length,
+    returned = bytes,
+    denyRelease = false;
+  const seen = [];
+  const server = createServer((req, res) => {
+    const path = new URL(req.url, "http://127.0.0.1").pathname;
+    seen.push({ path, authorization: req.headers.authorization });
+    if (path === artifactPath) {
+      res.writeHead(200, {
+        "content-type": "application/mcp-server-card+json",
+      });
+      const boundary = returned.indexOf(0xc3) + 1;
+      res.write(returned.subarray(0, boundary));
+      setImmediate(() => res.end(returned.subarray(boundary)));
+      return;
+    }
+    res.setHeader("content-type", "application/json");
+    if (path === releasePath && denyRelease) {
+      res.writeHead(403);
+      res.end('{"detail":"private rejection must not become document bytes"}');
+      return;
+    }
+    const value =
+      path === "/api/v1/me"
+        ? {
+            tenantId: id,
+            realmId: id,
+            membershipId: id,
+            subject: "reader",
+            permissions: [],
+            availablePermissions: ["resource.read"],
+          }
+        : path === "/api/v1/capabilities"
+          ? { resourceKinds: ["mcp_server"] }
+          : path === "/api/v1/catalog/resources"
+            ? { items: [summary], total: 1 }
+            : path === releasePath
+              ? {
+                  ...summary,
+                  versionRevision: {
+                    representations: [
+                      {
+                        mediaType: "application/mcp-server-card+json",
+                        artifactId: artifact,
+                        size,
+                      },
+                    ],
+                  },
+                }
+              : undefined;
+    if (value === undefined) res.writeHead(404);
+    res.end(JSON.stringify(value ?? {}));
+  });
+  await listenFixture(server);
+  t.after(async () => {
+    server.closeAllConnections();
+    await new Promise((resolve) => server.close(resolve));
+  });
+  const session = new Session(
+    {
+      get: async () => undefined,
+      store: async () => {},
+      delete: async () => {},
+    },
+    "owned-document",
+    async () => ({ fetch, close: async () => {} }),
+  );
+  const browser = new Browser(
+    session,
+    { get: () => undefined, update: async () => {} },
+    "owned-document",
+  );
+  t.after(async () => {
+    browser.dispose();
+    await session.dispose();
+  });
+  await session.select(
+    connections([
+      {
+        id: "document",
+        label: "Document",
+        origin: `http://127.0.0.1:${server.address().port}`,
+        allowLoopbackHTTP: true,
+        mode: "control",
+        auth: "manual",
+      },
+    ])[0],
+  );
+  await session.manual("owned-document-token");
+  const select = async () => {
+    await browser.search();
+    await browser.select(browser.state.page.items[0].key);
+  };
+  await browser.search();
+  assert.equal(
+    seen.filter(({ path }) => path === releasePath).length,
+    0,
+    "collection browsing is not a detail read",
+  );
+  await browser.select(browser.state.page.items[0].key);
+  assert.equal(
+    seen.filter(({ path }) => path === artifactPath).length,
+    0,
+    "selection must not fetch the retained bytes",
+  );
+  const before = seen.length;
+  const document = await browser.document(0);
+  assert.deepEqual(
+    { ...document, bytes: Buffer.from(document.bytes) },
+    {
+      label: "application/mcp-server-card+json",
+      bytes,
+    },
+  );
+  assert.deepEqual(
+    seen.slice(before).map(({ path }) => path),
+    ["/api/v1/me", "/api/v1/capabilities", releasePath, artifactPath],
+  );
+
+  for (const mode of ["declared-size", "digest"]) {
+    // The size control keeps the exact digest; the digest control keeps length.
+    size = bytes.length + Number(mode === "declared-size");
+    returned = Buffer.from(bytes);
+    if (mode === "digest")
+      returned[returned.indexOf(Buffer.from("Café"))] = 0x63;
+    await select();
+    await assert.rejects(
+      browser.document(0),
+      { code: "document_integrity_failed" },
+      mode,
+    );
+    assert.equal(browser.state.detail, undefined, mode);
+    assert.equal(browser.state.page, undefined, mode);
+    assert.equal(browser.state.busy, false, mode);
+  }
+  size = bytes.length;
+  returned = bytes;
+  await select();
+  denyRelease = true;
+  const calls = seen.length;
+  await assert.rejects(browser.document(0), { code: "access_refused" });
+  assert.deepEqual(
+    seen.slice(calls).map(({ path }) => path),
+    ["/api/v1/me", "/api/v1/capabilities", releasePath],
+  );
+  assert.equal(browser.state.detail, undefined);
+  denyRelease = false;
+  await select();
+  assert.deepEqual(
+    Buffer.from((await browser.document(0)).bytes),
+    bytes,
+    "a fresh explicit read can recover",
+  );
+  assert.ok(
+    seen.every(
+      ({ authorization }) => authorization === "Bearer owned-document-token",
+    ),
+  );
+});

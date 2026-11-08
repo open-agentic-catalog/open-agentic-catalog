@@ -396,12 +396,28 @@ exports.run = async (api) => {
     await ui.until(
       `document.body.innerText.includes(${JSON.stringify("Release " + reference.releaseId)})`,
     );
+    const button = (title) =>
+      `[...document.querySelectorAll('.monaco-dialog-box .monaco-button')].find(b=>b.textContent.trim()===${JSON.stringify(title)})`;
+    const canceledRemove = vscode.commands.executeCommand(
+      "openAgenticCatalog.removeReference",
+      0,
+    );
+    await ui.until(
+      `!!(${button("Remove reference")}) && !!(${button("Cancel")})`,
+    );
+    await ui.click(button("Cancel"));
+    await canceledRemove;
+    await ui.until(`!(${button("Remove reference")})`);
+    assert.equal(api.browsing().scope, bookmarkScope);
+    assert.equal(api.browsing().error, undefined);
+    assert.equal(api.browsing().detail?.item.releaseId, reference.releaseId);
+    assert.deepEqual(api.browsing().bookmarks, [
+      { releaseId: reference.releaseId },
+    ]);
     const remove = vscode.commands.executeCommand(
       "openAgenticCatalog.removeReference",
       0,
     );
-    const button = (title) =>
-      `[...document.querySelectorAll('.monaco-dialog-box .monaco-button')].find(b=>b.textContent.trim()===${JSON.stringify(title)})`;
     await ui.until(`!!(${button("Remove reference")})`);
     await ui.evaluate(`(${button("Remove reference")}).click()`);
     await remove;
