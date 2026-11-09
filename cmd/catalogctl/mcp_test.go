@@ -21,9 +21,15 @@ func TestMCPExplicitInputsAndSafeFlags(t *testing.T) {
 	getenv := func(name string) string {
 		return map[string]string{"CATALOG_REMOTE_BASE_URL": "https://catalog.test", "CATALOG_REMOTE_TOKEN": "test-token", "CATALOG_REMOTE_TOKEN_FILE": "mounted-token", "CATALOG_REMOTE_CA_FILE": "private-ca", "CATALOG_CONFIG": "/do-not-load"}[name]
 	}
-	options, limits, err := parseMCP([]string{"serve", "--timeout", "1s", "--max-concurrency", "2"}, getenv)
-	if err != nil || options.BaseURL != "https://catalog.test" || options.TokenFile != "mounted-token" || options.Token != "" || options.CAFile != "private-ca" || limits.Timeout != time.Second || limits.Concurrency != 2 {
+	options, limits, err := parseMCP([]string{"serve", "--timeout", "1s", "--max-response-bytes", "4194307", "--max-tool-bytes", "32769", "--max-concurrency", "2"}, getenv)
+	if err != nil || options.BaseURL != "https://catalog.test" || options.TokenFile != "mounted-token" || options.Token != "" || options.CAFile != "private-ca" || limits.Timeout != time.Second || limits.ResponseBytes != 4194307 || limits.ToolBytes != 32769 || limits.Concurrency != 2 {
 		t.Fatal(options, limits, err)
+	}
+	// Explicit connection inputs replace environment defaults without reading
+	// credential/trust files or retaining the environment's alternate bearer.
+	options, _, err = parseMCP([]string{"serve", "--base-url", "https://explicit.catalog.test:8443", "--token-file", "explicit-token-file", "--ca-file", "explicit-ca"}, getenv)
+	if err != nil || options.BaseURL != "https://explicit.catalog.test:8443" || options.TokenFile != "explicit-token-file" || options.Token != "" || options.CAFile != "explicit-ca" {
+		t.Fatal("explicit MCP inputs did not replace environment defaults", options, err)
 	}
 	for _, args := range [][]string{{}, {"--help"}, {"serve", "--help"}} {
 		if _, _, err := parseMCP(args, getenv); !errors.Is(err, flag.ErrHelp) {
