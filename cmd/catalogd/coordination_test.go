@@ -73,30 +73,80 @@ func TestWaitForComponentExit(t *testing.T) {
 // TestWaitForComponentExitBlocks waits for a real completion without polling.
 func TestWaitForComponentExitBlocks(t *testing.T) {
 	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		ctx, cancel := context.WithCancel(t.Context())
-		defer cancel()
-		operations := make(chan error)
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			remaining, exited, err := waitForComponentExit(ctx, cancel, slog.New(slog.DiscardHandler), nil, operations, 4)
-			if remaining != 4 || !exited || err != nil {
-				t.Errorf("operations completion = %d/%t/%v", remaining, exited, err)
-			}
-		}()
-		synctest.Wait()
-		select {
-		case <-done:
-			t.Fatal("returned before cancellation or completion")
-		default:
-		}
-		operations <- nil
-		<-done
-		if !errors.Is(ctx.Err(), context.Canceled) {
-			t.Fatal("operations exit did not cancel the process context")
-		}
-	})
+	for _, name := range []string{"operations completion", "caller cancellation"} {
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+				components, operations := make(chan error, 1), make(chan error, 1)
+				type completion struct {
+					remaining int
+					exited    bool
+					err       error
+				}
+				done, finished := make(chan completion, 1), make(chan struct{})
+				var logs bytes.Buffer
+				logger := slog.New(slog.NewTextHandler(&logs, nil))
+				stops := 0
+				stop := func() { stops++; cancel() }
+				defer func() {
+					cancel()
+					synctest.Wait()
+					select {
+					case <-finished:
+						return
+					default:
+					}
+					// Only a failed completion assertion reaches this fallback.
+					// Release a broken waiter without turning its failure into a pass.
+					for _, results := range []chan error{components, operations} {
+						select {
+						case results <- nil:
+						default:
+						}
+					}
+					<-finished
+				}()
+				go func() {
+					defer close(finished)
+					remaining, exited, err := waitForComponentExit(ctx, stop, logger, components, operations, 4)
+					done <- completion{remaining: remaining, exited: exited, err: err}
+				}()
+				synctest.Wait()
+				select {
+				case <-done:
+					t.Fatal("returned before cancellation or completion")
+				default:
+				}
+				if name == "caller cancellation" {
+					cancel() // The caller, rather than stop, supplies this trigger.
+				} else {
+					operations <- nil
+				}
+				synctest.Wait()
+				var result completion
+				select {
+				case result = <-done:
+				default:
+					t.Fatal("blocked waiter did not wake for its cancellation or completion")
+				}
+				wantOperations := name == "operations completion"
+				if result.remaining != 4 || result.exited != wantOperations || result.err != nil {
+					t.Fatalf("completion = %d/%t/%v", result.remaining, result.exited, result.err)
+				}
+				if !errors.Is(ctx.Err(), context.Canceled) || len(components) != 0 || len(operations) != 0 {
+					t.Fatal("process context was not canceled or a completion was left unconsumed")
+				}
+				if wantOperations {
+					if stops != 1 || logs.Len() != 0 {
+						t.Fatal("operations exit did not stop exactly once without a caller-drain event")
+					}
+				} else if stops != 0 || strings.Count(logs.String(), "event=process.draining") != 1 || !strings.Contains(logs.String(), "component=process") || bytes.Count(logs.Bytes(), []byte{'\n'}) != 1 {
+					t.Fatal("active caller cancellation consumed a completion, called stop or lost its single drain event")
+				}
+			})
+		})
+	}
 }
 
 // TestDrainOperationsRetainsFailures checks all combinations of initial,

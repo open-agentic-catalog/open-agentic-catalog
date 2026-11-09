@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/safeerr"
 )
 
 func TestDependencyRetrySampling(t *testing.T) {
@@ -130,8 +130,18 @@ func TestSupervisorSkipsAlreadyCanceledEntry(t *testing.T) {
 func TestSupervisorTerminalResultAfterDependencyRetry(t *testing.T) {
 	dependency := catalog.E(catalog.CodeDependencyUnavailable, "unavailable")
 	terminal := errors.New("terminal failure")
-	for _, result := range []error{nil, terminal, errors.Join(dependency, terminal)} {
-		t.Run(fmt.Sprint(result), func(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		result error
+		panics bool
+	}{
+		{name: "success"},
+		{name: "terminal failure", result: terminal},
+		{name: "mixed dependency and terminal", result: errors.Join(dependency, terminal)},
+		{name: "returned classified panic", result: catalog.Wrap(catalog.CodeDependencyUnavailable, "dependency", safeerr.ErrPanic)},
+		{name: "recovered panic", panics: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {
 				calls := 0
 				var states []bool
@@ -142,11 +152,19 @@ func TestSupervisorTerminalResultAfterDependencyRetry(t *testing.T) {
 						return dependency
 					}
 					if calls > 2 {
-						t.Fatal("terminal result restarted a component")
+						t.Error("terminal result restarted a component")
+						return nil // Bound an erroneous extra attempt without canceling its caller.
 					}
-					return result
+					if test.panics {
+						panic("private-supervisor-retry-panic")
+					}
+					return test.result
 				}, func(degraded bool) { states = append(states, degraded) })
-				if !errors.Is(err, result) || calls != 2 || time.Since(started) != 750*time.Millisecond || !slices.Equal(states, []bool{false, true, false}) {
+				want := test.result
+				if test.panics {
+					want = safeerr.ErrPanic
+				}
+				if !errors.Is(err, want) || calls != 2 || time.Since(started) != 750*time.Millisecond || !slices.Equal(states, []bool{false, true, false}) {
 					t.Fatalf("terminal result: %v calls=%d elapsed=%v states=%v", err, calls, time.Since(started), states)
 				}
 			})
