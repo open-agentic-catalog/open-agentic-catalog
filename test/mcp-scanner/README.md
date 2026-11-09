@@ -48,17 +48,19 @@ The runner's `identity` command checks the existing installation receipt and pri
 
 Run `make test-mcp-scanner-compose` after native scanner setup and checks. The [manual guide](../../documentation/src/content/docs/guides/mcp-scanner.mdx) provides prerequisites, automatic execution and explicit prepare/start/test/stop commands.
 
-This target builds the current backend and one inert MCP fixture. It owns one Compose project with an internal network and loopback review ports. The receiver runs on the host and binds to that project's private bridge. This permits native network-disabled scanner execution without mounting a Docker socket into a container.
+This target builds the current backend and one inert MCP fixture. It owns one Compose project with an internal network. Application containers publish no ports. The receiver runs on the host and binds to that project's private bridge. This permits native network-disabled scanner execution without mounting a Docker socket into a container.
 
-The local Docker engine must publish the loopback ports on the internal bridge. An unbound `:0` result fails setup. Keep the internal network and loopback checks enabled; do not redirect the campaign to retained services.
+An owned host process binds three loopback TCP listeners for the API, receiver database and MCP peer. Targets come from inspected containers in the exact owned subnet. The relay validates project, service, network and address identity; discovered metadata never selects its targets. It preserves protocol bytes, permits 16 active connections per listener and cancels open streams during cleanup. This does not require Docker to publish ports on an internal bridge. Keep the internal network and loopback checks enabled; do not redirect the campaign to retained services.
 
 The campaign uses real authoring, independent review, publication, worker delivery, current scoped reads and a separate receiver database/account. It requires native benign and finding reports, durable acceptance before restart, duplicate/stale delivery controls, unchanged sealed evidence and zero tool invocations. It checks incorrect credentials/trust, revoked access, a failed scanner process and a release published while the endpoint is disabled. The process-failure control exits without fabricating a YARA report; native analyzer-error controls remain in `mcp-scanner-check`.
 
 Persistent reports and selected private scan evidence stay under ignored `output/review/mcp-scanner/`. Tests do not acquire a missing scanner or substitute an executable double for native qualification.
 
-Cleanup stops the receiver before it copies final reports. It removes only the owned project, receiver process, unique image tag and private inputs. It verifies that retained containers remain present. An unavailable container inventory fails cleanup and preserves private inputs. A successful cleanup retry clears resolved cleanup-failure fields. SIGTERM or Ctrl+C marks the run as interrupted and starts scoped cleanup.
+Cleanup stops the receiver before it copies final reports. It stops the owned relay before removing the project network. Thread and process creation register ownership before delivering a deferred stop signal. The single-threaded coordinator restores the child's original signal mask before execution. A failed process record stops and reaps the new child.
 
-The isolated campaign units run through the scanner's existing unit selection. Ordinary functional tests render Compose and execute the first-party HTTPS/MCP fixture. They require cached Go modules and Docker Compose, but do not install or execute MCP Scanner. The full campaign remains a separate explicit selection.
+Cleanup removes only the owned project, processes, unique image tag and private inputs. It verifies that retained containers remain present. An unavailable container inventory fails cleanup and preserves private inputs. A successful cleanup retry clears resolved cleanup-failure fields. SIGTERM or Ctrl+C marks the run as interrupted and starts scoped cleanup.
+
+The isolated campaign units run through the scanner's existing unit selection. Ordinary functional tests render Compose and execute the first-party HTTPS/MCP fixture and loopback relay. They check byte preservation, half-close, stream cancellation, process ownership and actual SIGTERM during thread/process registration. They require cached Go modules and Docker Compose, but do not install or execute MCP Scanner. The full campaign remains a separate explicit selection. Startup failures record `failureStage`; `failedCase` identifies only an assertion reached during qualification.
 
 ## Pins and lock maintenance
 

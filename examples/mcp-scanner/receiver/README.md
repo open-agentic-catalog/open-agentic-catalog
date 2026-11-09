@@ -4,7 +4,7 @@ Run this optional HTTPS receiver to collect and scan definitions from an explici
 
 The receiver never invokes tools or changes Catalog records. It does not approve, revoke or block releases. It does not enable Catalog software assessments. A runtime endpoint can change after publication; these reports describe captured definitions, not immutable runtime code.
 
-The [Compose guide](../../../documentation/src/content/docs/guides/mcp-scanner.mdx) covers the complete Catalog/worker/MCP workflow. This guide covers the receiver's configuration and commands. The locked scanner's exact LiteLLM dependency blocks native YARA and full Compose qualification. A supported scanner update must resolve its recorded advisories before installation. Focused receiver tests use an explicit scanner executable double; they do not qualify the real scanner.
+The [Compose guide](../../../documentation/src/content/docs/guides/mcp-scanner.mdx) covers the complete Catalog/worker/MCP workflow. This guide covers the receiver's configuration and commands. Native YARA controls and the full Compose campaign use the installed locked scanner. Its LiteLLM dependency retains the [documented advisories](../../../test/mcp-scanner/README.md#pins-and-lock-maintenance); successful offline execution does not clear them. Focused receiver tests use an explicit scanner executable double; they do not qualify the real scanner.
 
 ## Prerequisites
 

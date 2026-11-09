@@ -8,7 +8,7 @@ import Identity from "../../../components/architecture/Identity.astro";
 
 The service treats tokens, roles, URLs, DNS, redirects, standards documents, archives, queries, public hosts, cursors, credentials, and webhook destinations as independent untrusted inputs.
 
-Software assessment remains unavailable. The [external scanner design](decisions/0012-event-delivery.md#external-scanner-integration) keeps scanner execution and reports outside the Catalog API and worker. The optional [MCP Scanner example](../guides/mcp-scanner.mdx) supplies offline scanning and a separate release-webhook receiver. Its native scanner and complete Compose qualification remain pending. Receiver tests use an executable double.
+Software assessment remains unavailable. The [external scanner design](decisions/0012-event-delivery.md#external-scanner-integration) keeps scanner execution and reports outside the Catalog API and worker. The optional [MCP Scanner example](../guides/mcp-scanner.mdx) supplies offline scanning and a separate release-webhook receiver. Native controls and an owned Compose campaign check real YARA results, signed delivery, private reports and metadata-only collection. The optional scanner retains its documented dependency advisories. Focused receiver tests use an executable double.
 
 Scanning captured MCP descriptions does not establish runtime safety. Reports do not grant trust, bypass publication review or enable automatic assessment enforcement.
 

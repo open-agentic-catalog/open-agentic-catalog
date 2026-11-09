@@ -243,10 +243,9 @@ export function localItem(value: unknown): Item {
     display = record(v.listingRevision),
     release = record(v.release);
   const releaseId = uuid(release.id),
-    identifier = literal(resource.canonicalIdentifier),
+    identifier = metadataText(resource.canonicalIdentifier),
     k = kind(resource.kind);
   if (
-    !identifier.startsWith("urn:air:") ||
     k === "unknown" ||
     !["published", "deprecated"].includes(String(release.state))
   )
@@ -360,7 +359,8 @@ export function searchItem(value: unknown): Item {
     throw new ClientError("invalid_response");
   const common = {
     key: literal(v.id, 256),
-    identifier: literal(v.identifier),
+    identifier:
+      origin === "local" ? metadataText(v.identifier) : literal(v.identifier),
     ...version(v),
     kind: kind(v.kind),
     name: metadataText(v.displayName),
@@ -368,7 +368,10 @@ export function searchItem(value: unknown): Item {
     tags: tags(v.tags),
     references: [] as Reference[],
   };
-  if (common.kind === "unknown" || !common.identifier.startsWith("urn:air:"))
+  if (
+    common.kind === "unknown" ||
+    (origin !== "local" && !common.identifier.startsWith("urn:air:"))
+  )
     throw new ClientError("invalid_response");
   number(v.score, 100);
   const item: Item = { ...common, origin: origin as Origin };
@@ -809,8 +812,11 @@ export function exactReference(input: string): {
     (value.origin === "local" && value.versionPresent !== true)
   )
     throw new ClientError("invalid_reference");
-  const identifier = literal(value.identifier);
-  if (!identifier.startsWith("urn:air:"))
+  const identifier =
+    value.origin === "local"
+      ? metadataText(value.identifier)
+      : literal(value.identifier);
+  if (value.origin !== "local" && !identifier.startsWith("urn:air:"))
     throw new ClientError("invalid_reference");
   return {
     origin: value.origin as "local" | "indexed",

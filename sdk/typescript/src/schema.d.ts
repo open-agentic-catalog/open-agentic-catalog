@@ -5800,6 +5800,22 @@ export interface components {
             id: components["schemas"]["UUID"];
             tenantId: components["schemas"]["UUID"];
             namespaceId: components["schemas"]["UUID"];
+            /** @description Bounded local Resource identity. External discovery publication requires AIR. */
+            canonicalIdentifier: string;
+            kind: components["schemas"]["ResourceKind"];
+            createdBy: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Resource metadata with an AIR identifier, required for observation adoption. */
+        AIRResource: {
+            id: components["schemas"]["UUID"];
+            tenantId: components["schemas"]["UUID"];
+            namespaceId: components["schemas"]["UUID"];
             canonicalIdentifier: string;
             kind: components["schemas"]["ResourceKind"];
             createdBy: string;
@@ -5909,7 +5925,7 @@ export interface components {
             adoptedAt: string;
         };
         ObservationAdoption: {
-            resource: components["schemas"]["Resource"];
+            resource: components["schemas"]["AIRResource"];
             version: components["schemas"]["ResourceVersion"];
             versionRevision: components["schemas"]["VersionRevision"];
             evidence: components["schemas"]["EvidenceSet"];

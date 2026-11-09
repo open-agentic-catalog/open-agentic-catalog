@@ -9544,7 +9544,26 @@ components:
         id: {$ref: '#/components/schemas/UUID'}
         tenantId: {$ref: '#/components/schemas/UUID'}
         namespaceId: {$ref: '#/components/schemas/UUID'}
-        canonicalIdentifier: {type: string, pattern: '^urn:air:', maxLength: 512}
+        canonicalIdentifier:
+          type: string
+          minLength: 1
+          maxLength: 512
+          description: Bounded local Resource identity. External discovery publication requires AIR.
+        kind: {$ref: '#/components/schemas/ResourceKind'}
+        createdBy: {type: string, minLength: 1}
+        revision: {type: integer, format: int64, minimum: 1}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    AIRResource:
+      description: Resource metadata with an AIR identifier, required for observation adoption.
+      type: object
+      additionalProperties: false
+      required: [id, tenantId, namespaceId, canonicalIdentifier, kind, createdBy, revision, createdAt, updatedAt]
+      properties:
+        id: {$ref: '#/components/schemas/UUID'}
+        tenantId: {$ref: '#/components/schemas/UUID'}
+        namespaceId: {$ref: '#/components/schemas/UUID'}
+        canonicalIdentifier: {type: string, minLength: 1, maxLength: 512, pattern: '^urn:air:'}
         kind: {$ref: '#/components/schemas/ResourceKind'}
         createdBy: {type: string, minLength: 1}
         revision: {type: integer, format: int64, minimum: 1}
@@ -9655,7 +9674,7 @@ components:
       additionalProperties: false
       required: [resource, version, versionRevision, evidence, listing, listingRevision]
       properties:
-        resource: {$ref: '#/components/schemas/Resource'}
+        resource: {$ref: '#/components/schemas/AIRResource'}
         version: {$ref: '#/components/schemas/ResourceVersion'}
         versionRevision: {$ref: '#/components/schemas/VersionRevision'}
         evidence: {$ref: '#/components/schemas/EvidenceSet'}
@@ -9694,7 +9713,7 @@ components:
           $ref: '#/components/schemas/UUID'
         canonicalIdentifier:
           type: string
-          pattern: '^urn:air:'
+          minLength: 1
           maxLength: 512
         kind:
           $ref: '#/components/schemas/ResourceKind'

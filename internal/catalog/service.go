@@ -530,8 +530,8 @@ type CreateResourceInput struct {
 	Kind                Kind   `json:"kind"`
 }
 
-// CreateResource requires contributor access to the namespace and binds the
-// normalized AIR identity to a same-tenant publisher.
+// CreateResource requires resource.create permission in the namespace and retains
+// a bounded opaque identifier or normalized AIR identifier.
 func (s *Service) CreateResource(ctx context.Context, input CreateResourceInput) (Resource, error) {
 	ctx = identity.WithPermissionContext(ctx)
 	actor, err := requirePermission(ctx, "resource.create", input.NamespaceID)

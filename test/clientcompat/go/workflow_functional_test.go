@@ -115,11 +115,14 @@ func TestGeneratedConsumerWorkflow(t *testing.T) {
 	_, err = f.service.ApprovePublisherPublicationDomain(actor, publisher.ID, "catalog.example.com", "Fixture domain", publisher.Revision)
 	must(t, err)
 	want := map[string]bool{}
+	identifiers := map[string]string{}
 	var releaseIDs []uuid.UUID
 	for i := range 2 {
 		resourceID, revisionID := res.Id.String(), version.Revision.Id.String()
+		identifier := "urn:air:catalog.example.com:compat:agent"
 		if i == 1 {
-			second, err := f.service.CreateResource(actor, catalog.CreateResourceInput{NamespaceID: ns.Id.String(), Kind: catalog.KindAgent, CanonicalIdentifier: "urn:air:catalog.example.com:compat:second"})
+			identifier = "custom:compat:e\u0301-🙂"
+			second, err := f.service.CreateResource(actor, catalog.CreateResourceInput{NamespaceID: ns.Id.String(), Kind: catalog.KindAgent, CanonicalIdentifier: identifier})
 			must(t, err)
 			_, revision, _, err := f.service.CreateVersion(actor, second.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: []catalog.RepresentationInput{{Role: "primary", MediaType: "application/a2a-agent-card+json", Data: json.RawMessage(card)}}})
 			must(t, err)
@@ -138,7 +141,13 @@ func TestGeneratedConsumerWorkflow(t *testing.T) {
 		_, release, _, err := f.service.Publish(actor, listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision)
 		must(t, err)
 		want[release.ID] = true
+		identifiers[release.ID] = identifier
 		releaseIDs = append(releaseIDs, uuid.MustParse(release.ID))
+	}
+	publication, overflow, err := f.service.PublicationRecords(actor, tenant, true, 3)
+	must(t, err)
+	if overflow || len(publication) != 1 || publication[0].Resource.CanonicalIdentifier != "urn:air:catalog.example.com:compat:agent" {
+		t.Fatal("external publication selection admitted the opaque local release")
 	}
 	var cursor *string
 	for range 2 {
@@ -152,10 +161,13 @@ func TestGeneratedConsumerWorkflow(t *testing.T) {
 			t.Fatal("duplicate or unexpected release")
 		}
 		delete(want, id.String())
+		if page.Items[0].Identifier != identifiers[id.String()] || page.Items[0].Local.Resource.CanonicalIdentifier != identifiers[id.String()] {
+			t.Fatal("Search changed the local release identity")
+		}
 		cursor = page.NextCursor
 		r, err = reader.GetCatalogRecord(ctx, id)
 		record := decode[client.CatalogRecord](t, f.result(r, err, 200))
-		if record.Release.Id != id {
+		if record.Release.Id != id || record.Resource.CanonicalIdentifier != identifiers[id.String()] {
 			t.Fatal("wrong exact record")
 		}
 		r, err = f.client("other").GetCatalogRecord(ctx, id)
