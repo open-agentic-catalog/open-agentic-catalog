@@ -140,6 +140,34 @@ func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error)
 
 type fetcherTestContextKey struct{}
 
+func TestRedactedRequestURLPreservesOptionalQuery(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		input     string
+		hideQuery bool
+		want      string
+	}{
+		{"query visible", "https://catalog.example/metadata?cursor=fixture%2Bvalue", false, "https://catalog.example/metadata?cursor=fixture%2Bvalue"},
+		{"query hidden", "https://catalog.example/metadata?cursor=fixture%2Bvalue", true, "https://catalog.example/metadata?redacted"},
+		{"no query hidden", "https://catalog.example/metadata", true, "https://catalog.example/metadata"},
+		{"no query visible", "https://catalog.example/metadata", false, "https://catalog.example/metadata"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parsed, err := url.Parse(test.input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			original := *parsed
+			if got := redactedRequestURL(parsed, test.hideQuery); got != test.want {
+				t.Fatalf("request diagnostic = %q, want %q", got, test.want)
+			}
+			if *parsed != original {
+				t.Fatal("diagnostic formatting changed the transport URL")
+			}
+		})
+	}
+}
+
 func TestNormalizeOriginCanonicalizesEffectivePorts(t *testing.T) {
 	for _, test := range []struct {
 		input string

@@ -150,13 +150,17 @@ CATALOG_CANDIDATE_BACKEND="$PWD/output/release/backend-amd64/candidate.json" CAT
 
 These journeys use immutable local image IDs and verify served build identity. They still create owned database, identity-provider and fixture services. Cleanup removes fixture images, not borrowed candidates. Instrumented, MCP-only and other specialized modes reject candidate inputs. Harness source/configuration identity remains separate from image identity.
 
+Candidate runtime admission binds to the current native Linux AMD64 or ARM64 host. `admit` and `load` accept `--platform linux/amd64|linux/arm64` as an additional exact-host assertion; it never enables emulation. Backend and UI candidates must select that same platform and build. This bounded admission does not qualify an ARM64 workflow toolchain: the maintained CI installer/preflight still supports Linux AMD64 only.
+
+Before native ARM64 qualification, record `uname -sm`, installed compatible Go/Node/Chromium/Compose versions, Docker daemon architecture, and the architecture/immutable IDs of every selected local image. Do not acquire an AMD64 tool closure and call it native ARM64 evidence. On a compatible native ARM64 host, start with the existing `make container-verify CONTAINER_PLATFORM=linux/arm64` using the inspected backend image. Run wider candidate-bound API/UI fixtures only when their tool, browser and external-image prerequisites are actually available. Record each unrun scope explicitly; an AMD64 host or emulated execution does not satisfy native ARM64 qualification. These local checks do not add a hosted platform matrix or change release policy.
+
 The release workflow requires all source/security/client/chart/image/runtime jobs and complete same-source receipts. AMD64 executes the packaged journeys. ARM64 receives packaging inspection and scans only. Its image archive is still retained for delivery.
 
 The maintainer must enable protected `github-pages` and `release` environments, restrict deployment refs and verify hosted events and permissions. Signed tags and the matching GitHub release remain maintainer inputs. No local test dispatches hosted jobs, uploads artifacts, logs into a registry or publishes anything.
 
 ## Release package handoffs
 
-`release_packages.py cli` extracts `catalogctl` and notices from a retained backend image. It reuses static image inspection and never recompiles. AMD64 also runs version/help commands; ARM64 receives inspection only. Keep the CLI output outside the sealed candidate directory.
+`release_packages.py cli` extracts `catalogctl` and notices from a retained backend image. It reuses static image inspection and never recompiles. Every archive is unpacked into a fresh temporary directory outside the checkout, with exact member inventory, regular-file types, modes, sizes and SHA-256 payload equality against the inspected image extraction. AMD64 runs version/help from that unpacked artifact and requires the expected version, commit and source state; ARM64 receives content inspection only. Keep the CLI output outside the sealed candidate directory. Failed packaging removes its owned output, and temporary consumers are always removed.
 
 ```sh
 python3 -B test/ci/release_packages.py cli --candidate output/release/backend-amd64/candidate.json --platform linux/amd64 --output output/release/cli-amd64

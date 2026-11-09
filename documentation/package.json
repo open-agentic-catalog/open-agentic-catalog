@@ -13,7 +13,7 @@
     "lint": "node node_modules/eslint/bin/eslint.js --config eslint.config.mjs --no-config-lookup --no-inline-config --no-cache --no-fix --max-warnings 0 \"**/*.mjs\"",
     "build": "node scripts/prepare.mjs && astro build && node scripts/bundle.mjs",
     "preview": "node scripts/preview.mjs",
-    "test:unit": "node --test scripts/*.unit.test.mjs",
+    "test:unit": "node ../catalog-ui/scripts/native-test-completion.mjs scripts/*.unit.test.mjs",
     "check": "npm run lint && npm run check:astro && node --test scripts/*.test.mjs && node scripts/check.mjs",
     "check:astro": "node scripts/astro-check.mjs"
   },

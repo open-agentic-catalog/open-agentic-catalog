@@ -2,6 +2,7 @@
 
 import argparse
 import gzip
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -53,6 +54,45 @@ def archive_cli(extracted, output, version, platform):
     return path
 
 
+def unpack_cli(artifact, extracted, directory):
+    """Check every archive payload against inspected input before native use."""
+    expected = {"catalogctl": extracted / "catalogctl"}
+    expected.update({p.relative_to(extracted).as_posix(): p for p in (extracted / "licenses").rglob("*") if p.is_file()})
+    if (not expected["catalogctl"].is_file() or "licenses/project/LICENSE" not in expected
+            or any(p.is_symlink() for p in expected.values())):
+        raise ValueError("Invalid inspected CLI input")
+    directory.mkdir()
+    with tarfile.open(artifact, "r:gz") as archive:
+        members = archive.getmembers()
+        if len(members) != len(expected) or {m.name for m in members} != set(expected):
+            raise ValueError("CLI archive members mismatch")
+        for member in members:
+            source = expected[member.name]
+            mode = 0o555 if member.name == "catalogctl" else 0o644
+            if not member.isreg() or member.mode != mode or member.size != source.stat().st_size:
+                raise ValueError("CLI archive type, mode or size mismatch")
+            # Only independently enumerated inspected paths can be written;
+            # never ask tarfile to resolve an archive-controlled link or path.
+            target = directory / member.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            digest = hashlib.sha256()
+            with archive.extractfile(member) as payload, target.open("xb") as destination:
+                for block in iter(lambda: payload.read(1 << 20), b""):
+                    digest.update(block)
+                    destination.write(block)
+            if digest.hexdigest() != candidate.digest(source):
+                raise ValueError("CLI archive payload mismatch: " + member.name)
+            target.chmod(mode)
+    return directory / "catalogctl"
+
+
+def smoke_cli(executable, build):
+    version = json.loads(subprocess.check_output([str(executable), "version"], timeout=30))
+    if any(version.get(key) != build[key] for key in ("version", "commit", "sourceState")):
+        raise ValueError("Unpacked CLI version mismatch")
+    subprocess.run([str(executable), "--help"], check=True, capture_output=True, timeout=30)
+
+
 def cli_package(directory, platform, *, image=None, descriptor=None):
     source = admission.source_identity(ROOT)
     if platform not in candidate.PLATFORMS or bool(image) == bool(descriptor):
@@ -76,12 +116,10 @@ def cli_package(directory, platform, *, image=None, descriptor=None):
         with tempfile.TemporaryDirectory(prefix="catalog-cli-package-") as temporary:
             extracted = Path(temporary)
             inspected = image_tools.inspect(options, extracted)
-            if platform == "linux/amd64":
-                version = json.loads(subprocess.check_output([str(extracted / "catalogctl"), "version"], timeout=30))
-                if any(version.get(key) != build[key] for key in ("version", "commit", "sourceState")):
-                    raise ValueError("Extracted CLI version mismatch")
-                subprocess.run([str(extracted / "catalogctl"), "--help"], check=True, capture_output=True, timeout=30)
             archive = archive_cli(extracted, directory, build["version"], platform)
+            executable = unpack_cli(archive, extracted, extracted / "unpacked")
+            if platform == "linux/amd64":
+                smoke_cli(executable, build)
         receipt = {"kind": "cli", "source": source, "build": build, "platform": platform,
                    "imageId": inspected["imageId"], "artifact": archive.name, "sha256": candidate.digest(archive),
                    "releaseCandidate": descriptor is not None, "result": "success"}

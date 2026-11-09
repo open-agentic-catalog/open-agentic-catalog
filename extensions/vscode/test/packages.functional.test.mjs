@@ -1,13 +1,52 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { listenFixture } from "../../../test/vscode/listen.mjs";
+import {
+  fixturePoll,
+  fixtureWait as registryEvent,
+} from "../../../test/vscode/wait.mjs";
 const { packageProcess } = await import(process.env.CATALOG_VSCODE_LIB);
 test("real child process uses literal arguments, bounds output and cancels without raw stderr", async (t) => {
   const work = await mkdtemp(join(tmpdir(), "oac-package-process-"));
-  t.after(() => rm(work, { recursive: true, force: true }));
+  const rootRecord = join(work, "owned-parent.json"),
+    childRecord = join(work, "owned-child.json"),
+    heartbeat = join(work, "owned-heartbeat"),
+    ownedPids = new Set();
+  let groupCancellation, groupRejection;
+  const remember = async (path) => {
+    try {
+      const record = JSON.parse(await readFile(path, "utf8"));
+      for (const pid of Object.values(record)) {
+        assert.ok(Number.isInteger(pid) && pid > 1 && pid !== process.pid);
+        ownedPids.add(pid);
+      }
+      return record;
+    } catch (error) {
+      if (error.code === "ENOENT") return undefined;
+      throw error;
+    }
+  };
+  t.after(async () => {
+    // Readiness records belong only to these children. Never kill by process name.
+    await remember(rootRecord);
+    await remember(childRecord);
+    groupCancellation?.abort();
+    for (const pid of ownedPids)
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch (error) {
+        if (error.code !== "ESRCH") throw error;
+      }
+    if (groupRejection)
+      await registryEvent(
+        Promise.allSettled([groupRejection]),
+        "process-tree cleanup",
+      );
+    await rm(work, { recursive: true, force: true });
+  });
   const run = (code, signal = AbortSignal.timeout(10000), limit = 1000) =>
     packageProcess(
       process.execPath,
@@ -51,6 +90,63 @@ test("real child process uses literal arguments, bounds output and cancels witho
     run("process.stdout.write('not run')", AbortSignal.abort()),
     { code: "package_cancelled" },
   );
+  const grandchild = `
+const fs=require('node:fs');
+fs.writeFileSync(${JSON.stringify(childRecord)},JSON.stringify({child:process.pid}),{mode:0o600});
+const timer=setInterval(()=>fs.appendFileSync(${JSON.stringify(heartbeat)},'.'),20);
+setTimeout(()=>{clearInterval(timer);process.exit(0)},15000);
+`,
+    parent = `
+const fs=require('node:fs');
+const {spawn}=require('node:child_process');
+const child=spawn(process.execPath,['-e',${JSON.stringify(grandchild)}],{stdio:'ignore'});
+fs.writeFileSync(${JSON.stringify(rootRecord)},JSON.stringify({parent:process.pid,child:child.pid}),{mode:0o600});
+setInterval(()=>{},100);
+`;
+  groupCancellation = new AbortController();
+  groupRejection = assert.rejects(run(parent, groupCancellation.signal), {
+    code: "package_cancelled",
+  });
+  // Retain any assertion failure for the awaited result while readiness is held.
+  void groupRejection.catch(() => {});
+  const parentReady = await fixturePoll(
+      () => remember(rootRecord),
+      "package parent readiness",
+    ),
+    childReady = await fixturePoll(
+      () => remember(childRecord),
+      "package descendant readiness",
+    );
+  assert.equal(parentReady.child, childReady.child);
+  await fixturePoll(async () => {
+    try {
+      return (await readFile(heartbeat)).length > 0;
+    } catch (error) {
+      if (error.code === "ENOENT") return false;
+      throw error;
+    }
+  }, "package descendant heartbeat");
+  groupCancellation.abort();
+  await groupRejection;
+  for (const pid of [parentReady.parent, childReady.child])
+    await fixturePoll(async () => {
+      try {
+        process.kill(pid, 0);
+        // A simultaneously killed orphan can remain a zombie until host init
+        // reaps it. It cannot execute or write; it is not a live descendant.
+        if (process.platform === "linux") {
+          const state = await readFile(`/proc/${pid}/stat`, "utf8");
+          return state.slice(state.lastIndexOf(")") + 2).startsWith("Z ");
+        }
+        return false;
+      } catch (error) {
+        if (["ESRCH", "ENOENT"].includes(error.code)) return true;
+        throw error;
+      }
+    }, "package process-tree termination");
+  const stoppedHeartbeat = await readFile(heartbeat);
+  await new Promise((resolve) => setTimeout(resolve, 60));
+  assert.deepEqual(await readFile(heartbeat), stoppedHeartbeat);
   // A real running child cannot keep an unsafe link in its acquisition tree.
   await assert.rejects(
     run(
@@ -59,30 +155,6 @@ test("real child process uses literal arguments, bounds output and cancels witho
     { code: "package_disk_limit" },
   );
 });
-
-async function registryEvent(event, label, operation) {
-  let timer;
-  try {
-    const waiting = [
-      event,
-      new Promise((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`Owned registry ${label} did not complete`)),
-          3000,
-        );
-      }),
-    ];
-    if (operation)
-      waiting.push(
-        operation.then(() => {
-          assert.fail(`Acquisition completed before owned registry ${label}`);
-        }),
-      );
-    return await Promise.race(waiting);
-  } finally {
-    clearTimeout(timer);
-  }
-}
 
 // A real credentialed OCI peer. Only loopback TLS requests participate; the
 // private acquisition path deliberately does not run ORAS or use ambient auth.
@@ -513,7 +585,10 @@ test("real private OCI acquisition verifies exact manifest and layer evidence an
     await registryEvent(f.disconnected.promise, "blob disconnect");
   } finally {
     controller.abort();
-    await Promise.allSettled([rejected]);
+    await registryEvent(
+      Promise.allSettled([rejected]),
+      "package operation cleanup",
+    );
   }
   f.state.blob = "valid";
   f.expectContent(await f.acquire());
@@ -762,11 +837,20 @@ test("real HTTPS Plugin download verifies private trust, identity and streaming 
   );
   mode = "pending";
   const cancelled = new AbortController(),
-    operation = acquire(tools, cancelled.signal);
-  await pending.promise;
-  cancelled.abort();
-  await assert.rejects(operation, { code: "package_cancelled" });
-  await disconnected.promise;
+    operation = acquire(tools, cancelled.signal),
+    rejected = assert.rejects(operation, { code: "package_cancelled" });
+  try {
+    await registryEvent(pending.promise, "Plugin archive readiness", operation);
+    cancelled.abort();
+    await rejected;
+    await registryEvent(disconnected.promise, "Plugin archive response close");
+  } finally {
+    cancelled.abort();
+    await registryEvent(
+      Promise.allSettled([rejected]),
+      "package operation cleanup",
+    );
+  }
   mode = "valid";
   assert.equal((await acquire()).size, 1);
   for (const credential of [

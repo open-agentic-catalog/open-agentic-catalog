@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { ClientError, binding, record, abortable } from "./config.js";
-import { decodeJSON, encodeProjection } from "./json.js";
+import { decodeJSON, encodeProjection, uniqueJSON } from "./json.js";
 import type { Session } from "./session.js";
 
 export const kinds = ["agent", "mcp_server", "skill", "plugin"] as const;
@@ -794,7 +794,7 @@ export function exactReference(input: string): {
 } {
   if (typeof input !== "string" || Buffer.byteLength(input) > 8192)
     throw new ClientError("invalid_reference");
-  const value = record(decodeJSON(input));
+  const value = record(uniqueJSON(input, "invalid_reference"));
   const keys = [
     "origin",
     "identifier",

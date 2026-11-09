@@ -536,3 +536,111 @@ exports.run = async (api) => {
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   }
 };
+
+exports.qualifyArtwork = async (api) => {
+  const peer = process.env.CATALOG_VSCODE_ISSUER;
+  const stats = async () => (await fetch(peer + "/owned-test/artwork")).json();
+  const configure = (badDigest) =>
+    fetch(peer + "/owned-test/artwork", {
+      method: "POST",
+      body: JSON.stringify({ badDigest }),
+    });
+  const select = async () => {
+    await api.browse({ origin: "indexed" });
+    await api.detail(api.browsing().page.items[0].key);
+    await vscode.commands.executeCommand("openAgenticCatalog.open");
+  };
+  await api.select("artwork");
+  await api.authenticate("artwork-reader");
+  await select();
+  const web = await require("./webview.cjs").webview();
+  const ui = await require("./webview.cjs").webview(true);
+  const load =
+    "[...document.querySelectorAll('#selected-artwork button')].find(b=>b.textContent==='Load icon from Catalog')";
+  const png =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jQ1kAAAAASUVORK5CYII=";
+  const clickLoad = async () => {
+    await web.until(
+      `!!(${load}) && !document.querySelector('#search-submit').disabled`,
+    );
+    // Artwork follows the document inventory. Bring the actual button into view
+    // before dispatching a native pointer event; do not bypass its click handler.
+    await web.evaluate(`(${load}).scrollIntoView({block:'center'})`);
+    await web.click(load);
+  };
+  try {
+    assert.equal(
+      (await stats()).reads.length,
+      0,
+      "Inspecting metadata does not load artwork",
+    );
+    await web.until(
+      `!!(${load}) && !document.querySelector('#search-submit').disabled`,
+    );
+    await clickLoad();
+    await web.until(
+      "document.querySelector('#selected-artwork img')?.naturalWidth===1 && !document.querySelector('#search-submit').disabled",
+    );
+    assert.deepEqual(
+      await web.evaluate(
+        "(()=>{const img=document.querySelector('#selected-artwork img');return {src:img.src,alt:img.alt,caption:img.closest('figure').querySelector('figcaption').textContent}})()",
+      ),
+      {
+        src: png,
+        alt: "Owned native icon",
+        caption: "Owned native caption · Owned fixture",
+      },
+    );
+    const first = await stats();
+    assert.deepEqual(first.reads, [
+      { origin: "indexed", target: first.target, slot: "icon" },
+    ]);
+    await clickLoad();
+    await web.until(
+      "!document.querySelector('#search-submit').disabled && document.querySelector('#selected-artwork img')?.naturalWidth===1",
+    );
+    assert.equal(
+      (await stats()).reads.length,
+      1,
+      "Repeated native loading uses the exact selection's image cache",
+    );
+    await configure(true);
+    await select();
+    await web.until(
+      `!!(${load}) && !document.querySelector('#selected-artwork img') && !document.querySelector('#search-submit').disabled`,
+    );
+    await clickLoad();
+    await web.until(
+      "document.querySelector('#read-error')?.textContent.includes('Catalog: document_integrity_failed.') && !document.querySelector('#search-submit').disabled",
+    );
+    assert.equal(api.browsing().error, "document_integrity_failed");
+    assert.equal(
+      await web.evaluate("!!document.querySelector('#selected-artwork img')"),
+      false,
+      "A digest mismatch never attaches bytes to the native view",
+    );
+    assert.equal((await stats()).reads.length, 2);
+    await configure(false);
+    await select();
+    await web.until(
+      `!!(${load}) && !document.querySelector('#search-submit').disabled`,
+    );
+    await clickLoad();
+    await web.until(
+      "document.querySelector('#selected-artwork img')?.naturalWidth===1",
+    );
+    assert.equal(
+      (await stats()).reads.length,
+      3,
+      "A fresh valid selection recovers through the actual bridge",
+    );
+    await api.signOut();
+    await web.until("!document.querySelector('#selected-artwork img')");
+    assert.equal(api.browsing().image, undefined);
+  } finally {
+    await configure(false);
+    await api.signOut();
+    web.close();
+    ui.close();
+  }
+};

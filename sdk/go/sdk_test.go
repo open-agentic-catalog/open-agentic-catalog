@@ -6,9 +6,11 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -709,3 +711,53 @@ func TestPersonalLabelQueryPreservesLiteralValueAndOptionalPresence(t *testing.T
 }
 
 func pointerLabel(value string) *string { return &value }
+
+// A finite seeded corpus exercises semantic wire values independently of the
+// generated encoders. Integer values remain inside every SDK's exact range.
+func TestGeneratedWireSemantics(t *testing.T) {
+	words := []string{"", "é", "日本語", "😀", "%+&=", "line\nvalue", "quoted\"value", "two words"}
+	for seed := 0; seed < 32; seed++ {
+		label := fmt.Sprintf("case-%d-%s", seed, words[seed%len(words)])
+		selected := &label
+		if seed%3 == 0 {
+			selected = nil
+		} else if seed%3 == 1 {
+			selected = pointerLabel("")
+		}
+		calls := 0
+		client := unitClient(t, Config{Token: "selected"}, doerFunc(func(request *http.Request) (*http.Response, error) {
+			calls++
+			if request.URL.Scheme != "https" || request.URL.Host != "catalog.example" || request.URL.Path != "/api/v1/personal/items" || request.Method != http.MethodGet {
+				t.Fatal("generated query changed fixed request destination", request.URL, request.Method)
+			}
+			want := url.Values{}
+			if selected != nil {
+				want.Set("label", *selected)
+			}
+			if !reflect.DeepEqual(request.URL.Query(), want) {
+				t.Fatal("query meaning changed", seed, request.URL.Query(), want)
+			}
+			return response(`{"items":[]}`, http.StatusOK, "application/json"), nil
+		}))
+		result, err := client.ListPersonalItemsWithResponse(t.Context(), &ListPersonalItemsParams{Label: selected})
+		if err != nil || result.JSON200 == nil || calls != 1 {
+			t.Fatal("accepted generated query did not execute exactly once", seed, err, calls)
+		}
+		want := map[string]any{"additional_properties": map[string]any{"literal": words[seed%len(words)]}, "model_extra": nil,
+			"values": []any{nil, false, "", label}, "count": float64(seed * 65537)}
+		value := CreateListingRevision_Extensions{AdditionalProperties: want}
+		encoded, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var actual map[string]any
+		if err := json.Unmarshal(encoded, &actual); err != nil || !reflect.DeepEqual(actual, want) {
+			t.Fatal("metadata meaning changed", seed, actual, want, err)
+		}
+		// Codec-only work has no transmission. Malformed typed marshaling has
+		// a separately asserted zero-transmission control above.
+		if calls != 1 {
+			t.Fatal("codec work contacted a destination")
+		}
+	}
+}

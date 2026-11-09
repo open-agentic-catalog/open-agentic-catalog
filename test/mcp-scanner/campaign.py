@@ -84,7 +84,7 @@ def compose(directory, *args, seconds=90):
 
 def sql(directory, statement, database="catalog"):
     return compose(directory, "exec", "-T", "postgres", "psql", "-X", "-q", "-U", "catalog", "-d", database,
-                   "-v", "ON_ERROR_STOP=1", "-Atc", "SET statement_timeout='5s'; " + statement).decode().strip()
+                   "-v", "ON_ERROR_STOP=1", "-c", "SET statement_timeout='5s'", "-Atc", statement).decode().strip()
 
 
 def wait(label, callback, seconds=60):

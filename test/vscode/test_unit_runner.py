@@ -136,6 +136,13 @@ class VSCodeRunnerUnits(unittest.TestCase):
                         runtime_paths.append(runtime)
                     def qualify(*args, **kwargs):
                         check_runtime(kwargs["extra_env"])
+                        if str(kwargs["workflow"]).endswith("remote.mjs"):
+                            self.assertEqual(kwargs["pattern"], "^TestVSCodeRemoteCatalogHost$")
+                            if failure == "remote":
+                                raise RuntimeError("remote refused")
+                            result = {"status":"passed", "passed":True, "cleanup":"failed" if failure == "remote-cleanup" else "passed", "packageSHA256":manifest["sha256"]}
+                            (root / "output/vscode/remote-qualification.json").write_text(json.dumps(result))
+                            return
                         if failure == "desktop":
                             raise RuntimeError("desktop refused")
                         if failure == "source":
@@ -145,16 +152,14 @@ class VSCodeRunnerUnits(unittest.TestCase):
                     desktop.side_effect = qualify
                     def phase(args, **kwargs):
                         script = str(args[-1])
-                        remote = script.endswith("remote.mjs")
                         runners = script.endswith("runners.mjs")
-                        if not (remote or runners):
+                        if not runners:
                             return
                         check_runtime(kwargs["env"])
-                        name = "remote" if remote else "runners"
-                        if failure == name:
-                            raise RuntimeError(name + " refused")
-                        result = {"status":"passed", "passed":True, "cleanup":"failed" if failure == "remote-cleanup" and remote else "passed", "packageSHA256":"old" if failure == "runners-stale" and runners else manifest["sha256"]}
-                        (root / "output/vscode" / ("remote-qualification.json" if remote else "runner-qualification.json")).write_text(json.dumps(result))
+                        if failure == "runners":
+                            raise RuntimeError("runners refused")
+                        result = {"status":"passed", "cleanup":"passed", "packageSHA256":"old" if failure == "runners-stale" else manifest["sha256"]}
+                        (root / "output/vscode/runner-qualification.json").write_text(json.dumps(result))
                     tooling.side_effect = phase
                     def local_coverage(*args, **kwargs):
                         check_runtime(kwargs["env"])
@@ -171,7 +176,7 @@ class VSCodeRunnerUnits(unittest.TestCase):
                     self.assertEqual(len(set(runtime_paths)), 1)
                     self.assertTrue(all(not path.exists() for path in runtime_paths))
                     self.assertEqual(actual["scope"], scope)
-                    self.assertEqual(tooling.call_count, (1 if scope == "all" else 0) + (0 if failure in ("local", "desktop") else 1 if failure in ("remote", "remote-cleanup") else 2))
+                    self.assertEqual(tooling.call_count, (1 if scope == "all" else 0) + (0 if failure in ("local", "desktop", "remote", "remote-cleanup") else 1))
                     if scope == "runtime":
                         self.assertEqual(full_report.read_bytes(), b"prior full-scope evidence")
                     self.assertEqual(actual["status"], "failed" if failure else "passed")
@@ -184,6 +189,7 @@ class VSCodeRunnerUnits(unittest.TestCase):
                         "cleanup": "not_confirmed" if failure in ("local", "desktop", "remote", "remote-cleanup", "runners", "runners-stale") else "passed",
                     })
                     self.assertEqual(list((root / "output/vscode").glob("vscode-catalog-*")), [])
+                    self.assertEqual(list((root / "output/vscode").glob("vscode-remote-catalog-*")), [])
                     if failure == "local":
                         desktop.assert_not_called()
 

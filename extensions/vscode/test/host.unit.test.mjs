@@ -18,6 +18,46 @@ const { executionHost, credentialAccess } = await import(
   new URL("host.js", pathToFileURL(process.env.CATALOG_VSCODE_LIB))
 );
 
+test("explicit bounded credential recovery publishes its remaining generation before releasing the writer", async (t) => {
+  const directory = await mkdtemp(join(tmpdir(), "catalog-index-recovery-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  const access = credentialAccess(directory),
+    key = "owned-index";
+  await assert.rejects(
+    access.run(
+      key,
+      async () => {
+        throw new Error("uncertain-write");
+      },
+      true,
+    ),
+    /uncertain-write/u,
+  );
+  await assert.rejects(
+    access.recover(key, async () => {
+      throw new Error("refused-clear");
+    }),
+    /refused-clear/u,
+  );
+  await assert.rejects(
+    access.run(key, async () => {}),
+    {
+      code: "credential_in_use",
+    },
+  );
+  const remaining = '["owned-entry"]';
+  await access.recover(key, async () => {
+    assert.equal((await readdir(directory)).length, 1);
+    return remaining;
+  });
+  await access.run(key, async () => {
+    assert.equal(await access.current(key, remaining), true);
+    assert.equal(await access.current(key, undefined), false);
+  });
+  await access.recover(key, async () => {});
+  assert.equal(await access.current(key, undefined), true);
+});
+
 test("host-local credential access excludes competing writes and requires explicit abandoned-lock recovery", async (t) => {
   const directory = await mkdtemp(join(tmpdir(), "catalog-credential-access-"));
   t.after(() => rm(directory, { recursive: true, force: true }));

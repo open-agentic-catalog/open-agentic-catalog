@@ -779,3 +779,96 @@ async fn personal_label_query_preserves_literal_value_and_optional_presence() {
     }
     assert_eq!(transport.requests.lock().unwrap().len(), 3);
 }
+
+#[tokio::test]
+async fn generated_wire_semantics_keep_fixed_origin_and_open_metadata() {
+    let words = [
+        "",
+        "é",
+        "日本語",
+        "😀",
+        "%+&=",
+        "line\nvalue",
+        "quoted\"value",
+        "two words",
+    ];
+    for seed in 0..32 {
+        let label = format!("case-{seed}-{}", words[seed % words.len()]);
+        let selected = match seed % 3 {
+            0 => None,
+            1 => Some(""),
+            _ => Some(label.as_str()),
+        };
+        let transport = Scripted::new(vec![reply(200, br#"{"items":[]}"#)]);
+        let client = client(transport.clone());
+        client
+            .list_personal_items(None, selected, None, None::<&str>)
+            .await
+            .unwrap();
+        let requests = transport.requests.lock().unwrap();
+        assert_eq!(requests.len(), 1);
+        let request = &requests[0];
+        assert_eq!(request.method(), "GET");
+        assert_eq!(
+            request.url().origin().ascii_serialization(),
+            "https://catalog.example.com"
+        );
+        assert_eq!(request.url().path(), "/api/v1/personal/items");
+        assert_eq!(
+            request.url().query_pairs().collect::<Vec<_>>(),
+            selected
+                .map(|value| vec![("label".into(), value.into())])
+                .unwrap_or_default()
+        );
+        let expected = json!({"additional_properties":{"literal":words[seed % words.len()]}, "model_extra":null,
+                              "values":[null,false,"",label], "count":seed * 65537});
+        let value = CreateListingRevisionExtensions {
+            https_github_com_open_agentic_catalog_open_agentic_catalog_schemas_artwork_v1_descriptor: None,
+            additional_properties: expected.as_object().unwrap().iter().map(|(key, value)| (key.clone(), value.clone())).collect(),
+        };
+        assert_eq!(serde_json::to_value(value).unwrap(), expected);
+        assert_eq!(
+            requests.len(),
+            1,
+            "codec work must not contact a destination"
+        );
+    }
+}
+
+#[test]
+fn bounded_conditional_version_and_delivery_wire_corpus() {
+    for seed in 0..16 {
+        let delivery = ["data", "url"][seed % 2];
+        let mut request = json!({"sourceRevision":seed + 1,"identifier":format!("urn:air:example.com:wire:item-{seed}"),
+            "versionPresent":seed % 2 == 0,"mediaType":"application/json","delivery":delivery,
+            "exactEntryDigest":format!("sha256:{}","a".repeat(64)),"reason":"Check generated wire semantics"});
+        if seed % 2 == 0 {
+            request["version"] = json!(["", "1.2.3"][(seed / 2) % 2]);
+        }
+        if seed % 3 == 0 {
+            request["observationId"] = json!("00000000-0000-7000-8000-000000000001");
+        } else {
+            request["text"] = json!(format!("Entry {seed} é 日本語"));
+        }
+        let actual: TrustAssessmentRequest = serde_json::from_value(request.clone()).unwrap();
+        assert_eq!(serde_json::to_value(actual).unwrap(), request);
+        let mut representation = json!({"role":"primary","mediaType":"application/json"});
+        match seed % 4 {
+            0 => representation["data"] = json!({"nested":[null,false,"",seed]}),
+            1 => representation["content"] = json!(format!("Native é {seed}\n")),
+            2 => {
+                representation["url"] = json!(format!("https://resource.example/card-{seed}.json"))
+            }
+            _ => {
+                use base64::Engine;
+                representation["mediaType"] = json!("application/agent-skills+zip");
+                representation["packageData"] = json!(
+                    base64::engine::general_purpose::STANDARD.encode([0, 1, seed as u8, 255])
+                );
+                representation["handoff"] = json!({"git":{"repository":"https://example.com/skill.git","commit":"a".repeat(40),"directory":"skill"}});
+            }
+        }
+        let actual: RepresentationInput = serde_json::from_value(representation.clone()).unwrap();
+        assert_eq!(serde_json::to_value(actual).unwrap(), representation);
+    }
+}

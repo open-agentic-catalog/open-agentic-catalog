@@ -62,11 +62,11 @@ def validate_fixtures(manifest, documents, queries):
         raise ValueError("duplicate query")
     splits = {name: set() for name in ("tune", "test")}
     texts = {name: set() for name in splits}
-    representatives = {text.casefold() for d in documents for text in d["representativeQueries"]}
+    representatives = {query_key(text) for d in documents for text in d["representativeQueries"]}
     for q in queries:
         if not isinstance(q["id"], str) or not q["id"] or q["split"] not in splits or not q["text"].strip() or len(q["text"]) > 500:
             raise ValueError("invalid query or split")
-        texts[q["split"]].add(" ".join(q["text"].casefold().split()))
+        texts[q["split"]].add(query_key(q["text"]))
         if "exact" in q and type(q["exact"]) is not bool:
             raise ValueError("exact marker must be boolean")
         if q.get("kind") and q["kind"] not in KINDS:
@@ -81,7 +81,7 @@ def validate_fixtures(manifest, documents, queries):
             splits[q["split"]].add(q["family"])
         elif q["relevant"]:
             raise ValueError("no-answer query has relevant documents")
-        if q["split"] == "test" and q["text"].casefold() in representatives:
+        if q["split"] == "test" and query_key(q["text"]) in representatives:
             raise ValueError("held-out query copied from representative inputs")
         scoped = {d["id"]: d for d in eligible(documents, q, "control")}
         if not set(q["relevant"]).issubset(scoped):
@@ -95,6 +95,11 @@ def validate_fixtures(manifest, documents, queries):
     for split in splits:
         if {q.get("kind") for q in queries if q["split"] == split and q.get("kind")} != KINDS:
             raise ValueError("each split needs explicit queries for all four kinds")
+
+
+def query_key(text):
+    """Compare query identity without changing retained or inference text."""
+    return " ".join(text.casefold().split())
 
 
 def validate_manifest(manifest):

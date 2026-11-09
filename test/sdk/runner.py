@@ -4,6 +4,7 @@
 import argparse
 import csv
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -14,8 +15,6 @@ import sys
 import tempfile
 import tarfile
 import zipfile
-
-import go_archive
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -29,6 +28,37 @@ ANALYZERS = {
     "golangci-lint": ("GOLANGCI_LINT_VERSION", "github.com/golangci/golangci-lint/v2/cmd/golangci-lint"),
     "go-licenses": ("GO_LICENSES_VERSION", "github.com/google/go-licenses"),
 }
+
+# Some maintained consumers load this helper by exact path from another owner.
+# Resolve its inert sibling from this directory rather than an ambient sys.path.
+_archive_spec = importlib.util.spec_from_file_location("catalog_sdk_go_archive", HERE / "go_archive.py")
+go_archive = importlib.util.module_from_spec(_archive_spec)
+_archive_spec.loader.exec_module(go_archive)
+
+
+def completion_adapter():
+    spec = importlib.util.spec_from_file_location("native_completion", ROOT / "test/packaging/completion.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def required_go_tests(go, arguments, cwd, env):
+    """Discover selected top-level native identities, then require their completion."""
+    completion = completion_adapter()
+    tags = [arg for arg in arguments if str(arg).startswith("-tags=")]
+    discovery = run([go, "test", "-json", "-list=^Test", *tags, "./..."], cwd, env, capture=True)
+    required = completion.go_discovery(discovery)
+    output = run([go, "test", "-json", *arguments], cwd, env, capture=True)
+    print(output, end="", flush=True)
+    completion.require_go(output, required)
+
+
+def focused_go_command(go, arguments, names):
+    """Keep the selected native command and enforce its declared finite owners."""
+    return [sys.executable, "-B", ROOT / "test/packaging/completion.py", "go",
+            *(value for name in names for value in ("--required", name)),
+            "--", go, "test", *arguments, "-json"]
 
 
 def make_value(name):
@@ -168,8 +198,8 @@ def qualify(go, work, env, archive):
         source.write_text(source.read_text().replace(MODULE + "/test/clientcompat/go/generated", SDK_MODULE).replace("Catalog request failed", "Catalog SDK: request_or_decode_failed"))
     shutil.copyfile(HERE / "consumer_functional_test.go.txt", consumer / "sdk_functional_test.go")
     run([go, "mod", "edit", "-require=" + SDK_MODULE + "@v0.0.0", "-replace=" + SDK_MODULE + "=" + str(SDK)], consumer, env)
-    run([go, "test", "-race", "-shuffle=on", "-count=1", "-timeout=90s", "./..."], consumer, env)
-    run([go, "test", "-tags=functional", "-race", "-shuffle=on", "-count=1", "-timeout=90s", "./..."], consumer, env)
+    required_go_tests(go, ["-race", "-shuffle=on", "-count=1", "-timeout=90s", "./..."], consumer, env)
+    required_go_tests(go, ["-tags=functional", "-race", "-shuffle=on", "-count=1", "-timeout=90s", "./..."], consumer, env)
     run([go, "vet", "-tags=functional", "./..."], consumer, env)
     with tempfile.TemporaryDirectory(prefix="catalog-sdk-go-consumer-") as directory:
         external = Path(directory)
@@ -186,7 +216,7 @@ def qualify(go, work, env, archive):
         run([go, "mod", "edit", "-require=" + SDK_MODULE + "@v0.0.0", "-replace=" + SDK_MODULE + "=" + str(extracted)], external, env)
         # The only local replacement is the SDK. No application module or download.
         run([go, "mod", "tidy"], external, dict(env, GOFLAGS=""))
-        run([go, "test", "-race", "-count=1", "./..."], external, env)
+        required_go_tests(go, ["-race", "-count=1", "./..."], external, env)
     dependencies = run([go, "list", "-deps", "-f", "{{if .Module}}{{.Module.Path}}{{end}}", "./..."], SDK, env, capture=True)
     if MODULE in dependencies.splitlines():
         raise RuntimeError("SDK imports the application module")
@@ -225,7 +255,7 @@ def check(action):
     go = installed()
     env = environment(offline=True)
     before = inputs()
-    watched = [ROOT / "api/openapi/control-v1.yaml", COMPAT / "generate.yaml", SDK / "README.md", *SDK.glob("*.go"), *HERE.glob("*.txt"), *HERE.glob("*.py")]
+    watched = [ROOT / "api/openapi/control-v1.yaml", ROOT / "test/packaging/completion.py", COMPAT / "generate.yaml", SDK / "README.md", *SDK.glob("*.go"), *HERE.glob("*.txt"), *HERE.glob("*.py")]
     original = {path: digest(path) for path in watched}
     parent = ROOT / "output/sdk"
     parent.mkdir(parents=True, exist_ok=True)
@@ -245,9 +275,9 @@ def check(action):
                 raise RuntimeError("SDK generation drift; run make sdk-generate SDK_LANGUAGE=go")
             if run([go.parent / "gofmt", "-l", *sorted(SDK.glob("*.go")), *sorted(HERE.glob("*.go.txt"))], SDK, env, capture=True):
                 raise RuntimeError("SDK formatting drift")
-            run([go, "test", "-race", "-shuffle=on", "-count=1", "-coverprofile=" + str(work / "unit.out"), "./..."], SDK, env)
+            required_go_tests(go, ["-race", "-shuffle=on", "-count=1", "-coverprofile=" + str(work / "unit.out"), "./..."], SDK, env)
             report_coverage(go, work / "unit.out", "Isolated unit", env)
-            run([go, "test", "-tags=functional", "-race", "-shuffle=on", "-count=1", "-timeout=60s", "-coverprofile=" + str(work / "local.out"), "./..."], SDK, env)
+            required_go_tests(go, ["-tags=functional", "-race", "-shuffle=on", "-count=1", "-timeout=60s", "-coverprofile=" + str(work / "local.out"), "./..."], SDK, env)
             report_coverage(go, work / "local.out", "Unit plus local HTTP/TLS functional", env)
             run([go, "vet", "-tags=functional", "./..."], SDK, env)
             lint_and_licenses(go, env)
@@ -333,6 +363,12 @@ def main():
         if args.action in ("audit-install", "audit") and args.language != "rust":
             raise RuntimeError("Separate dependency audit requires --language rust")
         languages = ("go", "python", "typescript", "rust") if args.language == "all" else (args.language,)
+        if args.action == "check":
+            # Invalidate the complete requested selection before tool or Git
+            # preflight can fail, including languages not reached by --all.
+            for language in languages:
+                for name in ("qualification.json", "manifest.json"):
+                    (ROOT / "output/artifacts/sdk" / language / name).unlink(missing_ok=True)
         if args.action == "package" and args.language == "all":
             (ROOT / "output/artifacts/sdk/manifest.json").unlink(missing_ok=True)
         reports = {}
@@ -341,9 +377,6 @@ def main():
             print(f"SDK {args.action}: {language}", flush=True)
             if args.action == "check" and qualification is None:
                 qualification = qualification_context(language)
-            if qualification:
-                (ROOT / "output/artifacts/sdk" / language / "qualification.json").unlink(missing_ok=True)
-                (ROOT / "output/artifacts/sdk" / language / "manifest.json").unlink(missing_ok=True)
             reports[language] = selected(args.action, language)
             if qualification:
                 admission, run_id, before = qualification

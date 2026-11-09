@@ -1,6 +1,7 @@
 """Release policy, archive and delivery tests. External commands are intercepted."""
 
 import copy
+import io
 import json
 from pathlib import Path
 import tarfile
@@ -111,13 +112,77 @@ class ReleaseTests(unittest.TestCase):
             (extracted / "catalogctl").write_bytes(b"static binary")
             (extracted / "catalogd").write_bytes(b"not distributed here")
             (extracted / "licenses/project/LICENSE").write_bytes(b"Apache")
+            (extracted / "licenses/dependency").mkdir()
+            (extracted / "licenses/dependency/NOTICE").write_bytes(b"dependency notice\n")
+            (extracted / ".private-token").write_bytes(b"private")
             artifact = p.archive_cli(extracted, output, "0.1.0-rc.1", "linux/arm64")
             with tarfile.open(artifact) as archive:
-                self.assertEqual(archive.getnames(), ["catalogctl", "licenses/project/LICENSE"])
-                self.assertEqual(archive.getmember("catalogctl").mode, 0o555)
+                expected = {"catalogctl": (b"static binary", 0o555), "licenses/project/LICENSE": (b"Apache", 0o644),
+                            "licenses/dependency/NOTICE": (b"dependency notice\n", 0o644)}
+                self.assertEqual(set(archive.getnames()), set(expected))
+                self.assertEqual(len(archive.getmembers()), len(expected))
+                for name, (payload, mode) in expected.items():
+                    member = archive.getmember(name)
+                    self.assertTrue(member.isreg())
+                    self.assertEqual(member.mode, mode)
+                    self.assertEqual(member.size, len(payload))
+                    self.assertEqual(archive.extractfile(member).read(), payload)
+            unpacked = root / "unpacked"
+            self.assertEqual(p.unpack_cli(artifact, extracted, unpacked), unpacked / "catalogctl")
+            self.assertEqual({f.relative_to(unpacked).as_posix(): f.read_bytes() for f in unpacked.rglob("*") if f.is_file()},
+                             {name: value[0] for name, value in expected.items()})
             (extracted / "licenses/link").symlink_to(extracted / "catalogd")
             with self.assertRaisesRegex(ValueError, "Redirected"):
                 p.archive_cli(extracted, output, "0.1.0", "linux/amd64")
+
+    def test_cli_unpack_refuses_payload_type_mode_extra_and_duplicate_substitutions(self):
+        for fault in ("binary", "license", "notice", "mode", "link", "extra", "missing", "duplicate"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                extracted = root / "extracted"
+                (extracted / "licenses/project").mkdir(parents=True)
+                expected = {"catalogctl": b"binary", "licenses/project/LICENSE": b"Apache", "licenses/project/NOTICE": b"notice"}
+                for name, payload in expected.items():
+                    (extracted / name).write_bytes(payload)
+                artifact = root / "cli.tar.gz"
+                with tarfile.open(artifact, "w:gz") as archive:
+                    for name, original in expected.items():
+                        if fault == "missing" and name.endswith("NOTICE"):
+                            continue
+                        payload = original
+                        if (fault == "binary" and name == "catalogctl") or (fault == "license" and name.endswith("LICENSE")) or (fault == "notice" and name.endswith("NOTICE")):
+                            payload = b"X" * len(original)
+                        member = tarfile.TarInfo(name)
+                        member.size = len(payload)
+                        member.mode = 0o555 if name == "catalogctl" else 0o644
+                        if fault == "mode" and name == "catalogctl":
+                            member.mode = 0o755
+                        if fault == "link" and name == "catalogctl":
+                            member.type, member.linkname, member.size = tarfile.SYMTYPE, "/outside", 0
+                        archive.addfile(member, io.BytesIO(payload))
+                        if fault == "duplicate" and name == "catalogctl":
+                            archive.addfile(member, io.BytesIO(payload))
+                    if fault == "extra":
+                        member = tarfile.TarInfo("../private")
+                        member.size = 6
+                        archive.addfile(member, io.BytesIO(b"secret"))
+                with self.assertRaisesRegex(ValueError, "CLI archive (payload|type|members)"):
+                    p.unpack_cli(artifact, extracted, root / "unpacked")
+
+    def test_unpacked_cli_smoke_requires_exact_build_and_help_success(self):
+        build = {"version": "0.1.0", "commit": "a" * 40, "sourceState": "modified"}
+        for changed in (None, "version", "commit", "sourceState"):
+            with self.subTest(changed=changed):
+                actual = {**build, **({changed: "wrong"} if changed else {})}
+                with patch.object(p.subprocess, "check_output", return_value=json.dumps(actual).encode()) as version, patch.object(p.subprocess, "run") as help_command:
+                    if changed:
+                        with self.assertRaisesRegex(ValueError, "Unpacked CLI version"):
+                            p.smoke_cli(Path("/owned/unpacked/catalogctl"), build)
+                        help_command.assert_not_called()
+                    else:
+                        p.smoke_cli(Path("/owned/unpacked/catalogctl"), build)
+                        help_command.assert_called_once_with(["/owned/unpacked/catalogctl", "--help"], check=True, capture_output=True, timeout=30)
+                    version.assert_called_once_with(["/owned/unpacked/catalogctl", "version"], timeout=30)
 
     def test_editor_handoff_binds_full_tests_and_qualified_sdk_without_exporting_raw_report(self):
         with tempfile.TemporaryDirectory() as tmp, patch.object(p, "ROOT", Path(tmp)), patch.object(a, "source_identity", return_value=SOURCE):

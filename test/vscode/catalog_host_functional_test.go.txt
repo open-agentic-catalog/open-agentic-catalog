@@ -642,3 +642,76 @@ func vscodePlugins(t *testing.T) (map[string][]byte, []string, string) {
 	}
 	return result, urls, sentinels
 }
+
+// Remote placement uses the same real Catalog and immutable Skill source as desktop tests.
+func TestVSCodeRemoteCatalogHost(t *testing.T) {
+	skill, source, _ := vscodeSkill(t)
+	f := newFixture(t)
+	actor := f.actor("admin")
+	namespace, err := f.service.CreateNamespace(actor, catalog.CreateNamespaceInput{Slug: "remote-vscode", DisplayName: "Owned remote Skill"})
+	must(t, err)
+	publisher, err := f.service.CreatePublisher(actor, catalog.CreatePublisherInput{DisplayName: "Owned remote publisher", Domains: []string{"catalog.example.com"}})
+	must(t, err)
+	_, err = f.service.ApprovePublisherPublicationDomain(actor, publisher.ID, "catalog.example.com", "Owned remote qualification", publisher.Revision)
+	must(t, err)
+	resource, err := f.service.CreateResource(actor, catalog.CreateResourceInput{NamespaceID: namespace.ID, Kind: catalog.KindSkill, CanonicalIdentifier: "urn:air:catalog.example.com:remote:skill"})
+	must(t, err)
+	_, revision, evidence, err := f.service.CreateVersion(actor, resource.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: []catalog.RepresentationInput{
+		{Role: catalog.RepresentationPrimary, MediaType: adapter.MediaSkillMarkdown, Content: "---\nname: owned-skill\ndescription: Owned discovery.\n---\nRead this owned instruction."}, skill,
+	}})
+	must(t, err)
+	if evidence.State != catalog.EvidenceComplete {
+		t.Fatalf("Remote Skill evidence: %+v", evidence.Findings)
+	}
+	listing, err := f.service.CreateListing(actor, catalog.CreateListingInput{NamespaceID: namespace.ID, ResourceID: resource.ID})
+	must(t, err)
+	_, _, err = f.service.CreateListingRevision(actor, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, DisplayName: "Owned remote Skill", Description: "Exact remote installation fixture.", PublisherID: publisher.ID, Visibility: catalog.VisibilityPublic, Tags: []string{"owned"}, Categories: []string{"tools"}, License: "MIT", RepresentativeQueries: []string{"find remote Skill", "owned installation"}}, listing.Revision)
+	must(t, err)
+	submission, err := f.service.Submit(actor, listing.ID)
+	must(t, err)
+	_, _, err = f.service.DecideSubmission(f.actor("reviewer"), submission.ID, "approve", "Owned qualification", submission.Revision)
+	must(t, err)
+	listing, err = f.service.GetListing(actor, listing.ID)
+	must(t, err)
+	_, _, _, err = f.service.Publish(actor, listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision)
+	must(t, err)
+	ca := filepath.Join(t.TempDir(), "remote-source-ca.pem")
+	must(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: source.Certificate().Raw}), 0600))
+	var offline atomic.Bool
+	var forbidden atomic.Int32
+	previous := f.server
+	previous.Close()
+	f.server = vscodeUnstarted(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/owned-remote-offline" && r.Method == http.MethodPost {
+			offline.Store(true)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if offline.Load() {
+			forbidden.Add(1)
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		previous.Config.Handler.ServeHTTP(w, r)
+	}))
+	f.server.Start()
+	t.Cleanup(f.server.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	defer cancel()
+	command := exec.CommandContext(ctx, "xvfb-run", "-a", os.Getenv("CATALOG_SDK_NODE"), os.Getenv("CATALOG_SDK_WORKFLOW"), f.server.URL)
+	command.Env = append(os.Environ(), "CATALOG_VSCODE_REMOTE_CATALOG="+f.server.URL, "CATALOG_VSCODE_REMOTE_SOURCE_CA="+ca)
+	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	command.Cancel = func() error { return syscall.Kill(-command.Process.Pid, syscall.SIGKILL) }
+	defer func() {
+		if command.Process != nil {
+			_ = syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
+		}
+	}()
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("Remote VS Code Catalog fixture: %v\n%s", err, output)
+	}
+	if !offline.Load() || forbidden.Load() != 0 {
+		t.Fatalf("Remote offline removal control: selected=%v, Catalog requests=%d", offline.Load(), forbidden.Load())
+	}
+}

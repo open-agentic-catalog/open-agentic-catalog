@@ -128,6 +128,43 @@ def require_facets(facets, field, expected):
         raise RuntimeError("semantic facet counts disagree with fixture")
 
 
+def scale_traversal(fetch):
+    """Visit the seed's entire local population before measured load begins."""
+    expected = {f"urn:air:scale.example:scale:local-{i:06d}":
+                ("agent", "mcp_server", "skill", "plugin")[i % 4] for i in range(997)}
+    query = {"text": "Scale", "tags": ["scale"], "limit": 20}
+    seen, result_ids, cursors, kinds = set(), set(), set(), Counter()
+    profile, generation = None, None
+    for number in range(50):
+        page = fetch(dict(query))
+        control_page(page, 997, 20 if number < 49 else 17)
+        if profile is None:
+            profile = page["profile"]
+            generation = page.get("generation")
+        if (page["profile"] != profile or page.get("generation") != generation
+                or not isinstance(generation, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", generation) is None):
+            raise RuntimeError("scale traversal changed search profile or generation")
+        for item in page["items"]:
+            identifier = item["identifier"]
+            if (identifier not in expected or identifier in seen or item["id"] in result_ids
+                    or item["kind"] != expected[identifier] or "scale" not in item.get("tags", [])):
+                raise RuntimeError("scale traversal identity, kind or filter mismatch")
+            seen.add(identifier)
+            result_ids.add(item["id"])
+            kinds[item["kind"]] += 1
+        cursor = page.get("nextCursor", "")
+        if number < 49:
+            if not isinstance(cursor, str) or not cursor or cursor in cursors:
+                raise RuntimeError("scale traversal ended early or repeated a cursor")
+            cursors.add(cursor)
+            query["cursor"] = cursor
+        elif cursor:
+            raise RuntimeError("scale traversal did not terminate")
+    if seen != set(expected) or kinds != {"agent": 250, "mcp_server": 249, "skill": 249, "plugin": 249}:
+        raise RuntimeError("scale traversal population mismatch")
+    return {"pages": 50, "items": len(seen), "kindCounts": dict(kinds), "profile": profile, "generation": generation}
+
+
 def fixture_environment():
     """Keep installed browser selection while excluding caller runtime authority."""
     environment = {key: os.environ[key] for key in ("PATH", "HOME", "DOCKER_CONFIG", "XDG_RUNTIME_DIR", "PLAYWRIGHT_BROWSERS_PATH") if key in os.environ}
@@ -429,15 +466,9 @@ def qualify(coverage=None, restore_prepare=False, restore=False):
             started = time.monotonic()
             wait_until(lambda: request(origin, "/api/v1/capabilities")[0], lambda value: value["search"].get("indexing", {}).get("state") == "ready" and value["search"]["indexing"]["indexed"] == 1000 and value["search"]["indexing"]["failed"] == 0, seconds=600, guard=lambda: performance.scale.container_state(performance.local, environment, identifiers, baseline))
             report["scaleIndexSeconds"] = time.monotonic() - started
-            scale_query = {"text": "Scale", "tags": ["scale"], "limit": 20}
-            page, _ = request(origin, "/api/v1/catalog/search", scale_query)
-            first_ids = control_page(page, 997, 20)
-            following, _ = request(origin, "/api/v1/catalog/search", {**scale_query, "cursor": page["nextCursor"]})
-            next_ids = control_page(following, 997, 20)
+            report["scaleTraversal"] = scale_traversal(lambda query: request(origin, "/api/v1/catalog/search", query)[0])
             facets, _ = request(origin, "/api/v1/catalog/explore", {"query": {"text": "Scale", "tags": ["scale"]}, "facets": [{"field": "kind"}]})
-            if (not following.get("nextCursor") or following["nextCursor"] == page["nextCursor"] or following["profile"] != page["profile"]
-                    or facets["matched"] != 997 or facets.get("tier") != "hybrid" or first_ids.keys() & next_ids.keys()
-                    or any("scale" not in item["tags"] for item in page["items"] + following["items"])):
+            if facets["matched"] != 997 or facets.get("tier") != "hybrid":
                 raise RuntimeError("1k hybrid filtering, facets or continuation mismatch")
             kinds = {row["value"]: row["count"] for row in facets["facets"]["kind"]["buckets"]}
             if kinds != {"agent": 250, "mcp_server": 249, "skill": 249, "plugin": 249}:

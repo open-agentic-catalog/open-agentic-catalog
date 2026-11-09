@@ -1,5 +1,6 @@
 import test from "node:test";
 import { listenFixture } from "../../../test/vscode/listen.mjs";
+import { fixtureWait } from "../../../test/vscode/wait.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createServer as httpsServer } from "node:https";
@@ -106,11 +107,23 @@ test("real native-document acquisition refuses redirects, private CA reuse, exce
       undefined,
       cancelled.signal,
     );
-  // Observe a real response before cancellation, rather than an unstarted fetch.
-  await pending.promise;
-  cancelled.abort();
-  await assert.rejects(acquisition, /mcp_start_cancelled/u);
-  await disconnected.promise;
+  const acquisitionRejected = assert.rejects(
+    acquisition,
+    /mcp_start_cancelled/u,
+  );
+  try {
+    // Observe a real response before cancellation, rather than an unstarted fetch.
+    await fixtureWait(pending.promise, "MCP document readiness", acquisition);
+    cancelled.abort();
+    await acquisitionRejected;
+    await fixtureWait(disconnected.promise, "MCP document response close");
+  } finally {
+    cancelled.abort();
+    await fixtureWait(
+      Promise.allSettled([acquisitionRejected]),
+      "MCP document operation cleanup",
+    );
+  }
   mode = "valid";
   assert.deepEqual(await read(), bytes);
   pending = Promise.withResolvers();
@@ -122,10 +135,19 @@ test("real native-document acquisition refuses redirects, private CA reuse, exce
     () => {},
     nativeCancelled.signal,
   );
-  await pending.promise;
-  nativeCancelled.abort();
-  await assert.rejects(resolving, /mcp_start_cancelled/u);
-  await disconnected.promise;
+  const resolvingRejected = assert.rejects(resolving, /mcp_start_cancelled/u);
+  try {
+    await fixtureWait(pending.promise, "MCP resolution readiness", resolving);
+    nativeCancelled.abort();
+    await resolvingRejected;
+    await fixtureWait(disconnected.promise, "MCP resolution response close");
+  } finally {
+    nativeCancelled.abort();
+    await fixtureWait(
+      Promise.allSettled([resolvingRejected]),
+      "MCP resolution operation cleanup",
+    );
+  }
   assert.equal(secrets.size, 0);
   mode = "valid";
   assert.equal(

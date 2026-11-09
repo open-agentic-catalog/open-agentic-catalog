@@ -324,4 +324,5 @@ func qualifyProcessImport(ctx context.Context, t *testing.T, f processFixture, o
 	}
 	qualifyProcessExport(ctx, t, f, owner, dsn, address, tenant, namespace, publisher.ID, completed.Items[0].Steps[2].Ack.ID, completed.Items[0].Steps[1].Ack.RevisionID, version)
 	qualifyProcessDraftImport(ctx, t, f, owner, address, peer, tenant, namespace, publisher.ID)
+	qualifyProcessImportSignals(ctx, t, f, owner, address, peer, tenant, publisher.ID)
 }

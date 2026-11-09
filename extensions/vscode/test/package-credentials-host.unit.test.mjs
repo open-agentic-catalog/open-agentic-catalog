@@ -1,7 +1,11 @@
-import test from "node:test";
+import test, { after } from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
 import { pathToFileURL } from "node:url";
+import { mkdtempSync, mkdirSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 let steps = [],
   messages = [],
@@ -57,7 +61,12 @@ const { CatalogPackageCredentials } = await import(
     pathToFileURL(process.env.CATALOG_VSCODE_LIB),
   )
 );
-const { PackageCredentials } = await import(process.env.CATALOG_VSCODE_LIB);
+const { PackageCredentials, credentialAccess } = await import(
+  process.env.CATALOG_VSCODE_LIB
+);
+const directory = mkdtempSync(join(tmpdir(), "catalog-native-package-"));
+after(() => rm(directory, { recursive: true, force: true }));
+let fixtureIndex = 0;
 const account = "a".repeat(64);
 const source = { type: "git", repository: "https://packages.owned.test/repo" };
 const credential = {
@@ -74,6 +83,9 @@ function fixture() {
   let valid = true,
     tests = 0;
   const saved = new Map();
+  const storage = join(directory, String(fixtureIndex++));
+  mkdirSync(storage, { mode: 0o700 });
+  const access = credentialAccess(storage);
   const secrets = {
     keys: async () => [...saved.keys()],
     get: async (key) => saved.get(key),
@@ -98,8 +110,8 @@ function fixture() {
     },
   };
   return {
-    host: new CatalogPackageCredentials(secrets, session),
-    credentials: new PackageCredentials(secrets),
+    host: new CatalogPackageCredentials(secrets, session, access),
+    credentials: new PackageCredentials(secrets, access),
     saved,
     invalidate() {
       valid = false;
@@ -267,6 +279,10 @@ test("offline native Forget All requires confirmation, respects Stop/cancel and 
         mode === "decline" ? undefined : "Forget package credentials",
         (_, options) => {
           assert.match(options.message, /Close other Catalog windows/u);
+          assert.match(
+            options.message,
+            /recovers an abandoned package credential writer/u,
+          );
           assert.match(options.message, /does not revoke/u);
         },
       ),

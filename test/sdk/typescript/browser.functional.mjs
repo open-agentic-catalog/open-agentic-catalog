@@ -105,6 +105,230 @@ async function qualifyBrowserControl(consumer) {
   }
 }
 
+// Real Chromium streaming/redirect behavior differs from injected and Node Fetch.
+async function qualifyBrowserLimits(consumer) {
+  const assets = new Map([
+    [
+      "/sdk.js",
+      join(consumer, "node_modules/@open-agentic-catalog/client/dist/index.js"),
+    ],
+    ["/fetch.js", join(consumer, "node_modules/openapi-fetch/dist/index.mjs")],
+  ]);
+  const base = Buffer.from('{"entries":[],"note":"é"}');
+  const payload = (size) =>
+    Buffer.concat([base, Buffer.alloc(size - base.length, 32)]);
+  const pending = new Map();
+  const diagnostics = [];
+  const requests = [];
+  let sinkCalls = 0;
+  const signal = (mode) => {
+    let ready, closed;
+    const state = {
+      ready: new Promise((resolve) => {
+        ready = resolve;
+      }),
+      closed: new Promise((resolve) => {
+        closed = resolve;
+      }),
+      markReady: () => ready(),
+      markClosed: () => closed(),
+    };
+    pending.set(mode, state);
+    return state;
+  };
+  const bounded = async (promise) => {
+    let timer;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error("Browser fixture deadline")),
+            10000,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  const server = createServer(async (req, res) => {
+    try {
+      if (assets.has(req.url)) {
+        res.setHeader("Content-Type", "text/javascript");
+        res.end(await readFile(assets.get(req.url)));
+        return;
+      }
+      if (req.url === "/") {
+        res.setHeader("Content-Type", "text/html");
+        res.end(
+          '<!doctype html><title>SDK transport limits</title><script type="importmap">{"imports":{"openapi-fetch":"/fetch.js"}}</script>',
+        );
+        return;
+      }
+      requests.push(req.url);
+      if (req.url === "/redirect") {
+        res.writeHead(302, { Location: "/sink" });
+        res.end();
+        return;
+      }
+      if (req.url === "/sink") sinkCalls++;
+      res.setHeader("Content-Type", "application/json");
+      res.flushHeaders(); // Unknown length and chunked transfer reach the stream guard.
+      const mode = req.url.slice(1);
+      if (pending.has(mode)) {
+        const state = pending.get(mode);
+        res.on("close", () => {
+          if (res.writableEnded)
+            diagnostics.push("Held response ended before cancellation");
+          state.markClosed();
+        });
+        res.write(mode === "overflow-held" ? payload(1025) : Buffer.from("{"));
+        state.markReady();
+        return;
+      }
+      res.write(payload(mode === "plus-one" ? 1025 : 1024));
+      res.end();
+    } catch (error) {
+      diagnostics.push(String(error));
+      res.destroy();
+    }
+  });
+  let browser;
+  try {
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const origin = `http://127.0.0.1:${server.address().port}`;
+    browser = await chromium.launch({ headless: true, timeout: 10000 });
+    const context = await browser.newContext();
+    await context.route("**/*", (route) =>
+      new URL(route.request().url()).origin === origin
+        ? route.continue()
+        : route.abort(),
+    );
+    const page = await context.newPage();
+    page.on("pageerror", (error) => diagnostics.push(String(error)));
+    page.on("console", (message) => {
+      if (message.type() === "error") diagnostics.push(message.text());
+    });
+    page.on("requestfailed", (request) => {
+      // These requests deliberately end with unread bytes or cancellation.
+      if (
+        ![
+          "/plus-one",
+          "/overflow-held",
+          "/caller-abort",
+          "/deadline",
+          "/redirect",
+        ].includes(new URL(request.url()).pathname)
+      )
+        diagnostics.push(`Unexpected request failure: ${request.url()}`);
+    });
+    await page.goto(origin, { timeout: 10000 });
+    const read = async (path) =>
+      page.evaluate(async (path) => {
+        const { createCatalogClient } = await import("/sdk.js");
+        const client = createCatalogClient({
+          origin: location.origin,
+          allowLoopbackHTTP: true,
+          responseBytes: 1024,
+          timeoutMs: 5000,
+        });
+        try {
+          const result = await client.raw(path);
+          return {
+            status: result.status,
+            text: result.text(),
+            bytes: result.bytes.length,
+          };
+        } catch (error) {
+          return { code: error.code };
+        }
+      }, path);
+    const expected = payload(1024).toString("utf8");
+    assert.deepEqual(await read("/exact"), {
+      status: 200,
+      text: expected,
+      bytes: 1024,
+    });
+    assert.deepEqual(JSON.parse(expected), { entries: [], note: "é" });
+    assert.deepEqual(await read("/plus-one"), { code: "response_too_large" });
+    const redirect = await read("/redirect");
+    assert(
+      redirect.status === 302 || redirect.code === "request_failed",
+      "Manual redirect must remain visible or safely refused as opaque",
+    );
+    assert.equal(sinkCalls, 0);
+    // Positive sink reachability proves that the fixture's routing did not hide a follow.
+    assert.equal(
+      await page.evaluate(async () => (await fetch("/sink")).status),
+      200,
+    );
+    assert.equal(sinkCalls, 1);
+    for (const [mode, code] of [
+      ["caller-abort", "cancelled"],
+      ["deadline", "deadline_exceeded"],
+      ["overflow-held", "response_too_large"],
+    ]) {
+      const state = signal(mode);
+      await page.evaluate(async (mode) => {
+        const { createCatalogClient } = await import("/sdk.js");
+        const controller = new AbortController();
+        const client = createCatalogClient({
+          origin: location.origin,
+          allowLoopbackHTTP: true,
+          responseBytes: 1024,
+          timeoutMs: mode === "deadline" ? 2000 : 5000,
+        });
+        globalThis.sdkFixture = {
+          controller,
+          result: client.raw("/" + mode, { signal: controller.signal }).then(
+            () => ({ unexpected: "success" }),
+            (error) => ({ code: error.code }),
+          ),
+        };
+      }, mode);
+      await bounded(state.ready);
+      if (mode === "caller-abort")
+        await page.evaluate(() => globalThis.sdkFixture.controller.abort());
+      assert.deepEqual(
+        await bounded(page.evaluate(() => globalThis.sdkFixture.result)),
+        { code },
+      );
+      await bounded(state.closed);
+      assert.deepEqual(await read("/exact"), {
+        status: 200,
+        text: expected,
+        bytes: 1024,
+      });
+    }
+    for (const path of [
+      "/redirect",
+      "/plus-one",
+      "/caller-abort",
+      "/deadline",
+      "/overflow-held",
+    ])
+      assert.equal(
+        requests.filter((observed) => observed === path).length,
+        1,
+        `Failed call ${path} must not be implicitly resent`,
+      );
+    assert.equal(requests.filter((path) => path === "/exact").length, 4);
+    assert.deepEqual(diagnostics, []);
+    console.log(
+      "Installed Chromium SDK passed: exact streamed bytes, over-limit, permitted no-follow sink, cancellation/deadline and recovery",
+    );
+  } finally {
+    try {
+      await browser?.close();
+    } finally {
+      server.closeAllConnections();
+      await new Promise((resolve) => server.close(resolve));
+    }
+  }
+}
+
 // The browser uses one owned origin. This fixture-only gateway forwards API
 // requests to the already-owned Catalog listener; it does not add product CORS.
 export async function qualifyCatalogBrowser(consumer, apiOrigin, releaseIDs) {
@@ -278,5 +502,10 @@ export async function qualifyCatalogBrowser(consumer, apiOrigin, releaseIDs) {
   }
 }
 
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url)
+if (
+  process.argv[1] &&
+  pathToFileURL(process.argv[1]).href === import.meta.url
+) {
   await qualifyBrowserControl(process.argv[2]);
+  await qualifyBrowserLimits(process.argv[2]);
+}

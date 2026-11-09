@@ -14,6 +14,165 @@ const code = (name) => (error) =>
   error instanceof SDKError && error.code === name;
 const manifest = "/.well-known/ard.json";
 
+test("finite conditional version and delivery envelopes preserve their actual wire meaning", async () => {
+  const uid = "00000000-0000-7000-8000-000000000001";
+  for (let seed = 0; seed < 16; seed++) {
+    const request = {
+      sourceRevision: seed + 1,
+      identifier: `urn:air:example.com:wire:item-${seed}`,
+      versionPresent: seed % 2 === 0,
+      mediaType: "application/json",
+      delivery: ["data", "url"][seed % 2],
+      exactEntryDigest: "sha256:" + "a".repeat(64),
+      reason: "Check generated wire semantics",
+      ...(seed % 2 === 0
+        ? { version: ["", "1.2.3"][Math.floor(seed / 2) % 2] }
+        : {}),
+      ...(seed % 3 === 0
+        ? { observationId: uid }
+        : { text: `Entry ${seed} é 日本語` }),
+    };
+    const representation = { role: "primary", mediaType: "application/json" };
+    if (seed % 4 === 0)
+      representation.data = { nested: [null, false, "", seed] };
+    else if (seed % 4 === 1) representation.content = `Native é ${seed}\n`;
+    else if (seed % 4 === 2)
+      representation.url = `https://resource.example/card-${seed}.json`;
+    else
+      Object.assign(representation, {
+        mediaType: "application/agent-skills+zip",
+        packageData: Buffer.from([0, 1, seed, 255]).toString("base64"),
+        handoff: {
+          git: {
+            repository: "https://example.com/skill.git",
+            commit: "a".repeat(40),
+            directory: "skill",
+          },
+        },
+      });
+    const body = { version: `1.${seed}.0`, representations: [representation] };
+    const expected = [request, body];
+    const paths = [
+      `/api/v1/federation/sources/${uid}/trust-assessments`,
+      `/api/v1/resources/${uid}/versions`,
+    ];
+    let calls = 0;
+    const client = make(async (actual) => {
+      assert.equal(new URL(actual.url).origin, origin);
+      assert.equal(new URL(actual.url).pathname, paths[calls]);
+      assert.equal(actual.method, "POST");
+      assert.equal(
+        actual.headers.get("Idempotency-Key"),
+        `conditional-${seed}-${calls}`,
+      );
+      assert.deepEqual(JSON.parse(await actual.text()), expected[calls]);
+      calls++;
+      return json({}, { status: 201 });
+    });
+    await client.api.POST(
+      "/api/v1/federation/sources/{sourceId}/trust-assessments",
+      {
+        params: {
+          path: { sourceId: uid },
+          header: {
+            "Idempotency-Key": `conditional-${seed}-0`,
+            "If-Match": '"rev-1"',
+          },
+        },
+        body: request,
+      },
+    );
+    assert.equal(calls, 1);
+    await client.api.POST("/api/v1/resources/{resourceId}/versions", {
+      params: {
+        path: { resourceId: uid },
+        header: { "Idempotency-Key": `conditional-${seed}-1` },
+      },
+      body,
+    });
+    assert.equal(calls, 2);
+  }
+});
+
+test("finite generated wire cases preserve decoded query/body meaning and one fixed-origin call", async () => {
+  const words = [
+    "",
+    "é",
+    "日本語",
+    "😀",
+    "%+&=",
+    "line\nvalue",
+    'quoted"value',
+    "two words",
+  ];
+  const uid = "00000000-0000-7000-8000-000000000001";
+  for (let seed = 0; seed < 32; seed++) {
+    const label = `case-${seed}-${words[seed % words.length]}`;
+    const selected = seed % 3 === 0 ? undefined : seed % 3 === 1 ? "" : label;
+    const extensions = {
+      additional_properties: { literal: words[seed % words.length] },
+      model_extra: null,
+      values: [null, false, "", label],
+      count: seed * 65537,
+    };
+    const expected = {
+      versionRevisionId: uid,
+      publisherId: uid,
+      displayName: label,
+      description: "Wire corpus",
+      visibility: "tenant",
+      extensions,
+    };
+    const calls = [];
+    const client = make(async (request) => {
+      calls.push(request);
+      assert.equal(new URL(request.url).origin, origin);
+      if (request.method === "GET") {
+        assert.equal(new URL(request.url).pathname, "/api/v1/personal/items");
+        assert.deepEqual(
+          [...new URL(request.url).searchParams],
+          selected === undefined ? [] : [["label", selected]],
+        );
+        return json({ items: [] });
+      }
+      assert.equal(request.method, "POST");
+      assert.equal(
+        new URL(request.url).pathname,
+        `/api/v1/catalog-listings/${uid}/revisions`,
+      );
+      assert.deepEqual(JSON.parse(await request.text()), expected);
+      return json({}, { status: 201 });
+    });
+    await client.api.GET("/api/v1/personal/items", {
+      params: { query: selected === undefined ? {} : { label: selected } },
+    });
+    assert.equal(calls.length, 1);
+    await client.api.POST("/api/v1/catalog-listings/{listingId}/revisions", {
+      params: {
+        path: { listingId: uid },
+        header: { "Idempotency-Key": `wire-${seed}`, "If-Match": '"rev-1"' },
+      },
+      body: expected,
+    });
+    assert.equal(calls.length, 2);
+    const circular = {};
+    circular.self = circular;
+    await assert.rejects(() =>
+      client.api.POST("/api/v1/catalog-listings/{listingId}/revisions", {
+        params: {
+          path: { listingId: uid },
+          header: {
+            "Idempotency-Key": `wire-refusal-${seed}`,
+            "If-Match": '"rev-1"',
+          },
+        },
+        body: { ...expected, extensions: circular },
+      }),
+    );
+    assert.equal(calls.length, 2, "local JSON marshal refusal must not send");
+  }
+});
+
 test("personal label query preserves exact spelling and optional presence", async () => {
   const requests = [];
   const client = make(async (request) => {

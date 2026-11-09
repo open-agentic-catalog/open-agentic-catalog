@@ -2,6 +2,8 @@
 
 import copy
 import json
+from pathlib import Path
+import tempfile
 import unittest
 
 import runner
@@ -16,6 +18,48 @@ class ViewerTests(unittest.TestCase):
         self.assertTrue(viewer.selected({"CATALOG_TRACING_VIEWER": "on"}))
         with self.assertRaises(runner.Failure):
             viewer.selected({"CATALOG_TRACING_VIEWER": "yes"})
+        self.assertFalse(viewer.browser_selected({}))
+        self.assertTrue(viewer.browser_selected({"CATALOG_TRACING_VIEWER": "on", "CATALOG_TRACING_BROWSER": "on"}))
+        for environment in ({"CATALOG_TRACING_BROWSER": "on"}, {"CATALOG_TRACING_VIEWER": "on", "CATALOG_TRACING_BROWSER": "true"}):
+            with self.assertRaisesRegex(runner.Failure, "tracing-browser-selection"):
+                viewer.browser_selected(environment)
+
+    def test_browser_completion_binds_exact_handoff_controls_window_and_cleanup(self):
+        case = fixture_case()
+        window = [60000001, 130000000]
+        result = {"status": "passed", "browser": "pinned", "diagnostics": "passed", "searchWindowMicros": [60000000, 180000000],
+                  "attemptTraceId": case["attempt"]["traceId"], "linkedTraceId": case["enqueue"]["traceId"],
+                  "highlightedSpanId": case["enqueue"]["spanId"], "parentSpanId": case["request"]["spanId"], "wrongLinkRefused": True,
+                  "controls": [{"selection": "wrongInstallation", "count": 0}, {"selection": "wrongService", "count": 0}, {"selection": "correct", "count": 1}]}
+        for fault in (None, "identity", "control", "window", "link", "empty", "process"):
+            with self.subTest(fault=fault), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                environment = {"CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY": str(directory)}
+                value = copy.deepcopy(result)
+                if fault == "identity":
+                    value["highlightedSpanId"] = "0" * 16
+                elif fault == "control":
+                    value["controls"][1]["count"] = 1
+                elif fault == "window":
+                    value["searchWindowMicros"] = window
+                elif fault == "link":
+                    del value["wrongLinkRefused"]
+                elif fault == "empty":
+                    value = []
+                def command(arguments, env, seconds, *, capture):
+                    self.assertEqual(arguments, ["node", "test/tracing/browser.mjs", str(directory / "tracing-browser-input.json")])
+                    self.assertEqual((env, seconds, capture), (environment, 180, True))
+                    self.assertEqual(json.loads((directory / "tracing-browser-input.json").read_text()),
+                                     {"origin": "http://127.0.0.1:1234", "spans": case, "window": window})
+                    if fault == "process":
+                        raise runner.Failure("child-failed")
+                    return json.dumps(value).encode()
+                if fault:
+                    with self.assertRaises(runner.Failure):
+                        viewer.qualify_browser(environment, command, {"queryUrl": "http://127.0.0.1:1234"}, case, window)
+                else:
+                    self.assertEqual(viewer.qualify_browser(environment, command, {"queryUrl": "http://127.0.0.1:1234"}, case, window), result)
+                self.assertFalse((directory / "tracing-browser-input.json").exists())
 
     def test_handoff_requires_actual_request_enqueue_and_attempt(self):
         case = fixture_case()

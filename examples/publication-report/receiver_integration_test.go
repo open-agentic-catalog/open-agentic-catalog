@@ -103,6 +103,11 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 	setAPI := func(code int, raw string) { mu.Lock(); status, body = code, raw; mu.Unlock() }
 	counts := func() (int, int) { mu.Lock(); defer mu.Unlock(); return reads, lossReads }
 	dir := t.TempDir()
+	reports, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = reports.Close() }()
 	cert := filepath.Join(dir, "server.pem")
 	key := filepath.Join(dir, "server-key.pem")
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: catalog.TLS.Certificates[0].Certificate[0]})
@@ -270,6 +275,32 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 		v := readSaved()
 		return v.LastSuccessful != nil && v.LastSuccessful.Active != nil && v.LastSuccessful.Active.Generation == 9
 	})
+	// Authority belongs to one live processor, while rendering is intentionally
+	// read-only. A second command must fail at the processor guard, before any
+	// Catalog exchange or report replacement (not at an occupied listener).
+	beforeProcessor, beforeProcessorLoss := counts()
+	beforeProcessorReport, err := reports.ReadFile("report.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, competing := range []string{"reconcile", "serve"} {
+		extra := []string{}
+		if competing == "serve" {
+			extra = []string{"--listen", "127.0.0.1:0", "--tls-cert", cert, "--tls-key", key, "--signer-file", signerFile}
+		}
+		raw, err := runCommand(competing, extra...)
+		if err == nil || !bytes.Contains(raw, []byte("processor_unavailable")) {
+			t.Fatal("competing processor did not refuse at its authority guard")
+		}
+	}
+	if _, err := runCommand("render"); err != nil {
+		t.Fatal("live processor incorrectly excludes read-only render")
+	}
+	afterProcessor, afterProcessorLoss := counts()
+	afterProcessorReport, err := reports.ReadFile("report.json")
+	if err != nil || beforeProcessor != afterProcessor || beforeProcessorLoss != afterProcessorLoss || !bytes.Equal(beforeProcessorReport, afterProcessorReport) {
+		t.Fatal("excluded processor or read-only render changed Catalog reads or saved report")
+	}
 	setAPI(503, `{"unavailable":true}`)
 	raw := eventBytes("publication.activated")
 	// Lose only the acknowledgement after the real receiver commits.
@@ -321,7 +352,44 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 		v := readSaved()
 		return v.RefreshFailure != "" && v.LastSuccessful.Active.Generation == 9 && pendingCount() == 1
 	})
-	stopProcess()
+	expectedTrigger := Event{ID: testID, Source: eventSource + testTenant, Action: "publication.activated", TargetID: testTarget, Digest: "sha256:" + strings.Repeat("a", 64)}
+	assertPendingTrigger := func() {
+		t.Helper()
+		pending, err := s.Next(ctx)
+		if err != nil || pending == nil || *pending != expectedTrigger {
+			t.Fatal("accepted pending event identity or trigger context changed", err)
+		}
+	}
+	assertPendingTrigger()
+	// The failure above leaves a known accepted event pending. Kill only this
+	// owned process, then prove a fresh process can acquire the session lock and
+	// finish that same receipt; do not delete a lock or reset retained state.
+	if err := process.Process.Kill(); err != nil {
+		t.Fatal("kill owned processor", err)
+	}
+	select {
+	case err := <-finished:
+		if err == nil {
+			t.Fatal("abrupt processor death unexpectedly reported success")
+		}
+	case <-time.After(12 * time.Second):
+		t.Fatal("owned killed processor did not exit")
+	}
+	process = nil
+	for _, secret := range []string{testSecret, "receiver-reader", receiverDSN} {
+		if bytes.Contains(diagnostics.Bytes(), []byte(secret)) {
+			t.Error("abrupt processor diagnostic disclosed a credential")
+		}
+	}
+	wait("abrupt processor's database session lock released", func() bool {
+		var free bool
+		err := pool.QueryRow(ctx, `SELECT NOT EXISTS(SELECT 1 FROM pg_locks WHERE locktype='advisory' AND database=(SELECT oid FROM pg_database WHERE datname=current_database()) AND classid=0 AND objid::bigint=$1 AND objsubid=1)`, processorLock).Scan(&free)
+		return err == nil && free
+	})
+	assertPendingTrigger()
+	if pendingCount() != 1 || readSaved().LastSuccessful.Active.Generation != 9 {
+		t.Fatal("abrupt processor death changed accepted work or the last successful report")
+	}
 	if _, err := pool.Exec(ctx, `UPDATE publication_receiver_inbox SET accepted_at=clock_timestamp()-interval '2 days'`); err != nil {
 		t.Fatal(err)
 	}
@@ -332,7 +400,7 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 	startProcess()
 	wait("restart refresh from current rollback state", func() bool {
 		v := readSaved()
-		return pendingCount() == 0 && v.LastSuccessful.Active != nil && v.LastSuccessful.Active.Generation == 2 && v.LastSuccessful.Trigger != nil
+		return pendingCount() == 0 && v.LastSuccessful.Active != nil && v.LastSuccessful.Active.Generation == 2 && v.LastSuccessful.Trigger != nil && *v.LastSuccessful.Trigger == expectedTrigger
 	})
 	pruneReady()
 	setAPI(200, `{"items":[]}`)
@@ -426,11 +494,6 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 	if _, err := runCommand("render"); err != nil {
 		t.Fatal("saved report not recoverable")
 	}
-	reports, err := os.OpenRoot(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = reports.Close() }()
 	first, err := reports.ReadFile("report.json")
 	if err != nil {
 		t.Fatal(err)

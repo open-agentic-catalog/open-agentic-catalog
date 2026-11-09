@@ -58,6 +58,26 @@ test("MCP document families stay distinct; an absent schema uses the declared me
     () => mcpAlternatives(Buffer.from('{"name":"x","name":"y"}')),
     /invalid_mcp_document/u,
   );
+  for (const [from, to] of [
+    [
+      '"name":"io.example/owned"',
+      '"name":"io.example/earlier","name":"io.example/owned"',
+    ],
+    [
+      '"name":"io.example/owned"',
+      '"na\\u006de":"io.example/earlier","name":"io.example/owned"',
+    ],
+    [
+      '"url":"https://owned.example/mcp"',
+      '"url":"https://earlier.example/mcp","url":"https://owned.example/mcp"',
+    ],
+  ]) {
+    const duplicate = JSON.stringify(card).replace(from, to);
+    assert.deepEqual(JSON.parse(duplicate), card);
+    assert.throws(() => mcpAlternatives(Buffer.from(duplicate)), {
+      code: "invalid_mcp_document",
+    });
+  }
   assert.throws(
     () => mcpAlternatives(new Uint8Array(1024 ** 2 + 1)),
     /too_large/u,

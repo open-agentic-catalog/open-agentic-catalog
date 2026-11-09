@@ -43,7 +43,7 @@ Use the dashboard interpretation guide (`documentation/src/content/docs/guides/p
 
 Inspect the actual dashboard queries (`deployments/monitoring/dashboards/catalog.json`) when a panel is ambiguous. Missing/unavailable samples are not healthy zeros; do not sum shared-database worker gauges across replicas. Bucket quantiles are estimates, and heap, container working set and RSS differ.
 
-For requested visual review, use available browser tooling against the selected dashboard outside comparable timed phases; `test-monitoring` checks provisioning and query results, not browser rendering.
+For requested visual review, select `make test-monitoring MONITORING_BROWSER=on` with installed Playwright and Chromium. Its optional browser phase runs after measurement with the recorded workload time range and an invocation-owned dashboard copy. Ordinary `test-monitoring` checks provisioning and query results without requiring a browser. Keep interactive inspection outside comparable timed phases.
 
 Trace the request from router/handler through domain and repository into actual SQL, hydration and encoding; include outbound calls or asynchronous attempts only where involved. Use sampled traces to locate expensive spans, then inspect their owning code. SQL spans omit query text and pool acquisition; map fixed operation classes to repository calls and use pool metrics separately. Job/outbox attempts link to creating traces rather than forming one continuous synchronous request. Missing sampled spans do not prove no work occurred.
 

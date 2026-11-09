@@ -868,7 +868,7 @@ test-deployment-compile: ## Compile the Helm and Minikube harness variants witho
 	$(GO) test -tags=minikube,functional ./test/minikube -run '^$$' -count=1
 
 architecture-check: ## Enforce package ownership and outbound HTTP construction boundaries
-	$(GO) test ./internal/platform/runtime -run '^TestArchitecture' -count=1
+	$(PYTHON) -B test/packaging/completion.py go --required TestArchitectureContracts --required TestArchitectureAnalyzer --required TestArchitectureDomainOwnership -- $(GO) test ./internal/platform/runtime -run '^TestArchitecture' -count=1 -json
 
 shell-check: ## Lint maintained shell workflows
 	$(SHELLCHECK) test/functional/housekeeping.sh test/functional/restore.sh test/functional/pitr_archive.sh deployments/container/licenses.sh test/hooks/pre-commit
@@ -986,7 +986,7 @@ test-tooling-unit: ## Run isolated Python helper tests in their owning directori
 		if [ -n "$$unit_coverage" ]; then export COVERAGE_PROCESS_START="$(CURDIR)/$$unit_coverage/coverage.ini"; fi; \
 		for owner in $(PYTHON_UNIT_DIRS); do \
 		if [ -n "$$unit_coverage" ]; then export COVERAGE_FILE="$(CURDIR)/$$unit_coverage/data/.coverage.$$owner"; fi; \
-		(cd "test/$$owner" && $(PYTHON) -B -c 'import sys, unittest; suite = unittest.defaultTestLoader.discover(".", pattern="test_unit_*.py"); assert suite.countTestCases() > 0, "No unit tests discovered"; sys.exit(not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful())'); \
+		(cd "test/$$owner" && $(PYTHON) -B "$(CURDIR)/test/packaging/completion.py" python); \
 		if [ -n "$$unit_coverage" ]; then (unset COVERAGE_PROCESS_START COVERAGE_PROCESS_CONFIG COVERAGE_FILE; $(PYTHON) -B test/packaging/tooling_coverage.py record-owner --output "$$unit_coverage" --owner "$$owner"); fi; \
 	done
 
@@ -1162,7 +1162,7 @@ coverage-process-postgres-dsn-profile: ## Collect process coverage against a fre
 		trap 'trap "" 1 2 15; rm -rf "$$work"' 0; \
 		trap 'trap "" 1 2 15; exit 129' 1; trap 'trap "" 1 2 15; exit 130' 2; trap 'trap "" 1 2 15; exit 143' 15; \
 		mkdir "$$work/counters"; \
-		CATALOG_PROCESS_COVERAGE_DIR="$(CURDIR)/$$work/counters" $(GO) test -race -tags=integration ./test/functional -run '^TestPostgresProcesses$$' -count=1 -timeout=5m; \
+		CATALOG_PROCESS_COVERAGE_DIR="$(CURDIR)/$$work/counters" $(PYTHON) -B test/packaging/completion.py go --required TestPostgresProcesses -- $(GO) test -race -tags=integration ./test/functional -run '^TestPostgresProcesses$$' -count=1 -timeout=5m -json; \
 		$(PYTHON) -B test/packaging/application_coverage.py collect "$$work/counters" "$$work/profile" --go "$(GO)"; \
 		mv "$$work/profile" coverage/process-postgres.out
 
@@ -1258,7 +1258,7 @@ test-process-postgres: ## Test real CLI/API/worker processes with owned PostgreS
 
 test-process-postgres-dsn: ## Test processes against an explicit fresh disposable PostgreSQL fixture
 	@test -n "$${CATALOG_TEST_DATABASE_DSN:-}" || { echo 'CATALOG_TEST_DATABASE_DSN is required.' >&2; exit 2; }
-	$(GO) test -race -tags=integration ./test/functional -run '^TestPostgresProcesses$$' -count=1 -timeout=5m
+	$(PYTHON) -B test/packaging/completion.py go --required TestPostgresProcesses -- $(GO) test -race -tags=integration ./test/functional -run '^TestPostgresProcesses$$' -count=1 -timeout=5m -json
 
 test-integration: ## Run PostgreSQL and RLS tests using disposable Compose
 	$(call run_postgres_integration,test-integration-dsn)
@@ -1328,6 +1328,10 @@ test-mcp-scanner-receiver: mcp-scanner-receiver-build ## Test signed receipt, re
 test-mcp-scanner-receiver-dsn: ## Run receiver process and SQL checks against an explicit disposable database
 	@test -n "$${CATALOG_TEST_DATABASE_DSN:-}" || { echo 'CATALOG_TEST_DATABASE_DSN is required.' >&2; exit 2; }
 	cd examples/mcp-scanner/receiver && MCP_SCANNER_RECEIVER_BINARY="$(CURDIR)/bin/examples/mcp-scan-receiver" MCP_SCANNER_TEST_PYTHON="$(CURDIR)/.tools/dev/bin/python" $(GO) test -race -tags=functional,integration -shuffle=on -count=1 -timeout=6m ./...
+
+.PHONY: test-mcp-scanner-receiver-fuzz
+test-mcp-scanner-receiver-fuzz: ## Fuzz only receiver event admission for 1s to 60s; no scanner, DB or network
+	$(PYTHON) -B test/mcp-scanner/receiver_fuzz.py --go "$(GO)" --time "$(FUZZ_TIME)"
 
 # Operator commands use explicitly selected authority, not the test fixture.
 $(CATALOG_DATABASE_OPERATOR_TARGETS): export CATALOG_DATABASE_DSN = $(CATALOG_MIGRATION_DATABASE_DSN)
@@ -1639,9 +1643,9 @@ conformance-prerequisite: ## Require the pinned Python validator and usable ARD 
 	$(PYTHON) $(ARD_CONFORMANCE) check
 
 conformance-fixture: conformance-prerequisite ## Validate ARD fixtures, ingestion, resolution, protocol behavior, and the upstream CLI
-	$(GO) test -tags=functional ./internal/standards -run '^TestPinnedARDConformanceFixtures$$' -count=1
-	$(GO) test -tags=functional ./internal/federation -run '^(TestOfficialARDExamplesUseARDIngestionProfile|TestDomainInspectionAlwaysTriesNormativeARDWellKnown|TestDomainInspectionTriesRequestedWellKnownBeforeFollowingRootRedirect|TestInspectionResolvesAdvertisedARDLocation|TestInspectionRejectsContradictoryAdvertisedProfile|TestInspectionRejectsConflictingRelationsForOneLocation|TestDiscoveryHelpersAreBoundedAndFailClosed|TestSynchronizationRejectsAChangedSourceProfile|TestOriginChangingResponseRequiresReinspectionAndCannotBecomeConditionalState|TestRegistryListRedirectRequiresReinspection)$$' -count=1
-	$(GO) test -tags=functional ./internal/platform/httpserver -run '^(TestARDReferenceCompatibilityCorpus|TestARDAutoSearchTraversesEveryLocalResultAndQueriesLiveOnce|TestHTTPAuthoringPublicationSecurityAndReplay)$$' -count=1
+	$(PYTHON) -B test/packaging/completion.py go --required TestPinnedARDConformanceFixtures -- $(GO) test -tags=functional ./internal/standards -run '^TestPinnedARDConformanceFixtures$$' -count=1 -json
+	$(PYTHON) -B test/packaging/completion.py go --required TestOfficialARDExamplesUseARDIngestionProfile --required TestDomainInspectionAlwaysTriesNormativeARDWellKnown --required TestDomainInspectionTriesRequestedWellKnownBeforeFollowingRootRedirect --required TestInspectionResolvesAdvertisedARDLocation --required TestInspectionRejectsContradictoryAdvertisedProfile --required TestInspectionRejectsConflictingRelationsForOneLocation --required TestDiscoveryHelpersAreBoundedAndFailClosed --required TestSynchronizationRejectsAChangedSourceProfile --required TestOriginChangingResponseRequiresReinspectionAndCannotBecomeConditionalState --required TestRegistryListRedirectRequiresReinspection -- $(GO) test -tags=functional ./internal/federation -run '^(TestOfficialARDExamplesUseARDIngestionProfile|TestDomainInspectionAlwaysTriesNormativeARDWellKnown|TestDomainInspectionTriesRequestedWellKnownBeforeFollowingRootRedirect|TestInspectionResolvesAdvertisedARDLocation|TestInspectionRejectsContradictoryAdvertisedProfile|TestInspectionRejectsConflictingRelationsForOneLocation|TestDiscoveryHelpersAreBoundedAndFailClosed|TestSynchronizationRejectsAChangedSourceProfile|TestOriginChangingResponseRequiresReinspectionAndCannotBecomeConditionalState|TestRegistryListRedirectRequiresReinspection)$$' -count=1 -json
+	$(PYTHON) -B test/packaging/completion.py go --required TestARDReferenceCompatibilityCorpus --required TestARDAutoSearchTraversesEveryLocalResultAndQueriesLiveOnce --required TestHTTPAuthoringPublicationSecurityAndReplay -- $(GO) test -tags=functional ./internal/platform/httpserver -run '^(TestARDReferenceCompatibilityCorpus|TestARDAutoSearchTraversesEveryLocalResultAndQueriesLiveOnce|TestHTTPAuthoringPublicationSecurityAndReplay)$$' -count=1 -json
 	@set -eu; \
 		for fixture in \
 			'api/examples/ard-manifest.json|0' \
@@ -1828,7 +1832,7 @@ docs-site-check: ## Lint JS, check Astro, test root/base docs builds; leave root
 
 docs-check: ## Lint Markdown and audit documentation plus tracked workflow defaults
 	$(MARKDOWNLINT) --dot --ignore schemas/upstream --ignore samples/upstream --ignore specs --ignore documentation/node_modules --ignore documentation/.astro --ignore documentation/dist --ignore documentation/src/content/docs/generated --ignore catalog-ui/node_modules --ignore catalog-ui/dist --ignore test/validation/node_modules --ignore test/interoperability/mcp/node_modules --ignore test/validation/.tools --ignore test/apigenerated/.tools --ignore test/sdk/.tools --ignore examples/langgraph/.venv --ignore sdk/typescript/node_modules --ignore sdk/rust/target --ignore test/sdk/rust/consumer/target --ignore examples/rust-catalog-report/target --ignore extensions/vscode/node_modules --ignore extensions/vscode/.tools --ignore extensions/vscode/dist --ignore test/vscode/.tools --ignore .tools --ignore output '**/*.md' '**/*.mdx'
-	$(GO) test ./internal/platform/runtime -run '^TestDocumentationContracts$$' -count=1
+	$(PYTHON) -B test/packaging/completion.py go --required TestDocumentationContracts -- $(GO) test ./internal/platform/runtime -run '^TestDocumentationContracts$$' -count=1 -json
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -1984,12 +1988,18 @@ trace-viewer-down: ## Remove the local Jaeger viewer and discard its in-memory t
 	$(COMPOSE) --env-file /dev/null -f test/tracing/viewer.compose.yaml -p open-agentic-catalog-trace-viewer down
 
 TRACING_VIEWER ?= off
+TRACING_BROWSER ?= off
 test-tracing: export CATALOG_TRACING_VIEWER := $(TRACING_VIEWER)
+test-tracing: export CATALOG_TRACING_BROWSER := $(TRACING_BROWSER)
 test-tracing: ## Verify optional HTTPS OTLP export, causal Jobs and outage independence in owned Compose
 	@CATALOG_FUNCTIONAL_COMPOSE_COMMAND="$(COMPOSE)" CATALOG_FUNCTIONAL_ENGINE_COMMAND="$(CONTAINER_ENGINE)" CATALOG_FUNCTIONAL_MAKE_COMMAND="$(MAKE)" $(PYTHON) test/functional/runner.py run-tracing
 
 test-federation-peers: ## Test four-kind federation, lifecycle, pagination and UI/CLI draft transfer
 	@PYTHONDONTWRITEBYTECODE=1 PYTHONOPTIMIZE=0 CATALOG_FUNCTIONAL_COMPOSE_COMMAND="$(COMPOSE)" CATALOG_FUNCTIONAL_ENGINE_COMMAND="$(CONTAINER_ENGINE)" CATALOG_FUNCTIONAL_MAKE_COMMAND="$(MAKE)" $(PYTHON) test/functional/runner.py run-peers
+
+.PHONY: test-tutorial-federation-oidc
+test-tutorial-federation-oidc: ## Qualify owned two-Catalog Keycloak source credential renewal; requires local images and ports 8443/8445/8447
+	$(PYTHON) -B test/functional/tutorial_oidc.py --backend-image "$(IMAGE)" --ui-image "$(UI_IMAGE)"
 
 test-backup-restore: ## Restore a full logical backup into fresh PostgreSQL and verify Catalog recovery
 	@PYTHONDONTWRITEBYTECODE=1 PYTHONOPTIMIZE=0 CATALOG_FUNCTIONAL_COMPOSE_COMMAND="$(COMPOSE)" CATALOG_FUNCTIONAL_ENGINE_COMMAND="$(CONTAINER_ENGINE)" CATALOG_FUNCTIONAL_MAKE_COMMAND="$(MAKE)" $(PYTHON) test/functional/runner.py run-backup-restore
@@ -2649,6 +2659,8 @@ bench-compare: export BENCH_CANDIDATE := $(BENCH_CANDIDATE)
 bench-compare: ## Compare two compatible bench reports; requires BENCH_BASELINE and BENCH_CANDIDATE
 	$(PYTHON) -B test/performance/benchmarks.py compare
 
+MONITORING_BROWSER ?= off
+test-monitoring: export CATALOG_MONITORING_BROWSER := $(MONITORING_BROWSER)
 test-monitoring: ## Qualify owned Compose metrics, Prometheus collection and Grafana provisioning
 	$(PYTHON) test/performance/runner.py monitoring
 

@@ -11,6 +11,7 @@ import tempfile
 import time
 import unittest
 import zipfile
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("vscode_build_controls", ROOT / "extensions/vscode/tooling/runner.py")
@@ -19,6 +20,59 @@ spec.loader.exec_module(core)
 
 
 class ToolingFunctionalTests(unittest.TestCase):
+    def test_real_node_coverage_refuses_skips_and_unloaded_core_modules(self):
+        stamp = core.installed()
+        with tempfile.TemporaryDirectory(prefix="vscode-node-coverage-", dir=ROOT / "output/vscode") as temporary:
+            root = Path(temporary)
+            extension = root / "extension"
+            for name in ("test", "src", "dist/test"):
+                (extension / name).mkdir(parents=True)
+            (extension / "package.json").write_text('{"type":"module"}')
+            (extension / "src/core.ts").write_text("export const checked = 1;\n")
+            (extension / "dist/test/core.js").write_text("export const checked = 1;\n")
+            body = "import {test} from 'node:test';import assert from 'node:assert/strict';import {checked} from '../dist/test/core.js';test('actual positive control',()=>assert.equal(checked,1));\n"
+            test = extension / "test/core.unit.test.mjs"
+            actual_run = core.run
+            def owned_run(args, **kwargs):
+                # run() binds its normal checkout cwd at definition time. This
+                # calibration owns a different checkout and real Node process.
+                return actual_run(args, **kwargs, cwd=root)
+            with patch.object(core, "ROOT", root), patch.object(core, "EXTENSION", extension), patch.object(core, "source_hashes", return_value={}), patch.object(core, "inputs", return_value={}), patch.object(core, "run", side_effect=owned_run):
+                test.write_text(body)
+                core.coverage(stamp, "unit")
+                report = root / "output/vscode/unit-coverage/manifest.json"
+                passed = json.loads(report.read_text())
+                self.assertEqual(passed['status'], 'passed')
+                self.assertEqual(passed['results']['tests'], 1)
+                original = report.with_name('lcov.info').read_bytes()
+                nested = "test('first.outer',async t=>{await t.test('middle',async t=>{await t.test('shared child',()=>assert.equal(checked,1));});});test('first',async t=>{await t.test('outer.middle',async t=>{await t.test('shared child',()=>assert.equal(checked,1));});});"
+                test.write_text(body + nested)
+                core.coverage(stamp, "unit")
+                self.assertEqual(json.loads(report.read_text())['results']['tests'],3)
+                original = report.with_name('lcov.info').read_bytes()
+                for suffix in ("test.skip('required but skipped',()=>assert.fail());", "test.todo('unimplemented');"):
+                    with self.subTest(suffix=suffix):
+                        test.write_text(body + suffix)
+                        with self.assertRaisesRegex(RuntimeError, 'Invalid or incomplete'):
+                            core.coverage(stamp, "unit")
+                        self.assertEqual(json.loads(report.read_text())['status'], 'failed')
+                        self.assertEqual(report.with_name('lcov.info').read_bytes(), original)
+                test.write_text("import '../dist/test/core.js';")
+                with self.assertRaisesRegex(RuntimeError, 'Invalid or incomplete'):
+                    core.coverage(stamp, "unit")
+                test.write_text(body)
+                (extension / "src/unloaded.ts").write_text("export const unloaded = 2;\n")
+                (extension / "dist/test/unloaded.js").write_text("export const unloaded = 2;\n")
+                with self.assertRaisesRegex(RuntimeError, 'Invalid or incomplete'):
+                    core.coverage(stamp, "unit")
+                self.assertEqual(json.loads(report.read_text())['status'], 'failed')
+                self.assertEqual(list(report.parent.parent.glob('.unit-coverage-*')), [])
+                # Explicitly importing the new core module restores a complete
+                # inventory without changing the floor or pinning a case count.
+                test.write_text("import {unloaded} from '../dist/test/unloaded.js';" + body + "test('new source assertion',()=>assert.equal(unloaded,2));")
+                core.coverage(stamp, "unit")
+                self.assertEqual(json.loads(report.read_text())['results']['tests'], 2)
+
     def test_actual_make_package_failure_watch_and_scoped_cleanup(self):
         stamp = core.installed()
         with tempfile.TemporaryDirectory(prefix="vscode-tooling-", dir=ROOT / "output/vscode") as temporary:

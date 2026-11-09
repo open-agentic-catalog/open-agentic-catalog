@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import platform as host_platform
 import re
 import subprocess
 
@@ -122,8 +123,19 @@ def seal(directory, image, product, platform, scan_directory):
     return value
 
 
-def admit(filename, product, *, load=False):
-    value = read_candidate(filename, identity=admission.source_identity(ROOT), product=product, platform="linux/amd64")
+def native_platform():
+    """Runtime admission requires a supported native host, never emulation."""
+    architecture = {"x86_64": "amd64", "aarch64": "arm64", "arm64": "arm64"}.get(host_platform.machine().lower())
+    if host_platform.system() != "Linux" or architecture is None:
+        raise ValueError("Candidate runtime requires native Linux AMD64 or ARM64")
+    return "linux/" + architecture
+
+
+def admit(filename, product, *, load=False, platform=None):
+    native = native_platform()
+    if platform is not None and platform != native:
+        raise ValueError("Candidate runtime platform is not native to this host")
+    value = read_candidate(filename, identity=admission.source_identity(ROOT), product=product, platform=native)
     if load:
         run(["docker", "image", "load", "--input", str(filename.parent / "image.tar")])
     # Resolve by immutable engine ID. Never trust a tag after archive admission.
@@ -151,6 +163,7 @@ def main():
         selected = sub.add_parser(name)
         selected.add_argument("--backend", type=Path, required=True)
         selected.add_argument("--ui", type=Path)
+        selected.add_argument("--platform", choices=PLATFORMS, help="require this native host architecture; does not enable emulation")
     selected = sub.add_parser("results")
     selected.add_argument("--results", required=True)
     selected.add_argument("--output", type=Path, required=True)
@@ -158,9 +171,9 @@ def main():
     if args.command == "seal":
         seal(args.directory.absolute(), args.image, args.product, args.platform, args.scan_directory)
     elif args.command in {"admit", "load"}:
-        value = {"backend": admit(args.backend.absolute(), "backend", load=args.command == "load")}
+        value = {"backend": admit(args.backend.absolute(), "backend", load=args.command == "load", platform=args.platform)}
         if args.ui:
-            value["ui"] = admit(args.ui.absolute(), "ui", load=args.command == "load")
+            value["ui"] = admit(args.ui.absolute(), "ui", load=args.command == "load", platform=args.platform)
             if value["ui"]["build"] != value["backend"]["build"]:
                 raise ValueError("Candidate builds differ")
         print(json.dumps(value, sort_keys=True))

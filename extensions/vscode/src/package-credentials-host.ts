@@ -8,14 +8,16 @@ import {
 } from "./package-credentials.js";
 import type { Session, Secrets } from "./session.js";
 import type { PackageSource } from "./packages.js";
+import type { CredentialAccess } from "./host.js";
 
 export class CatalogPackageCredentials {
   private credentials: PackageCredentials;
   constructor(
     secrets: Secrets,
     private session: Session,
+    access: CredentialAccess,
   ) {
-    this.credentials = new PackageCredentials(secrets);
+    this.credentials = new PackageCredentials(secrets, access);
   }
   async select(source: PackageSource): Promise<PackageCredential | undefined> {
     const check = this.session.guard(this.session.connection()),
@@ -130,7 +132,7 @@ export class CatalogPackageCredentials {
   async forgetAll() {
     if (
       (await vscode.window.showWarningMessage(
-        "Forget all package source credentials on this host? Close other Catalog windows first. Catalog, MCP and Agent login remain separate. This does not revoke source credentials or cancel an acquisition that already read them.",
+        "Forget all package source credentials on this host? Close other Catalog windows first. This also recovers an abandoned package credential writer. Catalog, MCP and Agent login remain separate. This does not revoke source credentials or cancel an acquisition that already read them.",
         { modal: true },
         "Forget package credentials",
       )) !== "Forget package credentials"
@@ -144,7 +146,7 @@ export class CatalogPackageCredentials {
           cancellable: true,
         },
         async (_, token) =>
-          this.credentials.forgetAll(() => token.isCancellationRequested),
+          this.credentials.forgetAll(() => token.isCancellationRequested, true),
       );
       if (!result.remaining) {
         void vscode.window.showInformationMessage(

@@ -182,7 +182,8 @@ def functional(*, scope="all"):
         report["phases"]["packagedDesktop"] = "passed"
         report["phases"]["linuxRemoteAndBrowser"] = "running"
         (ROOT / "output/vscode/remote-qualification.json").unlink(missing_ok=True)
-        run(["xvfb-run", "-a", stamp["node"], HERE / "remote.mjs"], env=env, timeout=180)
+        with tempfile.TemporaryDirectory(prefix="vscode-remote-catalog-", dir=ROOT / "output/vscode") as directory:
+            sdk.qualify_catalog(Path(directory), test_stamp, workflow=HERE / "remote.mjs", fixture=HERE / "catalog_host_functional_test.go.txt", pattern="^TestVSCodeRemoteCatalogHost$", timeout="240s", extra_env={key: value for key, value in dict(env, CATALOG_VSCODE_RUN_DIR=directory).items() if key.startswith("CATALOG_VSCODE_") or key == "XDG_RUNTIME_DIR"})
         remote = json.loads((ROOT / "output/vscode/remote-qualification.json").read_text())
         if remote.get("status") != "passed" or not remote.get("passed") or remote.get("cleanup") != "passed" or remote.get("packageSHA256") != manifest["sha256"]:
             raise RuntimeError("Remote/browser result is missing, stale or incomplete")

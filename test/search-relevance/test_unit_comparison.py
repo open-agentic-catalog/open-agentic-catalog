@@ -71,6 +71,28 @@ class ComparisonTests(unittest.TestCase):
         with patch.object(comp.ev, "digest", return_value="changed"), self.assertRaisesRegex(ValueError, "corpus"):
             comp.inputs()
 
+    def test_actual_comparison_inputs_reject_representative_whitespace_aliases(self):
+        _, _, documents, queries = comp.inputs()
+        representative = documents[0]["representativeQueries"][0]
+        original_loader = ev.load_json
+        for text in (representative, representative.upper(), "  " + representative + "  ",
+                     "\t" + "  \t".join(representative.split()) + "\n"):
+            selected = copy.deepcopy(queries)
+            next(q for q in selected if q["split"] == "test" and not q["relevant"])["text"] = text
+
+            def load(path):
+                return selected if Path(path) == comp.EXPERIMENT / "queries.json" else original_loader(path)
+
+            with self.subTest(text=text), patch.object(ev, "load_json", side_effect=load), self.assertRaisesRegex(ValueError, "held-out query copied"):
+                comp.inputs()
+        selected = copy.deepcopy(queries)
+        independent = "  Which volcanic glass suppliers are supported here?  "
+        next(q for q in selected if q["split"] == "test" and not q["relevant"])["text"] = independent
+        with patch.object(ev, "load_json", side_effect=load):
+            *_, admitted = comp.inputs()
+        self.assertIn(independent, [q["text"] for q in admitted])
+        self.assertNotIn(independent, [q["text"] for q in queries])
+
     def test_profile_cache_parent_symlink_is_rejected_before_writes(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

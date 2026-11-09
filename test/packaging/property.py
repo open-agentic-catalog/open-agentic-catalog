@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "interoperability")
 from common import run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-PACKAGES = ("./internal/jsondoc", "./internal/identity", "./internal/catalog", "./internal/platform/config", "./internal/audit", "./internal/platform/idempotency")
+PACKAGES = ("./internal/jsondoc", "./internal/identity", "./internal/catalog", "./internal/platform/config", "./internal/audit", "./internal/platform/idempotency", "./internal/jobs", "./internal/platform/demodata")
 MODULE = "pgregory.net/rapid"
 VERSION = "v1.3.0"
 DEFAULT_CHECKS = 100

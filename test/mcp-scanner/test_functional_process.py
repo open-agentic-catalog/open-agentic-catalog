@@ -17,7 +17,7 @@ from fixtures import base, core, document, issue, native, runner
 
 
 FAKE_DOCKER = r'''
-import json, os, pathlib, sys, time
+import hashlib, json, os, pathlib, sys, time
 state_path = pathlib.Path(os.environ["FAKE_STATE"])
 state = json.loads(state_path.read_text())
 args = sys.argv[1:]
@@ -25,7 +25,21 @@ def save():
  staged = state_path.with_suffix(".writing")
  staged.write_text(json.dumps(state))
  staged.replace(state_path)
-if args[2:4] == ["container", "ls"]:
+if args[2] == "pull":
+ state["pulled"] = args[-1]
+ save()
+elif args[2] == "build":
+ context = pathlib.Path(args[-1])
+ selected = next((args[i+1] for i, value in enumerate(args) if value in ("-f", "--file")), None)
+ build_file = context / "Dockerfile" if selected is None else pathlib.Path(selected).absolute()
+ if not build_file.is_file(): sys.exit(2)
+ state["build_file"] = build_file.name
+ state["build_file_sha256"] = hashlib.sha256(build_file.read_bytes()).hexdigest()
+ state["build_files"] = sorted(p.name for p in context.iterdir() if p.is_file())
+ save()
+elif args[2:4] == ["image", "inspect"]:
+ print(json.dumps([{"Id":"sha256:"+"a"*64, "Os":"linux", "Architecture":"amd64", "Config":{"User":"65532:65532"}}]))
+elif args[2:4] == ["container", "ls"]:
  if state.get("query_fail"): sys.exit(2)
  if state.get("exists"): print("a" * 64)
 elif args[2:4] == ["container", "inspect"]:
@@ -292,6 +306,47 @@ raise SystemExit(runner.scan(Path(sys.argv[3]),Path(sys.argv[4]),"test capture",
         with mock.patch.object(runner, "OWNED", self.directory / "missing"), self.assertRaises(ValueError), \
                 mock.patch.object(runner, "docker", side_effect=AssertionError("missing tools contacted Docker")):
             runner.require_installed(self.env)
+
+    def test_owned_builder_uses_context_default_and_working_directory_explicit_file(self):
+        context = self.directory / "build-context"
+        context.mkdir()
+        recipes = {
+            self.directory / "Containerfile": b"FROM scratch\n# explicit working-directory recipe\n",
+            context / "Containerfile": b"FROM scratch\n# explicit absolute recipe\n",
+            context / "Dockerfile": b"FROM scratch\n# default context recipe\n",
+        }
+        for path, content in recipes.items():
+            path.write_bytes(content)
+        for arguments, expected in (([], context / "Dockerfile"), (["--file", "Containerfile"], self.directory / "Containerfile"),
+                                    (["--file", str(context / "Containerfile")], context / "Containerfile")):
+            with self.subTest(arguments=arguments):
+                subprocess.run([str(self.executable), "--host", "unix:///var/run/docker.sock", "build", *arguments, str(context)],
+                               cwd=self.directory, env=self.env, capture_output=True, timeout=5, check=True)
+                self.assertEqual(self.state()["build_file_sha256"], core.digest(recipes[expected]))
+
+    def test_install_builds_staged_containerfile_and_binds_receipt(self):
+        packages = {}
+        for line in (runner.HERE / "requirements.txt").read_text().splitlines():
+            if line and not line[0].isspace() and not line.startswith("#") and "==" in line:
+                name, version = line.split("==", 1)
+                packages[name] = {"version": version.split()[0]}
+        inventory = {"version": runner.PINS["scanner"], "rulesSha256": runner.PINS["rulesSha256"], "packages": packages}
+        clock = mock.Mock(wraps=runner.datetime)
+        clock.now.return_value = runner.datetime(2026, 11, 8, tzinfo=runner.timezone.utc)
+        owned = self.directory / "installed"
+        with mock.patch.object(runner, "require_host"), mock.patch.object(runner, "OWNED", owned), mock.patch.object(runner, "datetime", clock), \
+                mock.patch.object(runner, "environment", return_value=self.env), \
+                mock.patch.object(runner, "image_identity", return_value=inventory), contextlib.redirect_stdout(io.StringIO()):
+            runner.install()
+        state = self.state()
+        self.assertEqual(state["pulled"], runner.PINS["baseImage"])
+        self.assertEqual(state["build_file"], "Containerfile")
+        self.assertEqual(state["build_file_sha256"], core.digest((runner.HERE / "Containerfile").read_bytes()))
+        self.assertEqual(state["build_files"], ["Containerfile", "catalog_mcp_scan.py", "libyara-COPYING", "requirements.txt", "worker.py"])
+        receipt = json.loads((owned / "installed.json").read_text())
+        self.assertEqual(receipt["imageId"], "sha256:" + "a" * 64)
+        self.assertEqual(receipt["fingerprint"], runner.fingerprint())
+        self.assertEqual(receipt["packages"], packages)
 
     def test_identity_command_only_returns_the_current_scanner_binding(self):
         installed = {"version": "4.8.7", "imageId": "sha256:" + "a" * 64,

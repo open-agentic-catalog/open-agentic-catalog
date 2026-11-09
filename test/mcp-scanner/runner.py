@@ -116,7 +116,8 @@ def install():
         shutil.copy2(EXAMPLE / "licenses/libyara-COPYING", directory / "libyara-COPYING")
         reference = "open-agentic-catalog-mcp-scanner:" + PINS["scanner"] + "-" + fingerprint()[:12]
         require_success(docker(["pull", "--platform", "linux/amd64", PINS["baseImage"]], env, seconds=600))
-        require_success(docker(["build", "--pull=false", "--platform", "linux/amd64", "--tag", reference, directory], env, seconds=900, capture=False))
+        require_success(docker(["build", "--pull=false", "--platform", "linux/amd64", "--file", directory / "Containerfile", "--tag", reference, directory],
+                               env, seconds=900, capture=False))
         image = image_inspection(reference, env)
         observed = image_identity(image["Id"], env)
         expected = dict(re.findall(r"(?m)^([A-Za-z0-9_.-]+)==([^ ;\\\n]+)", (HERE / "requirements.txt").read_text()))

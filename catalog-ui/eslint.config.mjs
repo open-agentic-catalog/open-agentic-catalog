@@ -32,7 +32,11 @@ const playwrightRules = {
 export default defineConfig(
   {
     basePath: fileURLToPath(new URL("../", import.meta.url)),
-    files: ["test/embeddings/*.mjs"],
+    files: [
+      "test/embeddings/*.mjs",
+      "test/monitoring/*.mjs",
+      "test/tracing/*.mjs",
+    ],
     extends: [js.configs.recommended],
     languageOptions: { globals: globals.node },
     plugins: { playwright },

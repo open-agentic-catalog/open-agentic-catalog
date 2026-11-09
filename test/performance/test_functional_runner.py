@@ -8,6 +8,22 @@ import runner
 
 
 class PerformanceOwnership(unittest.TestCase):
+    def test_make_exports_optional_browser_selections_to_the_existing_owners(self):
+        with tempfile.TemporaryDirectory(prefix="catalog-browser-selection-") as temporary:
+            probe = Path(temporary) / "probe.py"
+            probe.write_text('import json,os;print(json.dumps({key:os.environ.get(key) for key in ("CATALOG_MONITORING_BROWSER","CATALOG_TRACING_VIEWER","CATALOG_TRACING_BROWSER")}))\n')
+            for target, options, expected in (
+                ("test-monitoring", [], {"CATALOG_MONITORING_BROWSER": "off"}),
+                ("test-monitoring", ["MONITORING_BROWSER=on"], {"CATALOG_MONITORING_BROWSER": "on"}),
+                ("test-tracing", [], {"CATALOG_TRACING_VIEWER": "off", "CATALOG_TRACING_BROWSER": "off"}),
+                ("test-tracing", ["TRACING_VIEWER=on", "TRACING_BROWSER=on"], {"CATALOG_TRACING_VIEWER": "on", "CATALOG_TRACING_BROWSER": "on"}),
+            ):
+                with self.subTest(target=target, options=options):
+                    process = subprocess.run(["make", "--no-print-directory", "-s", target, "PYTHON=python3 " + str(probe), "CATALOG_ENV_FILE=/dev/null", *options],
+                                             cwd=runner.ROOT, env=runner.local.isolated_environment(), capture_output=True, timeout=15, check=True)
+                    values = json.loads(process.stdout)
+                    self.assertEqual({key: value for key, value in values.items() if value is not None}, expected)
+
     def test_make_exports_only_workload_controls_to_isolated_target(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

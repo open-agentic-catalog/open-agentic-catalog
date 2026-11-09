@@ -52,6 +52,42 @@ def address(raw):
     return "http://" + value
 
 
+def browser_selection(mode, environment):
+    value = environment.get("CATALOG_MONITORING_BROWSER", "off")
+    if value not in {"off", "on"} or (value == "on" and mode != "monitoring"):
+        raise Failure("invalid-monitoring-browser-selection")
+    return value == "on"
+
+
+def browser_window(workload):
+    # Absolute workload timestamps remain useful after slow postprocessing or
+    # collector recovery. Never substitute the browser's moving now window.
+    measured = workload["measured"]
+    window = [measured["startedAtUnixMillis"], measured["finishedAtUnixMillis"]]
+    if any(type(value) is not int or value <= 0 for value in window) or not 0 < window[1] - window[0] <= 240000 or measured["clockAdjustmentMillis"] != 0:
+        raise Failure("monitoring-browser-observation-window-invalid")
+    return window
+
+
+def qualify_monitoring_browser(directory, environment, origin, run_id, workload):
+    value = {"origin": origin, "uid": "catalog-browser-" + run_id, "passwordFile": str(directory / "grafana-password"),
+             "window": browser_window(workload)}
+    filename = directory / "monitoring-browser-input.json"
+    local.safety.write_document(filename, value)
+    try:
+        raw = local.command(["node", str(ROOT / "test/monitoring/browser.mjs"), str(filename)], environment, 240, True)
+        result = local.safety.decode(raw)
+        if (not isinstance(result, dict) or result.get("status") != "passed" or result.get("window") != value["window"] or result.get("roles") != ["api", "worker", "All"]
+                or result.get("deployment") != "local" or result.get("dataSource") != "catalog-prometheus" or result.get("diagnostics") != "passed"
+                or any(result.get(name) is not True for name in ("nativeImportAndUpdate", "controlledZero", "controlledUnavailable", "provisionedUnchanged"))
+                or result.get("controls") != [{"fault": fault, "refused": True} for fault in ("selector", "dataSource", "asset")]
+                or not isinstance(result.get("browser"), str) or not result["browser"]):
+            raise Failure("monitoring-browser-incomplete")
+        return result
+    finally:
+        filename.unlink(missing_ok=True)
+
+
 def get(url, password=None):
     request = urllib.request.Request(url)
     if password is not None:
@@ -558,6 +594,7 @@ def occupied_port_check(state, environment, port):
 def workload_settings(mode, environment):
     if mode not in {"smoke", "monitoring", "load", "soak", "scale", "public-delivery"}:
         raise Failure("invalid-profile")
+    browser_selection(mode, environment)
     if mode == "public-delivery":
         for name, expected in {"PERF_DURATION_SECONDS": "60", "PERF_WARMUP_SECONDS": "5", "PERF_WORKERS": "2"}.items():
             if environment.get(name, "") not in ("", expected):
@@ -1059,6 +1096,9 @@ def run(mode):
             report["monitoring"]["portConflict"] = occupied_port_check(state, environment, urllib.parse.urlsplit(prometheus).port)
             get(api + "/readyz")
             get(worker + "/readyz")
+            if browser_selection(mode, os.environ):
+                stage = "monitoring-browser"
+                report["monitoring"]["browser"] = qualify_monitoring_browser(directory, environment, grafana, run_id, report["workload"])
         if report["source"] != source_identity(environment):
             raise Failure("source-changed-during-trial")
         report["status"] = "passed-development-diagnostic"

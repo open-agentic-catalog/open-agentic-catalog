@@ -187,6 +187,40 @@ class EvaluationTests(unittest.TestCase):
             with self.subTest(failure=failure), patch.object(ev, "load_json", side_effect=[manifest, docs, qs]), self.assertRaises(ValueError):
                 ev.fixtures()
 
+    def test_representative_aliases_are_not_held_out_questions(self):
+        manifest, documents, queries = ev.fixtures()
+        original = copy.deepcopy((documents, queries))
+        representative = documents[0]["representativeQueries"][0]
+        aliases = [representative, representative.upper(), "  " + representative + "  ",
+                   "\t" + " \t  ".join(representative.split()) + "\n"]
+        # A no-answer question keeps every other judgment/filter constraint valid.
+        for alias in aliases:
+            selected = copy.deepcopy(queries)
+            question = next(q for q in selected if q["split"] == "test" and not q["relevant"])
+            question["text"] = alias
+            with self.subTest(alias=alias), self.assertRaisesRegex(ValueError, "held-out query copied"):
+                ev.validate_fixtures(manifest, documents, selected)
+            self.assertEqual(question["text"], alias)
+        independent = copy.deepcopy(queries)
+        question = next(q for q in independent if q["split"] == "test" and not q["relevant"])
+        question["text"] = "  A separate unanswerable question about volcanic glass  "
+        ev.validate_fixtures(manifest, documents, independent)
+        self.assertEqual(question["text"], "  A separate unanswerable question about volcanic glass  ")
+        self.assertEqual((documents, queries), original)
+
+    def test_split_aliases_use_the_same_comparison_without_rewriting_inputs(self):
+        manifest, documents, queries = ev.fixtures()
+        tune = next(q for q in queries if q["split"] == "tune" and not q["relevant"])
+        for alias in (tune["text"], tune["text"].upper(), "\t" + "   ".join(tune["text"].split()) + "\n"):
+            selected = copy.deepcopy(queries)
+            question = next(q for q in selected if q["split"] == "test" and not q["relevant"])
+            question["text"] = alias
+            with self.subTest(alias=alias), self.assertRaisesRegex(ValueError, "query text crosses"):
+                ev.validate_fixtures(manifest, documents, selected)
+            self.assertEqual(question["text"], alias)
+        # Compatibility folding is deliberately outside this policy.
+        self.assertNotEqual(ev.query_key("fullwidth Ａ"), ev.query_key("fullwidth A"))
+
     def test_invalid_manifest_and_nonfinite_json(self):
         manifest, _, _ = ev.fixtures()
         for update in ({"files": {"../outside": "a"*64}}, {"dimensions": 0}, {"dimensions": 384.0}, {"thresholds": [0.7, 0.6]}, {"rrf_k": 0}, {"rrf_k": True}, {"tei_image": "floating:latest"}, {"minimum_ndcg_gain": 0}):

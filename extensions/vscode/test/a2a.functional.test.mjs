@@ -1,5 +1,6 @@
 import test from "node:test";
 import { listenFixture } from "../../../test/vscode/listen.mjs";
+import { fixtureWait } from "../../../test/vscode/wait.mjs";
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -276,6 +277,7 @@ test("Real HTTP/SSE boundaries: direct Messages, no redirects, byte/type/identit
     status: { state: "TASK_STATE_WORKING" },
   };
   const messages = [];
+  const oversizedClosed = Promise.withResolvers();
   const server = createServer(async (req, res) => {
     contacts++;
     if (req.url === "/stolen") stolen++;
@@ -307,9 +309,32 @@ test("Real HTTP/SSE boundaries: direct Messages, no redirects, byte/type/identit
       res.end();
       return;
     }
-    if (mode === "large") {
+    if (mode === "limit" || mode === "large") {
       res.setHeader("content-type", "application/json");
-      res.end(Buffer.alloc(1024 ** 2 + 1));
+      const raw = Buffer.from(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: request.id,
+            result: {
+              message: {
+                messageId: "bounded-message",
+                contextId: "bounded-context",
+                role: "ROLE_AGENT",
+                parts: [{ text: "bounded reply é 😀" }],
+              },
+            },
+          }),
+        ),
+        size = 1024 * 1024 + Number(mode === "large"),
+        bytes = Buffer.concat([raw, Buffer.alloc(size - raw.length, 0x20)]);
+      assert.equal(bytes.length, size);
+      assert.equal(JSON.parse(bytes.toString()).id, request.id);
+      if (mode === "large") res.once("close", oversizedClosed.resolve);
+      // Multiple writes require chunked framing. The oversized peer deliberately
+      // remains open; the client must stop it on bytes, without waiting for EOF.
+      res.write(bytes.subarray(0, 8191));
+      res.write(bytes.subarray(8191));
+      if (mode === "limit") res.end();
       return;
     }
     if (mode === "nontext") {
@@ -406,9 +431,22 @@ test("Real HTTP/SSE boundaries: direct Messages, no redirects, byte/type/identit
     direct.state.messages.filter((m) => m.role === "agent").length,
     2,
   );
+  mode = "limit";
+  const exact = make(card, settings);
+  await exact.send("prompt");
+  assert.equal(exact.state.status, "completed");
+  assert.equal(exact.state.messages[1].text, "bounded reply é 😀");
+  mode = "large";
+  const over = make(card, settings),
+    beforeOversized = contacts;
+  await assert.rejects(over.send("prompt"), { code: "a2a_response_limit" });
+  await fixtureWait(oversizedClosed.promise, "oversized A2A response close");
+  assert.equal(over.state.uncertain, true);
+  assert.equal(over.state.messages.filter((m) => m.role === "agent").length, 0);
+  await assert.rejects(over.send("prompt"), /not_ready/u);
+  assert.equal(contacts, beforeOversized + 1, "No oversized request replay");
   for (const selected of [
     "redirect",
-    "large",
     "nontext",
     "bad-context",
     "truncated",

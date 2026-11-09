@@ -600,7 +600,11 @@ if Path("fail-" + stage).exists():
             self.assertNotIn("check:astro", commands)
         for project in ("documentation", "test/validation"):
             script = json.loads((ROOT / project / "package.json").read_text())["scripts"]["test:unit"]
-            self.assertEqual(script, "node --test " + ("scripts/" if project == "documentation" else "") + "*.unit.test.mjs")
+            expected = {
+                "documentation": "node ../catalog-ui/scripts/native-test-completion.mjs scripts/*.unit.test.mjs",
+                "test/validation": "node --test *.unit.test.mjs",
+            }
+            self.assertEqual(script, expected[project])
 
     def test_source_gate_failures_stop_later_checks_without_installing_tools(self):
         """Execute maintained Make/shell sequences with owned tool doubles."""
@@ -897,6 +901,8 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
             root = Path(directory)
             (root / "Makefile").write_bytes((ROOT / "Makefile").read_bytes())
             (root / "go.mod").write_text("module example.invalid/native\n\ngo 1.27.0\n")
+            (root / "test/packaging").mkdir(parents=True)
+            shutil.copyfile(ROOT / "test/packaging/completion.py", root / "test/packaging/completion.py")
             for owner in ("first", "second"):
                 folder = root / "test" / owner
                 folder.mkdir(parents=True)
@@ -919,6 +925,16 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
             self.assertNotEqual(run("").returncode, 0)
             (root / "test/empty").mkdir()
             self.assertNotEqual(run("empty").returncode, 0)
+            (root / "test/first/test_unit_skipped.py").write_text("import unittest\nclass Units(unittest.TestCase):\n    @unittest.skip('synthetic')\n    def test_required(self): pass\n")
+            result = run("first second")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("failed, skipped or did not complete", result.stderr)
+            (root / "test/first/test_unit_skipped.py").unlink()
+            (root / "test/first/test_unit_empty.py").write_text("import unittest\n")
+            result = run("first second")
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("required test file has no cases", result.stderr)
+            (root / "test/first/test_unit_empty.py").unlink()
             (root / "test/first/test_unit_runner.py").write_text('raise RuntimeError("unit failed")\n')
             result = run("first second")
             self.assertNotEqual(result.returncode, 0)

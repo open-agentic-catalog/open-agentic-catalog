@@ -199,6 +199,39 @@ class ConfigurationUnits(unittest.TestCase):
 
 
 class TransportUnits(unittest.IsolatedAsyncioTestCase):
+    async def test_generated_wire_semantics_use_one_origin_and_preserve_open_metadata(self):
+        from catalog_sdk.generated.models.create_listing_revision_extensions import CreateListingRevisionExtensions
+        words = ("", "é", "日本語", "😀", "%+&=", "line\nvalue", 'quoted"value', "two words")
+        client = Client(Config(origin="https://catalog.example.com", token="selected"))
+        calls = []
+        def handler(request):
+            calls.append(request)
+            self.assertEqual(request.url.scheme, "https")
+            self.assertEqual(request.url.host, "catalog.example.com")
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.path, "/api/v1/personal/items")
+            return httpx.Response(200, headers={"Content-Type":"application/json"}, stream=Stream([b'{"items":[]}']))
+        with injected(client.rest_client, handler):
+            for seed in range(32):
+                label = f"case-{seed}-{words[seed % len(words)]}"
+                selected = None if seed % 3 == 0 else "" if seed % 3 == 1 else label
+                before = len(calls)
+                if selected == "":
+                    # Python's generated parameter enforces minLength locally;
+                    # the other SDKs deliberately leave it to the API.
+                    with self.assertRaises(ValidationError):
+                        await PersonalWorkspaceApi(client).list_personal_items(label=selected)
+                    self.assertEqual(len(calls), before)
+                else:
+                    await PersonalWorkspaceApi(client).list_personal_items(label=selected)
+                    self.assertEqual(len(calls), before + 1)
+                    self.assertEqual(list(calls[-1].url.params.multi_items()), [] if selected is None else [("label", label)])
+                after = len(calls)
+                expected = {"additional_properties":{"literal":words[seed % len(words)]}, "model_extra":None,
+                            "values":[None, False, "", label], "count":seed * 65537}
+                self.assertEqual(CreateListingRevisionExtensions(**expected).to_dict(), expected)
+                self.assertEqual(len(calls), after, "codec work must not contact a destination")
+
     async def test_personal_label_query_preserves_literal_value_and_omission(self):
         client = Client(Config(origin="https://catalog.example.com", token="selected"))
         calls = []

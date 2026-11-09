@@ -16,6 +16,7 @@ import { pipeline } from "node:stream/promises";
 import { run } from "node:test";
 import * as reporters from "node:test/reporters";
 import { fileURLToPath } from "node:url";
+import { requiredUnitCompletion } from "./native-test-completion.mjs";
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const sourceRoots = ["catalog-ui/scripts", "documentation/scripts"];
@@ -134,6 +135,10 @@ export function normalizeLcov(raw, root, cwd, measuredFiles) {
 async function capture(selection, root, pending, output) {
   let failed = false;
   let coverageEvents = 0;
+  const completion =
+    selection.scope === "unit"
+      ? requiredUnitCompletion(selection.files)
+      : undefined;
   const stream = run({
     files: selection.files,
     argv: selection.argv,
@@ -146,6 +151,7 @@ async function capture(selection, root, pending, output) {
     coverageExcludeGlobs: ["**/*.test.mjs", "**/*.functional.mjs"],
   });
   stream.on("data", (event) => {
+    completion?.observe(event);
     if (event.type === "test:fail") failed = true;
     if (event.type === "test:coverage") coverageEvents++;
   });
@@ -164,6 +170,7 @@ async function capture(selection, root, pending, output) {
   await Promise.all(reports);
   if (failed || coverageEvents !== 1)
     throw new Error("Native tooling selection failed or coverage is missing");
+  return completion?.finish();
 }
 
 /** Run one existing selection; publish a source-bound receipt only on success. */
@@ -185,7 +192,7 @@ export async function runCoverage(
   const previous = process.cwd();
   try {
     process.chdir(selection.cwd);
-    await capture(selection, root, pending, output);
+    const execution = await capture(selection, root, pending, output);
     const after = await collectSources(root);
     if (JSON.stringify(sources) !== JSON.stringify(after))
       throw new Error("Native tooling sources changed during selection");
@@ -227,6 +234,7 @@ export async function runCoverage(
         argv: selection.argv,
         scope: selection.scope,
       },
+      ...(execution ? { execution } : {}),
     };
     await writeFile(
       join(directory, "report.pending"),

@@ -109,6 +109,19 @@ async def main():
     print(
         "Scripted graph + real Catalog SDK HTTP: passed; 13 releases, 11 Skills, two pages, exact read, current-identity and authentication refusals."
     )
+    # Validate the real HTTP/SDK fixtures independently before a stochastic
+    # model can obscure a malformed fixture as an inference failure.
+    for case in expected["modelCases"]:
+        control = DiscoveryTools(
+            CatalogDiscoveryApi(Client(Config(origin=case["origin"], allow_loopback_http=True, token="reader"))),
+            UUID(case["namespaceId"]),
+        )
+        page = await control.tools()[0].ainvoke({"query": "web", "kinds": []})
+        assert {item["release_id"] for item in page["items"]} == set(case["releaseIds"])
+        if case["name"] not in ("empty", "withdraw-before-read"):
+            record = await control.tools()[1].ainvoke({"release_id": case["releaseIds"][0]})
+            assert record["release_id"] == case["releaseIds"][0]
+    print("Four owned model-case real Catalog/SDK HTTP fixture controls: passed.")
     model_origin = os.environ.get("CATALOG_LANGGRAPH_MODEL_ORIGIN")
     if model_origin:
         pin = json.loads(Path(__file__).with_name("model.json").read_text())
@@ -158,6 +171,9 @@ async def main():
         print(
             "Real local-model + actual make langgraph-demo + real Catalog SDK HTTP: passed; recommendations bind inspected governed releases."
         )
+        from model_evaluation import evaluate
+
+        await evaluate(expected["modelCases"], model_origin, pin, root / "output/langgraph/model-characterization.json")
 
 
 if __name__ == "__main__":

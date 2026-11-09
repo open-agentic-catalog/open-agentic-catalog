@@ -150,6 +150,45 @@ class ContractUnits(unittest.TestCase):
             # The typed container deliberately preserves input; it is not a schema validator.
             self.assertEqual(TrustAssessmentRequest.model_validate(invalid).to_dict(), invalid)
 
+    def test_bounded_conditional_version_and_delivery_wire_corpus(self):
+        import base64
+        trust = jsonschema.Draft202012Validator({"$ref":"#/components/schemas/TrustAssessmentRequest", "components":CONTRACT["components"]})
+        representation = jsonschema.Draft202012Validator({"$ref":"#/components/schemas/RepresentationInput", "components":CONTRACT["components"]})
+        for seed in range(16):
+            request = {"sourceRevision":seed + 1, "identifier":f"urn:air:example.com:wire:item-{seed}",
+                       "versionPresent":seed % 2 == 0, "mediaType":"application/json", "delivery":("data","url")[seed % 2],
+                       "exactEntryDigest":"sha256:" + "a" * 64, "reason":"Check generated wire semantics"}
+            if seed % 2 == 0:
+                request["version"] = ("", "1.2.3")[(seed // 2) % 2]
+            request["observationId" if seed % 3 == 0 else "text"] = "00000000-0000-7000-8000-000000000001" if seed % 3 == 0 else f"Entry {seed} é 日本語"
+            actual = TrustAssessmentRequest.model_validate(request).to_dict()
+            self.assertEqual(actual, request)
+            self.assertEqual(list(trust.iter_errors(actual)), [])
+            invalid = dict(request)
+            if seed % 2 == 0:
+                del invalid["version"]
+            else:
+                invalid["version"] = ""
+            self.assertTrue(list(trust.iter_errors(invalid)))
+            # The conditional container is intentionally not a full validator.
+            self.assertEqual(TrustAssessmentRequest.model_validate(invalid).to_dict(), invalid)
+            value = {"role":"primary", "mediaType":"application/json"}
+            if seed % 4 == 0:
+                value["data"] = {"nested":[None, False, "", seed]}
+            elif seed % 4 == 1:
+                value["content"] = f"Native é {seed}\n"
+            elif seed % 4 == 2:
+                value["url"] = f"https://resource.example/card-{seed}.json"
+            else:
+                value.update(mediaType="application/agent-skills+zip", packageData=base64.b64encode(bytes((0,1,seed,255))).decode(),
+                             handoff={"git":{"repository":"https://example.com/skill.git", "commit":"a" * 40, "directory":"skill"}})
+            actual = RepresentationInput.model_validate(value).to_dict()
+            self.assertEqual(actual, value)
+            self.assertEqual(list(representation.iter_errors(actual)), [])
+            invalid = {"role":"primary", "mediaType":"application/json", "data":{}, "content":"conflicting delivery"}
+            self.assertTrue(list(representation.iter_errors(invalid)))
+            self.assertEqual(RepresentationInput.model_validate(invalid).to_dict(), invalid)
+
     def test_search_results_keep_common_fields_and_each_conditional_evidence(self):
         schema = CONTRACT["components"]["schemas"]["CatalogSearchResult"]
         id_validator = jsonschema.Draft202012Validator(schema["properties"]["id"])

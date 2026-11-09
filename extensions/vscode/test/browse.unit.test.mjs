@@ -334,13 +334,19 @@ test("copied references are closed duplicate-safe exact identities, never URLs o
     { ...local, version: "x".repeat(129) },
   ])
     assert.throws(() => exactReference(JSON.stringify(value)));
-  assert.throws(() =>
-    exactReference(
-      '{"origin":"indexed","origin":"local","identifier":"' +
-        identifier +
-        '","versionPresent":false}',
-    ),
-  );
+  for (const replacement of [
+    '"origin":"indexed","origin":"local"',
+    '"or\\u0069gin":"indexed","origin":"local"',
+  ]) {
+    const duplicate = JSON.stringify(local).replace(
+      '"origin":"local"',
+      replacement,
+    );
+    assert.deepEqual(JSON.parse(duplicate), local);
+    assert.throws(() => exactReference(duplicate), {
+      code: "invalid_reference",
+    });
+  }
   assert.throws(() => exactReference(" ".repeat(8193)));
 });
 test("opening an exact reference checks every identity field and a later read cannot retarget it", async (t) => {

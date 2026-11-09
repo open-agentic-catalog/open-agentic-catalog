@@ -633,6 +633,8 @@ Functional tests exercise a real boundary or a composed application workflow. A 
 
 Go tests stay beside source. Untagged files contain isolated tests and inert shared helpers. `functional` enables local listeners, subprocesses and composed workflows; `integration` enables PostgreSQL; `helm` and `minikube` mark their harness selections. Isolated Minikube helpers can be selected without creating a cluster. Python uses `test_unit_*.py` versus `test_functional_*.py`; Node tooling uses `.unit.test.mjs` versus `.functional.test.mjs`. Test selection includes initializers and cleanup, not only test bodies.
 
+Required SDK selections and isolated Python/Node tooling owners require native test completion, including required files and discovered cases. Focused architecture, documentation, conformance and process gates require every declared Go test to pass. Compile-only and optional functional selections keep their separate policies. Bounded properties compare retained authorization, Job lease histories, lexical traversal and sample execution identities with independent expectations. The Skill archive fuzzer also validates generated inventories and unsafe neighbors.
+
 ### Core commands
 
 | Target | What actually runs |
@@ -845,6 +847,8 @@ Sample loading is an explicit governed workflow. Select curated, minimal or expa
 Development archives admit only the fixed demo tenant and prepared exact paths/digests/sizes through the configured TLS origin and allowlist. Production and Helm cannot enable this exception. Ordinary federation and fetching keep separate authority. `make demo-up` checks, prepares, launches, waits and loads; plain Compose startup never seeds.
 
 The [Rust report](examples/rust-catalog-report/README.md), [LangGraph assistant](examples/langgraph/README.md) and [VS Code client](extensions/vscode/README.md) are independent consumers. Their tools and runtime dependencies stay outside application images. The extension supports explicit native MCP use, verified Skill/Plugin management and bounded A2A text conversations with separate target consent and credentials. Browsing alone executes nothing. Each client guide describes supported workflows and qualification limits.
+
+VS Code copied references reject duplicate keys through the shared bounded decoder before exact identity admission. Package credential writes use the existing execution-host lock and index generation checks. Contention and stale indexes fail without a write; uncertain storage failures require explicit offline Forget All recovery with other windows closed. Separate remote hosts do not share that filesystem coordination.
 
 `samples/catalog.yaml` and its bounded relative native assets supply the development inventory and standalone CLI inputs. Shared validation freezes those bytes before preview, archive preparation or governed loading. `demo-archives-prepare` retains immutable digest-addressed ZIP objects and an atomic exact allowlist. Development consumers receive only public trust and allowlist inputs; prepared paths cannot change or disappear. The [sample guide](samples/README.md) owns profiles, receipts, recovery and archive setup.
 

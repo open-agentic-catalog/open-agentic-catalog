@@ -1,6 +1,7 @@
 """Pinned, installed-only extension builds and reproducible local VSIX packages."""
 import argparse
 import base64
+from collections import Counter
 import hashlib
 import json
 import os
@@ -154,22 +155,139 @@ def build(stamp, *, destination=None, mode="development"):
     run([stamp["node"], HERE / "build.mjs", mode, destination or EXTENSION / "dist"], stamp=stamp, timeout=None if mode == "watch" else 120)
 
 
+def validate_coverage_reports(directory, tests, modules):
+    """Admit the pinned Node reports, including their executed/file inventory."""
+    try:
+        junit = ET.parse(directory / "tests.xml").getroot()
+        cases = junit.findall(".//testcase")
+        expected_tests = {Path(path).resolve() for path in tests}
+        if junit.tag != "testsuites" or not cases or not expected_tests:
+            raise ValueError()
+        identities = set()
+        seen_tests = set()
+        parents = {child: parent for parent in junit.iter() for child in parent}
+        for case in cases:
+            if not case.get("file") or not case.get("name") or list(case):
+                # Node emits skipped/todo/failure as testcase children. Passing
+                # cases are empty; do not accept an unfamiliar result shape.
+                raise ValueError()
+            file = (ROOT / case.attrib["file"]).resolve()
+            if (ROOT / case.attrib["name"]).resolve() == file:
+                # Node emits an implicit passing file case when it discovers no
+                # actual test(). That is not execution of selected assertions.
+                raise ValueError()
+            ancestry = []
+            parent = parents.get(case)
+            while parent is not None and parent is not junit:
+                if parent.tag != "testsuite" or not parent.get("name"):
+                    raise ValueError()
+                ancestry.append(parent.attrib["name"])
+                parent = parents.get(parent)
+            # A child label may legitimately repeat in different parents.
+            # Preserve boundaries: dotted parent names are not path separators.
+            identity = (file, tuple(reversed(ancestry)), case.attrib["name"])
+            if identity in identities or file not in expected_tests:
+                raise ValueError()
+            identities.add(identity)
+            seen_tests.add(file)
+        if seen_tests != expected_tests:
+            raise ValueError()
+        expected_modules = {Path(path).resolve() for path in modules}
+        seen_modules = set()
+        totals = dict.fromkeys(("LF", "LH", "FNF", "FNH", "BRF", "BRH"), 0)
+        record = None
+        for line in (directory / "lcov.info").read_text().splitlines():
+            if line.startswith("SF:"):
+                file = (ROOT / line[3:]).resolve()
+                if record is not None or file in seen_modules or file not in expected_modules:
+                    raise ValueError()
+                seen_modules.add(file)
+                record = {"lines": {}, "declarations": set(), "functions": [], "branches": {}, "counts": {}}
+            elif line == "end_of_record":
+                if record is None or set(record["counts"]) != set(totals):
+                    raise ValueError()
+                if Counter(name for _, name in record["declarations"]) != Counter(name for _, name in record["functions"]):
+                    raise ValueError()
+                observed = {"LF": len(record["lines"]), "LH": sum(n > 0 for n in record["lines"].values()),
+                            "FNF": len(record["functions"]), "FNH": sum(n > 0 for n, _ in record["functions"]),
+                            "BRF": len(record["branches"]), "BRH": sum(n > 0 for n in record["branches"].values())}
+                if record["counts"] != observed or not observed["LF"]:
+                    raise ValueError()
+                for key, value in observed.items():
+                    totals[key] += value
+                record = None
+            elif line.startswith(("DA:", "FN:", "FNDA:", "BRDA:")):
+                if record is None:
+                    raise ValueError()
+                kind, value = line.split(":", 1)
+                if kind == "DA":
+                    number, count = value.split(",", 1)
+                    number, count = int(number), int(count)
+                    if number <= 0 or count < 0 or number in record["lines"]:
+                        raise ValueError()
+                    record["lines"][number] = count
+                elif kind in ("FN", "FNDA"):
+                    number, name = value.split(",", 1)
+                    number = int(number)
+                    if not name or number < (1 if kind == "FN" else 0):
+                        raise ValueError()
+                    if kind == "FN":
+                        if (number, name) in record["declarations"]:
+                            raise ValueError()
+                        record["declarations"].add((number, name))
+                    else:
+                        record["functions"].append((number, name))
+                else:
+                    number, block, branch, count = value.split(",")
+                    identity = (int(number), int(block), int(branch))
+                    count = 0 if count == "-" else int(count)
+                    if identity[0] < 1 or min(identity[1:]) < 0 or count < 0 or identity in record["branches"]:
+                        raise ValueError()
+                    record["branches"][identity] = count
+            elif line.split(":", 1)[0] in totals:
+                key, value = line.split(":", 1)
+                if record is None or key in record["counts"] or int(value) < 0:
+                    raise ValueError()
+                record["counts"][key] = int(value)
+            elif line and not line.startswith("TN:"):
+                raise ValueError()
+        if record is not None or seen_modules != expected_modules or not seen_modules:
+            raise ValueError()
+        return {"tests": len(cases), "testFiles": sorted(str(path.relative_to(ROOT)) for path in seen_tests),
+                "modules": sorted(str(path.relative_to(ROOT)) for path in seen_modules), "counts": totals}
+    except (OSError, ValueError, KeyError, IndexError, ET.ParseError):
+        raise RuntimeError("Invalid or incomplete extension coverage/test reports") from None
+
+
 def coverage(stamp, kind, *, env=None):
+    if kind not in ("unit", "functional"):
+        raise ValueError("Unknown extension coverage scope")
     directory = ROOT / "output/vscode" / (kind + "-coverage")
     directory.mkdir(parents=True, exist_ok=True)
-    args = [stamp["node"], "--test", "--test-timeout=120000", "--experimental-test-coverage", "--test-coverage-include=" + str(EXTENSION / "dist/test/*.js")]
-    args += ["--test-coverage-exclude=" + str(EXTENSION / "dist/test" / (name + ".js")) for name in EXCLUDED_COVERAGE]
     floors = (85, 80, 90) if kind == "unit" else (60, 60, 70)
-    args += ["--test-coverage-" + name + "=" + str(value) for name, value in zip(("lines", "branches", "functions"), floors, strict=True)]
-    args += ["--test-reporter=spec", "--test-reporter-destination=stdout", "--test-reporter=junit", "--test-reporter-destination=" + str(directory / "tests.xml"), "--test-reporter=lcov", "--test-reporter-destination=" + str(directory / "lcov.info")]
-    args += sorted((EXTENSION / "test").glob("*." + kind + ".test.mjs"))
-    report = {"status": "running", "scope": "handwritten core; native adapters and renderer excluded", "floors": dict(zip(("lines", "branches", "functions"), floors, strict=True)), "sources": source_hashes(), "inputs": inputs()}
+    report = {"status": "running", "scope": "handwritten core; native adapters and renderer excluded", "floors": dict(zip(("lines", "branches", "functions"), floors, strict=True))}
     write_json(directory / "manifest.json", report)
     try:
-        run(args, stamp=stamp, env=env or dict(environment(stamp), CATALOG_VSCODE_LIB=str(EXTENSION / "dist/test/testlib.mjs")))
-        if not (directory / "tests.xml").stat().st_size or not (directory / "lcov.info").stat().st_size:
-            raise RuntimeError("Missing extension coverage/test report")
-        assert_sources(report["sources"], report["inputs"])
+        report.update(sources=source_hashes(), inputs=inputs())
+        tests = sorted((EXTENSION / "test").glob("*." + kind + ".test.mjs"))
+        excluded = set(EXCLUDED_COVERAGE) | ({"help"} if kind == "functional" else set())
+        modules = [EXTENSION / "dist/test" / (path.stem + ".js") for path in sorted((EXTENSION / "src").glob("*.ts")) if path.stem not in excluded]
+        if not tests or not modules:
+            raise RuntimeError("Empty extension test or core source selection")
+        with tempfile.TemporaryDirectory(prefix="." + kind + "-coverage-", dir=directory.parent) as work:
+            stage = Path(work)
+            args = [stamp["node"], "--test", "--test-timeout=120000", "--experimental-test-coverage", "--test-coverage-include=" + str(EXTENSION / "dist/test/*.js")]
+            args += ["--test-coverage-exclude=" + str(EXTENSION / "dist/test" / (name + ".js")) for name in excluded]
+            args += ["--test-coverage-" + name + "=" + str(value) for name, value in zip(("lines", "branches", "functions"), floors, strict=True)]
+            args += ["--test-reporter=spec", "--test-reporter-destination=stdout", "--test-reporter=junit", "--test-reporter-destination=" + str(stage / "tests.xml"), "--test-reporter=lcov", "--test-reporter-destination=" + str(stage / "lcov.info"), *tests]
+            run(args, stamp=stamp, env=env or dict(environment(stamp), CATALOG_VSCODE_LIB=str(EXTENSION / "dist/test/testlib.mjs")))
+            report["results"] = validate_coverage_reports(stage, tests, modules)
+            assert_sources(report["sources"], report["inputs"])
+            report["reports"] = {name: digest(stage / name) for name in ("tests.xml", "lcov.info")}
+            for name in report["reports"]:
+                (stage / name).replace(directory / name)
+        # The passing manifest is the last completion marker. Partial report
+        # replacement or cleanup failure can never retain a passing receipt.
         report["status"] = "passed"
     except BaseException:
         report["status"] = "failed"

@@ -126,13 +126,13 @@ def functional(model_origin=None, model="qwen2.5:7b"):
                 "-race",
                 "-run=^TestLangGraphSDKExample$",
                 "-count=1",
-                "-timeout=7m",
+                "-timeout=16m" if model_origin else "-timeout=7m",
                 "-v",
                 "./...",
             ],
             cwd=work,
             env=env,
-            seconds=450,
+            seconds=990 if model_origin else 450,
         )
     print("Owned Catalog fixture/process/temp-directory cleanup: passed")
 

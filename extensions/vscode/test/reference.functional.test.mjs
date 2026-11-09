@@ -1,5 +1,6 @@
 import test from "node:test";
 import { listenFixture } from "../../../test/vscode/listen.mjs";
+import { fixtureWait } from "../../../test/vscode/wait.mjs";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 const { Browser, Session, connections, projection } = await import(
@@ -346,12 +347,22 @@ test("actual SDK exact references preserve version identity and fence each peer 
   held = Promise.withResolvers();
   entered = Promise.withResolvers();
   const controller = new AbortController();
-  const pending = read(controller.signal);
-  await entered.promise;
-  controller.abort();
-  await assert.rejects(pending, { code: "request_canceled" });
-  held.resolve(true);
-  await Promise.resolve();
+  const pending = read(controller.signal),
+    rejected = assert.rejects(pending, { code: "request_canceled" });
+  try {
+    await fixtureWait(entered.promise, "reference consent readiness", pending);
+    controller.abort();
+    await rejected;
+    held.resolve(true);
+    await Promise.resolve();
+  } finally {
+    controller.abort();
+    held.resolve(false);
+    await fixtureWait(
+      Promise.allSettled([rejected]),
+      "reference operation cleanup",
+    );
+  }
   assert.equal(count(), before + 2);
   assert.ok(
     seen.every(

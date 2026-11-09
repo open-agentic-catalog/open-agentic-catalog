@@ -354,6 +354,10 @@ The functional fixture creates its own Catalog and synthetic identities. It does
 
 The model target requires an explicitly selected running local service and downloaded model. It checks the `qwen2.5:7b` digest recorded in `test/langgraph/model.json`; the interactive example accepts other local tool-capable models. The same file records the selected Ollama image for reproducible setup. The target does not start Ollama or download weights.
 
+The selected model campaign also characterizes four small owned Catalog cases: an empty namespace, an ambiguous resource kind, hostile-looking resource descriptions and withdrawal before the exact record read. It records factual expected/inspected/recommended IDs, actual Catalog request counts, outcomes and decoding settings in `output/langgraph/model-characterization.json`. The seed is recorded as unset because the example does not supply one. Model-quality misses and model execution-budget outcomes remain separate from SDK/Catalog failures; assertions concern permitted destinations and bound factual identities, never exact answer prose. This is bounded characterization of one local model, not a sandbox or continuous answer-time authorization guarantee.
+
+The scripted check retains its six-minute workflow limit. Only the explicitly selected model campaign uses a fifteen-minute workflow limit for the additional bounded cases.
+
 You own model-service shutdown and its cache. A scripted-model pass does not establish real-model behavior; require the separate real-model target when you change the model or agent instructions.
 
 Unit coverage belongs to this optional example. It is not backend Go coverage or a measure of model quality. Reports and dependency inventories stay under ignored `output/langgraph/`. Use the [testing guide](../../documentation/src/content/docs/contributing/testing.md#optional-langgraph-discovery-example) for the broader verification strategy.

@@ -59,6 +59,59 @@ func TestPrivateTrustAssessmentCodecs(t *testing.T) {
 	}
 }
 
+func TestBoundedConditionalWireCodecs(t *testing.T) {
+	trustSchema, representationSchema := component(t, "TrustAssessmentRequest"), component(t, "RepresentationInput")
+	for seed := 0; seed < 16; seed++ {
+		request := map[string]any{"sourceRevision": seed + 1, "identifier": fmt.Sprintf("urn:air:example.com:wire:item-%d", seed),
+			"versionPresent": seed%2 == 0, "mediaType": "application/json", "delivery": []string{"data", "url"}[seed%2],
+			"exactEntryDigest": "sha256:" + strings.Repeat("a", 64), "reason": "Check generated wire semantics"}
+		if seed%2 == 0 {
+			request["version"] = []string{"", "1.2.3"}[(seed/2)%2]
+		}
+		if seed%3 == 0 {
+			request["observationId"] = tenant
+		} else {
+			request["text"] = fmt.Sprintf("Entry %d é 日本語", seed)
+		}
+		wire, err := json.Marshal(request)
+		must(t, err)
+		roundTrip[client.TrustAssessmentRequest](t, trustSchema, wire)
+		invalid := make(map[string]any, len(request))
+		for key, value := range request {
+			invalid[key] = value
+		}
+		if seed%2 == 0 {
+			delete(invalid, "version")
+		} else {
+			invalid["version"] = ""
+		}
+		invalidWire, err := json.Marshal(invalid)
+		must(t, err)
+		if trustSchema.Validate(exactJSON(t, invalidWire)) == nil {
+			t.Fatal("conditional version neighbor unexpectedly valid", seed)
+		}
+		representation := map[string]any{"role": "primary", "mediaType": "application/json"}
+		switch seed % 4 {
+		case 0:
+			representation["data"] = map[string]any{"nested": []any{nil, false, "", seed}}
+		case 1:
+			representation["content"] = fmt.Sprintf("Native é %d\n", seed)
+		case 2:
+			representation["url"] = fmt.Sprintf("https://resource.example/card-%d.json", seed)
+		case 3:
+			representation["mediaType"] = "application/agent-skills+zip"
+			representation["packageData"] = base64.StdEncoding.EncodeToString([]byte{0, 1, byte(seed), 255})
+			representation["handoff"] = map[string]any{"git": map[string]any{"repository": "https://example.com/skill.git", "commit": strings.Repeat("a", 40), "directory": "skill"}}
+		}
+		wire, err = json.Marshal(representation)
+		must(t, err)
+		roundTrip[client.RepresentationInput](t, representationSchema, wire)
+		if representationSchema.Validate(map[string]any{"role": "primary", "mediaType": "application/json", "data": map[string]any{}, "content": "conflicting delivery"}) == nil {
+			t.Fatal("conflicting delivery unexpectedly valid")
+		}
+	}
+}
+
 func exactJSON(t *testing.T, data []byte) any {
 	t.Helper()
 	decoder := json.NewDecoder(bytes.NewReader(data))

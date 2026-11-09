@@ -495,3 +495,144 @@ exports.qualifyA2A = async (api) => {
     ui.close();
   }
 };
+
+// Real renderer messages cross the native host before reaching this owned peer.
+exports.qualifyRecovery = async (api) => {
+  const peer = process.env.CATALOG_VSCODE_ISSUER;
+  const ui = await webview(true);
+  const stats = async () => (await fetch(peer + "/owned-test/agent")).json();
+  const consent = async (label) => {
+    const button = `[...document.querySelectorAll('.monaco-dialog-box .monaco-button')].find(b=>b.textContent.trim()===${JSON.stringify(label)})`;
+    await ui.until(`!!(${button})`);
+    await ui.click(button);
+    await ui.until("!document.querySelector('.monaco-dialog-box')");
+  };
+  const pick = async (title) => {
+    await ui.until(
+      `document.querySelector('.quick-input-title')?.textContent.includes(${JSON.stringify(title)}) && !!document.querySelector('.quick-input-list .monaco-list-row.focused')`,
+    );
+    await ui.key("Enter");
+  };
+  let chat;
+  const open = async () => {
+    chat?.close();
+    const opening = api.talkAgent(1);
+    await consent("Revalidate with peers");
+    await pick("Choose one A2A interface");
+    await pick("Choose A2A target authentication");
+    await consent("Open conversation");
+    await opening;
+    chat = await webview();
+    await chat.until("document.body.innerText.includes('Status: ready')");
+  };
+  const button = (label) =>
+    `[...document.querySelectorAll('button')].find(b=>b.textContent===${JSON.stringify(label)})`;
+  const send = async (prompt, stream = false) => {
+    await chat.evaluate(
+      `(()=>{const p=document.getElementById('prompt');p.value=${JSON.stringify(prompt)};p.dispatchEvent(new Event('input',{bubbles:true}));const c=document.getElementById('stream-reply');c.checked=${stream};c.dispatchEvent(new Event('change',{bubbles:true}));})()`,
+    );
+    await chat.click(button("Send prompt"));
+    await consent("Send prompt");
+    await consent("Revalidate with peers");
+  };
+  try {
+    await fetch(peer + "/owned-test/inspection", {
+      method: "POST",
+      body: JSON.stringify({ scenario: "agent", holdDocument: false }),
+    });
+    await api.select("public");
+    await api.browse({ text: "owned", federation: "auto" });
+    await api.next();
+    await api.detail(api.browsing().page.items[0].key);
+    await open();
+    const initial = (await stats()).methods.length;
+    await send("owned-interrupted", true);
+    await chat.until(
+      "document.body.innerText.includes('Status: working') && document.body.innerText.includes('Task: ') && document.getElementById('prompt').readOnly",
+    );
+    const task = api.a2aState().task;
+    assert.ok(task, "The held stream must acknowledge its exact task first");
+    assert.equal((await stats()).held, 1);
+    await fetch(peer + "/owned-test/agent", { method: "POST" });
+    await chat.until(
+      "document.body.innerText.includes('Outcome uncertain. Do not resend.') && !document.getElementById('prompt').readOnly && [...document.querySelectorAll('button')].find(b=>b.textContent==='Send prompt').disabled",
+    );
+    assert.equal(api.a2aState().uncertain, true);
+    assert.equal(
+      await chat.evaluate("document.getElementById('prompt').value"),
+      "owned-interrupted",
+    );
+    assert.deepEqual((await stats()).methods.slice(initial), [
+      { method: "SendStreamingMessage", prompt: "owned-interrupted" },
+    ]);
+    assert.equal((await stats()).closed, 1);
+    await chat.click(button("Read task"));
+    await consent("Revalidate with peers");
+    await chat.until(
+      "document.body.innerText.includes('Status: completed') && ![...document.querySelectorAll('button')].find(b=>b.textContent==='Send prompt').disabled",
+    );
+    assert.equal(api.a2aState().uncertain, false);
+    assert.deepEqual((await stats()).methods.slice(initial), [
+      { method: "SendStreamingMessage", prompt: "owned-interrupted" },
+      { method: "GetTask", task },
+    ]);
+    // A declined cancellation sends nothing; an approved one cancels this task once.
+    await open();
+    await send("work");
+    await chat.until(
+      "document.body.innerText.includes('Status: working') && !document.getElementById('prompt').readOnly",
+    );
+    const working = api.a2aState().task;
+    const before = (await stats()).methods.length;
+    await chat.click(button("Cancel remote task"));
+    await consent("Cancel");
+    assert.equal((await stats()).methods.length, before);
+    assert.equal(api.a2aState().status, "working");
+    await chat.click(button("Cancel remote task"));
+    await consent("Cancel remote task");
+    await consent("Revalidate with peers");
+    await chat.until("document.body.innerText.includes('Status: canceled')");
+    assert.deepEqual((await stats()).methods.slice(before), [
+      { method: "CancelTask", task: working },
+    ]);
+    assert.equal(
+      await chat.evaluate(`(${button("Cancel remote task")}).disabled`),
+      true,
+    );
+    // The same real path reports an agent refusal without disconnecting or replaying.
+    await open();
+    await send("refuse");
+    await chat.until(
+      "document.body.innerText.includes('Status: working') && !document.getElementById('prompt').readOnly",
+    );
+    const refused = api.a2aState().task;
+    const refusedBefore = (await stats()).methods.length;
+    await chat.click(button("Cancel remote task"));
+    await consent("Cancel remote task");
+    await consent("Revalidate with peers");
+    await chat.until(
+      "document.body.innerText.includes('a2a_remote_refusal') && !document.getElementById('prompt').readOnly",
+    );
+    assert.equal(api.a2aState().connected, true);
+    assert.equal(api.a2aState().status, "working");
+    assert.equal(api.a2aState().task, refused);
+    assert.deepEqual((await stats()).methods.slice(refusedBefore), [
+      { method: "CancelTask", task: refused },
+    ]);
+    assert.equal(
+      await chat.evaluate(
+        "document.body.innerText.includes('private refusal')",
+      ),
+      false,
+    );
+  } finally {
+    api.a2aDisconnect();
+    await api.signOut();
+    chat?.close();
+    ui.close();
+    await fetch(peer + "/owned-test/inspection", {
+      method: "POST",
+      body: JSON.stringify({ scenario: "legacy", holdDocument: false }),
+    });
+  }
+};

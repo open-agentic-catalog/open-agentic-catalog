@@ -7,6 +7,100 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+/** Classify only reviewed refusals; omit IDs, tags, times and arbitrary text. */
+export function publisherVerificationFailureEvidence({
+  action,
+  status,
+  problem,
+  requestETag,
+  readback,
+}) {
+  const actions = [":issue", ":check", ":clear"];
+  const refusals = new Map([
+    [
+      "If-Match must contain the current publisher verification ETag",
+      "etag_changed",
+    ],
+    [
+      "publisher domain verification revision does not match",
+      "revision_changed",
+    ],
+    [
+      "publisher domain challenge is absent, consumed or expired",
+      "challenge_state_or_time",
+    ],
+    [
+      "publisher domain challenge changed or expired during lookup",
+      "lookup_state_or_time",
+    ],
+    [
+      "publisher domain challenge changed or expired before completion",
+      "completion_state_or_time",
+    ],
+  ]);
+  const knownCode = [
+    "PRECONDITION_FAILED",
+    "FORBIDDEN",
+    "UNAUTHENTICATED",
+    "NOT_FOUND",
+    "CONFLICT",
+    "DEPENDENCY_UNAVAILABLE",
+    "INTERNAL",
+  ].includes(problem?.code);
+  const currentReply = readback?.status === 200 ? readback : undefined;
+  const current = currentReply?.data;
+  const currentETag = currentReply?.headers?.get("etag");
+  const responseDate = currentReply?.headers?.get("date");
+  const responseSecond =
+    typeof responseDate === "string" ? Date.parse(responseDate) : Number.NaN;
+  const issuedAt =
+    typeof current?.challengeIssuedAt === "string"
+      ? Date.parse(current.challengeIssuedAt)
+      : Number.NaN;
+  const enumValue = (value, allowed) =>
+    allowed.includes(value) ? value : "unavailable";
+  return {
+    code: knownCode ? problem.code : "unclassified",
+    refusal:
+      actions.includes(action) &&
+      status === 412 &&
+      problem?.code === "PRECONDITION_FAILED" &&
+      (action === ":check" ||
+        ![
+          "challenge_state_or_time",
+          "lookup_state_or_time",
+          "completion_state_or_time",
+        ].includes(refusals.get(problem?.detail)))
+        ? (refusals.get(problem?.detail) ?? "unclassified")
+        : "unclassified",
+    etagReadback:
+      typeof requestETag === "string" && requestETag && currentETag
+        ? requestETag === currentETag
+          ? "matches"
+          : "differs"
+        : "unavailable",
+    challengeState: enumValue(current?.challengeState, [
+      "not_issued",
+      "pending",
+      "expired",
+      "consumed",
+    ]),
+    proofState: enumValue(current?.state, [
+      "not_verified",
+      "verified",
+      "expired",
+    ]),
+    // Date is rounded to seconds. Only a wholly earlier response second proves
+    // a readback before issuance; false does not exclude an earlier regression.
+    responseBeforeIssue:
+      Number.isFinite(responseSecond) && Number.isFinite(issuedAt)
+        ? responseSecond + 1000 <= issuedAt
+          ? "proven"
+          : "not_proven"
+        : "unavailable",
+  };
+}
+
 export async function publisherVerificationJourney({
   origin,
   request,
@@ -145,6 +239,28 @@ export async function publisherVerificationJourney({
       if (commandResponse) {
         try {
           const value = await commandResponse.json();
+          if (commandResponse.status() === 412) {
+            let readback;
+            try {
+              readback = await request("GET", verification);
+            } catch {
+              // A failed readback stays unknown and never replaces the failure.
+            }
+            console.error(
+              "Publisher DNS refusal evidence: " +
+                JSON.stringify(
+                  publisherVerificationFailureEvidence({
+                    action: suffix,
+                    status: commandResponse.status(),
+                    problem: value,
+                    requestETag: await commandResponse
+                      .request()
+                      .headerValue("if-match"),
+                    readback,
+                  }),
+                ),
+            );
+          }
           const status = value.status ?? value;
           const known = (value, choices) =>
             choices.includes(value) ? value : "other";
@@ -365,6 +481,7 @@ export async function publisherVerificationJourney({
     412,
   );
   expect(await queries()).toBe(afterMatch);
+  phase("required-issue");
   await page.reload();
   panel = page.getByRole("region", {
     name: "Publisher DNS verification",
@@ -380,7 +497,9 @@ export async function publisherVerificationJourney({
     name: renewed.data.name,
     value: renewed.data.value,
   });
+  phase("required-check");
   await sendUI(panel, "Check DNS", ":check");
+  phase("required-approve");
   await approve();
   expect((await metadata()).data.approvedPublicationDomains).toContain(
     "publisher.test",
