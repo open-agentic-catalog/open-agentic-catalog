@@ -19,6 +19,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"syscall"
@@ -73,14 +74,28 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 
 	var mu sync.Mutex
 	status, body := 200, activePage(9)
+	lossStatus, lossBody := 200, `{"pendingEvents":0,"pendingEventLimit":1000,"capacityLossCount":0,"deliveryLossCount":0}`
+	expectedBearer, allowPrevious := "Bearer receiver-reader", false
+	const replacementToken = "rotated-reader-fixture"
+	replacementReads := 0
 	reads, lossReads := 0, 0
 	catalog := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
-		if r.Method != http.MethodGet || r.Header.Get("Authorization") != "Bearer receiver-reader" {
-			t.Error("wrong SDK method or credential")
+		if r.Method != http.MethodGet {
+			t.Error("wrong SDK method")
 			w.WriteHeader(http.StatusForbidden)
 			return
+		}
+		if r.Header.Get("Authorization") != expectedBearer {
+			if !allowPrevious || r.Header.Get("Authorization") != "Bearer receiver-reader" {
+				t.Error("unexpected SDK credential")
+			}
+			w.WriteHeader(http.StatusForbidden)
+			return
+		}
+		if expectedBearer == "Bearer "+replacementToken {
+			replacementReads++
 		}
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -93,7 +108,8 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 			_, _ = io.WriteString(w, body)
 		case "/api/v1/webhooks/reconciliation":
 			lossReads++
-			_, _ = io.WriteString(w, `{"pendingEvents":0,"pendingEventLimit":1000,"capacityLossCount":0,"deliveryLossCount":0}`)
+			w.WriteHeader(lossStatus)
+			_, _ = io.WriteString(w, lossBody)
 		default:
 			t.Error("unexpected Catalog/resource request")
 			w.WriteHeader(http.StatusNotFound)
@@ -101,6 +117,7 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 	}))
 	defer catalog.Close()
 	setAPI := func(code int, raw string) { mu.Lock(); status, body = code, raw; mu.Unlock() }
+	setLoss := func(code int, raw string) { mu.Lock(); lossStatus, lossBody = code, raw; mu.Unlock() }
 	counts := func() (int, int) { mu.Lock(); defer mu.Unlock(); return reads, lossReads }
 	dir := t.TempDir()
 	reports, err := os.OpenRoot(dir)
@@ -122,6 +139,7 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 	token := writePrivate(t, "api-token", []byte("receiver-reader"))
 	signerFile := writePrivate(t, "signer.json", []byte(`{"secret":"`+testSecret+`","version":1}`))
 	output := filepath.Join(dir, "report.json")
+	privateDiagnostics := []string{testSecret, "whsec_" + strings.Repeat("b", 43), "receiver-reader", replacementToken, receiverDSN, dbfile, token, signerFile, cert, key}
 	base := []string{"--origin", catalog.URL, "--tenant", testTenant, "--host", testHost, "--database-file", dbfile, "--token-file", token, "--ca-file", cert, "--output", output, "--capacity", "1", "--retention", "1m"}
 	runCommand := func(command string, extra ...string) ([]byte, error) {
 		args := append([]string{command}, base...)
@@ -129,7 +147,7 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 		// #nosec G204 G702 -- Make supplies the explicitly built, invocation-owned sample executable.
 		child := exec.CommandContext(ctx, executable, args...)
 		raw, err := child.CombinedOutput()
-		for _, secret := range []string{testSecret, "receiver-reader", receiverDSN} {
+		for _, secret := range privateDiagnostics {
 			if bytes.Contains(raw, []byte(secret)) {
 				t.Error("process diagnostic disclosed a credential")
 			}
@@ -194,7 +212,7 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 			t.Error("receiver did not stop")
 		}
 		process = nil
-		for _, secret := range []string{testSecret, "receiver-reader", receiverDSN} {
+		for _, secret := range privateDiagnostics {
 			if bytes.Contains(diagnostics.Bytes(), []byte(secret)) {
 				t.Error("process diagnostic disclosed a credential")
 			}
@@ -392,7 +410,7 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 		t.Fatal("owned killed processor did not exit")
 	}
 	process = nil
-	for _, secret := range []string{testSecret, "receiver-reader", receiverDSN} {
+	for _, secret := range privateDiagnostics {
 		if bytes.Contains(diagnostics.Bytes(), []byte(secret)) {
 			t.Error("abrupt processor diagnostic disclosed a credential")
 		}
@@ -480,6 +498,65 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 	}
 	wait("pending receipt completion when reconciliation is due on every poll", func() bool { return pendingCount() == 0 })
 	stopProcess()
+
+	// Keep one accepted receipt pending, then prove credential repair in the same
+	// running process. The original abrupt-death/restart control above is intact.
+	pruneReady()
+	setAPI(503, `{}`)
+	startProcess()
+	credentialPID := process.Process.Pid
+	credentialEvent := publicationEvent()
+	credentialEvent.ID = "00000000-0000-4000-8000-000000000009"
+	credentialBytes := bytes.ReplaceAll(eventBytes("publication.activated"), []byte(testID), []byte(credentialEvent.ID))
+	if code, err := post(origin, credentialBytes, 2, second); err != nil || code != 204 {
+		t.Fatal("credential fixture not accepted")
+	}
+	wait("credential fixture pending after API refusal", func() bool { v := readSaved(); return pendingCount() == 1 && v.RefreshFailure == "catalog_read_failed" })
+	credentialPrior := readSaved()
+	if credentialPrior.LastAttemptAt == nil {
+		t.Fatal("missing failed-attempt evidence")
+	}
+	attemptBefore := *credentialPrior.LastAttemptAt
+	replacePrivateTest(t, token, []byte(" \n\t"))
+	// One in-flight old-token request may finish after replacement. Wait for its
+	// failure (or the first provider failure), then observe another failed attempt
+	// with no new API exchange. No live diagnostic buffer is read.
+	wait("credential transition reached processor", func() bool { v := readSaved(); return v.LastAttemptAt != nil && !v.LastAttemptAt.Equal(attemptBefore) })
+	blocked := readSaved()
+	blockedReads, blockedLoss := counts()
+	wait("private token refusal before transport", func() bool {
+		v := readSaved()
+		r, l := counts()
+		return v.LastAttemptAt != nil && !v.LastAttemptAt.Equal(*blocked.LastAttemptAt) && r == blockedReads && l == blockedLoss
+	})
+	blocked = readSaved()
+	pending, err := s.Next(ctx)
+	if err != nil || pending == nil || *pending != credentialEvent || !reflect.DeepEqual(blocked.LastSuccessful, credentialPrior.LastSuccessful) || blocked.RefreshFailure != "catalog_read_failed" {
+		t.Fatal("credential failure changed saved state or accepted work")
+	}
+	mu.Lock()
+	expectedBearer = "Bearer " + replacementToken
+	allowPrevious = true
+	mu.Unlock()
+	setAPI(200, activePage(6))
+	replacePrivateTest(t, token, []byte(replacementToken))
+	wait("same process completed receipt with replacement token", func() bool {
+		v := readSaved()
+		mu.Lock()
+		seen := replacementReads
+		mu.Unlock()
+		return seen > 0 && pendingCount() == 0 && v.LastSuccessful != nil && v.LastSuccessful.Active != nil && v.LastSuccessful.Active.Generation == 6 && v.LastSuccessful.Trigger != nil && *v.LastSuccessful.Trigger == credentialEvent
+	})
+	if process.Process.Pid != credentialPID {
+		t.Fatal("token reload was qualified by a different process")
+	}
+	stopProcess()
+	replacePrivateTest(t, token, []byte("receiver-reader"))
+	mu.Lock()
+	expectedBearer = "Bearer receiver-reader"
+	allowPrevious = false
+	mu.Unlock()
+
 	setAPI(200, activePage(1))
 	before, beforeLoss := counts()
 	for range 2 {
@@ -504,6 +581,98 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 			t.Fatal("failed read became unpublication")
 		}
 	}
+
+	// Counter evidence must persist in the correct columns, independently of the
+	// snapshot read. An unsuccessful second read cannot commit the first one.
+	setAPI(200, activePage(5))
+	setLoss(200, `{"pendingEvents":0,"pendingEventLimit":1000,"capacityLossCount":2,"deliveryLossCount":7}`)
+	if _, err := runCommand("reconcile"); err != nil {
+		t.Fatal("nonzero loss control failed")
+	}
+	lossPrior := readSaved()
+	if lossPrior.LastSuccessful == nil || lossPrior.LastSuccessful.Active == nil || lossPrior.CapacityLoss != 2 || lossPrior.DeliveryLoss != 7 || lossPrior.LossObservedAt == nil || lossPrior.LastSuccessful.Active.Generation != 5 {
+		t.Fatal("durable loss fields were dropped or swapped")
+	}
+	checkRawLoss := func(capacity, delivery int64, observed *time.Time) {
+		t.Helper()
+		var rawCapacity, rawDelivery int64
+		var rawObserved *time.Time
+		if pool.QueryRow(ctx, `SELECT capacity_loss,delivery_loss,loss_observed_at FROM publication_receiver_report WHERE singleton`).Scan(&rawCapacity, &rawDelivery, &rawObserved) != nil {
+			t.Fatal("raw loss evidence unavailable")
+		}
+		if rawCapacity != capacity || rawDelivery != delivery || observed == nil || rawObserved == nil || !rawObserved.Equal(*observed) {
+			t.Fatal("raw loss columns disagree with independent expected values")
+		}
+	}
+	checkRawLoss(2, 7, lossPrior.LossObservedAt)
+	checkRendered := func(want Saved) {
+		t.Helper()
+		raw, err := reports.ReadFile("report.json")
+		if err != nil {
+			t.Fatal("rendered report unavailable")
+		}
+		var got Saved
+		if json.Unmarshal(raw, &got) != nil {
+			t.Fatal("rendered report malformed")
+		}
+		actual, err := json.Marshal(got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		expected, err := json.Marshal(want)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(actual, expected) {
+			t.Fatal("rendered report differs from saved database values")
+		}
+	}
+	checkRendered(lossPrior)
+	for _, bad := range []struct {
+		status int
+		body   string
+	}{
+		{403, `{"title":"Forbidden","status":403}`},
+		{503, `{"title":"Unavailable","status":503}`},
+		{200, `{"pendingEvents":0,"pendingEventLimit":1000,"capacityLossCount":2}`},
+	} {
+		setAPI(200, activePage(6))
+		setLoss(bad.status, bad.body)
+		beforeRead, beforeLoss := counts()
+		raw, err := runCommand("reconcile")
+		if err == nil || !bytes.Contains(raw, []byte("reconciliation_read_failed")) {
+			t.Fatal("counter refusal did not fail at the intended read")
+		}
+		afterRead, afterLoss := counts()
+		v := readSaved()
+		if afterRead-beforeRead != 1 || afterLoss-beforeLoss != 1 || !reflect.DeepEqual(v.LastSuccessful, lossPrior.LastSuccessful) || v.CapacityLoss != 2 || v.DeliveryLoss != 7 || v.LossObservedAt == nil || !v.LossObservedAt.Equal(*lossPrior.LossObservedAt) || v.RefreshFailure != "reconciliation_read_failed" || v.LastAttemptAt == nil {
+			t.Fatal("failed counter read replaced prior publication/loss evidence")
+		}
+		checkRendered(v)
+	}
+	// Persistence succeeds before file rendering. Repairing the file destination
+	// must require only a read-only render, not another observation or API call.
+	setAPI(200, activePage(7))
+	setLoss(200, `{"pendingEvents":0,"pendingEventLimit":1000,"capacityLossCount":11,"deliveryLossCount":13}`)
+	failedOutput, err := runCommand("reconcile", "--output", filepath.Join(dir, "missing", "report.json"))
+	if err == nil || !bytes.Contains(failedOutput, []byte("report_render_failed")) {
+		t.Fatal("render-stage failure was not injected after refresh")
+	}
+	storedBeforeRender := readSaved()
+	if storedBeforeRender.LastSuccessful == nil || storedBeforeRender.LastSuccessful.Active == nil || storedBeforeRender.LastSuccessful.Active.Generation != 7 || storedBeforeRender.CapacityLoss != 11 || storedBeforeRender.DeliveryLoss != 13 || storedBeforeRender.LossObservedAt == nil || storedBeforeRender.RefreshFailure != "" {
+		t.Fatal("render failure undid the successful database refresh")
+	}
+	checkRawLoss(11, 13, storedBeforeRender.LossObservedAt)
+	renderReads, renderLoss := counts()
+	if _, err := runCommand("render"); err != nil {
+		t.Fatal("render-only repair failed")
+	}
+	afterRead, afterLoss := counts()
+	if renderReads != afterRead || renderLoss != afterLoss || !reflect.DeepEqual(readSaved(), storedBeforeRender) {
+		t.Fatal("output repair called Catalog or changed saved evidence")
+	}
+	checkRendered(storedBeforeRender)
+
 	if _, err := runCommand("render", "--output", filepath.Join(dir, "missing", "report.json")); err == nil {
 		t.Fatal("output failure ignored")
 	}
@@ -530,6 +699,58 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 	if s.Accept(ctx, e, time.Now()) != nil {
 		t.Fatal("pending transaction fixture")
 	}
+
+	// Initialization and each binding dimension must preserve nonempty state.
+	// No serve processor is running while the before/after values are compared.
+	if err := s.Fail(ctx, time.Now().UTC(), "catalog_read_failed"); err != nil {
+		t.Fatal("failed-attempt binding fixture unavailable")
+	}
+	bindingPrior := readSaved()
+	if bindingPrior.LastSuccessful == nil || bindingPrior.LastSuccessful.Active == nil || bindingPrior.LastSuccessful.Active.Generation != 7 || bindingPrior.CapacityLoss != 11 || bindingPrior.DeliveryLoss != 13 || bindingPrior.LossObservedAt == nil || bindingPrior.RefreshFailure != "catalog_read_failed" || bindingPrior.LastAttemptAt == nil {
+		t.Fatal("binding guard requires nonempty saved state")
+	}
+	pendingPrior, err := s.Next(ctx)
+	if err != nil || pendingPrior == nil || *pendingPrior != e {
+		t.Fatal("nonempty binding fixture missing")
+	}
+	var boundTenant, boundHost, boundOrigin string
+	if pool.QueryRow(ctx, `SELECT tenant,host,origin FROM publication_receiver_settings WHERE singleton`).Scan(&boundTenant, &boundHost, &boundOrigin) != nil {
+		t.Fatal("binding unavailable")
+	}
+	if boundTenant != testTenant || boundHost != testHost || boundOrigin != catalog.URL {
+		t.Fatal("initial binding differs from explicit receiver inputs")
+	}
+	bindingReads, bindingLoss := counts()
+	assertBindingUnchanged := func() {
+		t.Helper()
+		var tenant, host, origin string
+		if pool.QueryRow(ctx, `SELECT tenant,host,origin FROM publication_receiver_settings WHERE singleton`).Scan(&tenant, &host, &origin) != nil {
+			t.Fatal("binding inspection failed")
+		}
+		next, err := s.Next(ctx)
+		r, l := counts()
+		if tenant != boundTenant || host != boundHost || origin != boundOrigin || !reflect.DeepEqual(readSaved(), bindingPrior) || err != nil || next == nil || *next != *pendingPrior || pendingCount() != 1 || r != bindingReads || l != bindingLoss {
+			t.Fatal("init/bind changed retained evidence or called Catalog")
+		}
+	}
+	if _, err := runCommand("init"); err != nil {
+		t.Fatal("same-binding init failed")
+	}
+	assertBindingUnchanged()
+	for _, change := range [][]string{{"--tenant", testTarget}, {"--host", "other.example.test"}, {"--origin", "https://other.example.test"}} {
+		for _, command := range []string{"init", "render"} {
+			expected := "receiver_database_binding_failed"
+			if command == "init" {
+				expected = "receiver_database_init_failed"
+			}
+			raw, err := runCommand(command, change...)
+			if err == nil || !bytes.Contains(raw, []byte(expected)) {
+				t.Fatal("mismatched binding did not refuse at the database guard")
+			}
+			assertBindingUnchanged()
+		}
+	}
+
 	if _, err := pool.Exec(ctx, `CREATE FUNCTION reject_report() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'owned report failure'; END $$; CREATE TRIGGER reject_report BEFORE UPDATE ON publication_receiver_report FOR EACH ROW EXECUTE FUNCTION reject_report()`); err != nil {
 		t.Fatal(err)
 	}
