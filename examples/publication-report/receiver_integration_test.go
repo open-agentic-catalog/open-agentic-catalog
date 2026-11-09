@@ -271,9 +271,25 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 		}
 	}
 	startProcess()
-	wait("first publication report", func() bool {
+	wait("first publication report and rendered file", func() bool {
 		v := readSaved()
-		return v.LastSuccessful != nil && v.LastSuccessful.Active != nil && v.LastSuccessful.Active.Generation == 9
+		if v.LastSuccessful == nil || v.LastSuccessful.Active == nil || v.LastSuccessful.Active.Generation != 9 {
+			return false
+		}
+		// The database commits before render atomically replaces the file.
+		// Processor exclusion below needs both boundaries to be ready.
+		raw, err := reports.ReadFile("report.json")
+		if errors.Is(err, os.ErrNotExist) {
+			return false
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		var rendered Saved
+		if err := json.Unmarshal(raw, &rendered); err != nil {
+			t.Fatal("rendered publication report is invalid", err)
+		}
+		return rendered.LastSuccessful != nil && rendered.LastSuccessful.Active != nil && rendered.LastSuccessful.Active.Generation == 9
 	})
 	// Authority belongs to one live processor, while rendering is intentionally
 	// read-only. A second command must fail at the processor guard, before any

@@ -21,7 +21,7 @@ else:
     import json
 
     from datetime import datetime
-    from pydantic import BaseModel, ConfigDict, Field, field_validator
+    from pydantic import BaseModel, ConfigDict, Field
     from typing import Any, ClassVar, Dict
     from typing_extensions import Annotated
     from uuid import UUID
@@ -38,8 +38,11 @@ else:
         id: UUID
         tenant_id: UUID = Field(alias="tenantId")
         namespace_id: UUID = Field(alias="namespaceId")
-        canonical_identifier: Annotated[str, Field(strict=True, max_length=512)] = (
-            Field(alias="canonicalIdentifier")
+        canonical_identifier: Annotated[
+            str, Field(min_length=1, strict=True, max_length=512)
+        ] = Field(
+            description="Bounded local Resource identity. External discovery publication requires AIR.",
+            alias="canonicalIdentifier",
         )
         kind: ResourceKind
         created_by: Annotated[str, Field(min_length=1, strict=True)] = Field(
@@ -59,13 +62,6 @@ else:
             "createdAt",
             "updatedAt",
         ]
-
-        @field_validator("canonical_identifier", mode="before")
-        def canonical_identifier_validate_regular_expression(cls, value):
-            """Validates the regular expression"""
-            if isinstance(value, str) and not re.match(r"^urn:air:", value):
-                raise ValueError(r"must validate the regular expression /^urn:air:/")
-            return value
 
         model_config = ConfigDict(
             validate_by_name=True,

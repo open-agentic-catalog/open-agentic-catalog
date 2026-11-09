@@ -31,6 +31,49 @@ def snake(name):
 
 
 class ContractUnits(unittest.TestCase):
+    def test_private_resource_identity_preserves_opaque_and_unicode_values(self):
+        """Private response codecs share request bounds without imposing AIR."""
+        uid = "00000000-0000-7000-8000-000000000001"
+        base = {"id": uid, "tenantId": uid, "namespaceId": uid, "kind": "agent", "createdBy": "author",
+                "revision": 1, "createdAt": "2026-11-09T00:00:00Z", "updatedAt": "2026-11-09T00:00:00Z"}
+        for name, model, fields in (
+            ("Resource", models.Resource, base),
+            ("CatalogResourceSummary", models.CatalogResourceSummary, {key:base[key] for key in ("id", "tenantId", "namespaceId", "kind")}),
+        ):
+            validator = jsonschema.Draft202012Validator({"$ref": "#/components/schemas/" + name, "components": CONTRACT["components"]})
+            for identifier in ("custom:draft", "Café:e\u0301:🙂", "🙂" * 512, "urn:air:catalog.example.com:default:agent"):
+                value = dict(fields, canonicalIdentifier=identifier)
+                with self.subTest(model=name, identifier=identifier):
+                    validator.validate(value)
+                    for codec in (model.from_dict, model.model_validate):
+                        self.assertEqual(codec(value).to_dict()["canonicalIdentifier"], identifier)
+            for identifier in ("", "🙂" * 513, None, 42):
+                value = dict(fields, canonicalIdentifier=identifier)
+                with self.subTest(model=name, invalid=identifier):
+                    with self.assertRaises(jsonschema.ValidationError):
+                        validator.validate(value)
+                    for codec in (model.from_dict, model.model_validate):
+                        with self.assertRaises(ValueError):
+                            codec(value)
+
+    def test_air_resource_projections_still_require_air(self):
+        """Local opaque admission preserves the separate adoption AIR guard."""
+        uid = "00000000-0000-7000-8000-000000000001"
+        common = {"id": uid, "tenantId": uid, "namespaceId": uid, "kind": "agent"}
+        for name, model, base in (
+            ("AIRResource", models.AIRResource, dict(common, createdBy="author", revision=1, createdAt="2026-11-09T00:00:00Z", updatedAt="2026-11-09T00:00:00Z")),
+        ):
+            validator = jsonschema.Draft202012Validator({"$ref": "#/components/schemas/" + name, "components": CONTRACT["components"]})
+            healthy = dict(base, canonicalIdentifier="urn:air:catalog.example.com:default:agent")
+            validator.validate(healthy)
+            for codec in (model.from_dict, model.model_validate):
+                self.assertEqual(codec(healthy).canonical_identifier, healthy["canonicalIdentifier"])
+                for identifier in ("custom:draft", "urn:air:" + "x" * 505):
+                    with self.assertRaises(ValueError):
+                        codec(dict(base, canonicalIdentifier=identifier))
+            with self.assertRaises(jsonschema.ValidationError):
+                validator.validate(dict(base, canonicalIdentifier="custom:draft"))
+
     def test_source_credential_binding_excludes_path_segments(self):
         validator = jsonschema.Draft202012Validator(CONTRACT["components"]["schemas"]["CredentialBindingReference"])
         base = {"url": "https://catalog.example.test"}

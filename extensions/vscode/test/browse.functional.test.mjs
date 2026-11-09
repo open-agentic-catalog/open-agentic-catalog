@@ -413,6 +413,7 @@ test("actual HTTP browse cancellation and timeout stop at verification or API re
 });
 
 test("real retained-document reads are lazy, preserve bytes and recheck access before artifact traffic", async (t) => {
+  const localIdentifier = "https://uncontacted.invalid/local:e\u0301:🙂";
   const bytes = Buffer.from(
     JSON.stringify({
       $schema:
@@ -433,18 +434,55 @@ test("real retained-document reads are lazy, preserve bytes and recheck access b
       id,
       namespaceId: id,
       kind: "mcp_server",
-      canonicalIdentifier: identifier,
+      canonicalIdentifier: localIdentifier,
     },
     version: { version: "1.0.0" },
     listingRevision: {
       id,
       publisherId: id,
-      visibility: "public",
+      visibility: "private",
       displayName: "Owned",
       description: "Owned",
       tags: [],
     },
     release: { id, state: "published" },
+  };
+  const searchResult = {
+    id: `local:${id}`,
+    type: "local",
+    identifier: localIdentifier,
+    versionPresent: true,
+    version: "1.0.0",
+    kind: "mcp_server",
+    displayName: "Owned",
+    description: "Owned",
+    tags: [],
+    score: 0,
+    local: {
+      resource: { ...summary.resource, tenantId: id },
+      version: { id, version: "1.0.0" },
+      versionRevision: {
+        id,
+        contentSetDigest: `sha256:${artifact}`,
+        evidenceSetId: id,
+      },
+      listing: { id, namespaceId: id },
+      listingRevision: { id, visibility: "private" },
+      release: {
+        id,
+        versionRevisionId: id,
+        listingRevisionId: id,
+        state: "published",
+        activatedAt: "2026-11-09T00:00:00Z",
+      },
+      evidence: {
+        id,
+        digest: `sha256:${artifact}`,
+        state: "complete",
+        trust: { state: "not_assessed" },
+        legalRights: { state: "not_assessed" },
+      },
+    },
   };
   let size = bytes.length,
     returned = bytes,
@@ -463,6 +501,21 @@ test("real retained-document reads are lazy, preserve bytes and recheck access b
       return;
     }
     res.setHeader("content-type", "application/json");
+    if (path === "/api/v1/catalog/search") {
+      res.end(
+        JSON.stringify({
+          items: [searchResult],
+          durableTotal: 1,
+          liveCount: 0,
+          profile: "core-lexical-v1",
+          generation: `sha256:${artifact}`,
+          tier: "core",
+          partial: false,
+          diagnostics: [],
+        }),
+      );
+      return;
+    }
     if (path === releasePath && denyRelease) {
       res.writeHead(403);
       res.end('{"detail":"private rejection must not become document bytes"}');
@@ -540,12 +593,38 @@ test("real retained-document reads are lazy, preserve bytes and recheck access b
     await browser.select(browser.state.page.items[0].key);
   };
   await browser.search();
+  assert.equal(browser.state.page.items[0].identifier, localIdentifier);
   assert.equal(
     seen.filter(({ path }) => path === releasePath).length,
     0,
     "collection browsing is not a detail read",
   );
+  await browser.search({ ...browser.state.query, text: "owned" });
+  assert.equal(browser.state.page.items[0].identifier, localIdentifier);
+  assert.equal(browser.state.page.items[0].origin, "local");
+  assert.ok(seen.some(({ path }) => path === "/api/v1/catalog/search"));
   await browser.select(browser.state.page.items[0].key);
+  assert.equal(browser.state.detail.item.identifier, localIdentifier);
+  const copied = JSON.stringify({
+    origin: "local",
+    releaseId: id,
+    identifier: localIdentifier,
+    versionPresent: true,
+    version: "1.0.0",
+  });
+  const beforeReference = seen.length;
+  await browser.openReference(copied);
+  assert.deepEqual(
+    seen.slice(beforeReference).map(({ path }) => path),
+    [
+      "/api/v1/me",
+      "/api/v1/capabilities",
+      releasePath,
+      "/api/v1/me",
+      "/api/v1/capabilities",
+      releasePath,
+    ],
+  );
   assert.equal(
     seen.filter(({ path }) => path === artifactPath).length,
     0,

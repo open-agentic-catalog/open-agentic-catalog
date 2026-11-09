@@ -47,6 +47,7 @@ __all__ = [
     "AICatalog",
     "AICatalogEntry",
     "AICatalogHost",
+    "AIRResource",
     "ARDEntry",
     "ARDError",
     "ARDExplore",
@@ -477,6 +478,7 @@ from catalog_sdk.generated.models.ai_catalog_entry import (
     AICatalogEntry as AICatalogEntry,
 )
 from catalog_sdk.generated.models.ai_catalog_host import AICatalogHost as AICatalogHost
+from catalog_sdk.generated.models.air_resource import AIRResource as AIRResource
 from catalog_sdk.generated.models.ard_entry import ARDEntry as ARDEntry
 from catalog_sdk.generated.models.ard_error import ARDError as ARDError
 from catalog_sdk.generated.models.ard_explore import ARDExplore as ARDExplore

@@ -5296,6 +5296,19 @@ type AICatalogEntry0 = interface{}
 // AICatalogEntry1 defines model for AICatalogEntry.1.
 type AICatalogEntry1 = interface{}
 
+// AIRResource Resource metadata with an AIR identifier, required for observation adoption.
+type AIRResource struct {
+	CanonicalIdentifier string       `json:"canonicalIdentifier"`
+	CreatedAt           time.Time    `json:"createdAt"`
+	CreatedBy           string       `json:"createdBy"`
+	Id                  UUID         `json:"id"`
+	Kind                ResourceKind `json:"kind"`
+	NamespaceId         UUID         `json:"namespaceId"`
+	Revision            int64        `json:"revision"`
+	TenantId            UUID         `json:"tenantId"`
+	UpdatedAt           time.Time    `json:"updatedAt"`
+}
+
 // ARDEntry defines model for ARDEntry.
 type ARDEntry struct {
 	Context      interface{}             `json:"@context,omitempty"`
@@ -7877,7 +7890,9 @@ type ObservationAdoption struct {
 	Evidence        EvidenceSet     `json:"evidence"`
 	Listing         CatalogListing  `json:"listing"`
 	ListingRevision ListingRevision `json:"listingRevision"`
-	Resource        Resource        `json:"resource"`
+
+	// Resource Resource metadata with an AIR identifier, required for observation adoption.
+	Resource        AIRResource     `json:"resource"`
 	Version         ResourceVersion `json:"version"`
 	VersionRevision VersionRevision `json:"versionRevision"`
 }
@@ -8813,6 +8828,7 @@ type RepresentationInput3MediaType string
 
 // Resource defines model for Resource.
 type Resource struct {
+	// CanonicalIdentifier Bounded local Resource identity. External discovery publication requires AIR.
 	CanonicalIdentifier string       `json:"canonicalIdentifier"`
 	CreatedAt           time.Time    `json:"createdAt"`
 	CreatedBy           string       `json:"createdBy"`

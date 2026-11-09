@@ -294,7 +294,107 @@ function setup({ mode = "control", handler, verify, peerReplay } = {}) {
     },
   };
 }
-test("copied references are closed duplicate-safe exact identities, never URLs or guessed versions", () => {
+test("local identities preserve bounded opaque metadata while external identities require AIR", () => {
+  for (const identifier of [
+    "custom:local",
+    "Café:e\u0301:🙂",
+    "🙂".repeat(512),
+    "https://uncontacted.invalid/local",
+    "custom:line\nbreak",
+    "custom:<script>alert(1)</script>",
+  ]) {
+    const value = summary();
+    value.resource.canonicalIdentifier = identifier;
+    value.listingRevision.visibility = "tenant";
+    assert.equal(localItem(value).identifier, identifier);
+    const searched = {
+      id: `local:${id}`,
+      type: "local",
+      identifier,
+      versionPresent: true,
+      version: "1.0.0",
+      kind: "agent",
+      displayName: "Owned",
+      tags: [],
+      score: 0,
+      local: value,
+    };
+    assert.equal(searchItem(searched).identifier, identifier);
+    const copied = {
+      origin: "local",
+      releaseId: id,
+      identifier,
+      versionPresent: true,
+      version: "1.0.0",
+    };
+    assert.deepEqual(exactReference(JSON.stringify(copied)), copied);
+    const indexed = {
+      origin: "indexed",
+      identifier,
+      versionPresent: true,
+      version: "1.0.0",
+    };
+    assert.throws(() => exactReference(JSON.stringify(indexed)));
+    assert.throws(() =>
+      searchItem({
+        ...searched,
+        id: "indexed:one",
+        type: "indexed",
+        indexed: {
+          sourceIds: [id],
+          sourceCount: 1,
+          conflict: false,
+          sameSourceConflict: false,
+        },
+      }),
+    );
+    assert.throws(() =>
+      publicItem({
+        identifier,
+        type: "application/json",
+        displayName: "Owned",
+      }),
+    );
+  }
+  for (const identifier of [
+    "",
+    "🙂".repeat(513),
+    "bad\0id",
+    "\ud800",
+    42,
+    null,
+  ]) {
+    const value = summary();
+    value.resource.canonicalIdentifier = identifier;
+    assert.throws(() => localItem(value));
+    assert.throws(() =>
+      searchItem({
+        id: `local:${id}`,
+        type: "local",
+        identifier,
+        versionPresent: true,
+        version: "1.0.0",
+        kind: "agent",
+        displayName: "Owned",
+        tags: [],
+        score: 0,
+        local: value,
+      }),
+    );
+    assert.throws(() =>
+      exactReference(
+        JSON.stringify({
+          origin: "local",
+          releaseId: id,
+          identifier,
+          versionPresent: true,
+          version: "1.0.0",
+        }),
+      ),
+    );
+  }
+});
+test("copied references are closed duplicate-safe exact identities with explicit versions", () => {
   const identifier = "urn:air:example.com:test:agent";
   for (const version of [undefined, "", "🙂".repeat(128), "\n".repeat(128)]) {
     const value = {
@@ -328,7 +428,6 @@ test("copied references are closed duplicate-safe exact identities, never URLs o
     { ...local, releaseId: "other" },
     { ...local, versionPresent: false },
     { ...local, version: null },
-    { ...local, identifier: "https://uncontacted.invalid" },
     { ...local, version: "\0" },
     { ...local, version: "\ud800" },
     { ...local, version: "x".repeat(129) },

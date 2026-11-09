@@ -16,6 +16,7 @@ Do not edit the class manually.
 from catalog_sdk.generated.models.ai_catalog import AICatalog
 from catalog_sdk.generated.models.ai_catalog_entry import AICatalogEntry
 from catalog_sdk.generated.models.ai_catalog_host import AICatalogHost
+from catalog_sdk.generated.models.air_resource import AIRResource
 from catalog_sdk.generated.models.ard_entry import ARDEntry
 from catalog_sdk.generated.models.ard_error import ARDError
 from catalog_sdk.generated.models.ard_explore import ARDExplore

@@ -22,10 +22,10 @@ else:
 
     from pydantic import BaseModel, ConfigDict, Field
     from typing import Any, ClassVar, Dict
+    from catalog_sdk.generated.models.air_resource import AIRResource
     from catalog_sdk.generated.models.catalog_listing import CatalogListing
     from catalog_sdk.generated.models.evidence_set import EvidenceSet
     from catalog_sdk.generated.models.listing_revision import ListingRevision
-    from catalog_sdk.generated.models.resource import Resource
     from catalog_sdk.generated.models.resource_version import ResourceVersion
     from catalog_sdk.generated.models.version_revision import VersionRevision
     from typing import Optional, Set
@@ -37,7 +37,7 @@ else:
         ObservationAdoption
         """  # noqa: E501
 
-        resource: Resource
+        resource: AIRResource
         version: ResourceVersion
         version_revision: VersionRevision = Field(alias="versionRevision")
         evidence: EvidenceSet
@@ -120,7 +120,7 @@ else:
 
             _obj = cls.model_validate(
                 {
-                    "resource": Resource.from_dict(obj["resource"])
+                    "resource": AIRResource.from_dict(obj["resource"])
                     if obj.get("resource") is not None
                     else None,
                     "version": ResourceVersion.from_dict(obj["version"])

@@ -120,7 +120,7 @@ Inspect results, not just exit status: a successful read can return a failed Job
 | Role assignment | A global or supported namespace grant to a membership. |
 | Namespace | Ownership and authorization scope for authoring and listing work. |
 | Publisher | Publisher metadata and declared publication domains; administrative domain approval is distinct from external ownership verification. |
-| Resource | Stable identity and kind. An AIR identifier is a domain-anchored name such as `urn:air:catalog.example.com:default:order-exception-agent`. |
+| Resource | Stable identity and kind. Local authoring and tenant/private release responses preserve bounded opaque identifiers. External discovery publication requires AIR, such as `urn:air:catalog.example.com:default:order-exception-agent`. |
 | ResourceVersion | A version label for a resource, sealed by its first approval. |
 | VersionRevision | An immutable exact content revision with representation identity and digests. |
 | Listing / ListingRevision | The listing identity and immutable presentation revisions: display metadata, visibility, tags, queries and related discovery fields. |
@@ -801,7 +801,7 @@ Backward wall-clock steps can put a fresh cursor beyond its permitted future-exp
 
 | Limit | Current boundary |
 | --- | --- |
-| Dependency advisories | Native MCP Scanner qualification remains blocked by its pinned LiteLLM closure. Fresh scans determine other dependency and image findings; historical clean scans do not establish current security. |
+| Dependency advisories | The optional MCP Scanner retains two High advisories in its pinned LiteLLM closure. Native offline qualification does not clear those findings. Fresh scans determine other dependency and image findings; historical clean scans do not establish current security. |
 | Local wall-clock instability | Backward host/database time steps have been observed; stable-clock expiry and lock qualification remain incomplete. Feature-specific passes do not establish stable clocks. Preserve guards, deadlines and attribution limits. |
 | Native editor qualification | Windows/macOS support is implemented but has no native qualification. Linux desktop and same-machine Remote SSH/browser selections do not qualify other placements, OS associations, production keychains or screen readers. Some earlier credential, bookmark and CDP failures lack confirmed causes. |
 | Web UI qualification | Some lazy-screen, API startup and Plugin module-fetch failures remain unclassified. Separate access and audit failures retain their own scope; passing repeats do not establish their causes. |
@@ -894,4 +894,4 @@ The [LangGraph guide](examples/langgraph/README.md) publishes under Build integr
 
 The [MCP Scanner example](examples/mcp-scanner/README.md) supplies capture validation, a locked YARA runner and private reports outside the Catalog runtime. Its signed receiver supports durable acceptance, explicit local HTTPS mappings, bounded MCP metadata reads and reconciliation. Receiver tests use a scanner executable double.
 
-The Compose harness and manual guide are implemented, but native scanner and full worker-delivery qualification await supported dependency fixes. The example supplies no Catalog assessment capability.
+The native scanner controls and full Compose campaign qualify benign and finding reports, signed worker delivery, restart, reconciliation and metadata-only collection. Application containers remain on an internal bridge without published ports; an owned host relay supplies fixed loopback review listeners. Cleanup stops the receiver and relay and removes only the owned environment. The scanner's pinned LiteLLM advisories remain unresolved. The example supplies no Catalog assessment capability.

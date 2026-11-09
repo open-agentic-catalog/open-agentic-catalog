@@ -4601,7 +4601,7 @@ pub struct ObservationAdoption {
     pub listing: CatalogListing,
     #[serde(rename = "listingRevision")]
     pub listing_revision: ListingRevision,
-    pub resource: Resource,
+    pub resource: AIRResource,
     pub version: ResourceVersion,
     #[serde(rename = "versionRevision")]
     pub version_revision: VersionRevision,
@@ -9640,7 +9640,7 @@ pub struct CatalogRevisionSummary {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogResourceSummary {
-    ///Constraint: maxLength=512, pattern=`^urn:air:`
+    ///Constraint: minLength=1, maxLength=512
     #[serde(rename = "canonicalIdentifier")]
     pub canonical_identifier: String,
     pub id: UUID,
@@ -10416,7 +10416,8 @@ pub struct ResourceVersion {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Resource {
-    ///Constraint: maxLength=512, pattern=`^urn:air:`
+    ///Bounded local Resource identity. External discovery publication requires AIR.
+    ///Constraint: minLength=1, maxLength=512
     #[serde(rename = "canonicalIdentifier")]
     pub canonical_identifier: String,
     #[serde(rename = "createdAt")]
@@ -11929,38 +11930,6 @@ pub struct CapabilitiesSearchIndexing {
     #[serde(rename = "jobId", skip_serializing_if = "Option::is_none")]
     pub job_id: Option<uuid::Uuid>,
     pub state: CapabilitiesSearchIndexingState,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
-pub enum ResourceKind {
-    #[default]
-    #[serde(rename = "agent")]
-    Agent,
-    #[serde(rename = "mcp_server")]
-    McpServer,
-    #[serde(rename = "skill")]
-    Skill,
-    #[serde(rename = "plugin")]
-    Plugin,
-}
-impl ResourceKind {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Agent => "agent",
-            Self::McpServer => "mcp_server",
-            Self::Skill => "skill",
-            Self::Plugin => "plugin",
-        }
-    }
-}
-impl ::std::fmt::Display for ResourceKind {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-impl AsRef<str> for ResourceKind {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum CapabilitiesSearchIndexingState {
@@ -14354,7 +14323,6 @@ pub struct AccessGroup {
     #[serde(rename = "updatedAt")]
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
-pub type UUID = uuid::Uuid;
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum AccessGroupState {
     #[default]
@@ -14814,6 +14782,62 @@ pub enum ARDExploreQueryContext {
     Url(url::Url),
     ARDExploreQueryContextVariant2(ARDExploreQueryContextVariant2),
     ARDExploreQueryContextVariant3(ARDExploreQueryContextVariant3),
+}
+///Resource metadata with an AIR identifier, required for observation adoption.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AIRResource {
+    ///Constraint: minLength=1, maxLength=512, pattern=`^urn:air:`
+    #[serde(rename = "canonicalIdentifier")]
+    pub canonical_identifier: String,
+    #[serde(rename = "createdAt")]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    ///Constraint: minLength=1
+    #[serde(rename = "createdBy")]
+    pub created_by: String,
+    pub id: UUID,
+    pub kind: ResourceKind,
+    #[serde(rename = "namespaceId")]
+    pub namespace_id: UUID,
+    ///Constraint: minimum=1
+    pub revision: i64,
+    #[serde(rename = "tenantId")]
+    pub tenant_id: UUID,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+pub type UUID = uuid::Uuid;
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum ResourceKind {
+    #[default]
+    #[serde(rename = "agent")]
+    Agent,
+    #[serde(rename = "mcp_server")]
+    McpServer,
+    #[serde(rename = "skill")]
+    Skill,
+    #[serde(rename = "plugin")]
+    Plugin,
+}
+impl ResourceKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Agent => "agent",
+            Self::McpServer => "mcp_server",
+            Self::Skill => "skill",
+            Self::Plugin => "plugin",
+        }
+    }
+}
+impl ::std::fmt::Display for ResourceKind {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ResourceKind {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

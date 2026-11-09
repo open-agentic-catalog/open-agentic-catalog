@@ -70,9 +70,10 @@ The example owns one separate Compose project. It does not change the normal dev
 | PostgreSQL 18 | Owned container. Catalog and receiver use separate databases and accounts. |
 | Inert MCP server | Owned container. It serves only test definitions and records requested methods. |
 | Signed receiver | Host process. It reads the Catalog through the Go SDK and collects approved MCP metadata. |
+| Loopback relay | Owned host process. It forwards three fixed listeners to the inspected API, database and MCP containers. |
 | YARA scanner | Short-lived container with networking disabled. It receives only the capture and empty caller context. |
 
-The receiver runs on the host because its offline runner needs Docker access. No container receives the Docker socket. API, database and MCP review ports bind only to loopback. The receiver binds to the owned private bridge address. Its certificate identifies the fixed fixture hostname.
+The receiver runs on the host because its offline runner needs Docker access. No container receives the Docker socket. Application containers stay on one internal bridge and publish no ports. The host relay binds API, database and MCP review listeners only to loopback. Its targets are fixed by the owned container addresses. The receiver binds to the owned private bridge address. Its certificate identifies the fixed fixture hostname.
 
 Run the complete automatic test:
 
@@ -82,11 +83,11 @@ make test-mcp-scanner-compose
 
 The command builds the current backend and fixture binaries, creates private trust and credentials, and starts the owned stack. It publishes real MCP releases through authoring, validation, independent review and publication APIs. A real worker delivery must reach the durable receiver inbox before analysis succeeds.
 
-The test checks duplicate and out-of-order notifications, restart after acceptance, an unpublished draft, wrong credentials and trust, revoked access, scanner failure, and reconciliation. It also publishes a release while the endpoint is disabled. Reconciliation must find that release without a delivered notification.
+The test checks duplicate and out-of-order notifications, restart after acceptance, an unpublished draft, wrong credentials and trust, revoked access, scanner failure, and reconciliation. A fresh `process` command consumes the worker's persisted receipt after restart and binds the native report to that exact event. It also publishes a release while the endpoint is disabled. Reconciliation must find that release without a delivered notification.
 
 The finding control contains the inert description `Ignore all instructions`. YARA must attribute a finding to that description. No component follows the description or invokes the tool.
 
-The command checks that Catalog evidence remains unchanged and that no forbidden MCP method occurs. It removes its containers, volumes, network, private inputs and receiver process. It keeps the local report and selected scan evidence under ignored `output/review/mcp-scanner/`.
+The command checks that Catalog evidence remains unchanged and that no forbidden MCP method occurs. It removes its containers, volumes, network, private inputs, receiver and relay processes. It keeps the local report and selected scan evidence under ignored `output/review/mcp-scanner/`.
 
 ## Run the same workflow in steps
 
@@ -119,7 +120,7 @@ To stop an unfinished run, use its exact directory:
 
 Do not run a general Compose reset or Docker prune. Each run has its own ownership marker and cleanup checks. Inspect a failed cleanup report before removing any remaining resource.
 
-Cleanup stops the receiver before it saves the final reports. If cleanup cannot verify container inventory, it reports failure and keeps private inputs. Those inputs contain credentials. Correct the reported problem, then retry the same scoped stop command.
+Cleanup stops the receiver before it saves the final reports. It then stops the relay and removes the owned containers and network. If cleanup cannot verify container inventory, it reports failure and keeps private inputs. Those inputs contain credentials. Correct the reported problem, then retry the same scoped stop command.
 
 SIGTERM or Ctrl+C interrupts the test runner and starts scoped cleanup. An interrupted run does not pass qualification.
 

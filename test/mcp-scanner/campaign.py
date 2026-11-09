@@ -33,6 +33,9 @@ from runner import command  # noqa: E402
 spec = importlib.util.spec_from_file_location("mcp_scanner_runner", HERE / "runner.py")
 scanner = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(scanner)
+relay_spec = importlib.util.spec_from_file_location("mcp_scanner_relay", HERE / "relay.py")
+relay = importlib.util.module_from_spec(relay_spec)
+relay_spec.loader.exec_module(relay)
 TENANT = "00000000-0000-7000-8000-000000000001"
 EVENT_SOURCE = "https://github.com/open-agentic-catalog/open-agentic-catalog/tenants/" + TENANT
 CASES = ("network-isolation", "least-privilege-reader", "worker-delivery-and-restart", "duplicate-receipt",
@@ -100,11 +103,120 @@ def wait(label, callback, seconds=60):
     raise ValueError("MCP Scanner wait failed: " + label)
 
 
-def port(directory, service, target):
-    address = compose(directory, "port", service, str(target)).decode().strip()
-    if not re.fullmatch(r"127\.0\.0\.1:[0-9]{1,5}", address):
-        raise ValueError("fixture listener is not loopback-only")
-    return address
+def service_targets(directory):
+    state = owner(directory)
+    name = state["project"] + "_owned"
+    network = json.loads(call(["docker", "network", "inspect", name]))[0]
+    ipam = network["IPAM"]["Config"]
+    if (not network["Internal"] or network["Driver"] != "bridge"
+            or network["Labels"].get("com.docker.compose.project") != state["project"]
+            or len(ipam) != 1 or ipam[0].get("Subnet") != state["subnet"] or ipam[0].get("Gateway") != state["gateway"]):
+        raise ValueError("fixture internal network identity changed")
+    values = {}
+    for service, target in relay.PORTS.items():
+        cid = compose(directory, "ps", "-q", service).decode().strip()
+        if not re.fullmatch(r"[0-9a-f]{64}", cid):
+            raise ValueError("fixture service identity is unavailable")
+        container = json.loads(call(["docker", "inspect", cid]))[0]
+        labels = container["Config"]["Labels"]
+        networks = container["NetworkSettings"]["Networks"]
+        if (container["Id"] != cid or not container["State"]["Running"]
+                or labels.get("com.docker.compose.project") != state["project"] or labels.get("com.docker.compose.service") != service
+                or set(networks) != {name} or networks[name]["NetworkID"] != network["Id"]
+                or container["HostConfig"]["PortBindings"] or any(container["NetworkSettings"]["Ports"].values())):
+            raise ValueError("fixture service network or publication changed")
+        address = networks[name]["IPAddress"]
+        if network["Containers"].get(cid, {}).get("IPv4Address") != address + "/28":
+            raise ValueError("fixture service address is not retained by its network")
+        values[service] = {"address": address, "port": target}
+    relay.targets(state["subnet"], values)
+    return values
+
+
+def relay_args(directory):
+    state = owner(directory)
+    return [state.get("relayPython", sys.executable), "-B", str(HERE / "campaign.py"), "relay", "--directory", str(directory)]
+
+
+def serve_relays(directory):
+    state = owner(directory)
+    selected = relay.targets(state["subnet"], state["relayTargets"])
+    listeners = None
+    try:
+        with relay.defer_stop():
+            listeners = relay.Relays(selected)
+        write(directory / "private/relay-ready.json", {"schemaVersion": 1, "pid": os.getpid(), "listeners": listeners.addresses()})
+        while True:
+            signal.pause()
+    finally:
+        if listeners is not None:
+            listeners.close()
+
+
+def relay_addresses(directory):
+    state = owner(directory)
+    value = json.loads((directory / "private/relay-ready.json").read_bytes())
+    if (set(value) != {"schemaVersion", "pid", "listeners"} or type(value.get("schemaVersion")) is not int
+            or value["schemaVersion"] != 1 or type(value.get("pid")) is not int or value["pid"] != state["relayPID"]
+            or process_identity(state["relayPID"]) != state["relayStart"]
+            or not isinstance(value.get("listeners"), dict) or set(value["listeners"]) != set(relay.PORTS)):
+        raise ValueError("fixture relay readiness identity changed")
+    for address in value["listeners"].values():
+        if not isinstance(address, str) or not re.fullmatch(r"127\.0\.0\.1:[0-9]{1,5}", address) or not 1 <= int(address.rsplit(":", 1)[1]) <= 65535:
+            raise ValueError("fixture relay listener is not loopback-only")
+    if len(set(value["listeners"].values())) != len(relay.PORTS):
+        raise ValueError("fixture relay listeners overlap")
+    return value["listeners"]
+
+
+def start_relays(directory):
+    state = owner(directory)
+    if state.get("relayPID") and process_identity(state["relayPID"]) == state.get("relayStart"):
+        raise ValueError("owned relay is already running")
+    state.update(relayTargets=service_targets(directory), relayPython=sys.executable)
+    write(directory / "report.json", state)
+    (directory / "private/relay-ready.json").unlink(missing_ok=True)
+    child = start_process(directory, "relay", relay_args(directory))
+    def ready():
+        if child.poll() is not None:
+            raise ValueError("fixture relay startup failed")
+        try:
+            return relay_addresses(directory)
+        except FileNotFoundError:
+            return None
+    return wait("loopback relay readiness", ready, 15)
+
+
+def start_process(directory, role, arguments):
+    import subprocess
+    if role not in ("relay", "receiver"):
+        raise ValueError("unexpected owned process role")
+    if relay.threading.active_count() != 1:
+        raise ValueError("start owned processes from the single-threaded coordinator")
+    state = owner(directory)
+    child = None
+    try:
+        with relay.defer_stop() as previous_mask:
+            with (directory / "private" / (role + ".log")).open("ab") as stream:
+                os.fchmod(stream.fileno(), 0o600)
+                # This coordinator has one thread. Restore the child's original
+                # mask before exec; only the parent defers stop delivery.
+                child = subprocess.Popen(arguments, env=environment(), stdout=stream, stderr=stream, start_new_session=True,
+                                         preexec_fn=lambda: signal.pthread_sigmask(signal.SIG_SETMASK, previous_mask))
+            state.update({role + "PID": child.pid, role + "Start": process_identity(child.pid)})
+            write(directory / "report.json", state)
+        return child
+    except BaseException:
+        if child is not None:
+            with relay.defer_stop():
+                if child.poll() is None:
+                    child.terminate()
+                try:
+                    child.wait(timeout=80 if role == "receiver" else 8)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait(timeout=8)
+        raise
 
 
 def source_digest():
@@ -246,19 +358,12 @@ def process_identity(pid):
 
 
 def start_receiver(directory, *, poll="1s", runner=None):
-    import subprocess
     state = owner(directory)
     if state.get("receiverPID") and process_identity(state["receiverPID"]) == state.get("receiverStart"):
         raise ValueError("owned receiver is already running")
     index = directory / "private/reports/index.json"
     previous = index.stat().st_mtime_ns if index.exists() else 0
-    log = directory / "private/receiver.log"
-    with log.open("ab") as stream:
-        log.chmod(0o600)
-        child = subprocess.Popen(receiver_args(directory, "serve", runner=runner, poll=poll), env=environment(),
-                                 stdout=stream, stderr=stream, start_new_session=True)
-    state.update(receiverPID=child.pid, receiverStart=process_identity(child.pid))
-    write(directory / "report.json", state)
+    child = start_process(directory, "receiver", receiver_args(directory, "serve", runner=runner, poll=poll))
     def ready():
         if child.poll() is not None:
             raise ValueError("receiver startup failed")
@@ -269,16 +374,16 @@ def start_receiver(directory, *, poll="1s", runner=None):
     wait("receiver startup", ready, 180)
 
 
-def stop_receiver(directory):
+def stop_process(directory, role, expected, seconds):
     state = owner(directory)
-    pid = state.get("receiverPID")
-    if pid and process_identity(pid) == state.get("receiverStart"):
+    pid = state.get(role + "PID")
+    if pid and process_identity(pid) == state.get(role + "Start"):
         command_line = Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0")
-        if command_line[0] != str(directory / "private/build/receiver").encode():
-            raise ValueError("receiver process ownership changed")
+        if command_line[:len(expected)] != [str(part).encode() for part in expected]:
+            raise ValueError(role + " process ownership changed")
         os.kill(pid, signal.SIGTERM)
-        deadline = time.monotonic() + 80
-        while time.monotonic() < deadline and process_identity(pid) == state["receiverStart"]:
+        deadline = time.monotonic() + seconds
+        while time.monotonic() < deadline and process_identity(pid) == state[role + "Start"]:
             try:
                 finished, _ = os.waitpid(pid, os.WNOHANG)
                 if finished:
@@ -288,12 +393,20 @@ def stop_receiver(directory):
                     break
             time.sleep(0.1)
         else:
-            if process_identity(pid) == state["receiverStart"]:
+            if process_identity(pid) == state[role + "Start"]:
                 os.killpg(pid, signal.SIGKILL)
-                raise ValueError("owned receiver did not stop cleanly")
-    state.pop("receiverPID", None)
-    state.pop("receiverStart", None)
+                raise ValueError("owned " + role + " did not stop cleanly")
+    state.pop(role + "PID", None)
+    state.pop(role + "Start", None)
     write(directory / "report.json", state)
+
+
+def stop_receiver(directory):
+    stop_process(directory, "receiver", [directory / "private/build/receiver"], 80)
+
+
+def stop_relays(directory):
+    stop_process(directory, "relay", relay_args(directory), 8)
 
 
 def start(directory):
@@ -314,9 +427,12 @@ def start(directory):
     compose(directory, "run", "--rm", "--no-deps", "owner", "migrate", "apply", "--config", "/config/config.json", "--api-role", "catalog_api", "--worker-role", "catalog_worker")
     compose(directory, "run", "--rm", "--no-deps", "owner", "identity", "provision-development", "--config", "/config/config.json")
     compose(directory, "up", "-d", "--no-build", "--pull", "never", "--wait", "--wait-timeout", "60", "api", "worker")
-    state["api"] = "http://" + port(directory, "api", 8080)
-    state["mcp"] = "https://" + port(directory, "mcp", 9443)
-    state["pg"] = port(directory, "postgres", 5432)
+    write(directory / "report.json", state)
+    addresses = start_relays(directory)
+    state = owner(directory)
+    state["api"] = "http://" + addresses["api"]
+    state["mcp"] = "https://" + addresses["mcp"]
+    state["pg"] = addresses["postgres"]
     state["phase"] = "started"
     write(directory / "report.json", state)
     private = directory / "private"
@@ -461,11 +577,14 @@ def qualify(directory):
         value = json.loads(call(["docker", "inspect", cid]))[0]
         assert set(value["NetworkSettings"]["Networks"]) == {state["project"] + "_owned"}
         assert not value["HostConfig"]["Privileged"] and value["HostConfig"]["NetworkMode"] != "host"
-        assert all(binding["HostIp"] == "127.0.0.1" for bindings in (value["HostConfig"]["PortBindings"] or {}).values() for binding in bindings or [])
+        assert not value["HostConfig"]["PortBindings"] and not any(value["NetworkSettings"]["Ports"].values())
         if name != "postgres":
             assert value["Image"] == state["imageId"]
     network = json.loads(call(["docker", "network", "inspect", state["project"] + "_owned"]))[0]
     assert network["Internal"] and len(network["Containers"]) == 4
+    assert service_targets(directory) == state["relayTargets"]
+    addresses = relay_addresses(directory)
+    assert (state["api"], state["mcp"], state["pg"]) == ("http://" + addresses["api"], "https://" + addresses["mcp"], addresses["postgres"])
     mark(directory, "network-isolation")
     reader, api = client(directory, "local-template-service-client"), client(directory)
     before = reader.request("GET", "/api/v1/me")[0]
@@ -487,9 +606,10 @@ def qualify(directory):
     assert stats(directory)["methods"] == {}
     stop_receiver(directory)
     assert accepted()
-    start_receiver(directory)
-    wait("restart report", lambda: completed(directory, first_event["id"]), 180)
-    stop_receiver(directory)
+    # A fresh processor consumes the retained worker receipt. Serve startup
+    # also queues reconciliation, which can replace the latest observation.
+    call(receiver_args(directory, "process"), seconds=240)
+    assert completed(directory, first_event["id"])
     saved = observation(directory)
     raw = native_report(directory)
     assert saved["state"] == "eligible_at_check" and saved["catalogEvidence"]["releaseId"] == first["id"] and saved["trigger"]["id"] == first_event["id"]
@@ -627,6 +747,10 @@ def stop(directory):
             retain_report(directory, "last")
         except (OSError, ValueError, KeyError, AssertionError):
             errors.append("report-evidence")
+    try:
+        stop_relays(directory)
+    except (OSError, ValueError):
+        errors.append("relay")
     if (directory / "compose.env").is_file():
         try:
             compose(directory, "--profile", "operator", "down", "--volumes", "--remove-orphans", "--timeout", "20")
@@ -677,10 +801,21 @@ def interrupted(_number, _frame):
 def main():
     signal.signal(signal.SIGTERM, interrupted)
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "start", "test", "stop", "run"))
+    parser.add_argument("action", choices=("prepare", "start", "test", "stop", "run", "relay"))
     parser.add_argument("--directory", type=Path)
     args = parser.parse_args()
     directory = args.directory
+    if args.action == "relay":
+        try:
+            if directory is None:
+                raise ValueError("select the owned run directory")
+            serve_relays(directory)
+        except KeyboardInterrupt:
+            return 0
+        except Exception:
+            print("MCP Scanner fixture relay failed.", file=sys.stderr)
+            return 1
+    stage = "prepare" if args.action in ("prepare", "run") else args.action
     try:
         if args.action in ("prepare", "run"):
             directory = prepare()
@@ -690,8 +825,10 @@ def main():
         if directory is None:
             raise ValueError("select the owned run directory")
         if args.action in ("start", "run"):
+            stage = "start"
             start(directory)
         if args.action in ("test", "run"):
+            stage = "test"
             try:
                 qualify(directory)
             finally:
@@ -714,8 +851,15 @@ def main():
     except Exception as error:
         if directory is not None and directory.is_dir():
             state = owner(directory)
-            state.update(success=False, phase="failed", failureType=type(error).__name__)
-            if len(state["completed"]) < len(CASES):
+            state.update(success=False, phase="failed", failureStage=stage, failureType=type(error).__name__)
+            locations = []
+            trace = error.__traceback__
+            while trace is not None:
+                if Path(trace.tb_frame.f_code.co_filename) == HERE / "campaign.py":
+                    locations.append({"function": trace.tb_frame.f_code.co_name, "line": trace.tb_lineno})
+                trace = trace.tb_next
+            state["failureLocation"] = locations
+            if stage == "test" and len(state["completed"]) < len(CASES):
                 state["failedCase"] = CASES[len(state["completed"])]
             write(directory / "report.json", state)
             if not state.get("cleanup"):
