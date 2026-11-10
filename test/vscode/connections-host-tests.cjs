@@ -33,6 +33,12 @@ exports.run = async (api) => {
   };
   const pick = async (name, label) => {
     await title(name);
+    await ui.click(
+      `document.querySelector(${JSON.stringify(`${visible} input`)})`,
+    );
+    await ui.until(
+      `document.activeElement===document.querySelector(${JSON.stringify(`${visible} input`)})`,
+    );
     await ui.evaluate(
       `(()=>{const input=document.querySelector(${JSON.stringify(`${visible} input`)});input.value=${JSON.stringify(label)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
     );

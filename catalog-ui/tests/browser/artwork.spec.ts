@@ -1,13 +1,26 @@
+import type { Locator } from "@playwright/test";
+import { attachments, observeAttachments } from "./blob-observation";
 import { readFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import { array, object, text } from "./json";
 import { test, expect, login, confirmCommand } from "./fixtures";
 
 // Owned synthetic pixels qualify browser delivery/rendering, not remote fetch policy.
-const png = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jR1kAAAAASUVORK5CYII=",
-  "base64",
+const png = readFileSync(
+  new URL("../../../samples/artwork/icon.png", import.meta.url),
 );
+async function decoded(image: Locator, width: number, height: number) {
+  await expect(image).toBeVisible();
+  await expect
+    .poll(() =>
+      image.evaluate(async (element: HTMLImageElement) => {
+        await element.decode();
+        return [element.complete, element.naturalWidth, element.naturalHeight];
+      }),
+    )
+    .toEqual([true, width, height]);
+}
+
 const asset = {
   url: "https://images.example.test/owned.png",
   alt: "Owned test pixel",
@@ -15,8 +28,8 @@ const asset = {
   digest: `sha256:${createHash("sha256").update(png).digest("hex")}`,
   mediaType: "image/png",
   size: png.length,
-  width: 1,
-  height: 1,
+  width: 32,
+  height: 32,
   rightsAssessment: "not_assessed",
 };
 const screenshot = readFileSync(
@@ -49,12 +62,15 @@ const iri =
 test("artwork uses authenticated Blob images with keyboard gallery navigation and no image-origin browser contact", async ({
   page,
   catalog,
+  network,
 }) => {
   const imageRequests: unknown[] = [];
   const forbidden: string[] = [];
-  page.on("request", (request) => {
-    if (request.url().startsWith("https://images.example.test"))
-      forbidden.push(request.url());
+  let refused = false;
+  network.expectFailure("POST", "/_catalog/api/v1/artwork/read", 503);
+  await page.route("https://images.example.test/**", async (route) => {
+    forbidden.push(route.request().url());
+    await route.abort();
   });
   await page.route("**/_catalog/api/v1/catalog/search", async (route) => {
     const response = await route.fetch();
@@ -99,6 +115,19 @@ test("artwork uses authenticated Blob images with keyboard gallery navigation an
     expect(body.origin).toBe("local");
     expect(body).not.toHaveProperty("url");
     imageRequests.push(body);
+    if (body.slot === "screenshot" && body.index === 1 && !refused) {
+      refused = true;
+      await route.fulfill({
+        status: 503,
+        json: {
+          type: "about:blank",
+          title: "Artwork unavailable",
+          status: 503,
+          code: "ARTWORK_UNAVAILABLE",
+        },
+      });
+      return;
+    }
     const bytes = body.slot === "screenshot" ? screenshot : png;
     await route.fulfill({
       status: 200,
@@ -114,15 +143,34 @@ test("artwork uses authenticated Blob images with keyboard gallery navigation an
   await expect(
     page.locator("article.resource-card img").first(),
   ).toHaveAttribute("src", /^blob:/);
+  await decoded(page.locator("article.resource-card img").first(), 32, 32);
   await page.locator("article.resource-card .title-button").first().click();
   const preview = page.getByRole("dialog", { name: /./ });
-  await expect(preview.getByAltText("First dashboard")).toBeVisible();
+  await decoded(preview.getByAltText("First dashboard"), 320, 180);
   await expect(
     preview.getByText(/Image attribution: Catalog browser fixture/),
   ).toBeVisible();
   await preview.getByRole("button", { name: "Next screenshot" }).focus();
   await page.keyboard.press("Enter");
-  await expect(preview.getByAltText("Second dashboard")).toBeVisible();
+  const retry = preview.getByRole("button", {
+    name: "Retry image",
+    exact: true,
+  });
+  await expect(retry).toBeVisible();
+  await expect(preview.getByText("2 of 2")).toBeVisible();
+  expect(
+    imageRequests.filter(
+      (body) => object(body).slot === "screenshot" && object(body).index === 1,
+    ),
+  ).toHaveLength(1);
+  await retry.focus();
+  await page.keyboard.press("Enter");
+  await decoded(preview.getByAltText("Second dashboard"), 320, 180);
+  expect(
+    imageRequests.filter(
+      (body) => object(body).slot === "screenshot" && object(body).index === 1,
+    ),
+  ).toHaveLength(2);
   await expect(preview.getByText("2 of 2")).toBeVisible();
   await page.setViewportSize({ width: 390, height: 740 });
   expect(
@@ -293,11 +341,21 @@ test.describe("owned TLS artwork through the real Catalog boundary", () => {
     await expect(
       card.getByAltText("Blue and gold geometric Catalog fixture"),
     ).toHaveAttribute("src", /^blob:/);
+    await decoded(
+      card.getByAltText("Blue and gold geometric Catalog fixture"),
+      32,
+      32,
+    );
     await card.getByRole("button", { name: "Artwork fixture Agent" }).click();
     const preview = page.getByRole("dialog");
     await expect(
       preview.getByAltText("Synthetic blue and gold listing preview"),
     ).toBeVisible();
+    await decoded(
+      preview.getByAltText("Synthetic blue and gold listing preview"),
+      320,
+      180,
+    );
     await expect(
       preview.getByText(
         "Owned fixture image; no application or third-party content.",
@@ -467,4 +525,238 @@ test("artwork editor exposes rights help and wraps screenshot actions in both th
   expect(borders.size).toBe(2);
   expect(writes).toEqual([]);
   expect(references).toEqual([]);
+});
+
+for (const origin of ["indexed", "live"] as const) {
+  test(`${origin}: rendered artwork uses its exact captured authority`, async ({
+    page,
+    catalog,
+  }) => {
+    const presentationSource = "00000000-0000-7000-8000-000000000188";
+    const alternateSource = "00000000-0000-7000-8000-000000000189";
+    const identifier = `urn:air:images.example:agent:${origin}`;
+    const reads: unknown[] = [];
+    const outside: string[] = [];
+    await page.route("https://images.example.test/**", async (route) => {
+      outside.push(route.request().url());
+      await route.abort();
+    });
+    await page.route("**/_catalog/api/v1/catalog/search", async (route) => {
+      const response = await route.fetch();
+      const data = object(await response.json());
+      delete data.nextCursor;
+      await route.fulfill({
+        response,
+        json: {
+          ...data,
+          items: [
+            {
+              id: `artwork-${origin}`,
+              type: origin,
+              kind: "agent",
+              identifier,
+              versionPresent: origin === "indexed",
+              ...(origin === "indexed" ? { version: "" } : {}),
+              displayName: `${origin} artwork`,
+              tags: [],
+              ...(origin === "indexed"
+                ? {
+                    indexed: {
+                      observationGroupId:
+                        "observation-group-v1:sha256:" + "a".repeat(64),
+                      normalizedEntryDigest: "sha256:" + "b".repeat(64),
+                      sourceIds: [alternateSource, presentationSource],
+                      sourceCount: 2,
+                      sourcesTruncated: false,
+                      conflict: false,
+                      sameSourceConflict: false,
+                      presentationSourceId: presentationSource,
+                      presentationGeneration: 7,
+                    },
+                  }
+                : {
+                    live: {
+                      sourceId: alternateSource,
+                      source: "https://peer.example",
+                      presentationGeneration: 9,
+                      entry: { description: "Owned live projection" },
+                    },
+                  }),
+              artwork: {
+                descriptor,
+                ...(origin === "live"
+                  ? { receipt: "owned-live-artwork-receipt" }
+                  : {}),
+              },
+            },
+          ],
+          durableTotal: origin === "indexed" ? 1 : 0,
+          liveCount: origin === "live" ? 1 : 0,
+          partial: false,
+        },
+      });
+    });
+    await page.route("**/_catalog/api/v1/artwork/read", async (route) => {
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().headers()["x-catalog-request"]).toBe("1");
+      reads.push(route.request().postDataJSON());
+      await route.fulfill({
+        contentType: "image/png",
+        headers: {
+          "Content-Digest": `sha-256=:${createHash("sha256").update(png).digest("base64")}:`,
+        },
+        body: png,
+      });
+    });
+    await login(page, catalog);
+    await decoded(page.locator("article.resource-card img"), 32, 32);
+    expect(reads).toEqual([
+      origin === "indexed"
+        ? {
+            origin: "indexed",
+            target: {
+              sourceId: presentationSource,
+              presentationGeneration: 7,
+              identifier,
+              versionPresent: true,
+              version: "",
+              kind: "agent",
+            },
+            slot: "icon",
+          }
+        : {
+            origin: "live",
+            receipt: "owned-live-artwork-receipt",
+            descriptor,
+            slot: "icon",
+          },
+    ]);
+    expect(outside).toEqual([]);
+  });
+}
+
+test("native lazy artwork cancels removed results and recovers in the same document", async ({
+  page,
+  catalog,
+}) => {
+  await observeAttachments(page);
+  await page.setViewportSize({ width: 390, height: 600 });
+  const reads: string[] = [];
+  let items: Record<string, unknown>[] = [];
+  let empty = false;
+  let hold = false;
+  let held = false;
+  let release = () => {};
+  const heldReplies: Promise<void>[] = [];
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const outside: string[] = [];
+  await page.route("https://images.example.test/**", async (route) => {
+    outside.push(route.request().url());
+    await route.abort();
+  });
+  await page.route("**/_catalog/api/v1/catalog/search", async (route) => {
+    const response = await route.fetch();
+    const data = object(await response.json());
+    if (!items.length) items = array(data.items).map(object);
+    delete data.nextCursor;
+    await route.fulfill({
+      response,
+      json: {
+        ...data,
+        items: empty
+          ? []
+          : items.map((item) => ({ ...item, artwork: { descriptor } })),
+        durableTotal: empty ? 0 : items.length,
+      },
+    });
+  });
+  await page.route("**/_catalog/api/v1/artwork/read", async (route) => {
+    const body = object(route.request().postDataJSON());
+    reads.push(text(body.listingRevisionId));
+    const waiting = hold;
+    let settled = () => {};
+    if (waiting) {
+      heldReplies.push(
+        new Promise<void>((resolve) => {
+          settled = resolve;
+        }),
+      );
+      held = true;
+      await gate;
+    }
+    try {
+      await route.fulfill({
+        contentType: "image/png",
+        headers: {
+          "Content-Digest": `sha-256=:${createHash("sha256").update(png).digest("base64")}:`,
+        },
+        body: png,
+      });
+    } finally {
+      if (waiting) settled();
+    }
+  });
+  await login(page, catalog);
+  const cards = page.locator("article.resource-card");
+  await expect(cards).toHaveCount(3);
+  const first = cards.first();
+  const last = cards.last();
+  const lastTarget = text(
+    object(object(object(items.at(-1)).local).listingRevision).id,
+  );
+  // Inspect geometry before scrolling: CSS visibility alone does not prove lazy admission.
+  expect((await last.boundingBox())!.y).toBeGreaterThanOrEqual(600);
+  await first.scrollIntoViewIfNeeded();
+  await decoded(first.locator("img"), 32, 32);
+  expect(reads).not.toContain(lastTarget);
+  await last.scrollIntoViewIfNeeded();
+  await decoded(last.locator("img"), 32, 32);
+  expect(reads.filter((target) => target === lastTarget)).toHaveLength(1);
+  const original = await attachments(page);
+  const search = page.getByRole("searchbox", {
+    name: "Search Catalog",
+    exact: true,
+  });
+  const submit = async (value: string) => {
+    await search.fill(value);
+    await search.press("Enter");
+  };
+  try {
+    empty = true;
+    await submit("owned-empty");
+    await expect(cards).toHaveCount(0);
+    await expect
+      .poll(async () => (await attachments(page)).revoked.sort())
+      .toEqual(original.created.map((entry) => entry.url).sort());
+    hold = true;
+    empty = false;
+    const pending = page.waitForRequest((request) =>
+      new URL(request.url()).pathname.endsWith("/api/v1/artwork/read"),
+    );
+    await submit("");
+    await first.scrollIntoViewIfNeeded();
+    const request = await pending;
+    await expect.poll(() => held).toBe(true);
+    const aborted = page.waitForEvent("requestfailed", {
+      predicate: (value) => value === request,
+    });
+    empty = true;
+    await submit("owned-empty");
+    await expect(cards).toHaveCount(0);
+    expect((await aborted).failure()?.errorText).toBe("net::ERR_ABORTED");
+    release();
+    await Promise.all(heldReplies);
+    expect((await attachments(page)).created).toEqual(original.created);
+    hold = false;
+    empty = false;
+    await submit("");
+    await first.scrollIntoViewIfNeeded();
+    await decoded(first.locator("img"), 32, 32);
+    expect((await attachments(page)).document).toBe(original.document);
+    expect(outside).toEqual([]);
+  } finally {
+    release();
+  }
 });

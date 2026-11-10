@@ -6,6 +6,7 @@ import { object, array, text } from "./json";
 import { readFile } from "node:fs/promises";
 import { required } from "../required";
 import { openDisclosure } from "./editor-disclosure";
+import { observeAttachments, attachments } from "./blob-observation";
 import type { Page } from "@playwright/test";
 
 test.use({ demoArchives: true });
@@ -418,6 +419,7 @@ test("root: a Reader downloads exact local Catalog content and its selected List
   page,
   catalog,
 }) => {
+  await observeAttachments(page);
   const item = required(
     catalog.receipt.items.find(
       (item) => item.key === "order-agent" && item.releaseId,
@@ -443,9 +445,10 @@ test("root: a Reader downloads exact local Catalog content and its selected List
   await expect(link).toBeFocused();
   const pending = page.waitForEvent("download");
   await link.click();
-  const file = object(
-    JSON.parse(await readFile(required(await (await pending).path()), "utf8")),
-  );
+  const firstDownload = await pending;
+  expect(firstDownload.suggestedFilename()).toBe("catalog-draft.json");
+  const expectedBytes = await readFile(required(await firstDownload.path()));
+  const file = object(JSON.parse(expectedBytes.toString("utf8")));
   expect(file).toMatchObject({
     format: "open-agentic-catalog-draft-v1",
     listing: expect.any(Object),
@@ -462,6 +465,113 @@ test("root: a Reader downloads exact local Catalog content and its selected List
   expect(
     object(object(required(array(file.representations)[0])).input).mode,
   ).toBe("data");
+
+  const original = await attachments(page);
+  const oldUrl = await link.getAttribute("href");
+  const prepare = section.getByRole("button", {
+    name: "Prepare draft download",
+    exact: true,
+  });
+  const include = section.getByLabel("Include Listing metadata", {
+    exact: true,
+  });
+  let mode: "checksum" | "healthy" | "held" = "checksum";
+  let ready = false;
+  let settled = () => {};
+  const completed = new Promise<void>((resolve) => {
+    settled = resolve;
+  });
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const requests: (string | null)[] = [];
+  const exportPath = `/_catalog/api/v1/version-revisions/${item.versionRevisionId}/export`;
+  await page.route(`**${exportPath}*`, async (route) => {
+    requests.push(
+      new URL(route.request().url()).searchParams.get("listingRevisionId"),
+    );
+    const behavior = mode;
+    const response = await route.fetch();
+    if (behavior === "held") {
+      ready = true;
+      await gate;
+    }
+    if (behavior === "checksum") {
+      const headers = { ...response.headers() };
+      delete headers["content-digest"];
+      await route.fulfill({ response, headers });
+    } else {
+      try {
+        await route.fulfill({ response });
+      } finally {
+        if (behavior === "held") settled();
+      }
+    }
+  });
+  try {
+    await prepare.click();
+    await expect(section.getByRole("alert")).toHaveText(
+      "Draft checksum verification failed.",
+    );
+    await expect(section.getByRole("alert")).toBeFocused();
+    await expect(link).toHaveCount(0);
+    expect((await attachments(page)).revoked).toContain(oldUrl);
+    mode = "healthy";
+    await prepare.click();
+    await expect(link).toBeFocused();
+    const recovered = page.waitForEvent("download");
+    await link.click();
+    const recoveredFile = await recovered;
+    expect(recoveredFile.suggestedFilename()).toBe("catalog-draft.json");
+    expect(await readFile(required(await recoveredFile.path()))).toEqual(
+      expectedBytes,
+    );
+    const recoveredUrl = await link.getAttribute("href");
+    mode = "held";
+    const held = page.waitForRequest(
+      (request) =>
+        new URL(request.url()).pathname === catalog.basePath + exportPath,
+    );
+    await prepare.click();
+    const request = await held;
+    await expect.poll(() => ready).toBe(true);
+    expect(requests.length).toBe(3);
+    const aborted = page.waitForEvent("requestfailed", {
+      predicate: (value) => value === request,
+    });
+    await include.uncheck();
+    expect((await aborted).failure()?.errorText).toBe("net::ERR_ABORTED");
+    await expect(link).toHaveCount(0);
+    release();
+    await completed;
+    expect(
+      (await attachments(page)).created.filter(
+        (entry) => entry.type === "application/json",
+      ),
+    ).toHaveLength(2);
+    mode = "healthy";
+    await prepare.click();
+    await expect(link).toBeFocused();
+    const withoutListing = page.waitForEvent("download");
+    await link.click();
+    const noListing = object(
+      JSON.parse(
+        await readFile(required(await (await withoutListing).path()), "utf8"),
+      ),
+    );
+    const { listing: _listing, ...expectedWithoutListing } = file;
+    expect(noListing).toEqual(expectedWithoutListing);
+    expect(requests).toEqual([selected, selected, selected, null]);
+    const final = await attachments(page);
+    expect(final.document).toBe(original.document);
+    expect(final.revoked).toContain(recoveredUrl);
+    expect(
+      final.created.filter((entry) => entry.type === "application/json"),
+    ).toHaveLength(3);
+  } finally {
+    release();
+  }
 });
 
 test("root: changing a new Resource's Namespace preserves edited Listing fields through Save", async ({

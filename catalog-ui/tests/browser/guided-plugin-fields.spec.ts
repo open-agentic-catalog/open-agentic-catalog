@@ -376,3 +376,209 @@ for (const base of ["root", "subpath"] as const) {
     expect(outside).toEqual([]);
   });
 }
+
+for (const base of ["root", "subpath"] as const) {
+  test(`${base}: optional Plugin connection fields survive row edits in the downloaded MCP file`, async ({
+    page,
+    catalog,
+  }) => {
+    await login(page, catalog, "local-contributor", "/resources/new");
+    const writes: string[] = [];
+    const outside: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (
+        ["http:", "https:"].includes(url.protocol) &&
+        url.origin !== catalog.origin
+      )
+        outside.push(url.href);
+      if (
+        url.pathname.includes("/_catalog/api/") &&
+        !["GET", "HEAD"].includes(request.method())
+      )
+        writes.push(url.pathname);
+    });
+    await page
+      .getByRole("combobox", { name: "Namespace", exact: true })
+      .selectOption(catalog.receipt.namespaceId);
+    await page
+      .getByRole("combobox", { name: "Kind", exact: true })
+      .selectOption("plugin");
+    await page
+      .getByRole("textbox", {
+        name: "Canonical resource identifier",
+        exact: true,
+      })
+      .fill(`urn:air:catalog.example.com:guided:optional-${base}`);
+    await page
+      .getByRole("button", { name: "Next: Content", exact: true })
+      .click();
+    await page
+      .getByRole("textbox", { name: "Version label", exact: true })
+      .fill("1.0.0");
+    await page
+      .getByRole("combobox", { name: "Plugin input", exact: true })
+      .selectOption("prepare");
+    await page
+      .getByRole("textbox", { name: "Plugin name", exact: true })
+      .fill("optional-tools");
+    await page
+      .getByRole("button", {
+        name: "Use Catalog version 1.0.0 in manifest",
+        exact: true,
+      })
+      .click();
+    await page
+      .getByRole("button", { name: "Add MCP server", exact: true })
+      .click();
+    const stdio = page.getByRole("group", {
+      name: "MCP server 1",
+      exact: true,
+    });
+    await stdio
+      .getByRole("textbox", { name: "Server 1 name", exact: true })
+      .fill("local_docs");
+    await stdio
+      .getByRole("textbox", { name: "Command", exact: true })
+      .fill("./bin/docs");
+    for (const [index, value] of [
+      "two words",
+      "${PLUGIN_ROOT}/index",
+    ].entries()) {
+      await stdio
+        .getByRole("button", { name: "Add argument", exact: true })
+        .click();
+      await stdio
+        .getByRole("textbox", { name: `Argument ${index + 1}`, exact: true })
+        .fill(value);
+    }
+    await stdio
+      .getByText("Optional connection fields", { exact: true })
+      .click();
+    await stdio
+      .getByRole("textbox", {
+        name: "Working directory (optional)",
+        exact: true,
+      })
+      .fill("${PLUGIN_DATA}/cache");
+    const add = stdio.getByRole("button", {
+      name: "Add Environment variable",
+      exact: true,
+    });
+    await add.focus();
+    await page.keyboard.press("Enter");
+    await add.click();
+    await expect(stdio.getByRole("alert")).toHaveText(
+      "Complete the unnamed entry first.",
+    );
+    await stdio
+      .getByRole("textbox", {
+        name: "Environment variable 1 name",
+        exact: true,
+      })
+      .fill("DISCARD");
+    await stdio
+      .getByRole("textbox", {
+        name: "Environment variable 1 value",
+        exact: true,
+      })
+      .fill("temporary literal");
+    await add.click();
+    await stdio
+      .getByRole("textbox", {
+        name: "Environment variable 2 name",
+        exact: true,
+      })
+      .fill("USER_SETTING");
+    await stdio
+      .getByRole("textbox", {
+        name: "Environment variable 2 value",
+        exact: true,
+      })
+      .fill("${USER_SETTING}");
+    await stdio
+      .getByRole("button", {
+        name: "Remove Environment variable 1",
+        exact: true,
+      })
+      .click();
+    await expect(
+      stdio.getByRole("textbox", {
+        name: "Environment variable 1 name",
+        exact: true,
+      }),
+    ).toHaveValue("USER_SETTING");
+    await expect(
+      stdio.getByRole("textbox", {
+        name: "Environment variable 1 value",
+        exact: true,
+      }),
+    ).toHaveValue("${USER_SETTING}");
+    await expect(
+      stdio.getByRole("textbox", {
+        name: "Environment variable 2 value",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "Add MCP server", exact: true })
+      .click();
+    const http = page.getByRole("group", { name: "MCP server 2", exact: true });
+    page.once("dialog", (dialog) => dialog.accept());
+    await http
+      .getByRole("textbox", { name: "Server 2 name", exact: true })
+      .fill("remote_docs");
+    await http
+      .getByRole("combobox", { name: "Server 2 transport", exact: true })
+      .selectOption("streamable-http");
+    await http
+      .getByRole("textbox", { name: "MCP endpoint URL", exact: true })
+      .fill("https://example.test/mcp");
+    await http.getByText("Optional connection fields", { exact: true }).click();
+    await http.getByRole("button", { name: "Add Header", exact: true }).click();
+    await http
+      .getByRole("textbox", { name: "Header 1 name", exact: true })
+      .fill("X-Client-Setting");
+    await http
+      .getByRole("textbox", { name: "Header 1 value", exact: true })
+      .fill("${USER_SETTING}");
+    await page
+      .getByRole("button", {
+        name: "Preview and download Plugin files",
+        exact: true,
+      })
+      .click();
+    const files = page.getByRole("region", {
+      name: "Prepared Plugin files",
+      exact: true,
+    });
+    await openDisclosure(page, "mcp.json");
+    const pending = page.waitForEvent("download");
+    await files
+      .getByRole("link", { name: "Download mcp.json", exact: true })
+      .click();
+    const file = await pending;
+    expect(file.suggestedFilename()).toBe("mcp.json");
+    expect(
+      JSON.parse(await readFile(required(await file.path()), "utf8")),
+    ).toEqual({
+      $schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+      mcpServers: {
+        local_docs: {
+          type: "stdio",
+          command: "./bin/docs",
+          args: ["two words", "${PLUGIN_ROOT}/index"],
+          cwd: "${PLUGIN_DATA}/cache",
+          env: { USER_SETTING: "${USER_SETTING}" },
+        },
+        remote_docs: {
+          type: "streamable-http",
+          url: "https://example.test/mcp",
+          headers: { "X-Client-Setting": "${USER_SETTING}" },
+        },
+      },
+    });
+    expect(writes).toEqual([]);
+    expect(outside).toEqual([]);
+  });
+}
