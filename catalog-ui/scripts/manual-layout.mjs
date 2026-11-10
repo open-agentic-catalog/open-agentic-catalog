@@ -1,5 +1,20 @@
 import { expect } from "@playwright/test";
 
+async function expectKeyboardScroll(page, diagram) {
+  await diagram.focus();
+  await expect(diagram).toBeFocused();
+  expect(await diagram.evaluate((region) => region.scrollLeft)).toBe(0);
+  await page.keyboard.press("ArrowRight");
+  await expect
+    .poll(() => diagram.evaluate((region) => region.scrollLeft))
+    .toBeGreaterThan(0);
+  expect(
+    await diagram.evaluate(
+      (region) => region.ownerDocument.defaultView.scrollX,
+    ),
+  ).toBe(0);
+}
+
 // Exercise the real manual. Keep horizontal scrolling inside its components.
 export async function manualLayout(page, baseURL) {
   const original = {
@@ -28,6 +43,10 @@ export async function manualLayout(page, baseURL) {
         .selectOption(theme);
       for (const width of [799, 800, 801, 820, 1024, 1440]) {
         await page.setViewportSize({ width, height: 900 });
+        // Start each case in a fresh document so the previous key's scroll
+        // animation cannot carry over to this viewport.
+        await page.goto(diagramURL);
+        await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
         const metrics = await diagram.evaluate((region) => {
           const style =
             region.ownerDocument.defaultView.getComputedStyle(region);
@@ -48,19 +67,7 @@ export async function manualLayout(page, baseURL) {
         expect(metrics.documentWidth).toBeLessThanOrEqual(width);
         expect(metrics.scrolls).toBe(metrics.available < 560);
         if (metrics.scrolls) {
-          await diagram.evaluate((region) => {
-            region.scrollLeft = 0;
-          });
-          await diagram.focus();
-          await diagram.press("ArrowRight");
-          await expect
-            .poll(() => diagram.evaluate((region) => region.scrollLeft))
-            .toBeGreaterThan(0);
-          expect(
-            await page
-              .locator("html")
-              .evaluate((root) => root.ownerDocument.defaultView.scrollX),
-          ).toBe(0);
+          await expectKeyboardScroll(page, diagram);
         }
         results.push({ page: "diagram", width, theme, ...metrics });
       }
@@ -120,14 +127,7 @@ export async function manualLayout(page, baseURL) {
         root.style.fontSize = "200%";
       });
       await expect(diagram).toHaveAttribute("tabindex", "0");
-      await diagram.evaluate((region) => {
-        region.scrollLeft = 0;
-      });
-      await diagram.focus();
-      await diagram.press("ArrowRight");
-      await expect
-        .poll(() => diagram.evaluate((region) => region.scrollLeft))
-        .toBeGreaterThan(0);
+      await expectKeyboardScroll(page, diagram);
       results.push({ page: "callout", width: 375, theme, ...metrics });
     }
   } finally {
