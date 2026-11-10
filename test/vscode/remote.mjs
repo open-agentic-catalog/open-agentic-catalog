@@ -91,7 +91,7 @@ export async function qualifyRemote(parent, tools, host, vsix) {
       bin = join(work, "bin"),
       extensions = join(work, "ui-extensions"),
       workspace = join(work, "workspace"),
-      commit = "2a59476c9bfcb90b3ddc372c36762471b7dfad1c",
+      commit = "e646868227c3e3a9e3f24277c8c7220be42c0be7",
       server = join(serverRoot, "bin", commit);
     for (const directory of [
       join(user, "User"),
@@ -109,9 +109,9 @@ export async function qualifyRemote(parent, tools, host, vsix) {
       [
         "-c",
         "import tarfile,zipfile,sys,pathlib; tarfile.open(sys.argv[1]).extractall(sys.argv[2], filter='data'); z=zipfile.ZipFile(sys.argv[3]); z.extractall(sys.argv[4]); [(pathlib.Path(sys.argv[4])/i.filename).chmod((i.external_attr>>16)&511 or 448) for i in z.infolist() if not i.is_dir()]",
-        join(tools, "server-linux-x64-1.141.0.tar.gz"),
+        join(tools, "server-linux-x64-1.143.1.tar.gz"),
         join(work, "server-extract"),
-        join(tools, "chrome-linux64-155.0.8059.39.zip"),
+        join(tools, "chrome-linux64-156.0.8078.47.zip"),
         work,
       ],
       { timeout: 60000 },
@@ -473,7 +473,7 @@ exit 91
               topology:
                 "Owned loopback OpenSSH server on the same Linux host; actual Remote SSH extension and separate server process",
               browser:
-                "Chrome for Testing 155.0.8059.39; owned per-origin protocol permission and invocation-owned xdg-open",
+                "Chrome for Testing 156.0.8078.47; owned per-origin protocol permission and invocation-owned xdg-open",
               userAssociationsChanged: false,
               cleanup: "pending",
             },

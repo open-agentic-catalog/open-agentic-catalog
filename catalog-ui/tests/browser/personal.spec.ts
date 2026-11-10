@@ -199,7 +199,7 @@ for (const base of ["root", "subpath"]) {
     expect(searches).toHaveLength(1);
     await page.setViewportSize({ width: 1440, height: 900 });
     // A new identity gets its own library. The route never reuses a previous result.
-    await page.getByLabel("Account", { exact: true }).click();
+    await page.getByTitle("Account", { exact: true }).click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page.locator('[data-login-alias="local-admin"]').click();
     await page.goto(origin + basePath + "/saved-items");
@@ -209,7 +209,7 @@ for (const base of ["root", "subpath"]) {
         { exact: true },
       ),
     ).toBeVisible();
-    await page.getByLabel("Account", { exact: true }).click();
+    await page.getByTitle("Account", { exact: true }).click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await page.locator('[data-login-alias="local-contributor"]').click();
     await page.goto(origin + basePath + "/saved-items/" + saved.id);

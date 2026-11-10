@@ -93,7 +93,7 @@ func loadOptions(scenario string) (options, error) {
 		helm:             environment("CATALOG_HELM_BIN", "helm"),
 		docker:           environment("CATALOG_CONTAINER_ENGINE_BIN", "docker"),
 		requiredMinikube: environment("CATALOG_MINIKUBE_VERSION", "v1.39.0"),
-		kubernetes:       environment("CATALOG_MINIKUBE_KUBERNETES_VERSION", "v1.35.9"),
+		kubernetes:       environment("CATALOG_MINIKUBE_KUBERNETES_VERSION", "v1.37.1"),
 		driver:           environment("CATALOG_MINIKUBE_DRIVER", "docker"),
 		runtime:          environment("CATALOG_MINIKUBE_CONTAINER_RUNTIME", "containerd"),
 		baseImage:        environment("CATALOG_MINIKUBE_BASE_IMAGE", "gcr.io/k8s-minikube/kicbase:v0.0.51@sha256:4a1c825b61479e6c898851ea66f13c620aaeab6002746e95067fc2c4b38a0b24"),
@@ -193,6 +193,10 @@ func validateDigestReference(reference string) error {
 }
 
 type semanticVersion struct{ major, minor, patch int }
+
+func supportedHelmVersion(version semanticVersion) bool {
+	return version.major == 4 || version.major == 3 && version.minor >= 15
+}
 
 // parseVersion extracts the numeric release prefix; tool-specific suffixes are ignored.
 func parseVersion(value string) (semanticVersion, error) {

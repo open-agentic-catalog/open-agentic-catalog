@@ -10,11 +10,11 @@ Use the [integration example chooser](../../documentation/src/content/docs/guide
 
 | Requirement | Prepare it |
 | --- | --- |
-| Python and installer | Python 3.12-3.14, GNU Make and [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.13.4. Select that exact uv executable in the install command below. |
+| Python and installer | Python 3.12-3.14, GNU Make and [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.13.6. Select that exact uv executable in the install command below. |
 | Go for installation | Use the toolchain selected by `go.mod`. The maintained installer runs `go env GOROOT` and hashes that Go binary when recording installed inputs. Running the installed Python agent itself does not require Go. |
 | Populated Catalog | Follow the owned [curated sample Catalog launch](../../documentation/src/content/docs/guides/sample-catalog.mdx#start-the-catalog-with-compose-and-load-sample-data). Keep the same project, ports, archive inputs and receipt through the launcher or standalone sequence. Do not seed or change another person's retained stack. |
 | Read access | An active [membership](../../documentation/src/content/docs/reference/glossary.md#membership) with `resource.read` in **Catalog demo** and **IDE plugins**, or tenant-wide read permission. Reader supplies this permission. Enforced OAuth [scopes](../../documentation/src/content/docs/reference/glossary.md#scope) additionally require `catalog.read`. |
-| Local model | Tool-capable [Ollama](https://docs.ollama.com/quickstart); the selected runtime is 0.40.10 and model is `qwen2.5:7b`. Exact runtime/model identities live in `test/langgraph/model.json`. |
+| Local model | Tool-capable [Ollama](https://docs.ollama.com/quickstart); the selected runtime is 0.40.12 and model is `qwen2.5:7b`. Exact runtime/model identities live in `test/langgraph/model.json`. |
 | Capacity and downloads | About 4.7 GB for model weights and at least 8 GB RAM for inference, plus Catalog capacity. Dependency/image/weight acquisition needs internet and ordinary disk space; inference stays local. |
 
 Sample metadata does not start a resource runtime. The assistant makes no request to a discovered resource. It needs no administrator, source-management or mutation authority.
@@ -50,7 +50,7 @@ Check `data.items[].displayName`, `type: "local"` and `local.release.id`. Releas
 Run these commands from the repository root:
 
 ```sh
-make langgraph-tools-install UV=/path/to/uv-0.13.4 DEV_PYTHON=python3
+make langgraph-tools-install UV=/path/to/uv-0.13.6 DEV_PYTHON=python3
 ```
 
 Replace the uv path with your installed executable. Installation creates `examples/langgraph/.venv/` from the checked-in lock and installs the current local SDK source. It downloads Python dependencies when needed, but no model weights. Rerun installation after a root version bump to refresh local SDK metadata. Contributor checks are a [separate verification path](#verify-the-example), not prerequisites for asking the first question.
@@ -61,7 +61,7 @@ The framework dependencies belong only to this optional example. They are not de
 
 ## Start a local model
 
-Run your own [Ollama](https://docs.ollama.com/quickstart) service on literal loopback. Select a local model with [tool-call support](https://docs.ollama.com/capabilities/tool-calling). The selected runtime is Ollama 0.40.10. Its exact container image is recorded in `test/langgraph/model.json`. The default model is [Qwen2.5 7B](https://ollama.com/library/qwen2.5).
+Run your own [Ollama](https://docs.ollama.com/quickstart) service on literal loopback. Select a local model with [tool-call support](https://docs.ollama.com/capabilities/tool-calling). The selected runtime is Ollama 0.40.12. Its exact container image is recorded in `test/langgraph/model.json`. The default model is [Qwen2.5 7B](https://ollama.com/library/qwen2.5).
 
 For an installed Ollama executable, start the service in a separate terminal:
 

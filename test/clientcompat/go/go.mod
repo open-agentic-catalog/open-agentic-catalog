@@ -3,12 +3,12 @@ module github.com/open-agentic-catalog/open-agentic-catalog/test/clientcompat/go
 go 1.27.3
 
 require (
-	github.com/getkin/kin-openapi v0.149.0
+	github.com/getkin/kin-openapi v0.152.0
 	github.com/google/uuid v1.6.0
-	github.com/oapi-codegen/runtime v1.7.0
+	github.com/oapi-codegen/runtime v1.8.0
 	github.com/open-agentic-catalog/open-agentic-catalog v0.0.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
-	go.yaml.in/yaml/v3 v3.0.5
+	go.yaml.in/yaml/v3 v3.0.6
 )
 
 require (
@@ -17,7 +17,7 @@ require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coreos/go-oidc/v3 v3.21.0 // indirect
-	github.com/cyberphone/json-canonicalization v0.0.0-20241213102144-19d51d7fe467 // indirect
+	github.com/cyberphone/json-canonicalization v0.0.0-20261011152517-32a48195b9b2 // indirect
 	github.com/fxamacker/cbor/v2 v2.9.6 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
@@ -25,11 +25,11 @@ require (
 	github.com/go-openapi/jsonpointer v1.0.2 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
-	github.com/grpc-ecosystem/grpc-gateway/v2 v2.31.0 // indirect
+	github.com/grpc-ecosystem/grpc-gateway/v2 v2.32.0 // indirect
 	github.com/ldclabs/cose v1.4.0 // indirect
 	github.com/modelcontextprotocol/go-sdk v1.8.0 // indirect
-	github.com/oasdiff/yaml v0.1.1 // indirect
-	github.com/oasdiff/yaml3 v0.0.14 // indirect
+	github.com/oasdiff/yaml v0.1.3 // indirect
+	github.com/oasdiff/yaml3 v0.0.16 // indirect
 	github.com/piprate/json-gold v0.9.1 // indirect
 	github.com/pquerna/cachecontrol v0.2.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
@@ -49,12 +49,12 @@ require (
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20261005182115-fad411399dd8 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20261005182115-fad411399dd8 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20261026165753-2ffab32bce7e // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20261026165753-2ffab32bce7e // indirect
 	google.golang.org/grpc v1.84.0 // indirect
 	google.golang.org/protobuf v1.36.12 // indirect
 )

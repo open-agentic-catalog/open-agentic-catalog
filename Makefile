@@ -496,9 +496,9 @@ GO_FORMAT_FIND := find $(GO_SOURCE_DIRS) \
 # Pinned analyzers and deployment tools
 # ─────────────────────────────────────────────────────────────────────────────
 STATICCHECK_VERSION := v0.8.2
-DEADCODE_VERSION := v0.51.0
+DEADCODE_VERSION := v0.52.0
 GOLANGCI_LINT_VERSION := v2.15.0
-GOVULNCHECK_VERSION := v1.8.0
+GOVULNCHECK_VERSION := v1.9.0
 GO_LICENSES_VERSION := v1.6.0
 GO_LICENSE_ALLOWLIST := Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause
 KUBECONFORM_VERSION := v0.8.0
@@ -507,7 +507,7 @@ HELM_CHART := deployments/helm/open-agentic-catalog
 HELM_KUBE_VERSION := 1.34.0
 HELM_CHECK_VALUES := $(HELM_CHART)/ci/shared-values.yaml $(HELM_CHART)/ci/optional-values.yaml $(HELM_CHART)/ci/ambiguous-values.yaml $(HELM_CHART)/ci/ui-values.yaml $(HELM_CHART)/ci/mcp-values.yaml $(HELM_CHART)/ci/semantic-values.yaml $(HELM_CHART)/ci/pgbouncer.yaml $(HELM_CHART)/ci/payload-values.yaml
 MINIKUBE_VERSION := v1.39.0
-MINIKUBE_KUBERNETES_VERSION := v1.35.9
+MINIKUBE_KUBERNETES_VERSION := v1.37.1
 MINIKUBE_DRIVER := docker
 MINIKUBE_CONTAINER_RUNTIME := containerd
 MINIKUBE_BASE_IMAGE := gcr.io/k8s-minikube/kicbase:v0.0.51@sha256:4a1c825b61479e6c898851ea66f13c620aaeab6002746e95067fc2c4b38a0b24
@@ -638,7 +638,7 @@ verify: test-all ## Alias for test-all (Go gate; not all repository checks)
 .PHONY: build binary-check run diagnostics config-check env-check smoke demo-seed
 .PHONY: dev-tools-install version version-check version-bump version-bump-dry-run release-check
 
-dev-tools-install: ## Install the locked shared Python dev tools into .tools/dev (uv 0.13.4 required)
+dev-tools-install: ## Install the locked shared Python dev tools into .tools/dev (uv 0.13.6 required)
 	python3 -B test/packaging/versioning.py install --uv "$(UV)" --python "$(DEV_PYTHON)"
 
 version: ## Show the effective application build version, full commit and source state

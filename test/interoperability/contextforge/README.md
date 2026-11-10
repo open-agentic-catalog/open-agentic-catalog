@@ -92,13 +92,13 @@ The proxy checks cover:
 - Missing/invalid gateway credentials, untrusted certificates and disallowed Host/Origin values.
 - Expired Catalog tokens and invalid audiences, which return upstream HTTP 401.
 - Insufficient OAuth scope, which returns upstream HTTP 403 before tool execution.
-- Native `X-Upstream-Authorization` overrides, accepted credential replacements and restored tenant data.
+- Blocked caller `X-Upstream-Authorization` overrides, accepted administrator credential replacements and restored tenant data.
 - A subset server that refuses an excluded tool without an upstream call.
 - A stopped Catalog API, bounded forwarded-call failure and successful reads after restart.
 
 The ordinary ContextForge bearer authenticates the gateway user. It does not replace the configured Catalog credential.
 
-Native `X-Upstream-Authorization` can replace that credential even when header passthrough is disabled. Catalog permissions apply to the effective token.
+The selected image blocks `X-Upstream-Authorization` from replacing a Gateway-managed bearer credential. The fixture checks invalid and other-tenant override attempts, then submits credential changes through the administrator API. Expired and wrong-audience credentials fail live validation with upstream HTTP 401; the previous working credential remains usable. A valid token without the required scope is accepted for connection discovery, then fails tool admission with upstream HTTP 403. Catalog permissions apply to the configured token.
 
 The fixture records fixed protocol fields, HTTP statuses and synthetic credential labels. It never records tokens, search text or response documents.
 

@@ -12,6 +12,6 @@ require (
 	github.com/matm/gocov-html v1.4.0 // indirect
 	github.com/rotisserie/eris v0.5.4 // indirect
 	golang.org/x/mod v0.42.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/tools v0.51.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/tools v0.52.0 // indirect
 )

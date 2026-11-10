@@ -108,10 +108,10 @@ export async function packagedJourneys({
     await expect(page.getByRole("dialog")).toHaveCount(0);
   };
   const login = async (alias) => {
-    await page.getByLabel("Account", { exact: true }).click();
+    await page.getByTitle("Account", { exact: true }).click();
     await button("Sign out").click();
     await page.locator(`[data-login-alias="${alias}"]`).click();
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   };
   const waitJob = async (state) => {
     const reportedState = page
@@ -1313,7 +1313,7 @@ export async function packagedJourneys({
   await expect(
     page.getByText("insufficient_evidence", { exact: true }),
   ).toBeVisible();
-  await button("Remove license filter").click();
+  await button(`Remove license: ${declarationQuery.license}`).click();
   const restoredSearch = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -3449,11 +3449,11 @@ async function publicationJourney({
   await expect(
     page.getByRole("heading", { name: "No resources found", exact: true }),
   ).toBeVisible();
-  await button("Remove license filter").click();
+  await button("Remove license: apache-2.0").click();
   await expect(page.locator("article.resource-card")).toHaveCount(1);
   await visit("/explore");
   await button("View counts").click();
-  await button("Filter by category packaged, tools").click();
+  await button("Filter by category packaged, tools: 1").click();
   await expect(
     page.getByRole("status", { name: "Matched releases" }),
   ).toHaveText("1 matching local release");
@@ -3552,10 +3552,10 @@ export async function privateFeedbackJourney({ page, origin, network, api }) {
   const field = (name) => page.getByRole("textbox", { name, exact: true });
   const visit = (path) => page.goto(origin + path);
   const login = async (alias) => {
-    await page.getByLabel("Account", { exact: true }).click();
+    await page.getByTitle("Account", { exact: true }).click();
     await button("Sign out").click();
     await page.locator(`[data-login-alias="${alias}"]`).click();
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   };
   const comment = "Owned packaged feedback <script>inert report</script>";
   const responseText = "Owned moderator response retained after API restart";

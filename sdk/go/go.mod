@@ -3,8 +3,8 @@ module github.com/open-agentic-catalog/open-agentic-catalog/sdk/go
 go 1.27.3
 
 require (
-	github.com/oapi-codegen/runtime v1.7.0
-	go.yaml.in/yaml/v3 v3.0.5
+	github.com/oapi-codegen/runtime v1.8.0
+	go.yaml.in/yaml/v3 v3.0.6
 )
 
 require (

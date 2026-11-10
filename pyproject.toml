@@ -1,10 +1,10 @@
 # Shared development tools only; this repository is not a Python package.
 [dependency-groups]
-dev = ["ruff==0.17.0", "jsonschema==4.26.0", "bump-my-version==1.5.1", "coverage==7.16.2"]
+dev = ["ruff==0.17.3", "jsonschema==4.26.0", "bump-my-version==1.6.7", "coverage==7.17.0"]
 
 [tool.uv]
-required-version = "==0.13.4"
-exclude-newer = "2026-10-09T22:30:23Z"
+required-version = "==0.13.6"
+exclude-newer = "2026-10-27T02:11:38Z"
 
 [tool.uv.dependency-groups]
 dev = { requires-python = ">=3.12,<3.15" }

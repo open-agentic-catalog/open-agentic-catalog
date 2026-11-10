@@ -6,7 +6,6 @@ from plugins_data import BODY, DESCRIPTION, DIRECT, MANIFEST, NAME, REFUSALS, SK
 
 FATAL = {
     "malformed": "Invalid JSON in ",
-    "missing-schema": "Unsupported or missing $schema in ",
     "unsupported-schema": "Unsupported or missing $schema in ",
     "invalid-name": "Invalid Agent Plugins manifest ",
 }
@@ -28,12 +27,14 @@ def native(result, case, path):
         assert (
             case in (*DIRECT, "governed") and result.code == 0 and "error" not in value
         )
+        legacy = case == "missing-schema"
         assert (
-            value["name"] == NAME
-            and value["version"] == "1.0.0"
+            value["name"] == ("legacy-decoy" if legacy else NAME)
+            and value["version"] == ("9.9.9" if legacy else "1.0.0")
             and value["path"] == path
         )
-        manifest = dict(MANIFEST, author=None, entry_command=None)
+        manifest = (dict(name="legacy-decoy", version="9.9.9", description="", author=None, entry_command=None)
+                    if legacy else dict(MANIFEST, author=None, entry_command=None))
         assert value["manifest"] == manifest
         root = path + "/skills/" + SKILL
         assert value["skills"] == [
@@ -50,7 +51,7 @@ def native(result, case, path):
                 ),
             )
         ]
-        assert value["mcp"] == {"owned": {"url": URL, "transport": "streamable-http"}}
+        assert value["mcp"] == ({} if legacy else {"owned": {"url": URL, "transport": "streamable-http"}})
         assert (
             not value["hooks"]
             and value["agents"] == value["commands"] == 0

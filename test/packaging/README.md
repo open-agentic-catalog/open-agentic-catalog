@@ -66,10 +66,10 @@ The report displays every finding; the check also enforces `dead_code_exceptions
 mkdir -p output/deadcode-qualification/bin
 GOTOOLCHAIN=go1.27.3 GOWORK=off GOFLAGS=-mod=readonly CGO_ENABLED=0 \
   GOBIN="$PWD/output/deadcode-qualification/bin" \
-  go install golang.org/x/tools/cmd/deadcode@v0.51.0
+  go install golang.org/x/tools/cmd/deadcode@v0.52.0
 python3 -B test/packaging/dead_code_qualification.py \
   --tool output/deadcode-qualification/bin/deadcode \
-  --toolchain go1.27.3 --version v0.51.0
+  --toolchain go1.27.3 --version v0.52.0
 ```
 
 Install for the host, without target `GOOS`/`GOARCH` overrides. The qualification verifies version metadata and exercises executable roots, orphan packages, dependency tests, functional tags, generated reporting, unsupported comment suppression, clean `null`, exit-zero findings and load failures in a disposable module. It also includes an invalid local clone outside selected roots.

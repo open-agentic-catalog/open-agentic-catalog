@@ -1,6 +1,6 @@
 # VS Code extension verification
 
-The optional [extension](../../extensions/vscode/README.md) uses its own npm lock and the locally packaged TypeScript SDK. The build installer owns pinned Node 24.22.1/npm 11.19.1 under `extensions/vscode/.tools/`, independently of SDK maintainer runtimes. It leaves the user's Node selection alone.
+The optional [extension](../../extensions/vscode/README.md) uses its own npm lock and the locally packaged TypeScript SDK. The build installer owns pinned Node 24.22.1/npm 12.2.1 under `extensions/vscode/.tools/`, independently of SDK maintainer runtimes. It leaves the user's Node selection alone.
 
 Run these targets separately from the repository root:
 
@@ -14,7 +14,7 @@ make vscode-package
 make test-vscode
 ```
 
-For build/check/package only, a verified SDK archive and `make -C extensions/vscode tools-install` suffice. Local `test-tools-install` and root `vscode-tools-install` explicitly add editor fixtures; full qualification also needs the SDK maintainer installation above. Only installation acquires dependencies, VS Code or the pinned A2A sample. Checks and packaging use installed inputs; they do not publish. The pinned host is stable VS Code 1.141.0 on Linux amd64. Packaged tests need Xvfb, OpenSSL and the repository Go toolchain. Tests use owned profiles and local HTTP/TLS/issuer fixtures. They do not restart retained Compose or Minikube services.
+For build/check/package only, a verified SDK archive and `make -C extensions/vscode tools-install` suffice. Local `test-tools-install` and root `vscode-tools-install` explicitly add editor fixtures; full qualification also needs the SDK maintainer installation above. Only installation acquires dependencies, VS Code or the pinned A2A sample. Checks and packaging use installed inputs; they do not publish. The pinned host is stable VS Code 1.143.1 on Linux amd64. Packaged tests need Xvfb, OpenSSL and the repository Go toolchain. Tests use owned profiles and local HTTP/TLS/issuer fixtures. They do not restart retained Compose or Minikube services.
 
 `vscode-check` runs TypeScript, ESLint, Prettier and isolated units. Units inject editor, HTTP and secret-storage boundaries. Host identifier tests use private temporary files. Native command tests cover prompts that finish after a connection switch or sign-out, plus account verification after saved credentials are restored. They do not start servers, launch VS Code or contact a database.
 
@@ -123,7 +123,7 @@ The fixture routes an owned callback through the actual editor URI dispatcher an
 
 ## Complete Skill package qualification
 
-The existing targets also own Skill installation. `vscode-tools-install` explicitly acquires the Apache-2.0 ORAS 1.3.4 Linux amd64 release, checks its fixed upstream archive SHA-256 and retains its license. Its binary fingerprint and installer source join the installation stamp. Git is an explicit system prerequisite; consumers can configure separate absolute Git/ORAS paths. The VSIX ships neither executable nor an archive library.
+The existing targets also own Skill installation. `vscode-tools-install` explicitly acquires the Apache-2.0 ORAS 1.3.6 Linux amd64 release, checks its fixed upstream archive SHA-256 and retains its license. Its binary fingerprint and installer source join the installation stamp. Git is an explicit system prerequisite; consumers can configure separate absolute Git/ORAS paths. The VSIX ships neither executable nor an archive library.
 
 `packages.unit.test.mjs` checks immutable locators, complete inventory, archive integrity and limits, safe paths, exact filesystem modes, no-op/update/remove, local edits, symlinks, final authorization, locks and interrupted recovery. Recovery cases include identical files across different releases, repeated interruption and workspace/trust withdrawal. These units use only local memory and private temporary files. `packages.functional.test.mjs` checks real child cancellation, safe argument arrays, output bounds, unsafe work-directory links and fixed errors. Ordinary units never launch Git, ORAS or VS Code.
 
@@ -149,7 +149,7 @@ Native consent selectors use the modal dialog container. Progress notifications 
 
 ## A2A conversation qualification
 
-The same four targets own A2A checks. `vscode-tools-install` installs the exact Apache-2.0 `@a2a-js/sdk` 1.2.1 lock and acquires its unchanged Hello World `SampleAgentExecutor`. Source revision is `11cbb295a7933ecb459d4e2af0740bf4570e71b2`; SHA-256 is `675a5e7d5d5263e34947eca33501fa321c74f77c824e93e1feb0a0ed5286e51f`. Acquisition uses `gh` and verifies the source hash. Checks never download it. Test-only esbuild linkage resolves the upstream imports to the installed SDK without changing executor behavior. The sample and server framework are excluded from the VSIX.
+The same four targets own A2A checks. `vscode-tools-install` installs the exact Apache-2.0 `@a2a-js/sdk` 1.3.0 lock and acquires its unchanged Hello World `SampleAgentExecutor`. Source revision is `11cbb295a7933ecb459d4e2af0740bf4570e71b2`; SHA-256 is `675a5e7d5d5263e34947eca33501fa321c74f77c824e93e1feb0a0ed5286e51f`. Acquisition uses `gh` and verifies the source hash. Checks never download it. Test-only esbuild linkage resolves the upstream imports to the installed SDK without changing executor behavior. The sample and server framework are excluded from the VSIX.
 
 A2A units inject transport/editor edges. They check Card/auth decisions, closed native messages, exact target credentials, consent, current evidence, identity changes, uncertain sends, task state, artifact append order, SSE framing and byte/event limits. Cancellation consent cannot transfer to a later task in the same conversation. They launch no server, child process or editor. The shared duplicate-key-safe decoder remains covered by MCP and A2A regressions.
 
@@ -181,7 +181,7 @@ The existing 120-second ordinary-phase budget is unchanged. Two additional windo
 
 After acquiring its writer guard, `test-vscode` initializes `output/vscode/qualification.json` before prerequisite validation, even after output cleanup. Successful qualification binds the VSIX digest, source and SDK inputs, installed tools and completed phases. Failed prerequisites, packaging or tests replace the previous success status. A conflicting-writer refusal starts no qualification and leaves existing evidence unchanged; its failed command is not a new pass. The report distinguishes failed phases from phases that did not run. Changed inputs or package bytes refuse final success, even after the workflows pass. Require both a passing target and matching current source evidence; an older report does not qualify a failed invocation. Regression screenshots under `output/vscode/screenshots/` retain malicious metadata and stress cases. Do not use them as user-guide illustrations. The separately selected [guide capture](#normal-guide-screenshots) produces benign images for deliberate review and copying. Those same maintained image bytes ship in offline Help and the manual.
 
-The selected host is stable VS Code 1.141.0 on Linux amd64 under Xvfb. The selected editor and matching server embed Node 24.21.0, separately from the downloaded Node 24.22.1 build tools. A separate owned Linux Remote SSH/browser owner qualifies real remote placement and explicit browser-to-editor dispatch. Other remote providers, native Windows/macOS desktops and retained OS associations are not qualified. Do not set a fake `remoteName`, reuse the operator's remote profile or suppress engine checks to claim remote success.
+The selected host is stable VS Code 1.143.1 on Linux amd64 under Xvfb. The selected editor and matching server embed Node 24.21.0, separately from the downloaded Node 24.22.1 build tools. A separate owned Linux Remote SSH/browser owner qualifies real remote placement and explicit browser-to-editor dispatch. Other remote providers, native Windows/macOS desktops and retained OS associations are not qualified. Do not set a fake `remoteName`, reuse the operator's remote profile or suppress engine checks to claim remote success.
 
 The available user server is a different VS Code version; this target neither upgrades nor runs it. The current desktop result cannot establish remote compatibility.
 
@@ -241,7 +241,7 @@ Private Git and OCI acquisition use owned TLS peers and real tools. The controls
 
 ### Real Linux Remote SSH and browser callback
 
-The runtime selection runs `remote.mjs` serially after desktop checks. Explicit test installation acquires Remote SSH 0.128.0, VS Code Server 1.141.0 and Chrome for Testing 155.0.8059.39. `runner.py` pins their immutable download URLs and SHA-256 values. Download bounds and checksums precede use. These test-only archives never enter the VSIX. Checks acquire nothing.
+The runtime selection runs `remote.mjs` serially after desktop checks. Explicit test installation acquires Remote SSH 0.128.0, VS Code Server 1.143.1 and Chrome for Testing 156.0.8078.47. `runner.py` pins their immutable download URLs and SHA-256 values. Download bounds and checksums precede use. These test-only archives never enter the VSIX. Checks acquire nothing.
 
 Install OpenSSH client/server, Xvfb and the recorded Linux prerequisites before `test-tools-install`. The fixture uses owned keys, strict host checking, an unprivileged loopback SSH server and a fresh editor/server/browser profile. It does not use your SSH agent or edit OS URL associations. The real remote extension process must live under the owned server tree; remote API filesystem URIs translate to `file:` inside that process. Tool lookup and file writes must use that execution host.
 
@@ -249,7 +249,7 @@ The fixture explicitly opens the returned authorization URL in its browser. The 
 
 ### Offline native MCP runners
 
-The runtime selection also runs `runners.mjs` serially. Install uvx 0.13.4 explicitly before test installation; its absolute executable and hash join the tool stamp. Docker must already be available on the local `/var/run/docker.sock`. The fixture selects that socket explicitly, uses isolated Docker/uvx configuration and never contacts a remote Docker context.
+The runtime selection also runs `runners.mjs` serially. Install uvx 0.13.6 explicitly before test installation; its absolute executable and hash join the tool stamp. Docker must already be available on the local `/var/run/docker.sock`. The fixture selects that socket explicitly, uses isolated Docker/uvx configuration and never contacts a remote Docker context.
 
 An owned dependency-free Python wheel runs through the actual uvx binary with offline/no-index flags and a local wheel directory. A fixture launcher supplies only those offline flags; it does not emulate MCP. An owned Go echo server becomes a local non-root scratch image. A loopback registry supplies its digest-addressed bytes to Docker. No public resource package/image, model subscription or external publication participates. Existing desktop checks retain the separate offline npm/npx runner.
 

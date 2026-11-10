@@ -78,6 +78,38 @@ func (h *harness) vaultExecWithTimeout(ctx context.Context, timeout time.Duratio
 	return h.runWithInput(ctx, label, raw, h.options.kubectl, append([]string{"--kubeconfig", h.kubeconfig, "--context", h.profile}, append(command, args...)...)...)
 }
 
+// waitVaultSealed observes the HTTPS listener before a one-shot bootstrap mutation.
+// Vault status exits 2 for a sealed server; transport failures are not readiness.
+func (h *harness) waitVaultSealed(initialized bool) error {
+	ctx, cancel := context.WithTimeout(h.ctx, 90*time.Second)
+	defer cancel()
+	err := waitTopology(ctx, func() (bool, error) {
+		attempt, cancelAttempt := context.WithTimeout(ctx, 5*time.Second)
+		defer cancelAttempt()
+		raw, err := h.topologyCommand(attempt, "observe read-only sealed Vault status", nil,
+			"-n", vaultNamespace, "exec", vaultRelease+"-0", "--", "sh", "-c",
+			`VAULT_CLIENT_TIMEOUT=3s vault status -format=json; vault_status_code=$?; [ "$vault_status_code" -eq 0 ] || [ "$vault_status_code" -eq 2 ]`)
+		if err != nil {
+			return false, nil
+		}
+		var status struct {
+			Initialized *bool `json:"initialized"`
+			Sealed      *bool `json:"sealed"`
+		}
+		if json.Unmarshal(raw, &status) != nil || status.Initialized == nil || status.Sealed == nil {
+			return false, errors.New("invalid Vault startup status")
+		}
+		if *status.Initialized != initialized || !*status.Sealed {
+			return false, errors.New("unexpected Vault initialization or seal state")
+		}
+		return true, nil
+	})
+	if err != nil {
+		return fmt.Errorf("wait for sealed Vault HTTPS listener: %w", err)
+	}
+	return nil
+}
+
 func (h *harness) installVault() error {
 	if err := h.applyObject("create owned Vault namespace", kubernetesObject{"apiVersion": "v1", "kind": "Namespace", "metadata": map[string]string{"name": vaultNamespace}}); err != nil {
 		return err
@@ -102,6 +134,9 @@ func (h *harness) installVault() error {
 		return err
 	}
 	if _, err := h.kubectl("wait for running uninitialized Vault", "-n", vaultNamespace, "wait", "--for=jsonpath={.status.phase}=Running", "pod/"+vaultRelease+"-0", "--timeout=2m"); err != nil {
+		return err
+	}
+	if err := h.waitVaultSealed(false); err != nil {
 		return err
 	}
 	raw, err := h.kubectl("initialize owned Vault", "-n", vaultNamespace, "exec", vaultRelease+"-0", "--", "vault", "operator", "init", "-format=json", "-key-shares=1", "-key-threshold=1")

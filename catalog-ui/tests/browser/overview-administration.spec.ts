@@ -212,7 +212,7 @@ for (const base of ["root", "subpath"]) {
     );
     await panel
       .getByRole("row", { name: /^People/ })
-      .getByRole("link", { name: "People: Suspended", exact: true })
+      .getByRole("link", { name: "People: Suspended: 0", exact: true })
       .first()
       .click();
     const memberQuery = new URL((await selection).url()).searchParams;

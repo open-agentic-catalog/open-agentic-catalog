@@ -1,6 +1,6 @@
 {
   "platform": "linux/amd64",
-  "cutoff": "2026-10-19",
+  "cutoff": "2026-10-27",
   "approvedSecurityExceptions": {
     "cert-manager": "v1.21.3",
     "traefik": "v3.7.16",
@@ -16,10 +16,10 @@
     },
     "traefik": {
       "oci": "oci://ghcr.io/traefik/helm/traefik",
-      "version": "42.0.0",
-      "file": "traefik-42.0.0.tgz",
-      "sha256": "be43ad4ff4198efa255c566f1feb9589ed89319710cfe5a568295b0cdfa1ad42",
-      "ociDigest": "sha256:779f04f7aa930daddba2aacf0f4a75c8d83cac477c00996372680b61fdf423aa"
+      "version": "42.1.3",
+      "file": "traefik-42.1.3.tgz",
+      "sha256": "a80d0b95dcda07ee427bd669128d9f7f220ac4ef4cf911084a8ea320ead2b392",
+      "ociDigest": "sha256:49458ccd9673cd828ee0b091030f5747f5d95f205bbd0cf0b6c3bf757398cae1"
     }
   },
   "images": {
@@ -69,7 +69,7 @@
       "sha256": "c33e29340498ccde22ba0ab9537d6eb0aa3a2eae0dda61bb6df31df6a032fa5b"
     },
     "traefik/traefik-helm-chart": {
-      "revision": "09be4f439a52e31afe879878737d39cde06c002d",
+      "revision": "0ecd081a6e7db085db3bd41e98cd0e4938155f30",
       "license": "Apache-2.0",
       "file": "traefik-traefik-helm-chart-LICENSE",
       "path": "LICENSE",

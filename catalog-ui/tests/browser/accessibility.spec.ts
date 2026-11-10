@@ -432,7 +432,10 @@ test("accessibility: login, results, preview and dark narrow filters", async ({
   await page.keyboard.type("orders");
   await page.keyboard.press("Enter");
   await expect(
-    page.getByRole("button", { name: "Remove search text", exact: true }),
+    page.getByRole("button", {
+      name: "Remove search text orders",
+      exact: true,
+    }),
   ).toBeVisible();
   await expect(page.locator("article.resource-card")).toHaveCount(3);
   const trigger = page.getByRole("button", { name: "Filters", exact: true });
@@ -580,7 +583,7 @@ test("accessibility: login, results, preview and dark narrow filters", async ({
     page.getByRole("status", { name: "Matched releases" }),
   ).toHaveText("3 matching local releases");
   await page
-    .getByRole("button", { name: "Filter by tag orders", exact: true })
+    .getByRole("button", { name: "Filter by tag orders: 3", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: "Remove tag orders", exact: true }),
@@ -1122,7 +1125,7 @@ test("Account uses native keyboard navigation, exclusive header panels and safe 
   catalog,
 }) => {
   await login(page, catalog);
-  const trigger = page.getByLabel("Account", { exact: true });
+  const trigger = page.getByTitle("Account", { exact: true });
   const details = page.locator("details.account");
   const account = page.getByRole("navigation", {
     name: "Account pages",
@@ -1261,7 +1264,7 @@ test("Account fits long identities, short touch screens and 320px doubled text w
     page.getByRole("button", { name: "Sign out", exact: true }),
   ).toBeInViewport();
   await page.keyboard.press("Escape");
-  await expect(page.getByLabel("Account", { exact: true })).toBeFocused();
+  await expect(page.getByTitle("Account", { exact: true })).toBeFocused();
   await expect(
     page.getByRole("button", { name: "Workspace menu", exact: true }),
   ).toBeInViewport();

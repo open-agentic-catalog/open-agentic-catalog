@@ -44,8 +44,8 @@ def environment():
 
 def install():
     uv = os.environ.get("UV", "uv")
-    if run([uv, "--version"], capture=True).split()[:2] != ["uv", "0.13.4"]:
-        raise RuntimeError("uv 0.13.4 required; set UV to the installed pinned executable")
+    if run([uv, "--version"], capture=True).split()[:2] != ["uv", "0.13.6"]:
+        raise RuntimeError("uv 0.13.6 required; set UV to the installed pinned executable")
     stamp = TOOLS / "installed.json"
     stamp.unlink(missing_ok=True)
     env = environment()

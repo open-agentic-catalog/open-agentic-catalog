@@ -16,6 +16,9 @@ func (h *harness) vaultReady() error {
 	return err
 }
 func (h *harness) unsealVault() error {
+	if err := h.waitVaultSealed(true); err != nil {
+		return err
+	}
 	if _, err := h.kubectlInput("restore protected owned bootstrap token", []byte(h.vault.rootToken), "-n", vaultNamespace, "exec", "-i", vaultRelease+"-0", "--", "sh", "-ec", "umask 077; cat > /tmp/catalog-vault-bootstrap"); err != nil {
 		return err
 	}

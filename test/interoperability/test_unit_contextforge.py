@@ -25,7 +25,7 @@ class Inputs(unittest.TestCase):
         protocol.update(upstreamProtocols=["2026-07-28"], closedArguments="tool_error", argumentValidation="gateway_or_client")
         value = {"protocols": [dict(protocol, protocol=p) for p in ("2025-11-25", "2026-07-28")],
                  "isolation": dict(dict.fromkeys(("twoTenants", "wrongTeam", "upstreamContact", "revokedCollections", "sameClientRestored"), True), revokedExactRead="tool_error"),
-                 "credentials": dict(dict.fromkeys(("missingAndInvalidInbound", "host", "origin", "privateTLS", "expiredAudienceAndScope", "explicitOverride", "configuredIdentity"), True), upstreamDenials={"expired": 401, "audience": 401, "scope": 403}),
+                 "credentials": dict(dict.fromkeys(("missingAndInvalidInbound", "host", "origin", "privateTLS", "expiredAudienceAndScope", "managedCredentialOverrideBlocked", "invalidCredentialUpdatesRefused", "configuredIdentity"), True), upstreamDenials={"expired": 401, "audience": 401, "scope": 403}),
                  "lifecycle": dict.fromkeys(("sameUserSubset", "excludedWithoutUpstreamCall", "acceptedCredentialReplacement", "replacementData", "restored"), True), "metadataOnly": True}
         runner.validate_proxy(value)
         broken_values = []
@@ -34,7 +34,9 @@ class Inputs(unittest.TestCase):
             del changed[key]
             broken_values.append(changed)
         for group, key, replacement in (("isolation", "sameClientRestored", False), ("isolation", "revokedExactRead", "successful_empty"),
-                                        ("credentials", "upstreamDenials", {"expired": 401, "audience": 401, "scope": 200}), ("lifecycle", "acceptedCredentialReplacement", False)):
+                                        ("credentials", "upstreamDenials", {"expired": 401, "audience": 401, "scope": 200}),
+                                        ("credentials", "managedCredentialOverrideBlocked", False), ("credentials", "invalidCredentialUpdatesRefused", False),
+                                        ("lifecycle", "acceptedCredentialReplacement", False)):
             changed = copy.deepcopy(value)
             changed[group][key] = replacement
             broken_values.append(changed)
@@ -53,14 +55,14 @@ class Inputs(unittest.TestCase):
                              "protocol": "2026-07-28", "capabilitiesAndAccess": True},
                  "everything": {"protocol": "2025-11-25", "version": "2.0.0", "echo": True, "resource": True, "prompt": True,
                                 "resourceSha256": "36593c6d475378b29c6c43a3256fbfd2cad7b087dcbd3e940d53fa0876a70cd7"},
-                 "contextforge": {"version": "1.1.0", "adminUI": True, "nativeTeamRolesAndServerScopedTokens": True, "scopedRuntimeReadAndWriteDenial": True,
+                 "contextforge": {"version": "1.1.1", "adminUI": True, "nativeTeamRolesAndServerScopedTokens": True, "scopedRuntimeReadAndWriteDenial": True,
                                   "nativeRegistration": {"a": {"tools": 6, "resources": 0, "prompts": 0}, "b": {"tools": 6, "resources": 0, "prompts": 0},
                                                          "everything": {"tools": 1, "resources": 1, "prompts": 1}}},
                  "refusals": dict.fromkeys(("missingCatalogToken", "missingEverythingKey", "missingContextForgeToken", "untrustedCA", "invalidContextForgeToken", "httpFailureDiagnostic"), True)}
         runner.validate_native(value)
         for group, key, replacement in (("catalog", "tools", []), ("catalog", "tools", value["catalog"]["tools"] + value["catalog"]["tools"][:1]),
                                         ("everything", "prompt", False), ("everything", "resourceSha256", "0" * 64),
-                                        ("catalog", "protocol", "2025-11-25"), ("contextforge", "scopedRuntimeReadAndWriteDenial", False),
+                                        ("catalog", "protocol", "2025-11-25"), ("contextforge", "version", "0.0.0"), ("contextforge", "scopedRuntimeReadAndWriteDenial", False),
                                         ("contextforge", "nativeRegistration", {}), ("refusals", "untrustedCA", False)):
             broken = copy.deepcopy(value)
             broken[group][key] = replacement

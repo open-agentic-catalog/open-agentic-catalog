@@ -232,7 +232,7 @@ def selected_sources(listed, files, root):
 def native_rows(data, sources, inventory=False):
     require(isinstance(data, dict) and data.get("sources") == sources, "native source inventory mismatch")
     require(set(data) <= {"stats", "mutatorStats", "sources", *BUCKETS}, "unexpected native report field")
-    rows, ids = {}, set()
+    rows, ids, stable_ids = {}, set(), set()
     counts = {}
     for bucket, status in BUCKETS.items():
         values = data.get(bucket)
@@ -241,12 +241,22 @@ def native_rows(data, sources, inventory=False):
         require(isinstance(values, list), "invalid native bucket")
         counts[bucket] = len(values)
         for row in values:
-            require(isinstance(row, dict) and set(row) == {"checksum", "mutator", "diff", "processOutput"}, "invalid native row")
+            require(isinstance(row, dict) and set(row) == {"id", "checksum", "mutator", "diff", "processOutput"}, "invalid native row")
             identifier, meta, diff = row["checksum"], row["mutator"], row["diff"]
             require(isinstance(identifier, str) and re.fullmatch(r"[0-9a-f]{32}", identifier) and identifier not in ids, "duplicate/invalid native ID")
-            require(isinstance(meta, dict) and set(meta) == {"mutatorName", "originalFilePath", "originalStartLine"}, "invalid mutation metadata")
+            stable_id = row["id"]
+            require(isinstance(stable_id, str) and re.fullmatch(r"[0-9a-f]{32}", stable_id) and stable_id not in stable_ids, "duplicate/invalid native stable ID")
+            require(isinstance(meta, dict) and set(meta) == {"mutatorName", "originalFilePath", "originalStartLine", "location"}, "invalid mutation metadata")
             name, line = meta["originalFilePath"], meta["originalStartLine"]
             require(isinstance(name, str) and name in sources and type(line) is int and 1 <= line <= len(sources[name].splitlines()), "invalid mutation location")
+            location = meta["location"]
+            require(isinstance(location, dict) and set(location) == {"physical", "coverage"}, "invalid native coordinate pair")
+            require(location["physical"] == {"filename": name, "line": line}
+                    and type(location["physical"]["line"]) is int, "native physical coordinate mismatch")
+            coverage = location["coverage"]
+            require(isinstance(coverage, dict) and set(coverage) == {"filename", "line"}
+                    and isinstance(coverage["filename"], str) and coverage["filename"]
+                    and type(coverage["line"]) is int and coverage["line"] >= 1, "invalid native coverage coordinate")
             require(meta["mutatorName"] in CONFIG["enable_mutators"], "unexpected operator")
             require(isinstance(diff, str) and diff.startswith("--- Original\n+++ New\n@@ "), "missing native diff")
             require(isinstance(row["processOutput"], str), "invalid native diagnostics")
@@ -254,6 +264,7 @@ def native_rows(data, sources, inventory=False):
             require(key not in rows, "duplicate native edit")
             require(status == "survived" if inventory else status in {"caught", "survived", "timeout"}, "unexplained native outcome")
             ids.add(identifier)
+            stable_ids.add(stable_id)
             rows[key] = dict(id=identifier, file=name, line=line, operator=meta["mutatorName"],
                              diff=diff, diffSHA256=key[1], status="unassessed" if inventory else status)
     require(0 < len(rows) <= MAX_MUTANTS, "empty/excessive mutation inventory")

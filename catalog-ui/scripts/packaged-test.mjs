@@ -1885,7 +1885,7 @@ try {
         // Provider SSO may redirect without a form after local UI sign-out.
         await expect(
           page
-            .getByLabel("Account", { exact: true })
+            .getByTitle("Account", { exact: true })
             .or(page.getByLabel("Username or email")),
         ).toBeVisible();
         if (await page.getByLabel("Username or email").isVisible()) {
@@ -1992,7 +1992,7 @@ try {
       true,
     );
     await manualTab.close();
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
     // Both authentication modes expose only release-linked current labels.
     const presented = page.locator("article.resource-card").first();
     await expect(
@@ -2028,7 +2028,7 @@ try {
     expect(submitted.namespaceId).toMatch(/^[0-9a-f-]{36}$/i);
     await expect(
       page.getByRole("button", {
-        name: /^Remove local namespace /,
+        name: /^Remove local Namespace: /,
       }),
     ).toBeVisible();
     await expect(page.locator("article.resource-card")).toHaveCount(3);
@@ -2105,16 +2105,16 @@ try {
     await page.getByRole("link", { name: /Back to Catalog/ }).click();
     await expect(
       page.getByRole("button", {
-        name: /^Remove local namespace /,
+        name: /^Remove local Namespace: /,
       }),
     ).toBeVisible();
     await expect(page.locator("article.resource-card")).toHaveCount(3);
     await page
-      .getByRole("button", { name: /^Remove local namespace / })
+      .getByRole("button", { name: /^Remove local Namespace: / })
       .click();
     await expect(
       page.getByRole("button", {
-        name: /^Remove local namespace /,
+        name: /^Remove local Namespace: /,
       }),
     ).toHaveCount(0);
     await expect(page.locator("article.resource-card")).toHaveCount(3);
@@ -2355,9 +2355,9 @@ try {
       await expect(
         page.getByLabel("Display name", { exact: true }),
       ).toHaveCount(0);
-      await expect(page.getByLabel("Account", { exact: true })).toHaveCount(0);
+      await expect(page.getByTitle("Account", { exact: true })).toHaveCount(0);
       await signIn();
-      await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+      await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
       await page.goto(savedNamespaceURL);
       await expect(
         page.getByLabel("Display name", { exact: true }),
@@ -2373,7 +2373,7 @@ try {
         exact: true,
       }),
     ).toBeVisible();
-    await page.getByLabel("Account", { exact: true }).click();
+    await page.getByTitle("Account", { exact: true }).click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     expect(
       (await context.cookies(origin + basePath + "/")).some(
@@ -2394,7 +2394,7 @@ try {
     ).toHaveCount(0);
     await page.goto(origin + basePath + "/catalog");
     await signIn();
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
     if (savedNamespace) {
       await page.goto(savedNamespaceURL);
       await expect(
@@ -2699,7 +2699,7 @@ try {
       await expect(
         page.getByRole("button", { name: "Sign in", exact: true }),
       ).toBeEnabled();
-      await expect(page.getByLabel("Account", { exact: true })).toHaveCount(0);
+      await expect(page.getByTitle("Account", { exact: true })).toHaveCount(0);
       expect(
         (await context.cookies(origin + basePath + "/")).some(
           (cookie) => cookie.name === "catalog-ui-packaged",
@@ -2719,7 +2719,7 @@ try {
         await openBrowser();
         await page.goto(origin + basePath + "/catalog");
         await signIn();
-        await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+        await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
         await expect(page.locator("article.resource-card")).toHaveCount(0);
         await expect(
           page
@@ -2986,7 +2986,7 @@ try {
           },
         });
         phase = "oidc-provider-outage";
-        await page.getByLabel("Account", { exact: true }).click();
+        await page.getByTitle("Account", { exact: true }).click();
         await page
           .getByRole("button", { name: "Sign out", exact: true })
           .click();
@@ -3005,14 +3005,14 @@ try {
         ]);
         expect(unavailable.status()).toBe(503);
         await expect(page.getByRole("alert")).toBeVisible();
-        await expect(page.getByLabel("Account", { exact: true })).toHaveCount(
+        await expect(page.getByTitle("Account", { exact: true })).toHaveCount(
           0,
         );
       }
     }
     if (mode === "compose") {
       phase = `compose-${basePath ? "subpath" : "root"}-custom-policy`;
-      await page.getByLabel("Account", { exact: true }).click();
+      await page.getByTitle("Account", { exact: true }).click();
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
       const memberContext = await browser.newContext();
       jsErrors.observe(memberContext, [origin]);
@@ -3407,7 +3407,7 @@ try {
       await expect(
         page.getByRole("heading", { name: "My access", exact: true }),
       ).toBeVisible();
-      await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+      await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
     }
     if (mode === "compose" && basePath) {
       // Only this selected fixture origin is used for the optional external link.
@@ -3446,10 +3446,10 @@ try {
       await unavailableTab.close();
       // The unavailable manual cannot become a host readiness/login dependency.
       await ready(`http://127.0.0.1:${uiPort}/readyz`);
-      await page.getByLabel("Account", { exact: true }).click();
+      await page.getByTitle("Account", { exact: true }).click();
       await page.getByRole("button", { name: "Sign out", exact: true }).click();
       await signIn();
-      await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+      await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
       const connectedContractReply = page.waitForResponse(
         (response) =>
           response.request().method() === "GET" &&

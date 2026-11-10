@@ -11,8 +11,8 @@ import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
-UV_VERSION = "0.13.4"
-TOOL_PINS = {"ruff": "0.17.0", "jsonschema": "4.26.0", "bump-my-version": "1.5.1", "coverage": "7.16.2"}
+UV_VERSION = "0.13.6"
+TOOL_PINS = {"ruff": "0.17.3", "jsonschema": "4.26.0", "bump-my-version": "1.6.7", "coverage": "7.17.0"}
 BASE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-rc\.([1-9][0-9]*))?\Z")
 IDENTITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}\Z")
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")
@@ -207,7 +207,7 @@ def install(root, uv, python):
     check(root)
     target = private_environment_path(root)
     if run([uv, "--version"], root).split()[:2] != ["uv", UV_VERSION]:
-        raise ValueError("uv 0.13.4 is required; set UV to the pinned executable")
+        raise ValueError("uv " + UV_VERSION + " is required; set UV to the pinned executable")
     python = shutil.which(python)
     if python is None:
         raise ValueError("DEV_PYTHON must select an installed Python 3.12-3.14 interpreter")
@@ -238,7 +238,7 @@ def bump(root, executable, part, dry_run):
     if state != "clean":
         raise ValueError("version bumps require a clean Git checkout")
     if run([executable, "--version"], root) != "bump-my-version, version " + TOOL_PINS["bump-my-version"]:
-        raise ValueError("bump-my-version 1.5.1 required; run make dev-tools-install")
+        raise ValueError("bump-my-version 1.6.7 required; run make dev-tools-install")
     arguments = [executable, "bump", "--config-file", str(root / "pyproject.toml"),
                  "--current-version", current, "--no-commit", "--no-tag", "--no-push-tag", "--no-allow-dirty"]
     if part in ("major", "minor", "patch"):

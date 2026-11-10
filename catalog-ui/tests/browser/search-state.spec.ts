@@ -44,7 +44,10 @@ test("submitted text, visibility and history keep queries private and reset pred
     page.getByRole("heading", { name: "No resources found" }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Remove visibility filter", exact: true })
+    .getByRole("button", {
+      name: "Remove visibility filter: private",
+      exact: true,
+    })
     .click();
   await expect(cards).toHaveCount(2);
   await page.getByRole("button", { name: "Clear all", exact: true }).click();

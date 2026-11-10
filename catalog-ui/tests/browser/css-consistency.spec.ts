@@ -475,7 +475,7 @@ test("listing value actions align with their controls and retain literal multili
       await page.evaluate(() =>
         window.scrollTo(0, document.documentElement.scrollHeight / 2),
       );
-      await page.getByLabel("Account", { exact: true }).focus();
+      await page.getByTitle("Account", { exact: true }).focus();
       await page.keyboard.press("Tab");
       const firstLink = page
         .getByRole("navigation", { name: "Workspace", exact: true })
@@ -766,7 +766,7 @@ test("forced colors preserve painted selection separately from keyboard focus", 
     await page.evaluate(() => matchMedia("(forced-colors: active)").matches),
   ).toBe(true);
   await page.mouse.move(0, 0);
-  const account = page.getByLabel("Account", { exact: true });
+  const account = page.getByTitle("Account", { exact: true });
   const controls = [
     page
       .getByRole("group", { name: "Resource kinds", exact: true })
@@ -793,7 +793,7 @@ test("forced colors preserve painted selection separately from keyboard focus", 
   ).toHaveAttribute("aria-pressed", "false");
   await expect(
     page.getByRole("button", {
-      name: "Visibility: Any visibility",
+      name: "Visibility: All",
       exact: true,
     }),
   ).toHaveAttribute("aria-pressed", "false");

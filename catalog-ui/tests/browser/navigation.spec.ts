@@ -97,7 +97,7 @@ test("native navigation preserves dismissed input, discards explicitly and leave
   await expect(page.getByLabel("Display name", { exact: true })).toHaveValue(
     "Discarded native draft",
   );
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   expect(writes).toBe(0);
   await page.keyboard.press("Escape");
   const leave = page.waitForEvent("dialog").then(async (dialog) => {

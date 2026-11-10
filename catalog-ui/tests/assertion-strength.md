@@ -1,6 +1,6 @@
 # Frontend assertion strength
 
-Install the pinned Node/npm versions and `make ui-install` first. Stryker core 10.0.0 (Apache-2.0) and fast-check 4.10.2 (MIT) are development dependencies. Neither enters the browser bundle or requires a server. The lock includes their complete dependency closure. A scoped `typed-rest-client` override uses the compatible `qs` 6.16.1 security fix.
+Install the pinned Node/npm versions and `make ui-install` first. Stryker core 10.1.1 (Apache-2.0) and fast-check 4.10.2 (MIT) are development dependencies. Neither enters the browser bundle or requires a server. The lock includes their complete dependency closure. A scoped `typed-rest-client` override uses the compatible `qs` 6.16.1 security fix.
 
 ```sh
 make ui-test-property

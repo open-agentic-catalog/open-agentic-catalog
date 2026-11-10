@@ -2,7 +2,7 @@
 
 The Rust SDK provides typed asynchronous operations for the [Control API](../../api/openapi/control-v1.yaml). It connects to one configured Catalog API. It does not log in, execute resources, follow referrals or install packages.
 
-Use Rust 1.88 or newer and a Tokio runtime with time and I/O enabled. Source builds also need a native C toolchain for TLS dependencies. The maintained qualification runs on Linux AMD64 with Rust 1.88.0 and 1.99.0. Other native platforms are not qualified. Blocking, WASM and FFI interfaces are not provided.
+Use Rust 1.88 or newer and a Tokio runtime with time and I/O enabled. Source builds also need a native C toolchain for TLS dependencies. The maintained qualification runs on Linux AMD64 with Rust 1.88.0 and 1.99.1. Other native platforms are not qualified. Blocking, WASM and FFI interfaces are not provided.
 
 ## Install from local source
 

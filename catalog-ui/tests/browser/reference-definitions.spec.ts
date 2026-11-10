@@ -194,7 +194,7 @@ for (const base of ["root", "subpath"]) {
     await page
       .getByRole("searchbox", { name: "Search definitions" })
       .fill("private definition criteria");
-    await page.getByLabel("Account", { exact: true }).click();
+    await page.getByTitle("Account", { exact: true }).click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
     await expect(page.locator(".api-definitions")).toHaveCount(0);
     await expect(

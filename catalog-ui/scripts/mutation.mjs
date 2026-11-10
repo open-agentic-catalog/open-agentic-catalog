@@ -101,6 +101,7 @@ async function identity() {
     "vitest.config.ts",
     "tests/mutation-dispositions.json",
     "tests/required.ts",
+    "tests/unit/setup.ts",
   );
   const hash = createHash("sha256");
   // Hash exact paths in code-unit order; locale collation can equate distinct names.
@@ -201,6 +202,7 @@ export async function main() {
         "!vitest.config.ts",
         "!scripts/*.mjs",
         "!tests/required.ts",
+        "!tests/unit/setup.ts",
       ],
       commandRunner: {
         command: "node scripts/mutation-command.mjs",

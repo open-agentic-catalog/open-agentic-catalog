@@ -44,7 +44,7 @@ class HookTests(unittest.TestCase):
         self.linter_snapshots = []
         self.linter_results = {}
         pins = json.loads((repository / runner.LINTER_PINS).read_text())
-        self.versions = {"ruff": b"ruff 0.17.0", "actionlint": ("v" + pins["actionlint"]["version"]).encode(),
+        self.versions = {"ruff": b"ruff 0.17.3", "actionlint": ("v" + pins["actionlint"]["version"]).encode(),
                          "shellcheck": ("version: " + pins["shellcheck"]).encode(),
                          "hadolint": ("Haskell Dockerfile Linter " + pins["hadolint"]).encode(),
                          "markdownlint": pins["markdownlint-cli"].encode()}
@@ -272,7 +272,7 @@ class HookTests(unittest.TestCase):
             original = (self.root / name).read_text()
             # A different required version, dependency or locked package cannot
             # silently select the installed Ruff from another policy.
-            invalid = original.replace("0.17.0", "0.0.0")
+            invalid = original.replace("0.17.3", "0.0.0")
             for content in (invalid, "private invalid TOML = [\n"):
                 self.write(name, content)
                 with self.assertRaisesRegex(runner.Failure, "invalid or inconsistent") as failure:

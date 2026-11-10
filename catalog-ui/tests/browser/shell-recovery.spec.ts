@@ -52,7 +52,7 @@ test("unavailable login options and failed sign-out recover without pretending t
       }),
     { times: 1 },
   );
-  await tabTo(page, page.getByLabel("Account", { exact: true }));
+  await tabTo(page, page.getByTitle("Account", { exact: true }));
   await page.keyboard.press("Enter");
   await tabTo(
     page,

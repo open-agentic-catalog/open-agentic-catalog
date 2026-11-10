@@ -17,7 +17,7 @@ This is functional testing: real binaries, client/server processes and HTTPS con
 
 ## What the control proves
 
-The image contains official `a2a-sdk` 1.2.2 and the unchanged deterministic sample executor. The small deployment launcher uses upstream Starlette routes, the SDK's request handler and in-memory task store. Its card truthfully advertises one anonymous `JSONRPC` 1.0 HTTPS interface with `text/plain` modes.
+The image contains official `a2a-sdk` 1.2.3 and the unchanged deterministic sample executor. The small deployment launcher uses upstream Starlette routes, the SDK's request handler and in-memory task store. Its card truthfully advertises one anonymous `JSONRPC` 1.0 HTTPS interface with `text/plain` modes.
 
 Streaming, polling, extended cards, OAuth, gRPC, push notifications and cancellation are not qualified. The sample cancel implementation raises `NotImplementedError`.
 
@@ -71,7 +71,7 @@ After an uncatchable host failure, use only the exact names listed in that run's
 
 ## Pins, dependencies and maintenance
 
-[provenance.json](provenance.json) binds SDK source/release `2f9e44af243df5c7c7a3da361c8d095324bcd5e3`, the exact wheel SHA-256, the complete installed SDK source digest, and sample executor commit `6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3` plus file hash. The sample declares SDK 1.1.0; this target qualifies its unchanged executor with 1.2.2. The upstream launcher is not used: its hardcoded HTTP interface and streaming/extended-card advertisements do not describe this deployment.
+[provenance.json](provenance.json) binds SDK source/release `44b2f761a99123370237afe6c828f4cd2a50c402`, the exact wheel SHA-256, the complete installed SDK source digest, and sample executor commit `6603ba3f2c31a7ef33e70b9d8b5b5f8be42ac9a3` plus file hash. The sample declares SDK 1.1.0; this target qualifies its unchanged executor with 1.2.3. The upstream launcher is not used: its hardcoded HTTP interface and streaming/extended-card advertisements do not describe this deployment.
 
 Catalog's pinned `a2a-agent-card-1.0.1-3303592` profile is unchanged.
 
@@ -81,7 +81,7 @@ SDK and sample Apache-2.0 notices are retained here and in the image. Other inst
 
 The image's pip is separately pinned to avoid retaining the old base-image installer.
 
-For an explicit dependency update, use the repository's reviewed uv 0.13.4. Preserve the fixed cutoff and approved package exceptions.
+For an explicit dependency update, use the repository's reviewed uv 0.13.6. Preserve the fixed cutoff and approved package exceptions.
 
 ```sh
 uv pip compile test/interoperability/a2a/requirements.in \

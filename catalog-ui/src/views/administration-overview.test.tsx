@@ -88,7 +88,7 @@ it("defaults specialist access to Administration and links exact counted populat
   expect(within(human).getByText("5")).toBeTruthy();
   expect(
     within(human)
-      .getAllByRole("link", { name: "People: Suspended" })[0]!
+      .getAllByRole("link", { name: "People: Suspended: 1" })[0]!
       .getAttribute("href"),
   ).toBe("/unit/members?state=suspended&actorType=human");
   const service = screen.getByRole("row", {
@@ -435,7 +435,7 @@ it("keeps membership states in their labeled columns when the response reorders 
   ).toEqual(["5", "3", "1", "1"]);
   expect(
     within(row)
-      .getByRole("link", { name: "People: Active" })
+      .getByRole("link", { name: "People: Active: 3" })
       .getAttribute("href"),
   ).toBe("/unit/members?state=active&actorType=human");
 });

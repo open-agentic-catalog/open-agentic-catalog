@@ -61,7 +61,7 @@ code --install-extension "/path/to/open-agentic-catalog-<version>.vsix"
 
 Replace the path and `<version>` with your package's actual name. The package includes its SDK and runtime dependencies. Installation needs no repository checkout, separate Node installation, Go or npm.
 
-The package requires VS Code 1.139.1 or a later compatible 1.x version. Automated desktop tests cover VS Code 1.141.0 on Linux amd64. Empty windows, single-folder workspaces and multi-root workspaces are tested. A real Linux Remote SSH connection over loopback is qualified separately. Windows/macOS support is implemented but has no native execution qualification. Web-only editors, other remote providers and forks are not qualified.
+The package requires VS Code 1.139.1 or a later compatible 1.x version. Automated desktop tests cover VS Code 1.143.1 on Linux amd64. Empty windows, single-folder workspaces and multi-root workspaces are tested. A real Linux Remote SSH connection over loopback is qualified separately. Windows/macOS support is implemented but has no native execution qualification. Web-only editors, other remote providers and forks are not qualified.
 
 ### Verify and replace a local build
 
@@ -370,7 +370,7 @@ Unsupported alternatives remain inspect-only. These include legacy SSE, custom r
 
 **My tools** lists only explicit selections. Registration does not start a server. Open **MCP: List Servers** to start, stop, restart, inspect logs and control tools. VS Code can also request startup during chat, subject to its settings and approvals. Before each new connection, the provider rereads the selected Catalog evidence, requires unchanged bytes and asks for a fresh review. It checks access again after credential prompts. Existing connections remain under native host controls; Catalog access checks do not continuously revoke a running process.
 
-Use **Cancel** on **Preparing Catalog MCP server** to cancel pending preparation, including a document response or credential prompt. Late prompt completions cannot return a definition or save a new credential for that canceled attempt. Fresh startup requires fresh checks. The qualified VS Code 1.141.0 provider token is not cancelable, so native Stop alone does not cancel preparation; use this progress notification. Native MCP controls continue to own already running processes.
+Use **Cancel** on **Preparing Catalog MCP server** to cancel pending preparation, including a document response or credential prompt. Late prompt completions cannot return a definition or save a new credential for that canceled attempt. Fresh startup requires fresh checks. The qualified VS Code 1.143.1 provider token is not cancelable, so native Stop alone does not cancel preparation; use this progress notification. Native MCP controls continue to own already running processes.
 
 Local selections use the exact release. Live and Published selections reread the exact selected result page and require unchanged entry evidence. Every live or Published `federation: auto` replay asks **Revalidate with peers**, including initial MCP/Agent selection, MCP startup checks and Agent send/read/cancel checks. The prompt shows the original query and filters and identifies continuation-page replay without displaying its cursor. Declined or stale consent sends no replay or resource-target request. Changing the selection invalidates initial preparation; a registered consumer keeps its frozen reference while browsing continues. Local and Published non-federated reads need no peer-query prompt. An expired cursor or changed result requires reselection. Indexed reader projections remain inspect-only.
 
@@ -631,7 +631,7 @@ Registration alone does not grant ownership: recovery preserves unowned trees, d
 
 Ownership receipts, staging and journals are under `.oac-catalog/plugins/`. Keep `.oac-catalog/` out of source control. Receipts contain inventory and hashed ownership bindings, not credentials. Each workspace supports at most 100 owned Plugins. Local disable, remove and recovery still require a trusted workspace. An interrupted removal can leave a harmless `false` registration after files are gone; inspect that exact key before manual removal.
 
-The packaged installation and native Skill discovery workflow is qualified on Linux amd64 with VS Code 1.141.0. Real Linux Remote SSH placement is checked separately. Native Windows/macOS installation is not tested. Recovery handles interrupted application operations; it is not a filesystem backup or a power-loss guarantee.
+The packaged installation and native Skill discovery workflow is qualified on Linux amd64 with VS Code 1.143.1. Real Linux Remote SSH placement is checked separately. Native Windows/macOS installation is not tested. Recovery handles interrupted application operations; it is not a filesystem backup or a power-loss guarantee.
 
 ## Troubleshoot
 
@@ -690,7 +690,7 @@ make -C extensions/vscode package
 make -C extensions/vscode verify
 ```
 
-The build installer supplies pinned Node 24.22.1/npm 11.19.1 and locked extension dependencies. Check/build/package need no editor download, Go, ORAS, Chromium, database or running Catalog once the SDK archive is available. They never acquire tools or refresh locks. Only explicit installation uses network access.
+The build installer supplies pinned Node 24.22.1/npm 12.2.1 and locked extension dependencies. Check/build/package need no editor download, Go, ORAS, Chromium, database or running Catalog once the SDK archive is available. They never acquire tools or refresh locks. Only explicit installation uses network access.
 
 Run `make -C extensions/vscode help` for build, watch and scoped cleanup commands. Open `extensions/vscode/` as the editor folder. Use `make debug CATALOG_VSCODE_EXECUTABLE=/absolute/path/to/code`, then F5 **Catalog: Attach to development host** for source-map debugging in separate development storage. Detailed setup, source maps, dependency refresh and package internals belong in **Develop and contribute > Build and release > Optional VS Code package** in the companion manual.
 

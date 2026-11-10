@@ -139,7 +139,7 @@ async function open(origin, alias, path) {
   );
   await page.goto(origin + path);
   await page.locator(`[data-login-alias="${alias}"]`).click();
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   return { context, page };
 }
 async function download(page, region, path) {

@@ -26,7 +26,7 @@ service_registration "kubernetes" {}
 			"image": vaultImageValues(image), "dev": map[string]any{"enabled": false}, "standalone": map[string]any{"enabled": false},
 			"resources":   map[string]any{"requests": map[string]string{"cpu": "100m", "memory": "256Mi"}, "limits": map[string]string{"cpu": "1", "memory": "512Mi"}},
 			"dataStorage": map[string]any{"enabled": true, "size": "1Gi"}, "authDelegator": map[string]any{"enabled": true},
-			"extraEnvironmentVars": map[string]string{"VAULT_CACERT": "/vault/tls/ca.pem", "SKIP_CHOWN": "true", "SKIP_SETCAP": "true"},
+			"extraEnvironmentVars": map[string]string{"VAULT_CACERT": "/vault/tls/ca.pem"},
 			"volumes":              []any{map[string]any{"name": "vault-tls", "secret": map[string]any{"secretName": "vault-tls", "defaultMode": 288}}},
 			"volumeMounts":         []any{map[string]any{"name": "vault-tls", "mountPath": "/vault/tls", "readOnly": true}},
 			"readinessProbe":       map[string]any{"enabled": true, "path": "/v1/sys/health?standbyok=true", "port": 8200},

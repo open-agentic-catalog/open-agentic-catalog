@@ -105,7 +105,10 @@ test("filter drafts dismiss without requests and every clear operation preserves
   expect(requests[0]).not.toHaveProperty("kinds");
   await expect(filters).toHaveAccessibleDescription("2 applied filters");
   await page
-    .getByRole("button", { name: "Remove publisher filter", exact: true })
+    .getByRole("button", {
+      name: `Remove publisher: ${catalog.receipt.publisherId}`,
+      exact: true,
+    })
     .click();
   await expect(filters).toHaveAccessibleDescription("1 applied filters");
   await page
@@ -113,7 +116,7 @@ test("filter drafts dismiss without requests and every clear operation preserves
     .fill("Order");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page
-    .getByRole("button", { name: "Remove search text", exact: true })
+    .getByRole("button", { name: "Remove search text Order", exact: true })
     .click();
   await expect(
     page.getByRole("searchbox", { name: "Search Catalog", exact: true }),

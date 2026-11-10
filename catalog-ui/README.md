@@ -138,7 +138,7 @@ See the [build guide](../documentation/src/content/docs/contributing/build-and-r
 
 ## Local development
 
-Use Node.js 22.23.4 and its bundled npm 10.9.9 for reproducible builds. `.nvmrc` pins Node; `package.json` records npm. With nvm, run `nvm install` and `nvm use` in `catalog-ui/` first. The compatible Node range is 22.18+ within major 22. `packageManager` does not install or enforce npm; check `node --version` and `npm --version` when selecting a toolchain. Go uses the repository toolchain.
+Use Node.js 22.23.4 and separately installed npm 12.2.1 for reproducible builds. `.nvmrc` pins Node; `package.json` records npm. With nvm, run `nvm install` and `nvm use` in `catalog-ui/` first, then install `npm@12.2.1` into that Node installation. The compatible Node range is 22.22.2+ within major 22, as required by npm and the DOM test tools. `packageManager` does not install or enforce npm; check `node --version` and `npm --version` when selecting a toolchain. Go uses the repository toolchain.
 
 Install build dependencies once, then start the backend and client in separate terminals:
 

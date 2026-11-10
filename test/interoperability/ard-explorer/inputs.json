@@ -6,8 +6,8 @@
   "lockDigest": "0282df9c33120d9cc481046a45d04a4193fe1c0b1ddf53566ecf7742fabd28a0",
   "licenseDigest": "fb1bcb49a92dbee3691f57b63b7ed3fd545613a769f6ed414e68b211c4135ebd",
   "node": "22.23.4",
-  "npm": "10.9.9",
-  "playwright": "1.64.0",
+  "npm": "12.2.1",
+  "playwright": "1.64.1",
   "chromiumRevision": "1248",
   "platform": "linux-x64",
   "bounds": {

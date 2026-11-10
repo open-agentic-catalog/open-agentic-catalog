@@ -1019,9 +1019,9 @@ function CatalogWorkspace({
             <button
               type="button"
               className="filter-chip"
-              aria-label={`Remove local namespace ${request.namespaceId}`}
               onClick={() => removeCriterion("namespaceId")}
             >
+              <span className="sr-only">Remove local</span>{" "}
               <span>
                 Namespace:{" "}
                 <SelectedNamespace
@@ -1046,7 +1046,7 @@ function CatalogWorkspace({
           {request.text && (
             <button
               className="filter-chip"
-              aria-label="Remove search text"
+              aria-label={`Remove search text ${request.text}`}
               onClick={() => removeCriterion("text")}
             >
               <span>{request.text}</span>
@@ -1078,7 +1078,7 @@ function CatalogWorkspace({
           {request.license && (
             <button
               className="filter-chip"
-              aria-label="Remove license filter"
+              aria-label={`Remove license: ${request.license}`}
               onClick={() => removeCriterion("license")}
             >
               <span>License: {request.license}</span>
@@ -1099,7 +1099,7 @@ function CatalogWorkspace({
           {request.publisher && (
             <button
               className="filter-chip"
-              aria-label="Remove publisher filter"
+              aria-label={`Remove publisher: ${request.publisher}`}
               onClick={() => removeCriterion("publisher")}
             >
               <span>Publisher: {request.publisher}</span>
@@ -1109,7 +1109,7 @@ function CatalogWorkspace({
           {request.visibility && (
             <button
               className="filter-chip"
-              aria-label="Remove visibility filter"
+              aria-label={`Remove visibility filter: ${request.visibility}`}
               onClick={() => removeCriterion("visibility")}
             >
               <span>{request.visibility}</span>
@@ -1145,7 +1145,7 @@ function CatalogWorkspace({
             <button
               key={option.value}
               type="button"
-              aria-label={`Visibility: ${option.label}`}
+              aria-label={`Visibility: ${option.value ? option.label : "All"}`}
               aria-pressed={(request.visibility ?? "") === option.value}
               onClick={() =>
                 setRequest(

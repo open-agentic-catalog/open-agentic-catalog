@@ -87,12 +87,14 @@ class Mapping(unittest.TestCase):
         value = {"echo": True, "resourceSha256": h.RESOURCE_SHA256, "credentialsSeparated": True, "protocol": "2026-07-28", "upstreamProtocols": ["2025-11-25"],
                  "serverInfo": {"name": "Independent native application", "version": "1.1.0"}, "nativeNames": {"echo": "imported-echo", "prompt": "imported-prompt", "resource": "demo://features"},
                  "prompt": {"status": "peer_limited", "cause": "private_ca_rejected"}, "promptFirst": True}
-        h.validate_runtime(value)
-        h.validate_runtime(dict(value, prompt={"status": "passed"}))
+        h.validate_runtime(value, "1.1.0")
+        h.validate_runtime(dict(value, prompt={"status": "passed"}), "1.1.0")
+        with self.assertRaises(AssertionError):
+            h.validate_runtime(value, "1.1.1")
         for key, replacement in (("echo", False), ("resourceSha256", "0" * 64), ("credentialsSeparated", False), ("promptFirst", False), ("upstreamProtocols", ["2026-07-28"]),
                                  ("prompt", {"status": "peer_limited", "cause": "unclassified"}), ("prompt", {"status": "not_run"})):
             with self.subTest(key=key), self.assertRaises(AssertionError):
-                h.validate_runtime(dict(value, **{key: replacement}))
+                h.validate_runtime(dict(value, **{key: replacement}), "1.1.0")
 
 
 if __name__ == "__main__":

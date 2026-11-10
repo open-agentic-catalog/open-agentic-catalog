@@ -24,7 +24,7 @@ The procedures are based on public provider documentation and the Catalog's impl
 
 Local Make targets build and test images and charts without publishing them. This guide describes deployment of supplied artifacts.
 
-Both [Helm](https://helm.sh/docs/) charts support CNCF-certified [Kubernetes](https://kubernetes.io/docs/home/) 1.34+ distributions that meet the prerequisites below. This includes OpenShift. Kubernetes 1.34.0 is the chart and schema-validation baseline; the maintained Minikube runtime fixture uses 1.35.9. Use a maintained patch release of the selected Kubernetes distribution.
+Both [Helm](https://helm.sh/docs/) charts support CNCF-certified [Kubernetes](https://kubernetes.io/docs/home/) 1.34+ distributions that meet the prerequisites below. This includes OpenShift. Kubernetes 1.34.0 is the chart and schema-validation baseline; the maintained Minikube runtime fixture uses 1.37.1. Use a maintained patch release of the selected Kubernetes distribution.
 
 Use the application Helm chart to deploy Catalog and the optional monitoring companion to add Prometheus/Grafana. Supply PostgreSQL, identity configuration and credentials as described below. See [build and release](../contributing/build-and-release.md) for image and chart build commands.
 
@@ -633,11 +633,11 @@ Use `make test-minikube-replicas` for three UI, three API and three worker repli
 
 Use `make test-minikube-peers` for federation between two independent Catalogs in one owned cluster. Each chart release uses a separate namespace, PostgreSQL instance, persistent claim and credentials. The scenario checks publication, synchronization, provenance, updates, withdrawal, outage recovery and retained state after process replacement. It uses eight CPUs and 12 GiB of memory. See [the cluster guide](../../../../../test/minikube/README.md#federation-between-two-independent-catalogs) for scope and limits. Application replicas and PostgreSQL replication remain separate tests.
 
-The maintained host contract is Linux amd64 with Docker, exact Minikube 1.39.0, a kubectl client within one minor of the pinned Kubernetes 1.35.9 server, and Helm 3.15 or newer. The configured digest-bound Minikube base and PostgreSQL images must already exist in Docker. The basic profile requires at least 4 CPUs, 6 GiB memory, and 8 GiB free disk; topology requires 8 CPUs, 12 GiB memory, and 12 GiB free disk. When the isolated Minikube home cannot reuse a normal cache, pass an already present preload archive explicitly:
+The maintained host contract is Linux amd64 with Docker, exact Minikube 1.39.0, a kubectl client within one minor of the pinned Kubernetes 1.37.1 server, and Helm 3.15+ or Helm 4. CI tooling pins Helm 4.3.1. The configured digest-bound Minikube base and PostgreSQL images must already exist in Docker. The basic profile requires at least 4 CPUs, 6 GiB memory, and 8 GiB free disk; topology requires 8 CPUs, 12 GiB memory, and 12 GiB free disk. When the isolated Minikube home cannot reuse a normal cache, pass an already present preload archive explicitly:
 
 ```sh
-make test-minikube MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.35.9-containerd-overlay2-amd64.tar.lz4
-make test-minikube-topology MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.35.9-containerd-overlay2-amd64.tar.lz4
+make test-minikube MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.37.1-containerd-overlay2-amd64.tar.lz4
+make test-minikube-topology MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.37.1-containerd-overlay2-amd64.tar.lz4
 ```
 
 See [inotify limits for local clusters](#inotify-limits-for-local-clusters) if a node reports "Too many open files" or cannot create a file watcher.

@@ -54,7 +54,7 @@ for (const path of ["root", "subpath"]) {
     ).toBeVisible();
     await page.goto(`${catalog.origin}${catalog.basePath}/sources/new`);
     // Establish the checked identity before asserting absent controls or changing its grants.
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
     await expect(page.getByLabel("Source URL", { exact: true })).toHaveCount(0);
     await expect(
       page.getByRole("button", { name: "Inspect source", exact: true }),

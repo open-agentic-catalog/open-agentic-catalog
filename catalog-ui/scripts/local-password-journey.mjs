@@ -439,7 +439,7 @@ export async function localPasswordJourney({
         )
       ).status,
     ).toBe(403);
-    await reader.locator('summary[aria-label="Account"]').click();
+    await reader.getByTitle("Account", { exact: true }).click();
     await reader.getByRole("link", { name: "My access", exact: true }).click();
     await expect(
       reader.getByText(accounts["catalog-reader"], { exact: true }).first(),
@@ -611,7 +611,7 @@ export async function localPasswordJourney({
     ).toBe(200);
     checked("suspension-denies-existing-session");
     stage("local-logout-and-provider-sso");
-    await additional.locator('summary[aria-label="Account"]').click();
+    await additional.getByTitle("Account", { exact: true }).click();
     await additional
       .getByRole("button", { name: "Sign out", exact: true })
       .click();

@@ -2,6 +2,8 @@
 
 `make test-minikube-ui` builds the separate UI image, verifies the default installation has no UI Pods, enables two replicas with mounted test keys and API tokens, then checks root health probes, subpath navigation, shared sessions and authenticated API access through each Pod. The two-replica UI selection also updates its synthetic mounted Secret and replaces processes through old-first staging, new-first promotion and emergency old-key removal. Independent cookie decoding verifies the writer key; explicit Pod routes prove mixed-stage acceptance without Service affinity.
 
+The standalone UI scenario preserves the initial backend configuration while enabling and disabling the UI. It records API and worker Pod identities before the UI changes and requires the same ready Pods afterward. Backend rollout and upgrade behavior remain covered by their separate scenarios.
+
 A live overlap host accepts the same unexpired old cookie that a replaced host rejects, while new cookies retain authorized session/API access. Pod UIDs and stage placements are retained without key or cookie values. Immediate removal qualifies the emergency procedure; deterministic host tests own the ordinary retirement window and five-minute pending-login lifetime.
 
 Disabling the option removes UI resources and retains the backend. It owns and cleans its cluster, images, port-forwards and temporary inputs. This is packaged host/session evidence, not a real human OIDC browser login; the process-based Playwright suite remains `make test-ui`.
@@ -227,7 +229,7 @@ The basic `make test-minikube` scenario enables MCP with non-default limits and 
 
 Run `make cert-manager-tools-install`, then `make test-minikube-cert-manager`, separately. Reuse the common Minikube prerequisites and optional explicit preload archive. The scenario owns one Linux AMD64 node, four CPUs, 6 GiB memory and a 40-minute deadline. It leaves retained Compose services and other clusters unchanged.
 
-The [pin file](fixtures/cert-manager/pins.json) fixes both chart archives, CRDs through the cert-manager chart, four image digests and the cmctl executable. cert-manager v1.21.3, Traefik v3.7.16 and cmctl v2.6.2 have exact owner-approved security age exceptions. Traefik chart 42.0.0 meets the ordinary cutoff. Acquisition verifies checksums and stores artifacts, licenses and the CLI's upstream SPDX inventory under ignored `.tools/minikube-cert-manager/`. Normal test execution does not acquire dependencies or use floating image tags. `make clean` includes this tool cache.
+The [pin file](fixtures/cert-manager/pins.json) fixes both chart archives, CRDs through the cert-manager chart, four image digests and the cmctl executable. cert-manager v1.21.3, Traefik v3.7.16 and cmctl v2.6.2 have exact owner-approved security age exceptions. Traefik chart 42.1.3 meets the ordinary cutoff. Acquisition verifies checksums and stores artifacts, licenses and the CLI's upstream SPDX inventory under ignored `.tools/minikube-cert-manager/`. Normal test execution does not acquire dependencies or use floating image tags. `make clean` includes this tool cache.
 
 cert-manager runs in its own namespace and Helm release. Traefik has a separate release in the Catalog namespace, namespace-scoped RBAC and no dashboard, CRD provider, Gateway provider or public Service. The Ingress uses the explicit `catalog-local` class annotation. The Catalog release keeps its existing MCP-only routes and TLS Secret reference. Catalog ServiceAccounts gain no certificate or Secret permissions.
 

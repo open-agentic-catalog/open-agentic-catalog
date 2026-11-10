@@ -85,16 +85,6 @@ export function SignInChoices({
                   type="button"
                   key={user.alias}
                   data-login-alias={user.alias}
-                  aria-label={user.label}
-                  aria-describedby={
-                    [
-                      user.description ? `login-description-${user.alias}` : "",
-                      user.elevated ? `login-elevated-${user.alias}` : "",
-                      user.separateTenant ? `login-tenant-${user.alias}` : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" ") || undefined
-                  }
                   disabled={busy}
                   onClick={() => onSelect(user.alias)}
                 >
@@ -102,22 +92,18 @@ export function SignInChoices({
                     <Icon name="user" />
                   </span>
                   <span className="login-user-copy">
-                    <strong>{user.label}</strong>
+                    <strong>{user.label}</strong>{" "}
                     {user.description && (
-                      <small id={`login-description-${user.alias}`}>
-                        {user.description}
-                      </small>
+                      <>
+                        <small>{user.description}</small>{" "}
+                      </>
                     )}
                     {user.elevated && (
-                      <small id={`login-elevated-${user.alias}`}>
-                        Elevated administration
-                      </small>
+                      <>
+                        <small>Elevated administration</small>{" "}
+                      </>
                     )}
-                    {user.separateTenant && (
-                      <small id={`login-tenant-${user.alias}`}>
-                        Separate tenant
-                      </small>
-                    )}
+                    {user.separateTenant && <small>Separate tenant</small>}
                   </span>
                   <Icon name="arrow" />
                 </button>

@@ -87,7 +87,7 @@ class VersionTests(unittest.TestCase):
             v.private_environment_path(self.root)
 
     def test_bump_failure_checks_and_forced_mutation_controls(self):
-        with patch.object(v, "check"), patch.object(v, "source", return_value=(self.sha, "clean", ())), patch.object(v, "run", side_effect=["bump-my-version, version 1.5.1", "preview"]) as run:
+        with patch.object(v, "check"), patch.object(v, "source", return_value=(self.sha, "clean", ())), patch.object(v, "run", side_effect=["bump-my-version, version 1.6.7", "preview"]) as run:
             v.bump(self.root, "/tool", "rc", True)
             args = run.call_args.args[0]
             self.assertTrue({"--no-commit", "--no-tag", "--no-push-tag", "--no-allow-dirty", "--dry-run"}.issubset(args))
@@ -150,19 +150,19 @@ class VersionTests(unittest.TestCase):
                     v.openapi_version_check(self.root, "0.1.0")
 
     def test_install_rejects_wrong_uv_and_missing_or_unsupported_python(self):
-        with patch.object(v, "check"), patch.object(v, "run", return_value="uv 0.9.18"), self.assertRaisesRegex(ValueError, "uv 0.13.4"):
+        with patch.object(v, "check"), patch.object(v, "run", return_value="uv 0.9.18"), self.assertRaisesRegex(ValueError, "uv 0.13.6"):
             v.install(self.root, "/uv", "python3")
-        with patch.object(v, "check"), patch.object(v, "run", return_value="uv 0.13.4"), patch.object(v.shutil, "which", return_value=None), self.assertRaisesRegex(ValueError, "installed Python"):
+        with patch.object(v, "check"), patch.object(v, "run", return_value="uv 0.13.6"), patch.object(v.shutil, "which", return_value=None), self.assertRaisesRegex(ValueError, "installed Python"):
             v.install(self.root, "/uv", "missing")
         for version in ([3, 11], [3, 15], [4, 0]):
-            with self.subTest(version=version), patch.object(v, "check"), patch.object(v, "run", side_effect=["uv 0.13.4", json.dumps(version)]) as run, patch.object(v.shutil, "which", return_value="/python"), self.assertRaisesRegex(ValueError, "installed Python"):
+            with self.subTest(version=version), patch.object(v, "check"), patch.object(v, "run", side_effect=["uv 0.13.6", json.dumps(version)]) as run, patch.object(v.shutil, "which", return_value="/python"), self.assertRaisesRegex(ValueError, "installed Python"):
                 v.install(self.root, "/uv", "python3")
             self.assertEqual(run.call_count, 2, "unsupported interpreter must not invoke sync")
 
     def test_installer_preserves_the_configured_cutoff_with_no_config(self):
         cutoff = "2026-09-15T09:10:11Z"
         (self.root / "pyproject.toml").write_text('[tool.uv]\nexclude-newer = "' + cutoff + '"\n')
-        with patch.object(v, "check"), patch.object(v, "run", side_effect=["uv 0.13.4", "[3, 13]", ""]) as run, \
+        with patch.object(v, "check"), patch.object(v, "run", side_effect=["uv 0.13.6", "[3, 13]", ""]) as run, \
              patch.object(v.shutil, "which", return_value="/selected/python"), patch.object(v, "environment", return_value={}), \
              patch.object(v, "verify_tools") as verify:
             v.install(self.root, "/pinned/uv", "python3")

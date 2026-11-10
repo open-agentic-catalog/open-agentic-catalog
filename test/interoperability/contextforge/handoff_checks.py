@@ -83,11 +83,12 @@ def map_client(record, expected, token):
     return {"url": remote["url"], "headers": {"Authorization": "Bearer " + token}}
 
 
-def validate_runtime(result):
+def validate_runtime(result, expected_version):
+    """Bind the native handoff result to the selected peer and exact byte controls."""
     assert result["echo"] is True and result["resourceSha256"] == RESOURCE_SHA256 and result["credentialsSeparated"] is True
     assert result["promptFirst"] is True, "fresh prompt-first control"
     assert result["protocol"] == "2026-07-28" and result["upstreamProtocols"] == ["2025-11-25"]
-    assert result["serverInfo"]["name"] and result["serverInfo"]["version"] == "1.1.0"
+    assert result["serverInfo"]["name"] and result["serverInfo"]["version"] == expected_version
     assert result["nativeNames"]["echo"] and result["nativeNames"]["prompt"] and result["nativeNames"]["resource"]
     prompt = result["prompt"]
     assert prompt["status"] == "passed" or prompt["status"] == "peer_limited" and prompt["cause"] in ("private_ca_rejected", "upstream_unauthorized"), "classified native prompt outcome"

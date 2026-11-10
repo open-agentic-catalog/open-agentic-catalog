@@ -98,6 +98,9 @@ def outcome(case):
         commands=0,
         entry=None,
     )
+    if case == "missing-schema":
+        v.update(name="legacy-decoy", version="9.9.9", mcp={},
+                 manifest=dict(name="legacy-decoy", version="9.9.9", description="", author=None, entry_command=None))
     return Result(
         0,
         json.dumps(v),
@@ -256,8 +259,8 @@ class PluginConsumerContracts(unittest.TestCase):
                 [dict(original, error="unrelated")]
                 if case in contract.FATAL
                 else [
-                    dict(original, name="legacy-decoy"),
-                    dict(original, mcp={}),
+                    dict(original, name="wrong-identity"),
+                    dict(original, mcp={"unexpected": {}} if case == "missing-schema" else {}),
                     dict(original, entry="run"),
                     dict(original, skills=[]),
                 ]

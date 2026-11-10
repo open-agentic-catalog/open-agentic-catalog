@@ -169,7 +169,10 @@ test("local browse and combined facets use the published releases and link to ex
     await expect(kinds.getByText(kind, { exact: true })).toBeVisible();
   // Refine returned values using the actual local query, not page-local data.
   await page
-    .getByRole("button", { name: "Filter by resource kind Skill", exact: true })
+    .getByRole("button", {
+      name: "Filter by resource kind Skill: 1",
+      exact: true,
+    })
     .focus();
   await page.keyboard.press("Enter");
   await expect(
@@ -208,14 +211,14 @@ test("local browse and combined facets use the published releases and link to ex
     page.getByText(/Search matches words in resource names/),
   ).not.toBeVisible();
   await page
-    .getByRole("button", { name: "Filter by tag orders", exact: true })
+    .getByRole("button", { name: "Filter by tag orders: 1", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: "Remove tag orders", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", {
-      name: `Filter by publisher ${catalog.receipt.publisherId}`,
+      name: `Filter by publisher ${catalog.receipt.publisherId}: 1`,
       exact: true,
     })
     .click();
@@ -233,7 +236,10 @@ test("local browse and combined facets use the published releases and link to ex
         "public",
   );
   await page
-    .getByRole("button", { name: "Filter by visibility Public", exact: true })
+    .getByRole("button", {
+      name: "Filter by visibility Public: 1",
+      exact: true,
+    })
     .click();
   const response = await refinement;
   expect(response.status()).toBe(200);
@@ -264,7 +270,7 @@ test("local browse and combined facets use the published releases and link to ex
   ).toHaveAttribute("value", catalog.receipt.namespaceId);
   await page
     .getByRole("button", {
-      name: "Filter by local namespace Catalog demo",
+      name: "Filter by local namespace Catalog demo: 1",
       exact: true,
     })
     .click();

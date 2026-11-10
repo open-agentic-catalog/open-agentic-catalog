@@ -4,7 +4,7 @@ This directory adds read-only OpenAPI linting and explicit-baseline compatibilit
 
 ## Install and run
 
-Use Node.js 22.13+ within major 22, npm 10+ (tested with 10.9.9), the repository Go toolchain and yamllint. Run from the repository root:
+Use Node.js 22.13+ within major 22, npm 12.2.1, the repository Go toolchain and yamllint. Run from the repository root:
 
 ```sh
 make validation-tools-install
@@ -55,7 +55,7 @@ A breaking report calls for review; it does not independently determine the proj
 
 ## Rule and input boundaries
 
-Redocly 2.52.1 uses `spec` plus the reviewed rules in `redocly.yaml`: operations, parameters, references, examples, tags, summaries and security references. Unused components and cross-category component names are warnings. The rules do not require every response to list a concrete 4xx in addition to the shared default Problem response, require unconditional `If-Match` on conditionally revisioned commands, or reject the documented anonymous/conditional discovery security alternatives.
+Redocly 2.71.1 uses `spec` plus the reviewed rules in `redocly.yaml`: operations, parameters, references, examples, tags, summaries and security references. Unused components and cross-category component names are warnings. The rules do not require every response to list a concrete 4xx in addition to the shared default Problem response, require unconditional `If-Match` on conditionally revisioned commands, or reject the documented anonymous/conditional discovery security alternatives.
 
 Domain-specific API conventions remain in Go tests.
 

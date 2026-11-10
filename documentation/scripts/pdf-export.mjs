@@ -12,7 +12,7 @@ import { pageInventory, chapter, printChapter, styleInputs, assemble } from './p
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
 export const browserDirectory = path.join(root, '.tools/documentation-pdf');
 export const defaults = {timeoutMs: 900000, renderTimeoutMs: 600000};
-const browserVersion = '1.64.0';
+const browserVersion = '1.64.1';
 const mime = {'.css':'text/css', '.svg':'image/svg+xml', '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.webp':'image/webp', '.woff':'font/woff', '.woff2':'font/woff2', '.ttf':'font/ttf', '.otf':'font/otf'};
 
 export function readBuild(directory, lockBytes) {

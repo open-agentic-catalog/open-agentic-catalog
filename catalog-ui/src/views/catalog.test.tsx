@@ -977,13 +977,13 @@ it("submits draft criteria, resets cursors and removes each applied filter", asy
   for (const name of [
     "Remove tag tools",
     "Remove tag new",
-    "Remove license filter",
+    "Remove license: Apache-2.0",
     "Remove category tools",
     "Remove category finance",
-    "Remove publisher filter",
-    "Remove visibility filter",
+    "Remove publisher: publisher-1",
+    "Remove visibility filter: private",
     "Remove kind Skill",
-    "Remove search text",
+    "Remove search text draft",
     "Remove origin Local Catalog",
     "Remove origin Indexed external",
   ]) {
@@ -1006,7 +1006,7 @@ it("submits draft criteria, resets cursors and removes each applied filter", asy
   const beforeAnyVisibility = post.mock.calls.length;
   await activate(
     controls.visibility.getByRole("button", {
-      name: "Visibility: Any visibility",
+      name: "Visibility: All",
     }),
   );
   await waitFor(() =>
@@ -1017,7 +1017,7 @@ it("submits draft criteria, resets cursors and removes each applied filter", asy
   ).not.toHaveProperty("visibility");
   expect(
     controls.visibility
-      .getByRole("button", { name: "Visibility: Any visibility" })
+      .getByRole("button", { name: "Visibility: All" })
       .getAttribute("aria-pressed"),
   ).toBe("true");
   await activate(
@@ -2307,7 +2307,7 @@ it("selects local namespace from a card and resets continuation", async () => {
     namespaceId: "listing-namespace",
     origins: ["local"],
   });
-  click("Remove local namespace listing-namespace");
+  click("Remove local Namespace: Catalog demo");
   await waitFor(() => expect(post).toHaveBeenCalledTimes(4));
   expect(
     (post.mock.calls.at(-1)?.[1] as { body: unknown }).body,

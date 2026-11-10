@@ -23,7 +23,7 @@ def coverage():
 
 
 def evidence():
-    return dict(tool="schemathesis-4.30.1", operations=list(generated.OPERATIONS), controls=list(generated.OPERATIONS),
+    return dict(tool="schemathesis-4.32.5", operations=list(generated.OPERATIONS), controls=list(generated.OPERATIONS),
                 tests=len(generated.CASES) + 2, setup=dict(generated.SETUP), sequences={"completed": 20, "steps": dict.fromkeys(generated.KINDS, 20)}, calibrations=len(generated.CALIBRATIONS), requests=800, counts=dict.fromkeys(generated.CASES, generated.EXAMPLES), seed=1, lockDigest="a" * 64, omittedOperations=sorted(set(AUTHORITY) - set(generated.OPERATIONS)))
 
 
@@ -117,13 +117,13 @@ class GeneratedTests(unittest.TestCase):
                     created_events({**value, section: []}, operation, "target", "tenant", "request")
 
     def test_tool_lock_requires_hashes_exact_pins_and_unique_packages(self):
-        valid = "schemathesis==4.30.1 --hash=sha256:" + "a" * 64 + "\n"
-        for raw in ("", "# no packages\n", "schemathesis==4.30.1\n", valid + valid,
-                    valid.replace("4.30.1", "4.27.0"), valid + "requests>=2\n"):
+        valid = "schemathesis==4.32.5 --hash=sha256:" + "a" * 64 + "\n"
+        for raw in ("", "# no packages\n", "schemathesis==4.32.5\n", valid + valid,
+                    valid.replace("4.32.5", "4.27.0"), valid + "requests>=2\n"):
             with self.subTest(raw=raw), mock.patch.object(Path, "read_text", return_value=raw), self.assertRaises(runner.Failure):
                 generated.pins()
         with mock.patch.object(Path, "read_text", return_value="# pinned\n" + valid):
-            self.assertEqual(generated.pins(), {"schemathesis": "4.30.1"})
+            self.assertEqual(generated.pins(), {"schemathesis": "4.32.5"})
 
     def test_native_report_requires_exact_complete_selection(self):
         valid = '<testsuites><testsuite><testcase name="control"/><testcase name="negative"/></testsuite></testsuites>'

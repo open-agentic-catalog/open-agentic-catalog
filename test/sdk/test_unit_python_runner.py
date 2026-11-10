@@ -70,7 +70,7 @@ class PythonRunnerUnits(unittest.TestCase):
     def test_all_declared_runtime_identities_dependencies_and_wheels_are_required(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            versions = ["3.12.15", "3.13.16", "3.14.8"]
+            versions = ["3.12.16", "3.13.17", "3.14.9"]
             (root / "python-runtimes.json").write_text(json.dumps(versions))
             runtimes = {}
             for version in versions:
@@ -138,7 +138,7 @@ class PythonRunnerUnits(unittest.TestCase):
 
     def test_install_rejects_unpinned_uv_before_mutation(self):
         with patch.object(runner, "run", return_value="uv 0.9.18"), patch.object(runner, "identity") as identity:
-            with self.assertRaisesRegex(RuntimeError, "0.13.4"):
+            with self.assertRaisesRegex(RuntimeError, "0.13.6"):
                 runner.install()
             identity.assert_not_called()
 

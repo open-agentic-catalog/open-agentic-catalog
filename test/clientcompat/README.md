@@ -12,13 +12,13 @@ make client-go-check
 make client-go-generate
 ```
 
-Installation explicitly downloads the locked generator and consumer dependencies and builds the generator under ignored `.tools/`. Repeat it after either module's locks or the root module locks change, or after removing the Go module cache/toolchain. The generator pins oapi-codegen v2.8.0. The consumer pins runtime v1.7.0. Each module owns its dependency graph.
+Installation explicitly downloads the locked generator and consumer dependencies and builds the generator under ignored `.tools/`. Repeat it after either module's locks or the root module locks change, or after removing the Go module cache/toolchain. The generator pins oapi-codegen v2.8.1. The consumer pins runtime v1.8.0. Each module owns its dependency graph.
 
 Keep `go-yit` compatible with `yaml-jsonpath`'s `gopkg.in/yaml.v3.Node` types. Later upstream commits use different YAML package paths and cannot replace that dependency without a compatible parent update.
 
 Both modules use local, read-only resolution during checks; no deployment environment file is loaded, no target publishes anything, and these goals cannot be combined with other Make workflows.
 
-The generator's transitive dependencies are explicitly patched to kin-openapi v0.149.0 and `golang.org/x/mod` v0.42.0, with the latter selecting `golang.org/x/tools` v0.51.0. These pins address the repository security gate's advisories without changing generated output or the service dependency graph. Retain the patched minimums when refreshing the generator lock; rerun `make security` as well as client compatibility checks.
+The generator's transitive dependencies are explicitly patched to kin-openapi v0.152.0 and `golang.org/x/mod` v0.42.0, with the latter selecting `golang.org/x/tools` v0.52.0. These pins address the repository security gate's advisories without changing generated output or the service dependency graph. Retain the patched minimums when refreshing the generator lock; rerun `make security` as well as client compatibility checks.
 
 Tools and tests run natively on the host: inherited `GOOS`, `GOARCH` and `CGO_ENABLED` cross-build settings are ignored. Checks also prevent `GOPRIVATE`/`GONOPROXY` from bypassing the disabled module proxy with a direct Git download. A malformed installation stamp fails with reinstall instructions, not an internal traceback.
 

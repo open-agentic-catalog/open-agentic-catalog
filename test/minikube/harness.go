@@ -343,8 +343,8 @@ func (h *harness) preflight() error {
 	}
 	helmVersion := strings.TrimSpace(string(helmRaw))
 	parsedHelm, err := parseVersion(helmVersion)
-	if err != nil || parsedHelm.major != 3 || parsedHelm.minor < 15 {
-		return fmt.Errorf("helm 3.15 or newer is required, got %s", helmVersion)
+	if err != nil || !supportedHelmVersion(parsedHelm) {
+		return fmt.Errorf("helm 3.15+ or Helm 4 is required, got %s", helmVersion)
 	}
 	h.report.HelmVersion = helmVersion
 

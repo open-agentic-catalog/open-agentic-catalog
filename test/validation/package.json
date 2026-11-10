@@ -7,18 +7,18 @@
   "engines": {
     "node": ">=22.13.0 <23"
   },
-  "packageManager": "npm@10.9.9",
+  "packageManager": "npm@12.2.1",
   "scripts": {
     "lint": "node node_modules/eslint/bin/eslint.js --config eslint.config.mjs --no-config-lookup --no-inline-config --no-cache --no-fix --max-warnings 0 \"**/*.mjs\"",
     "test:unit": "node --test *.unit.test.mjs"
   },
   "dependencies": {
-    "@redocly/cli": "2.62.1",
+    "@redocly/cli": "2.71.1",
     "yaml": "2.9.1"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
-    "eslint": "10.12.0",
+    "eslint": "10.13.0",
     "globals": "17.13.0"
   }
 }

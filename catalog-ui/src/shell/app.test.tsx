@@ -140,7 +140,7 @@ afterEach(() => {
 });
 
 function openAccount() {
-  const trigger = screen.getByLabelText("Account");
+  const trigger = screen.getByTitle("Account");
   if (!trigger.closest("details")!.open) fireEvent.click(trigger);
 }
 
@@ -339,7 +339,7 @@ describe("shell authentication", () => {
     expect(
       screen.getByRole("heading", { name: "Catalog content" }),
     ).toBeTruthy();
-    expect(screen.getByLabelText("Account")).toBeTruthy();
+    expect(screen.getByTitle("Account")).toBeTruthy();
     expect(invalidate).not.toHaveBeenCalled();
     expect(auth.mock.calls.map(([path]) => path).sort()).toEqual([
       "options",
@@ -367,8 +367,8 @@ describe("shell authentication", () => {
     expect(screen.getByRole("status").textContent).toBe(
       "Loading your workspace...",
     );
-    await screen.findByRole("button", {
-      name: "Reader login",
+    const login = await screen.findByRole("button", {
+      name: "Reader login Read local resources",
     });
     expect(screen.getByText("Read local resources")).toBeTruthy();
     const artwork = view.container.querySelector(
@@ -382,7 +382,7 @@ describe("shell authentication", () => {
     auth.mockImplementation(async (path: string, ...args: unknown[]) =>
       path === "session" ? signedIn() : initial(path, ...args),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Reader login" }));
+    fireEvent.click(login);
     await screen.findByRole("heading", { name: "Catalog content" });
     expect(auth).toHaveBeenCalledWith("login", "POST", { alias: "reader" });
     // A separate BroadcastChannel in this same tab also receives the sign-in
@@ -1197,7 +1197,7 @@ it("discards an already-decoded old refresh after cross-tab invalidation", async
 
 it("keeps personal links in Account, dismisses without stealing focus and opens only one header panel", async () => {
   await mountAuthenticated();
-  const trigger = screen.getByLabelText("Account");
+  const trigger = screen.getByTitle("Account");
   const details = trigger.closest("details")!;
   const appearance = screen.getByLabelText("Appearance");
   const preferences = appearance.closest("details")!;
@@ -1242,7 +1242,7 @@ it("keeps personal links in Account, dismisses without stealing focus and opens 
 it("clears an open Account on refreshed identity and removes it on session loss", async () => {
   await mountAuthenticated();
   openAccount();
-  const details = screen.getByLabelText("Account").closest("details")!;
+  const details = screen.getByTitle("Account").closest("details")!;
   auth.mockResolvedValueOnce({
     ...signedIn(),
     access: { ...reader, subject: "replacement subject" },
@@ -1295,7 +1295,7 @@ it("fences delayed startup options across logout and explicitly reloads current 
   });
   render(<App runtime={runtime} />);
   await screen.findByRole("heading", { name: "Catalog content" });
-  const out = screen.getByLabelText("Account");
+  const out = screen.getByTitle("Account");
   out.focus();
   signOut();
   expect(screen.getByText("Signing out...")).toBeTruthy();

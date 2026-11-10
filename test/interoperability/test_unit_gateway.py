@@ -18,6 +18,18 @@ from gateway import native
 
 
 class Acquisition(unittest.TestCase):
+    def test_auth_overlay_requires_the_exact_registry_dependency_closure(self):
+        reference = "example.invalid/registry@sha256:" + "a" * 64
+        tools.validate_auth_base(reference, "# Native auth overlay\nFROM " + reference + "\nUSER 1000\n")
+        for source in (
+            "FROM example.invalid/registry@sha256:" + "b" * 64,
+            "FROM example.invalid/registry:latest",
+            "# no base image",
+            "FROM " + reference + "\nFROM another-image",
+        ):
+            with self.subTest(source=source), self.assertRaisesRegex(ValueError, "auth base must match"):
+                tools.validate_auth_base(reference, source)
+
     def test_platform_refusal_precedes_docker_and_network(self):
         with (
             patch.object(tools.platform, "system", return_value="Windows"),
@@ -28,6 +40,23 @@ class Acquisition(unittest.TestCase):
                 tools.install()
             daemon.assert_not_called()
             command.assert_not_called()
+
+    def test_incoherent_auth_base_refuses_installation_before_acquisition(self):
+        with tempfile.TemporaryDirectory() as directory:
+            assets = Path(directory)
+            (assets / "lock.json").write_text(json.dumps({"images": {"registry": "registry@sha256:" + "a" * 64}}))
+            (assets / "Containerfile.auth").write_text("FROM registry@sha256:" + "b" * 64)
+            with (
+                patch.object(tools, "ASSETS", assets),
+                patch.object(tools, "TOOLS", assets / "tools"),
+                patch.object(tools.platform, "system", return_value="Linux"),
+                patch.object(tools.platform, "machine", return_value="x86_64"),
+                patch.object(tools.shared, "local_daemon"),
+                patch.object(tools, "command") as command,
+            ):
+                with self.assertRaisesRegex(ValueError, "auth base must match"):
+                    tools.install()
+                command.assert_not_called()
 
     def test_environment_excludes_cluster_selectors_proxies_and_credentials(self):
         with patch.dict(

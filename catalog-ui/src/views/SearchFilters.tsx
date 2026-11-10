@@ -264,7 +264,6 @@ export default function SearchFilters({
           type="button"
           className={`filter-trigger ${count ? "is-active" : ""}`}
           ref={trigger}
-          aria-label="Filters"
           aria-describedby={descriptionID}
           aria-expanded={open}
           aria-controls={open ? "search-filters" : undefined}
@@ -272,7 +271,12 @@ export default function SearchFilters({
           onClick={(event) => show(event.currentTarget)}
         >
           <Icon name="filters" size={18} /> Filters{" "}
-          {count > 0 && <span className="filter-count">{count}</span>}
+          {/* The full count is announced through aria-describedby below. */}
+          {count > 0 && (
+            <span className="filter-count" aria-hidden="true">
+              {count}
+            </span>
+          )}
         </button>
         {onRefresh && (
           <button

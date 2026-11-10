@@ -435,7 +435,10 @@ test("search pages contain disjoint real releases and submitting filters resets 
     .click();
   await expect(cards).toHaveCount(24);
   await expect(
-    page.getByRole("button", { name: "Remove license filter", exact: true }),
+    page.getByRole("button", {
+      name: "Remove license: Apache-2.0",
+      exact: true,
+    }),
   ).toBeVisible();
   expect(new URL(page.url()).search).toBe("");
 });

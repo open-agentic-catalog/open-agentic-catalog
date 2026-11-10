@@ -227,7 +227,7 @@ class GitVersionTests(unittest.TestCase):
         self.assertFalse((self.root / ".venv").exists())
         self.assertEqual((self.root / "uv.lock").read_bytes(), before)
         manifest = self.root / "pyproject.toml"
-        manifest.write_text(manifest.read_text().replace("ruff==0.17.0", "ruff==0.16.6"))
+        manifest.write_text(manifest.read_text().replace("ruff==0.17.3", "ruff==0.16.6"))
         with patch.object(v, "check"), self.assertRaises(ValueError):
             v.install(self.root, uv, shutil.which("python3"))
         self.assertEqual((self.root / "uv.lock").read_bytes(), before)

@@ -167,7 +167,7 @@ The basic `test-minikube` scenario invokes the compiled coordinator for a failed
 
 Native Compose launcher tests check build and configuration validation before drain, then bounded healthy startup. Packaged profiles check real API, worker and database behavior. See the [deployment tool](../../../../../test/deployment/README.md) and [maintenance procedure](../operations/maintenance.mdx#coordinated-release-deployment).
 
-Compose tests the image/process contract without Kubernetes; Minikube tests the chart through standard Kubernetes behavior. Their owned clusters, fixed test database/identity, CNI, subnets, DNS and resource budgets are reproducibility inputs, not production prerequisites. Both charts support Kubernetes 1.34+. The schema gate checks 1.34.0 and the maintained runtime fixture uses 1.35.9. Linux AMD64 and ARM64 image builds and static inspection complement the functional tests without an engine or architecture certification matrix.
+Compose tests the image/process contract without Kubernetes; Minikube tests the chart through standard Kubernetes behavior. Their owned clusters, fixed test database/identity, CNI, subnets, DNS and resource budgets are reproducibility inputs, not production prerequisites. Both charts support Kubernetes 1.34+. The schema gate checks 1.34.0 and the maintained runtime fixture uses 1.37.1. Linux AMD64 and ARM64 image builds and static inspection complement the functional tests without an engine or architecture certification matrix.
 
 Retain fixture isolation and cleanup safeguards without requiring production cluster ownership. Validate namespace/release scoping and standard chart contracts with existing render tests and a focused owned fixture only if a concrete shared-cluster compatibility gap is found. Never adapt the destructive local launcher to discover or reset shared infrastructure.
 
@@ -350,7 +350,7 @@ The [packaging harness](../../../../../test/packaging/README.md) owns isolated p
 
 ## UI dead-code analysis
 
-Install the locked frontend tools with `make ui-install`, then run `make ui-dead-code-report` to investigate or `make ui-dead-code-check` to enforce. Both invoke local [Knip](https://knip.dev/) 6.41.0 through Node, with one maintained `catalog-ui/knip.json` configuration. There is no global executable fallback, automatic download, fixer, application build, database or browser fixture. The check also runs once through `npm run check`, `make ui-check` and `make test-ui`. Backend `check`/`verify` and isolated unit targets remain independent of it.
+Install the locked frontend tools with `make ui-install`, then run `make ui-dead-code-report` to investigate or `make ui-dead-code-check` to enforce. Both invoke local [Knip](https://knip.dev/) 6.43.0 through Node, with one maintained `catalog-ui/knip.json` configuration. There is no global executable fallback, automatic download, fixer, application build, database or browser fixture. The check also runs once through `npm run check`, `make ui-check` and `make test-ui`. Backend `check`/`verify` and isolated unit targets remain independent of it.
 
 Each command analyzes two scopes: the full application/test/tooling graph and the shipped browser graph without tests or developer launchers. A module imported only by a test can pass the full scan and fail production analysis. The full selection includes visual browser specs, Node tests, Vitest setup and scripts invoked by Make or the UI Containerfile.
 
@@ -380,7 +380,7 @@ Isolated units use controlled transports and local files. Memory-backed function
 
 The Python unit gate includes isolated version, pin and environment-policy checks. Broad local tooling tests use disposable Git repositories. They check paths with spaces, shallow/tagged/dirty/Git-less inputs, Make overrides and actual pinned version bumps.
 
-Install bump tooling with `make dev-tools-install`. For locked-installer qualification, set `CATALOG_TEST_UV=/path/to/uv-0.13.4` when selecting `test/packaging/test_functional_versioning.py`. For complete development-lock scanning and a known vulnerable metadata-only control, set `CATALOG_TEST_TRIVY=/path/to/trivy-0.76.1`.
+Install bump tooling with `make dev-tools-install`. For locked-installer qualification, set `CATALOG_TEST_UV=/path/to/uv-0.13.6` when selecting `test/packaging/test_functional_versioning.py`. For complete development-lock scanning and a known vulnerable metadata-only control, set `CATALOG_TEST_TRIVY=/path/to/trivy-0.76.1`.
 
 Run these actual-tool selections with `go test -tags=functional -race -count=1 ./test/packaging`. `-count=1` prevents cached subprocess tests from hiding changed Python inputs. A skipped qualification is not a pass. Tests create no tag in the application repository. Cleanup fixtures remove only the owned shared environment and preserve `VERSION`, `pyproject.toml`, `uv.lock`, personal environments and retained data.
 
@@ -390,7 +390,7 @@ The security target separately scans every root uv.lock package plus the pinned 
 
 ## Python linting
 
-`make python-lint` runs read-only [Ruff](https://docs.astral.sh/ruff/) 0.17.0 checks on maintained Python under `test/`, `extensions/vscode/tooling/`, `examples/langgraph/`, `examples/tutorials/local-oidc/` and `examples/mcp-scanner/`. It is included in `make check`, not `make verify`, Go builds or the default test suite. Install the shared pinned dev group with `make dev-tools-install`. The [build guide](build-and-release.md#shared-development-tools) documents uv 0.13.4 bootstrap, supported installed Python and exact environment/lock boundaries. Make prefers the owned `.tools/dev` executables automatically:
+`make python-lint` runs read-only [Ruff](https://docs.astral.sh/ruff/) 0.17.3 checks on maintained Python under `test/`, `extensions/vscode/tooling/`, `examples/langgraph/`, `examples/tutorials/local-oidc/` and `examples/mcp-scanner/`. It is included in `make check`, not `make verify`, Go builds or the default test suite. Install the shared pinned dev group with `make dev-tools-install`. The [build guide](build-and-release.md#shared-development-tools) documents uv 0.13.6 bootstrap, supported installed Python and exact environment/lock boundaries. Make prefers the owned `.tools/dev` executables automatically:
 
 ```sh
 make dev-tools-install
@@ -428,7 +428,7 @@ npm --prefix documentation run lint
 npm --prefix test/validation run lint
 ```
 
-Each project owns exact ESLint 10.12.0, `@eslint/js` 10.0.1 and globals 17.13.0 development pins and an independent lockfile. Both commands check maintained `.mjs` files, including configuration, tests and new files, using recommended correctness rules and Node ES-module globals. Undefined names, unused bindings and syntax errors fail.
+Each project owns exact ESLint 10.13.0, `@eslint/js` 10.0.1 and globals 17.13.0 development pins and an independent lockfile. Both commands check maintained `.mjs` files, including configuration, tests and new files, using recommended correctness rules and Node ES-module globals. Undefined names, unused bindings and syntax errors fail.
 
 Dependencies, generated output and tool artifacts are excluded. These commands do not format, write caches, permit inline rule overrides or install anything. Missing local tools fail.
 
@@ -555,7 +555,7 @@ Reference-implementation compatibility evidence is static and local. The maintai
 
 ## Generated API testing
 
-Run `make schemathesis-tools-install`, then `make test-api-generated`, each alone. The isolated, hash-locked [Schemathesis](https://schemathesis.readthedocs.io/en/stable/) 4.30.1 tool uses the unchanged Control OpenAPI against the owned PostgreSQL/API/worker Compose fixture and smoke seed. It requires Python 3.12 on Linux amd64 plus the [packaged-functional prerequisites](#full-stack-functional-environment). Execution checks installed versions without acquiring Python dependencies. Ordinary units and runtime images remain independent.
+Run `make schemathesis-tools-install`, then `make test-api-generated`, each alone. The isolated, hash-locked [Schemathesis](https://schemathesis.readthedocs.io/en/stable/) 4.32.5 tool uses the unchanged Control OpenAPI against the owned PostgreSQL/API/worker Compose fixture and smoke seed. It requires Python 3.12 on Linux amd64 plus the [packaged-functional prerequisites](#full-stack-functional-environment). Execution checks installed versions without acquiring Python dependencies. Ordinary units and runtime images remain independent.
 
 The pilot first checks eight operations: namespace list/create/get/update, Catalog Search/Browse, Resource List and Version List. It generates 20 positive and 20 negative examples for each of seven operations with variable body or query inputs. Namespace GET uses a known-ID control without generated input. Resource List checks exact seeded identities, kind filters and descending update-time/ID order; Version List binds a real parent and checks ascending immutable IDs independently of labels.
 
@@ -620,7 +620,7 @@ Run `make test-interoperability-pi-ard` separately for the full local client cam
 
 ## Local A2A interoperability control
 
-Run `make a2a-tools-install`, then `make test-interoperability-a2a`, each alone. This explicit functional qualification uses official Python A2A SDK 1.2.2 with the unchanged upstream Hello World executor, a single-interface HTTPS deployment card and an actual SDK client. It needs a local Linux Docker engine, a non-root developer, Python 3.10+, Make, OpenSSL, the repository Go toolchain and cached modules; `gh` is needed for installation. Installation downloads hash-locked test tools. Execution builds current Catalog commands offline, uses an owned in-memory Catalog and Docker loopback, ignores deployment environment files and needs no prebuilt binaries, database or model.
+Run `make a2a-tools-install`, then `make test-interoperability-a2a`, each alone. This explicit functional qualification uses official Python A2A SDK 1.2.3 with the unchanged upstream Hello World executor, a single-interface HTTPS deployment card and an actual SDK client. It needs a local Linux Docker engine, a non-root developer, Python 3.10+, Make, OpenSSL, the repository Go toolchain and cached modules; `gh` is needed for installation. Installation downloads hash-locked test tools. Execution builds current Catalog commands offline, uses an owned in-memory Catalog and Docker loopback, ignores deployment environment files and needs no prebuilt binaries, database or model.
 
 Five direct-control outcomes cover the emitted card, completed task and exact request-derived artifact. They also cover four preconnection selection refusals and the exact three-request wire inventory. Task readback must retain only the newest of two history messages and preserve all other fields. The client explicitly selects `JSONRPC` 1.0, disables streaming/polling and supplies the retained protobuf Card to the SDK. Strict private-CA verification remains enabled.
 
@@ -863,7 +863,7 @@ The [compatibility harness](../../../../../test/clientcompat/README.md) owns set
 The [SDK overview](../../../../../sdk/README.md) links to the Go, Python, JavaScript/TypeScript and Rust consumer guides. The independent harness in `test/sdk/` owns package generation and qualification. Install its prerequisites, then run each command separately:
 
 ```sh
-make sdk-tools-install UV=/path/to/uv-0.13.4
+make sdk-tools-install UV=/path/to/uv-0.13.6
 make sdk-check
 make sdk-package
 ```
@@ -910,10 +910,10 @@ Launcher units run through `make test-tooling-unit`; actual Make/process tests r
 
 ## Python SDK verification
 
-The [Python SDK](../../../../../sdk/python/README.md) has independent runtime requirements and locked maintainer tools. Root application tests do not execute its tests. Install uv 0.13.4 explicitly, then run each target alone:
+The [Python SDK](../../../../../sdk/python/README.md) has independent runtime requirements and locked maintainer tools. Root application tests do not execute its tests. Install uv 0.13.6 explicitly, then run each target alone:
 
 ```sh
-make sdk-tools-install SDK_LANGUAGE=python UV=/path/to/uv-0.13.4
+make sdk-tools-install SDK_LANGUAGE=python UV=/path/to/uv-0.13.6
 make sdk-check SDK_LANGUAGE=python
 ```
 
@@ -956,7 +956,7 @@ make sdk-tools-install SDK_LANGUAGE=typescript
 make sdk-check SDK_LANGUAGE=typescript
 ```
 
-The explicit SDK installer acquires pinned Node 24.22.1/npm 11.19.1 without changing your default Node. It also acquires Node 22.23.4 and 24.20.0. Existing unit, HTTP/TLS and installed-package workflows run under each runtime. Maintainers need OpenSSL and the repository Go toolchain. Installation also acquires the SDK's Chromium fixture. Use `make sdk-generate SDK_LANGUAGE=typescript` for intentional contract updates. Checks regenerate twice, compare the full OpenAPI declaration graph and use installed packages offline. Strict TypeScript, ESLint and Prettier checks cover maintained source and helpers.
+The explicit SDK installer acquires pinned Node 24.22.1/npm 12.2.1 without changing your default Node. It also acquires Node 22.23.4 and 24.20.0. Existing unit, HTTP/TLS and installed-package workflows run under each runtime. Maintainers need OpenSSL and the repository Go toolchain. Installation also acquires the SDK's Chromium fixture. Use `make sdk-generate SDK_LANGUAGE=typescript` for intentional contract updates. Checks regenerate twice, compare the full OpenAPI declaration graph and use installed packages offline. Strict TypeScript, ESLint and Prettier checks cover maintained source and helpers.
 
 Injected Fetch units run without listeners, subprocesses or databases. They check credentials, limits, raw bytes, provider time, cancellation, safe failures, metadata and explicit one-page behavior. Invalid provider values fail before transmission; subsequent valid calls still work. Both success and error statuses have malformed/null/empty JSON controls. Error decoding stays strict under every `parseAs` mode.
 
@@ -972,7 +972,7 @@ Node reports handwritten compiled JavaScript line, branch and function coverage 
 
 ## Rust SDK verification
 
-The independent [Rust SDK](../../../../../sdk/rust/README.md) uses a Tokio/reqwest client and checked-in OpenAPI bindings. Its generated bindings include reusable draft export. Cargo-deny is a separate audit tool and is not a prerequisite for generation, builds, tests or packaging. See [Rust dependencies](../reference/dependencies.md#rust-sdk-dependencies) for the selected tools and policy. Consumers need Rust 1.88+; maintainer qualification uses pinned Rust 1.88.0 and 1.99.0 on Linux AMD64.
+The independent [Rust SDK](../../../../../sdk/rust/README.md) uses a Tokio/reqwest client and checked-in OpenAPI bindings. Its generated bindings include reusable draft export. Cargo-deny is a separate audit tool and is not a prerequisite for generation, builds, tests or packaging. See [Rust dependencies](../reference/dependencies.md#rust-sdk-dependencies) for the selected tools and policy. Consumers need Rust 1.88+; maintainer qualification uses pinned Rust 1.88.0 and 1.99.1 on Linux AMD64.
 
 ```sh
 make sdk-tools-install SDK_LANGUAGE=rust
@@ -998,7 +998,7 @@ Native LLVM measures handwritten source lines for units and, separately, units p
 
 The [LangGraph example](../../../../../examples/langgraph/README.md) uses the maintained Python SDK for two read-only tools: Search local releases and inspect a selected exact release. Its framework packages live in a separate optional environment. They are not Python SDK requirements or Catalog image inputs.
 
-Install prerequisites explicitly with `make langgraph-tools-install UV=/path/to/uv-0.13.4`. Use installed Python 3.12-3.14 and the repository Go toolchain. Installation synchronizes `examples/langgraph/uv.lock`, checks the installed license inventory and records the compiler used by the HTTP fixture. It does not acquire a model or start services. Run each target separately:
+Install prerequisites explicitly with `make langgraph-tools-install UV=/path/to/uv-0.13.6`. Use installed Python 3.12-3.14 and the repository Go toolchain. Installation synchronizes `examples/langgraph/uv.lock`, checks the installed license inventory and records the compiler used by the HTTP fixture. It does not acquire a model or start services. Run each target separately:
 
 | Target | Execution boundary |
 | --- | --- |
@@ -1194,7 +1194,7 @@ Retries, traces, videos and saved sessions are disabled. Assertions wait for obs
 
 ### Visual comparison environment
 
-The reference environment is Linux AMD64 on Ubuntu 24.04.3, Node 22.23.4, Playwright 1.64.0 and its Chromium headless shell 156.0.8078.4 (revision 1248). The browser resolves the system sans-serif text to Arimo from `fonts-croscore` 20201225-2 in this environment. Use matching browser, OS/font inputs and device scale 1 for comparable pixels. The application itself does not require this OS or font. No external fonts are downloaded by the tests. Browser/toolchain updates require renewed image review, not automatic replacement of expected results.
+The reference environment is Linux AMD64 on Ubuntu 24.04.3, Node 22.23.4, Playwright 1.64.1 and its Chromium headless shell 156.0.8078.4 (revision 1248). The browser resolves the system sans-serif text to Arimo from `fonts-croscore` 20201225-2 in this environment. Use matching browser, OS/font inputs and device scale 1 for comparable pixels. The application itself does not require this OS or font. No external fonts are downloaded by the tests. Browser/toolchain updates require renewed image review, not automatic replacement of expected results.
 
 Visual comparisons cover Catalog results, Account, filters, Namespaces, Roles and authoring dialogs. They also cover resource assessments, consumer handoff, Reviews and the API reference. Reference images also cover Explore, Jobs, Settings, About and Getting started. The [baseline inventory](../../../../../catalog-ui/tests/browser/snapshots/README.md) lists each image and its view.
 
@@ -2500,7 +2500,7 @@ The runtime selection uses the same prerequisite, source and artifact checks as 
 
 Extension report admission checks executed file selection, skips/todos and the declared core source inventory. Actual editor checks include scoped asynchronous renderer-error observation, real artwork and conversation actions, and remote Skill installation/removal. See the [additional controls and limits](../../../../../test/vscode/README.md#additional-assertion-and-native-controls).
 
-The [inspection and local-tool map](../../../../../test/vscode/README.md#inspection-references-and-local-tools) covers exact references, large native document collections, sixteen-tab accounting, source/VSIX Help, per-request consumer replay consent and real MCP preparation cancellation. It also distinguishes private-filesystem units from actual editor removal/recovery, a valid concurrent store writer and read-only inventory comparison. The native progress token is cancellable; VS Code 1.141.0's provider token is not. Keep that limit distinct from native ownership of running processes.
+The [inspection and local-tool map](../../../../../test/vscode/README.md#inspection-references-and-local-tools) covers exact references, large native document collections, sixteen-tab accounting, source/VSIX Help, per-request consumer replay consent and real MCP preparation cancellation. It also distinguishes private-filesystem units from actual editor removal/recovery, a valid concurrent store writer and read-only inventory comparison. The native progress token is cancellable; VS Code 1.143.1's provider token is not. Keep that limit distinct from native ownership of running processes.
 
 ### Put tests at the correct boundary
 

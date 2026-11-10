@@ -165,7 +165,7 @@ export async function publisherVerificationJourney({
     });
     await page.goto(origin + "/catalog");
     await page.locator('[data-login-alias="local-admin"]').click();
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
     await page.goto(origin + `/publishers/${created.data.id}`);
     const panel = page.getByRole("region", {
       name: "Publisher DNS verification",

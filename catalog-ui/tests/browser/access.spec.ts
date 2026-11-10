@@ -512,7 +512,7 @@ test("membership suspension denies the next browser request and clears private s
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.locator("article.resource-card")).toHaveCount(0);
   await expect(page.locator('[data-login-alias="local-reader"]')).toBeVisible();
-  await expect(page.getByLabel("Account", { exact: true })).toHaveCount(0);
+  await expect(page.getByTitle("Account", { exact: true })).toHaveCount(0);
 });
 
 test("revoking the only Reader grant clears resources and reloading refreshes access without signing out", async ({
@@ -548,7 +548,7 @@ test("revoking the only Reader grant clears resources and reloading refreshes ac
   // Collection reads now succeed with an empty authorized population. Refresh
   // the existing session explicitly to reconcile its legacy navigation hints.
   await page.reload();
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   await expect(
     page
       .getByRole("navigation", { name: "Workspace", exact: true })
@@ -605,7 +605,7 @@ test("sign-out cancels an old identity's pending search before another tenant si
     release();
     await page.unrouteAll({ behavior: "wait" });
     await expect(page.locator("article.resource-card")).toHaveCount(0);
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   } finally {
     release();
   }
@@ -854,7 +854,7 @@ test("revoking a prepared command's sole namespace grant denies the write and re
   await expect(
     page.getByRole("button", { name: "Create resource", exact: true }),
   ).toBeDisabled();
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   const after = await catalog.admin<{ items: { id: string }[] }>(
     "GET",
     "/api/v1/resources?limit=100",

@@ -5,17 +5,17 @@
     "dist.integrity": "sha512-5U3OZh8Xq0Li4nA26l6uNvV9/1suMDuWSn+NjLZIhzinhMY6N3A4DCrxVecBGPf2PsNFKTEv5krxGPRwzxc7jQ==",
     "dist.tarball": "https://registry.npmjs.org/@modelcontextprotocol/server-everything/-/server-everything-2026.8.31.tgz"
   },
-  "@modelcontextprotocol/sdk@1.32.1": {
-    "version": "1.32.1",
-    "gitHead": "ff07b001194fe60ee9deb2121cf119057565796d",
-    "dist.integrity": "sha512-2DdE+SJDtzLEEWzY1ZjY7Q+VcPhcV1KisD3zI4u0XZyktsjHum1mwbMI+JaulUBi2OZk+KJAi2uPXzxichPkdw==",
-    "dist.tarball": "https://registry.npmjs.org/@modelcontextprotocol/sdk/-/sdk-1.32.1.tgz"
+  "@modelcontextprotocol/sdk@1.32.2": {
+    "version": "1.32.2",
+    "gitHead": "3b73021a0a2272c0c04c3917bcdb03398b3ec63f",
+    "dist.integrity": "sha512-SWsVtH/0vULSQStoZ6xxH2K09Li8fXYTMC64ZeogCdpZ3XSi1eCPOByV1OpuJxuI3OcmHhosDWYyii07tpPsLw==",
+    "dist.tarball": "https://registry.npmjs.org/@modelcontextprotocol/sdk/-/sdk-1.32.2.tgz"
   },
-  "@modelcontextprotocol/inspector@2.11.0": {
-    "version": "2.11.0",
+  "@modelcontextprotocol/inspector@2.12.0": {
+    "version": "2.12.0",
     "gitHead": null,
-    "dist.integrity": "sha512-gqMw2x0NCotTdjLNv3PSm/IJSeXL7O8u0SpyZXtXGhSukJ2DMoAy8RR7xKngHTCETJcG5gyPdxhOn8zf/ofSRA==",
-    "dist.tarball": "https://registry.npmjs.org/@modelcontextprotocol/inspector/-/inspector-2.11.0.tgz",
-    "sourceRevision": "074b8108f340590268f2900741403755e923a11c"
+    "dist.integrity": "sha512-ppfN5+HnVWo6dY7jz5RMFUFTfEYPnFUjN3XN2w6PI6nmB/AFFXPGPfLBRvCeSx+qIH6kpi7Nsz5HYRp49loHpA==",
+    "dist.tarball": "https://registry.npmjs.org/@modelcontextprotocol/inspector/-/inspector-2.12.0.tgz",
+    "sourceRevision": "0cac110a809e93753fa353810b9b4c91e89810fc"
   }
 }
