@@ -122,6 +122,7 @@ for (const base of ["root", "subpath"]) {
 test("Source administrators use Operations without Content reads", async ({
   page,
   catalog,
+  network,
 }) => {
   const reads: string[] = [];
   page.on("request", (request) => {
@@ -148,7 +149,97 @@ test("Source administrators use Operations without Content reads", async ({
     page.getByRole("region", { name: "External records", exact: true }),
   ).toHaveCount(0);
   await expect.poll(() => reads.length).toBe(2);
-  expect(reads.sort()).toEqual(["jobs", "sources"]);
+  expect([...reads].sort()).toEqual(["jobs", "sources"]);
+  let denied = true;
+  let sessions = 0;
+  let recoveryDenial = false;
+  let release = () => {};
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  for (const summary of ["sources", "jobs"]) {
+    network.expectFailure("GET", `/_catalog/api/v1/overview/${summary}`, 403);
+    await page.route(
+      `**/_catalog/api/v1/overview/${summary}`,
+      async (route) => {
+        if (!denied && !(summary === "jobs" && recoveryDenial))
+          return route.continue();
+        if (!denied) recoveryDenial = false;
+        await route.fulfill({
+          status: 403,
+          contentType: "application/problem+json",
+          json: {
+            type: "about:blank",
+            title: "Forbidden",
+            status: 403,
+            code: "FORBIDDEN",
+          },
+        });
+      },
+    );
+  }
+  network.expectFailure("GET", "/auth/session", 503);
+  await page.route("**/auth/session", async (route) => {
+    sessions++;
+    if (!denied) return route.continue();
+    await pending;
+    await route.fulfill({
+      status: 503,
+      contentType: "application/problem+json",
+      json: {
+        type: "about:blank",
+        title: "Temporarily unavailable",
+        status: 503,
+      },
+    });
+  });
+  const refresh = page.getByRole("button", { name: "Refresh", exact: true });
+  try {
+    await refresh.click();
+    await expect.poll(() => reads.length).toBe(4);
+    await expect.poll(() => sessions).toBe(1);
+    await expect(
+      page.getByText("Your current access does not permit this action.", {
+        exact: true,
+      }),
+    ).toHaveCount(2);
+    release();
+    await expect.poll(() => network.results()).toEqual([]);
+    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Resources", exact: true }),
+    ).toHaveCount(0);
+    expect(reads.length).toBe(4);
+    expect(sessions).toBe(1);
+    denied = false;
+    // One new refusal initiates a real current-access refresh; summaries then recover.
+    network.expectFailure("GET", "/_catalog/api/v1/overview/jobs", 403);
+    recoveryDenial = true;
+    await refresh.click();
+    await expect.poll(() => sessions).toBe(2);
+    await refresh.click();
+    await expect.poll(() => reads.length).toBe(8);
+    await expect(
+      page.getByRole("region", { name: "Federation sources", exact: true }),
+    ).not.toContainText("Your current access does not permit this action.");
+    await expect(
+      page.getByRole("region", { name: "Job queues", exact: true }),
+    ).not.toContainText("Your current access does not permit this action.");
+    await expect(
+      page
+        .getByRole("region", { name: "Federation sources", exact: true })
+        .getByText("No sources configured."),
+    ).toBeVisible();
+    await expect(
+      page
+        .getByRole("region", { name: "Job queues", exact: true })
+        .locator("dd"),
+    ).toHaveText(["0", "0"]);
+    expect(sessions).toBe(2);
+    expect(reads.length).toBe(8);
+  } finally {
+    release();
+  }
 });
 
 for (const base of ["root", "subpath"]) {

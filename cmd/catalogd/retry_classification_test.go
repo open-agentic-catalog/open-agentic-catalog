@@ -20,6 +20,7 @@ import (
 func TestDependencyClassificationThroughWrappers(t *testing.T) {
 	dependency := catalog.E(catalog.CodeDependencyUnavailable, "dependency unavailable")
 	terminal := errors.New("terminal invariant failure")
+	leaseConflict := catalog.E(catalog.CodeConflict, "outbox lease is not owned or has expired")
 	wrap := func(err error) error { return fmt.Errorf("cycle: %w", err) }
 	for _, test := range []struct {
 		name  string
@@ -28,6 +29,8 @@ func TestDependencyClassificationThroughWrappers(t *testing.T) {
 	}{
 		{"wrapped dependency", wrap(dependency), true},
 		{"wrapped terminal", wrap(terminal), false},
+		{"lease conflict", leaseConflict, false},
+		{"wrapped lease conflict", wrap(leaseConflict), false},
 		{"wrapped mixed dependency first", wrap(errors.Join(dependency, terminal)), false},
 		{"wrapped mixed terminal first", wrap(errors.Join(terminal, dependency)), false},
 		{"nested mixed join", wrap(errors.Join(wrap(dependency), wrap(errors.Join(dependency, terminal)))), false},
@@ -49,6 +52,7 @@ func TestDependencyClassificationThroughWrappers(t *testing.T) {
 func TestSupervisorHonorsWrappedJoinedFailures(t *testing.T) {
 	dependency := catalog.E(catalog.CodeDependencyUnavailable, "dependency unavailable")
 	terminal := errors.New("terminal invariant failure")
+	leaseConflict := catalog.E(catalog.CodeConflict, "outbox lease is not owned or has expired")
 	for _, test := range []struct {
 		name  string
 		cause error
@@ -57,6 +61,7 @@ func TestSupervisorHonorsWrappedJoinedFailures(t *testing.T) {
 		{"dependency first", errors.Join(dependency, terminal), 1},
 		{"terminal first", errors.Join(terminal, dependency), 1},
 		{"dependencies only", errors.Join(dependency, dependency), 2},
+		{"lease conflict", leaseConflict, 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			synctest.Test(t, func(t *testing.T) {

@@ -172,7 +172,7 @@ func TestConfiguredReceiptInputBinding(t *testing.T) {
 	if demoPlanBinding(plan) != original {
 		t.Fatal("source order/profile/revision changed execution identity")
 	}
-	for _, fault := range []string{"format", "parent", "digest", "namespace", "duplicate", "identifier", "submission", "kind", "profile", "origin", "snapshot", "alias", "parent-prefix", "invalid-id", "duplicate-key", "missing-plugin-origin", "plugin-namespace-alias", "draft-submission", "pending-release"} {
+	for _, fault := range []string{"format", "parent", "digest", "namespace", "namespace count", "namespace alias", "duplicate", "identifier", "submission", "kind", "profile", "origin", "snapshot", "alias", "parent-prefix", "invalid-id", "duplicate-key", "missing-plugin-origin", "plugin-namespace-alias", "draft-submission", "pending-release"} {
 		t.Run(fault, func(t *testing.T) {
 			changed, _ := configuredUnitReceipt(t)
 			switch fault {
@@ -184,7 +184,16 @@ func TestConfiguredReceiptInputBinding(t *testing.T) {
 			case "digest":
 				changed.Bindings.Inputs[changed.Items[0].Key] = "sha256:" + strings.Repeat("G", 64)
 			case "namespace":
-				changed.Bindings.Namespaces["../bad"] = demoTestUUID(999)
+				// Rename the default key and its parent together. Adding a key
+				// would fail the earlier count guard instead of key validation.
+				changed.Bindings.Namespaces["../bad"] = changed.Bindings.Namespaces[demoID]
+				delete(changed.Bindings.Namespaces, demoID)
+				changed.Bindings.Parents["namespace:../bad"] = changed.Bindings.Parents["namespace:"+demoID]
+				delete(changed.Bindings.Parents, "namespace:"+demoID)
+			case "namespace count":
+				changed.Bindings.Namespaces["extra-namespace"] = demoTestUUID(999)
+			case "namespace alias":
+				changed.NamespaceID = demoTestUUID(999)
 			case "duplicate":
 				changed.Items[1].ResourceID = changed.Items[0].ResourceID
 			case "identifier":

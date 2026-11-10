@@ -516,3 +516,142 @@ test("opaque private and tenant releases stay usable without invalid rating requ
   }
   expect(ratings).toEqual([]);
 });
+
+test("Resource lifecycle resets dependent choices and fences a superseded inspection", async ({
+  page,
+  catalog,
+}) => {
+  const item = catalog.receipt.items.find(
+    (entry) => entry.key === "draft-agent",
+  )!;
+  const first = await catalog.admin<{ candidateRevisionId: string }>(
+    "GET",
+    `/api/v1/catalog-listings/${item.listingId}`,
+  );
+  const version = await catalog.admin<{
+    revision: { resourceVersionId: string };
+  }>("GET", `/api/v1/version-revisions/${item.versionRevisionId}`);
+  // A Resource has one Listing in its Namespace. Inspect two real immutable
+  // revisions; clearing/reselecting that Listing must reset the draft choice.
+  const secondRevision = await catalog.admin<{ revision: { id: string } }>(
+    "POST",
+    `/api/v1/catalog-listings/${item.listingId}/revisions`,
+    {
+      versionRevisionId: item.versionRevisionId,
+      publisherId: catalog.receipt.publisherId,
+      displayName: "Second lifecycle Listing",
+      description: "Owned alternate context",
+      visibility: "private",
+    },
+    first.etag,
+  );
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.url().includes("/_catalog/api/") &&
+      !["GET", "HEAD"].includes(request.method())
+    )
+      writes.push(request.url());
+  });
+  await login(
+    page,
+    catalog,
+    "local-contributor",
+    `/resources/${item.resourceId}`,
+  );
+  const overview = page.getByRole("region", {
+    name: "Lifecycle overview",
+    exact: true,
+  });
+  await overview
+    .getByRole("button", { name: "Choose lifecycle context", exact: true })
+    .click();
+  const listing = overview.getByRole("combobox", {
+    name: "Lifecycle Listing",
+    exact: true,
+  });
+  const revision = overview.getByRole("combobox", {
+    name: "Lifecycle Listing revision",
+    exact: true,
+  });
+  const inspect = overview.getByRole("button", {
+    name: "Inspect selected lifecycle",
+    exact: true,
+  });
+  await overview
+    .getByRole("combobox", { name: "Lifecycle Version", exact: true })
+    .selectOption(version.data.revision.resourceVersionId);
+  await listing.selectOption(item.listingId);
+  await revision.selectOption(first.data.candidateRevisionId);
+  const reads: string[] = [];
+  let waiting = false;
+  let release = () => {};
+  let settled = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const completed = new Promise<void>((resolve) => {
+    settled = resolve;
+  });
+  await page.route(
+    `**/_catalog/api/v1/listing-revisions/${first.data.candidateRevisionId}`,
+    async (route) => {
+      const response = await route.fetch();
+      reads.push(first.data.candidateRevisionId);
+      waiting = true;
+      await gate;
+      try {
+        await route.fulfill({ response });
+      } finally {
+        settled();
+      }
+    },
+  );
+  try {
+    expect(reads).toEqual([]);
+    await inspect.click();
+    await expect.poll(() => waiting).toBe(true);
+    await listing.selectOption("");
+    await expect(inspect).toBeDisabled();
+    await expect(revision).toHaveCount(0);
+    await listing.selectOption(item.listingId);
+    await expect(revision).toHaveValue("");
+    await expect(inspect).toBeDisabled();
+    await expect(
+      page.getByRole("region", {
+        name: "Selected lifecycle context",
+        exact: true,
+      }),
+    ).toHaveCount(0);
+    await revision.selectOption(secondRevision.data.revision.id);
+    await expect(inspect).toBeEnabled();
+    const secondRead = page.waitForResponse((response) =>
+      new URL(response.url()).pathname.endsWith(
+        `/listing-revisions/${secondRevision.data.revision.id}`,
+      ),
+    );
+    await inspect.click();
+    expect((await secondRead).status()).toBe(200);
+    const context = page.getByRole("region", {
+      name: "Selected lifecycle context",
+      exact: true,
+    });
+    await expect(context).toContainText(secondRevision.data.revision.id);
+    await expect(context).toContainText(item.listingId);
+    await expect(context).toContainText(item.versionRevisionId);
+    release();
+    await completed;
+    await expect(context).toContainText(secondRevision.data.revision.id);
+    await expect(context).not.toContainText(first.data.candidateRevisionId);
+    await expect(
+      context.getByRole("region", {
+        name: "Discovery observation",
+        exact: true,
+      }),
+    ).toContainText("Not inspected for a host and audience");
+    expect(reads).toEqual([first.data.candidateRevisionId]);
+    expect(writes).toEqual([]);
+  } finally {
+    release();
+  }
+});

@@ -81,6 +81,7 @@ exports.run = async (api) => {
   };
   const action = async (name, command) => {
     const chooseMenu = async (title) => {
+      await ui.until("!!document.activeElement?.closest('.context-view')");
       await ui.key("Home");
       for (let step = 0; step < 10; step++) {
         const text = await ui.evaluate(
@@ -88,6 +89,9 @@ exports.run = async (api) => {
         );
         if (text.includes(title)) {
           await ui.key("Enter");
+          await ui.until(
+            "!document.querySelector('.context-view .action-item.focused')",
+          );
           return;
         }
         await ui.key("ArrowDown");
@@ -112,6 +116,7 @@ exports.run = async (api) => {
       await ui.click(inline);
       return;
     }
+    await ui.click(`(${row})`);
     await ui.click(`(${row})`, "right");
     if (command === "Reveal Owned Package") {
       const probe =
@@ -126,6 +131,7 @@ exports.run = async (api) => {
         captured.receipt.fingerprint,
         o.lib.receiptSummary(confirmed).fingerprint,
       );
+      await ui.click(`(${row})`);
       await ui.click(`(${row})`, "right");
     }
     const item = `[...document.querySelectorAll('.context-view .action-label')].find(n=>n.textContent.includes(${JSON.stringify(command)}))`;

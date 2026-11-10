@@ -1,4 +1,9 @@
 use crate::*;
+mod codecs;
+mod configuration;
+mod lifecycle;
+mod requests;
+
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 use std::{

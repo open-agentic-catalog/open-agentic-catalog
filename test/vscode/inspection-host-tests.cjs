@@ -147,18 +147,23 @@ exports.run = async (api) => {
         await web.evaluate(
           "document.querySelector('#all-documents').open=true;[...document.querySelectorAll('.document-row')][151].querySelector('button[id^=\"action-export-\"]').click()",
         );
+        const visible = ".quick-input-widget:not([style*='display: none'])";
+        const nativeInput = `document.querySelector(${JSON.stringify(`${visible} input`)})`;
         await ui.until(
-          "document.querySelector('.quick-input-widget input') && document.querySelector('.quick-input-widget').textContent.includes('Export')",
+          `${nativeInput} && document.querySelector(${JSON.stringify(visible)}).textContent.includes('Export')`,
         );
+        await ui.click(nativeInput);
         await ui.evaluate(
-          `(()=>{const input=document.querySelector('.quick-input-widget input');input.value=${JSON.stringify(destination)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
+          `(()=>{const input=${nativeInput};input.value=${JSON.stringify(destination)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
         );
         await ui.until(
-          "!document.querySelector('.quick-input-widget .monaco-progress-container.active')",
+          `document.activeElement===${nativeInput} && ${nativeInput}.value===${JSON.stringify(destination)} && !document.querySelector(${JSON.stringify(`${visible} .monaco-progress-container.active`)})`,
         );
-        await vscode.commands.executeCommand(
-          "workbench.action.acceptSelectedQuickOpenItem",
+        const accept = `[...document.querySelectorAll(${JSON.stringify(`${visible} .quick-input-action .monaco-button`)})].find(button=>button.textContent.trim()==='OK')`;
+        await ui.until(
+          `!!(${accept}) && !(${accept}).classList.contains('disabled') && (${accept}).getAttribute('aria-disabled')!=='true'`,
         );
+        await ui.click(accept);
         try {
           await until(async () => {
             try {

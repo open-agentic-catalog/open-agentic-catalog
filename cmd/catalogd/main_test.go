@@ -5,12 +5,16 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"flag"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"maps"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -18,6 +22,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/observability"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/safeerr"
 )
 
 func TestTopLevelHelpVersionAndUnknownRole(t *testing.T) {
@@ -65,27 +70,143 @@ func TestTopLevelHelpVersionAndUnknownRole(t *testing.T) {
 			}
 		})
 	}
-	if err := runArgs([]string{"unknown"}); err == nil {
-		t.Fatal("unknown role succeeded")
-	}
+	output, diagnostic, err := runCatalogdPreflightUnit(t, []string{"UNKNOWN_PRIVATE_ROLE"})
+	assertCatalogdPreflightRefusal(t, output, diagnostic, err, "unknown role; use catalogd --help", "command", nil)
 }
 
 func TestTopLevelArgumentsFailBeforeStartingComponents(t *testing.T) {
-	if err := runArgs(nil); err == nil {
-		t.Fatal("missing role succeeded")
+	// Isolate supported runtime inputs without discarding launcher/tool settings.
+	for _, name := range config.EnvironmentVariables() {
+		t.Setenv(name, "")
+		if err := os.Unsetenv(name); err != nil {
+			t.Fatal(err)
+		}
 	}
-	if err := runArgs([]string{"api", "--unknown"}); err == nil {
-		t.Fatal("unknown API flag succeeded")
+	for _, test := range []struct {
+		name, message string
+		arguments     []string
+		invalidDriver bool
+	}{
+		{name: "missing role", message: "usage: catalogd <api|worker|all|version> [--config <path>]"},
+		{name: "unknown API flag", arguments: []string{"api", "--UNKNOWN_PRIVATE_FLAG"}, message: "invalid flags; use catalogd api --help", invalidDriver: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if test.invalidDriver {
+				// A parser regression still reaches a preflight refusal, not
+				// successful runtime composition. Exact stage/message checks
+				// ensure the driver cannot mask the intended flag rejection.
+				t.Setenv("CATALOG_DATABASE_DRIVER", "PRIVATE_FLAG_GUARD_DRIVER")
+			}
+			output, diagnostic, err := runCatalogdPreflightUnit(t, test.arguments)
+			assertCatalogdPreflightRefusal(t, output, diagnostic, err, test.message, "command", nil)
+		})
 	}
-	if err := runArgs([]string{"worker", "--config", filepath.Join(t.TempDir(), "missing.json")}); err == nil {
-		t.Fatal("missing worker configuration succeeded")
+	for _, role := range []string{"api", "worker", "all"} {
+		t.Run(role, func(t *testing.T) {
+			// A missing explicit file would mask driver validation. Calibrate
+			// the supported override without --config, then test file bypass
+			// independently with otherwise benign configuration inputs.
+			t.Run("invalid driver", func(t *testing.T) {
+				t.Setenv("CATALOG_DATABASE_DRIVER", "PRIVATE_UNSUPPORTED_DRIVER")
+				arguments := []string{role}
+				output, diagnostic, err := runCatalogdPreflightUnit(t, arguments)
+				assertCatalogdPreflightRefusal(t, output, diagnostic, err, "config: database.driver must be memory or postgres", "startup", nil)
+				assertCatalogdRoleHelp(t, role, arguments)
+			})
+			t.Run("missing private configuration", func(t *testing.T) {
+				missing := filepath.Join(t.TempDir(), "PRIVATE_CONFIGURATION_PATH", "missing.json")
+				arguments := []string{role, "--config", missing}
+				output, diagnostic, err := runCatalogdPreflightUnit(t, arguments)
+				assertCatalogdPreflightRefusal(t, output, diagnostic, err, "cannot read configuration file", "startup", fs.ErrNotExist)
+				assertCatalogdRoleHelp(t, role, arguments)
+			})
+		})
 	}
 
 	originalArguments := os.Args
-	os.Args = []string{"catalogd", "unknown"}
+	os.Args = []string{"catalogd", "UNKNOWN_PRIVATE_ROLE"}
 	t.Cleanup(func() { os.Args = originalArguments })
-	if err := run(); err == nil {
-		t.Fatal("run accepted an unknown role")
+	output, diagnostic, err := captureCatalogdUnitStreams(t, run)
+	assertCatalogdPreflightRefusal(t, output, diagnostic, err, "unknown role; use catalogd --help", "command", nil)
+}
+
+// captureCatalogdUnitStreams scopes process-global streams to a sequential call.
+func captureCatalogdUnitStreams(t *testing.T, call func() error) ([]byte, []byte, error) {
+	t.Helper()
+	output, err := os.CreateTemp(t.TempDir(), "stdout")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := output.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	diagnostic, err := os.CreateTemp(t.TempDir(), "stderr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := diagnostic.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	callErr := func() error {
+		previousOutput, previousDiagnostic := os.Stdout, os.Stderr
+		os.Stdout, os.Stderr = output, diagnostic
+		defer func() { os.Stdout, os.Stderr = previousOutput, previousDiagnostic }()
+		return call()
+	}()
+	stdout, err := os.ReadFile(output.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	stderr, err := os.ReadFile(diagnostic.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return stdout, stderr, callErr
+}
+
+// runCatalogdPreflightUnit exercises only rejection/help before composition.
+func runCatalogdPreflightUnit(t *testing.T, arguments []string) ([]byte, []byte, error) {
+	t.Helper()
+	var served atomic.Int32
+	output, diagnostic, err := captureCatalogdUnitStreams(t, func() error {
+		return runArgsServing(arguments, func(*http.Server) error {
+			served.Add(1)
+			return errors.New("unit preflight unexpectedly reached a listener")
+		})
+	})
+	if served.Load() != 0 {
+		t.Fatal("preflight reached a serving callback")
+	}
+	return output, diagnostic, err
+}
+
+// assertCatalogdPreflightRefusal checks reviewed output, not private Error text.
+func assertCatalogdPreflightRefusal(t *testing.T, output, diagnostic []byte, err error, message, stage string, cause error) {
+	t.Helper()
+	if err == nil || errors.Is(err, flag.ErrHelp) || safeerr.Message(err) != message || safeerr.Stage(err) != stage || len(output) != 0 || len(diagnostic) != 0 {
+		t.Fatalf("preflight refusal: message=%q stage=%q stdout=%q stderr=%q", safeerr.Message(err), safeerr.Stage(err), output, diagnostic)
+	}
+	if cause != nil && !errors.Is(err, cause) {
+		t.Fatalf("preflight lost expected cause %v", cause)
+	}
+}
+
+// assertCatalogdRoleHelp uses the successful neighbor of each refusal control.
+func assertCatalogdRoleHelp(t *testing.T, role string, arguments []string) {
+	t.Helper()
+	want := "Usage of catalogd " + role + ":\n  -config\n    optional path to a service JSON configuration baseline\n"
+	for _, alias := range []string{"-h", "--help"} {
+		t.Run(alias, func(t *testing.T) {
+			args := append(append([]string{}, arguments...), alias)
+			output, diagnostic, err := runCatalogdPreflightUnit(t, args)
+			if !errors.Is(err, flag.ErrHelp) || string(output) != want || len(diagnostic) != 0 || safeerr.Message(err) != "invalid flags; use catalogd "+role+" --help" || safeerr.Stage(err) != "command" {
+				t.Fatalf("role help lost safe dispatch: message=%q stage=%q stdout=%q stderr=%q", safeerr.Message(err), safeerr.Stage(err), output, diagnostic)
+			}
+		})
 	}
 }
 

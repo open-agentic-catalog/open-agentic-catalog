@@ -389,6 +389,166 @@ func (f *importDraftUnitAPI) session() *remoteSession {
 	return &remoteSession{client: &http.Client{Transport: catalogctlRoundTripFunc(f.roundTrip)}, origin: "http://127.0.0.1", token: "unit-token"}
 }
 
+// importDraftReadMutationSession changes one consumed GET result while keeping
+// the existing scripted permissions, successful commands and readback controls.
+func importDraftReadMutationSession(t *testing.T, api *importDraftUnitAPI, path string, change func(map[string]json.RawMessage, http.Header)) (*remoteSession, *int) {
+	t.Helper()
+	reads := new(int)
+	session := api.session()
+	session.client.Transport = catalogctlRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		response, err := api.roundTrip(request)
+		if err != nil || request.Method != http.MethodGet || request.URL.Path != path {
+			return response, err
+		}
+		(*reads)++
+		raw, err := io.ReadAll(response.Body)
+		if err != nil {
+			t.Fatal("cannot read scripted response", err)
+		}
+		if err = response.Body.Close(); err != nil {
+			t.Fatal("cannot close scripted response", err)
+		}
+		var value map[string]json.RawMessage
+		if err = json.Unmarshal(raw, &value); err != nil {
+			t.Fatal("invalid scripted response control", err)
+		}
+		change(value, response.Header)
+		raw, err = json.Marshal(value)
+		if err != nil {
+			t.Fatal("cannot encode scripted response", err)
+		}
+		response.Body = io.NopCloser(bytes.NewReader(raw))
+		return response, nil
+	})
+	return session, reads
+}
+
+// Existing targets from another author are valid. Each refusal changes only
+// the exact target identity or its revision/ETag, before any command is sent.
+func TestImportDraftExistingTargetReadFences(t *testing.T) {
+	const otherID = `"00000000-0000-7000-8000-000000000999"`
+	const namespace = "00000000-0000-7000-8000-000000000010"
+	resourcePath := "/api/v1/resources/00000000-0000-7000-8000-000000000101"
+	listingPath := "/api/v1/catalog-listings/00000000-0000-7000-8000-000000000105"
+	resourceRefusal := "import: exact Resource does not match the draft kind, canonical identifier, tenant or Namespace"
+	listingRefusal := "import: exact Listing has a mismatched parent, tenant, Namespace or ETag"
+	for _, test := range []struct {
+		name, path, field, value, refusal string
+	}{
+		{name: "valid existing author", path: resourcePath},
+		{name: "Resource ID", path: resourcePath, field: "id", value: otherID, refusal: resourceRefusal},
+		{name: "Resource tenant", path: resourcePath, field: "tenantId", value: otherID, refusal: "import: Resource tenant does not match the current principal"},
+		{name: "Resource Namespace", path: resourcePath, field: "namespaceId", value: otherID, refusal: resourceRefusal},
+		{name: "Resource revision", path: resourcePath, field: "revision", value: "2", refusal: resourceRefusal},
+		{name: "Resource ETag", path: resourcePath, field: "ETag", value: `"rev-2"`, refusal: resourceRefusal},
+		{name: "Listing ID", path: listingPath, field: "id", value: otherID, refusal: listingRefusal},
+		{name: "Listing tenant", path: listingPath, field: "tenantId", value: otherID, refusal: listingRefusal},
+		{name: "Listing Namespace", path: listingPath, field: "namespaceId", value: otherID, refusal: listingRefusal},
+		{name: "Listing revision", path: listingPath, field: "revision", value: "2", refusal: listingRefusal},
+		{name: "Listing ETag", path: listingPath, field: "ETag", value: `"rev-2"`, refusal: listingRefusal},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			plan := importDraftTestPlan(t, "version-exact")
+			api := newImportDraftUnitAPI(t, plan, "version-exact")
+			plan.Draft.NamespaceID = namespace // Supply an explicit destination fence.
+			session, reads := importDraftReadMutationSession(t, api, test.path, func(value map[string]json.RawMessage, headers http.Header) {
+				if test.path == resourcePath {
+					var creator string
+					if json.Unmarshal(value["createdBy"], &creator) != nil || creator != "another-author" {
+						t.Fatal("existing-target control did not retain another author")
+					}
+				}
+				if test.field == "ETag" {
+					headers.Set("ETag", test.value)
+				} else if test.field != "" {
+					value[test.field] = json.RawMessage(test.value)
+				}
+			})
+			state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer state.close()
+			before := bytes.Clone(state.previous)
+			outcome, err := applyPreparedImport(t.Context(), plan, remoteOptions{}, state, false, session)
+			if test.refusal == "" {
+				if err != nil || outcome.Disposition != "complete" || api.calls != 2 || api.commits != 2 || *reads == 0 {
+					t.Fatalf("valid existing target failed: %v %+v", err, outcome)
+				}
+				return
+			}
+			if err == nil || err.Error() != test.refusal || *reads != 1 || api.calls != 0 || api.commits != 0 || !bytes.Equal(before, state.previous) {
+				t.Fatalf("target fence failed: %v; reads %d, mutations %d, commits %d", err, *reads, api.calls, api.commits)
+			}
+		})
+	}
+}
+
+// A complete zero-or-one lookup permits empty/omitted cursors. Each malformed
+// continuation or mismatched item must stop before a destination mutation.
+func TestImportDraftListingLookupCompletenessAndIdentity(t *testing.T) {
+	const otherID = `"00000000-0000-7000-8000-000000000999"`
+	lookupPath := "/api/v1/resources/00000000-0000-7000-8000-000000000101/listings"
+	pageRefusal := "import: Listing lookup must return a complete, unambiguous zero-or-one result; supply --listing-id when appropriate"
+	itemRefusal := "import: Listing lookup returned a mismatched parent, tenant or Namespace"
+	for _, test := range []struct {
+		name, mode, cursor, itemField, itemValue, refusal string
+		partial, omitCursor                               bool
+	}{
+		{name: "empty result", mode: "version-empty"},
+		{name: "single result with empty cursor", mode: "version-one"},
+		{name: "single result with omitted cursor", mode: "version-one", omitCursor: true},
+		{name: "partial flag", mode: "version-one", partial: true, refusal: pageRefusal},
+		{name: "null cursor", mode: "version-one", cursor: "null", refusal: pageRefusal},
+		{name: "non-string cursor", mode: "version-one", cursor: "7", refusal: pageRefusal},
+		{name: "continued result", mode: "version-one", cursor: `"more"`, refusal: pageRefusal},
+		{name: "invalid Listing ID", mode: "version-one", itemField: "id", itemValue: `"not-a-uuid"`, refusal: itemRefusal},
+		{name: "wrong Resource parent", mode: "version-one", itemField: "resourceId", itemValue: otherID, refusal: itemRefusal},
+		{name: "wrong Namespace", mode: "version-one", itemField: "namespaceId", itemValue: otherID, refusal: itemRefusal},
+		{name: "wrong tenant", mode: "version-one", itemField: "tenantId", itemValue: otherID, refusal: itemRefusal},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			plan := importDraftTestPlan(t, test.mode)
+			api := newImportDraftUnitAPI(t, plan, test.mode)
+			session, reads := importDraftReadMutationSession(t, api, lookupPath, func(page map[string]json.RawMessage, _ http.Header) {
+				page["nextCursor"] = json.RawMessage(`""`)
+				if test.omitCursor {
+					delete(page, "nextCursor")
+				} else if test.cursor != "" {
+					page["nextCursor"] = json.RawMessage(test.cursor)
+				}
+				if test.partial {
+					page["partial"] = json.RawMessage("true")
+				}
+				if test.itemField != "" {
+					var items []map[string]json.RawMessage
+					if json.Unmarshal(page["items"], &items) != nil || len(items) != 1 {
+						t.Fatal("single-item lookup control is invalid")
+					}
+					items[0][test.itemField] = json.RawMessage(test.itemValue)
+					page["items"] = importTestJSON(t, items)
+				}
+			})
+			state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer state.close()
+			before := bytes.Clone(state.previous)
+			outcome, err := applyPreparedImport(t.Context(), plan, remoteOptions{}, state, false, session)
+			if test.refusal == "" {
+				if err != nil || outcome.Disposition != "complete" || api.calls != len(importDraftExpectedKinds(test.mode)) || api.commits != api.calls || *reads != 1 {
+					t.Fatalf("complete lookup control failed: %v %+v", err, outcome)
+				}
+				return
+			}
+			if err == nil || err.Error() != test.refusal || *reads != 1 || api.lookups != 1 || api.calls != 0 || api.commits != 0 || !bytes.Equal(before, state.previous) {
+				t.Fatalf("lookup fence failed: %v; reads %d, lookups %d, mutations %d", err, *reads, api.lookups, api.calls)
+			}
+		})
+	}
+}
+
 func TestImportDraftFinitePlansAndResponseLoss(t *testing.T) {
 	for _, mode := range []string{"create-content", "create-listing", "version-content", "version-empty", "version-one", "version-exact"} {
 		for _, loss := range append([]int{-1}, importDraftExpectedKinds(mode)...) {

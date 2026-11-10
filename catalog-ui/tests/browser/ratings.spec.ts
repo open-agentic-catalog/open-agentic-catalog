@@ -526,7 +526,9 @@ test("moderation removes a score and permits only a fresh private submission", a
     "cannot submit again until a moderator permits a new submission",
   );
   await confirmCommand(page);
-  await expect(page.getByRole("status")).toContainText("Rating state updated.");
+  await expect(
+    page.getByRole("status").filter({ hasText: /^Rating state updated\.$/ }),
+  ).toBeVisible();
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(
     page.getByRole("textbox", { name: "Moderation reason", exact: true }),
@@ -536,7 +538,9 @@ test("moderation removes a score and permits only a fresh private submission", a
   await expect(
     page.locator('.workspace-status[data-state="removed"]'),
   ).toHaveAttribute("data-tone", "neutral");
-  await expect(page.getByRole("status")).toContainText("Rating state updated.");
+  await expect(
+    page.getByRole("status").filter({ hasText: /^Rating state updated\.$/ }),
+  ).toBeVisible();
   await expect(page.getByRole("radio")).toHaveCount(0);
   await page
     .getByRole("button", { name: "Permit new submission", exact: true })
