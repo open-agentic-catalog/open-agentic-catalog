@@ -35,7 +35,7 @@ try {
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto(origin + "/catalog");
   await page.locator('[data-login-alias="local-reader"]').click();
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   await expect(page.locator("article.resource-card")).toHaveCount(3);
   await page
     .getByRole("searchbox", { name: "Search Catalog", exact: true })
@@ -46,7 +46,7 @@ try {
   await expect(page.locator("article.resource-card")).toHaveCount(1);
   await page.goto(origin + "/explore");
   await expect(page.locator("tbody tr")).toHaveCount(3);
-  await page.getByLabel("Account", { exact: true }).click();
+  await page.getByTitle("Account", { exact: true }).click();
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page.locator('[data-login-alias="local-reader"]')).toBeVisible();
   expect(errors).toEqual([]);

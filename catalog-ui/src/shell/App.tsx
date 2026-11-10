@@ -608,7 +608,6 @@ export function App({ runtime }: { runtime: Runtime }) {
               }}
             >
               <summary
-                aria-label="Account"
                 title="Account"
                 onClick={() => {
                   // Appearance shares this mounted header and always has its ref.
@@ -616,7 +615,7 @@ export function App({ runtime }: { runtime: Runtime }) {
                 }}
               >
                 <Icon name="user" />
-                <span>Account</span>
+                <span>Account</span>{" "}
                 <span className="account-subject">
                   {session.access.subject}
                 </span>

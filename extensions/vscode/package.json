@@ -10,7 +10,7 @@
     "vscode": "^1.139.1",
     "node": ">=24.20.0 <25"
   },
-  "packageManager": "npm@11.19.1",
+  "packageManager": "npm@12.2.1",
   "categories": [
     "Other"
   ],
@@ -718,7 +718,7 @@
   "dependencies": {
     "@a2a-js/sdk": "1.3.0",
     "@open-agentic-catalog/client": "file:../../output/artifacts/sdk/typescript/open-agentic-catalog-client-0.1.0.tgz",
-    "jose": "6.2.12",
+    "jose": "6.2.13",
     "undici": "8.12.3"
   },
   "devDependencies": {
@@ -728,11 +728,11 @@
     "@vscode/test-electron": "3.1.0",
     "@vscode/vsce": "4.0.0",
     "esbuild": "0.28.2",
-    "eslint": "10.12.0",
+    "eslint": "10.13.0",
     "globals": "17.13.0",
-    "prettier": "3.9.9",
-    "typescript": "5.9.3",
-    "typescript-eslint": "8.71.1"
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
   },
   "overrides": {
     "js-yaml": "4.3.2"

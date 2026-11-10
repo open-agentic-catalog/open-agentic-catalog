@@ -2,11 +2,11 @@
 name = "catalog-python-sdk-tools"
 version = "0.0.0"
 requires-python = ">=3.12,<3.15"
-dependencies = ["open-agentic-catalog", "openapi-generator-cli==7.26.0", "hatchling==1.32.4", "build==1.6.1", "ruff==0.17.0", "mypy==2.4.0", "coverage==7.16.2", "pyyaml==6.0.3", "jsonschema==4.26.0"]
+dependencies = ["open-agentic-catalog", "openapi-generator-cli==7.26.0", "hatchling==1.32.4", "build==1.6.1", "ruff==0.17.3", "mypy==2.4.0", "coverage==7.17.0", "pyyaml==6.0.3", "jsonschema==4.26.0"]
 
 [tool.uv]
-required-version = "==0.13.4"
-exclude-newer = "2026-10-09T22:30:23Z"
+required-version = "==0.13.6"
+exclude-newer = "2026-10-27T02:11:38Z"
 
 [tool.uv.sources]
 open-agentic-catalog = { path = "../../../sdk/python" }

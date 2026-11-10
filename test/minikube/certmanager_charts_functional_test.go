@@ -55,7 +55,7 @@ func TestInstalledCertificateChartsKeepControllersOutsideCatalog(t *testing.T) {
 			if err := os.WriteFile(path, raw, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			args := []string{"template", release, chart, "--namespace", scope, "--kube-version", "1.35.9", "--values", path}
+			args := []string{"template", release, chart, "--namespace", scope, "--kube-version", "1.37.1", "--values", path}
 			if name == "cert-manager" {
 				args = append(args, "--include-crds")
 			}

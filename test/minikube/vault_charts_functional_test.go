@@ -50,7 +50,7 @@ func TestInstalledVaultChartsPreserveSelectedScope(t *testing.T) {
 			}
 			ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 			defer cancel()
-			raw, err = exec.CommandContext(ctx, "helm", "template", vaultRelease, chart, "--namespace", vaultNamespace, "--kube-version", "1.35.9", "--include-crds", "-f", path).CombinedOutput() // #nosec G204 -- Fixed Helm and checksum-verified charts.
+			raw, err = exec.CommandContext(ctx, "helm", "template", vaultRelease, chart, "--namespace", vaultNamespace, "--kube-version", "1.37.1", "--include-crds", "-f", path).CombinedOutput() // #nosec G204 -- Fixed Helm and checksum-verified charts.
 			if err != nil {
 				t.Fatalf("native external-chart rendering: %v: %s", err, raw)
 			}
@@ -67,6 +67,10 @@ func TestInstalledVaultChartsPreserveSelectedScope(t *testing.T) {
 								Containers []struct {
 									Image string   `yaml:"image"`
 									Args  []string `yaml:"args"`
+									Env   []struct {
+										Name  string `yaml:"name"`
+										Value string `yaml:"value"`
+									} `yaml:"env"`
 								} `yaml:"containers"`
 							} `yaml:"spec"`
 						} `yaml:"template"`
@@ -93,6 +97,16 @@ func TestInstalledVaultChartsPreserveSelectedScope(t *testing.T) {
 				for _, container := range object.Spec.Template.Spec.Containers {
 					if container.Image != images["vault"] && container.Image != images["vso"] && container.Image != images["proxy"] {
 						t.Fatalf("unreviewed container %s", container.Image)
+					}
+					environment := make(map[string]string)
+					for _, variable := range container.Env {
+						if _, duplicate := environment[variable.Name]; duplicate {
+							t.Fatalf("%s container %s repeats environment variable %s", object.Kind, container.Image, variable.Name)
+						}
+						environment[variable.Name] = variable.Value
+					}
+					if container.Image == images["vault"] && (environment["SKIP_CHOWN"] != "true" || environment["SKIP_SETCAP"] != "true" || environment["VAULT_CACERT"] != "/vault/tls/ca.pem") {
+						t.Fatal("Vault non-root bootstrap or private CA environment changed")
 					}
 				}
 			}

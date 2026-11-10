@@ -1,6 +1,6 @@
 {
   "module": "github.com/quality-gates/mutago/v2",
-  "version": "v2.10.15",
-  "sum": "h1:VS8tmOKDyYIfdMErtvSDeZe/qnzFMxvO4oHTES1FJRc=",
-  "revision": "32a53dabf140e1e77df25598a14c971b2d6636b6"
+  "version": "v2.10.40",
+  "sum": "h1:+lS2S87SNyiOgZwoezHjQHwqBIThNj2amU037JrSTGI=",
+  "revision": "3f240bf14f0d3c7608b55a64c625276d518ed88a"
 }

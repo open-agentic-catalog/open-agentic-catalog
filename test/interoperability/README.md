@@ -164,7 +164,7 @@ Set `RUFF=/path/to/ruff` when the required version is not on PATH. `test_unit_*.
 
 Existing checks cover archive safety, bounds, stamps, report integrity, confinement, redaction and cleanup. Actual HF execution is separate. Record product compatibility findings without weakening Catalog behavior or patching the client to force success.
 
-The Containerfile pins Python 3.13.17 by digest. `tools.in` and generated `tools.txt` hash-lock uv 0.13.4, Hatchling 1.32.4 and build dependencies; refresh deliberately with the recorded `uv pip compile` command. Unmodified upstream `uv.lock` separately pins runtime dependencies.
+The Containerfile pins Python 3.13.17 by digest. `tools.in` and generated `tools.txt` hash-lock uv 0.13.6, Hatchling 1.32.4 and build dependencies; refresh deliberately with the recorded `uv pip compile` command. Unmodified upstream `uv.lock` separately pins runtime dependencies.
 
 Record the installed inventory too: upstream constraints can select a different compatible version of a shared build dependency. Source and dependency notices remain in the test image.
 

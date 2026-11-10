@@ -1,0 +1,2 @@
+# Generated API verification; qualification targets Python 3.12/Linux amd64.
+schemathesis==4.32.5

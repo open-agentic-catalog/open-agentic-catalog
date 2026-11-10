@@ -16,6 +16,31 @@ import (
 	"time"
 )
 
+func TestSupportedHelmVersions(t *testing.T) {
+	for _, test := range []struct {
+		version string
+		allowed bool
+	}{
+		{"v2.99.0", false},
+		{"v3.14.9", false},
+		{"v3.15.0", true},
+		{"v3.22.0", true},
+		{"v4.0.0", true},
+		{"v4.3.1", true},
+		{"v5.0.0", false},
+	} {
+		t.Run(test.version, func(t *testing.T) {
+			version, err := parseVersion(test.version)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := supportedHelmVersion(version); got != test.allowed {
+				t.Fatalf("Helm %s admission = %t, want %t", test.version, got, test.allowed)
+			}
+		})
+	}
+}
+
 func TestFederationCommandSuppliesOwnedValidatorAndEnabledAssertions(t *testing.T) {
 	t.Setenv("CATALOG_FUNCTIONAL_CONTRACT_DRIVER", "/caller/validator")
 	t.Setenv("PYTHONOPTIMIZE", "2")

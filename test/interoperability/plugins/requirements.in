@@ -4,24 +4,24 @@ agent-client-protocol>=0.12.1,<0.13.0
 authlib==1.9.1
 deprecation>=2.1.0
 fakeredis[lua]>=2.32.1
-fastmcp>=3.2.0,<4,==3.4.10
+fastmcp>=3.2.0,<4,==3.4.11
 # Required core of the same reviewed FastMCP release.
-fastmcp-slim==3.4.10
-filelock>=3.20.1,==4.2.1
-httpx[socks]>=0.27.0
+fastmcp-slim==3.4.11
+filelock>=3.20.1,==4.2.4
+httpx[socks]>=0.28.1
 jsonschema>=4.23.0
 joserfc>=1.7.5
-litellm>=1.93.0
+litellm>=1.93.0,<1.106
 pillow>=12.3.0,==13.0.0
-pydantic>=2.12.5
-python-frontmatter>=1.1.0
+pydantic>=2.13.5
+python-frontmatter>=1.3.0
 python-json-logger>=3.3.0
 tenacity>=9.1.2
 websockets>=12
 lmnr>=0.7.60,<0.8.0
 tree-sitter>=0.25
 tree-sitter-bash>=0.25
-setuptools>=83.0.0,==84.1.0
+setuptools>=83.0.0,==84.2.1
 wheel
 # Exact approved CA bundle security update.
-certifi==2026.10.19
+certifi==2026.10.23

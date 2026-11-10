@@ -36,7 +36,7 @@ for (const base of ["root", "subpath"]) {
       .getByRole("button", { name: "View counts", exact: true })
       .click();
     const agent = page.getByRole("button", {
-      name: "Filter by resource kind Agent",
+      name: /^Filter by resource kind Agent: [0-9]+$/u,
       exact: true,
     });
     await expect(agent.locator(".catalog-kind-badge.agent")).toHaveText(
@@ -44,6 +44,9 @@ for (const base of ["root", "subpath"]) {
     );
     const count = Number(await agent.locator("strong").innerText());
     expect(count).toBeGreaterThan(0);
+    await expect(agent).toHaveAccessibleName(
+      `Filter by resource kind Agent: ${count}`,
+    );
     await agent.click();
     await expect(
       page.getByRole("status", { name: "Matched releases" }),

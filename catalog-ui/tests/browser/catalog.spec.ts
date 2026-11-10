@@ -1403,7 +1403,7 @@ test("origin and local namespace filters preserve same-tab record return and fre
   const namespace = first.locator(".catalog-presentation button").first();
   await namespace.click();
   await expect(
-    page.getByRole("button", { name: /^Remove local namespace / }),
+    page.getByRole("button", { name: /^Remove local Namespace: / }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   await expect(
@@ -1430,7 +1430,7 @@ test("origin and local namespace filters preserve same-tab record return and fre
   ).toBeVisible();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /^Remove local namespace / }),
+    page.getByRole("button", { name: /^Remove local Namespace: / }),
   ).toBeVisible();
   await sourceCoverage.flush(separate);
   await separate.close();
@@ -1440,11 +1440,11 @@ test("origin and local namespace filters preserve same-tab record return and fre
   ).toBeVisible();
   await page.getByRole("link", { name: /Back to Catalog/ }).click();
   await expect(
-    page.getByRole("button", { name: /^Remove local namespace / }),
+    page.getByRole("button", { name: /^Remove local Namespace: / }),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("button", { name: /^Remove local namespace / }),
+    page.getByRole("button", { name: /^Remove local Namespace: / }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   await page

@@ -357,7 +357,6 @@ it("edits a copied filter draft and applies only explicit changes", () => {
   );
   const trigger = screen.getByRole("button", { name: /Filters/ });
   expect(trigger.textContent).toContain("3");
-  expect(trigger.getAttribute("aria-label")).toBe("Filters");
   expect(
     screen.getByRole("button", {
       name: "Filters",

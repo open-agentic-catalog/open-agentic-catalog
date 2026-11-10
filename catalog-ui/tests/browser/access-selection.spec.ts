@@ -169,7 +169,7 @@ test("the fourteen configured exact templates authenticate and reach permission-
       ).toHaveCount(0);
     await tasks.getByRole("link", { name: task, exact: true }).click();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
     if (key === "discovery-reader")
       await expect(
         page.getByText(

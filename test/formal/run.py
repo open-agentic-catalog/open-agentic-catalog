@@ -124,7 +124,7 @@ def verify_tools(root, pin, env):
     java_version = java.stdout + java.stderr
     require(re.search(r'version "21\.', java_version), "Java 21 is required")
     z3 = run([str(root / TOOLS / "z3/bin/z3"), "-version"], env=env, timeout=10).stdout.strip()
-    require(z3 == "Z3 version 4.8.6 - 64 bit", "unexpected Z3 version")
+    require(z3 == "Z3 version 4.16.0 - 64 bit", "unexpected Z3 version")
     return java_version.strip(), z3
 
 

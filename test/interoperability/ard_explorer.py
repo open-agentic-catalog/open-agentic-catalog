@@ -17,13 +17,17 @@ import uuid
 from common import run
 from runner import ROOT, HERE, extract_source, fingerprint, cached_go, build_binaries, CATALOG_INPUTS
 
+sys.path.append(str(ROOT / "test/sdk"))
+import node_runtime  # noqa: E402
+
 INPUTS = HERE / 'ard-explorer'
 OUTPUT = ROOT / 'output/interoperability/ard-explorer'
 TOOLS = OUTPUT / 'tools'
 PIN = json.loads((INPUTS / 'inputs.json').read_text())
 NODE_ROOT = ROOT / '.tools/ci' / ('node-v' + PIN['node'] + '-linux-x64')
+NPM = ROOT / ".tools/ci" / ("npm-" + PIN["npm"]) / "node_modules/npm/bin/npm-cli.js"
 BROWSER_MODULES = ROOT / 'catalog-ui/node_modules'
-HARNESS_INPUTS = (INPUTS, HERE / 'ard_explorer.py', HERE / 'common.py', HERE / 'runner.py',
+HARNESS_INPUTS = (ROOT / 'test/sdk/node_runtime.py', INPUTS, HERE / 'ard_explorer.py', HERE / 'common.py', HERE / 'runner.py',
                   ROOT / 'catalog-ui/scripts/ard-explorer-startup.mjs',
                   ROOT / 'catalog-ui/scripts/ard-explorer-journeys.mjs', ROOT / 'Makefile')
 
@@ -53,7 +57,7 @@ def environment(home):
             'npm_config_fund': 'false', 'npm_config_ignore_scripts': 'true'}
 
 
-def prerequisites():
+def prerequisites(*, acquire=False):
     if sys.flags.optimize:
         raise RuntimeError('Explorer qualification requires Python assertions')
     if platform.system() != 'Linux' or platform.machine() != 'x86_64' or os.getuid() == 0:
@@ -63,7 +67,9 @@ def prerequisites():
             raise RuntimeError('missing Explorer confinement prerequisite: ' + command)
     if run([str(NODE_ROOT / 'bin/node'), '--version']).stdout.strip() != 'v' + PIN['node']:
         raise RuntimeError('install the pinned repository Node toolchain first')
-    if run([str(NODE_ROOT / 'bin/node'), str(NODE_ROOT / 'lib/node_modules/npm/bin/npm-cli.js'), '--version']).stdout.strip() != PIN['npm']:
+    if acquire:
+        node_runtime.install_npm(NODE_ROOT / "bin/node", PIN["npm"], ROOT / ".tools/ci", env=environment(ROOT / ".tools/ci"))
+    if run([str(NODE_ROOT / "bin/node"), str(NPM), "--version"]).stdout.strip() != PIN["npm"]:
         raise RuntimeError('npm toolchain differs from the reviewed pin')
 
 
@@ -102,7 +108,7 @@ def browser_identity():
 
 def install():
     """Download only explicit source/lock inputs, with all npm lifecycle scripts disabled."""
-    prerequisites()
+    prerequisites(acquire=True)
     OUTPUT.mkdir(parents=True, exist_ok=True)
     if TOOLS.exists():
         raise RuntimeError('Explorer tools already exist; retain or remove only this tool directory before reinstalling')
@@ -123,7 +129,7 @@ def install():
     (home / 'global.npmrc').write_text('')
     env = environment(home)
     for name, args in [('acquisition', ['ci', '--ignore-scripts', '--no-audit', '--no-fund']), ('build', ['run', 'build'])]:
-        result = run([str(NODE_ROOT / 'bin/npm'), '--prefix', str(source), *args], env=env, timeout=180, check=False)
+        result = run([str(NODE_ROOT / 'bin/node'), str(NPM), '--prefix', str(source), *args], env=env, timeout=180, check=False)
         (TOOLS / (name + '.log')).write_text(result.stdout + result.stderr)
         if result.code:
             raise RuntimeError('Explorer ' + name + ' failed; inspect private installation log')

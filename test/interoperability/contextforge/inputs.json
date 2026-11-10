@@ -1,13 +1,13 @@
 {
-  "version": "1.1.0",
-  "tag": "v1.1.0",
+  "version": "1.1.1",
+  "tag": "v1.1.1",
   "repository": "IBM/mcp-context-forge",
   "image": "ghcr.io/ibm/mcp-context-forge",
-  "index": "sha256:7eb21fb9a8070df59435c03c76c40d8c71230c55ba89f884f2482d2cc81cff1c",
-  "manifest": "sha256:b9cf477230d73429f00bdd2a318c157a304d0e3edd02830762d1ac5b786dfe41",
+  "index": "sha256:1f02480b4932ff8e454044dd0f4889c67b44078cdd0e35c1b39f27042f8e7573",
+  "manifest": "sha256:12fd4f945984e26f36132ef8fefc025658533382456f22b74f4ba88658ea0e5d",
   "platform": "linux/amd64",
-  "releaseRevision": "aee91ff6db63b6aafa77522684a9483c418bb2a3",
-  "imageRevision": "cd7e9256e2ba9c1d1dccf01565041bfd12ceeb1c",
+  "releaseRevision": "dbc643befb6f412e62584179c8f0ebb0207d44fb",
+  "imageRevision": "dbc643befb6f412e62584179c8f0ebb0207d44fb",
   "minimumReleaseAgeDays": 0,
   "acceptance": "Maintainer-selected upstream image for isolated local execution only; no redistribution or Catalog runtime dependency."
 }

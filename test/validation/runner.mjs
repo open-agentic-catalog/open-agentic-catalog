@@ -68,12 +68,12 @@ async function install() {
   });
   if (result.code) throw new Failure("oasdiff build failed; check Go prerequisites and module access", result.code);
   const metadata = await execute("go", ["version", "-m", OASDIFF], { cwd: DIRECTORY, env });
-  if (metadata.code || !/\tmod\tgithub.com\/oasdiff\/oasdiff\tv1\.33\.0\t/.test(metadata.stdout))
+  if (metadata.code || !/\tmod\tgithub.com\/oasdiff\/oasdiff\tv1\.35\.0\t/.test(metadata.stdout))
     throw new Failure("oasdiff executable does not match the pinned module");
   if (JSON.stringify(before) !== JSON.stringify(await identities())) throw new Failure("tool locks changed during installation");
   await writeFile(STAMP, JSON.stringify({ locks: before, binary: hash(await readFile(OASDIFF)) }, null, 2) + "\n");
   await prerequisites();
-  console.log("Installed Redocly " + (await pins())["@redocly/cli"] + " and oasdiff v1.33.0; no tools are shipped with Catalog.");
+  console.log("Installed Redocly " + (await pins())["@redocly/cli"] + " and oasdiff v1.35.0; no tools are shipped with Catalog.");
 }
 
 // Keep diagnostics machine-readable: JSON escapes control characters in tool
@@ -183,7 +183,7 @@ export async function compare(base, candidate = CONTROL, breaking = false, show 
     }
     if (show) {
       console.log(JSON.stringify({
-        tool: "oasdiff", version: "v1.33.0", baselineSHA256: inputs[0].hash,
+        tool: "oasdiff", version: "v1.35.0", baselineSHA256: inputs[0].hash,
         candidateSHA256: inputs[1].hash, changes: report,
       }));
     }

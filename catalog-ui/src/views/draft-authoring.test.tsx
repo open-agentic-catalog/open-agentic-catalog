@@ -122,7 +122,7 @@ it("imports all fields without commands, exposes raw snapshots and refuses incom
   ).toBe("");
   click("Download draft JSON");
   expect(
-    screen.getByRole("link", { name: "Save catalog-draft.json" }),
+    await screen.findByRole("link", { name: "Save catalog-draft.json" }),
   ).toBeTruthy();
   const blob = create.mock.calls.at(-1)![0];
   const text = await new Promise<string>((resolve) => {
@@ -263,7 +263,7 @@ it("requires AIR helper input to be applied or cleared before download", async (
   click("Clear AIR builder");
   click("Download draft JSON");
   expect(
-    screen.getByRole("link", { name: "Save catalog-draft.json" }),
+    await screen.findByRole("link", { name: "Save catalog-draft.json" }),
   ).toBeTruthy();
   change("Publisher domain", "example.com");
   change("AIR resource name", "draft");
@@ -379,7 +379,7 @@ it("preserves exact content and refuses export until an incomplete Listing looku
   click("Download draft JSON");
   expect(create).toHaveBeenCalledOnce();
   expect(
-    screen.getByRole("link", { name: "Save catalog-draft.json" }),
+    await screen.findByRole("link", { name: "Save catalog-draft.json" }),
   ).toBeTruthy();
   const text = await new Promise<string>((resolve) => {
     const reader = new FileReader();

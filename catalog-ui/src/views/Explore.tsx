@@ -776,7 +776,7 @@ function Facets(props: WorkspaceProps & Controls<CountsState>) {
                       type="button"
                       className="facet-bucket"
                       key={bucket.value}
-                      aria-label={`Filter by ${field === "tag" || field === "category" ? field : facetLabels.get(field)!.toLowerCase()} ${valueLabel(field, bucket.value)}`}
+                      aria-label={`Filter by ${field === "tag" || field === "category" ? field : facetLabels.get(field)!.toLowerCase()} ${valueLabel(field, bucket.value)}: ${bucket.count}`}
                       aria-pressed={next === query}
                       disabled={!next}
                       aria-describedby={
@@ -796,8 +796,7 @@ function Facets(props: WorkspaceProps & Controls<CountsState>) {
                           );
                       }}
                     >
-                      <span>{caption}</span>
-                      <strong>{bucket.count}</strong>
+                      <span>{caption}</span> <strong>{bucket.count}</strong>
                     </button>
                   ) : (
                     <p className="facet-value" key={bucket.value}>

@@ -42,7 +42,7 @@ test("Help opens the host-selected manual in a separate tab and preserves the wo
   ).toBeVisible();
   expect(await manual.evaluate(() => globalThis.opener === null)).toBe(true);
   await manual.close();
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   await expect(
     help.getByRole("link", { name: "API reference", exact: true }),
   ).toBeVisible();

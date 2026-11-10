@@ -2,7 +2,7 @@
 
 The ESM package `@open-agentic-catalog/client` provides typed methods for the complete [Catalog API](../../api/openapi/control-v1.yaml). It ships JavaScript with TypeScript declarations and uses the [Apache License 2.0](../../LICENSE).
 
-Supported Node ranges are `>=22.23.4 <23` and `>=24.20.0 <25`. Maintainer tooling uses pinned Node 24.22.1 and npm 11.19.1. Consumers do not need npm 11. Type declarations are qualified with TypeScript 5.9.3. Modern browsers need Fetch, Request, Response, ReadableStream, AbortController and ES2022. The check qualifies Chromium only. Browser consumers need a bundler or import map for `openapi-fetch`.
+Supported Node ranges are `>=22.23.4 <23` and `>=24.20.0 <25`. Maintainer tooling uses pinned Node 24.22.1 and npm 12.2.1. Consumers do not need the maintainer npm version. Type declarations are qualified with TypeScript 5.9.3. Modern browsers need Fetch, Request, Response, ReadableStream, AbortController and ES2022. The check qualifies Chromium only. Browser consumers need a bundler or import map for `openapi-fetch`.
 
 ## Install the SDK
 

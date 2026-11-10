@@ -13,7 +13,7 @@ The four SDK unit suites share small finite generated corpora of Unicode, reserv
 For all four SDKs, install their prerequisites below, then run each target separately:
 
 ```sh
-make sdk-tools-install UV=/path/to/uv-0.13.4
+make sdk-tools-install UV=/path/to/uv-0.13.6
 make sdk-generate
 make sdk-check
 make sdk-package
@@ -90,10 +90,10 @@ Neither these commands nor consumer builds publish packages, create tags or chan
 
 ## Python SDK
 
-The independent [Python package](../../sdk/python/README.md) owns its `pyproject.toml`, typed sources and Apache license. Python 3.12-3.14 is supported. Maintainers also need Java 21, OpenSSL, the repository Go toolchain and pinned uv 0.13.4. Go compiles the reused composed Catalog fixture; it is not a Python SDK runtime dependency.
+The independent [Python package](../../sdk/python/README.md) owns its `pyproject.toml`, typed sources and Apache license. Python 3.12-3.14 is supported. Maintainers also need Java 21, OpenSSL, the repository Go toolchain and pinned uv 0.13.6. Go compiles the reused composed Catalog fixture; it is not a Python SDK runtime dependency.
 
 ```sh
-make sdk-tools-install SDK_LANGUAGE=python UV=/path/to/uv-0.13.4
+make sdk-tools-install SDK_LANGUAGE=python UV=/path/to/uv-0.13.6
 make sdk-generate SDK_LANGUAGE=python
 make sdk-check SDK_LANGUAGE=python
 make sdk-package SDK_LANGUAGE=python
@@ -131,7 +131,7 @@ Successful checks remove their invocation-owned output under `output/sdk/python-
 
 ## JavaScript/TypeScript SDK
 
-The independent [ESM package](../../sdk/typescript/README.md) ships JavaScript and TypeScript declarations. Maintainer tooling uses Node 24.22.1 and bundled npm 11.19.1, acquired by the explicit SDK installer under `test/sdk/.tools/`. It also acquires Node 22.23.4 and 24.20.0 for compatibility checks. The declared Node 22 minimum is 22.23.4, matching the qualified maintained runtime; Node 24 starts at 24.20.0. Distributions have reviewed SHA-256 pins in `test/sdk/node-runtimes.json`; the SDK owns `.nvmrc`. Installation does not change your default Node. Maintainers also need OpenSSL and the repository Go toolchain. The SDK owns its npm manifest and lockfile. It does not use the UI installation.
+The independent [ESM package](../../sdk/typescript/README.md) ships JavaScript and TypeScript declarations. Maintainer tooling uses Node 24.22.1 and bundled npm 12.2.1, acquired by the explicit SDK installer under `test/sdk/.tools/`. It also acquires Node 22.23.4 and 24.20.0 for compatibility checks. The declared Node 22 minimum is 22.23.4, matching the qualified maintained runtime; Node 24 starts at 24.20.0. Distributions have reviewed SHA-256 pins in `test/sdk/node-runtimes.json`; the SDK owns `.nvmrc`. Installation does not change your default Node. Maintainers also need OpenSSL and the repository Go toolchain. The SDK owns its npm manifest and lockfile. It does not use the UI installation.
 
 ```sh
 make sdk-tools-install SDK_LANGUAGE=typescript
@@ -171,7 +171,7 @@ Private CA inputs, credentials, listeners and temporary consumers belong to the 
 
 ## Rust SDK
 
-The independent [Rust crate](../../sdk/rust/README.md) uses checked-in bindings from MIT-licensed openapi-to-rust 0.22.0. Generation targets the complete unchanged Control OpenAPI. The bindings include reusable draft export and its file models. The operation inventory checks every implemented API operation.
+The independent [Rust crate](../../sdk/rust/README.md) uses checked-in bindings from MIT-licensed openapi-to-rust 0.23.0. Generation targets the complete unchanged Control OpenAPI. The bindings include reusable draft export and its file models. The operation inventory checks every implemented API operation.
 
 Guarded post-processing routes generated operations through the maintained bounded transport, preserves response metadata, decodes original JSON bytes, removes unmanaged streaming aliases and fixes closed objects and refusal-only operations. The corresponding buffered operation remains available. Independent codec assertions and the authoritative operation inventory supplement generation and compilation. Seven packaged-consumer cases validate both original and Rust-reserialized values against the unchanged OpenAPI schema. Some conditional models preserve JSON values; the SDK is not a JSON Schema validator.
 
@@ -179,7 +179,9 @@ Maintainers need Linux AMD64, Python 3.12+, rustup, Git, the GitHub CLI, a nativ
 
 Run `gh auth status` to check the GitHub CLI account. Run `gh auth login` if the CLI has no authenticated account. The installer uses `gh api` to download public source archives. That command requires authentication even for public repositories. Do not put a token in a command or repository file.
 
-Installation changes no personal default. The supported consumer floor is Rust 1.88.0; maintenance uses 1.99.0 with rustfmt, Clippy and matching `llvm-tools-preview`. The caller owns its Tokio runtime. No blocking, WASM or other-platform qualification is claimed.
+Installation changes no personal default. The supported consumer floor is Rust 1.88.0; maintenance uses 1.99.1 with rustfmt, Clippy and matching `llvm-tools-preview`. The caller owns its Tokio runtime. No blocking, WASM or other-platform qualification is claimed.
+
+Generator and analyzer locks use the maintenance compiler. SDK, consumer and report locks must also support the consumer floor.
 
 ```sh
 make sdk-tools-install SDK_LANGUAGE=rust
@@ -210,7 +212,7 @@ Rust launcher units give temporary tools a matching temporary ownership root. Th
 
 The report's isolated tests live in `examples/rust-catalog-report/src/unit.rs`. Run `cargo test --manifest-path examples/rust-catalog-report/Cargo.toml --frozen` with installed tools for native-only iteration. `rust_report_functional_test.go.txt` is copied into the owned SDK fixture; `cmd/catalogctl/rust_report_functional_test.go` reuses curated preparation and skips without the selected `CATALOG_RUST_REPORT` executable. The complete Rust gate selects and executes both. These functional checks never connect to the retained Catalog or execute discovered resources.
 
-For isolated iteration, use the installed compiler directly from `test/sdk/.tools/rust/rustup/toolchains/1.99.0-x86_64-unknown-linux-gnu/bin/`, with `CARGO_HOME` set to `test/sdk/.tools/rust/cargo` and its directory on PATH. Run `cargo test --manifest-path sdk/rust/Cargo.toml --frozen --lib`. That command runs only native isolated units. The shared launcher exposes no additional unit target.
+For isolated iteration, use the installed compiler directly from `test/sdk/.tools/rust/rustup/toolchains/1.99.1-x86_64-unknown-linux-gnu/bin/`, with `CARGO_HOME` set to `test/sdk/.tools/rust/cargo` and its directory on PATH. Run `cargo test --manifest-path sdk/rust/Cargo.toml --frozen --lib`. That command runs only native isolated units. The shared launcher exposes no additional unit target.
 
 The full gate checks deterministic generation, rustfmt, strict Clippy, both compilers, README doctests, examples and rustdoc. Native compiler LLVM tools report separate handwritten unit and unit-plus-local-functional line coverage. Generated bindings, tests and drivers are excluded. Combined coverage includes unit coverage; do not add percentages. `output/sdk/rust-coverage.json` records counts and exact source/tool identities. These Rust line counts are independent of Go statement coverage.
 

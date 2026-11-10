@@ -336,11 +336,11 @@ test("subpath: Explore retains both mode contexts and transfers applied local co
   const tag = "paged";
   const category = "testing";
   await page
-    .getByRole("button", { name: `Filter by tag ${tag}`, exact: true })
+    .getByRole("button", { name: `Filter by tag ${tag}: 1`, exact: true })
     .click();
   await page
     .getByRole("button", {
-      name: `Filter by category ${category}`,
+      name: `Filter by category ${category}: 1`,
       exact: true,
     })
     .click();

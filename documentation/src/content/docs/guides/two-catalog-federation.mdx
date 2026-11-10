@@ -650,7 +650,7 @@ Run each target separately. Installer downloads and package outputs need ordinar
 
 Install the actual file under `output/artifacts/vscode/` with **Extensions: Install from VSIX** or `code --install-extension /absolute/path/to/open-agentic-catalog-<version>.vsix`. Use its real versioned name.
 
-The package requires VS Code 1.139.1 or a compatible later 1.x version. Automated desktop tests use VS Code 1.141.0 on Linux amd64. Installation supports trusted writable Linux, Windows and macOS filesystem workspaces. A bounded same-machine Linux Remote SSH/browser check is qualified separately. Native Windows/macOS, other remote providers, OS browser associations and production keychains remain unqualified. The source-build commands above use the maintained Linux amd64 workflow.
+The package requires VS Code 1.139.1 or a compatible later 1.x version. Automated desktop tests use VS Code 1.143.1 on Linux amd64. Installation supports trusted writable Linux, Windows and macOS filesystem workspaces. A bounded same-machine Linux Remote SSH/browser check is qualified separately. Native Windows/macOS, other remote providers, OS browser associations and production keychains remain unqualified. The source-build commands above use the maintained Linux amd64 workflow.
 
 Confirm both public editor clients have the [native callback registration](../operations/oidc-keycloak.md#connect-the-desktop-client). VS Code can add a window-routing query; an older fixture with only the bare callback needs its two existing client registrations updated through the provider console.
 

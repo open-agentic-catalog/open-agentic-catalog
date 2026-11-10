@@ -75,8 +75,9 @@ def run(args, *, cwd=ROOT, env=None, capture=False):
 
 def validate_runtime(node_version, npm_version):
     expected = "v" + (SDK / ".nvmrc").read_text().strip()
-    if node_version.strip() != expected or npm_version.strip() != "11.19.1":
-        raise RuntimeError("Pinned Node 24.22.1 and npm 11.19.1 required")
+    expected_npm = json.loads((SDK / "package.json").read_text())["packageManager"].removeprefix("npm@")
+    if node_version.strip() != expected or npm_version.strip() != expected_npm:
+        raise RuntimeError("Pinned Node and npm required")
 
 
 def tool_inventory():
@@ -112,7 +113,8 @@ def install():
     import node_runtime
     runtimes = {version: node_runtime.install(version, TOOLS / "node") for version in json.loads((HERE / "node-runtimes.json").read_text())}
     node = runtimes[(SDK / ".nvmrc").read_text().strip()]
-    npm = node.parent.parent / "lib/node_modules/npm/bin/npm-cli.js"
+    npm_version = json.loads((SDK / "package.json").read_text())["packageManager"].removeprefix("npm@")
+    npm = node_runtime.install_npm(node, npm_version, TOOLS / "npm", env=environment())
     validate_runtime(run([node, "--version"], capture=True), run([node, npm, "--version"], capture=True))
     TOOLS.mkdir(parents=True, exist_ok=True)
     stamp = TOOLS / "installed.json"
@@ -186,6 +188,23 @@ def qualify_catalog(work, stamp, runtime=None, *, workflow=None, fixture=None, p
     run(go_runner.focused_go_command(go, ["-tags=functional", "-race", "-run=" + pattern, "-count=1", "-timeout=" + timeout, "-v", "./..."], names), cwd=consumer, env=env)
 
 
+def packed_filename(packed, manifest):
+    """Bind npm 12's name-keyed pack result to the selected package."""
+    name = manifest["name"]
+    if not isinstance(packed, dict) or set(packed) != {name}:
+        raise RuntimeError("Unexpected npm pack inventory")
+    record = packed[name]
+    if (not isinstance(record, dict) or record.get("name") != name
+            or record.get("version") != manifest["version"]):
+        raise RuntimeError("Unexpected npm pack identity")
+    filename = record.get("filename")
+    if (not isinstance(filename, str) or not filename.endswith(".tgz")
+            or filename in {".tgz", "..tgz"} or Path(filename).name != filename
+            or "\\" in filename):
+        raise RuntimeError("Unexpected npm pack filename")
+    return filename
+
+
 def build_package(work, stamp):
     manifest = json.loads((SDK / "package.json").read_text())
     if manifest["version"] != (ROOT / "VERSION").read_text().strip():
@@ -197,7 +216,7 @@ def build_package(work, stamp):
     run([stamp["node"], SDK / "node_modules/typescript/bin/tsc", "-p", SDK / "tsconfig.json", "--outDir", package / "dist"])
     shutil.copyfile(SDK / "src/schema.d.ts", package / "dist/schema.d.ts")
     packed = json.loads(run([stamp["node"], stamp["npm"], "pack", "--offline", "--ignore-scripts", "--json", "--pack-destination", work], cwd=package, capture=True))
-    archive = work / packed[0]["filename"]
+    archive = work / packed_filename(packed, manifest)
     import runner as shared
     shared.check_archive_notices(archive, SDK, "package/")
     return package, archive

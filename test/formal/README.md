@@ -13,7 +13,7 @@ make formal-tools-install
 make test-formal
 ```
 
-Installation explicitly downloads the checksum-pinned GobraIDE v2.0.3 tool bundle using `gh`, extracting only the verifier JAR, Z3 executable and Z3 license into ignored `test/formal/.tools/`. The JAR retains its embedded notices. Java is an operator-installed prerequisite; the runner records its exact reported version.
+Installation explicitly downloads the checksum-pinned GobraIDE v2.0.5 tool bundle using `gh`, extracting only the verifier JAR, Z3 executable and Z3 license into ignored `test/formal/.tools/`. The JAR retains its embedded notices. Java is an operator-installed prerequisite; the runner records its exact reported version.
 
 Existing tools are revalidated, never silently upgraded. An invalid installation fails; remove only `test/formal/.tools/` before explicitly reinstalling. The target does not build or distribute a container, extension or release.
 

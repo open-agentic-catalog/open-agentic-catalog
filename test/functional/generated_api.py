@@ -64,7 +64,7 @@ def pins():
         if name in result:
             raise Failure("generated-tool-lock-invalid")
         result[name] = match[2]
-    if result.get("schemathesis") != "4.30.1":
+    if result.get("schemathesis") != "4.32.5":
         raise Failure("generated-tool-lock-invalid")
     return result
 
@@ -117,7 +117,7 @@ def require_inventory(loaded, authority):
 
 
 def valid_evidence(value, authority):
-    return (isinstance(value, dict) and value.get("tool") == "schemathesis-4.30.1"
+    return (isinstance(value, dict) and value.get("tool") == "schemathesis-4.32.5"
             and value.get("operations") == list(OPERATIONS) and value.get("controls") == list(OPERATIONS)
             and value.get("tests") == len(CASES) + 2 and value.get("calibrations") == len(CALIBRATIONS)
             and type(value.get("requests")) is int and len(CASES) * EXAMPLES + len(OPERATIONS) + sum(SETUP.values()) <= value["requests"] <= MAX_REQUESTS
@@ -185,7 +185,7 @@ def run_suite():
     pytest_file("pilot.py", directory / "generated.xml", env)
     count = junit(report_bytes(directory / "generated.xml"), ["test_controls", *CASES, "test_sequences"])
     evidence = read_document(directory / "generated-counts.json")
-    evidence.update(tool="schemathesis-4.30.1", operations=list(OPERATIONS), controls=list(OPERATIONS), tests=count,
+    evidence.update(tool="schemathesis-4.32.5", operations=list(OPERATIONS), controls=list(OPERATIONS), tests=count,
                     calibrations=len(CALIBRATIONS), seed=int(seed), lockDigest=hashlib.sha256((TOOLS / "tools.txt").read_bytes()).hexdigest())
     if not valid_evidence(evidence, authority):
         raise Failure("generated-evidence-incomplete")

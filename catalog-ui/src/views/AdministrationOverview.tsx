@@ -85,7 +85,7 @@ function Access(props: WorkspaceProps) {
                             return (
                               <td key={state}>
                                 <a
-                                  aria-label={`${type === "human" ? "People" : "Service identities"}: ${stateLabel(state)}`}
+                                  aria-label={`${type === "human" ? "People" : "Service identities"}: ${stateLabel(state)}: ${row.count.toLocaleString()}`}
                                   href={`${props.runtime.basePath}/members${directorySearch({ state, actorType: type })}`}
                                 >
                                   {row.count.toLocaleString()}

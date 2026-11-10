@@ -239,7 +239,7 @@ export async function login(
 ) {
   await page.goto(catalog.origin + catalog.basePath + path);
   await page.locator(`[data-login-alias="${alias}"]`).click();
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
 }
 
 /** Confirm the visible prepared command and wait for its dialog to close. */
@@ -293,7 +293,7 @@ export async function dismissNativeReload(page: Page) {
 /** Open the native account disclosure only when the journey needs a personal action. */
 export async function openAccount(page: Page) {
   if ((await page.locator("details.account").getAttribute("open")) === null)
-    await page.getByLabel("Account", { exact: true }).click();
+    await page.getByTitle("Account", { exact: true }).click();
 }
 
 /** Use the real sign-out action without leaving Account open in every login fixture. */

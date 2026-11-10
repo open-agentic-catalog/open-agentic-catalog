@@ -117,9 +117,11 @@ def install():
     marker = TOOLS / "installed.json"
     marker.unlink(missing_ok=True)
     node = node_runtime.install((ROOT / "sdk/typescript/.nvmrc").read_text().strip(), TOOLS / "node")
-    stamp = {"node": str(node), "npm": str(node.parent.parent / "lib/node_modules/npm/bin/npm-cli.js")}
+    npm_version = json.loads((EXTENSION / "package.json").read_text())["packageManager"].removeprefix("npm@")
+    npm = node_runtime.install_npm(node, npm_version, TOOLS / "npm", env=environment(acquire=True))
+    stamp = {"node": str(node), "npm": str(npm)}
     version = "v" + (ROOT / "sdk/typescript/.nvmrc").read_text().strip()
-    if run([node, "--version"], stamp=stamp, capture=True).strip() != version or run([node, stamp["npm"], "--version"], stamp=stamp, capture=True).strip() != "11.19.1":
+    if run([node, "--version"], stamp=stamp, capture=True).strip() != version or run([node, stamp["npm"], "--version"], stamp=stamp, capture=True).strip() != npm_version:
         raise RuntimeError("Pinned Node/npm required")
     run([node, stamp["npm"], "ci", "--ignore-scripts", "--no-audit", "--no-fund"], stamp=stamp, cwd=EXTENSION, acquire=True)
     if before != inputs():

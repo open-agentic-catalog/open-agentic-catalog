@@ -94,6 +94,8 @@ The complete fresh qualification requires:
 
 ### Native import limits
 
+Retain the OASF 1.0.0 server image with this Directory profile. OASF 1.1.0 changes schema classes and skills and does not serve the required `/api/1.0.0/objects/record` contract. A schema-profile migration requires separate conformance work; it is not an interchangeable companion-image update.
+
 The pinned CLI embeds `dir-importer v1.5.5` and `oasf-sdk/pkg v1.3.1-0.20260910081500-f0c6172a010a`. Its translators add `modules[0].artifact`, which the pinned OASF 1.0.0 server schema rejects. Skill translation also lacks required `source_locator` and `validation` fields. First and repeated attempts must report the same schema failure and return no CID. The existing compatible manual A2A push/export path remains a separate passing control.
 
 The CLI can exit zero after an import fails. Malformed JSON can produce an error while all summary counts remain zero. Assertions inspect counts, exact error causes, CID files and unchanged six-record inventory. A dry run proves translation only. It does not prove storage, deduplication or successful artifact export. Generated timestamps can change translated record digests between runs; original input and embedded-artifact digests must remain stable.

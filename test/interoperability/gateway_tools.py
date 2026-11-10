@@ -41,7 +41,16 @@ def command(*args, **kwargs):
 
 
 def read_lock():
-    return json.loads((ASSETS / "lock.json").read_text())
+    lock = json.loads((ASSETS / "lock.json").read_text())
+    validate_auth_base(lock["images"]["registry"], (ASSETS / "Containerfile.auth").read_text())
+    return lock
+
+
+def validate_auth_base(reference, containerfile):
+    """Keep native auth source and its Registry dependency closure on one image."""
+    bases = [line.strip() for line in containerfile.splitlines() if line.strip().upper().startswith("FROM ")]
+    if bases != ["FROM " + reference]:
+        raise ValueError("Gateway auth base must match the pinned Registry image")
 
 
 def tree_digest(source):

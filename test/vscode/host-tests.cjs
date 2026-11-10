@@ -8,7 +8,7 @@ exports.run = async () => {
   );
   assert.ok(target, "Packaged extension missing");
   assert.equal(process.versions.node, "24.21.0");
-  assert.equal(vscode.version, "1.141.0");
+  assert.equal(vscode.version, "1.143.1");
   const api = await target.activate();
   await require("./renderer-host-tests.cjs").run(target);
   const observed = await require("./webview.cjs").webview("observer");

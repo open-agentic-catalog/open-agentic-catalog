@@ -21,7 +21,7 @@ ALLOWED = {
     "MIT OR Apache-2.0",
 }
 MPL = {
-    "certifi": ("2026.10.19", "MPL-2.0"),
+    "certifi": ("2026.10.23", "MPL-2.0"),
     "orjson": ("3.13.0", "MPL-2.0 AND (Apache-2.0 OR MIT)"),
 }
 

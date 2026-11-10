@@ -43,7 +43,7 @@ for (const deployment of ["root", "subpath"]) {
     await expect(
       page.getByRole("heading", { name: "Connected builds" }),
     ).toHaveCount(0);
-    await expect(page.getByLabel("Account", { exact: true })).toHaveCount(0);
+    await expect(page.getByTitle("Account", { exact: true })).toHaveCount(0);
     const manual = page.getByRole("link", {
       name: "Documentation",
       exact: true,
@@ -124,7 +124,7 @@ test("delayed startup options cannot strand logout or replace the current roster
   try {
     await page.reload();
     await started;
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
     await signOut(page);
     await expect(
       page.getByRole("heading", {
@@ -139,7 +139,7 @@ test("delayed startup options cannot strand logout or replace the current roster
   }
   await page.locator('[data-login-alias="local-reader"]').focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Catalog", exact: true }),
   ).toBeFocused();
@@ -348,7 +348,7 @@ test("cross-tab cancellation of pending login preserves surviving header focus",
     release();
   }
   await completed;
-  await expect(page.getByLabel("Account", { exact: true })).toHaveCount(0);
+  await expect(page.getByTitle("Account", { exact: true })).toHaveCount(0);
   await expect(page.locator("article.resource-card")).toHaveCount(0);
   await expect(page.getByLabel("Appearance", { exact: true })).toBeFocused();
 });
@@ -374,5 +374,5 @@ test("quick navigation closes when selecting the current page section under a su
     catalog.origin + catalog.basePath + "/service#search-indexing",
   );
   await expect(page.locator("#search-indexing")).toBeInViewport();
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
 });

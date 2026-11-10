@@ -132,10 +132,10 @@ class Tools(unittest.TestCase):
         self.assertEqual(len(tools.validate_lock()), 3)
 
     def test_absent_registry_revision_requires_a_separate_reviewed_source_pin(self):
-        package = "@modelcontextprotocol/inspector@2.11.0"
+        package = "@modelcontextprotocol/inspector@2.12.0"
         expected = tools.validate_lock()[package]
         self.assertIsNone(expected["gitHead"])
-        self.assertEqual(tools.source_revision(package, expected), "074b8108f340590268f2900741403755e923a11c")
+        self.assertEqual(tools.source_revision(package, expected), "0cac110a809e93753fa353810b9b4c91e89810fc")
         metadata = registry_metadata(package, expected)
         tools.validate_registry_identity(package, expected, metadata)
         for value in (None, "a" * 40):
@@ -150,7 +150,7 @@ class Tools(unittest.TestCase):
             tools.source_revision(package, missing_presence)
 
     def test_registry_revision_and_artifact_changes_still_fail_closed(self):
-        package = "@modelcontextprotocol/sdk@1.32.1"
+        package = "@modelcontextprotocol/sdk@1.32.2"
         expected = tools.validate_lock()[package]
         metadata = registry_metadata(package, expected)
         tools.validate_registry_identity(package, expected, metadata)

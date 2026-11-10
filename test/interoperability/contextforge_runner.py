@@ -360,7 +360,7 @@ def validate_proxy(result):
     assert all(isolation[x] is True for x in ("twoTenants", "wrongTeam", "upstreamContact", "revokedCollections", "sameClientRestored")), "missing current-access control"
     assert isolation["revokedExactRead"] in ("tool_error", "rpc_error"), "missing exact-read refusal"
     credentials = result["credentials"]
-    assert all(credentials[x] is True for x in ("missingAndInvalidInbound", "host", "origin", "privateTLS", "expiredAudienceAndScope", "explicitOverride", "configuredIdentity")), "missing credential control"
+    assert all(credentials[x] is True for x in ("missingAndInvalidInbound", "host", "origin", "privateTLS", "expiredAudienceAndScope", "managedCredentialOverrideBlocked", "invalidCredentialUpdatesRefused", "configuredIdentity")), "missing credential control"
     assert credentials["upstreamDenials"] == {"expired": 401, "audience": 401, "scope": 403}, "incorrect upstream admission result"
     assert result["lifecycle"] == dict.fromkeys(("sameUserSubset", "excludedWithoutUpstreamCall", "acceptedCredentialReplacement", "replacementData", "restored"), True), "incomplete gateway lifecycle"
 
@@ -425,7 +425,7 @@ def handoff(directory):
     (directory / "handoff-peer.log").write_text(text)
     (directory / "handoff-peer.log").chmod(0o600)
     runtime["prompt"] = classify_prompt_failure(runtime["prompt"], runtime["nativeNames"]["prompt"], text)
-    validate_runtime(runtime)
+    validate_runtime(runtime, tools.pins()["version"])
     state["handoffRuntime"] = runtime
     state["handoffRefusals"] = client_command(directory, "handoff-refusals")
     assert state["handoffRefusals"] == {"missing": 401, "wrongTeam": 403, "noInvocation": True}, "runtime refusal controls"

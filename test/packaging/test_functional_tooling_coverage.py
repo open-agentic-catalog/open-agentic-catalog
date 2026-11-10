@@ -78,7 +78,7 @@ class ToolingCoverageFunctionalTests(unittest.TestCase):
         self.complete()
         receipt = json.loads(coverage.finish("output/run").read_text())
         self.assertEqual(set(receipt["sourceFiles"]), set(self.paths))
-        self.assertEqual(receipt["tool"], {"name": "coverage", "version": "7.16.2"})
+        self.assertEqual(receipt["tool"], {"name": "coverage", "version": "7.17.0"})
         self.assertEqual(receipt["reports"][0]["sha256"], coverage.digest(self.directory / "coverage.xml"))
         document = ET.parse(self.directory / "coverage.xml")
         classes = {item.attrib["filename"]: item for item in document.findall(".//class")}
@@ -140,7 +140,7 @@ class ToolingCoverageFunctionalTests(unittest.TestCase):
         receipt = json.loads(receipts[0].read_text())
         self.assertEqual(receipt["status"], "passed")
         self.assertEqual(receipt["profile"], "python-unit")
-        self.assertEqual(receipt["tool"], {"name": "coverage", "version": "7.16.2"})
+        self.assertEqual(receipt["tool"], {"name": "coverage", "version": "7.17.0"})
         self.assertEqual(set(receipt["sourceFiles"]), {name for name in self.paths if name.startswith("test/") and name.endswith(".py")})
         profile = receipts[0].parent
         self.assertEqual({path.name for path in (profile / "owners").iterdir()}, {"alpha.json", "beta.json"})

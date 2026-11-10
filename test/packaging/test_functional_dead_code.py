@@ -117,7 +117,7 @@ class DeadCodeMakeTests(MakeScopeTestsFixture, unittest.TestCase):
         for target, mode in [("dead-code-report", "report"), ("dead-code-check", "check")]:
             output = self.run_make("-n", target)
             self.assertIn("dead_code.py " + mode, output)
-            self.assertIn("--version \"v0.51.0\"", output)
+            self.assertIn("--version \"v0.52.0\"", output)
             self.assertIn("--application-root ./catalog-ui/internal/...", output)
             self.assertIn("--source-root ./examples/...", output)
             self.assertNotIn("--application-root ./test/", output)

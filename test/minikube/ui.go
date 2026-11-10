@@ -34,6 +34,20 @@ func (h *harness) verifyUI() error {
 	if err != nil || len(before) != 0 {
 		return errors.New("UI-disabled installation unexpectedly has UI pods")
 	}
+	backendBefore := make(map[string][]podIdentity)
+	if h.options.scenario == "ui" {
+		for _, role := range []string{"api", "worker"} {
+			pods, err := h.pods(role)
+			if err != nil {
+				return err
+			}
+			if len(pods) != h.options.runtimeReplicas() {
+				return fmt.Errorf("UI-disabled installation has unexpected %s replicas", role)
+			}
+			backendBefore[role] = pods
+			h.recordPlacement("before-ui-"+role, pods)
+		}
+	}
 	image := "open-agentic-catalog-ui:minikube-" + h.suffix
 	if _, err := h.run("build optional UI image", h.options.docker, "build", "--tag", image, "--file", "catalog-ui/Containerfile", "."); err != nil {
 		return err
@@ -63,8 +77,9 @@ func (h *harness) verifyUI() error {
 		return err
 	}
 	marker := "ui"
-	if h.options.scenario == "topology" {
-		// Adding a UI-only policy phase must not roll the existing backend.
+	if h.options.scenario == "topology" || h.options.scenario == "ui" {
+		// UI-only changes must not replace the backend; rollout qualification
+		// belongs to the separate reconfiguration and upgrade scenarios.
 		marker = "initial"
 	}
 	values, err := h.writeHelmValues(marker, "catalog_api")
@@ -159,6 +174,28 @@ func (h *harness) verifyUI() error {
 	raw, err = h.kubectl("check UI removal", "-n", namespace, "get", "deployment,service,configmap,serviceaccount,networkpolicy", "-l", "app.kubernetes.io/component=ui", "-o", "name")
 	if err != nil || strings.TrimSpace(string(raw)) != "" {
 		return errors.New("disabled UI retained chart resources")
+	}
+	for _, role := range []string{"api", "worker"} {
+		previous, retained := backendBefore[role]
+		if !retained {
+			continue
+		}
+		current, err := h.pods(role)
+		if err != nil {
+			return err
+		}
+		if !sameUIDs(previous, current) {
+			return fmt.Errorf("UI enable/disable replaced %s Pods", role)
+		}
+		for _, pod := range current {
+			if !pod.Ready {
+				return fmt.Errorf("UI enable/disable left an unready %s Pod", role)
+			}
+		}
+		h.recordPlacement("after-ui-"+role, current)
+	}
+	if len(backendBefore) != 0 {
+		h.report.Checks = append(h.report.Checks, "ui-enable-disable-preserves-backend-pods")
 	}
 	h.report.Checks = append(h.report.Checks, "ui-default-off", "ui-subpath-and-probes", "ui-cross-replica-session-and-api", "ui-disable-preserves-backend")
 	return nil

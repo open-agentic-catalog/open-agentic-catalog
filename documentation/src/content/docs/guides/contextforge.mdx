@@ -14,9 +14,9 @@ Use [IBM ContextForge](https://github.com/IBM/mcp-context-forge) with the Catalo
 
 The Catalog stores governed metadata. ContextForge forwards MCP requests. Discovering a server does not authorize its execution or supply its credentials.
 
-The first flow uses the Gateway's configured Catalog Reader token. See [Minimum permissions](#minimum-permissions) for identity rules and the upstream-header override. The [Catalog MCP guide](mcp-server.mdx) explains the read-only tools and their internal routing.
+The first flow uses the Gateway's configured Catalog Reader token. See [Minimum permissions](#minimum-permissions) for identity rules and administrator credential replacement. The [Catalog MCP guide](mcp-server.mdx) explains the read-only tools and their internal routing.
 
-This guide uses the repository's disposable test setup and the official ContextForge 1.1.0 image. It does not add ContextForge to the normal Catalog Compose stack.
+This guide uses the repository's disposable test setup and the official ContextForge 1.1.1 image. It does not add ContextForge to the normal Catalog Compose stack.
 
 ## Prerequisites
 
@@ -224,7 +224,7 @@ Wait for registration to return the expected inventory before selecting capabili
 
 The ordinary client Bearer authenticates the ContextForge user. The Gateway's configured token determines the Catalog identity.
 
-A shared upstream account does not preserve each downstream user's Catalog identity. Native `X-Upstream-Authorization` can replace that token even when header passthrough is off.
+A shared upstream account does not preserve each downstream user's Catalog identity. The selected image blocks caller `X-Upstream-Authorization` overrides of this Gateway-managed bearer token. An authorized ContextForge administrator changes the Gateway credential through its API.
 
 The Catalog applies its tenant, namespace, membership and OAuth checks to the effective upstream token. Do not grant broader Catalog access because the gateway authenticates clients.
 
@@ -310,7 +310,7 @@ The Catalog stays ready during those runtime outages. Its published release and 
 
 ### Prompt limitation in the selected image
 
-ContextForge 1.1.0 fails private-CA verification when it fetches the selected prompt in this setup. Direct Everything prompt reads succeed.
+The selected ContextForge image fails private-CA verification when it fetches the selected prompt in this setup. Direct Everything prompt reads succeed.
 
 Gateway echo and static resource reads also succeed with the configured key and CA. The report records prompt forwarding as `peer_limited`, not compatible.
 

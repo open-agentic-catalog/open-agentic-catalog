@@ -371,8 +371,9 @@ try {
         }
       }
     }
-    await page.getByLabel("Account", { exact: true }).click();
+    await page.getByTitle("Account", { exact: true }).click();
     await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    await expect(page.getByTitle("Account", { exact: true })).toHaveCount(0);
   }
   expect(failures).toEqual([]);
   await coverage.finish();

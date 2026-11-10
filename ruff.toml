@@ -1,5 +1,5 @@
 # Read-only correctness checks for maintained Python tooling, not a formatter.
-required-version = "==0.17.0"
+required-version = "==0.17.3"
 preview = false
 fix = false
 fix-only = false

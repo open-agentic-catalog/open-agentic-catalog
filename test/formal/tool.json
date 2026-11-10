@@ -1,16 +1,16 @@
 {
-  "release": "v2.0.3",
-  "gobraCommit": "36e39e31360ff6228b4932f7a4402ecf35f53e01",
-  "archiveSHA256": "af2f09605fdb783d81f428bc1b4d178ca3fa7404f83003067f3359a5faa18c6d",
+  "release": "v2.0.5",
+  "gobraCommit": "d2c5af5450540c502855e53f4a5af1ba7630c41f",
+  "archiveSHA256": "bf65e630e723a4f8a56811af2d6d47defe525da42928a1ddcaa264e75c955118",
   "files": {
-    "server/server.jar": "7529661904c1abab42fa629ec859d168629a442df105e556946e762d4f3d607d",
-    "z3/bin/z3": "9f66003b8998998f67bcc33b610ddada9f0e1b5b50ca5b47739eeb3ac6c06e20",
+    "server/server.jar": "a6f9bda29ae6c4c2eb32c9375917a0c60aab7bf10a43ee7fb28b29f5a7b087cb",
+    "z3/bin/z3": "e583c4186a45e72411fa2cb2048401eed03f0f8e5f24694676a8f6271a50b765",
     "z3/LICENSE.txt": "e617cad2ab9347e3129c2b171e87909332174e17961c5c3412d0799469111337"
   },
   "contractSHA256": "df3b7025be8333d6ffe9a3defa808d7e3deb190471fcefd6e1bf6f4eb61d99c7",
   "timeSHA256": "d7fd1343819fa3f8429cf7961743093e3a6ed08d65305721d8f7e6b2d81dc3f6",
   "callerSHA256": "8ea52937db668e94825816ee24d2b47b40b782509e668c0591ec79343a8738c9",
-  "viperServerCommit": "840fff63278dd655ce5032d4370cda1da3ee92c2",
-  "siliconCommit": "f9c2989cf6a86869bc90aa404abb8bb8586b72f7",
-  "silverCommit": "42fa22f0c31923b0f304039805328288c45979d3"
+  "viperServerCommit": "99be0e6df388579d77368a41f29a8bae1a2c4400",
+  "siliconCommit": "6b540aa45e5af214f4727b7be463ce84b328fabd",
+  "silverCommit": "f02e7010639f314447d74732146644565aa8d135"
 }

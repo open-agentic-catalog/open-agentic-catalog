@@ -24,8 +24,9 @@ def test_events(result="pass", output=""):
 
 
 def report_fixture(bucket="escaped"):
-    row = {"checksum": "a" * 32, "mutator": {"mutatorName": "expression/comparison",
-           "originalFilePath": "policy.go", "originalStartLine": 2},
+    row = {"id": "c" * 32, "checksum": "a" * 32, "mutator": {"mutatorName": "expression/comparison",
+           "originalFilePath": "policy.go", "originalStartLine": 2,
+           "location": {"physical": {"filename": "policy.go", "line": 2}, "coverage": {"filename": "/owned/policy.go", "line": 2}}},
            "diff": "--- Original\n+++ New\n@@ -2 +2 @@\n-old\n+new\n", "processOutput": ""}
     data = {"sources": {"policy.go": SOURCE}, "stats": {"totalMutantsCount": 1}}
     for key, field in [("killed", "killed"), ("escaped", "escaped"), ("skipped", "skipped"), ("errored", "error"), ("notCovered", "notCovered")]:
@@ -37,6 +38,28 @@ def report_fixture(bucket="escaped"):
 
 
 class MutationEventsTests(unittest.TestCase):
+    def test_native_stable_identity_and_paired_coordinates_are_checked(self):
+        data, _ = report_fixture()
+        self.assertTrue(m.native_rows(data, {"policy.go": SOURCE}, inventory=True))
+        for change in (
+            lambda row: row.update(id="bad"),
+            lambda row: (row["mutator"].update(originalStartLine=1), row["mutator"]["location"]["physical"].update(line=True)),
+            lambda row: row["mutator"]["location"]["physical"].update(filename="other.go"),
+            lambda row: row["mutator"]["location"]["coverage"].update(line=True),
+            lambda row: row["mutator"]["location"].update(extra={}),
+        ):
+            wrong, _ = report_fixture()
+            change(wrong["escaped"][0])
+            with self.assertRaises(ValueError):
+                m.native_rows(wrong, {"policy.go": SOURCE}, inventory=True)
+        second, _ = report_fixture()
+        row = second["escaped"][0]
+        row["checksum"] = "b" * 32
+        row["diff"] += "extra edit\n"
+        data["escaped"].append(row)
+        with self.assertRaisesRegex(ValueError, "stable ID"):
+            m.native_rows(data, {"policy.go": SOURCE}, inventory=True)
+
     def test_rapid_completion_and_invalid_generators_are_not_mutation_catches(self):
         self.assertEqual(m.classify(property_events(), PROPERTY_PACKAGE, 0, property_tests=[PROPERTY_NAME]), ("survived", []))
         self.assertEqual(m.classify(property_events(20), PROPERTY_PACKAGE, 0, property_tests=[PROPERTY_NAME])[0], "error")

@@ -13,6 +13,7 @@ import shutil
 import shlex
 import signal
 import subprocess
+import sys
 import tempfile
 import time
 import uuid
@@ -20,12 +21,17 @@ import uuid
 from common import run
 from runner import ROOT, HERE, extract_source, fingerprint, cached_go, build_binaries, CATALOG_INPUTS
 
+sys.path.append(str(ROOT / "test/sdk"))
+import node_runtime  # noqa: E402
+
 INPUTS = HERE / "pi-ard"
 OUTPUT = ROOT / "output/interoperability/pi-ard"
 TOOLS = OUTPUT / "tools"
 PIN = json.loads((INPUTS / "inputs.json").read_text())
 NODE = ROOT / ".tools/ci" / ("node-v" + PIN["node"] + "-linux-x64")
+NPM = ROOT / ".tools/ci" / ("npm-" + PIN["npm"]) / "node_modules/npm/bin/npm-cli.js"
 HARNESS_INPUTS = (
+    ROOT / "test/sdk/node_runtime.py",
     INPUTS,
     HERE / "pi_ard.py",
     HERE / "pi_campaign.py",
@@ -82,7 +88,7 @@ def environment(home):
     }
 
 
-def prerequisites():
+def prerequisites(*, acquire=False):
     if sys_optimized() or platform.system() != "Linux" or platform.machine() != "x86_64" or os.getuid() == 0:
         raise RuntimeError("Pi preparation requires assertions and non-root Linux AMD64")
     for name in ("bwrap", "sudo", "systemd-run", "systemctl"):
@@ -90,7 +96,9 @@ def prerequisites():
             raise RuntimeError("missing Pi preparation tool: " + name)
     if run([str(NODE / "bin/node"), "--version"]).stdout.strip() != "v" + PIN["node"]:
         raise RuntimeError("install the pinned repository Node toolchain first")
-    if run([str(NODE / "bin/npm"), "--version"]).stdout.strip() != PIN["npm"]:
+    if acquire:
+        node_runtime.install_npm(NODE / "bin/node", PIN["npm"], ROOT / ".tools/ci", env=environment(ROOT / ".tools/ci"))
+    if run([str(NODE / "bin/node"), str(NPM), "--version"]).stdout.strip() != PIN["npm"]:
         raise RuntimeError("npm differs from the reviewed pin")
 
 
@@ -149,7 +157,7 @@ def validate_scan(value, pairs):
 
 
 def install():
-    prerequisites()
+    prerequisites(acquire=True)
     if TOOLS.exists():
         raise RuntimeError("Pi tool directory exists; inspect and remove only that directory before explicit reinstall")
     TOOLS.mkdir(parents=True, mode=0o700)
@@ -247,7 +255,8 @@ def install():
     findings = validate_scan(json.loads(scan.read_text()), pairs)
     result = run(
         [
-            str(NODE / "bin/npm"),
+            str(NODE / "bin/node"),
+            str(NPM),
             "--prefix",
             str(runtime),
             "ci",

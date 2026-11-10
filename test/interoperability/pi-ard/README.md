@@ -8,7 +8,7 @@ These optional checks run real Pi sessions with the unchanged pi-ard extension. 
 
 The maintainer approves ten exact age exceptions: the eight Pi packages at 1.5.0, minimatch 11.0.3 and @isaacs/nonrecursive-glob-match 1.0.3. Other versions meet the 14-day rule. The pins retain each release date and each exception's integrity hash. Source, manifest and lock digests reject changed inputs.
 
-Use non-root Linux AMD64 with Python, GitHub CLI, bubblewrap and systemd. Install the repository's Node 22.23.4/npm 10.9.9 and Trivy pins through the existing [verification tool setup](../../ci/README.md). The matching CI tool profiles are `ui` for Node/npm and `security` for Trivy. Execution needs noninteractive permission for `sudo systemd-run` and `sudo systemctl` on the invocation-owned transient services. The launcher does not change sudo policy, enable user services or change host settings.
+Use non-root Linux AMD64 with Python, GitHub CLI, bubblewrap and systemd. Install the repository's Node 22.23.4/npm 12.2.1 and Trivy pins through the existing [verification tool setup](../../ci/README.md). The matching CI tool profiles are `ui` for Node/npm and `security` for Trivy. Execution needs noninteractive permission for `sudo systemd-run` and `sudo systemctl` on the invocation-owned transient services. The launcher does not change sudo policy, enable user services or change host settings.
 
 Run each target alone from the repository root:
 

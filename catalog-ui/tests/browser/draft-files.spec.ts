@@ -884,7 +884,7 @@ test("root: draft reads cannot replace a newer file or survive Namespace changes
   ).toBeVisible();
   await release("delayed-session.json");
   await page.locator('[data-login-alias="local-contributor"]').click();
-  await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+  await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
   await expect(
     page.getByLabel("Canonical resource identifier", { exact: true }),
   ).toHaveValue("");

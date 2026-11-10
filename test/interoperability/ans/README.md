@@ -8,7 +8,7 @@ Follow the [Minikube prerequisites](../../minikube/README.md). Install the share
 
 ```sh
 make ans-tools-install
-make test-interoperability-ans MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.35.9-containerd-overlay2-amd64.tar.lz4
+make test-interoperability-ans MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.37.1-containerd-overlay2-amd64.tar.lz4
 ```
 
 Installation acquires the exact source revision in [lock.json](lock.json) through `gh`. It uses the digest-pinned Go compiler to download Go modules into ignored `.tools/ans/modules/`. This acquisition container uses host networking for local WSL DNS compatibility and is removed afterward. Compilation runs offline. No native service runs during installation. The resulting scratch image contains only the unchanged RA, TL and Finder binaries. Separate artifacts retain binary build information, the module/package inventory, Go license and dependency license files. The MIT [source license](LICENSE) is retained beside the lock.
@@ -56,7 +56,7 @@ Each phase has a bounded three-minute execution deadline. ANS fixture clients al
 Run this target separately after the same installed prerequisites:
 
 ```sh
-make test-trust-verification MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.35.9-containerd-overlay2-amd64.tar.lz4
+make test-trust-verification MINIKUBE_PRELOAD_ARCHIVE=/absolute/path/to/preloaded-images-k8s-v18-v1.37.1-containerd-overlay2-amd64.tar.lz4
 ```
 
 It reuses the native deployment, HTTPS edge, current Catalog image, PostgreSQL and cleanup above. All eight metadata lifecycle phases run first. The native RA/TL/Finder binaries remain unchanged. The selected edge also forwards exact receipt, checkpoint, bounded history and status routes to TL. No public service or resource endpoint is contacted. Operators supply authority in production; this fixture exports only its owned RA/TL public keys.

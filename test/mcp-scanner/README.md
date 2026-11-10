@@ -68,7 +68,7 @@ The isolated campaign units run through the scanner's existing unit selection. O
 
 The maintainer approves the age exception for MCP Scanner 4.8.7. Apply `scannerAgeExceptionApproved` through the reviewed installer inputs before installation. The dependency findings still require supported fixes. After November 3, 2026, at 17:30:42 UTC, ordinary release-age admission permits this exact wheel.
 
-Use the repository-pinned uv 0.13.4 to regenerate the lock. The command in its header records the fixed cutoff and package-specific exceptions. Start from the repository root. Do not inherit registry credentials or user uv configuration. Review every changed version, wheel hash, release timestamp and dependency requirement before reinstalling.
+Use the repository-pinned uv 0.13.6 to regenerate the lock. The command in its header records the fixed cutoff and package-specific exceptions. Start from the repository root. Do not inherit registry credentials or user uv configuration. Review every changed version, wheel hash, release timestamp and dependency requirement before reinstalling.
 
 The base image and pip 26.2.2 reuse earlier approved exact security exceptions. The lock also reuses certifi 2026.10.19 and filelock 4.2.1. The constraint file preserves earlier approvals for Pillow and setuptools if a future resolution needs them. Constraints do not add absent packages.
 

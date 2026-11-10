@@ -34,8 +34,8 @@ build = core.build
 
 REMOTE_TOOLS = {
     "remote-ssh-0.128.0.vsix": ("https://ms-vscode-remote.gallery.vsassets.io/_apis/public/gallery/publisher/ms-vscode-remote/extension/remote-ssh/0.128.0/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage", "458bfdea562840a3a4d9cb246cfe9a212c67a0c9317a8fdd0d22aeaedc82bf2c"),
-    "server-linux-x64-1.141.0.tar.gz": ("https://update.code.visualstudio.com/commit:2a59476c9bfcb90b3ddc372c36762471b7dfad1c/server-linux-x64/stable", "5711ed2690e550d52ca8531bcd349e273ed7b4e0b22180767a9338fd572de2ba"),
-    "chrome-linux64-155.0.8059.39.zip": ("https://storage.googleapis.com/chrome-for-testing-public/155.0.8059.39/linux64/chrome-linux64.zip", "55672d1f392fd3e7b7a08621b6e804e6bcb39d40cf155504abb74b3a021ea8ea"),
+    "server-linux-x64-1.143.1.tar.gz": ("https://update.code.visualstudio.com/commit:e646868227c3e3a9e3f24277c8c7220be42c0be7/server-linux-x64/stable", "5cc911f00c7fd762afa1f978485d9604ceac5984f2b5e6607d981092f894326a"),
+    "chrome-linux64-156.0.8078.47.zip": ("https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.47/linux64/chrome-linux64.zip", "e6c94490f0b6b337225aeb2d2a5034858516b7017356980ba94f5176d8774a50"),
 }
 
 
@@ -76,12 +76,12 @@ def run(args, *, capture=False, env=None, timeout=600, cwd=ROOT):
 
 def install_oras():
     """Explicit test-only acquisition. The extension never installs executables."""
-    archive_name = "oras_1.3.4_linux_amd64.tar.gz"
-    checksum = "f27adb935022d94df8dc77719c322dda592c78a0d57a6f7dcdd8d900b248c454"
+    archive_name = "oras_1.3.6_linux_amd64.tar.gz"
+    checksum = "66fb0ad7206f3f6fa77ed5b552049d364ccf4b50b1684554f731f76302b52ca0"
     directory = TOOLS / "oras"
     directory.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="download-", dir=directory) as work:
-        run(["gh", "release", "download", "v1.3.4", "--repo", "oras-project/oras", "--pattern", archive_name, "--dir", work])
+        run(["gh", "release", "download", "v1.3.6", "--repo", "oras-project/oras", "--pattern", archive_name, "--dir", work])
         archive = Path(work) / archive_name
         if sdk.digest(archive) != checksum:
             raise RuntimeError("ORAS archive checksum differs")
@@ -124,8 +124,8 @@ def install():
     install_remote()
     install_a2a_sample()
     uvx = Path(shutil.which("uvx") or "")
-    if not uvx.is_file() or run([uvx, "--version"], capture=True).split()[:2] != ["uvx", "0.13.4"]:
-        raise RuntimeError("Install uvx 0.13.4 explicitly for offline native MCP qualification")
+    if not uvx.is_file() or run([uvx, "--version"], capture=True).split()[:2] != ["uvx", "0.13.6"]:
+        raise RuntimeError("Install uvx 0.13.6 explicitly for offline native MCP qualification")
     if before != inputs():
         raise RuntimeError("Extension inputs changed during installation; review and reinstall")
     core.write_json(marker, {"uvx": str(uvx.resolve()), "uvx_hash": sdk.digest(uvx), "oras": str(oras), "oras_hash": sdk.digest(oras), "inputs": before, "host": str(host), "host_hash": sdk.digest(host), "tool_hashes": tool_hashes(host), "node_hash": sdk.digest(Path(stamp["node"]))})

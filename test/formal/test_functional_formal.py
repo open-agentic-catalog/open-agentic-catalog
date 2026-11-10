@@ -67,7 +67,7 @@ print('Gobra found 1 error.')
 sys.exit(1)
 '''.replace("COMMIT", pin["gobraCommit"]))
         java.chmod(0o700)
-        contents = {"server/server.jar": b"fixture", "z3/bin/z3": b'#!/bin/sh\necho "Z3 version 4.8.6 - 64 bit"\n', "z3/LICENSE.txt": b"fixture license"}
+        contents = {"server/server.jar": b"fixture", "z3/bin/z3": b'#!/bin/sh\necho "Z3 version 4.16.0 - 64 bit"\n', "z3/LICENSE.txt": b"fixture license"}
         for name, raw in contents.items():
             path = root / formal.TOOLS / name
             path.parent.mkdir(parents=True, exist_ok=True)

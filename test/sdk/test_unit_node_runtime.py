@@ -7,6 +7,7 @@ import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
+import subprocess
 
 import node_runtime as runtime
 
@@ -46,3 +47,45 @@ class NodeRuntimeUnits(unittest.TestCase):
                 result.write_bytes(b"tampered")
                 with self.assertRaisesRegex(RuntimeError, "drift"):
                     runtime.install("24.21.0", root / "installed")
+
+    def test_npm_selection_rejects_nonexact_values_before_acquisition(self):
+        with patch.object(runtime.subprocess, "run") as acquire:
+            for version in ("latest", "^12.2.1", "12.2.1-beta.1", "12.2.1\n", "../12.2.1"):
+                with self.subTest(version=version), self.assertRaisesRegex(RuntimeError, "exact stable"):
+                    runtime.install_npm("/unused/bin/node", version, "/unused", env={})
+            acquire.assert_not_called()
+
+    def test_npm_installs_separately_reuses_receipt_and_refuses_drift(self):
+        def acquire(command, **options):
+            work = Path(command[command.index("--prefix") + 1])
+            package = work / "node_modules/npm"
+            (package / "bin").mkdir(parents=True)
+            (package / "package.json").write_text(json.dumps({"version": "12.2.1"}))
+            (package / "bin/npm-cli.js").write_text("npm entrypoint")
+            (work / "package-lock.json").write_text("locked integrity")
+        with tempfile.TemporaryDirectory() as directory, patch.object(runtime.subprocess, "run", side_effect=acquire) as install:
+            root = Path(directory)
+            node = root / "reviewed-node/bin/node"
+            target = root / "npm"
+            selected = runtime.install_npm(node, "12.2.1", target, env={"NPM_CONFIG_AUDIT": "false"})
+            self.assertEqual(selected, target / "npm-12.2.1/node_modules/npm/bin/npm-cli.js")
+            command = install.call_args.args[0]
+            self.assertEqual(command[:3], [str(node), str(node.parent.parent / "lib/node_modules/npm/bin/npm-cli.js"), "install"])
+            for flag in ("--ignore-scripts", "--no-audit", "--no-fund", "--save-exact"):
+                self.assertIn(flag, command)
+            self.assertNotIn("--global", command)
+            self.assertEqual(command[-1], "npm@12.2.1")
+            self.assertFalse(node.parent.parent.exists())
+            self.assertEqual(runtime.install_npm(node, "12.2.1", target, env={}), selected)
+            install.assert_called_once()
+            selected.write_text("changed")
+            with self.assertRaisesRegex(RuntimeError, "npm installation drift"):
+                runtime.install_npm(node, "12.2.1", target, env={})
+            install.assert_called_once()
+
+    def test_failed_npm_acquisition_cleans_staging_without_activation(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runtime.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "npm")):
+            target = Path(directory)
+            with self.assertRaises(subprocess.CalledProcessError):
+                runtime.install_npm("/unused/bin/node", "12.2.1", target, env={})
+            self.assertEqual(list(target.iterdir()), [])

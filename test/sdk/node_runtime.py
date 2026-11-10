@@ -3,6 +3,8 @@ import hashlib
 import json
 from pathlib import Path
 import platform
+import re
+import subprocess
 import tarfile
 import tempfile
 import urllib.request
@@ -49,3 +51,40 @@ def install(version, destination):
         (unpacked / ".catalog-runtime.json").write_text(json.dumps({name: hashlib.sha256((unpacked / name).read_bytes()).hexdigest() for name in EXECUTABLES}))
         unpacked.rename(target)
     return target / "bin/node"
+
+
+def install_npm(node, version, destination, *, env):
+    """Acquire an exact npm separately, preserving reviewed Node distributions."""
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version):
+        raise RuntimeError("npm selection must be an exact stable version")
+    node, destination = Path(node), Path(destination)
+    target = destination / ("npm-" + version)
+    executable = Path("node_modules/npm/bin/npm-cli.js")
+    inventory = ("package-lock.json", "node_modules/npm/package.json", str(executable))
+
+    def hashes(directory):
+        return {name: hashlib.sha256((directory / name).read_bytes()).hexdigest() for name in inventory}
+
+    if target.exists():
+        try:
+            package = json.loads((target / "node_modules/npm/package.json").read_text())
+            if package["version"] != version or json.loads((target / ".catalog-npm.json").read_text()) != hashes(target):
+                raise ValueError()
+        except (OSError, ValueError, KeyError, TypeError):
+            raise RuntimeError("npm installation drift; remove only this owned npm directory and reinstall") from None
+        return target / executable
+    destination.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="npm-acquire-", dir=destination) as temporary:
+        work = Path(temporary) / "package"
+        work.mkdir()
+        (work / "package.json").write_text(json.dumps({"name": "catalog-npm-tool", "private": True}))
+        bundled = node.parent.parent / "lib/node_modules/npm/bin/npm-cli.js"
+        subprocess.run([str(node), str(bundled), "install", "--prefix", str(work), "--ignore-scripts",
+                        "--no-audit", "--no-fund", "--save-exact", "npm@" + version],
+                       env=env, check=True, timeout=300)
+        actual = json.loads((work / "node_modules/npm/package.json").read_text())
+        if actual["version"] != version:
+            raise RuntimeError("npm version mismatch")
+        (work / ".catalog-npm.json").write_text(json.dumps(hashes(work), sort_keys=True) + "\n")
+        work.rename(target)
+    return target / executable

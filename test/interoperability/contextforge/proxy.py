@@ -229,17 +229,53 @@ class Proxy:
             observed = []
             await self.http_denial(self.connect(**values, responses=observed), statuses, observed=observed)
         await self.http_denial(self.connect(private_ca=False), tls=True)
-        for label, status in (("a-expired", 401), ("a-audience", 401), ("a-scope", 403)):
-            c.PHASE = "proxy-upstream-" + label
+        configured_identity = await c.request("/api/v1/me", token=c.SECRETS["tokens"]["a-reader"])
+        for label in ("a-expired", "a-audience", "a-scope", "b-reader"):
+            c.PHASE = "proxy-blocked-override-" + label
+            before = await self.observations()
             async with self.connect(extra={"X-Upstream-Authorization": "Bearer " + c.SECRETS["tokens"][label]}) as client:
                 await tool_pages(client)
-                before = await self.observations()
-                await self.refusal(client, "search", {})
+                access = await self.data(client, "access")
+                c.require(access["tenantId"] == configured_identity["tenantId"], "caller header cannot replace the gateway-managed identity")
                 events = (await self.observations())[len(before):]
-                c.require(any(e["credential"] == label and e["path"] == "catalog" for e in events), "override token reaches Catalog")
-                if label == "a-scope":
-                    c.require(any(e["credential"] == label and e.get("tool") == "catalog_control_search" for e in events), "scope refusal reaches the Catalog tool")
-                c.require(any(e["credential"] == label and e["status"] == status for e in events), "actual upstream authentication or scope response")
+                catalog_events = [e for e in events if e["path"] == "catalog"]
+                c.require(any(e.get("tool") == "catalog_control_access" and e["status"] == 200 for e in catalog_events), "configured credential reaches Catalog")
+                c.require(all(e["credential"] == "a-reader" for e in catalog_events), "caller-supplied credential never reaches Catalog")
+        connection = self.connections["a"]
+        admin = self.private["admin"]
+        for label, status in (("a-expired", 401), ("a-audience", 401), ("a-scope", 403)):
+            c.PHASE = "proxy-upstream-" + label
+            # ContextForge owns bearer credentials. Exercise upstream admission
+            # by changing the owned Gateway through its administrator API.
+            try:
+                before = await self.observations()
+                changed = await c.request("/v1/gateways/" + connection["gateway"], {"auth_type": "bearer", "auth_token": c.SECRETS["tokens"][label]}, admin, cf=True, method="PUT", expected=502 if status == 401 else 200)
+                if status == 401:
+                    events = (await self.observations())[len(before):]
+                    c.require(any(e["credential"] == label and e["path"] == "catalog" and e["status"] == 401 for e in events), "administrator validation observes the actual upstream authentication refusal")
+                else:
+                    c.require(changed["id"] == connection["gateway"], "selected gateway accepts the administrator credential change")
+                before = await self.observations()
+                async with self.connect() as client:
+                    await tool_pages(client)
+                    if status == 401:
+                        access = await self.data(client, "access")
+                        c.require(access["tenantId"] == configured_identity["tenantId"], "rejected credential update preserves the working gateway identity")
+                    else:
+                        await self.refusal(client, "search", {})
+                    events = (await self.observations())[len(before):]
+                    if status == 401:
+                        catalog_events = [e for e in events if e["path"] == "catalog"]
+                        c.require(any(e.get("tool") == "catalog_control_access" and e["status"] == 200 for e in catalog_events), "rejected update leaves a usable configured credential")
+                        c.require(all(e["credential"] == "a-reader" for e in catalog_events), "rejected update does not replace the upstream credential")
+                    else:
+                        c.require(any(e["credential"] == label and e.get("tool") == "catalog_control_search" for e in events), "scope refusal reaches the Catalog tool")
+                        c.require(any(e["credential"] == label and e["status"] == status for e in events), "actual upstream scope response")
+            finally:
+                restored = await c.request("/v1/gateways/" + connection["gateway"], {"auth_type": "bearer", "auth_token": c.SECRETS["tokens"]["a-reader"]}, admin, cf=True, method="PUT", expected=200)
+                c.require(restored["id"] == connection["gateway"], "original gateway credential is restored")
+            async with self.connect() as client:
+                c.require((await self.data(client, "access"))["tenantId"] == configured_identity["tenantId"], "restored configured credential works")
             await c.request("/api/v1/me", token=c.SECRETS["tokens"][label], expected=200 if label == "a-scope" else status)
         c.PHASE = "proxy-upstream-direct-scope"
         direct_responses = []
@@ -251,18 +287,14 @@ class Proxy:
             else:
                 raise AssertionError("direct MCP unexpectedly accepted an unrelated OAuth scope")
         c.require(403 in direct_responses, "direct Catalog scope admission agrees")
-        c.PHASE = "proxy-upstream-valid-override"
-        async with self.connect(extra={"X-Upstream-Authorization": "Bearer " + c.SECRETS["tokens"]["b-reader"]}) as client:
-            await tool_pages(client)
-            results = await self.pages(client)
-            c.require({r["local"]["release"]["id"] for r in results} == {r["release"] for r in self.expected["b"]}, "valid explicit upstream header selects its own tenant")
         async with self.connect() as client:
             await tool_pages(client)
             access = await self.data(client, "access")
             a = await c.request("/api/v1/me", token=c.SECRETS["tokens"]["a-reader"])
             c.require(access["tenantId"] == a["tenantId"], "inbound ContextForge bearer does not replace Catalog bearer")
         return {"missingAndInvalidInbound": True, "host": True, "origin": True, "privateTLS": True, "expiredAudienceAndScope": True,
-                "explicitOverride": True, "configuredIdentity": True, "upstreamDenials": {"expired": 401, "audience": 401, "scope": 403}}
+                "managedCredentialOverrideBlocked": True, "invalidCredentialUpdatesRefused": True, "configuredIdentity": True,
+                "upstreamDenials": {"expired": 401, "audience": 401, "scope": 403}}
 
     async def subset_and_rotation(self):
         c = self.c

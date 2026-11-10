@@ -205,7 +205,7 @@ test("Source administrators use Operations without Content reads", async ({
     ).toHaveCount(2);
     release();
     await expect.poll(() => network.results()).toEqual([]);
-    await expect(page.getByLabel("Account", { exact: true })).toBeVisible();
+    await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Resources", exact: true }),
     ).toHaveCount(0);

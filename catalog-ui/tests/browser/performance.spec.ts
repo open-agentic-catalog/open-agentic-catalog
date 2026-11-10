@@ -84,7 +84,7 @@ test("production UI performance journeys", async ({
       await measure.run("catalog-cold", iteration, true, async () => {
         await tab.goto(catalog.origin + "/catalog");
         await expect(cards).toHaveCount(24);
-        await expect(tab.getByLabel("Account", { exact: true })).toBeVisible();
+        await expect(tab.getByTitle("Account", { exact: true })).toBeVisible();
       });
       await measure.run("catalog-warm", iteration, true, async () => {
         await tab.locator('a[href="/catalog"]').first().click();

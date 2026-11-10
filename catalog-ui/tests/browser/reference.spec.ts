@@ -613,7 +613,7 @@ test("administrator reaches management pages and disabled webhooks without hidde
     await expect(
       navigation.getByRole("link", { name: "API reference", exact: true }),
     ).toBeInViewport();
-    await expect(page.getByLabel("Account", { exact: true })).toBeInViewport();
+    await expect(page.getByTitle("Account", { exact: true })).toBeInViewport();
   }
   // Short windows retain scrolling and keyboard access to the last destination.
   await page.setViewportSize({ width: 1366, height: 480 });
@@ -643,7 +643,7 @@ test("administrator reaches management pages and disabled webhooks without hidde
     await expect(destination).toBeInViewport();
   }
   await expect(lastLink).toBeFocused();
-  await expect(page.getByLabel("Account", { exact: true })).toBeInViewport();
+  await expect(page.getByTitle("Account", { exact: true })).toBeInViewport();
   await page.setViewportSize({ width: 1440, height: 900 });
   const writes: string[] = [];
   page.on("request", (request) => {

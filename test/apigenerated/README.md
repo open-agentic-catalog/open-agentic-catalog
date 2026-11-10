@@ -14,7 +14,7 @@ The existing packaged harness builds current-source images, seeds three governed
 
 ## Scope and assertions
 
-Schemathesis 4.30.1 reads the original `api/openapi/control-v1.yaml`. Local references are required before loading it; no flattened or relaxed schema is generated. Successful controls exercise `listNamespaces`, `createNamespace`, `getNamespace`, `updateNamespace`, `searchCatalog`, `browseCatalog`, `listResources` and `listResourceVersions`, including create/read/update, nonempty browse/search continuation and selected reader/other-tenant denials.
+Schemathesis 4.32.5 reads the original `api/openapi/control-v1.yaml`. Local references are required before loading it; no flattened or relaxed schema is generated. Successful controls exercise `listNamespaces`, `createNamespace`, `getNamespace`, `updateNamespace`, `searchCatalog`, `browseCatalog`, `listResources` and `listResourceVersions`, including create/read/update, nonempty browse/search continuation and selected reader/other-tenant denials.
 
 Resource List and parent-bound Version List add complete fixture identity, exact canonical-identifier and intersected kind filtering (including an empty Plugin selection), nonempty continuation and exact timestamp/UUID ordering controls. Both reads succeed for global Reader; a valid fixture-only member with only the inert Service client template receives an empty Resource List and 403 for the exact parent-bound Version List. Other-tenant Resource List is empty and foreign-parent Version List receives 404.
 
@@ -83,6 +83,8 @@ The report's `authoring` section records its separate operation selection, omitt
 Native helper units live in `test/functional/test_unit_generated_api.py`; Make/process checks live in `test_functional_generated_api.py`. Existing `test-tooling-unit` and local functional wrappers discover them without optional packages. Run the real `test-api-generated` gate after changing the pilot, tool pin, transport, report policy or selected API behavior.
 
 Preserve failed attempts and classify product defects separately from generator/fixture mistakes.
+
+`tools.in` selects the reviewed Schemathesis release. Resolve it with the pinned uv, the fixed two-week cutoff and Python 3.12, then acquire hash-verified binary wheels for Linux amd64. Preserve the compact one-wheel-hash-per-package format consumed by the installer.
 
 `tools.txt` locks the 27 installed packages by exact version and qualified wheel hash. Updating it requires reviewing the complete closure, notices and platform/Python requirements, reinstalling explicitly, and rerunning calibrations and live seeds. This lock qualifies Python 3.12/Linux amd64; it is not a cross-platform wheel matrix.
 

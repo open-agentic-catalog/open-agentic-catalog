@@ -10,6 +10,21 @@ import typescript_runner as runner
 
 
 class TypeScriptRunnerUnits(unittest.TestCase):
+    def test_npm_pack_result_binds_one_selected_identity_and_local_archive(self):
+        manifest = {"name": "@owned/client", "version": "1.0.0"}
+        record = dict(manifest, filename="owned-client-1.0.0.tgz")
+        self.assertEqual(runner.packed_filename({manifest["name"]: record}, manifest), record["filename"])
+        for packed in ([], [record], {}, {"other": record},
+                       {manifest["name"]: record, "other": record},
+                       {manifest["name"]: None}):
+            with self.subTest(packed=packed), self.assertRaises(RuntimeError):
+                runner.packed_filename(packed, manifest)
+        for change in ({"name": "other"}, {"version": "2.0.0"}, {"filename": None},
+                       {"filename": "../outside.tgz"}, {"filename": "..\\outside.tgz"},
+                       {"filename": "/outside.tgz"}, {"filename": ".tgz"}, {"filename": "archive.zip"}):
+            with self.subTest(change=change), self.assertRaises(RuntimeError):
+                runner.packed_filename({manifest["name"]: dict(record, **change)}, manifest)
+
     def test_runtime_qualification_binds_each_actual_node_and_artifact_identity(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -42,8 +57,8 @@ class TypeScriptRunnerUnits(unittest.TestCase):
         self.assertNotEqual(env["NPM_CONFIG_USERCONFIG"], env["NPM_CONFIG_GLOBALCONFIG"])
 
     def test_primary_toolchain_is_exact(self):
-        runner.validate_runtime("v24.22.1\n", "11.19.1\n")
-        for node, npm in (("v22.23.4", "11.19.1"), ("v24.20.0", "11.19.1"), ("v24.22.1", "10.9.9"), ("v24.22.1", "11.19.0")):
+        runner.validate_runtime("v24.22.1\n", "12.2.1\n")
+        for node, npm in (("v22.23.4", "12.2.1"), ("v24.20.0", "12.2.1"), ("v24.22.1", "10.9.9"), ("v24.22.1", "11.19.1")):
             with self.assertRaisesRegex(RuntimeError, "Pinned Node"):
                 runner.validate_runtime(node, npm)
 

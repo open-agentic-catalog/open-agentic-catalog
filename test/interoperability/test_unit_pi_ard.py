@@ -54,7 +54,7 @@ def evidence():
 class PiUnits(unittest.TestCase):
     def test_reviewed_lock_age_integrity_and_license(self):
         lock = lock_fixture()
-        self.assertEqual(len(pi.validate_lock(lock, datetime(2026, 11, 3, tzinfo=timezone.utc))), 122)
+        self.assertEqual(len(pi.validate_lock(lock, datetime(2026, 11, 10, 3, tzinfo=timezone.utc))), 123)
         for key, value in (
             ("integrity", ""),
             ("resolved", "https://other.invalid/"),
@@ -63,7 +63,7 @@ class PiUnits(unittest.TestCase):
             wrong = copy.deepcopy(lock)
             wrong["packages"]["node_modules/undici"][key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
-                pi.validate_lock(wrong, datetime(2026, 11, 3, tzinfo=timezone.utc))
+                pi.validate_lock(wrong, datetime(2026, 11, 10, 3, tzinfo=timezone.utc))
         with self.assertRaises(ValueError):
             pi.validate_lock(lock, datetime(2026, 10, 25, tzinfo=timezone.utc))
 
@@ -89,7 +89,7 @@ class PiUnits(unittest.TestCase):
 
     def test_age_exceptions_bind_exact_packages_and_preserve_other_age_limits(self):
         lock = lock_fixture()
-        now = datetime(2026, 11, 2, 21, tzinfo=timezone.utc)
+        now = datetime(2026, 11, 10, 3, tzinfo=timezone.utc)
         pi.validate_lock(lock, now)
         wrong = copy.deepcopy(lock)
         wrong["packages"]["node_modules/minimatch"]["integrity"] = "sha512-AAAA"
@@ -99,7 +99,7 @@ class PiUnits(unittest.TestCase):
             (lambda pin: pin.update(ageExceptions=[]), "14-day rule"),
             (lambda pin: pin["releaseDates"].pop("undici@8.12.3"), "incomplete"),
             (lambda pin: pin["releaseDates"].update({"undici@8.12.3": "2026-11-02T20:00:00Z"}), "14-day rule"),
-            (lambda pin: pin["releaseDates"].update({"minimatch@11.0.3": "2026-11-03T00:00:00Z"}), "unpublished"),
+            (lambda pin: pin["releaseDates"].update({"minimatch@11.0.3": "2026-11-11T00:00:00Z"}), "unpublished"),
         ):
             pin = copy.deepcopy(pi.PIN)
             mutation(pin)

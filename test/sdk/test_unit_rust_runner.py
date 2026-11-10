@@ -244,29 +244,30 @@ class RustRunnerUnits(unittest.TestCase):
                 self.assertFalse(rust.compiler_installed(version))
 
     def test_security_patch_admission_is_exact_and_keeps_other_checks(self):
-        config = rust.pins()
-        self.assertEqual(
-            {(fix["name"], fix["version"]) for fix in config["securityFixes"]},
-            {("rustls", "0.23.46"), ("rustls-webpki", "0.103.16"), ("webpki-root-certs", "1.0.10"), ("webpki-roots", "1.0.10"), ("tokio", "1.53.3"),
-             ("zstd", "0.13.4"), ("zstd-safe", "7.4.0"), ("zstd-sys", "2.1.2+zstd.1.5.7")},
-        )
-        for fix in config["securityFixes"]:
-            valid = {"pubtime": fix["released"], "cksum": fix["checksum"], "yanked": False}
-            with self.subTest(accepted=(fix["name"], fix["version"])):
-                self.assertTrue(rust.release_allowed(fix["name"], fix["version"], valid))
-            for name, version, entry in (
-                ("other", fix["version"], valid),
-                (fix["name"], "999.0.0", valid),
-                (fix["name"], fix["version"], dict(valid, cksum="changed")),
-                (fix["name"], fix["version"], dict(valid, pubtime="2026-10-23T00:00:00Z")),
-                (fix["name"], fix["version"], dict(valid, yanked=True)),
-                (fix["name"], fix["version"], dict(valid, pubtime=None)),
-            ):
-                with self.subTest(name=name, version=version, entry=entry):
-                    self.assertFalse(rust.release_allowed(name, version, entry))
-        older = {"pubtime": config["dependencyCutoff"], "cksum": "unrelated", "yanked": False}
-        self.assertTrue(rust.release_allowed("other", "1.0.0", older))
-        self.assertFalse(rust.release_allowed("other", "1.0.0", dict(older, yanked=True)))
+        config = dict(rust.pins(), dependencyCutoff="2026-10-01T00:00:00Z")
+        with patch.object(rust, "pins", return_value=config):
+            self.assertEqual(
+                {(fix["name"], fix["version"]) for fix in config["securityFixes"]},
+                {("rustls", "0.23.46"), ("rustls-webpki", "0.103.16"), ("webpki-root-certs", "1.0.10"), ("webpki-roots", "1.0.10"), ("tokio", "1.53.3"),
+                 ("zstd", "0.13.4"), ("zstd-safe", "7.4.0"), ("zstd-sys", "2.1.2+zstd.1.5.7")},
+            )
+            for fix in config["securityFixes"]:
+                valid = {"pubtime": fix["released"], "cksum": fix["checksum"], "yanked": False}
+                with self.subTest(accepted=(fix["name"], fix["version"])):
+                    self.assertTrue(rust.release_allowed(fix["name"], fix["version"], valid))
+                for name, version, entry in (
+                    ("other", fix["version"], valid),
+                    (fix["name"], "999.0.0", valid),
+                    (fix["name"], fix["version"], dict(valid, cksum="changed")),
+                    (fix["name"], fix["version"], dict(valid, pubtime="2026-10-23T00:00:00Z")),
+                    (fix["name"], fix["version"], dict(valid, yanked=True)),
+                    (fix["name"], fix["version"], dict(valid, pubtime=None)),
+                ):
+                    with self.subTest(name=name, version=version, entry=entry):
+                        self.assertFalse(rust.release_allowed(name, version, entry))
+            older = {"pubtime": config["dependencyCutoff"], "cksum": "unrelated", "yanked": False}
+            self.assertTrue(rust.release_allowed("other", "1.0.0", older))
+            self.assertFalse(rust.release_allowed("other", "1.0.0", dict(older, yanked=True)))
 
     def test_environment_rejects_ambient_tool_and_registry_redirectors(self):
         poison = {

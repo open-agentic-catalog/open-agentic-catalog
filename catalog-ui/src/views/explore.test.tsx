@@ -204,16 +204,16 @@ describe("local browse and facets", () => {
     expect(screen.getByText("__proto__", { exact: true })).toBeTruthy();
     expect(
       screen.getByRole("button", {
-        name: "Filter by resource kind future_kind",
+        name: "Filter by resource kind future_kind: 1",
       }),
     ).toHaveProperty("disabled", true);
     expect(
       screen.getByRole("button", {
-        name: "Filter by visibility future_visibility",
+        name: "Filter by visibility future_visibility: 1",
       }),
     ).toHaveProperty("disabled", true);
     const kind = screen.getByRole("button", {
-      name: "Filter by resource kind MCP Server",
+      name: "Filter by resource kind MCP Server: 4",
     });
     expect(within(kind).getByText("4", { exact: true })).toBeTruthy();
     for (const summary of [
@@ -478,10 +478,12 @@ describe("local browse and facets", () => {
     fireEvent.click(screen.getByRole("button", { name: "View counts" }));
     await screen.findByText("2 matching local releases");
     expect(
-      screen.getByRole("button", { name: `Filter by tag ${"x".repeat(81)}` }),
+      screen.getByRole("button", {
+        name: `Filter by tag ${"x".repeat(81)}: 1`,
+      }),
     ).toHaveProperty("disabled", true);
     const unavailable = screen.getByRole("button", {
-      name: `Filter by tag ${"x".repeat(81)}`,
+      name: `Filter by tag ${"x".repeat(81)}: 1`,
     });
     const explanation = document.getElementById(
       unavailable.getAttribute("aria-describedby")!,
@@ -491,7 +493,9 @@ describe("local browse and facets", () => {
     );
     for (const name of ["trustState", "source"])
       expect(
-        screen.queryByRole("button", { name: new RegExp(`Filter by ${name}`) }),
+        screen.queryByRole("button", {
+          name: new RegExp(`Filter by ${name}: 2`),
+        }),
       ).toBeNull();
     expect(
       screen.getByRole("button", { name: /Filter by local namespace/ }),
@@ -516,12 +520,12 @@ describe("local browse and facets", () => {
       "visibility Public",
     ]) {
       fireEvent.click(
-        await screen.findByRole("button", { name: `Filter by ${name}` }),
+        await screen.findByRole("button", { name: `Filter by ${name}: 2` }),
       );
       calls++;
       await waitFor(() => expect(post).toHaveBeenCalledTimes(calls));
       const selected = await screen.findByRole("button", {
-        name: `Filter by ${name}`,
+        name: `Filter by ${name}: 2`,
       });
       expect(selected.getAttribute("aria-pressed")).toBe("true");
       fireEvent.click(selected);
@@ -597,7 +601,7 @@ describe("local browse and facets", () => {
       fireEvent.click(screen.getByRole("button", { name: "View counts" }));
       fireEvent.click(
         await screen.findByRole("button", {
-          name: `Filter by ${field} design, review`,
+          name: `Filter by ${field} design, review: 1`,
         }),
       );
       await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
@@ -614,7 +618,9 @@ describe("local browse and facets", () => {
         [terms]: ["design, review"],
       });
       fireEvent.click(
-        await screen.findByRole("button", { name: `Filter by ${field} tools` }),
+        await screen.findByRole("button", {
+          name: `Filter by ${field} tools: 1`,
+        }),
       );
       await waitFor(() => expect(post).toHaveBeenCalledTimes(4));
       expect(
@@ -762,10 +768,10 @@ it("applies and clears a local namespace consistently in browse and facets", asy
   );
   fireEvent.click(screen.getByRole("button", { name: "View counts" }));
   await screen.findByRole("button", {
-    name: `Filter by local namespace ${id}`,
+    name: `Filter by local namespace ${id}: 1`,
   });
   fireEvent.click(
-    screen.getByRole("button", { name: `Filter by local namespace ${id}` }),
+    screen.getByRole("button", { name: `Filter by local namespace ${id}: 1` }),
   );
   await screen.findByRole("button", { name: `Remove local namespace ${id}` });
   fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
@@ -776,7 +782,9 @@ it("applies and clears a local namespace consistently in browse and facets", asy
   await waitFor(() => expect(post).toHaveBeenCalledTimes(4));
   fireEvent.click(screen.getByRole("button", { name: "Load namespaces" }));
   await screen.findByRole("option", { name: "Demo" });
-  await screen.findByRole("button", { name: "Filter by local namespace Demo" });
+  await screen.findByRole("button", {
+    name: "Filter by local namespace Demo: 1",
+  });
   expect(post).toHaveBeenCalledTimes(4);
   expect(
     get.mock.calls.filter((call) => call[0] === "/api/v1/namespaces"),
@@ -793,7 +801,7 @@ it("applies and clears a local namespace consistently in browse and facets", asy
     ).toBeNull(),
   );
   expect(
-    screen.getByRole("button", { name: "Filter by local namespace Demo" }),
+    screen.getByRole("button", { name: "Filter by local namespace Demo: 1" }),
   ).toBeTruthy();
   expect(post).toHaveBeenCalledTimes(4);
   fireEvent.click(screen.getByRole("button", { name: "First namespace page" }));

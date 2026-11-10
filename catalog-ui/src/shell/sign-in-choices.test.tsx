@@ -54,15 +54,14 @@ it("groups configured intent, preserves literal descriptions and signs in only o
   expect(
     screen.getByRole("heading", { name: "Exact templates (1)" }),
   ).toBeTruthy();
-  const admin = screen.getByRole("button", { name: "Management workflow" });
-  expect(admin.getAttribute("aria-describedby")).toBe(
-    "login-description-admin login-elevated-admin login-tenant-admin",
-  );
+  const admin = screen.getByRole("button", {
+    name: "Management workflow Explicit elevated setup Elevated administration Separate tenant",
+  });
   expect(screen.getByText("Elevated administration")).toBeTruthy();
   expect(screen.getByText("Separate tenant")).toBeTruthy();
   expect(screen.getByText(/not production accounts or passwords/)).toBeTruthy();
   const custom = screen.getByRole("button", {
-    name: "<script>configured</script>",
+    name: "<script>configured</script> Operator-supplied choice",
   });
   expect(custom.querySelector("script")).toBeNull();
   expect(
@@ -90,10 +89,16 @@ it("filters labels, descriptions and exact aliases, shows counts and restores al
   ).toBeTruthy();
   expect(screen.queryByRole("region", { name: "Exact templates" })).toBeNull();
   fireEvent.change(search, { target: { value: "private local" } });
-  expect(screen.getByRole("button", { name: "Trusted reader" })).toBeTruthy();
+  expect(
+    screen.getByRole("button", {
+      name: "Trusted reader Read private local records",
+    }),
+  ).toBeTruthy();
   fireEvent.change(search, { target: { value: "operator-choice" } });
   fireEvent.click(
-    screen.getByRole("button", { name: "<script>configured</script>" }),
+    screen.getByRole("button", {
+      name: "<script>configured</script> Operator-supplied choice",
+    }),
   );
   expect(select).toHaveBeenCalledExactlyOnceWith("operator-choice");
   fireEvent.change(search, { target: { value: "missing identity" } });

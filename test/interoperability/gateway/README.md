@@ -31,7 +31,7 @@ Installation acquires immutable GitHub source through `gh` and digest-pinned ima
 
 [lock.json](lock.json) owns the source revision, complete source-tree digest and Linux AMD64 Registry/MongoDB image digests. The Registry image's revision label, all Registry/auth Python files, native entrypoint, bootstrap script, scope JSON files, nginx templates and selected configuration must match that checkout.
 
-The upstream auth image is unavailable at the selected source revision. [Containerfile.auth](Containerfile.auth) copies unchanged auth files and its native entrypoint over the exact Registry image. This offline layout step uses the same installed dependencies. It does not patch source or resolve packages.
+The upstream auth image is unavailable at the selected source revision. [Containerfile.auth](Containerfile.auth) copies unchanged auth files and its native entrypoint over the exact Registry image. The installer rejects a base image that differs from the Registry digest in the lock. This offline layout step uses the same installed dependencies. It does not patch source or resolve packages.
 
 The closure inventory records every installed Python distribution, dependency metadata, license classifiers and license-file hashes, plus OS packages and copyright-file hashes. The source also retains the upstream frontend lock. This is HTTP API qualification; the peer's browser application is not executed.
 
