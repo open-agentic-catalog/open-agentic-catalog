@@ -1,6 +1,6 @@
 # VS Code extension verification
 
-The optional [extension](../../extensions/vscode/README.md) uses its own npm lock and the locally packaged TypeScript SDK. The build installer owns pinned Node 24.22.1/npm 12.2.1 under `extensions/vscode/.tools/`, independently of SDK maintainer runtimes. It leaves the user's Node selection alone.
+The optional [extension](../../extensions/vscode/README.md) uses its own npm lock and the locally packaged TypeScript SDK. The build installer owns pinned Node 24.22.1/npm 12.2.2 under `extensions/vscode/.tools/`, independently of SDK maintainer runtimes. It leaves the user's Node selection alone.
 
 Run these targets separately from the repository root:
 

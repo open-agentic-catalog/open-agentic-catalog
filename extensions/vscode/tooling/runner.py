@@ -72,7 +72,7 @@ def sdk_archive():
 
 
 def inputs():
-    paths = [EXTENSION / "package.json", EXTENSION / "package-lock.json", ROOT / "sdk/typescript/.nvmrc", ROOT / "test/sdk/node-runtimes.json", ROOT / "test/sdk/node_runtime.py", HERE / "runner.py"]
+    paths = [EXTENSION / "package.json", EXTENSION / "package-lock.json", ROOT / "sdk/typescript/.nvmrc", ROOT / "test/sdk/node-runtimes.json", ROOT / "test/sdk/node_runtime.py", ROOT / "test/ci/pins.json", HERE / "runner.py"]
     return sdk_archive() | {str(path.relative_to(ROOT)): digest(path) for path in paths}
 
 

@@ -956,7 +956,7 @@ make sdk-tools-install SDK_LANGUAGE=typescript
 make sdk-check SDK_LANGUAGE=typescript
 ```
 
-The explicit SDK installer acquires pinned Node 24.22.1/npm 12.2.1 without changing your default Node. It also acquires Node 22.23.4 and 24.20.0. Existing unit, HTTP/TLS and installed-package workflows run under each runtime. Maintainers need OpenSSL and the repository Go toolchain. Installation also acquires the SDK's Chromium fixture. Use `make sdk-generate SDK_LANGUAGE=typescript` for intentional contract updates. Checks regenerate twice, compare the full OpenAPI declaration graph and use installed packages offline. Strict TypeScript, ESLint and Prettier checks cover maintained source and helpers.
+The explicit SDK installer acquires pinned Node 24.22.1/npm 12.2.2 without changing your default Node. It also acquires Node 22.23.4 and 24.20.0. Existing unit, HTTP/TLS and installed-package workflows run under each runtime. Maintainers need OpenSSL and the repository Go toolchain. Installation also acquires the SDK's Chromium fixture. Use `make sdk-generate SDK_LANGUAGE=typescript` for intentional contract updates. Checks regenerate twice, compare the full OpenAPI declaration graph and use installed packages offline. Strict TypeScript, ESLint and Prettier checks cover maintained source and helpers.
 
 Injected Fetch units run without listeners, subprocesses or databases. They check credentials, limits, raw bytes, provider time, cancellation, safe failures, metadata and explicit one-page behavior. Invalid provider values fail before transmission; subsequent valid calls still work. Both success and error statuses have malformed/null/empty JSON controls. Error decoding stays strict under every `parseAs` mode.
 
@@ -1206,11 +1206,11 @@ The suite fixes locale, timezone and viewports, disables screenshot animations, 
 
 The optional hook checks staged secrets, JSON/YAML, Go formatting, Python, shell, Markdown, Containerfiles, workflows and whitespace. It never formats, stages or stashes files. Partial staging is preserved. Unstaged source edits do not change the result. Complete analysis, test and security gates remain separate.
 
-In a POSIX development environment, install Git, Python 3.12+ and the standalone MIT-licensed [Gitleaks 8.30.1 binary](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1). Download the archive for your OS and architecture and its published checksum file. Verify the archive's SHA-256 before extraction. Place the extracted `gitleaks` binary on `PATH`. `gitleaks version` must print `8.30.1`.
+In a POSIX development environment, install Git, Python 3.12+ and the standalone MIT-licensed [Gitleaks 8.30.1 binary](https://github.com/gitleaks/gitleaks/releases/tag/v8.30.1). Use your normal package manager or the upstream distribution for your OS and architecture. For a manual upstream download, verify the matching archive checksum before extraction. The owned Linux example below uses the repository's retained digest. Place the selected binary on `PATH`; `gitleaks version` must print `8.30.1`.
 
 `make clean` removes a binary stored in the checkout-local `.tools/gitleaks/` directory. Repeat this installation procedure afterward. A scanner installed elsewhere on `PATH` remains in place.
 
-Install yamllint for staged YAML checks. It is not required when no relevant YAML is staged. Installation is explicit.
+The shared `make dev-tools-install` environment supplies yamllint for staged YAML checks. It is not required when no relevant YAML is staged. Installation remains explicit.
 
 Install the tools required by the staged file types:
 
@@ -1229,69 +1229,61 @@ File linters use private copies of staged content and explicit policy snapshots.
 
 Hooks never download tools, start containers or access the network. The scanner is not a Go module dependency.
 
-### Install hook tools on Linux AMD64
+### Install hook tools
 
-Run these commands from the repository root with Python 3.12 and the repository Go toolchain installed.
+Use GNU Make and an explicitly selected Python 3.12-3.14 interpreter. Select the Node/npm versions recorded by `documentation/.nvmrc` and `documentation/package.json` with your normal toolchain manager. Intel and ARM Macs use native Darwin tools; Linux x64/ARM64 uses compatible native tools. The hosted CI profile installer remains Linux AMD64 only.
 
-The setup reuses the workflow downloader, shared pins and Python lock. It preserves existing binary destinations. Tool downloads remain separate from hook checks.
+Install the required uv version with the [shared development setup](build-and-release.md#shared-development-tools), then run these commands from the repository root. Install matching native ShellCheck and Hadolint binaries only when the staged file types require them. Their exact versions are in `test/ci/pins.json`; use your normal package manager or verified upstream distributions. The standalone scanner has its separate setup below.
 
 ```sh
 # catalog-hook-tools
-python3.12 -B - <<'PY'
-from pathlib import Path
+make dev-tools-install
+python3 -B - <<'PY'
 import sys
-import tomllib
 sys.path.insert(0, "test/ci")
 import tools
 
-tools.OWNED.mkdir(parents=True, exist_ok=True)
-(tools.OWNED / "bin").mkdir(exist_ok=True)
-version = Path("documentation/.nvmrc").read_text().strip()
-node = tools.OWNED / ("node-v" + version + "-linux-x64")
-if not node.exists():
-    tools.node_install("documentation")
-tools.publish_path(node / "bin")
-uv = tools.OWNED / "python/bin/uv"
-yaml = tools.OWNED / "python/bin/yamllint"
-expected_uv = tomllib.loads(Path("pyproject.toml").read_text())["tool"]["uv"]["required-version"].removeprefix("==")
-if (not uv.is_file() or not yaml.is_file()
-        or tools.run([uv, "--version"], capture=True).split()[:2] != ["uv", expected_uv]
-        or tools.run([yaml, "--version"], capture=True).strip() != "yamllint " + tools.PINS["yamllint"]):
-    tools.python_install("quality")
-for name in ("shellcheck", "hadolint"):
-    if not (tools.OWNED / "bin" / name).exists():
-        tools.binary_install(name)
-markdown = tools.OWNED / "markdown"
-if not (markdown / "node_modules/.bin/markdownlint").exists():
-    tools.run(["npm", "install", "--prefix", markdown, "--ignore-scripts",
-               "--no-audit", "--no-fund", "--save-exact",
-               "--before=" + tools.PINS["dependencyCutoff"],
-               "markdownlint-cli@" + tools.PINS["markdownlint-cli"]])
+tools.markdown_install()
 PY
-
-export PATH="$PWD/.tools/ci/node-v$(cat documentation/.nvmrc)-linux-x64/bin:$PWD/.tools/ci/bin:$PWD/.tools/ci/python/bin:$PWD/.tools/ci/markdown/node_modules/.bin:$PATH"
-make dev-tools-install UV="$PWD/.tools/ci/python/bin/uv"
+export PATH="$PWD/.tools/dev/bin:$PWD/.tools/ci/markdown/node_modules/.bin:$PWD/.tools/ci/bin:$PATH"
+# Go is required only for actionlint and Go source checks.
 make workflow-tools-install
 ```
 
-The downloader verifies exact binary assets. npm uses the existing release cutoff and disables install scripts, audit submissions and funding requests.
+The Markdownlint installer uses the maintained native lock, with lifecycle scripts, audit submissions and funding requests disabled. It does not install the documentation site. `make dev-tools-install` repeats the existing locked sync; it does not replace personal environments. Hooks and ordinary checks do not install these tools implicitly.
+
+### Optional owned Gitleaks download on Linux AMD64
 
 Acquire Gitleaks only when the selected binary is absent:
 
 ```sh
 # catalog-hook-scanner
 hook_scanner_dir="$PWD/.tools/gitleaks/8.30.1"
+hook_scanner_pins="$PWD/test/ci/pins.json"
 if (
   if [ ! -x "$hook_scanner_dir/gitleaks" ]; then
     mkdir -p "$hook_scanner_dir" || exit 1
     hook_scanner_stage=$(mktemp -d "$hook_scanner_dir/.install.XXXXXXXX") || exit 1
     trap 'rm -rf -- "$hook_scanner_stage"' 0
     cd "$hook_scanner_stage" || exit 1
-    curl --fail --location --output gitleaks_8.30.1_linux_x64.tar.gz \
+    curl --fail --location --max-time 120 --max-filesize 67108864 \
+      --output gitleaks_8.30.1_linux_x64.tar.gz \
       https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz &&
-    curl --fail --location --output gitleaks_8.30.1_checksums.txt \
-      https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt &&
-    sha256sum --check --ignore-missing gitleaks_8.30.1_checksums.txt &&
+    python3 -I - "$hook_scanner_pins" <<'PY' &&
+import hashlib
+import json
+from pathlib import Path
+import sys
+
+pin = json.loads(Path(sys.argv[1]).read_text())["archives"]["gitleaks"]
+archive = Path("gitleaks_8.30.1_linux_x64.tar.gz")
+if (pin["version"], pin["filename"]) != ("8.30.1", archive.name):
+    raise SystemExit("Gitleaks archive pin differs from this recipe")
+with archive.open("rb") as downloaded:
+    actual = hashlib.file_digest(downloaded, "sha256").hexdigest()
+if actual != pin["sha256"]:
+    raise SystemExit("Gitleaks archive checksum mismatch")
+PY
     tar -xzf gitleaks_8.30.1_linux_x64.tar.gz gitleaks &&
     hook_scanner_version=$(./gitleaks version) &&
     [ "$hook_scanner_version" = "8.30.1" ] &&
@@ -1307,17 +1299,17 @@ else
 fi
 ```
 
-The recipe stages downloads in its own temporary directory and removes that directory on exit. It selects `PATH` only after installation and version checks succeed. An existing executable must report the pinned version; otherwise the recipe refuses it without downloading a replacement.
+The Linux recipe verifies the retained archive hash in `test/ci/pins.json`, rather than downloading its expected checksum during installation. It stages downloads in its own temporary directory and removes that directory on exit. It selects `PATH` only after installation and version checks succeed. An existing executable must report the pinned version; otherwise the recipe refuses it without downloading a replacement.
 
 Check the installed versions against the pins listed above:
 
 ```sh
 gitleaks version
 .tools/dev/bin/ruff --version
-.tools/ci/python/bin/yamllint --version
-.tools/ci/bin/shellcheck --version
+.tools/dev/bin/yamllint --version
+shellcheck --version
 .tools/ci/markdown/node_modules/.bin/markdownlint --version
-.tools/ci/bin/hadolint --version
+hadolint --version
 .tools/ci/bin/actionlint -version
 ```
 

@@ -122,21 +122,30 @@ Inspection accepts version/commit values of 1-128 ASCII letters, digits, dots, u
 
 ## Shared development tools
 
-Root `pyproject.toml` is dependency-only: its dev group pins Ruff 0.17.3, jsonschema 4.26.0, bump-my-version 1.5.1 and coverage 7.17.0; `uv.lock` locks their transitive dependencies. Coverage instruments the optional native tooling selection. It is not a Python application package. The installer requires [uv](https://github.com/astral-sh/uv) 0.13.6 and an installed Python 3.12-3.14 interpreter. Python 3.12.3 is the qualified local baseline. Install uv explicitly if the existing executable is older; do not upgrade a personal tool environment implicitly:
+Root `pyproject.toml` is dependency-only: its dev group pins Ruff 0.17.3, jsonschema 4.26.0, bump-my-version 1.6.7, coverage 7.17.0 and yamllint 1.38.0; `uv.lock` locks their transitive dependencies, including yamllint's PyYAML/pathspec closure and supported wheels. Coverage instruments the optional native tooling selection. It is not a Python application package. The installer requires [uv](https://github.com/astral-sh/uv) 0.13.6 and an installed Python 3.12-3.14 interpreter. Python 3.12.3 is the qualified local baseline. Install uv explicitly if the existing executable is older; do not upgrade a personal tool environment implicitly:
 
 ```sh
-python3 -m venv output/uv-bootstrap
-output/uv-bootstrap/bin/python -m pip install uv==0.13.6
-make dev-tools-install UV="$PWD/output/uv-bootstrap/bin/uv"
-# With the pinned uv already on PATH:
-make dev-tools-install
+mkdir -p output
+if uv_bootstrap_dir=$(mktemp -d "$PWD/output/uv-bootstrap.XXXXXXXX"); then
+  python3 -m venv "$uv_bootstrap_dir" &&
+  "$uv_bootstrap_dir/bin/python" -I -m pip --isolated install \
+    --disable-pip-version-check --require-hashes --only-binary=:all: \
+    -r test/ci/uv/requirements.txt &&
+  make dev-tools-install UV="$uv_bootstrap_dir/bin/uv"
+else
+  false
+fi
 ```
+
+With the required uv already on `PATH`, run `make dev-tools-install` directly.
 
 `DEV_PYTHON=/path/to/python3.12` selects the installed interpreter. Run installation alone. It synchronizes only the locked dev group into `.tools/dev`. It ignores workflow env files, ambient uv configuration and inherited settings that redirect uv, Git or virtual environments.
 
 It does not download Python, build source distributions, rewrite a stale lock, change personal `.venv` environments or install npm/browser/scanner/SDK tools. Repeat installation is safe. Installation fails if the environment is incomplete or redirected. Inspect the environment. Do not replace retained files blindly. `make clean` removes `.tools/dev`, not the explicit bootstrap under output or personal environments.
 
-Normal Make targets prefer `.tools/dev/bin/python` and `.tools/dev/bin/ruff` when available; `PYTHON`, `RUFF` and `BUMPVERSION` command-line overrides remain explicit. Without the shared environment, stdlib helpers use system Python and Ruff uses PATH; targets that require missing or wrong packages fail. Checks and version commands never install tools or use auto-syncing uv run.
+The bootstrap uses a new directory because pip can skip hash verification for an already-installed exact version. Its requirements file covers only uv itself; ordinary Python development dependencies remain in `pyproject.toml` and `uv.lock`. Select an installed Python 3.12-3.14 executable in place of `python3` when necessary. The recorded wheels cover Intel/ARM Macs and compatible Linux x64/ARM64 hosts. Cross-platform wheel availability does not establish native execution qualification.
+
+Normal Make targets prefer `.tools/dev/bin/python`, `.tools/dev/bin/ruff` and `.tools/dev/bin/yamllint` when available; `PYTHON`, `RUFF`, `YAMLLINT` and `BUMPVERSION` command-line overrides remain explicit. Without the shared environment, stdlib helpers use system Python and Ruff/yamllint use PATH; targets that require missing or wrong packages fail. Python-tool checks and version commands use installed dependencies; they do not use auto-syncing `uv run`.
 
 The packaging and interoperability Go functional wrappers also prefer the installed `.tools/dev/bin/python` without activation. They retain the virtual-environment executable path and fall back to `python3` from PATH when it is absent. `PYTHON` overrides select direct Make recipes; each Go wrapper owns its interpreter selection.
 
@@ -334,7 +343,7 @@ Run the [testing gates](testing.md) appropriate to the change. These include `ma
 
 ## Build and run the UI locally
 
-Install [Node.js](https://nodejs.org/en/download) 22.23.4 with its bundled npm 12.2.1. The `catalog-ui/.nvmrc` file selects this version for nvm. The UI build and test tools require Node 22.18 or later within major 22. Install the repository Go toolchain and Make prerequisites from [local development](../guides/local-development.mdx#start-the-service).
+Install [Node.js](https://nodejs.org/en/download) 22.23.4 and select npm 12.2.2 separately; that npm version is not bundled with this Node distribution. The `catalog-ui/.nvmrc` file selects the Node version for nvm. The UI build and test tools require Node 22.18 or later within major 22. Install the repository Go toolchain and Make prerequisites from [local development](../guides/local-development.mdx#start-the-service).
 
 Run the following commands from the repository root in separate terminals:
 
@@ -493,6 +502,8 @@ Reports can contain sensitive findings; keep them private and out of commits or 
 
 The scanner uses empty configuration and ignore files. It removes inherited Trivy policy settings to prevent hidden exclusions, remote scanning or suppression. Only cache and Podman socket Trivy environment settings are retained.
 
+Trivy's [usage telemetry](https://github.com/aquasecurity/trivy/blob/e713f67f7d54decdcd9b3132c9751833dcced698/docs/guide/advanced/telemetry.md) can make a separate network request; `--offline-scan` does not disable it. The native opt-out is `--disable-telemetry` on scan subcommands or `TRIVY_DISABLE_TELEMETRY=true`. Current maintained helpers clear ambient Trivy settings and do not consistently enforce this opt-out. An environment override alone therefore does not establish a run without telemetry.
+
 Every High/Critical vulnerability or secret fails the scan. Reports retain lower severities. Native scan errors, timeouts, incomplete inventories, malformed reports and changed identity also fail.
 
 The helper distinguishes passed (0), findings (1) and operational/integrity failure (2); Make reports any recipe failure as nonzero. Terminal output shows only outcome and evidence location, never raw secret matches or scanner stderr. Inspect `run.json`'s phase when diagnosing failures.
@@ -526,7 +537,7 @@ make -C extensions/vscode package
 make -C extensions/vscode verify
 ```
 
-The build installer acquires one pinned Node 24.22.1/npm 12.2.1 runtime and locked npm tools under `extensions/vscode/.tools/` and `node_modules/`. It leaves your default Node and SDK caches alone. Build/check/package need no VS Code download, ORAS, A2A sample, Go or SDK compatibility/browser installation. They validate the SDK source/archive/lock, installed tools and dependencies, acquire nothing and never refresh locks implicitly. See the [dependency policy](../reference/dependencies.md#optional-vs-code-client-and-sdk-runtime).
+The build installer acquires one pinned Node 24.22.1/npm 12.2.2 runtime and locked npm tools under `extensions/vscode/.tools/` and `node_modules/`. It leaves your default Node and SDK caches alone. Build/check/package need no VS Code download, ORAS, A2A sample, Go or SDK compatibility/browser installation. They validate the SDK source/archive/lock, installed tools and dependencies, acquire nothing and never refresh locks implicitly. See the [dependency policy](../reference/dependencies.md#optional-vs-code-client-and-sdk-runtime).
 
 Full editor qualification also needs Git, Go 1.27.3, the [GitHub CLI](https://cli.github.com/), Xvfb, OpenSSL, OpenSSH client/server, uvx 0.13.6, local Docker and a C compiler for race tests. Install these prerequisites explicitly; the extension does not install resource runtimes. Configure `gh` for public fixture acquisition and install the SDK test tools above. Run `make -C extensions/vscode test-tools-install`, then `make -C extensions/vscode test`. The test installer explicitly adds the pinned desktop host, ORAS, A2A executor, Remote SSH extension, matching VS Code Server and Chrome for Testing; its stamp is separate from build tools. No database, Compose stack, cluster or model account is required. Root `vscode-tools-install` retains this aggregate installation behavior.
 

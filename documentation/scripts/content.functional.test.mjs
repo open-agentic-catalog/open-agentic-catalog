@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { parse } from 'parse5';
 import { entries, project, root } from './site.mjs';
 
@@ -91,13 +92,15 @@ test('hook scanner recipe stops on failures before selecting PATH', async t => {
   const source = fs.readFileSync(path.join(project, 'src/content/docs/contributing/testing.md'), 'utf8');
   const recipe = source.match(/```sh\n(# catalog-hook-scanner\n[\s\S]*?)\n```/);
   assert(recipe, 'The displayed scanner recipe must remain testable');
-  const prefix = ['mkdir', 'mktemp', 'archive-download', 'checksums-download', 'checksum-verify', 'extract', 'staged-version', 'install', 'installed-version'];
+  const prefix = ['mkdir', 'mktemp', 'archive-download', 'checksum-verify', 'extract', 'staged-version', 'install', 'installed-version'];
   const cases = [
     { name: 'successful acquisition', calls: prefix, success: true },
     ...prefix.map((failure, index) => ({ name: failure, failure, calls: prefix.slice(0, index + 1) })),
     { name: 'failed directory change', failure: 'cd', calls: prefix.slice(0, 2) },
-    { name: 'partial extraction', failure: 'partial-extract', calls: prefix.slice(0, 6) },
-    { name: 'wrong downloaded version', failure: 'staged-version-wrong', calls: prefix.slice(0, 7) },
+    { name: 'reject changed archive bytes', failure: 'tampered-archive', calls: prefix.slice(0, 4) },
+    { name: 'reject another archive identity', failure: 'pin-identity', calls: prefix.slice(0, 4) },
+    { name: 'partial extraction', failure: 'partial-extract', calls: prefix.slice(0, 5) },
+    { name: 'wrong downloaded version', failure: 'staged-version-wrong', calls: prefix.slice(0, 6) },
     { name: 'reuse valid installation', existing: true, calls: ['installed-version'], success: true },
     { name: 'refuse wrong installed version', existing: true, failure: 'installed-version-wrong', calls: ['installed-version'] },
   ];
@@ -106,6 +109,17 @@ test('hook scanner recipe stops on failures before selecting PATH', async t => {
     sub.after(() => fs.rmSync(directory, { recursive: true, force: true }));
     const bin = path.join(directory, 'bin');
     fs.mkdirSync(bin);
+    const pins = path.join(directory, 'test/ci');
+    fs.mkdirSync(pins, { recursive: true });
+    fs.writeFileSync(path.join(pins, 'pins.json'), JSON.stringify({
+      archives: {
+        gitleaks: {
+          version: '8.30.1',
+          filename: item.failure === 'pin-identity' ? 'another-platform.tar.gz' : 'gitleaks_8.30.1_linux_x64.tar.gz',
+          sha256: createHash('sha256').update('fixture\n').digest('hex'),
+        },
+      },
+    }));
     const log = path.join(directory, 'calls');
     const fake = path.join(directory, 'fake-scanner');
     fs.writeFileSync(fake, [
@@ -122,9 +136,8 @@ test('hook scanner recipe stops on failures before selecting PATH', async t => {
       'name=$(basename "$0")',
       'step=$name',
       'case "$name" in',
-      ' curl) while [ "$1" != --output ]; do shift; done; output=$2;',
-      '       case "$output" in *checksums.txt) step=checksums-download ;; *) step=archive-download ;; esac ;;',
-      ' sha256sum) step=checksum-verify ;; tar) step=extract ;; mv) step=install ;;',
+      ' curl) while [ "$1" != --output ]; do shift; done; output=$2; step=archive-download ;;',
+      ' python3) step=checksum-verify ;; tar) step=extract ;; mv) step=install ;;',
       'esac',
       'printf "%s\\n" "$step" >> "$HOOK_TEST_LOG"',
       '[ "$HOOK_FAILURE" != "$step" ] || exit 31',
@@ -132,15 +145,15 @@ test('hook scanner recipe stops on failures before selecting PATH', async t => {
       ' mkdir|mv) PATH="$HOOK_REAL_PATH" "$name" "$@" ;;',
       ' mktemp) stage=$(PATH="$HOOK_REAL_PATH" mktemp "$@") || exit 31;',
       '         if [ "$HOOK_FAILURE" = cd ]; then rm -rf -- "$stage"; fi; printf "%s\\n" "$stage" ;;',
-      ' curl) printf "%s\\n" fixture > "$output" ;;',
-      ' sha256sum) [ -f gitleaks_8.30.1_linux_x64.tar.gz ] && [ -f gitleaks_8.30.1_checksums.txt ] ;;',
+      ' curl) if [ "$HOOK_FAILURE" = tampered-archive ]; then printf "%s\\n" changed; else printf "%s\\n" fixture; fi > "$output" ;;',
+      ' python3) PATH="$HOOK_REAL_PATH" python3 "$@" ;;',
       ' tar) [ "$*" = "-xzf gitleaks_8.30.1_linux_x64.tar.gz gitleaks" ] || exit 31;',
       '      cp "$HOOK_FAKE_BINARY" ./gitleaks && chmod 755 ./gitleaks || exit 31;',
       '      [ "$HOOK_FAILURE" != partial-extract ] ;;',
       'esac',
       '',
     ].join('\n');
-    for (const name of ['mkdir', 'mktemp', 'curl', 'sha256sum', 'tar', 'mv']) {
+    for (const name of ['mkdir', 'mktemp', 'curl', 'python3', 'tar', 'mv']) {
       fs.writeFileSync(path.join(bin, name), stub, { mode: 0o755 });
     }
     const install = path.join(directory, '.tools/gitleaks/8.30.1');
@@ -150,7 +163,7 @@ test('hook scanner recipe stops on failures before selecting PATH', async t => {
     }
     const initialPath = bin + path.delimiter + process.env.PATH;
     const script = recipe[1] + '\nrecipe_status=$?\nprintf "%s\\n" "$PATH"\nexit "$recipe_status"\n';
-    // A real shell executes the displayed recipe; every acquisition command is a local double.
+    // A real shell runs the displayed recipe. Downloads/extraction are local doubles; Python checks actual fixture bytes.
     const result = spawnSync('/bin/sh', ['-c', script], {
       cwd: directory, encoding: 'utf8', timeout: 5000, maxBuffer: 1 << 20,
       env: { ...process.env, PATH: initialPath, HOOK_REAL_PATH: process.env.PATH,

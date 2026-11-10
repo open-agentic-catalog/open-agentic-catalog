@@ -165,9 +165,9 @@ class CleanTests(unittest.TestCase):
         return result, output.getvalue()
 
     def test_all_maintained_npm_projects_have_dependency_cleanup(self):
-        """Read project ownership from Git, independently of cleanup targets."""
+        """Include new non-ignored project inputs before they reach the index."""
         manifests = [os.fsdecode(name) for name in cleaner.git(
-            cleaner.ROOT, "ls-files", "--cached", "-z", "--", "**/package.json").split(b"\0") if name]
+            cleaner.ROOT, "ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "**/package.json").split(b"\0") if name]
         maintained = [name for name in manifests if not name.startswith(("schemas/upstream/", "samples/upstream/"))]
         self.assertTrue(maintained, "No maintained npm manifests discovered")
         for manifest in maintained:
@@ -178,7 +178,7 @@ class CleanTests(unittest.TestCase):
         """Qualify producer paths without building fixtures from TARGETS."""
         install_make(self.root)
         projects = ("catalog-ui", "documentation", "sdk/typescript", "extensions/vscode",
-                    "test/validation", "test/interoperability/mcp", "examples/typescript-ard-list")
+                    "test/validation", "test/interoperability/mcp", "examples/typescript-ard-list", "test/ci/markdown")
         removed = [self.write(project + "/node_modules/package/index.js", "disposable dependency") for project in projects]
         binaries = ("bin/examples/publication-report", "bin/examples/mcp-scan-receiver")
         source = (cleaner.ROOT / "Makefile").read_text()
@@ -217,6 +217,7 @@ class CleanTests(unittest.TestCase):
     def test_extension_scope_preserves_new_npm_and_receiver_outputs(self):
         removed_by_root = [self.write(name, "root-only disposable output") for name in (
             "test/interoperability/mcp/node_modules/package/index.js",
+            "test/ci/markdown/node_modules/package/index.js",
             "examples/typescript-ard-list/node_modules/package/index.js", "bin/examples/publication-report", "bin/examples/mcp-scan-receiver")]
         for path in removed_by_root:
             path.chmod(0o640)

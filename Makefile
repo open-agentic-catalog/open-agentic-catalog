@@ -365,8 +365,8 @@ KUBECTL := kubectl
 TRIVY := trivy
 HADOLINT := hadolint
 SHELLCHECK := shellcheck
-MARKDOWNLINT := markdownlint
-YAMLLINT := yamllint
+MARKDOWNLINT ?= $(if $(wildcard .tools/ci/markdown/node_modules/.bin/markdownlint),$(CURDIR)/.tools/ci/markdown/node_modules/.bin/markdownlint,markdownlint)
+YAMLLINT ?= $(if $(wildcard .tools/dev/bin/yamllint),$(CURDIR)/.tools/dev/bin/yamllint,yamllint)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Local deployment and measurement defaults
@@ -1612,7 +1612,7 @@ validation-tools-install: ## Explicitly install locked Redocly and build pinned 
 	node test/validation/runner.mjs install
 
 api-yaml-check: ## Lint the authoritative OpenAPI YAML, including duplicate keys
-	$(YAMLLINT) -c .yamllint.yml api/openapi/control-v1.yaml
+	"$(YAMLLINT)" -c .yamllint.yml api/openapi/control-v1.yaml
 
 api-validate: ## Run Go OpenAPI specification, example and event-selector parity tests
 	$(GO) test ./api -count=1
@@ -1831,7 +1831,7 @@ docs-site-check: ## Lint JS, check Astro, test root/base docs builds; leave root
 	cd documentation && ASTRO_TELEMETRY_DISABLED=1 npm run check
 
 docs-check: ## Lint Markdown and audit documentation plus tracked workflow defaults
-	$(MARKDOWNLINT) --dot --ignore schemas/upstream --ignore samples/upstream --ignore specs --ignore documentation/node_modules --ignore documentation/.astro --ignore documentation/dist --ignore documentation/src/content/docs/generated --ignore catalog-ui/node_modules --ignore catalog-ui/dist --ignore test/validation/node_modules --ignore test/interoperability/mcp/node_modules --ignore test/validation/.tools --ignore test/apigenerated/.tools --ignore test/sdk/.tools --ignore examples/langgraph/.venv --ignore sdk/typescript/node_modules --ignore sdk/rust/target --ignore test/sdk/rust/consumer/target --ignore examples/rust-catalog-report/target --ignore extensions/vscode/node_modules --ignore extensions/vscode/.tools --ignore extensions/vscode/dist --ignore test/vscode/.tools --ignore .tools --ignore output '**/*.md' '**/*.mdx'
+	"$(MARKDOWNLINT)" --dot --ignore schemas/upstream --ignore samples/upstream --ignore specs --ignore documentation/node_modules --ignore documentation/.astro --ignore documentation/dist --ignore documentation/src/content/docs/generated --ignore catalog-ui/node_modules --ignore catalog-ui/dist --ignore test/validation/node_modules --ignore test/interoperability/mcp/node_modules --ignore test/validation/.tools --ignore test/apigenerated/.tools --ignore test/sdk/.tools --ignore examples/langgraph/.venv --ignore sdk/typescript/node_modules --ignore sdk/rust/target --ignore test/sdk/rust/consumer/target --ignore examples/rust-catalog-report/target --ignore extensions/vscode/node_modules --ignore extensions/vscode/.tools --ignore extensions/vscode/dist --ignore test/vscode/.tools --ignore .tools --ignore output '**/*.md' '**/*.mdx'
 	$(PYTHON) -B test/packaging/completion.py go --required TestDocumentationContracts -- $(GO) test ./internal/platform/runtime -run '^TestDocumentationContracts$$' -count=1 -json
 
 

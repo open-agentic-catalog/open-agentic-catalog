@@ -7,9 +7,29 @@ import tarfile
 import tempfile
 import unittest
 from unittest.mock import patch
-import subprocess
 
 import node_runtime as runtime
+
+
+def npm_fixture(root, *, extra=None):
+    """Create inert reviewed archive bytes, never a real executable."""
+    archive = io.BytesIO()
+    entries = {"package/package.json": '{"version":"12.2.2"}',
+               "package/bin/npm-cli.js": "npm entrypoint", "package/bin/npx-cli.js": "npx entrypoint"}
+    entries.update(extra or {})
+    with tarfile.open(fileobj=archive, mode="w:gz") as bundle:
+        for name, value in entries.items():
+            member = tarfile.TarInfo(name)
+            member.size = len(value.encode())
+            bundle.addfile(member, io.BytesIO(value.encode()))
+    payload = archive.getvalue()
+    asset = {"version": "12.2.2", "filename": "npm-12.2.2.tgz",
+             "url": "https://registry.npmjs.org/npm/-/npm-12.2.2.tgz", "sha256": hashlib.sha256(payload).hexdigest()}
+    pins = root / "pins.json"
+    pins.write_text(json.dumps({"archives": {"npm": asset}}))
+    response = io.BytesIO(payload)
+    response.geturl = lambda: asset["url"]
+    return pins, asset, response
 
 
 class NodeRuntimeUnits(unittest.TestCase):
@@ -49,43 +69,101 @@ class NodeRuntimeUnits(unittest.TestCase):
                     runtime.install("24.21.0", root / "installed")
 
     def test_npm_selection_rejects_nonexact_values_before_acquisition(self):
-        with patch.object(runtime.subprocess, "run") as acquire:
+        with patch.object(runtime.urllib.request, "urlopen") as acquire:
             for version in ("latest", "^12.2.1", "12.2.1-beta.1", "12.2.1\n", "../12.2.1"):
                 with self.subTest(version=version), self.assertRaisesRegex(RuntimeError, "exact stable"):
                     runtime.install_npm("/unused/bin/node", version, "/unused", env={})
             acquire.assert_not_called()
 
     def test_npm_installs_separately_reuses_receipt_and_refuses_drift(self):
-        def acquire(command, **options):
-            work = Path(command[command.index("--prefix") + 1])
-            package = work / "node_modules/npm"
-            (package / "bin").mkdir(parents=True)
-            (package / "package.json").write_text(json.dumps({"version": "12.2.1"}))
-            (package / "bin/npm-cli.js").write_text("npm entrypoint")
-            (work / "package-lock.json").write_text("locked integrity")
-        with tempfile.TemporaryDirectory() as directory, patch.object(runtime.subprocess, "run", side_effect=acquire) as install:
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            pins, asset, response = npm_fixture(root)
             node = root / "reviewed-node/bin/node"
+            node.parent.mkdir(parents=True)
+            node.write_bytes(b"reviewed Node")
             target = root / "npm"
-            selected = runtime.install_npm(node, "12.2.1", target, env={"NPM_CONFIG_AUDIT": "false"})
-            self.assertEqual(selected, target / "npm-12.2.1/node_modules/npm/bin/npm-cli.js")
-            command = install.call_args.args[0]
-            self.assertEqual(command[:3], [str(node), str(node.parent.parent / "lib/node_modules/npm/bin/npm-cli.js"), "install"])
-            for flag in ("--ignore-scripts", "--no-audit", "--no-fund", "--save-exact"):
-                self.assertIn(flag, command)
-            self.assertNotIn("--global", command)
-            self.assertEqual(command[-1], "npm@12.2.1")
-            self.assertFalse(node.parent.parent.exists())
-            self.assertEqual(runtime.install_npm(node, "12.2.1", target, env={}), selected)
-            install.assert_called_once()
-            selected.write_text("changed")
-            with self.assertRaisesRegex(RuntimeError, "npm installation drift"):
-                runtime.install_npm(node, "12.2.1", target, env={})
-            install.assert_called_once()
+            with patch.object(runtime, "NPM_PINS", pins), patch.object(runtime.urllib.request, "urlopen", return_value=response) as install:
+                selected = runtime.install_npm(node, "12.2.2", target, env={})
+                self.assertEqual(selected, target / "npm-12.2.2/node_modules/npm/bin/npm-cli.js")
+                self.assertEqual(node.read_bytes(), b"reviewed Node")
+                self.assertFalse((selected.parents[3] / "package-lock.json").exists())
+                receipt = selected.parents[3] / ".catalog-npm.json"
+                self.assertEqual(json.loads(receipt.read_text())["archive"], asset)
+                self.assertEqual(runtime.install_npm(node, "12.2.2", target, env={}), selected)
+                install.assert_called_once_with(asset["url"], timeout=60)
+                for path in (selected, selected.with_name("npx-cli.js")):
+                    original = path.read_bytes()
+                    path.write_text("changed")
+                    with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, "npm installation drift"):
+                        runtime.install_npm(node, "12.2.2", target, env={})
+                    path.write_bytes(original)
+                asset["sha256"] = "0" * 64
+                pins.write_text(json.dumps({"archives": {"npm": asset}}))
+                with self.assertRaisesRegex(RuntimeError, "npm installation drift"):
+                    runtime.install_npm(node, "12.2.2", target, env={})
+                install.assert_called_once()
 
     def test_failed_npm_acquisition_cleans_staging_without_activation(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(runtime.subprocess, "run", side_effect=subprocess.CalledProcessError(1, "npm")):
-            target = Path(directory)
-            with self.assertRaises(subprocess.CalledProcessError):
-                runtime.install_npm("/unused/bin/node", "12.2.1", target, env={})
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pins, _, _ = npm_fixture(root)
+            target = root / "target"
+            with patch.object(runtime, "NPM_PINS", pins), patch.object(runtime.urllib.request, "urlopen", side_effect=OSError("download failed")):
+                with self.assertRaisesRegex(OSError, "download failed"):
+                    runtime.install_npm("/unused/bin/node", "12.2.2", target, env={})
             self.assertEqual(list(target.iterdir()), [])
+
+    def test_missing_or_inconsistent_npm_pin_stops_before_download(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pins, asset, _ = npm_fixture(root)
+            for change in ({"version": "12.2.1"}, {"filename": "../npm.tgz"}, {"sha256": "not-a-hash"},
+                           {"url": "https://other.example/npm.tgz"}, {"sha256": None}):
+                pins.write_text(json.dumps({"archives": {"npm": dict(asset, **change)}}))
+                with self.subTest(change=change), patch.object(runtime, "NPM_PINS", pins), patch.object(runtime.urllib.request, "urlopen") as acquire:
+                    with self.assertRaisesRegex(RuntimeError, "No reviewed npm"):
+                        runtime.install_npm("/unused/bin/node", "12.2.2", root / "target", env={})
+                    acquire.assert_not_called()
+                    self.assertFalse((root / "target").exists())
+            pins.unlink()
+            with patch.object(runtime, "NPM_PINS", pins), patch.object(runtime.urllib.request, "urlopen") as acquire:
+                with self.assertRaisesRegex(RuntimeError, "No reviewed npm"):
+                    runtime.install_npm("/unused/bin/node", "12.2.2", root / "target", env={})
+                acquire.assert_not_called()
+
+    def test_wrong_npm_bytes_fail_before_extraction(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pins, _, response = npm_fixture(root)
+            response.write(b"substituted archive")
+            response.seek(0)
+            target = root / "target"
+            target.mkdir()
+            retained = target / "retained"
+            retained.write_text("retained")
+            with patch.object(runtime, "NPM_PINS", pins), patch.object(runtime.urllib.request, "urlopen", return_value=response), patch.object(runtime.tarfile, "open") as unpack:
+                with self.assertRaisesRegex(RuntimeError, "npm distribution checksum mismatch"):
+                    runtime.install_npm("/unused/bin/node", "12.2.2", target, env={})
+                unpack.assert_not_called()
+            self.assertEqual(list(target.iterdir()), [retained])
+            self.assertEqual(retained.read_text(), "retained")
+
+    def test_npm_refuses_escaping_archive_and_redirected_destination(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pins, _, response = npm_fixture(root, extra={"package/../escape": "untrusted"})
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "retained").write_text("retained")
+            with patch.object(runtime, "NPM_PINS", pins), patch.object(runtime.urllib.request, "urlopen", return_value=response):
+                with self.assertRaisesRegex(RuntimeError, "unexpected archive path"):
+                    runtime.install_npm("/unused/bin/node", "12.2.2", root / "target", env={})
+            self.assertFalse((root / "target/escape").exists())
+            self.assertEqual(list((root / "target").iterdir()), [])
+            (root / "redirected").symlink_to(outside, target_is_directory=True)
+            with patch.object(runtime, "NPM_PINS", pins), patch.object(runtime.urllib.request, "urlopen") as acquire:
+                with self.assertRaisesRegex(RuntimeError, "redirected path"):
+                    runtime.install_npm("/unused/bin/node", "12.2.2", root / "redirected", env={})
+                acquire.assert_not_called()
+            self.assertEqual((outside / "retained").read_text(), "retained")

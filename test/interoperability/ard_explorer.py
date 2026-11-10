@@ -27,7 +27,7 @@ PIN = json.loads((INPUTS / 'inputs.json').read_text())
 NODE_ROOT = ROOT / '.tools/ci' / ('node-v' + PIN['node'] + '-linux-x64')
 NPM = ROOT / ".tools/ci" / ("npm-" + PIN["npm"]) / "node_modules/npm/bin/npm-cli.js"
 BROWSER_MODULES = ROOT / 'catalog-ui/node_modules'
-HARNESS_INPUTS = (ROOT / 'test/sdk/node_runtime.py', INPUTS, HERE / 'ard_explorer.py', HERE / 'common.py', HERE / 'runner.py',
+HARNESS_INPUTS = (ROOT / 'test/sdk/node_runtime.py', ROOT / 'test/ci/pins.json', INPUTS, HERE / 'ard_explorer.py', HERE / 'common.py', HERE / 'runner.py',
                   ROOT / 'catalog-ui/scripts/ard-explorer-startup.mjs',
                   ROOT / 'catalog-ui/scripts/ard-explorer-journeys.mjs', ROOT / 'Makefile')
 
@@ -156,7 +156,7 @@ def install():
     save(TOOLS / 'notices.json', notices)
     stamp = {'revision': PIN['revision'], 'sourceFiles': source_files, 'licenses': licenses, 'findings': findings,
              'browser': browser_identity(), 'nodeDigest': sha(NODE_ROOT / 'bin/node'),
-             'scanner': version, 'inputs': fingerprint([INPUTS / 'inputs.json']),
+             'scanner': version, 'inputs': fingerprint([INPUTS / 'inputs.json', ROOT / 'test/sdk/node_runtime.py', ROOT / 'test/ci/pins.json']),
              'toolDigest': fingerprint([source]), 'installedUTC': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())}
     save(TOOLS / 'installation.json', stamp)
     print('Explorer tools installed locally. Run make test-interoperability-ard-explorer separately.')
@@ -165,7 +165,7 @@ def install():
 def installed():
     prerequisites()
     stamp = json.loads((TOOLS / 'installation.json').read_text())
-    if (stamp['revision'] != PIN['revision'] or stamp['inputs'] != fingerprint([INPUTS / 'inputs.json'])
+    if (stamp['revision'] != PIN['revision'] or stamp['inputs'] != fingerprint([INPUTS / 'inputs.json', ROOT / 'test/sdk/node_runtime.py', ROOT / 'test/ci/pins.json'])
             or stamp['toolDigest'] != fingerprint([TOOLS / 'source'])
             or stamp['nodeDigest'] != sha(NODE_ROOT / 'bin/node') or stamp['browser'] != browser_identity()):
         raise RuntimeError('Explorer installation changed; review and reinstall explicitly')

@@ -131,7 +131,7 @@ Successful checks remove their invocation-owned output under `output/sdk/python-
 
 ## JavaScript/TypeScript SDK
 
-The independent [ESM package](../../sdk/typescript/README.md) ships JavaScript and TypeScript declarations. Maintainer tooling uses Node 24.22.1 and bundled npm 12.2.1, acquired by the explicit SDK installer under `test/sdk/.tools/`. It also acquires Node 22.23.4 and 24.20.0 for compatibility checks. The declared Node 22 minimum is 22.23.4, matching the qualified maintained runtime; Node 24 starts at 24.20.0. Distributions have reviewed SHA-256 pins in `test/sdk/node-runtimes.json`; the SDK owns `.nvmrc`. Installation does not change your default Node. Maintainers also need OpenSSL and the repository Go toolchain. The SDK owns its npm manifest and lockfile. It does not use the UI installation.
+The independent [ESM package](../../sdk/typescript/README.md) ships JavaScript and TypeScript declarations. Maintainer tooling uses Node 24.22.1 and separately acquired npm 12.2.2, acquired by the explicit SDK installer under `test/sdk/.tools/`. It also acquires Node 22.23.4 and 24.20.0 for compatibility checks. The declared Node 22 minimum is 22.23.4, matching the qualified maintained runtime; Node 24 starts at 24.20.0. Distributions have reviewed SHA-256 pins in `test/sdk/node-runtimes.json`; the SDK owns `.nvmrc`. Installation does not change your default Node. Maintainers also need OpenSSL and the repository Go toolchain. The SDK owns its npm manifest and lockfile. It does not use the UI installation.
 
 ```sh
 make sdk-tools-install SDK_LANGUAGE=typescript

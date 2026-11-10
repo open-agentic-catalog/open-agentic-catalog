@@ -128,6 +128,32 @@ class GitVersionTests(unittest.TestCase):
                                env=make_environment(), capture_output=True, text=True, timeout=30, check=True)
         self.assertEqual(reply.stdout.strip(), str(script))
 
+    def test_make_yaml_linter_path_fallback_owned_precedence_and_explicit_override(self):
+        shutil.copyfile(v.ROOT / "Makefile", self.root / "Makefile")
+        environment = make_environment()
+        environment.pop("YAMLLINT", None)
+        fallback = self.root / "ignored/path/yamllint"
+        fallback.parent.mkdir(parents=True)
+        fallback.write_text('#!/bin/sh\nprintf "fallback yaml\\n"\n')
+        fallback.chmod(0o700)
+        environment["PATH"] = str(fallback.parent) + os.pathsep + environment["PATH"]
+
+        def execute(*arguments):
+            result = subprocess.run(["make", "--no-print-directory", "api-yaml-check", *arguments], cwd=self.root,
+                                    env=environment, capture_output=True, text=True, timeout=30, check=True)
+            return result.stdout.splitlines()[-1]
+
+        self.assertEqual(execute(), "fallback yaml")
+        owned = self.root / ".tools/dev/bin/yamllint"
+        owned.parent.mkdir(parents=True)
+        owned.write_text('#!/bin/sh\nprintf "owned yaml\\n"\n')
+        owned.chmod(0o700)
+        self.assertEqual(execute(), "owned yaml")
+        selected = self.root / "ignored/selected yaml"
+        selected.write_text('#!/bin/sh\nprintf "selected yaml\\n"\n')
+        selected.chmod(0o700)
+        self.assertEqual(execute("YAMLLINT=" + str(selected)), "selected yaml")
+
     @unittest.skipUnless(BMV.is_file(), "make dev-tools-install required for pinned bump qualification")
     def test_actual_bump_dry_run_numeric_rc_final_and_no_repository_mutation(self):
         expected = (("minor", "0.2.0"), ("rc", "0.2.0-rc.1"), ("rc", "0.2.0-rc.2"), ("final", "0.2.0"),
@@ -226,8 +252,14 @@ class GitVersionTests(unittest.TestCase):
         self.assertEqual(sentinel.read_text(), "keep")
         self.assertFalse((self.root / ".venv").exists())
         self.assertEqual((self.root / "uv.lock").read_bytes(), before)
+        yamllint = self.root / ".tools/dev/bin/yamllint"
+        self.assertEqual(v.run([str(yamllint), "--version"], self.root), "yamllint 1.38.0")
         manifest = self.root / "pyproject.toml"
-        manifest.write_text(manifest.read_text().replace("ruff==0.17.3", "ruff==0.16.6"))
-        with patch.object(v, "check"), self.assertRaises(ValueError):
-            v.install(self.root, uv, shutil.which("python3"))
-        self.assertEqual((self.root / "uv.lock").read_bytes(), before)
+        original = manifest.read_text()
+        for old, new in (("ruff==0.17.3", "ruff==0.16.6"), ("yamllint==1.38.0", "yamllint==1.37.1")):
+            manifest.write_text(original.replace(old, new))
+            with self.subTest(stale=old), patch.object(v, "check"), self.assertRaises(ValueError):
+                v.install(self.root, uv, shutil.which("python3"))
+            self.assertEqual((self.root / "uv.lock").read_bytes(), before)
+            self.assertEqual(v.run([str(yamllint), "--version"], self.root), "yamllint 1.38.0")
+            manifest.write_text(original)
