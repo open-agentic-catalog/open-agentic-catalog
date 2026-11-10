@@ -1,0 +1,7 @@
+# uv bootstrap only. Python development tools use root pyproject.toml and uv.lock.
+# Reviewed wheels: macOS x86_64/arm64 and glibc Linux x86_64/aarch64.
+uv==0.13.6 \
+    --hash=sha256:95f042b95e67ef8c3d3569bb6e9d895e592002c5e871cf3f1afe407c9d77a294 \
+    --hash=sha256:51361029b7cf91185d0092c4b356d110b4ad629e9cb11593f1e006ac72a72ca9 \
+    --hash=sha256:22759b8895e1103578de6fb4cd27e94b4399d021023378d29f01333717751fba \
+    --hash=sha256:7ec5486476d67a4214c460b5492393ee2300d84e1de17b293100a019b413568b

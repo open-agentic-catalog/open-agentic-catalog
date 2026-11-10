@@ -30,7 +30,7 @@ walk('/tools/node_modules');console.log(JSON.stringify(out.sort((a,b)=>a.path.lo
 
 
 def identity():
-    return fingerprint([*(INPUTS / name for name in ("Containerfile", "package.json", "package-lock.json", "provenance.json", "Everything-LICENSE")), HERE / "mcp_tools.py"])
+    return fingerprint([*(INPUTS / name for name in ("Containerfile", "package.json", "package-lock.json", "provenance.json", "Everything-LICENSE")), HERE / "mcp_tools.py", ROOT / "test/ci/pins.json"])
 
 
 def source_revision(package, expected):
@@ -61,6 +61,13 @@ def validate_registry_identity(package, expected, metadata):
 
 
 def validate_lock():
+    npm = json.loads((ROOT / "test/ci/pins.json").read_text())["archives"]["npm"]
+    package = json.loads((INPUTS / "package.json").read_text())
+    recipe = (INPUTS / "Containerfile").read_text()
+    expected = "ADD --checksum=sha256:" + npm["sha256"] + " " + npm["url"] + " /tmp/npm.tgz"
+    if (package.get("packageManager") != "npm@" + npm["version"] or expected not in recipe.splitlines()
+            or 'test "$(npm --version)" = "' + npm["version"] + '"' not in recipe):
+        raise ValueError("MCP npm distribution differs from the reviewed pin")
     lock = json.loads((INPUTS / "package-lock.json").read_text())
     pins = json.loads((INPUTS / "provenance.json").read_text())
     for package, expected in pins.items():

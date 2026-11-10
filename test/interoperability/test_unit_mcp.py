@@ -131,6 +131,23 @@ class Tools(unittest.TestCase):
     def test_checked_in_lock_matches_reviewed_provenance(self):
         self.assertEqual(len(tools.validate_lock()), 3)
 
+    def test_npm_image_drift_is_refused_before_registry_acquisition(self):
+        package = json.loads((tools.INPUTS / "package.json").read_text())
+        recipe = (tools.INPUTS / "Containerfile").read_text()
+        archive = json.loads((tools.ROOT / "test/ci/pins.json").read_text())["archives"]["npm"]
+        for selected, image in ((dict(package, packageManager="npm@0.0.0"), recipe),
+                                (package, recipe.replace(archive["sha256"], "0" * 64)),
+                                (package, recipe.replace('= "' + archive["version"] + '"', '= "0.0.0"'))):
+            with tempfile.TemporaryDirectory() as directory:
+                inputs = Path(directory)
+                (inputs / "package.json").write_text(json.dumps(selected))
+                (inputs / "Containerfile").write_text(image)
+                with patch.object(tools, "INPUTS", inputs), patch.object(tools, "local_daemon"), \
+                        patch.object(tools.urllib.request, "urlopen") as acquire:
+                    with self.assertRaisesRegex(ValueError, "npm distribution differs"):
+                        tools.install()
+                    acquire.assert_not_called()
+
     def test_absent_registry_revision_requires_a_separate_reviewed_source_pin(self):
         package = "@modelcontextprotocol/inspector@2.12.0"
         expected = tools.validate_lock()[package]

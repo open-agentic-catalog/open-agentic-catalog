@@ -85,7 +85,7 @@ Pure contract/selector/supervisor/API-helper tests live in `test_unit_mcp*.py`; 
 
 Ordinary tests never install or execute Inspector/Everything. Run the real target separately after harness/tool changes, including an interrupted active run; do not infer real compatibility from injected runner tests.
 
-Use the pinned npm 12.2.1 to regenerate the v3 lock. It preserves `libc` filters that npm 10 drops when it rewrites optional packages. The Node 22.23.4 test image installs npm 12.2.1 explicitly before installing the lock, with lifecycle scripts disabled.
+Use the pinned npm 12.2.2 to regenerate the v3 lock. It preserves `libc` filters that npm 10 drops when it rewrites optional packages. The Node 22.23.4 test image installs checksum-verified npm 12.2.2 before installing the lock, with lifecycle scripts disabled.
 
 Review the complete npm lock and packaged notices for each pin update. Compare the immutable source and npm identities. Rerun explicit installation and all real controls. Scan the complete npm lock locally with the pinned Trivy and current advisory data, including development dependencies. Do not submit dependency inventories to external audit services.
 

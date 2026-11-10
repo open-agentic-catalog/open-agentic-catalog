@@ -32,6 +32,7 @@ NODE = ROOT / ".tools/ci" / ("node-v" + PIN["node"] + "-linux-x64")
 NPM = ROOT / ".tools/ci" / ("npm-" + PIN["npm"]) / "node_modules/npm/bin/npm-cli.js"
 HARNESS_INPUTS = (
     ROOT / "test/sdk/node_runtime.py",
+    ROOT / "test/ci/pins.json",
     INPUTS,
     HERE / "pi_ard.py",
     HERE / "pi_campaign.py",
@@ -312,7 +313,7 @@ def install():
             "version": PIN["version"],
             "revision": PIN["revision"],
             "hostVersion": PIN["hostVersion"],
-            "inputs": sha(INPUTS / "inputs.json"),
+            "inputs": fingerprint([INPUTS / "inputs.json", ROOT / "test/sdk/node_runtime.py", ROOT / "test/ci/pins.json"]),
             "nodeDigest": sha(NODE / "bin/node"),
             "toolDigest": tree_digest(source),
             "runtimeDigest": tree_digest(runtime),
@@ -339,7 +340,7 @@ def installed():
         stamp["revision"] != PIN["revision"]
         or stamp["version"] != PIN["version"]
         or stamp["hostVersion"] != PIN["hostVersion"]
-        or stamp["inputs"] != sha(INPUTS / "inputs.json")
+        or stamp["inputs"] != fingerprint([INPUTS / "inputs.json", ROOT / "test/sdk/node_runtime.py", ROOT / "test/ci/pins.json"])
         or stamp["toolDigest"] != tree_digest(TOOLS / "source")
         or stamp["runtimeDigest"] != tree_digest(TOOLS / "runtime")
         or stamp["nodeDigest"] != sha(NODE / "bin/node")

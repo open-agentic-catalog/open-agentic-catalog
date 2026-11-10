@@ -1,8 +1,7 @@
 """Explicit prerequisites and validation for Linux verification workflows.
 
-Application tools keep their own installers and locks. Binary downloads verify
-the publisher's checksum for the exact release. Those fetched checksum manifests
-are not an independently pinned supply-chain attestation.
+Application tools keep their own installers and native locks. Raw archives are
+checked against retained reviewed digests before extraction or execution.
 """
 
 import argparse
@@ -103,28 +102,23 @@ def download(url, destination, limit=512 << 20):
             output.write(chunk)
 
 
-def checked_asset(url, manifest_url, destination):
-    """Match an exact release asset, never a latest release or unchecked binary."""
-    with tempfile.TemporaryDirectory(prefix="checksums-", dir=OWNED) as directory:
-        manifest = Path(directory) / "checksums"
-        download(manifest_url, manifest, 4 << 20)
-        expected = manifest_checksum(manifest.read_text(), destination.name)
-        download(url, destination)
-        with destination.open("rb") as source:
-            if hashlib.file_digest(source, "sha256").hexdigest() != expected:
-                raise ValueError("release checksum mismatch")
+def archive_checksum(name, version, filename):
+    """Require the reviewed bytes to match the owning version and exact asset."""
+    pin = PINS.get("archives", {}).get(name, {})
+    checksum = pin.get("sha256", "")
+    if pin.get("version") != version or pin.get("filename") != filename or not isinstance(checksum, str) or not re.fullmatch(r"[a-f0-9]{64}", checksum):
+        raise ValueError("no reviewed archive for " + name + " " + version + " " + filename)
+    return checksum
 
 
-def manifest_checksum(value, filename):
-    matches = []
-    for line in value.splitlines():
-        parts = line.split()
-        if parts and re.fullmatch(r"[a-fA-F0-9]{64}", parts[0]):
-            if len(parts) == 1 or parts[-1].lstrip("*").removeprefix("./") == filename:
-                matches.append(parts[0].lower())
-    if len(matches) != 1:
-        raise ValueError("release checksum manifest has no unique exact asset")
-    return matches[0]
+def checked_asset(url, expected, destination):
+    """Check retained expectations; never obtain trust from a new manifest."""
+    if not isinstance(expected, str) or not re.fullmatch(r"[a-f0-9]{64}", expected):
+        raise ValueError("missing reviewed archive checksum")
+    download(url, destination)
+    with destination.open("rb") as source:
+        if hashlib.file_digest(source, "sha256").hexdigest() != expected:
+            raise ValueError("release checksum mismatch")
 
 
 def unpack(archive, destination):
@@ -147,24 +141,15 @@ def go_install():
         raise ValueError("no exact repository Go version")
     version = selected[1]
     filename = "go" + version + ".linux-amd64.tar.gz"
+    checksum = archive_checksum("go", version, filename)
+    target = OWNED / ("go-" + version)
+    if target.exists() or target.is_symlink():
+        raise ValueError("owned Go installation exists; use a fresh job rather than overwrite it")
     with tempfile.TemporaryDirectory(prefix="go-acquire-", dir=OWNED) as directory:
         temporary = Path(directory)
-        releases = temporary / "releases.json"
-        download("https://go.dev/dl/?mode=json&include=all", releases, 16 << 20)
-        checksums = [item["sha256"] for release in json.loads(releases.read_text())
-                     if release["version"] == "go" + version for item in release["files"]
-                     if item["filename"] == filename]
-        if len(checksums) != 1 or not re.fullmatch(r"[a-f0-9]{64}", checksums[0]):
-            raise ValueError("official Go release metadata lacks the selected toolchain")
         archive = temporary / filename
-        download("https://go.dev/dl/" + filename, archive)
-        with archive.open("rb") as source:
-            if hashlib.file_digest(source, "sha256").hexdigest() != checksums[0]:
-                raise ValueError("Go toolchain checksum mismatch")
+        checked_asset("https://go.dev/dl/" + filename, checksum, archive)
         unpack(archive, temporary)
-        target = OWNED / ("go-" + version)
-        if target.exists():
-            raise ValueError("owned Go installation exists; use a fresh job rather than overwrite it")
         (temporary / "go").rename(target)
     publish_path(target / "bin")
     actual = run([target / "bin/go", "version"], capture=True, env=dict(os.environ, GOTOOLCHAIN="local"))
@@ -181,22 +166,36 @@ def node_install(project):
         raise ValueError("Node selection must be an exact version")
     filename = "node-v" + version + "-linux-x64.tar.gz"
     base = "https://nodejs.org/dist/v" + version + "/"
+    checksum = json.loads((ROOT / "test/sdk/node-runtimes.json").read_text()).get(version, {}).get(filename, "")
+    if not re.fullmatch(r"[a-f0-9]{64}", checksum):
+        raise ValueError("no reviewed Node archive for " + version)
+    target = OWNED / filename.removesuffix(".tar.gz")
+    if target.exists() or target.is_symlink():
+        raise ValueError("owned Node installation exists; use a fresh job")
+    aliases = OWNED / "bin"
+    if any((aliases / name).exists() or (aliases / name).is_symlink() for name in ("npm", "npx")):
+        raise ValueError("owned npm command exists; use a fresh job")
     with tempfile.TemporaryDirectory(prefix="node-acquire-", dir=OWNED) as directory:
         temporary = Path(directory)
         archive = temporary / filename
-        checked_asset(base + filename, base + "SHASUMS256.txt", archive)
+        checked_asset(base + filename, checksum, archive)
         unpack(archive, temporary)
-        target = OWNED / filename.removesuffix(".tar.gz")
-        if target.exists():
-            raise ValueError("owned Node installation exists; use a fresh job")
         (temporary / target.name).rename(target)
     publish_path(target / "bin")
     actual_node = run(["node", "--version"], capture=True).strip()
     if actual_node != "v" + version:
         raise ValueError("Node version mismatch")
-    if run(["npm", "--version"], capture=True).strip() != expected_npm:
-        # npm has a separate owning packageManager pin; distributions can bundle another version.
-        run(["npm", "install", "--global", "--prefix", target, "--ignore-scripts", "--no-audit", "--no-fund", "npm@" + expected_npm])
+    # Keep separately selected npm outside the reviewed Node distribution.
+    sys.path.insert(0, str(ROOT / "test/sdk"))
+    import node_runtime  # noqa: E402
+    executable = node_runtime.install_npm(target / "bin/node", expected_npm, OWNED, env=dict(os.environ))
+    aliases.mkdir(exist_ok=True)
+    for name, entry in (("npm", executable), ("npx", executable.with_name("npx-cli.js"))):
+        alias = aliases / name
+        if alias.exists() or alias.is_symlink():
+            raise ValueError("owned npm command exists; use a fresh job")
+        alias.symlink_to(entry)
+    publish_path(aliases)
     actual_npm = run(["npm", "--version"], capture=True).strip()
     if actual_npm != expected_npm:
         raise ValueError("npm version mismatch")
@@ -206,23 +205,62 @@ def node_install(project):
 
 def python_install(profile):
     venv = OWNED / "python"
-    run([sys.executable, "-m", "venv", venv])
+    if venv.exists() or venv.is_symlink():
+        raise ValueError("owned Python bootstrap exists; use a fresh environment rather than skip hash verification")
     uv = tomllib.loads((ROOT / "pyproject.toml").read_text())["tool"]["uv"]["required-version"]
-    requirements = ["uv" + uv]
-    if profile in SOURCE_TOOLS:
-        requirements += ["yamllint==" + PINS["yamllint"], "PyYAML==" + PINS["pyyaml"], "pathspec==" + PINS["pathspec"]]
-    # Direct tool versions are pinned; registries supply distribution metadata.
-    run([venv / "bin/python", "-m", "pip", "install", "--disable-pip-version-check", "--only-binary=:all:", *requirements])
+    env = {key: value for key, value in os.environ.items() if not key.upper().startswith("PIP_") and key not in ("PYTHONPATH", "PYTHONHOME", "VIRTUAL_ENV")}
+    env.update(PIP_CONFIG_FILE=os.devnull, PIP_NO_INPUT="1")
+    try:
+        run([sys.executable, "-I", "-m", "venv", venv], env=env)
+        run([venv / "bin/python", "-I", "-m", "pip", "install", "--disable-pip-version-check",
+             "--index-url", "https://pypi.org/simple", "--require-hashes", "--only-binary=:all:",
+             "-r", ROOT / "test/ci/uv/requirements.txt"], env=env)
+        installed = run([venv / "bin/python", "-I", "-c", "import importlib.metadata; print(importlib.metadata.version('uv'))"], capture=True, env=env)
+        if installed.strip() != uv.removeprefix("=="):
+            raise ValueError("uv bootstrap metadata differs from pyproject.toml")
+        actual_uv = run([venv / "bin/uv", "--version"], capture=True, env=env)
+        if actual_uv.split()[:2] != ["uv", uv.removeprefix("==")]:
+            raise ValueError("uv version mismatch")
+    except BaseException:
+        if venv.is_dir() and not venv.is_symlink():
+            shutil.rmtree(venv)
+        raise
     publish_path(venv / "bin")
-    actual_uv = run([venv / "bin/uv", "--version"], capture=True)
-    if actual_uv.split()[:2] != ["uv", uv.removeprefix("==")]:
-        raise ValueError("uv version mismatch")
     record_tool("uv", actual_uv)
-    if profile in SOURCE_TOOLS:
-        actual_yaml = run([venv / "bin/yamllint", "--version"], capture=True)
-        if actual_yaml.strip() != "yamllint " + PINS["yamllint"]:
-            raise ValueError("yamllint version mismatch")
-        record_tool("yamllint", actual_yaml)
+
+
+def markdown_install():
+    """Install the maintained native CLI lock without resolving a new graph."""
+    project = ROOT / "test/ci/markdown"
+    package = json.loads((project / "package.json").read_text())
+    if not package.get("private") or package.get("dependencies", {}).get("markdownlint-cli") != PINS["markdownlint-cli"]:
+        raise ValueError("Markdown CLI pin differs from its maintained manifest")
+    lock = json.loads((project / "package-lock.json").read_text())
+    for name, item in lock["packages"].items():
+        if name and (not item.get("resolved", "").startswith("https://registry.npmjs.org/") or not item.get("integrity", "").startswith("sha512-")):
+            raise ValueError("Markdown CLI lock has an unexpected source or missing integrity")
+    OWNED.mkdir(parents=True, exist_ok=True)
+    target = OWNED / "markdown"
+    if target.exists() or target.is_symlink():
+        raise ValueError("owned Markdownlint installation exists; select a fresh owned destination")
+    env = {key: value for key, value in os.environ.items() if not key.lower().startswith(("npm_config_", "node_"))}
+    with tempfile.TemporaryDirectory(prefix="markdown-acquire-", dir=OWNED) as directory:
+        stage = Path(directory)
+        for name in ("package.json", "package-lock.json"):
+            shutil.copyfile(project / name, stage / name)
+        empty = stage / "empty.npmrc"
+        empty.write_text("")
+        env.update(NPM_CONFIG_USERCONFIG=os.devnull, NPM_CONFIG_GLOBALCONFIG=str(empty),
+                   NPM_CONFIG_REGISTRY="https://registry.npmjs.org/", NPM_CONFIG_IGNORE_SCRIPTS="true",
+                   NPM_CONFIG_AUDIT="false", NPM_CONFIG_FUND="false", NPM_CONFIG_UPDATE_NOTIFIER="false")
+        run(["npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"], cwd=stage, env=env)
+        command = stage / "node_modules/.bin/markdownlint"
+        actual = run([command, "--version"], capture=True, env=env)
+        if actual.strip() != PINS["markdownlint-cli"]:
+            raise ValueError("Markdown CLI version mismatch")
+        stage.rename(target)
+    publish_path(target / "node_modules/.bin")
+    record_tool("markdownlint-cli", actual)
 
 
 def binary_install(name):
@@ -232,42 +270,36 @@ def binary_install(name):
     if name == "shellcheck":
         filename = "shellcheck-v" + version + ".linux.x86_64.tar.xz"
         base = "https://github.com/koalaman/shellcheck/releases/download/v" + version + "/"
-        url, manifest, member = base + filename, None, "shellcheck-v" + version + "/shellcheck"
+        url, member = base + filename, "shellcheck-v" + version + "/shellcheck"
     elif name == "hadolint":
         filename = "hadolint-linux-x86_64"
         base = "https://github.com/hadolint/hadolint/releases/download/v" + version + "/"
-        url, manifest, member = base + filename, base + "checksums.sha256", None
+        url, member = base + filename, None
     elif name == "helm":
         filename = "helm-v" + version + "-linux-amd64.tar.gz"
-        url, manifest, member = "https://get.helm.sh/" + filename, "https://get.helm.sh/" + filename + ".sha256sum", "linux-amd64/helm"
+        url, member = "https://get.helm.sh/" + filename, "linux-amd64/helm"
     elif name == "compose":
         filename = "docker-compose-linux-x86_64"
         base = "https://github.com/docker/compose/releases/download/v" + version + "/"
-        url, manifest, member = base + filename, base + "checksums.txt", None
-    else:
+        url, member = base + filename, None
+    elif name == "trivy":
         filename = "trivy_" + version + "_Linux-64bit.tar.gz"
         base = "https://github.com/aquasecurity/trivy/releases/download/v" + version + "/"
-        url, manifest, member = base + filename, base + "trivy_" + version + "_checksums.txt", "trivy"
+        url, member = base + filename, "trivy"
+    else:
+        raise ValueError("unknown binary tool")
+    checksum = archive_checksum(name, version, filename)
+    destination = Path.home() / ".docker/cli-plugins/docker-compose" if name == "compose" else OWNED / "bin" / name
+    if destination.exists() or destination.is_symlink():
+        raise ValueError("tool destination exists; use a fresh job rather than overwrite it")
     with tempfile.TemporaryDirectory(prefix=name + "-acquire-", dir=OWNED) as directory:
         temporary = Path(directory)
         archive = temporary / filename
-        if name == "shellcheck":
-            # ShellCheck publishes no checksum asset. Retain the exact release digest.
-            download(url, archive)
-            with archive.open("rb") as source:
-                if hashlib.file_digest(source, "sha256").hexdigest() != PINS["shellcheckSha256"]:
-                    raise ValueError("ShellCheck release checksum mismatch")
-        else:
-            checked_asset(url, manifest, archive)
+        checked_asset(url, checksum, archive)
         if member:
             unpack(archive, temporary)
         source = temporary / member if member else archive
-        destination = OWNED / "bin" / name
-        if name == "compose":
-            destination = Path.home() / ".docker/cli-plugins/docker-compose"
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if destination.exists():
-            raise ValueError("tool destination exists; use a fresh job rather than overwrite it")
         shutil.copyfile(source, destination)
         destination.chmod(0o755)
     command = ["docker", "compose", "version", "--short"] if name == "compose" else [destination, "version" if name == "helm" else "--version"]
@@ -329,12 +361,7 @@ def install(profile):
     if profile in SOURCE_TOOLS:
         binary_install("shellcheck")
     if profile in SOURCE_TOOLS or profile == "docs":
-        run(["npm", "install", "--prefix", OWNED / "markdown", "--ignore-scripts", "--no-audit", "--no-fund", "--before=" + PINS["dependencyCutoff"], "--save-exact", "markdownlint-cli@" + PINS["markdownlint-cli"]])
-        publish_path(OWNED / "markdown/node_modules/.bin")
-        actual_markdown = run(["markdownlint", "--version"], capture=True)
-        if actual_markdown.strip() != PINS["markdownlint-cli"]:
-            raise ValueError("Markdown CLI version mismatch")
-        record_tool("markdownlint-cli", actual_markdown)
+        markdown_install()
     if profile in SOURCE_TOOLS:
         binary_install("hadolint")
         actionlint_install()

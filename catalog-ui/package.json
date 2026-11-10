@@ -8,7 +8,7 @@
   "engines": {
     "node": ">=22.22.2 <23"
   },
-  "packageManager": "npm@12.2.1",
+  "packageManager": "npm@12.2.2",
   "scripts": {
     "generate": "openapi-typescript ../api/openapi/control-v1.yaml -o src/api/schema.d.ts",
     "client-check": "node scripts/client-check.mjs",

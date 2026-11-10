@@ -86,7 +86,7 @@ The `local-admin` token is for development only. The optional sample command abo
 
 ### Browse with the UI
 
-With the in-memory backend still running, install Node.js 22.23.4 and npm 12.2.1, then run:
+With the in-memory backend still running, install Node.js 22.23.4 and npm 12.2.2, then run:
 
 ```sh
 make ui-install
@@ -122,7 +122,7 @@ The full manual lives in [documentation/](documentation/README.md):
 - [Monitoring and tracing](documentation/src/content/docs/operations/observability.mdx), [webhooks](documentation/src/content/docs/operations/webhooks.mdx) and [backup and recovery](documentation/src/content/docs/operations/backup-restore.mdx)
 - [Architecture and diagrams](documentation/src/content/docs/architecture/overview.mdx) and [standards](documentation/src/content/docs/reference/standards.mdx)
 
-To browse the rendered manual locally, use Node.js 22.23.4 and npm 12.2.1:
+To browse the rendered manual locally, use Node.js 22.23.4 and npm 12.2.2:
 
 ```sh
 make docs-install

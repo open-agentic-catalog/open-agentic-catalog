@@ -4,7 +4,7 @@ This directory adds read-only OpenAPI linting and explicit-baseline compatibilit
 
 ## Install and run
 
-Use Node.js 22.13+ within major 22, npm 12.2.1, the repository Go toolchain and yamllint. Run from the repository root:
+Use Node.js 22.13+ within major 22, npm 10+, the repository Go toolchain and yamllint. The tested maintainer baseline is Node.js 22.23.4/npm 12.2.2. Run from the repository root:
 
 ```sh
 make validation-tools-install

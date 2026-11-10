@@ -690,7 +690,7 @@ make -C extensions/vscode package
 make -C extensions/vscode verify
 ```
 
-The build installer supplies pinned Node 24.22.1/npm 12.2.1 and locked extension dependencies. Check/build/package need no editor download, Go, ORAS, Chromium, database or running Catalog once the SDK archive is available. They never acquire tools or refresh locks. Only explicit installation uses network access.
+The build installer supplies pinned Node 24.22.1/npm 12.2.2 and locked extension dependencies. Check/build/package need no editor download, Go, ORAS, Chromium, database or running Catalog once the SDK archive is available. They never acquire tools or refresh locks. Only explicit installation uses network access.
 
 Run `make -C extensions/vscode help` for build, watch and scoped cleanup commands. Open `extensions/vscode/` as the editor folder. Use `make debug CATALOG_VSCODE_EXECUTABLE=/absolute/path/to/code`, then F5 **Catalog: Attach to development host** for source-map debugging in separate development storage. Detailed setup, source maps, dependency refresh and package internals belong in **Develop and contribute > Build and release > Optional VS Code package** in the companion manual.
 

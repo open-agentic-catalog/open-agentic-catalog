@@ -97,8 +97,17 @@ class VersionTests(unittest.TestCase):
                 v.bump(self.root, "/tool", "patch", False)
 
     def test_tool_versions_are_checked_with_the_selected_interpreter(self):
-        with patch.object(v, "run", return_value=json.dumps(v.TOOL_PINS)):
+        with patch.object(v, "run", return_value=json.dumps(v.TOOL_PINS)) as run:
             v.verify_tools("/selected/python", self.root)
+        self.assertEqual(run.call_args.args[0][:3], ["/selected/python", "-I", "-c"])
+        for yaml_version in (None, "1.37.1"):
+            versions = dict(v.TOOL_PINS)
+            if yaml_version is None:
+                del versions["yamllint"]
+            else:
+                versions["yamllint"] = yaml_version
+            with self.subTest(yamllint=yaml_version), patch.object(v, "run", return_value=json.dumps(versions)), self.assertRaisesRegex(ValueError, "wrong development tool versions"):
+                v.verify_tools("/selected/python", self.root)
         with patch.object(v, "run", return_value=json.dumps({"ruff": "wrong"})), self.assertRaises(ValueError):
             v.verify_tools("/selected/python", self.root)
 

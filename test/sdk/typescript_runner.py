@@ -54,7 +54,8 @@ def digest(path):
 
 def inputs():
     return {str(p.relative_to(ROOT)): digest(p) for p in (
-        SDK / "package.json", SDK / "package-lock.json", SDK / ".nvmrc", HERE / "node-runtimes.json", ROOT / "go.mod", ROOT / "go.sum",
+        SDK / "package.json", SDK / "package-lock.json", SDK / ".nvmrc", HERE / "node-runtimes.json",
+        HERE / "node_runtime.py", ROOT / "test/ci/pins.json", ROOT / "go.mod", ROOT / "go.sum",
         ROOT / "sdk/go/go.mod", ROOT / "sdk/go/go.sum",
         ROOT / "test/clientcompat/go/go.mod", ROOT / "test/clientcompat/go/go.sum")}
 

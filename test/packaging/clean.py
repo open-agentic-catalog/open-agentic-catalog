@@ -29,7 +29,7 @@ FILE_TARGETS = (
 )
 TARGETS = FILE_TARGETS + (
     "node_modules", "catalog-ui/node_modules", "documentation/node_modules",
-    "test/validation/node_modules", "sdk/typescript/node_modules",
+    "test/validation/node_modules", "sdk/typescript/node_modules", "test/ci/markdown/node_modules",
     "test/interoperability/mcp/node_modules", "examples/typescript-ard-list/node_modules",
     "test/interoperability/pi-ard/runtime/node_modules",
     "catalog-ui/dist", "documentation/dist",

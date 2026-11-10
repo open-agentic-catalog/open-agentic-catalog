@@ -10,6 +10,26 @@ import typescript_runner as runner
 
 
 class TypeScriptRunnerUnits(unittest.TestCase):
+    def test_installation_inputs_bind_npm_acquisition_code_and_archive_pin(self):
+        before = runner.inputs()
+        for name in ("test/sdk/node_runtime.py", "test/ci/pins.json"):
+            self.assertIn(name, before)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in before:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes((runner.ROOT / name).read_bytes())
+            with patch.object(runner, "ROOT", root), patch.object(runner, "HERE", root / "test/sdk"), \
+                    patch.object(runner, "SDK", root / "sdk/typescript"):
+                self.assertEqual(runner.inputs(), before)
+                for name in ("test/sdk/node_runtime.py", "test/ci/pins.json"):
+                    path = root / name
+                    original = path.read_bytes()
+                    path.write_bytes(original + b"\n")
+                    self.assertNotEqual(runner.inputs(), before)
+                    path.write_bytes(original)
+
     def test_npm_pack_result_binds_one_selected_identity_and_local_archive(self):
         manifest = {"name": "@owned/client", "version": "1.0.0"}
         record = dict(manifest, filename="owned-client-1.0.0.tgz")
@@ -57,8 +77,8 @@ class TypeScriptRunnerUnits(unittest.TestCase):
         self.assertNotEqual(env["NPM_CONFIG_USERCONFIG"], env["NPM_CONFIG_GLOBALCONFIG"])
 
     def test_primary_toolchain_is_exact(self):
-        runner.validate_runtime("v24.22.1\n", "12.2.1\n")
-        for node, npm in (("v22.23.4", "12.2.1"), ("v24.20.0", "12.2.1"), ("v24.22.1", "10.9.9"), ("v24.22.1", "11.19.1")):
+        runner.validate_runtime("v24.22.1\n", "12.2.2\n")
+        for node, npm in (("v22.23.4", "12.2.2"), ("v24.20.0", "12.2.2"), ("v24.22.1", "12.2.1"), ("v24.22.1", "10.9.9"), ("v24.22.1", "11.19.1")):
             with self.assertRaisesRegex(RuntimeError, "Pinned Node"):
                 runner.validate_runtime(node, npm)
 

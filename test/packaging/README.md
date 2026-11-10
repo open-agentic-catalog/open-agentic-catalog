@@ -32,7 +32,7 @@ These tests never clean the working checkout; they run in the existing packaging
 
 Normal cleanup includes the root `httpserver.test` binary and prunes only empty build parents. Isolated units select parents without writes or Git. Public Make fixtures verify unchanged previews, child-first removal, preserved local state and repeated cleanup. Another test creates a file after preflight and confirms that cleanup preserves it.
 
-Independent npm inventory checks derive maintained projects from tracked `package.json` files. Literal fixtures verify all seven dependency directories and `bin/examples/publication-report` through both public Make targets. They check unchanged previews, preserved package inputs, repeated cleanup and extension-only exclusions.
+Independent npm inventory checks derive maintained projects from tracked and new non-ignored `package.json` files. Literal fixtures verify eight dependency directories and `bin/examples/publication-report` through both public Make targets, including the source Markdownlint project. They check unchanged previews, preserved package inputs, repeated cleanup and extension-only exclusions.
 
 `make clean-output` and `make clean-output-dry-run` use a separate output scope in the same helper. Unknown output, runtime inputs, models and nested Git repositories remain in place. Selected siblings around nested repositories can be removed. The [cleanup guide](../../documentation/src/content/docs/contributing/build-and-release.md#clean-generated-output-separately) lists the exact removable and preserved locations.
 

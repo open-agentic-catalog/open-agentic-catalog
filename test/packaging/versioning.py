@@ -12,7 +12,7 @@ import tomllib
 
 ROOT = Path(__file__).resolve().parents[2]
 UV_VERSION = "0.13.6"
-TOOL_PINS = {"ruff": "0.17.3", "jsonschema": "4.26.0", "bump-my-version": "1.6.7", "coverage": "7.17.0"}
+TOOL_PINS = {"ruff": "0.17.3", "jsonschema": "4.26.0", "bump-my-version": "1.6.7", "coverage": "7.17.0", "yamllint": "1.38.0"}
 BASE = re.compile(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-rc\.([1-9][0-9]*))?\Z")
 IDENTITY = re.compile(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}\Z")
 SHA = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})\Z")

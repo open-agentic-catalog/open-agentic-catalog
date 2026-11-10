@@ -96,7 +96,7 @@ The Go client job reuses its existing prerequisites for `webhook-report-check`. 
 
 The functional workflow uses `functional` prerequisites for backup/restore and standalone receiver tests. Its peer federation selection uses `functional-ui` and installs UI dependencies, Chromium libraries and the browser. All selections call fixed existing Make targets and preserve failing exits. The act wrapper retains its eight selections; run the three additional campaigns through their native Make targets.
 
-Acquisition verifies exact-release publisher checksums or uses the selected language registry's integrity controls. Those downloaded manifests do not provide independent committed checksums or attestations. ShellCheck uses the committed digest for its exact Linux AMD64 archive because its release has no separate checksum asset.
+Archive acquisition checks reviewed SHA-256 values retained in `pins.json`, with Node using the existing `test/sdk/node-runtimes.json` records. Go, Node and npm versions keep their owning manifests. Unknown or inconsistent asset selections fail before download. Native Go tools retain exact version-suffixed installation and the Go checksum database. These byte checks are not publisher signatures or artifact attestations.
 
 Installations report selected tool versions without printing the environment. They write only owned `.tools/ci/` paths and the hosted job's Compose plugin path. ShellCheck installs under `.tools/ci/bin/` without changing system packages. No daemon, Catalog fixture or deployment starts here.
 
@@ -104,9 +104,21 @@ Compose 5 uses Docker Buildx/Bake for builds. The Docker installation must inclu
 
 Compose plugin installation requires `GITHUB_ACTIONS=true` and refuses ordinary local invocation before it accesses the home plugin directory. Local artifact qualification uses a verified standalone binary under an owned directory. It does not replace the user's Docker plugin.
 
-The Markdown CLI installer applies `dependencyCutoff` from `pins.json` through npm's `--before` option. Review the resolved packages when advancing that cutoff. The YAML tool and its PyYAML/pathspec dependencies also use exact pins in that manifest.
+The uv bootstrap uses `test/ci/uv/requirements.txt`, pip hash mode and a fresh owned environment. The existing `make dev-tools-install` separately synchronizes `pyproject.toml` and `uv.lock` into `.tools/dev`, including yamllint and its locked dependencies. It remains safe to repeat that locked development sync.
+
+Markdownlint uses the private native project under `test/ci/markdown/`. `markdown_install()` copies its manifest/lock into the existing owned tool directory and runs `npm ci`, without lifecycle scripts, audit submissions or funding requests. Ordinary installation does not resolve dependencies, apply a moving date filter or repair the lock. The separate npm archive is verified before extraction and leaves the reviewed Node distribution unchanged.
 
 `make workflow-tools-install` acquires actionlint explicitly. `make workflow-check` checks its Go module/version metadata without automatic toolchain acquisition, then checks workflow files and shell commands with installed ShellCheck. Each target runs alone and bypasses local Make env files. `make check` includes `workflow-check`.
+
+## Deliberate input updates
+
+Keep direct version selection in each existing owning manifest. Fetch official artifact metadata during a deliberate update, compare the exact filename and reviewed SHA-256, and update the existing archive record. Do not retrieve a checksum manifest as the ordinary install-time trust anchor. Native project locks retain package sources and integrity.
+
+Regenerate the Markdownlint lock with the selected npm, scripts/audits/funding disabled, and review its complete dependency diff. Keep the ordinary cutoff in `pins.json` for unrelated releases. The [dependency policy](../../documentation/src/content/docs/reference/dependencies.md#ci-bootstrap-and-source-tools) records the exact supported npm/Markdownlint security exceptions. Do not use forced upgrades or overrides to bypass incompatible ranges.
+
+Use the qualified Trivy and current advisory data to review the verified unpacked npm distribution with `trivy rootfs`. Check the bundled package inventory, including Undici. A source scan excludes installed tool trees, and default filesystem scanning does not inventory this lock-free distribution. No generated npm self-lock or custom SBOM converter is needed. This review belongs to pin qualification, not ordinary installation. Preserve lower-severity findings separately from failed High/Critical gates.
+
+The hosted installer and local act harness keep their Linux AMD64/Python 3.12 requirements. Native contributor instructions use regular installed Node/npm, Python and Go tools. The existing Node helper supports Intel/ARM Macs and compatible Linux x64/ARM64 distributions. Pi and Explorer retain their separate Linux/systemd qualification limits; tool acquisition does not port those harnesses.
 
 ## Source and cleanup ownership
 

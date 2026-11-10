@@ -10,7 +10,7 @@
     "vscode": "^1.139.1",
     "node": ">=24.20.0 <25"
   },
-  "packageManager": "npm@12.2.1",
+  "packageManager": "npm@12.2.2",
   "categories": [
     "Other"
   ],

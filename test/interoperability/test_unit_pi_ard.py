@@ -209,7 +209,7 @@ class PiUnits(unittest.TestCase):
                 "revision": pi.PIN["revision"],
                 "version": pi.PIN["version"],
                 "hostVersion": pi.PIN["hostVersion"],
-                "inputs": pi.sha(pi.INPUTS / "inputs.json"),
+                "inputs": pi.fingerprint([pi.INPUTS / "inputs.json", pi.ROOT / "test/sdk/node_runtime.py", pi.ROOT / "test/ci/pins.json"]),
                 "toolDigest": pi.tree_digest(tools / "source"),
                 "runtimeDigest": pi.tree_digest(tools / "runtime"),
                 "nodeDigest": pi.sha(node / "bin/node"),
