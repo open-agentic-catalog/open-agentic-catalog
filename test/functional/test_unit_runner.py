@@ -400,7 +400,7 @@ class RunnerTests(unittest.TestCase):
                     self.assertRaises(runner.Failure):
                 instance.execute()
             self.assertEqual(instance.directory.parent, instance.report_path.parent)
-            self.assertTrue(instance.directory.name.startswith("work-"))
+            self.assertTrue(instance.directory.name.startswith("open-agentic-catalog-functional-"))
             self.assertTrue(instance.directory.is_relative_to(Path(directory)))
             self.assertFalse(instance.directory.is_relative_to(Path(system_temporary)))
             self.assertEqual(oct(instance.directory.stat().st_mode & 0o777), "0o700")
