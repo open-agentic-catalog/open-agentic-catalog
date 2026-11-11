@@ -57,6 +57,8 @@ class PolicyTests(unittest.TestCase):
             self.assertEqual((private / "config.yaml").read_text(), "{}\n")
             self.assertIn("--offline-scan", arguments)
             self.assertIn("--list-all-pkgs", arguments)
+            self.assertIn("--disable-telemetry", arguments)
+            self.assertIn("--skip-version-check", arguments)
             self.assertNotIn("--image-config-scanners", arguments)
             value = {"SchemaVersion": 2, "Trivy": {"Version": trivy.VERSION}, "Results": [{"Target": "requirements.txt", "Type": "pip", "Packages": [{"Name": n, "Version": v} for n, v in sorted(expected)]}]}
             Path(arguments[arguments.index("--output") + 1]).write_text(json.dumps(value))
@@ -207,6 +209,8 @@ class PolicyTests(unittest.TestCase):
                 calls = []
                 def execute(command, **kwargs):
                     calls.append((command, kwargs))
+                    self.assertIn("--disable-telemetry", command)
+                    self.assertIn("--skip-version-check", command)
                     if scenario == "error":
                         raise ValueError("private sentinel")
                     output = value

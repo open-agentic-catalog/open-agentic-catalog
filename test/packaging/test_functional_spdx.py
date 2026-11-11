@@ -134,7 +134,7 @@ class StandaloneSPDXProcessTests(unittest.TestCase):
                     self.assertEqual(converted[-1], IDENTIFIER)
                     self.assertEqual(converted[converted.index("--image-src") + 1], "docker")
                     self.assertIn("--offline-scan", converted)
-                    for flag in ("--skip-db-update", "--skip-java-db-update", "--skip-check-update", "--skip-version-check"):
+                    for flag in ("--skip-db-update", "--skip-java-db-update", "--skip-check-update", "--disable-telemetry", "--skip-version-check"):
                         self.assertIn(flag, converted)
                     self.assertEqual(list(scratch.iterdir()), [], "all inspection/converter scratch must be removed")
                     self.assertTrue(all(not Path(call["cwd"]).exists() for call in calls))

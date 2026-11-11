@@ -150,7 +150,8 @@ def scan_development_dependencies(command, root, local_sources=None):
         (private / "ignore").write_text("")
         target = private / "report.json"
         execute(command + ["fs", "--config", str(private / "config.yaml"), "--ignorefile", str(private / "ignore"),
-                           "--offline-scan", "--scanners", "vuln", "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
+                           "--disable-telemetry", "--skip-version-check", "--offline-scan",
+                           "--scanners", "vuln", "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL",
                            "--format", "json", "--list-all-pkgs", "--output", str(target), str(inputs)],
                 cwd=private, env=environment())
         development_report(report(target), expected)
@@ -279,7 +280,8 @@ def scan(options, inspected, directory, check_identity, make_sbom, inventory):
             (evidence / "secret.yaml").write_text("{}\n")
             (private / "modules").mkdir()
             common = ["--config", str(evidence / "config.yaml"), "--ignorefile", str(evidence / "ignore"),
-                      "--offline-scan", "--skip-db-update", "--skip-java-db-update", "--skip-version-check", "--list-all-pkgs", "--format", "json", "--exit-code", "0",
+                      "--offline-scan", "--skip-db-update", "--skip-java-db-update", "--disable-telemetry", "--skip-version-check",
+                      "--list-all-pkgs", "--format", "json", "--exit-code", "0",
                       "--severity", "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL", "--timeout", "5m"]
             metadata["configuration"] = {"ambientTrivyPolicy": "removed", "databaseUpdate": False, "offlineDependencyIdentification": True,
                                          "config": {}, "ignore": [], "secretConfig": {}, "imageConfigScanners": ["secret"], "wasmModules": [], "timeoutSeconds": 300}

@@ -76,6 +76,8 @@ async function fixture(t) {
       TRIVY_SEVERITY: "CRITICAL",
       TRIVY_SKIP_DB_UPDATE: "true",
       TRIVY_SERVER: "https://invalid.example",
+      TRIVY_DISABLE_TELEMETRY: "false",
+      TRIVY_SKIP_VERSION_CHECK: "false",
       TRIVY_CACHE_DIR: join(root, "cache"),
       UI_DEPS_TRIVY: "/tools/trivy",
     },
@@ -136,7 +138,12 @@ test("Trivy retains full evidence and uses native threshold conversion with expl
   const [preflight, scan, version, gate] = mock.calls;
   assert.equal(preflight.args[0], "--version");
   assert.equal(scan.exe, "/tools/trivy");
-  for (const flag of ["--include-dev-deps", "--list-all-pkgs"])
+  for (const flag of [
+    "--include-dev-deps",
+    "--list-all-pkgs",
+    "--disable-telemetry",
+    "--skip-version-check",
+  ])
     assert.ok(scan.args.includes(flag));
   assert.equal(scan.args[scan.args.indexOf("--scanners") + 1], "vuln");
   assert.equal(
@@ -153,6 +160,8 @@ test("Trivy retains full evidence and uses native threshold conversion with expl
       "TRIVY_SEVERITY",
       "TRIVY_SKIP_DB_UPDATE",
       "TRIVY_SERVER",
+      "TRIVY_DISABLE_TELEMETRY",
+      "TRIVY_SKIP_VERSION_CHECK",
     ])
       assert.equal(call.options.env[key], undefined);
     assert.equal(
@@ -165,6 +174,10 @@ test("Trivy retains full evidence and uses native threshold conversion with expl
     "",
   );
   assert.equal(version.args[0], "--version");
+  for (const call of [preflight, version, gate]) {
+    assert.ok(!call.args.includes("--disable-telemetry"));
+    assert.ok(!call.args.includes("--skip-version-check"));
+  }
   assert.equal(gate.args[gate.args.indexOf("--severity") + 1], "HIGH,CRITICAL");
   assert.equal(gate.args[gate.args.indexOf("--exit-code") + 1], "10");
   assert.equal(gate.args.at(-1), join(result.directory, "trivy.json"));

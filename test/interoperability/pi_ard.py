@@ -244,6 +244,7 @@ def install():
             "--skip-java-db-update",
             "--offline-scan",
             "--disable-telemetry",
+            "--skip-version-check",
             "--format",
             "json",
             "--output",

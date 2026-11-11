@@ -484,7 +484,7 @@ trivy image --download-db-only
 
 `TRIVY_CACHE_DIR` selects a nondefault cache for both acquisition and the Make targets. A scan requires regular database and metadata files, schema version 2, and an unexpired `NextUpdate`; it fails on missing, stale, changing or unusable input.
 
-Each run copies one database snapshot to temporary private storage, records its SHA-256 and timestamps, and removes the copy afterward. Allow space for that additional database copy. Scanning disables database/check/version downloads and online dependency identification. Fresh advisory acquisition can require network access; a local image scan is not a claim that an old offline database is current. SBOM generation alone requires no vulnerability database.
+Each run copies one database snapshot to temporary private storage, records its SHA-256 and timestamps, and removes the copy afterward. Allow space for that additional database copy. Local image scans disable database and check-bundle updates and online dependency identification. Fresh advisory acquisition can require network access. SBOM generation alone requires no vulnerability database.
 
 Image scanning enables vulnerabilities and secrets, including native image-configuration secret scanning with `--image-config-scanners secret`. This covers scanner-recognized secrets in image metadata as well as its filesystem selection.
 
@@ -502,7 +502,7 @@ Reports can contain sensitive findings; keep them private and out of commits or 
 
 The scanner uses empty configuration and ignore files. It removes inherited Trivy policy settings to prevent hidden exclusions, remote scanning or suppression. Only cache and Podman socket Trivy environment settings are retained.
 
-Trivy's [usage telemetry](https://github.com/aquasecurity/trivy/blob/e713f67f7d54decdcd9b3132c9751833dcced698/docs/guide/advanced/telemetry.md) can make a separate network request; `--offline-scan` does not disable it. The native opt-out is `--disable-telemetry` on scan subcommands or `TRIVY_DISABLE_TELEMETRY=true`. Current maintained helpers clear ambient Trivy settings and do not consistently enforce this opt-out. An environment override alone therefore does not establish a run without telemetry.
+Maintained Trivy scans pass `--disable-telemetry` and `--skip-version-check` explicitly. Together these flags disable the optional request for [usage telemetry and update notices](https://github.com/aquasecurity/trivy/blob/e713f67f7d54decdcd9b3132c9751833dcced698/docs/guide/advanced/air-gap.md#check-updates-service). Use both flags for manual scans. Advisory database and check-bundle acquisition use separate settings.
 
 Every High/Critical vulnerability or secret fails the scan. Reports retain lower severities. Native scan errors, timeouts, incomplete inventories, malformed reports and changed identity also fail.
 
