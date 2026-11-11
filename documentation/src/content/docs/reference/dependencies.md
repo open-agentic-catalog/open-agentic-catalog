@@ -78,6 +78,8 @@ The dependency gate excludes the main module and checks imported dependencies. I
 
 The gate covers Go code imported by the service and its tests. Standalone development analyzers are pinned build inputs and are not linked into release binaries. Vendored standards sources and their license files remain governed by the [profile inventory](../../../../../schemas/PROFILES.md), `schemas/checksums.txt`, and `make profiles` rather than this Go-module gate.
 
+The [reviewed upstream resource fixtures](../contributing/testing.md#reviewed-upstream-resource-fixtures) retain their Apache-2.0 or MIT licenses beside immutable source inputs. Adapter tests check their checksums and complete file set. These inert files are not Go imports or executed dependencies; `license-check` does not review their terms. Preserve their attribution when distributing repository source. They are absent from final application images.
+
 External development tools and test-container images have a separate policy. The Catalog executes these tools without importing them into its Go dependency graph. Before you adopt an external tool, retain:
 
 - One exact version or artifact pin.

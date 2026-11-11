@@ -359,6 +359,8 @@ make check
 make docs-site-check
 ```
 
+`docs-check` lints maintained Markdown/MDX and audits repository documentation contracts. Copied upstream Markdown retains its original formatting and third-party links, so it is excluded from those rules. The maintained guide in `internal/adapter/testdata/upstream/README.md` remains checked. The [corpus tests](testing.md#reviewed-upstream-resource-fixtures) separately verify retained bytes and complete inventories; a lint exclusion is not an integrity check.
+
 The separate `lint` command checks maintained `.mjs` tooling, configuration and tests, including new files. It uses installed ESLint 10.13.0, `@eslint/js` 10.0.1 and globals 17.13.0. Recommended correctness rules use Node ES-module globals; they do not format files or check Astro/TypeScript. The command uses explicit configuration and disables inline overrides, caching and fixes. It does not modify source files. Installed packages, `.astro/`, `dist/` and generated content are excluded.
 
 A missing local executable fails without a global fallback or download; run `make docs-install` explicitly. The site gate includes lint once; native unit tests and `docs-check` stay independent. Use `npm --prefix documentation run lint` for focused source iteration.

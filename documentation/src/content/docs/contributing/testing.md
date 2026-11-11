@@ -1522,6 +1522,33 @@ Inspect both `TestGoFiles` and `XTestGoFiles` in `go list` when checking selecti
 
 The default Go scope includes `catalog-ui/cmd` and `catalog-ui/internal`, but not frontend unit/browser tests or documentation-site checks. Nested Go-client consumer and tool modules under `test/clientcompat` and `test/validation` are not traversed by root `go test ./...`. Use their explicit [client](#generated-go-client-compatibility) and [validation](#api-validation) gates. Prefer the Make targets' owned source roots over an unrestricted root scan that can include local generated artifacts. Real Compose, browser and Minikube workflows remain separate selections. No mirrored unit/functional source tree is needed.
 
+### Reviewed upstream resource fixtures
+
+The [upstream resource corpus](../../../../../internal/adapter/testdata/upstream/README.md) provides six reviewed cases across Agents, MCP Servers, Skills and Plugins. It includes complete Jupyter Skill and Context7 Plugin trees, standalone Hugging Face Skill metadata, two MCP Registry documents and a source-derived Agent Card. Find the fixtures and their guide in `internal/adapter/testdata/upstream/` within the source checkout. The guide records immutable source links, licenses, checksums, file modes and the Card derivation. These fixtures remain separate from demo samples and application assets.
+
+| Selection | Corpus checks |
+| --- | --- |
+| `make test-unit` | Adapter units check exact source bytes, complete inventories, native fields, profile admission and assessment boundaries. |
+| `make test` or `make test-functional-local` | Run the units and the composed authoring, revalidation, immutable readback, review/release and publication scenario. |
+| `make check verify` | Add source checks and run both test layers through the broad local race and coverage gates. |
+| `make sdk-check` | Read all six governed cases through Go, Python, TypeScript and Rust typed clients and their maintained package-consumer selections. |
+| `make vscode-check`, then `make test-vscode` | Check extension units, then browse the corpus and inspect native evidence through the installed VSIX. Run these targets separately. |
+
+Run `test-unit` separately. For focused iteration, run these commands from the repository root:
+
+```sh
+go test ./internal/adapter -run '^TestReviewedUpstream' -shuffle=on -count=1
+go test -tags=functional ./internal/integration -run '^TestReviewedUpstreamGovernanceAndPublication$' -shuffle=on -count=1
+```
+
+`make test-e2e` selects the existing `TestEndToEnd` journey; it does not select this corpus scenario. The corpus tests need the Go toolchain and module dependencies, but no deployed Catalog, PostgreSQL or source runtime. They neither execute retained scripts nor contact declared resource endpoints. The functional scenario uses an owned memory repository and an injected Plugin archive fetcher.
+
+The [SDK](#combined-sdk-qualification) and [VS Code](#optional-vs-code-extension) gates require their separately installed tools. Their corpus checks use a second disposable memory Catalog. They add actual HTTP decoding, retained content, package inventories and tenant denials; the VSIX also checks paging and native evidence editors. Source package installation and runtime invocation remain separate from these metadata checks.
+
+Schema success and reviewed source attribution do not qualify independent consumers, native handoff execution or software trust. The Agent Card is a documented static derivation, not captured .NET wire output.
+
+Review the immutable source, licenses, notices, complete membership, modes and independent expected fields before refreshing a fixture. Update bytes, checksums and assertions together. Follow the update procedure in `internal/adapter/testdata/upstream/README.md`. Preserve original formatting and retain synthetic negative tests alongside these source cases.
+
 ### Compact JWT checks
 
 The [encoding fuzzer](../../../../../internal/platform/authn/jwt_encoding_fuzz_test.go) checks compact JSON Web Token (JWT) framing and the encoded header and payload. It tests the 32 KiB token limit and the 16 KiB limit for each decoded part. Cases include duplicate names, trailing JSON, invalid base64url and malformed Unicode. Valid JSON isolates each byte limit from syntax errors. The guard does not decode signatures or authenticate tokens.

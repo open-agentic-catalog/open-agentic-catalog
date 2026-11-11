@@ -331,6 +331,7 @@ func TestVSCodeCatalogHost(t *testing.T) {
 	command := exec.CommandContext(ctx, "xvfb-run", "-a", os.Getenv("CATALOG_SDK_NODE"), os.Getenv("CATALOG_SDK_WORKFLOW"), f.server.URL)
 	command.Env = append(os.Environ(), "CATALOG_VSCODE_PUBLIC="+public.URL, "CATALOG_VSCODE_PRIVATE="+private.URL, "CATALOG_VSCODE_PUBLIC_CA="+ca, "CATALOG_VSCODE_STDIO_SENTINEL="+sentinel, "CATALOG_VSCODE_SKILL_INPUT="+packageJSON, "CATALOG_VSCODE_PACKAGE_PEER="+packagePeer.URL, "CATALOG_VSCODE_PLUGIN_SENTINELS="+pluginSentinels, "CATALOG_VSCODE_A2A="+a2aURL)
 	command.Env = append(command.Env, "CATALOG_VSCODE_DOCUMENT_KEY="+peerKey)
+	command.Env = append(command.Env, "CATALOG_VSCODE_CORPUS="+reviewedManifest(t))
 	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	command.Cancel = func() error { return syscall.Kill(-command.Process.Pid, syscall.SIGKILL) }
 	defer func() {

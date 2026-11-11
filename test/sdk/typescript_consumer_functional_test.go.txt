@@ -20,6 +20,7 @@ func TestTypeScriptSDKCatalogWorkflow(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, os.Getenv("CATALOG_SDK_NODE"), os.Getenv("CATALOG_SDK_WORKFLOW"), f.server.URL)
+	command.Env = append(os.Environ(), "CATALOG_SDK_CORPUS="+reviewedManifest(t))
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("JavaScript Catalog workflow: %v\n%s", err, output)

@@ -5,10 +5,13 @@ package clientcompat_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -18,6 +21,54 @@ import (
 	sdk "github.com/open-agentic-catalog/open-agentic-catalog/sdk/go"
 	"go.yaml.in/yaml/v3"
 )
+
+// TestManagedSDKReviewedUpstream reads native source metadata through the actual
+// SDK decoder and transport; the fixture never invokes declared resources.
+func TestManagedSDKReviewedUpstream(t *testing.T) {
+	_, corpus := newReviewedCorpus(t)
+	c, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "reader"})
+	must(t, err)
+	defer c.Close()
+	other, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "other"})
+	must(t, err)
+	defer other.Close()
+	if len(corpus.Cases) != 6 {
+		t.Fatal("incomplete reviewed corpus")
+	}
+	for _, expected := range corpus.Cases {
+		t.Run(expected.Name, func(t *testing.T) {
+			id := decode[sdk.CatalogRecordId](t, []byte(strconv.Quote(expected.ReleaseID)))
+			reply, err := c.GetCatalogRecordWithResponse(t.Context(), id)
+			must(t, err)
+			if reply.StatusCode() != 200 || reply.JSON200 == nil {
+				t.Fatalf("reviewed record: HTTP %d", reply.StatusCode())
+			}
+			encoded, err := json.Marshal(reply.JSON200)
+			must(t, err)
+			record := decode[map[string]any](t, encoded)
+			checkReviewedRecord(t, expected, record)
+			if expected.Text != "" {
+				rep := reply.JSON200.VersionRevision.Representations[0]
+				if rep.ArtifactId == nil {
+					t.Fatal("missing retained Skill text")
+				}
+				artifact, err := c.GetArtifactContent(t.Context(), *rep.ArtifactId)
+				must(t, err)
+				content, err := io.ReadAll(artifact.Body)
+				must(t, err)
+				must(t, artifact.Body.Close())
+				if artifact.StatusCode != 200 || string(content) != expected.Text {
+					t.Fatal("Unicode Skill bytes changed")
+				}
+			}
+			denied, err := other.GetCatalogRecordWithResponse(t.Context(), id)
+			must(t, err)
+			if denied.StatusCode() != 404 {
+				t.Fatal("reviewed resource crossed a tenant boundary")
+			}
+		})
+	}
+}
 
 func TestSDKCompleteOperationInventory(t *testing.T) {
 	var contract struct {

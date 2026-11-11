@@ -382,6 +382,7 @@ exports.run = async () => {
     await assert.rejects(api.test(), /sign_in_required/u);
     await api.authenticate("public-reader");
     assert.equal((await api.test()).mode, "published");
+    await require("./upstream-host-tests.cjs").run(api);
     await configuration.update(
       "connections",
       [],

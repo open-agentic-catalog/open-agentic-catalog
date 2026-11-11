@@ -52,6 +52,9 @@ func rustConsumer(t *testing.T, args ...string) {
 	command := exec.CommandContext(ctx, os.Getenv("CATALOG_SDK_RUST"), args...)
 	// Ambient proxies must not route either the API or credential traffic.
 	command.Env = append(os.Environ(), "HTTP_PROXY=http://127.0.0.1:1", "HTTPS_PROXY=http://127.0.0.1:1", "ALL_PROXY=http://127.0.0.1:1", "NO_PROXY=")
+	if len(args) > 0 && args[0] == "workflow" {
+		command.Env = append(command.Env, "CATALOG_SDK_CORPUS="+reviewedManifest(t))
+	}
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Rust SDK %s: %v\n%s", args[0], err, output)

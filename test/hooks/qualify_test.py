@@ -30,6 +30,24 @@ class ScannerQualification(unittest.TestCase):
         self.addCleanup(environment.stop)
         return fixture
 
+    def test_reviewed_markdown_and_maintained_guide_with_real_tools(self):
+        fixture = self.fixture()
+        fixture.git("-c", "core.hooksPath=/dev/null", "commit", "-qm", "corpus qualification baseline")
+        repository = Path(__file__).resolve().parents[2]
+        for relative in ("openai/jupyter-notebook/SKILL.md", "huggingface/hf-cli/SKILL.md",
+                         "context7/plugin/README.md"):
+            name = "internal/adapter/testdata/upstream/" + relative
+            path = fixture.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes((repository / name).read_bytes())
+            fixture.git("add", "--", name)
+        guide = "internal/adapter/testdata/upstream/README.md"
+        fixture.write(guide, "# Corpus guide\n\nMaintained instructions.\n")
+        fixture.check()
+        fixture.write(guide, "# Corpus guide\n\n### Skipped heading level\n")
+        with self.assertRaisesRegex(runner.Failure, "markdownlint"):
+            fixture.check()
+
     def test_staged_data_and_ui_formatting_with_real_tools(self):
         fixture = self.fixture()
         fixture.git("-c", "core.hooksPath=/dev/null", "commit", "-qm", "data qualification baseline")
@@ -101,7 +119,8 @@ class ScannerQualification(unittest.TestCase):
         secret = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
         # Style exclusions must not become scanner exclusions, and inline
         # comments cannot replace reviewed fingerprint exceptions.
-        for name in ("schemas/upstream/credential.txt", "internal/a2apb/credential.txt"):
+        for name in ("schemas/upstream/credential.txt", "internal/a2apb/credential.txt",
+                     "internal/adapter/testdata/upstream/openai/credential.md"):
             with self.subTest(path=name):
                 fixture.write(name, 'github_token = "' + secret + '" # gitleaks:allow\n')
                 try:

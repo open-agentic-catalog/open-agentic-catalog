@@ -1,6 +1,8 @@
 """Python's actual governed API exchange, launched by the reused Go fixture."""
 import asyncio
 import json
+import os
+from pathlib import Path
 from catalog_sdk.generated.models.revision_evidence_envelope import RevisionEvidenceEnvelope
 import sys
 from uuid import UUID
@@ -24,6 +26,42 @@ from catalog_sdk.generated.models.create_listing_revision import CreateListingRe
 from catalog_sdk.generated.models.publish_listing import PublishListing
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
 from catalog_sdk.generated.models.audit_details_v1 import AuditDetailsV1
+
+
+async def qualify_reviewed_corpus():
+    """Read all reviewed source cases through the installed typed decoder."""
+    corpus = json.loads(Path(os.environ["CATALOG_SDK_CORPUS"]).read_text())
+    assert len(corpus["cases"]) == 6
+    async with Client(Config(origin=corpus["origin"], allow_loopback_http=True, token="reader")) as reader, Client(Config(origin=corpus["origin"], allow_loopback_http=True, token="other")) as other:
+        api = CatalogDiscoveryApi(reader)
+        for expected in corpus["cases"]:
+            reply = await api.get_catalog_record_with_http_info(UUID(expected["releaseId"]))
+            assert reply.status_code == 200
+            record = reply.data.to_dict()
+            assert record["resource"]["kind"] == expected["kind"]
+            assert record["resource"]["canonicalIdentifier"] == expected["identifier"]
+            assert str(record["release"]["id"]) == expected["releaseId"]
+            assert len(record["versionRevision"]["representations"]) == 1
+            rep = record["versionRevision"]["representations"][0]
+            for key, value in expected["representation"].items():
+                assert rep[key] == value, (expected["name"], key)
+            if "data" in expected:
+                assert rep["data"] == expected["data"]
+            if "description" in expected:
+                assert rep["normalizedFacts"]["description"] == expected["description"]
+            if "text" in expected:
+                content = await reader.raw("GET", f'/api/v1/artifacts/{rep["artifactId"]}/content')
+                assert content.status == 200 and content.data == expected["text"].encode("utf-8")
+            if "fileCount" in expected:
+                package = rep["plugin" if expected["kind"] == "plugin" else "package"]
+                assert len(package["files"]) == expected["fileCount"]
+            if "documents" in expected:
+                docs = rep["plugin"]["documents"]
+                assert len(docs) == len(expected["documents"])
+                assert {d["path"]: d["content"] for d in docs} == expected["documents"]
+            hidden = await CatalogDiscoveryApi(other).get_catalog_record_with_http_info(UUID(expected["releaseId"]))
+            assert hidden.status_code == 404
+    print("Python installed SDK: six reviewed upstream cases, exact native content and tenant denial passed")
 
 
 async def qualify_private_resources(admin, namespace_id):
@@ -271,6 +309,7 @@ async def main(origin):
     refused = await IdentityApi(anonymous).list_namespaces_with_http_info()
     assert refused.status_code == 401
     await qualify_published_discovery(origin, admin, ns.data.id, resources[0], version, native)
+    await qualify_reviewed_corpus()
     print("Python Catalog workflow passed: four kinds, native evidence, governed publication, Search/Browse/audit pages, replay/conflict, current-permission replay refusal, denied-write readback and private Jobs")
 
 

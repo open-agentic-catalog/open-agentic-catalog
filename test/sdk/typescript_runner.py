@@ -173,6 +173,7 @@ def qualify_catalog(work, stamp, runtime=None, *, workflow=None, fixture=None, p
     env.update(extra_env or {})
     consumer = work / "catalog"
     shutil.copytree(go_runner.COMPAT / "go", consumer, ignore=shutil.ignore_patterns("generated"))
+    shutil.copytree(ROOT / "internal/adapter/testdata/upstream", consumer / "testdata/upstream")
     mod = consumer / "go.mod"
     old = "replace " + go_runner.MODULE + " => ../../.."
     if mod.read_text().count(old) != 1:

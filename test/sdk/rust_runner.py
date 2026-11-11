@@ -854,6 +854,7 @@ def qualify_catalog(destination, go, binary, *, extra_env=None):
     shutil.copytree(
         shared.COMPAT / "go", destination, ignore=shutil.ignore_patterns("generated")
     )
+    shutil.copytree(ROOT / "internal/adapter/testdata/upstream", destination / "testdata/upstream")
     mod = destination / "go.mod"
     old = "replace " + shared.MODULE + " => ../../.."
     if mod.read_text().count(old) != 1:
