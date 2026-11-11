@@ -1,6 +1,8 @@
 """Isolated build metadata and configuration policy tests; no subprocesses."""
 
 import json
+import subprocess
+import tomllib
 from pathlib import Path
 import tempfile
 import unittest
@@ -113,6 +115,28 @@ class VersionTests(unittest.TestCase):
 
     def test_manifest_pin_parity(self):
         v.check(v.ROOT)
+
+    def test_shared_project_must_declare_the_supported_python_range(self):
+        config = tomllib.loads((v.ROOT / "pyproject.toml").read_text())
+        self.assertEqual(config["project"]["requires-python"], ">=3.12,<3.15")
+        self.assertEqual(config["tool"]["uv"]["dependency-groups"]["dev"]["requires-python"], ">=3.12,<3.15")
+        lock = tomllib.loads((v.ROOT / "uv.lock").read_text())
+        self.assertEqual(lock["requires-python"], ">=3.12, <3.15")
+
+    def test_run_reports_only_reviewed_tool_messages(self):
+        failed = subprocess.CompletedProcess([], 2, "", "x\nerror: The lockfile at `uv.lock` needs to be updated\x1b[0m\n")
+        with patch.object(v.subprocess, "run", return_value=failed):
+            with self.assertRaises(ValueError) as quiet:
+                v.run(["tool"], self.root)
+            with self.assertRaises(ValueError) as reported:
+                v.run(["tool"], self.root, report=True)
+        self.assertNotIn("lockfile", str(quiet.exception))
+        self.assertIn("lockfile at `uv.lock` needs to be updated", str(reported.exception))
+        self.assertNotIn("\x1b", str(reported.exception))
+        long = subprocess.CompletedProcess([], 2, "", "e" * 5000)
+        with patch.object(v.subprocess, "run", return_value=long), self.assertRaises(ValueError) as bounded:
+            v.run(["tool"], self.root, report=True)
+        self.assertLess(len(str(bounded.exception)), 600)
 
     def test_sdk_metadata_parity_rejects_each_stale_derived_copy(self):
         import shutil

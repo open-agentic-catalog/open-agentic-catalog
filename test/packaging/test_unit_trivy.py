@@ -68,8 +68,12 @@ class PolicyTests(unittest.TestCase):
 
     def test_development_lock_inventory_and_safe_projection(self):
         root = Path(__file__).resolve().parents[2]
-        expected = trivy.development_dependencies(root)
-        self.assertEqual(len(expected), len(tomllib.loads((root / "uv.lock").read_text())["package"]) + 1)
+        local = {"catalog-dev-tools": {"virtual": "."}}
+        expected = trivy.development_dependencies(root, local)
+        self.assertEqual(len(expected), len(tomllib.loads((root / "uv.lock").read_text())["package"]))
+        self.assertNotIn("catalog-dev-tools", {name for name, _ in expected})
+        with self.assertRaisesRegex(ValueError, "reviewed PyPI"):
+            trivy.development_dependencies(root)
         self.assertIn(("uv", "0.13.6"), expected)
         config = '[tool.uv]\nrequired-version = "==0.13.4"\n'
         with tempfile.TemporaryDirectory() as directory:

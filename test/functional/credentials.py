@@ -5,9 +5,10 @@ import json
 import os
 from pathlib import Path
 import secrets
+import time
 
 from core import mutate
-from federation import Client, snapshot_items, wait_job
+from federation import Client, key, snapshot_items, wait_job
 from http_client import fixture_tls_context
 from journeys import header
 from operators import Operators
@@ -22,6 +23,25 @@ def completed_snapshot(api, source_id, job_id):
     snapshot, _ = api.request("GET", "/api/v1/federation/snapshots/" + result["snapshotId"])
     assert snapshot["id"] == result["snapshotId"] and snapshot["sourceId"] == source_id and snapshot["state"] == "complete", "sync Job snapshot identity changed"
     return snapshot
+
+
+def wait_revoked(api, path, seconds=15):
+    """Wait until the API container sees the renamed credential file.
+
+    Engines that share host paths through a VM (for example virtiofs) can show a
+    rename late. A bounded poll replaces an immediate assertion. The strict 503
+    check that follows still runs, and a binding that stays readable still fails.
+    """
+    deadline = time.monotonic() + seconds
+    while True:
+        _, headers = api.request("GET", path)
+        request_headers = {"Idempotency-Key": key("credentials-revocation"), "If-Match": header(headers, "ETag")}
+        # Both statuses are asserted outcomes here; only the body tells them apart.
+        result, _ = api.request("POST", path + ":test", {}, (200, 503), request_headers)
+        if result.get("code") == "DEPENDENCY_UNAVAILABLE":
+            return
+        assert time.monotonic() < deadline, "revoked binding stayed readable"
+        time.sleep(0.25)
 
 
 def run():
@@ -69,6 +89,7 @@ def run():
         revoked = metadata_path.with_suffix(".revoked")
         metadata_path.replace(revoked)
         try:
+            wait_revoked(owned.api, path)
             _, headers = owned.api.request("GET", path)
             result, _ = mutate(owned.api, "POST", path + ":test", {}, 503, header(headers, "ETag"))
             assert result["code"] == "DEPENDENCY_UNAVAILABLE", "revoked binding did not fail closed"

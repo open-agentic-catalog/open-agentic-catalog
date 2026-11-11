@@ -389,6 +389,22 @@ class RunnerTests(unittest.TestCase):
             self.assertNotIn("jobWaitFailure", report)
             self.assertNotIn("private-secret", json.dumps(report))
 
+    def test_work_directory_is_allocated_beside_the_run_report_not_in_system_temporary(self):
+        # A VM-based engine shares the checkout under the home directory, not the host TMPDIR.
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as system_temporary, \
+                mock.patch.object(Path, "cwd", return_value=Path(directory)), \
+                mock.patch.dict(os.environ, {"TMPDIR": system_temporary}), \
+                mock.patch.object(tempfile, "tempdir", None):
+            instance = runner.Runner({})
+            with mock.patch.object(runner, "command", side_effect=runner.Failure("child-failed")), \
+                    self.assertRaises(runner.Failure):
+                instance.execute()
+            self.assertEqual(instance.directory.parent, instance.report_path.parent)
+            self.assertTrue(instance.directory.name.startswith("work-"))
+            self.assertTrue(instance.directory.is_relative_to(Path(directory)))
+            self.assertFalse(instance.directory.is_relative_to(Path(system_temporary)))
+            self.assertEqual(oct(instance.directory.stat().st_mode & 0o777), "0o700")
+
     def test_readiness_diagnostic_is_fixed_and_survives_every_pipe_split(self):
         for component in ("API", "worker"):
             for phase in ("readiness", "read-only readiness", "dependency readiness"):
@@ -406,6 +422,40 @@ class RunnerTests(unittest.TestCase):
                                 line.replace(b".\n", b". private-suffix\n"),
                                 line.replace(b"Functional", b"private-secret")):
                     self.assertIsNone(runner.readiness_failure_chunk(b"\n", invalid))
+
+    def test_preflight_diagnostics_are_fixed_and_survive_every_pipe_split(self):
+        for message, expected in runner.PREFLIGHT_FAILURES.items():
+            line = message + b"\n"
+            for split in range(len(line) + 1):
+                first = runner.readiness_failure_chunk(b"\n", line[:split])
+                tail, _ = runner.http_failure_chunk(b"\n", line[:split])
+                second = runner.readiness_failure_chunk(tail, line[split:])
+                self.assertEqual(first or second, expected)
+            for invalid in (b"private-prefix " + line, message, line.replace(b".\n", b". private-suffix\n")):
+                self.assertIsNone(runner.readiness_failure_chunk(b"\n", invalid))
+
+    def test_fixture_mount_probe_requires_the_marker_and_removes_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory)
+            seen = []
+            def visible(arguments, environment, seconds, **options):
+                seen.append((arguments, (fixture / ".mount-probe").exists()))
+                return b".mount-probe\ntrust\n"
+            with mock.patch.object(runner, "command", side_effect=visible):
+                self.assertTrue(runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5))
+            self.assertTrue(seen[0][1], "marker must exist while the probe runs")
+            self.assertIn(str(fixture) + ":/probe:ro", seen[0][0])
+            self.assertIn("none", seen[0][0])
+            self.assertFalse((fixture / ".mount-probe").exists())
+            with mock.patch.object(runner, "command", return_value=b"trust\n"), self.assertRaises(runner.Failure) as unshared:
+                runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5)
+            self.assertEqual(str(unshared.exception), "fixture-directory-not-shared")
+            self.assertFalse((fixture / ".mount-probe").exists())
+            with mock.patch.object(runner, "command", side_effect=runner.Failure("child-failed")):
+                self.assertFalse(runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5))
+            with mock.patch.object(runner, "command", side_effect=runner.Failure("deadline")), self.assertRaises(runner.Failure) as late:
+                runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5)
+            self.assertEqual(str(late.exception), "deadline")
 
     def test_http_diagnostic_is_closed_and_survives_every_pipe_split(self):
         line = b"AssertionError: functional federation request returned HTTP 503 (REQUEST_DEADLINE_EXCEEDED)\n"

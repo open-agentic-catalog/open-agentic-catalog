@@ -1943,6 +1943,14 @@ It then inserts one structurally invalid inactive publication candidate through 
 
 The target then sends SIGTERM to the idle API and worker with a Compose stop allowance longer than the configured shutdown bound, requires both containers to exit with status zero, and starts those exact containers without their dependencies. Both readiness checks plus final manifest and immutable Skill-document reads prove clean role restart over the retained state. This is an idle termination baseline, not evidence for in-flight HTTP drain timing, leased-job recovery, physical database backup or restoration, PostgreSQL HA, or queued-work recovery. Those remain separate operational or tracked boundaries.
 
+### Engines that run in a virtual machine
+
+Packaged functional runs are qualified on Linux hosts. On macOS with a VM-based engine such as Colima, three host differences can stop a run. Check them before you start:
+
+- The engine must share the fixture directory. The supervisor creates it beside the run report under ignored `output/functional/`, not under `TMPDIR`. Colima shares `$HOME`, so keep the checkout under it. If the engine cannot see the directory, the bind mount is empty. A preflight probe then stops the run with `fixture-directory-not-shared` before the stack starts.
+- The selected `CURL` must use OpenSSL or another library with Ed25519 support. The fixture certificates use Ed25519, and the macOS system curl (SecureTransport with LibreSSL) cannot verify them. The workflow stops with `curl-tls-unsupported`. Install a Homebrew curl and pass `CURL=/opt/homebrew/opt/curl/bin/curl`.
+- Mounted credential changes can reach a container a fraction of a second late on virtiofs. The credential scenario polls until the API reports the revoked binding, then applies the strict check. A binding that stays readable still fails after 15 seconds.
+
 ### Reports and owned cleanup
 
 One Python supervisor removes the exact invocation-owned containers, network, PostgreSQL volume, temporary image tags and generated certificate/policy/state directory on success, failure or interruption. The run has a 20-minute deadline, an 8 MiB child-output cap, a 1 MiB JSON limit and an independent 90-second cleanup allowance. Raw child output is discarded, not printed or copied into evidence.

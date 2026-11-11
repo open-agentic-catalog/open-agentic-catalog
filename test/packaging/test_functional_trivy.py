@@ -83,13 +83,14 @@ class TrivyProcessTests(unittest.TestCase):
     def test_actual_development_lock_and_vulnerable_positive_control(self):
         selected = [os.environ["CATALOG_TEST_TRIVY"]]
         trivy.qualify(selected, env=trivy.environment())
-        self.assertEqual(trivy.scan_development_dependencies(selected, ROOT), len(trivy.development_dependencies(ROOT)))
+        shared = {"catalog-dev-tools": {"virtual": "."}}
+        self.assertEqual(trivy.scan_development_dependencies(selected, ROOT, shared), len(trivy.development_dependencies(ROOT, shared)))
         local = {"catalog-python-sdk-tools": {"virtual": "."}, "open-agentic-catalog": {"directory": "../../../sdk/python"}}
         sdk = ROOT / "test/sdk/python"
         self.assertEqual(trivy.scan_development_dependencies(selected, sdk, local), len(trivy.development_dependencies(sdk, local)))
         # This only scans advisory metadata; it never installs the old package.
         with patch.object(trivy, "development_dependencies", return_value={("requests", "2.19.1")}), self.assertRaisesRegex(ValueError, "High/Critical"):
-            trivy.scan_development_dependencies(selected, ROOT)
+            trivy.scan_development_dependencies(selected, ROOT, shared)
 
     def test_success_failure_timeout_and_output_bound(self):
         self.assertEqual(trivy.execute([sys.executable, "-c", "print('native-result')"]), b"native-result\n")

@@ -2019,6 +2019,7 @@ test-postgres-pitr: ## Restore a Catalog physical backup to a named point and re
 test-functional-workflow: conformance-prerequisite
 	@set -eu; \
 		test -n "$${CATALOG_FUNCTIONAL_STATE_DIRECTORY:-}" || { printf '%s\n' 'Use make test-functional.' >&2; exit 2; }; \
+		if $(CURL) --version 2>/dev/null | grep -Fq SecureTransport; then printf '%s\n' 'Functional curl cannot verify the fixture certificate.' 'The selected curl uses SecureTransport, which lacks Ed25519 support. Set CURL to an OpenSSL build.' >&2; exit 1; fi; \
 		suffix="$${CATALOG_FUNCTIONAL_SUFFIX:?}"; \
 		project="open-agentic-catalog-functional-$$suffix"; \
 		image="$${CATALOG_FUNCTIONAL_CANDIDATE_IMAGE:-open-agentic-catalog:functional-$$suffix}"; \

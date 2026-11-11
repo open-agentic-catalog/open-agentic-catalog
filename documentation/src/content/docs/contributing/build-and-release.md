@@ -122,7 +122,7 @@ Inspection accepts version/commit values of 1-128 ASCII letters, digits, dots, u
 
 ## Shared development tools
 
-Root `pyproject.toml` is dependency-only: its dev group pins Ruff 0.17.3, jsonschema 4.26.0, bump-my-version 1.6.7, coverage 7.17.0 and yamllint 1.38.0; `uv.lock` locks their transitive dependencies, including yamllint's PyYAML/pathspec closure and supported wheels. Coverage instruments the optional native tooling selection. It is not a Python application package. The installer requires [uv](https://github.com/astral-sh/uv) 0.13.6 and an installed Python 3.12-3.14 interpreter. Python 3.12.3 is the qualified local baseline. Install uv explicitly if the existing executable is older; do not upgrade a personal tool environment implicitly:
+Root `pyproject.toml` is dependency-only: its `[project]` table only declares `requires-python = ">=3.12,<3.15"`, so uv does not infer the range from the selected interpreter. Its dev group pins Ruff 0.17.3, jsonschema 4.26.0, bump-my-version 1.6.7, coverage 7.17.0 and yamllint 1.38.0; `uv.lock` locks their transitive dependencies, including yamllint's PyYAML/pathspec closure and supported wheels. Coverage instruments the optional native tooling selection. It is not a Python application package. The installer requires [uv](https://github.com/astral-sh/uv) 0.13.6 and an installed Python 3.12-3.14 interpreter. Python 3.12.3 is the qualified local baseline. Install uv explicitly if the existing executable is older; do not upgrade a personal tool environment implicitly:
 
 ```sh
 mkdir -p output

@@ -285,8 +285,17 @@ def validate_search_page_failure(value):
     return value
 
 
+PREFLIGHT_FAILURES = {
+    b"Functional federation fixture did not become ready.": "fixture-readiness-timeout",
+    b"Functional curl cannot verify the fixture certificate.": "curl-tls-unsupported",
+}
+
+
 def readiness_failure_chunk(tail, block):
     """Classify existing shell wait failures without retaining child output."""
+    for message, code in PREFLIGHT_FAILURES.items():
+        if re.search(rb"\n" + re.escape(message) + rb"\r?(?=\n)", tail + block):
+            return code
     match = re.search(rb"\nFunctional (API|worker) (read-only readiness|dependency readiness|readiness) timed out waiting for (?:worker )?HTTP (?:200|503)(?:; last status was [0-9]{3})?\.\r?(?=\n)", tail + block)
     if match is None:
         return None
@@ -652,6 +661,30 @@ def port():
         return listener.getsockname()[1]
 
 
+def verify_fixture_mount(engine, image, fixture, environment, seconds):
+    """Prove the engine can read the fixture directory before the stack starts.
+
+    A container engine that runs in a VM shares only some host paths. An
+    unshared bind mount is empty, so later fixture failures give no cause. A
+    probe that cannot run (offline pull, no engine support) is inconclusive.
+    """
+    marker = fixture / ".mount-probe"
+    marker.write_text("probe\n", encoding="ascii")
+    try:
+        listing = command(engine + ["run", "--rm", "--pull", "missing", "--network", "none", "--entrypoint", "ls",
+                                    "--volume", str(fixture) + ":/probe:ro", image, "-A", "/probe"],
+                          environment, seconds, capture=True, limit=4096)
+    except Failure as error:
+        if str(error) != "child-failed":
+            raise
+        return False
+    finally:
+        marker.unlink(missing_ok=True)
+    if b".mount-probe" not in listing.split():
+        raise Failure("fixture-directory-not-shared")
+    return True
+
+
 def compose_environment(base, suffix, fixture):
     environment = dict(base)
     index = secrets.randbelow(4096)
@@ -831,7 +864,10 @@ class Runner:
 
     def execute(self):
         deadline = time.monotonic() + RUN_SECONDS
-        self.directory = Path(tempfile.mkdtemp(prefix="open-agentic-catalog-functional-"))
+        # Allocate under the checkout, not the system temporary directory. A
+        # container engine that runs in a VM, such as Colima, shares the home
+        # directory but not the host's per-user temporary directory.
+        self.directory = Path(tempfile.mkdtemp(prefix="work-", dir=self.report_path.parent))
         self.fixture = self.directory / "fixture"
         self.fixture.mkdir(mode=0o700)
         self.state = self.directory / "state"
@@ -885,6 +921,9 @@ class Runner:
             self.report["generatedConfigurationDigest"] = digest_files(["test/functional/generated-api.compose.yaml", "test/functional/generated_api.py"])
         write_document(self.report_path, self.report)
         print(f"Functional {self.report['profile']} run {self.report['runId']}; bounded output is not copied into evidence.", flush=True)
+        probe_image = re.search(r"(?m)^\s+image: (pgvector/pgvector:\S+)$", (self.root / "compose.yaml").read_text())
+        if probe_image is not None:
+            verify_fixture_mount(self.engine, probe_image[1], self.fixture, self.environment, min(180, deadline - time.monotonic()))
         command(self.make + ["--no-print-directory", "test-functional-workflow"] + (["CATALOG_ENV_FILE=/dev/null"] if self.report["profile"] == "pitr-recovery" else []), self.environment, deadline - time.monotonic())
         self.report["servedVersion"] = read_document(self.state / "version.json")
         if self.report["profile"] == "peers":
