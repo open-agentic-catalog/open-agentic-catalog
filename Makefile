@@ -905,7 +905,7 @@ security: ## Scan called Go symbols, source dependencies, secrets, and deploymen
 	# This dependency's upstream build recipe is never built or shipped by Catalog.
 	# Ignored tool/research checkouts are not source inputs; schemas/upstream stays in scope.
 	$(PYTHON) -B test/packaging/trivy.py
-	$(TRIVY) fs --severity HIGH,CRITICAL --exit-code 1 --scanners vuln,secret,misconfig --helm-kube-version "$(HELM_KUBE_VERSION)" --skip-dirs bin --skip-dirs coverage --skip-dirs .tools --skip-dirs '**/.tools' --skip-dirs '**/.venv' --skip-dirs '**/node_modules' --skip-dirs documentation/dist --skip-dirs catalog-ui/dist --skip-dirs output --skip-dirs specs --skip-dirs objects --skip-dirs 'objects-*' --skip-files documentation/node_modules/yaml-language-server/Dockerfile .
+	$(TRIVY) fs --disable-telemetry --skip-version-check --severity HIGH,CRITICAL --exit-code 1 --scanners vuln,secret,misconfig --helm-kube-version "$(HELM_KUBE_VERSION)" --skip-dirs bin --skip-dirs coverage --skip-dirs .tools --skip-dirs '**/.tools' --skip-dirs '**/.venv' --skip-dirs '**/node_modules' --skip-dirs documentation/dist --skip-dirs catalog-ui/dist --skip-dirs output --skip-dirs specs --skip-dirs objects --skip-dirs 'objects-*' --skip-files documentation/node_modules/yaml-language-server/Dockerfile .
 
 .PHONY: sonarqube-tools-install sonarqube-up sonarqube-scan sonarqube-status sonarqube-credentials sonarqube-down
 sonarqube-up sonarqube-scan sonarqube-status sonarqube-credentials sonarqube-down: export SONAR_PORT := $(SONAR_PORT)

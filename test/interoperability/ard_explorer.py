@@ -140,7 +140,7 @@ def install():
     # Download advisory data without submitting dependency names or source bytes.
     run([str(scanner), 'image', '--download-db-only', '--disable-telemetry'], timeout=180)
     run([str(scanner), 'fs', '--scanners', 'vuln', '--include-dev-deps', '--list-all-pkgs', '--skip-db-update',
-         '--skip-java-db-update', '--offline-scan', '--disable-telemetry', '--format', 'json',
+         '--skip-java-db-update', '--offline-scan', '--disable-telemetry', '--skip-version-check', '--format', 'json',
          '--output', str(TOOLS / 'advisories.json'), str(source)], timeout=90)
     findings = validate_scan(json.loads((TOOLS / 'advisories.json').read_text()), lock)
     inventory = []

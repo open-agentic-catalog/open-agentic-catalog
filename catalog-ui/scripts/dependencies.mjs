@@ -158,6 +158,8 @@ export async function checkDependencies({
           "fs",
           ...config,
           ...ignore,
+          "--disable-telemetry",
+          "--skip-version-check",
           "--scanners",
           "vuln",
           "--include-dev-deps",

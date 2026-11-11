@@ -217,7 +217,7 @@ def make_sbom(options, directory, inspected):
         draft = private / "sbom.json"
         trivy.execute(command + ["image", "--config", str(private / "config.yaml"), "--image-src", source,
                                 "--platform", options.platform, "--format", "spdx-json", "--offline-scan",
-                                "--skip-db-update", "--skip-java-db-update", "--skip-check-update", "--skip-version-check",
+                                "--skip-db-update", "--skip-java-db-update", "--skip-check-update", "--disable-telemetry", "--skip-version-check",
                                 "--module-dir", str(private / "modules"), "--output", str(draft), inspected["imageId"]], cwd=private, env=env)
         if draft.is_symlink() or not 0 < draft.stat().st_size <= 64 << 20:
             raise ValueError("missing or oversized SBOM")

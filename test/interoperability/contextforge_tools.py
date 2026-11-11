@@ -91,7 +91,7 @@ def install():
     (OUTPUT / "artifact-inventory.json").write_text(inventory)
     scan = OUTPUT / "image-review.json"
     result = run(["trivy", "image", "--image-src", "docker", "--platform", value["platform"], "--offline-scan",
-                  "--skip-db-update", "--skip-java-db-update", "--skip-check-update", "--skip-version-check",
+                  "--skip-db-update", "--skip-java-db-update", "--skip-check-update", "--disable-telemetry", "--skip-version-check",
                   "--scanners", "vuln,license", "--license-full", "--list-all-pkgs", "--format", "json",
                   "--output", str(scan), info["Id"]], timeout=900, limit=2*1024*1024, check=False)
     (OUTPUT / "scan.log").write_text(result.stdout + result.stderr)
