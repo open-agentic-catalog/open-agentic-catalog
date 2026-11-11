@@ -1,0 +1,5 @@
+# Preserve checksummed upstream bytes, including the producer's CRLF source.
+internal/adapter/testdata/upstream/** -text
+# These two immutable upstream files use CRLF; retain normal whitespace checks.
+internal/adapter/testdata/upstream/a2a-dotnet/ResearcherAgent.cs whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+internal/adapter/testdata/upstream/playwright/LICENSE whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol

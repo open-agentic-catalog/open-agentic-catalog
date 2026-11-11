@@ -157,6 +157,9 @@ def functional(*, scope="all"):
     runtime = None
     try:
         test_stamp, state = installed()
+        corpus_files = [ROOT / "test/clientcompat/go/upstream_fixture_functional_test.go", *sorted((ROOT / "internal/adapter/testdata/upstream").rglob("*"))]
+        corpus_files = [path for path in corpus_files if path.is_file()]
+        report["reviewedUpstreamInputs"] = {str(path.relative_to(ROOT)): sdk.digest(path) for path in corpus_files}
         # Electron needs writable IPC storage before extension activation. A
         # short private path also stays within Unix-domain socket path limits.
         # Create it after the initial report so setup failure cannot retain an
@@ -199,6 +202,9 @@ def functional(*, scope="all"):
         report["phases"]["linuxMcpRunners"] = "passed"
         report["phases"]["cleanup"] = "passed"
         assert_sources(manifest["sources"], manifest["inputs"])
+        current_corpus = [ROOT / "test/clientcompat/go/upstream_fixture_functional_test.go", *sorted((ROOT / "internal/adapter/testdata/upstream").rglob("*"))]
+        if report["reviewedUpstreamInputs"] != {str(path.relative_to(ROOT)): sdk.digest(path) for path in current_corpus if path.is_file()}:
+            raise RuntimeError("Reviewed upstream inputs changed during VS Code qualification")
         if sdk.digest(Path(env["CATALOG_VSCODE_VSIX"])) != manifest["sha256"]:
             raise RuntimeError("VSIX changed during qualification; rerun test-vscode")
         if installed() != (test_stamp, state):

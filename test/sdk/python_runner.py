@@ -372,6 +372,7 @@ def qualify_catalog(work, go, runtime=None, label="catalog"):
                     CATALOG_SDK_WORKFLOW=str(PROJECT / "catalog_workflow.py"), CATALOG_SDK_SERVICE_READ=str(SERVICE_READ))
     consumer = work / label
     shutil.copytree(go_runner.COMPAT / "go", consumer, ignore=shutil.ignore_patterns("generated"))
+    shutil.copytree(ROOT / "internal/adapter/testdata/upstream", consumer / "testdata/upstream")
     mod = consumer / "go.mod"
     old = "replace " + go_runner.MODULE + " => ../../.."
     if mod.read_text().count(old) != 1:

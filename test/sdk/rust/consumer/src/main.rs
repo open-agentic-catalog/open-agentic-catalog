@@ -611,8 +611,80 @@ async fn workflow(origin: &str) {
     .json::<Value>()
     .unwrap();
     assert_ne!(audit["items"][0]["id"], second["items"][0]["id"]);
+    qualify_reviewed_corpus().await;
     println!(
         "Rust Catalog workflow passed: four kinds, exact evidence, governed publication, Search/Browse/audit continuation, replay/conflicts, current authorization, tenant isolation and private Jobs"
+    );
+}
+
+// The shared fixture supplies source expectations before Catalog admission.
+async fn qualify_reviewed_corpus() {
+    let corpus: Value =
+        serde_json::from_slice(&fs::read(env::var("CATALOG_SDK_CORPUS").unwrap()).unwrap())
+            .unwrap();
+    let origin = corpus["origin"].as_str().unwrap();
+    let reader = Client::new(config(origin, Some("reader"))).unwrap();
+    let other = Client::new(config(origin, Some("other"))).unwrap();
+    let cases = corpus["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 6);
+    for expected in cases {
+        let id = expected["releaseId"].as_str().unwrap();
+        let record = data(reader.get_catalog_record(id).await.unwrap(), 200);
+        assert_eq!(record["resource"]["kind"], expected["kind"]);
+        assert_eq!(
+            record["resource"]["canonicalIdentifier"],
+            expected["identifier"]
+        );
+        assert_eq!(record["release"]["id"], expected["releaseId"]);
+        let representations = record["versionRevision"]["representations"]
+            .as_array()
+            .unwrap();
+        assert_eq!(representations.len(), 1);
+        let rep = &representations[0];
+        for (key, value) in expected["representation"].as_object().unwrap() {
+            assert_eq!(&rep[key], value, "{}: {key}", expected["name"]);
+        }
+        if let Some(source) = expected.get("data") {
+            assert_eq!(&rep["data"], source);
+        }
+        if let Some(description) = expected.get("description") {
+            assert_eq!(&rep["normalizedFacts"]["description"], description);
+        }
+        if let Some(text) = expected.get("text") {
+            let artifact = reader
+                .get_artifact_content(rep["artifactId"].as_str().unwrap())
+                .await
+                .unwrap();
+            assert_eq!(artifact.status, 200);
+            assert_eq!(artifact.raw_body, text.as_str().unwrap().as_bytes());
+        }
+        if let Some(count) = expected.get("fileCount") {
+            let key = if expected["kind"] == "plugin" {
+                "plugin"
+            } else {
+                "package"
+            };
+            assert_eq!(
+                rep[key]["files"].as_array().unwrap().len() as u64,
+                count.as_u64().unwrap()
+            );
+        }
+        if let Some(documents) = expected.get("documents") {
+            let actual = rep["plugin"]["documents"].as_array().unwrap();
+            assert_eq!(actual.len(), documents.as_object().unwrap().len());
+            let projected: serde_json::Map<String, Value> = actual
+                .iter()
+                .map(|d| (d["path"].as_str().unwrap().to_owned(), d["content"].clone()))
+                .collect();
+            assert_eq!(&Value::Object(projected), documents);
+        }
+        match other.get_catalog_record(id).await.unwrap_err() {
+            ApiOpError::Api(error) => assert_eq!(error.status, 404),
+            _ => panic!("Expected cross-tenant refusal"),
+        }
+    }
+    println!(
+        "Rust installed SDK: six reviewed upstream cases, exact native content and tenant denial passed"
     );
 }
 

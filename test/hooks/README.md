@@ -14,6 +14,8 @@ Diagnostics show escaped filenames, rules and lines without source snippets or r
 
 Git whitespace checks exclude `internal/a2apb/` and `schemas/upstream/`. Go formatting also excludes `samples/upstream/` and npm dependencies. Secret scanning retains these paths.
 
+Markdown style checks preserve the copied `openai/`, `huggingface/` and `context7/plugin/` trees under `internal/adapter/testdata/upstream/`. The maintained corpus guide remains checked, and secret scanning still includes every corpus path.
+
 Ruff, ShellCheck, Hadolint and actionlint check batches of staged files in a private directory. Markdownlint reads each staged document through stdin to preserve literal filenames. Used policies and pins must be regular files matching the index. Tools use verified policy snapshots and exclude inherited configuration variables. Workflow ShellCheck does not follow external sources. No tool writes to the checkout.
 
 Tools prefer explicit `RUFF`, `SHELLCHECK`, `MARKDOWNLINT`, `HADOLINT` and `ACTIONLINT` commands, then owned `.tools/` installations, then `PATH`. Versions must match the existing pins. Only selected file types require their tools; workflow checks also require ShellCheck. Hook installation requires Git, Python 3.12+ and pinned Gitleaks. Go changes require `gofmt`.

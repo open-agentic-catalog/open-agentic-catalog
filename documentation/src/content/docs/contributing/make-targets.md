@@ -18,6 +18,8 @@ Use `make test` or `make test-functional-local` for the broad local Go suite, in
 
 Use `make helm-package-test` for the focused real-Helm packager tests or `make helm-check` for the complete cluster-free chart gate.
 
+The [reviewed upstream resource corpus](testing.md#reviewed-upstream-resource-fixtures) uses the existing unit and local functional targets. It needs no separate installer, download step or running service. `test-e2e` selects only the existing `TestEndToEnd` journey, so use `test` or the documented focused command for the corpus publication scenario.
+
 Run `make workflow-local-tools-install` to install the pinned local act tools. Run `make workflow-local-list` to list fixed selections without downloads or containers. Execute each target alone. Jobs require clean committed source and always disable external uploads. The [local runner guide](../../../../../test/ci/README.md#local-workflow-commands) describes isolation, cleanup and current qualification limits.
 
 Image jobs accept `WORKFLOW_LOCAL_SCAN=true|false`. Image and chart jobs accept `WORKFLOW_LOCAL_RELEASE_CANDIDATE=true|false`. The defaults enable image scanning and disable candidate checks. Local reports stay in `output/artifacts/workflows/<run-id>/`; `run.json` records execution, report collection and cleanup separately.

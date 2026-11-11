@@ -37,6 +37,8 @@ CONTAINER_FILES = {"Containerfile", "test/functional/Containerfile", "catalog-ui
                      ("mcp", "a2a", "skills", "plugins", "agntcy/router", "ans")),
                    "test/interoperability/gateway/Containerfile.auth"}
 MARKDOWN_EXCLUDES = ("schemas/upstream/", "samples/upstream/", "specs/", "output/", ".tools/",
+                     "internal/adapter/testdata/upstream/openai/", "internal/adapter/testdata/upstream/huggingface/",
+                     "internal/adapter/testdata/upstream/context7/plugin/",
                      "documentation/.astro/", "documentation/dist/", "documentation/src/content/docs/generated/",
                      "catalog-ui/dist/", "test/clientcompat/go/generated/", "sdk/rust/target/",
                      "test/sdk/rust/consumer/target/", "examples/rust-catalog-report/target/",

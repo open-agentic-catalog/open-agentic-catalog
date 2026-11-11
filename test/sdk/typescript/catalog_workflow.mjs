@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { dirname, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
 import { qualifyCatalogBrowser } from "./browser.functional.mjs";
 const { createCatalogClient } = await import(
   pathToFileURL(process.env.CATALOG_SDK_CONSUMER)
@@ -414,4 +415,68 @@ assert.deepEqual(
 );
 console.log(
   "Installed JavaScript Catalog workflow passed: four kinds, governed releases, Search/Browse continuation, exact evidence, replay/conflict, current-permission replay refusal, denied-write readback, authorization, private Jobs and real Catalog browser calls",
+);
+
+// Source expectations come from the Go fixture before validation, not readback.
+const corpus = JSON.parse(
+  await readFile(process.env.CATALOG_SDK_CORPUS, "utf8"),
+);
+assert.equal(corpus.cases.length, 6);
+const corpusReader = createCatalogClient({
+  origin: corpus.origin,
+  allowLoopbackHTTP: true,
+  token: "reader",
+});
+const corpusOther = createCatalogClient({
+  origin: corpus.origin,
+  allowLoopbackHTTP: true,
+  token: "other",
+});
+for (const expected of corpus.cases) {
+  const reply = await corpusReader.api.GET(
+    "/api/v1/catalog/resources/{catalogRecordId}",
+    { params: { path: { catalogRecordId: expected.releaseId } } },
+  );
+  assert.equal(reply.response.status, 200);
+  const record = reply.data;
+  assert.equal(record.resource.kind, expected.kind);
+  assert.equal(record.resource.canonicalIdentifier, expected.identifier);
+  assert.equal(record.release.id, expected.releaseId);
+  assert.equal(record.versionRevision.representations.length, 1);
+  const rep = record.versionRevision.representations[0];
+  for (const [key, value] of Object.entries(expected.representation))
+    assert.deepEqual(rep[key], value, `${expected.name}: ${key}`);
+  if (expected.data) assert.deepEqual(rep.data, expected.data);
+  if (expected.description)
+    assert.equal(rep.normalizedFacts.description, expected.description);
+  if (expected.text) {
+    const content = await corpusReader.raw(
+      `/api/v1/artifacts/${rep.artifactId}/content`,
+    );
+    assert.equal(content.status, 200);
+    assert.deepEqual(Buffer.from(content.bytes), Buffer.from(expected.text));
+  }
+  if (expected.fileCount)
+    assert.equal(
+      rep[expected.kind === "plugin" ? "plugin" : "package"].files.length,
+      expected.fileCount,
+    );
+  if (expected.documents) {
+    assert.equal(
+      rep.plugin.documents.length,
+      Object.keys(expected.documents).length,
+    );
+    assert.deepEqual(
+      Object.fromEntries(rep.plugin.documents.map((d) => [d.path, d.content])),
+      expected.documents,
+    );
+  }
+  const denied = await corpusOther.api.GET(
+    "/api/v1/catalog/resources/{catalogRecordId}",
+    { params: { path: { catalogRecordId: expected.releaseId } } },
+  );
+  assert.equal(denied.response.status, 404);
+}
+console.log(
+  "Installed JavaScript SDK: six reviewed upstream cases, exact native content and tenant denial passed",
 );

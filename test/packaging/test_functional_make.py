@@ -665,12 +665,21 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
         self.assertIn("test/interoperability/mcp/node_modules", ignored)
         self.assertNotIn("test/interoperability/mcp", ignored)
         self.assertNotIn("test/interoperability/mcp/README.md", ignored)
+        for directory in ("openai", "huggingface", "context7/plugin"):
+            self.assertIn("internal/adapter/testdata/upstream/" + directory, ignored)
+        self.assertNotIn("internal/adapter/testdata/upstream", ignored)
+        self.assertNotIn("internal/adapter/testdata/upstream/README.md", ignored)
         self.assertEqual(lint[-2:], ["**/*.md", "**/*.mdx"])
         self.assertIn("TestDocumentationContracts", commands)
 
     def test_security_keeps_scanners_and_limits_vendor_recipe_exclusion(self):
         commands = self.run_make("-n", "security")
-        scan = next(shlex.split(line) for line in commands.splitlines() if " fs --severity " in line)
+        arguments_by_line = [shlex.split(line) for line in commands.splitlines()
+                             if line.strip() and not line.lstrip().startswith("#")]
+        scan = next(arguments for arguments in arguments_by_line
+                    if "fs" in arguments and "--scanners" in arguments)
+        self.assertIn("--disable-telemetry", scan)
+        self.assertIn("--skip-version-check", scan)
         self.assertEqual(scan[scan.index("--scanners") + 1], "vuln,secret,misconfig")
         self.assertEqual(scan[scan.index("--exit-code") + 1], "1")
         self.assertEqual(scan[-1], ".")

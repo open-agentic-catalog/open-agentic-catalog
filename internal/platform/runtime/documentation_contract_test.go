@@ -30,7 +30,7 @@ var (
 	adrIndexLink         = regexp.MustCompile(`^\[([0-9]{4})\]\(([^)]+)\)$`)
 	adrHeading           = regexp.MustCompile(`(?m)^title: "?ADR-([0-9]{4}):`)
 	adrStatus            = regexp.MustCompile(`(?m)^- Status: ([A-Za-z]+)$`)
-	skippedMarkdownTrees = map[string]struct{}{`.git`: {}, `.tools`: {}, `.playwright-cli`: {}, `bin`: {}, `coverage`: {}, `objects`: {}, `schemas/upstream`: {}, `samples/upstream`: {}, `specs`: {}, `output`: {}, `documentation/node_modules`: {}, `documentation/.astro`: {}, `documentation/dist`: {}, `documentation/src/content/docs/generated`: {}, `catalog-ui/node_modules`: {}, `catalog-ui/dist`: {}, `test/validation/node_modules`: {}, `test/interoperability/mcp/node_modules`: {}, `test/validation/.tools`: {}, `test/sdk/.tools`: {}, `examples/langgraph/.venv`: {}, `sdk/typescript/node_modules`: {}, `sdk/rust/target`: {}, `test/sdk/rust/consumer/target`: {}, `extensions/vscode/node_modules`: {}, `extensions/vscode/.tools`: {}, `extensions/vscode/dist`: {}, `test/vscode/.tools`: {}}
+	skippedMarkdownTrees = map[string]struct{}{`.git`: {}, `.tools`: {}, `.playwright-cli`: {}, `bin`: {}, `coverage`: {}, `objects`: {}, `schemas/upstream`: {}, `samples/upstream`: {}, `internal/adapter/testdata/upstream/openai`: {}, `internal/adapter/testdata/upstream/huggingface`: {}, `internal/adapter/testdata/upstream/context7/plugin`: {}, `specs`: {}, `output`: {}, `documentation/node_modules`: {}, `documentation/.astro`: {}, `documentation/dist`: {}, `documentation/src/content/docs/generated`: {}, `catalog-ui/node_modules`: {}, `catalog-ui/dist`: {}, `test/validation/node_modules`: {}, `test/interoperability/mcp/node_modules`: {}, `test/validation/.tools`: {}, `test/sdk/.tools`: {}, `examples/langgraph/.venv`: {}, `sdk/typescript/node_modules`: {}, `sdk/rust/target`: {}, `test/sdk/rust/consumer/target`: {}, `extensions/vscode/node_modules`: {}, `extensions/vscode/.tools`: {}, `extensions/vscode/dist`: {}, `test/vscode/.tools`: {}}
 )
 
 type indexedADR struct {
@@ -342,35 +342,39 @@ func TestDocumentationImageSourceSelection(t *testing.T) {
 
 func TestDocumentationSourceTreeBoundaries(t *testing.T) {
 	repository := fstest.MapFS{
-		"documentation/README.md":                                  &fstest.MapFile{},
-		"documentation/src/content/docs/guide.md":                  &fstest.MapFile{},
-		"documentation/src/content/docs/generated/spec.md":         &fstest.MapFile{},
-		".tools/agntcy/source/README.md":                           &fstest.MapFile{},
-		".tools/dev/lib/third-party/README.md":                     &fstest.MapFile{},
-		"documentation/node_modules/tool/README.md":                &fstest.MapFile{},
-		"test/validation/node_modules/tool/README.md":              &fstest.MapFile{},
-		"test/interoperability/mcp/node_modules/tool/README.md":    &fstest.MapFile{},
-		"test/interoperability/mcp/README.md":                      &fstest.MapFile{},
-		"test/validation/.tools/README.md":                         &fstest.MapFile{},
-		"extensions/vscode/.tools/node/README.md":                  &fstest.MapFile{},
-		"extensions/vscode/node_modules/example/README.md":         &fstest.MapFile{},
-		"extensions/vscode/dist/README.md":                         &fstest.MapFile{},
-		"test/vscode/.tools/host/README.md":                        &fstest.MapFile{},
-		"sdk/typescript/node_modules/example/README.md":            &fstest.MapFile{},
-		"sdk/rust/target/doc/README.md":                            &fstest.MapFile{},
-		"test/sdk/rust/consumer/target/generated/README.md":        &fstest.MapFile{},
-		"test/sdk/.tools/python/lib/site-packages/LICENSE.md":      &fstest.MapFile{},
-		"examples/langgraph/.venv/lib/site-packages/LICENSE.md":    &fstest.MapFile{},
-		"documentation/.astro/cache.md":                            &fstest.MapFile{},
-		"documentation/dist/generated.md":                          &fstest.MapFile{},
-		"todo/records/testing.md":                                  &fstest.MapFile{},
-		"documentation/src/content/docs/architecture/overview.mdx": &fstest.MapFile{},
-		"todo/implementation-status.md":                            &fstest.MapFile{},
-		"specs/ard-spec/README.md":                                 &fstest.MapFile{},
-		"output/private.md":                                        &fstest.MapFile{},
+		"documentation/README.md":                                             &fstest.MapFile{},
+		"documentation/src/content/docs/guide.md":                             &fstest.MapFile{},
+		"documentation/src/content/docs/generated/spec.md":                    &fstest.MapFile{},
+		".tools/agntcy/source/README.md":                                      &fstest.MapFile{},
+		".tools/dev/lib/third-party/README.md":                                &fstest.MapFile{},
+		"documentation/node_modules/tool/README.md":                           &fstest.MapFile{},
+		"test/validation/node_modules/tool/README.md":                         &fstest.MapFile{},
+		"test/interoperability/mcp/node_modules/tool/README.md":               &fstest.MapFile{},
+		"test/interoperability/mcp/README.md":                                 &fstest.MapFile{},
+		"internal/adapter/testdata/upstream/README.md":                        &fstest.MapFile{},
+		"internal/adapter/testdata/upstream/openai/jupyter-notebook/SKILL.md": &fstest.MapFile{},
+		"internal/adapter/testdata/upstream/huggingface/hf-cli/SKILL.md":      &fstest.MapFile{},
+		"internal/adapter/testdata/upstream/context7/plugin/README.md":        &fstest.MapFile{},
+		"test/validation/.tools/README.md":                                    &fstest.MapFile{},
+		"extensions/vscode/.tools/node/README.md":                             &fstest.MapFile{},
+		"extensions/vscode/node_modules/example/README.md":                    &fstest.MapFile{},
+		"extensions/vscode/dist/README.md":                                    &fstest.MapFile{},
+		"test/vscode/.tools/host/README.md":                                   &fstest.MapFile{},
+		"sdk/typescript/node_modules/example/README.md":                       &fstest.MapFile{},
+		"sdk/rust/target/doc/README.md":                                       &fstest.MapFile{},
+		"test/sdk/rust/consumer/target/generated/README.md":                   &fstest.MapFile{},
+		"test/sdk/.tools/python/lib/site-packages/LICENSE.md":                 &fstest.MapFile{},
+		"examples/langgraph/.venv/lib/site-packages/LICENSE.md":               &fstest.MapFile{},
+		"documentation/.astro/cache.md":                                       &fstest.MapFile{},
+		"documentation/dist/generated.md":                                     &fstest.MapFile{},
+		"todo/records/testing.md":                                             &fstest.MapFile{},
+		"documentation/src/content/docs/architecture/overview.mdx":            &fstest.MapFile{},
+		"todo/implementation-status.md":                                       &fstest.MapFile{},
+		"specs/ard-spec/README.md":                                            &fstest.MapFile{},
+		"output/private.md":                                                   &fstest.MapFile{},
 	}
 	got := serviceMarkdownFiles(t, repository)
-	want := []string{"documentation/README.md", "documentation/src/content/docs/architecture/overview.mdx", "documentation/src/content/docs/guide.md", "test/interoperability/mcp/README.md", "todo/implementation-status.md", "todo/records/testing.md"}
+	want := []string{"documentation/README.md", "documentation/src/content/docs/architecture/overview.mdx", "documentation/src/content/docs/guide.md", "internal/adapter/testdata/upstream/README.md", "test/interoperability/mcp/README.md", "todo/implementation-status.md", "todo/records/testing.md"}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("documentation source audit boundary: got %v, want %v", got, want)
 	}

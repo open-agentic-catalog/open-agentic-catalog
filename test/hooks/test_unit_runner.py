@@ -23,6 +23,8 @@ class StagedSelectionTests(unittest.TestCase):
             "deployments/container/licenses.sh": "shellcheck",
             "README.md": "markdownlint", "todo/with [brackets]\nand spaces.md": "markdownlint",
             "documentation/src/content/docs/index.mdx": "markdownlint",
+            "internal/adapter/testdata/upstream/README.md": "markdownlint",
+            "internal/adapter/testdata/upstream/other/README.md": "markdownlint",
             "Containerfile": "hadolint", "test/interoperability/gateway/Containerfile.auth": "hadolint",
             ".github/workflows/check.yml": "actionlint", ".github/workflows/other.yaml": "actionlint",
         }
@@ -35,6 +37,11 @@ class StagedSelectionTests(unittest.TestCase):
                      "catalog-ui/node_modules/README.md", "examples/langgraph/.venv/a.py",
                      "test/clientcompat/go/generated/client.py"):
             self.assertIsNone(runner.lint_kind(path), path)
+
+    def test_reviewed_source_markdown_is_not_reformatted(self):
+        for path in ("openai/jupyter-notebook/SKILL.md", "huggingface/hf-cli/SKILL.md",
+                     "context7/plugin/README.md", "context7/plugin/skills/context7-mcp/SKILL.md"):
+            self.assertIsNone(runner.lint_kind("internal/adapter/testdata/upstream/" + path), path)
 
     def test_reports_only_expose_known_locations(self):
         root = Path("/private-fixture")

@@ -1,0 +1,33 @@
+{
+  "name": "Researcher Agent",
+  "description": "Agent which conducts research.",
+  "version": "1.0.0",
+  "supportedInterfaces": [
+    {
+      "url": "https://agents.example.com/researcher",
+      "protocolBinding": "JSONRPC",
+      "protocolVersion": "1.0"
+    }
+  ],
+  "defaultInputModes": [
+    "text/plain"
+  ],
+  "defaultOutputModes": [
+    "text/plain"
+  ],
+  "capabilities": {
+    "streaming": true,
+    "pushNotifications": false
+  },
+  "skills": [
+    {
+      "id": "research",
+      "name": "Research",
+      "description": "Conducts research on a given topic.",
+      "tags": [
+        "research",
+        "planning"
+      ]
+    }
+  ]
+}

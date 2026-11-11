@@ -189,6 +189,7 @@ def qualify(go, work, env, archive):
     # Application dependencies remain in this separate test module.
     consumer = work / "compatibility"
     shutil.copytree(COMPAT / "go", consumer, ignore=shutil.ignore_patterns("generated"))
+    shutil.copytree(ROOT / "internal/adapter/testdata/upstream", consumer / "testdata/upstream")
     mod = consumer / "go.mod"
     old = f"replace {MODULE} => ../../.."
     if mod.read_text().count(old) != 1:
