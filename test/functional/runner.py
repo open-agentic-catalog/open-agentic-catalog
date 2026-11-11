@@ -867,7 +867,7 @@ class Runner:
         # Allocate under the checkout, not the system temporary directory. A
         # container engine that runs in a VM, such as Colima, shares the home
         # directory but not the host's per-user temporary directory.
-        self.directory = Path(tempfile.mkdtemp(prefix="work-", dir=self.report_path.parent))
+        self.directory = Path(tempfile.mkdtemp(prefix="open-agentic-catalog-functional-", dir=self.report_path.parent))
         self.fixture = self.directory / "fixture"
         self.fixture.mkdir(mode=0o700)
         self.state = self.directory / "state"
