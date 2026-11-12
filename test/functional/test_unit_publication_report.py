@@ -117,8 +117,8 @@ class PublicationReportTests(unittest.TestCase):
             self.assertEqual(policy["privateProfiles"][1], {"name": "publication-report", "origins": ["https://api:9443"],
                 "addressRanges": [env["CATALOG_FUNCTIONAL_SUBNET"]], "assignedTenantIds": [report.TENANT],
                 "trustBundleFile": "/config/webhooks/ca.pem", "transportRef": "direct"})
-            for name in ("publication-report", "publication-report-output"):
-                self.assertEqual((fixture / name).stat().st_mode & 0o777, 0o700)
+            self.assertEqual((fixture / "publication-report").stat().st_mode & 0o777, 0o755)
+            self.assertEqual((fixture / "publication-report-output").stat().st_mode & 0o777, 0o777)
             for name in ("server.pem", "server-key.pem", "catalog-token"):
                 self.assertEqual((fixture / "publication-report" / name).stat().st_mode & 0o777, 0o600)
                 self.assertFalse((fixture / "webhooks" / name).exists())
