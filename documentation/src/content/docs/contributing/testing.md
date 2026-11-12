@@ -47,7 +47,7 @@ Local act commands use disposable source copies and exclude developer credential
 
 Local results remain under ignored `output/artifacts/workflows/<run-id>/`. `run.json` records the source, inputs, selected files, execution outcome and wrapper cleanup. Required reports must exist before the wrapper can pass. Timeout and interruption return nonzero, while retaining available selected reports. The [result guide](../../../../../test/ci/README.md#read-local-results) explains missing reports and cleanup failures. The owned Docker controls qualify report export, nested mounts, loopback access and cancellation; full application jobs remain a separate check.
 
-The release helper units cover event admission, current source/package receipts, public checksums and delivery retries with intercepted commands. Functional fixtures use disposable Git tags and local files. They never publish. Run the selected installed-editor and archive-consumer tests before treating package tests as complete. 
+The release helper units cover event admission, current source/package receipts, public checksums and delivery retries with intercepted commands. Functional fixtures use disposable Git tags and local files. They never publish. Run the selected installed-editor and archive-consumer tests before treating package tests as complete.
 
 ### Choose and run a workflow
 
