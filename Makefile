@@ -2129,12 +2129,12 @@ test-functional-workflow: conformance-prerequisite
 		set --; \
 		case "$${CATALOG_FUNCTIONAL_PROFILE:-default-off}" in webhooks|backup-restore|pitr-recovery) set -- --webhooks;; esac; \
 		$(GO) run ./test/functional/fixture generate --directory "$$fixture_directory" --subnet "$$subnet" "$$@"; \
-		if [ -n "$$peer_overlay$$backup_overlay" ]; then CGO_ENABLED=0 $(GO) build -o "$$fixture_directory/demo-archives" ./test/demo; fi; \
+		if [ -n "$$peer_overlay$$backup_overlay" ]; then CGO_ENABLED=0 GOOS=linux GOARCH=$(HOST_GOARCH) $(GO) build -o "$$fixture_directory/demo-archives" ./test/demo; fi; \
 		if [ -n "$$peer_overlay" ]; then $(PYTHON) test/functional/peers.py prepare; fi; \
 		if [ -n "$$backup_overlay" ]; then $(PYTHON) test/functional/backup_restore.py prepare; fi; \
 		if [ "$${CATALOG_FUNCTIONAL_PROFILE:-}" = webhooks ]; then \
 			$(PYTHON) test/functional/publication_report.py prepare; \
-			GOWORK=off CGO_ENABLED=0 $(GO) -C examples/publication-report build -mod=readonly -trimpath -o "$$fixture_directory/publication-report/receiver" .; \
+			GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=$(HOST_GOARCH) $(GO) -C examples/publication-report build -mod=readonly -trimpath -o "$$fixture_directory/publication-report/receiver" .; \
 		fi; \
 		printf 'Starting isolated functional stack %s on 127.0.0.1:%s.\n' "$$project" "$$http_port"; \
 		if [ -n "$${CATALOG_FUNCTIONAL_CANDIDATE_IMAGE:-}" ]; then \
