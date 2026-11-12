@@ -19,7 +19,6 @@
   "dimensions": 1024,
   "template": "metadata-v1",
   "query_prefix": "query: ",
-  "passage_prefix": "passage: ",
   "document_prefix": "passage: ",
   "rrf_k": 60,
   "thresholds": [

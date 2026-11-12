@@ -16,7 +16,7 @@
     "kind": "agent",
     "family": "invoice",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "invoice-mcp_server",
@@ -54,7 +54,7 @@
     "kind": "skill",
     "family": "invoice",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "invoice-plugin",
@@ -72,7 +72,7 @@
     ],
     "kind": "plugin",
     "family": "invoice",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -93,7 +93,7 @@
     "kind": "agent",
     "family": "calendar",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "calendar-mcp_server",
@@ -133,7 +133,7 @@
     "kind": "skill",
     "family": "calendar",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "calendar-plugin",
@@ -152,7 +152,7 @@
     ],
     "kind": "plugin",
     "family": "calendar",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -173,7 +173,7 @@
     "kind": "agent",
     "family": "inventory",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "inventory-mcp_server",
@@ -213,7 +213,7 @@
     "kind": "skill",
     "family": "inventory",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "inventory-plugin",
@@ -232,7 +232,7 @@
     ],
     "kind": "plugin",
     "family": "inventory",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -253,7 +253,7 @@
     "kind": "agent",
     "family": "redaction",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "redaction-mcp_server",
@@ -293,7 +293,7 @@
     "kind": "skill",
     "family": "redaction",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "redaction-plugin",
@@ -312,7 +312,7 @@
     ],
     "kind": "plugin",
     "family": "redaction",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -333,7 +333,7 @@
     "kind": "agent",
     "family": "sql",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "sql-mcp_server",
@@ -373,7 +373,7 @@
     "kind": "skill",
     "family": "sql",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "sql-plugin",
@@ -392,7 +392,7 @@
     ],
     "kind": "plugin",
     "family": "sql",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -413,7 +413,7 @@
     "kind": "agent",
     "family": "expenses",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "expenses-mcp_server",
@@ -453,7 +453,7 @@
     "kind": "skill",
     "family": "expenses",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "expenses-plugin",
@@ -472,7 +472,7 @@
     ],
     "kind": "plugin",
     "family": "expenses",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -493,7 +493,7 @@
     "kind": "agent",
     "family": "currency",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "currency-mcp_server",
@@ -533,7 +533,7 @@
     "kind": "skill",
     "family": "currency",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "currency-plugin",
@@ -552,7 +552,7 @@
     ],
     "kind": "plugin",
     "family": "currency",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -573,7 +573,7 @@
     "kind": "agent",
     "family": "translation",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "translation-mcp_server",
@@ -613,7 +613,7 @@
     "kind": "skill",
     "family": "translation",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "translation-plugin",
@@ -632,7 +632,7 @@
     ],
     "kind": "plugin",
     "family": "translation",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -653,7 +653,7 @@
     "kind": "agent",
     "family": "duplicate",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "duplicate-mcp_server",
@@ -693,7 +693,7 @@
     "kind": "skill",
     "family": "duplicate",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "duplicate-plugin",
@@ -712,7 +712,7 @@
     ],
     "kind": "plugin",
     "family": "duplicate",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -733,7 +733,7 @@
     "kind": "agent",
     "family": "compliance",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "compliance-mcp_server",
@@ -773,7 +773,7 @@
     "kind": "skill",
     "family": "compliance",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "compliance-plugin",
@@ -792,7 +792,7 @@
     ],
     "kind": "plugin",
     "family": "compliance",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -813,7 +813,7 @@
     "kind": "agent",
     "family": "dns",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "dns-mcp_server",
@@ -853,7 +853,7 @@
     "kind": "skill",
     "family": "dns",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "dns-plugin",
@@ -872,7 +872,7 @@
     ],
     "kind": "plugin",
     "family": "dns",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -893,7 +893,7 @@
     "kind": "agent",
     "family": "billing",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "billing-mcp_server",
@@ -933,7 +933,7 @@
     "kind": "skill",
     "family": "billing",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "billing-plugin",
@@ -952,7 +952,7 @@
     ],
     "kind": "plugin",
     "family": "billing",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -973,7 +973,7 @@
     "kind": "agent",
     "family": "git",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "git-mcp_server",
@@ -1013,7 +1013,7 @@
     "kind": "skill",
     "family": "git",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "git-plugin",
@@ -1032,7 +1032,7 @@
     ],
     "kind": "plugin",
     "family": "git",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1053,7 +1053,7 @@
     "kind": "agent",
     "family": "metrics",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "metrics-mcp_server",
@@ -1093,7 +1093,7 @@
     "kind": "skill",
     "family": "metrics",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "metrics-plugin",
@@ -1112,7 +1112,7 @@
     ],
     "kind": "plugin",
     "family": "metrics",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1133,7 +1133,7 @@
     "kind": "agent",
     "family": "cloud",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "cloud-mcp_server",
@@ -1173,7 +1173,7 @@
     "kind": "skill",
     "family": "cloud",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "cloud-plugin",
@@ -1192,7 +1192,7 @@
     ],
     "kind": "plugin",
     "family": "cloud",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1213,7 +1213,7 @@
     "kind": "agent",
     "family": "auth",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "auth-mcp_server",
@@ -1253,7 +1253,7 @@
     "kind": "skill",
     "family": "auth",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "auth-plugin",
@@ -1272,7 +1272,7 @@
     ],
     "kind": "plugin",
     "family": "auth",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1293,7 +1293,7 @@
     "kind": "agent",
     "family": "weather",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "weather-mcp_server",
@@ -1333,7 +1333,7 @@
     "kind": "skill",
     "family": "weather",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "weather-plugin",
@@ -1352,7 +1352,7 @@
     ],
     "kind": "plugin",
     "family": "weather",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1373,7 +1373,7 @@
     "kind": "agent",
     "family": "images",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "images-mcp_server",
@@ -1413,7 +1413,7 @@
     "kind": "skill",
     "family": "images",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "images-plugin",
@@ -1432,7 +1432,7 @@
     ],
     "kind": "plugin",
     "family": "images",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1453,7 +1453,7 @@
     "kind": "agent",
     "family": "contract",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "contract-mcp_server",
@@ -1493,7 +1493,7 @@
     "kind": "skill",
     "family": "contract",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "contract-plugin",
@@ -1512,7 +1512,7 @@
     ],
     "kind": "plugin",
     "family": "contract",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1533,7 +1533,7 @@
     "kind": "agent",
     "family": "dependencies",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "dependencies-mcp_server",
@@ -1573,7 +1573,7 @@
     "kind": "skill",
     "family": "dependencies",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "dependencies-plugin",
@@ -1592,7 +1592,7 @@
     ],
     "kind": "plugin",
     "family": "dependencies",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1613,7 +1613,7 @@
     "kind": "agent",
     "family": "support",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "support-mcp_server",
@@ -1653,7 +1653,7 @@
     "kind": "skill",
     "family": "support",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "support-plugin",
@@ -1672,7 +1672,7 @@
     ],
     "kind": "plugin",
     "family": "support",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1693,7 +1693,7 @@
     "kind": "agent",
     "family": "csv",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "csv-mcp_server",
@@ -1733,7 +1733,7 @@
     "kind": "skill",
     "family": "csv",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "csv-plugin",
@@ -1752,7 +1752,7 @@
     ],
     "kind": "plugin",
     "family": "csv",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1773,7 +1773,7 @@
     "kind": "agent",
     "family": "meeting",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "meeting-mcp_server",
@@ -1813,7 +1813,7 @@
     "kind": "skill",
     "family": "meeting",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "meeting-plugin",
@@ -1832,7 +1832,7 @@
     ],
     "kind": "plugin",
     "family": "meeting",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1853,7 +1853,7 @@
     "kind": "agent",
     "family": "release-notes",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "release-notes-mcp_server",
@@ -1893,7 +1893,7 @@
     "kind": "skill",
     "family": "release-notes",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "release-notes-plugin",
@@ -1912,7 +1912,7 @@
     ],
     "kind": "plugin",
     "family": "release-notes",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -1933,7 +1933,7 @@
     "kind": "agent",
     "family": "shipment",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "shipment-mcp_server",
@@ -1973,7 +1973,7 @@
     "kind": "skill",
     "family": "shipment",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "shipment-plugin",
@@ -1992,7 +1992,7 @@
     ],
     "kind": "plugin",
     "family": "shipment",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2013,7 +2013,7 @@
     "kind": "agent",
     "family": "kubernetes",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "kubernetes-mcp_server",
@@ -2053,7 +2053,7 @@
     "kind": "skill",
     "family": "kubernetes",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "kubernetes-plugin",
@@ -2072,7 +2072,7 @@
     ],
     "kind": "plugin",
     "family": "kubernetes",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2093,7 +2093,7 @@
     "kind": "agent",
     "family": "markdown",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "markdown-mcp_server",
@@ -2133,7 +2133,7 @@
     "kind": "skill",
     "family": "markdown",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "markdown-plugin",
@@ -2152,7 +2152,7 @@
     ],
     "kind": "plugin",
     "family": "markdown",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2173,7 +2173,7 @@
     "kind": "agent",
     "family": "seo",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "seo-mcp_server",
@@ -2213,7 +2213,7 @@
     "kind": "skill",
     "family": "seo",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "seo-plugin",
@@ -2232,7 +2232,7 @@
     ],
     "kind": "plugin",
     "family": "seo",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2253,7 +2253,7 @@
     "kind": "agent",
     "family": "backup",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "backup-mcp_server",
@@ -2293,7 +2293,7 @@
     "kind": "skill",
     "family": "backup",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "backup-plugin",
@@ -2312,7 +2312,7 @@
     ],
     "kind": "plugin",
     "family": "backup",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2333,7 +2333,7 @@
     "kind": "agent",
     "family": "email",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "email-mcp_server",
@@ -2373,7 +2373,7 @@
     "kind": "skill",
     "family": "email",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "email-plugin",
@@ -2392,7 +2392,7 @@
     ],
     "kind": "plugin",
     "family": "email",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2413,7 +2413,7 @@
     "kind": "agent",
     "family": "performance",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "performance-mcp_server",
@@ -2453,7 +2453,7 @@
     "kind": "skill",
     "family": "performance",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "performance-plugin",
@@ -2472,7 +2472,7 @@
     ],
     "kind": "plugin",
     "family": "performance",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2493,7 +2493,7 @@
     "kind": "agent",
     "family": "certs",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "certs-mcp_server",
@@ -2533,7 +2533,7 @@
     "kind": "skill",
     "family": "certs",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "certs-plugin",
@@ -2552,7 +2552,7 @@
     ],
     "kind": "plugin",
     "family": "certs",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2573,7 +2573,7 @@
     "kind": "agent",
     "family": "network",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "network-mcp_server",
@@ -2613,7 +2613,7 @@
     "kind": "skill",
     "family": "network",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "network-plugin",
@@ -2632,7 +2632,7 @@
     ],
     "kind": "plugin",
     "family": "network",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2653,7 +2653,7 @@
     "kind": "agent",
     "family": "audio",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "audio-mcp_server",
@@ -2693,7 +2693,7 @@
     "kind": "skill",
     "family": "audio",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "audio-plugin",
@@ -2712,7 +2712,7 @@
     ],
     "kind": "plugin",
     "family": "audio",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2733,7 +2733,7 @@
     "kind": "agent",
     "family": "secrets",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "secrets-mcp_server",
@@ -2773,7 +2773,7 @@
     "kind": "skill",
     "family": "secrets",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "secrets-plugin",
@@ -2792,7 +2792,7 @@
     ],
     "kind": "plugin",
     "family": "secrets",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2813,7 +2813,7 @@
     "kind": "agent",
     "family": "incident",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "incident-mcp_server",
@@ -2853,7 +2853,7 @@
     "kind": "skill",
     "family": "incident",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "incident-plugin",
@@ -2872,7 +2872,7 @@
     ],
     "kind": "plugin",
     "family": "incident",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2893,7 +2893,7 @@
     "kind": "agent",
     "family": "json-schema",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "json-schema-mcp_server",
@@ -2933,7 +2933,7 @@
     "kind": "skill",
     "family": "json-schema",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "json-schema-plugin",
@@ -2952,7 +2952,7 @@
     ],
     "kind": "plugin",
     "family": "json-schema",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -2973,7 +2973,7 @@
     "kind": "agent",
     "family": "terraform",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "terraform-mcp_server",
@@ -3013,7 +3013,7 @@
     "kind": "skill",
     "family": "terraform",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "terraform-plugin",
@@ -3032,7 +3032,7 @@
     ],
     "kind": "plugin",
     "family": "terraform",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -3053,7 +3053,7 @@
     "kind": "agent",
     "family": "docker",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "docker-mcp_server",
@@ -3093,7 +3093,7 @@
     "kind": "skill",
     "family": "docker",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "docker-plugin",
@@ -3112,7 +3112,7 @@
     ],
     "kind": "plugin",
     "family": "docker",
-    "source": "indexed",
+    "source": "local",
     "public": false
   },
   {
@@ -3133,7 +3133,7 @@
     "kind": "agent",
     "family": "cache",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "cache-mcp_server",
@@ -3173,7 +3173,7 @@
     "kind": "skill",
     "family": "cache",
     "source": "local",
-    "public": true
+    "public": false
   },
   {
     "id": "cache-plugin",
@@ -3192,7 +3192,7 @@
     ],
     "kind": "plugin",
     "family": "cache",
-    "source": "indexed",
+    "source": "local",
     "public": false
   }
 ]

@@ -1,6 +1,10 @@
-"""Unit tests for the Catalog discovery & LangGraph recommendation benchmark."""
+"""Isolated protocol/scoring tests; no application, model, process or network."""
 
-import contextlib
+import copy
+import importlib.util
+import hashlib
+import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -8,209 +12,250 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import evaluation as ev
-import runner
-
-from benchmark import (
-    load_benchmark_inputs,
-    select_finalists,
-    BenchmarkAgentObserver,
-    evaluate_agent_episode,
-    aggregate_agent_benchmark,
-    generate_markdown_report,
-)
+from benchmark import protocol
+from benchmark.benchmark import input_fingerprint, load_benchmark_inputs, render, require_inputs, run_benchmark, save_report
 
 
 class BenchmarkTests(unittest.TestCase):
-    """Verify benchmark data integrity, finalist selection, and agent evaluation logic."""
+    def setUp(self):
+        self.manifest, self.profiles, self.documents, self.queries = load_benchmark_inputs()
 
-    def test_benchmark_inputs_and_fixtures(self):
-        manifest, profiles, documents, queries = load_benchmark_inputs()
-        self.assertEqual(len(documents), 160)
-        self.assertEqual(len(queries), 96)
-        self.assertEqual(len(profiles), 4)
+    def validate(self, manifest=None, queries=None, documents=None):
+        protocol.validate(manifest or self.manifest, self.profiles, documents or self.documents, queries or self.queries)
 
-        # Check document kinds (40 each)
-        for k in ev.KINDS:
-            self.assertEqual(sum(d["kind"] == k for d in documents), 40)
+    def test_reviewed_population_and_generator_agree(self):
+        path = Path(__file__).with_name("generate_fixtures.py")
+        spec = importlib.util.spec_from_file_location("reviewed_generator", path)
+        generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generator)
+        self.assertEqual(generator.build_corpus(), self.documents)
+        self.assertEqual(generator.build_queries(self.documents), self.queries)
+        self.assertEqual({d["kind"]: sum(x["kind"] == d["kind"] for x in self.documents) for d in self.documents},
+                         {"agent": 40, "mcp_server": 40, "skill": 40, "plugin": 40})
+        tasks = [q for q in self.queries if q.get("agent_benchmark")]
+        self.assertEqual(len(tasks), 16)
+        self.assertEqual({protocol.stratum(q) for q in tasks}, {"answerable", "no_answer", "partial_only"})
+        self.assertEqual(sum(protocol.stratum(q) == "no_answer" for q in tasks), 4)
 
-        # Check split counts (32 tune, 64 test)
-        self.assertEqual(sum(q["split"] == "tune" for q in queries), 32)
-        self.assertEqual(sum(q["split"] == "test" for q in queries), 64)
+    def test_bounded_protocol_rejects_zero_repeats_and_invalid_counts(self):
+        for key, value in (("agent_repeats", 0), ("agent_repeats", True), ("agent_task_count", 17),
+                           ("episode_seconds", 0), ("run_seconds", 999999), ("thresholds", [1.01, .5])):
+            with self.subTest(key=key, value=value):
+                manifest = copy.deepcopy(self.manifest)
+                manifest[key] = value
+                with self.assertRaises(ValueError):
+                    self.validate(manifest=manifest)
 
-        # Check agent benchmark tasks
-        agent_tasks = [q for q in queries if q.get("agent_benchmark")]
-        self.assertEqual(len(agent_tasks), 16)
-        for at in agent_tasks:
-            self.assertEqual(at["split"], "test")
+    def test_query_bytes_and_negative_family_leakage_are_rejected(self):
+        queries = copy.deepcopy(self.queries)
+        queries[0]["text"] = "é" * 250
+        self.validate(queries=queries)  # Valid exactly-500-byte control.
+        queries[0]["text"] += "é"
+        with self.assertRaisesRegex(ValueError, "UTF-8"):
+            self.validate(queries=queries)
+        queries = copy.deepcopy(self.queries)
+        negative = next(q for q in queries if q["split"] == "test" and not q["relevant"])
+        negative["intentFamily"] = "invoice"
+        with self.assertRaisesRegex(ValueError, "intent family"):
+            self.validate(queries=queries)
 
-    def test_split_isolation_and_no_leakage(self):
-        _, _, documents, queries = load_benchmark_inputs()
-        tune_families = {q["intentFamily"] for q in queries if q["split"] == "tune"}
-        test_families = {q["intentFamily"] for q in queries if q["split"] == "test"}
-        self.assertEqual(tune_families & test_families, set(), "Intent family must not cross tune/test split")
+    def test_core_population_and_agent_subset_cannot_silently_change(self):
+        documents = copy.deepcopy(self.documents)
+        documents[3]["source"] = "indexed"
+        with self.assertRaisesRegex(ValueError, "local releases"):
+            self.validate(documents=documents)
+        queries = copy.deepcopy(self.queries)
+        next(q for q in queries if q.get("agent_benchmark"))["agent_benchmark"] = False
+        with self.assertRaisesRegex(ValueError, "agent subset"):
+            self.validate(queries=queries)
 
-        tune_texts = {ev.query_key(q["text"]) for q in queries if q["split"] == "tune"}
-        test_texts = {ev.query_key(q["text"]) for q in queries if q["split"] == "test"}
-        self.assertEqual(tune_texts & test_texts, set(), "Query text must not cross tune/test split")
-
-    def test_finalist_selection_logic(self):
-        def make_trial(profile_name, excess_fp, ndcg_val, lex_ndcg=0.5):
-            return {
-                "profile": profile_name,
-                "threshold": 0.7,
-                "grid": [{"threshold": 0.7, "excess_false_positives": excess_fp, "ndcg": ndcg_val}],
-                "results": {"control": {"summary": {"lexical": {"ndcg": lex_ndcg}}}},
-            }
-
-        # Candidate with 0 excess FP and higher nDCG should win
-        trials = [
-            make_trial("prof-a", excess_fp=1, ndcg_val=0.8),
-            make_trial("prof-b", excess_fp=0, ndcg_val=0.65),
-            make_trial("prof-c", excess_fp=0, ndcg_val=0.75),
-            make_trial("prof-d", excess_fp=0, ndcg_val=0.70),
+    def test_exact_partial_and_no_answer_have_distinct_denominators(self):
+        queries = [
+            {"id": "direct", "relevant": {"a": 2, "b": 1}, "category": "task", "intentFamily": "one"},
+            {"id": "partial", "relevant": {"c": 1}, "category": "partial", "intentFamily": "two"},
+            {"id": "empty", "relevant": {}, "category": "unrelated", "intentFamily": "three"},
+            {"id": "exact", "relevant": {"a": 2}, "exact": True, "category": "exact", "intentFamily": "one"},
         ]
-        finalists = select_finalists(trials, max_finalists=2)
-        self.assertEqual(finalists, ["prof-c", "prof-d"])
+        result = protocol.measure(queries, {"direct": ["a", "b"], "partial": ["c"], "empty": ["wrong"], "exact": ["a"]})
+        summary = result["summary"]
+        self.assertEqual((summary["answerable"], summary["partial_only"], summary["no_answer"], summary["exact"]), (1, 1, 1, 1))
+        self.assertEqual((summary["ndcg"], summary["recall"], summary["false_positives"]), (1, 1, 1))
+        self.assertEqual(result["queries"][2]["metrics"]["ndcg"], None)
+        with self.assertRaisesRegex(ValueError, "missing or extra"):
+            protocol.measure(queries, {"direct": []})
+        with self.assertRaisesRegex(ValueError, "duplicate"):
+            protocol.metrics(["a", "a"], {"a": 2})
 
-        # Fallback when no candidate qualifies (all have negative gain or excess FP)
-        poor_trials = [
-            make_trial("prof-x", excess_fp=2, ndcg_val=0.3, lex_ndcg=0.6),
-            make_trial("prof-y", excess_fp=1, ndcg_val=0.4, lex_ndcg=0.6),
-        ]
-        fallback_finalists = select_finalists(poor_trials, max_finalists=2)
-        self.assertEqual(len(fallback_finalists), 1)
-        self.assertEqual(fallback_finalists[0], "prof-y")
+    @staticmethod
+    def trial(name, ndcg=.6, recall=.8, threshold=.7, errors=0):
+        return {"profile": name, "selected": {"ndcg": ndcg, "recall": recall, "threshold": threshold, "excess_false_positives": errors},
+                "lexical": {"summary": {"ndcg": .5}}}
 
-    def test_agent_observer_and_grounding_eval(self):
-        observer = BenchmarkAgentObserver(None, "hybrid_bge")
-        observer.record_search("test query", ["skill"], [{"release_id": "weather-skill"}, {"release_id": "weather-agent"}])
-        observer.record_read("weather-skill", success=True)
-        observer.close()
+    def test_finalists_need_positive_gain_and_honest_diagnostic_fallback(self):
+        selected = protocol.select_finalists([self.trial("equal", ndcg=.5)])
+        self.assertEqual(selected, {"profiles": ["equal"], "diagnostic": True})
+        selected = protocol.select_finalists([self.trial("good"), self.trial("adds-errors", ndcg=.99, errors=1), self.trial("equal", ndcg=.5)])
+        self.assertEqual(selected, {"profiles": ["good"], "diagnostic": False})
 
-        task_query = {
-            "id": "test-weather-task",
-            "family": "weather",
-            "relevant": {"weather-skill": 2, "weather-agent": 2},
-        }
+    def test_model_ties_use_recall_then_profile_without_comparing_cutoff_scales(self):
+        selected = protocol.select_finalists([self.trial("lower-recall", recall=.7), self.trial("looser", threshold=.6),
+                                              self.trial("b", threshold=.8), self.trial("a", threshold=.8)])
+        self.assertEqual(selected["profiles"], ["a", "b"])
+        self.assertEqual(protocol.select_finalists([self.trial("a", threshold=.3), self.trial("z", threshold=.9)])["profiles"], ["a", "z"])
 
-        # 1. Successful grounded recommendation
-        eval_success = evaluate_agent_episode(task_query, observer, [{"release_id": "weather-skill"}])
-        self.assertEqual(eval_success["outcome"], "successful_discovery")
-        self.assertTrue(eval_success["grounding_valid"])
+    def test_cutoff_ties_within_one_model_prefer_the_stricter_value(self):
+        documents = self.documents[:4]
+        first = documents[0]["id"]
+        queries = [{"id": "direct", "text": "question", "split": "tune", "category": "task", "intentFamily": "one", "relevant": {first: 2}},
+                   {"id": "empty", "text": "absent", "split": "tune", "category": "unrelated", "intentFamily": "two", "relevant": {}}]
+        lexical = {q["id"]: {d["id"]: int(q["id"] == "direct" and d["id"] == first) for d in documents} for q in queries}
+        similarities = {q["id"]: {d["id"]: 0 for d in documents} for q in queries}
+        selected, _, _ = protocol.tuning_grid({"thresholds": [.2, .9]}, documents, queries, lexical, similarities)
+        self.assertEqual(selected["threshold"], .9)
+        self.assertEqual(selected["ndcg"], 1)
+        queries[0]["split"] = "test"
+        with self.assertRaisesRegex(ValueError, "tuning queries only"):
+            protocol.tuning_grid({"thresholds": [.2, .9]}, documents, queries, lexical, similarities)
 
-        # 2. Grounding failure (recommended unread ID)
-        eval_ungrounded = evaluate_agent_episode(task_query, observer, [{"release_id": "weather-agent"}])
-        self.assertEqual(eval_ungrounded["outcome"], "grounding_failure")
-        self.assertFalse(eval_ungrounded["grounding_valid"])
+    def test_episode_requires_observed_search_read_and_no_execution_error(self):
+        task = {"id": "t", "intentFamily": "family", "relevant": {"a": 2, "b": 1}}
+        evidence = {"searched": True, "incomplete": False, "found": ["a", "b", "wrong"], "read": ["a", "b", "wrong"]}
+        self.assertEqual(protocol.episode(task, evidence, [{"release_id": "a"}, {"release_id": "b"}])["outcome"], "successful_discovery")
+        self.assertEqual(protocol.episode(task, evidence, [{"release_id": "a"}], "deadline_exceeded")["outcome"], "budget_exhausted")
+        refused = protocol.episode(task, evidence, [], "model_recommended_unread_resource")
+        self.assertEqual(refused["outcome"], "grounding_failure")
+        self.assertFalse(refused["grounded"])
+        self.assertEqual(protocol.episode(task, {**evidence, "searched": False}, [{"release_id": "a"}])["outcome"], "did_not_search")
+        self.assertEqual(protocol.episode(task, {**evidence, "found": []}, [{"release_id": "a"}])["outcome"], "grounding_failure")
+        self.assertEqual(protocol.episode(task, {**evidence, "read": []}, [{"release_id": "a"}])["outcome"], "grounding_failure")
+        self.assertEqual(protocol.episode(task, evidence, [{"release_id": "a"}, {"release_id": "wrong"}])["outcome"], "wrong_selection")
+        self.assertEqual(protocol.episode(task, evidence, [{"release_id": "a"}, {"release_id": "a"}])["outcome"], "grounding_failure")
+        empty = {**task, "relevant": {}}
+        self.assertEqual(protocol.episode(empty, evidence, [])["outcome"], "appropriate_abstention")
+        self.assertEqual(protocol.episode(empty, {**evidence, "incomplete": True}, [])["outcome"], "incomplete_search")
+        self.assertEqual(protocol.episode(empty, evidence, [{"release_id": "a"}])["outcome"], "unsupported_recommendation")
+        self.assertEqual(protocol.episode({**task, "relevant": {"a": 1}}, evidence, [{"release_id": "a"}])["outcome"], "partial_usefulness")
 
-        # 3. Wrong selection (irrelevant ID recommended)
-        eval_wrong = evaluate_agent_episode(task_query, observer, [{"release_id": "weather-skill"}, {"release_id": "unknown-skill"}])
-        self.assertEqual(eval_wrong["outcome"], "grounding_failure")  # unread unknown-skill
+    def test_agent_aggregate_requires_each_episode_and_keeps_errors(self):
+        task = {"id": "t", "intentFamily": "family", "relevant": {"a": 2}}
+        evidence = {"searched": True, "incomplete": False, "found": ["a"], "read": ["a"]}
+        rows = [{**protocol.episode(task, evidence, [{"release_id": "a"}]), "repeat": 0},
+                {**protocol.episode(task, evidence, [], "deadline_exceeded"), "repeat": 1}]
+        result = protocol.aggregate_agent(rows, [task], 2)
+        self.assertEqual(result["discovery_success_rate"], .5)
+        self.assertEqual(result["errors"], 1)
+        self.assertIsNone(result["abstention_rate"])
+        for changed in (rows[:1], [rows[0], rows[0]], rows + rows):
+            with self.assertRaisesRegex(ValueError, "episodes"):
+                protocol.aggregate_agent(changed, [task], 2)
 
-        # 4. Appropriate abstention on no-answer query
-        no_answer_task = {
-            "id": "test-unrelated-astronomy",
-            "family": "no-answer",
-            "relevant": {},
-        }
-        eval_abstain = evaluate_agent_episode(no_answer_task, observer, [])
-        self.assertEqual(eval_abstain["outcome"], "appropriate_abstention")
+    def test_family_bootstrap_does_not_treat_repeats_as_independent(self):
+        value = protocol.paired_interval([("a", 1), ("a", 1), ("a", 1), ("b", -1)], 17)
+        self.assertEqual(value["families"], 2)
+        self.assertEqual(value["mean_difference"], 0)
+        self.assertEqual(value["ci95"], [-1, 1])
+        self.assertIsNone(protocol.paired_interval([("a", 1)], 17)["ci95"])
 
-        # 5. Unsupported recommendation on no-answer query
-        eval_unsupported = evaluate_agent_episode(no_answer_task, observer, [{"release_id": "weather-skill"}])
-        self.assertEqual(eval_unsupported["outcome"], "unsupported_recommendation")
+    def test_fingerprint_and_frozen_mutations_are_rejected(self):
+        expected = input_fingerprint()
+        require_inputs(expected)
+        with patch("benchmark.benchmark.input_fingerprint", return_value={"changed": "bytes"}):
+            with self.assertRaisesRegex(ValueError, "inputs changed"):
+                require_inputs(expected)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "frozen.json"
+            path.write_text('{}')
+            import evaluation
+            digest = evaluation.digest(path)
+            require_inputs(expected, path, digest)
+            path.write_text('{"changed":true}')
+            with self.assertRaisesRegex(ValueError, "frozen experiment"):
+                require_inputs(expected, path, digest)
 
-    def test_aggregate_agent_benchmark(self):
-        episodes = [
-            {"arm": "lexical", "is_no_answer": False, "outcome": "successful_discovery", "grounding_valid": True, "duration_seconds": 1.2, "searches_count": 1, "reads_count": 1},
-            {"arm": "lexical", "is_no_answer": False, "outcome": "missed_opportunity", "grounding_valid": True, "duration_seconds": 1.0, "searches_count": 1, "reads_count": 0},
-            {"arm": "lexical", "is_no_answer": True, "outcome": "appropriate_abstention", "grounding_valid": True, "duration_seconds": 0.8, "searches_count": 1, "reads_count": 0},
-            {"arm": "hybrid", "is_no_answer": False, "outcome": "successful_discovery", "grounding_valid": True, "duration_seconds": 1.5, "searches_count": 1, "reads_count": 2},
-            {"arm": "hybrid", "is_no_answer": True, "outcome": "appropriate_abstention", "grounding_valid": True, "duration_seconds": 0.9, "searches_count": 1, "reads_count": 0},
-        ]
-        summary = aggregate_agent_benchmark(episodes)
-        self.assertIn("lexical", summary)
-        self.assertIn("hybrid", summary)
-        self.assertEqual(summary["lexical"]["discovery_success_rate"], 0.5)
-        self.assertEqual(summary["lexical"]["abstention_rate"], 1.0)
-        self.assertEqual(summary["hybrid"]["discovery_success_rate"], 1.0)
-        self.assertEqual(summary["hybrid"]["abstention_rate"], 1.0)
+    def test_invalid_report_values_produce_a_failed_receipt(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            with self.assertRaisesRegex(ValueError, "invalid report observation"):
+                save_report({"status": "complete", "selection": "full", "observation": object()}, directory)
+            value = json.loads((directory / "report.json").read_text())
+            self.assertEqual(value["status"], "failed")
+            self.assertNotIn("quality", value)
 
-    def test_markdown_report_formatting(self):
-        report = {
-            "status": "complete",
-            "started": "2026-11-11T12:00:00Z",
-            "finalists": ["bge-small-v1", "granite-278m-v1"],
-            "fixed_query_results": {
-                "bge-small-v1": {
-                    "recommendation": "implement",
-                    "results": {
-                        "control": {
-                            "summary": {
-                                "lexical": {"ndcg": 0.65, "recall": 0.70},
-                                "hybrid": {"ndcg": 0.82, "recall": 0.88},
-                            }
-                        }
-                    }
-                }
-            },
-            "agent_results": {
-                "summary": {
-                    "lexical": {
-                        "total_episodes": 48,
-                        "discovery_success_rate": 0.75,
-                        "abstention_rate": 1.0,
-                        "grounding_failure_count": 0,
-                        "mean_duration_seconds": 1.85,
-                    }
-                }
-            }
-        }
-        with tempfile.TemporaryDirectory() as td:
-            out_file = Path(td) / "report.md"
-            generate_markdown_report(report, out_file)
-            content = out_file.read_text()
-            self.assertIn("# Catalog Discovery & Agent Recommendation Benchmark Report", content)
-            self.assertIn("bge-small-v1", content)
-            self.assertIn("0.8200", content)
+    def test_interrupted_campaign_writes_failed_receipt_instead_of_running(self):
+        from benchmark import runtime
+        import runner
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ):
+            with patch.object(runtime, "preflight", return_value={"images": {}}), patch.object(runtime, "catalog_fixture", side_effect=KeyboardInterrupt), patch.object(runner, "OUTPUT", Path(directory)):
+                with self.assertRaises(KeyboardInterrupt):
+                    run_benchmark("smoke")
+            reports = list(Path(directory).glob("benchmark/campaign-*/report.json"))
+            self.assertEqual(len(reports), 1)
+            value = json.loads(reports[0].read_text())
+            self.assertEqual((value["status"], value["error"]), ("failed", "interrupted"))
+            self.assertFalse(value["qualified_for_recommendation"])
 
-    def test_end_to_end_benchmark_mocked_execution(self):
-        """Verify the full run_benchmark execution pipeline with mocked provider."""
-        from benchmark import run_benchmark
+    def test_observed_pages_require_actual_eligible_identity_and_stable_context(self):
+        from benchmark.runtime import CatalogFixture
+        fixture = object.__new__(CatalogFixture)
+        fixture.arm, fixture.context, fixture.by_release = "bge-small-v1", None, {"actual-release": "fixture-a"}
+        fixture.kind_by_release = {"actual-release": "skill"}
+        page = {"tier": "hybrid", "profile": "sha256:" + "a" * 64, "generation": "sha256:" + "b" * 64,
+                "partial": False, "liveCount": 0, "items": [{"id": "local:actual-release", "kind": "skill", "type": "local", "local": {"release": {"id": "actual-release"}}}]}
+        fixture.observe_page(page)
+        self.assertEqual(fixture.context["tier"], "hybrid")
+        for change in ({"tier": "core"}, {"partialIndex": True}, {"fallbackReason": "provider_unavailable"}, {"generation": "changed"}):
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                fixture.observe_page({**page, **change})
+        changed = copy.deepcopy(page)
+        changed["items"][0]["local"]["release"]["id"] = "excluded-release"
+        with self.assertRaisesRegex(ValueError, "forbidden or unmapped"):
+            fixture.observe_page(changed)
+        fixture.observe_page(page, kinds=["skill"])
+        with self.assertRaisesRegex(ValueError, "explicit kind filter"):
+            fixture.observe_page(page, kinds=["agent"])
+        changed = copy.deepcopy(page)
+        changed["items"][0]["id"] = "local:wrong-alias"
+        with self.assertRaisesRegex(ValueError, "identity or retained kind"):
+            fixture.observe_page(changed)
 
-        manifest, profiles, documents, queries = load_benchmark_inputs()
-        fake_lexical = {s: {q["id"]: {d["id"]: 0.5 for d in documents} for q in queries} for s in ("control", "public")}
+    def test_reasoning_cache_verifies_pinned_closure_in_both_ollama_layouts(self):
+        from benchmark import runtime
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            blobs = root / "models/blobs"
+            blobs.mkdir(parents=True)
+            def blob(data, media):
+                digest = hashlib.sha256(data).hexdigest()
+                (blobs / ("sha256-" + digest)).write_bytes(data)
+                return {"mediaType": media, "digest": "sha256:" + digest, "size": len(data)}
+            config = blob(b"{}", "config")
+            weights = blob(b"weights", "model")
+            original = {"config": config, "layers": [weights]}
+            data = json.dumps(original).encode()
+            descriptor = blob(data, "application/vnd.docker.distribution.manifest.v2+json")
+            pin = {"digest": descriptor["digest"].removeprefix("sha256:")}
+            manifest = root / "models/manifests/registry.ollama.ai/library/qwen2.5/7b"
+            manifest.parent.mkdir(parents=True)
+            with patch.object(runtime, "REASONER_CACHE", root):
+                manifest.write_bytes(data)
+                runtime.verify_reasoner(pin)
+                manifest.write_text(json.dumps({"config": config, "layers": [weights, descriptor]}))
+                runtime.verify_reasoner(pin)
+                changed = {"config": config, "layers": [descriptor]}
+                manifest.write_text(json.dumps(changed))
+                with self.assertRaisesRegex(ValueError, "closure differs"):
+                    runtime.verify_reasoner(pin)
+                manifest.write_bytes(data)
+                (blobs / weights["digest"].replace(":", "-")).write_bytes(b"altered")
+                with self.assertRaisesRegex(ValueError, "model blob"):
+                    runtime.verify_reasoner(pin)
 
-        import urllib.error
-
-        def mock_embed(origin, prof, texts, timings):
-            return [[1.0] + [0.0] * (prof["dimensions"] - 1) for _ in texts]
-
-        import email.message
-
-        def mock_request(origin, path, payload=None):
-            if payload and "word " in str(payload.get("input")):
-                raise urllib.error.HTTPError("http://127.0.0.1", 422, "overlength", email.message.Message(), None)
-            return {}
-
-        with tempfile.TemporaryDirectory() as td:
-            with patch.object(runner, "OUTPUT", Path(td)), \
-                 patch.object(runner, "baseline", return_value=fake_lexical), \
-                 patch.object(runner, "verify_model"), \
-                 patch.object(runner, "start_tei", return_value=("http://127.0.0.1:8080", {"version": "1.9.4"})), \
-                 patch.object(runner, "embed", side_effect=mock_embed), \
-                 patch.object(runner, "request", side_effect=mock_request), \
-                 patch.object(runner, "pgvector_parity", return_value={"verified": True}), \
-                 patch.object(runner, "command", return_value="{}"), \
-                 patch.object(runner, "owned_resources", return_value=contextlib.nullcontext({"network": "net", "tei": "tei", "pg": "pg"})):
-
-                report = run_benchmark(skip_agent=False)
-                self.assertEqual(report["status"], "complete")
-                self.assertIn("finalists", report)
-                self.assertTrue(len(report["finalists"]) > 0)
-                self.assertIn("agent_results", report)
-                self.assertIn("fixed_query_results", report)
+    def test_failed_report_can_be_rendered_without_quality_results(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "report.md"
+            render({"status": "failed", "selection": "full", "error": "interrupted"}, path)
+            self.assertIn('interrupted', path.read_text())
+            self.assertNotIn('100%', path.read_text())
 
 
 if __name__ == "__main__":

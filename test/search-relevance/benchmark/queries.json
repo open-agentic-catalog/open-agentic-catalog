@@ -5,14 +5,15 @@
     "family": "invoice",
     "intentFamily": "invoice",
     "category": "task",
-    "text": "I need a solution for invoice reconciliation to compare supplier invoices with purchase orders and receipts, flag price discrepa",
+    "text": "Which entries help an accounts clerk reconcile a vendor bill against goods received?",
     "relevant": {
       "invoice-agent": 2,
       "invoice-mcp_server": 2,
       "invoice-skill": 2,
       "invoice-plugin": 2
     },
-    "rationale": "Explicit match for Invoice reconciliation capability across all resource kinds."
+    "rationale": "Explicit match for Invoice reconciliation capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-calendar-task",
@@ -20,14 +21,15 @@
     "family": "calendar",
     "intentFamily": "calendar",
     "category": "task",
-    "text": "I need a solution for calendar scheduling to find overlapping availability across timezones for distributed team members and ",
+    "text": "Our colleagues work in different time zones. Find something that proposes a time everyone can attend.",
     "relevant": {
       "calendar-agent": 2,
       "calendar-mcp_server": 2,
       "calendar-skill": 2,
       "calendar-plugin": 2
     },
-    "rationale": "Explicit match for Calendar scheduling capability across all resource kinds."
+    "rationale": "Explicit match for Calendar scheduling capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-inventory-task",
@@ -35,14 +37,15 @@
     "family": "inventory",
     "intentFamily": "inventory",
     "category": "task",
-    "text": "I need a solution for inventory forecasting to analyze warehouse stock levels and historic sales velocity to recommend replenis",
+    "text": "We keep running out of stock. What can suggest when to reorder from sales history?",
     "relevant": {
       "inventory-agent": 2,
       "inventory-mcp_server": 2,
       "inventory-skill": 2,
       "inventory-plugin": 2
     },
-    "rationale": "Explicit match for Inventory forecasting capability across all resource kinds."
+    "rationale": "Explicit match for Inventory forecasting capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-redaction-task",
@@ -50,14 +53,15 @@
     "family": "redaction",
     "intentFamily": "redaction",
     "category": "task",
-    "text": "I need a solution for pii redaction to detect and mask personal identifiers, phone numbers, and email addresses in cust",
+    "text": "I need to share customer conversations after removing names, email addresses and phone numbers.",
     "relevant": {
       "redaction-agent": 2,
       "redaction-mcp_server": 2,
       "redaction-skill": 2,
       "redaction-plugin": 2
     },
-    "rationale": "Explicit match for PII redaction capability across all resource kinds."
+    "rationale": "Explicit match for PII redaction capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-sql-task",
@@ -65,14 +69,15 @@
     "family": "sql",
     "intentFamily": "sql",
     "category": "task",
-    "text": "I need a solution for read-only sql querying to execute safe read-only queries against approved relational database views and fo",
+    "text": "Find a way to inspect tables in approved database views without changing their contents.",
     "relevant": {
       "sql-agent": 2,
       "sql-mcp_server": 2,
       "sql-skill": 2,
       "sql-plugin": 2
     },
-    "rationale": "Explicit match for Read-only SQL querying capability across all resource kinds."
+    "rationale": "Explicit match for Read-only SQL querying capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-expenses-task",
@@ -80,14 +85,15 @@
     "family": "expenses",
     "intentFamily": "expenses",
     "category": "task",
-    "text": "I need a solution for expense policy audit to check submitted employee receipts against corporate travel and entertainment exp",
+    "text": "Which receipts from a business trip exceed our reimbursement rules?",
     "relevant": {
       "expenses-agent": 2,
       "expenses-mcp_server": 2,
       "expenses-skill": 2,
       "expenses-plugin": 2
     },
-    "rationale": "Explicit match for Expense policy audit capability across all resource kinds."
+    "rationale": "Explicit match for Expense policy audit capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-currency-task",
@@ -95,14 +101,15 @@
     "family": "currency",
     "intentFamily": "currency",
     "category": "task",
-    "text": "I need a solution for currency conversion to retrieve historical foreign exchange reference rates and convert past financial ",
+    "text": "What can restate an old transaction in another currency using the rate on that date?",
     "relevant": {
       "currency-agent": 2,
       "currency-mcp_server": 2,
       "currency-skill": 2,
       "currency-plugin": 2
     },
-    "rationale": "Explicit match for Currency conversion capability across all resource kinds."
+    "rationale": "Explicit match for Currency conversion capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-translation-task",
@@ -110,14 +117,15 @@
     "family": "translation",
     "intentFamily": "translation",
     "category": "task",
-    "text": "I need a solution for technical translation to translate technical documentation and developer guides accurately between englis",
+    "text": "Find help converting an engineering manual from English into Spanish while keeping its code intact.",
     "relevant": {
       "translation-agent": 2,
       "translation-mcp_server": 2,
       "translation-skill": 2,
       "translation-plugin": 2
     },
-    "rationale": "Explicit match for Technical translation capability across all resource kinds."
+    "rationale": "Explicit match for Technical translation capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-duplicate-task",
@@ -125,14 +133,15 @@
     "family": "duplicate",
     "intentFamily": "duplicate",
     "category": "task",
-    "text": "I need a solution for duplicate contact detection to identify duplicated customer profiles and contact records across crm exports usi",
+    "text": "Our exported customer list contains the same person several times with slightly different details.",
     "relevant": {
       "duplicate-agent": 2,
       "duplicate-mcp_server": 2,
       "duplicate-skill": 2,
       "duplicate-plugin": 2
     },
-    "rationale": "Explicit match for Duplicate contact detection capability across all resource kinds."
+    "rationale": "Explicit match for Duplicate contact detection capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-compliance-task",
@@ -140,14 +149,15 @@
     "family": "compliance",
     "intentFamily": "compliance",
     "category": "task",
-    "text": "I need a solution for compliance log review to verify system audit logs for mandatory access review markers and generate regula",
+    "text": "I need to check that access-review evidence appears in retained system audit records.",
     "relevant": {
       "compliance-agent": 2,
       "compliance-mcp_server": 2,
       "compliance-skill": 2,
       "compliance-plugin": 2
     },
-    "rationale": "Explicit match for Compliance log review capability across all resource kinds."
+    "rationale": "Explicit match for Compliance log review capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-dns-task",
@@ -155,14 +165,15 @@
     "family": "dns",
     "intentFamily": "dns",
     "category": "task",
-    "text": "I need a solution for dns record inspector to query and validate public dns records (a, aaaa, cname, mx, txt) across multiple ",
+    "text": "A domain change has not reached every resolver. What can compare the published records?",
     "relevant": {
       "dns-agent": 2,
       "dns-mcp_server": 2,
       "dns-skill": 2,
       "dns-plugin": 2
     },
-    "rationale": "Explicit match for DNS record inspector capability across all resource kinds."
+    "rationale": "Explicit match for DNS record inspector capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-billing-task",
@@ -170,14 +181,15 @@
     "family": "billing",
     "intentFamily": "billing",
     "category": "task",
-    "text": "I need a solution for usage billing calculator to calculate monthly customer charges based on metered api usage, tier thresholds, ",
+    "text": "Find something that turns recorded API consumption and pricing tiers into a monthly charge.",
     "relevant": {
       "billing-agent": 2,
       "billing-mcp_server": 2,
       "billing-skill": 2,
       "billing-plugin": 2
     },
-    "rationale": "Explicit match for Usage billing calculator capability across all resource kinds."
+    "rationale": "Explicit match for Usage billing calculator capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-git-task",
@@ -185,14 +197,15 @@
     "family": "git",
     "intentFamily": "git",
     "category": "task",
-    "text": "I need a solution for git branch difference inspector to analyze commits and changed files between two git branches, identifying merge co",
+    "text": "What helps examine the changes and possible conflicts between two development branches?",
     "relevant": {
       "git-agent": 2,
       "git-mcp_server": 2,
       "git-skill": 2,
       "git-plugin": 2
     },
-    "rationale": "Explicit match for Git branch difference inspector capability across all resource kinds."
+    "rationale": "Explicit match for Git branch difference inspector capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-metrics-task",
@@ -200,14 +213,15 @@
     "family": "metrics",
     "intentFamily": "metrics",
     "category": "task",
-    "text": "I need a solution for prometheus metric aggregator to query prometheus time-series metrics to summarize service cpu, memory, and error",
+    "text": "I want a time-window summary of service utilization and errors from our monitoring series.",
     "relevant": {
       "metrics-agent": 2,
       "metrics-mcp_server": 2,
       "metrics-skill": 2,
       "metrics-plugin": 2
     },
-    "rationale": "Explicit match for Prometheus metric aggregator capability across all resource kinds."
+    "rationale": "Explicit match for Prometheus metric aggregator capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-cloud-task",
@@ -215,14 +229,15 @@
     "family": "cloud",
     "intentFamily": "cloud",
     "category": "task",
-    "text": "I need a solution for cloud resource inventory to list and filter provisioned cloud virtual machines, storage buckets, and securit",
+    "text": "Which entries list the compute, object storage and security resources we already have, without changing them?",
     "relevant": {
       "cloud-agent": 2,
       "cloud-mcp_server": 2,
       "cloud-skill": 2,
       "cloud-plugin": 2
     },
-    "rationale": "Explicit match for Cloud resource inventory capability across all resource kinds."
+    "rationale": "Explicit match for Cloud resource inventory capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-auth-task",
@@ -230,14 +245,15 @@
     "family": "auth",
     "intentFamily": "auth",
     "category": "task",
-    "text": "I need a solution for jwt token inspector to decode and validate json web token (jwt) headers, claims, and expiration timesta",
+    "text": "I need to examine bearer-token fields and expiry. Cryptographic verification is a separate task.",
     "relevant": {
       "auth-agent": 2,
       "auth-mcp_server": 2,
       "auth-skill": 2,
       "auth-plugin": 2
     },
-    "rationale": "Explicit match for JWT token inspector capability across all resource kinds."
+    "rationale": "Explicit match for JWT token inspector capability across all resource kinds.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-invoice-filtered",
@@ -245,12 +261,13 @@
     "family": "invoice",
     "intentFamily": "invoice",
     "category": "filtered",
-    "text": "Find a agent for invoice operations.",
+    "text": "Find a Agent. Which entries help an accounts clerk reconcile a vendor bill against goods received?",
     "kind": "agent",
     "relevant": {
       "invoice-agent": 2
     },
-    "rationale": "Explicitly filtered to agent for invoice."
+    "rationale": "Explicitly filtered to agent for invoice.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-calendar-filtered",
@@ -258,12 +275,13 @@
     "family": "calendar",
     "intentFamily": "calendar",
     "category": "filtered",
-    "text": "Find a mcp_server for calendar operations.",
+    "text": "Find a MCP Server. Our colleagues work in different time zones. Find something that proposes a time everyone can attend.",
     "kind": "mcp_server",
     "relevant": {
       "calendar-mcp_server": 2
     },
-    "rationale": "Explicitly filtered to mcp_server for calendar."
+    "rationale": "Explicitly filtered to mcp_server for calendar.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-sql-filtered",
@@ -271,12 +289,13 @@
     "family": "sql",
     "intentFamily": "sql",
     "category": "filtered",
-    "text": "Find a skill for sql operations.",
+    "text": "Find a Skill. Find a way to inspect tables in approved database views without changing their contents.",
     "kind": "skill",
     "relevant": {
       "sql-skill": 2
     },
-    "rationale": "Explicitly filtered to skill for sql."
+    "rationale": "Explicitly filtered to skill for sql.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-redaction-filtered",
@@ -284,12 +303,13 @@
     "family": "redaction",
     "intentFamily": "redaction",
     "category": "filtered",
-    "text": "Find a plugin for redaction operations.",
+    "text": "Find a Plugin. I need to share customer conversations after removing names, email addresses and phone numbers.",
     "kind": "plugin",
     "relevant": {
       "redaction-plugin": 2
     },
-    "rationale": "Explicitly filtered to plugin for redaction."
+    "rationale": "Explicitly filtered to plugin for redaction.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-inventory-short",
@@ -304,7 +324,8 @@
       "inventory-skill": 2,
       "inventory-plugin": 2
     },
-    "rationale": "Short keyword search for inventory."
+    "rationale": "Short keyword search for inventory.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-expenses-short",
@@ -319,7 +340,8 @@
       "expenses-skill": 2,
       "expenses-plugin": 2
     },
-    "rationale": "Short keyword search for expenses."
+    "rationale": "Short keyword search for expenses.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-currency-short",
@@ -334,7 +356,8 @@
       "currency-skill": 2,
       "currency-plugin": 2
     },
-    "rationale": "Short keyword search for currency."
+    "rationale": "Short keyword search for currency.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-git-short",
@@ -349,7 +372,8 @@
       "git-skill": 2,
       "git-plugin": 2
     },
-    "rationale": "Short keyword search for git."
+    "rationale": "Short keyword search for git.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-sql-hard-neg-0",
@@ -359,7 +383,8 @@
     "category": "hard-negative",
     "text": "Execute schema DDL migration dropping a production database table.",
     "relevant": {},
-    "rationale": "SQL tools are strictly read-only and disallow DDL schema mutations."
+    "rationale": "SQL tools are strictly read-only and disallow DDL schema mutations.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-redaction-hard-neg-1",
@@ -369,7 +394,8 @@
     "category": "hard-negative",
     "text": "Publish unmasked customer credit card numbers directly to social media.",
     "relevant": {},
-    "rationale": "Redaction tools protect privacy and disallow leaking unmasked data."
+    "rationale": "Redaction tools protect privacy and disallow leaking unmasked data.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-invoice-hard-neg-2",
@@ -379,7 +405,8 @@
     "category": "hard-negative",
     "text": "Automatically pay unapproved vendor invoices without human accounts payable authorization.",
     "relevant": {},
-    "rationale": "Invoice reconciliation prepares exception reports and forbids automatic payment execution."
+    "rationale": "Invoice reconciliation prepares exception reports and forbids automatic payment execution.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-currency-hard-neg-3",
@@ -389,7 +416,8 @@
     "category": "hard-negative",
     "text": "Execute high-frequency arbitrage foreign exchange currency trades.",
     "relevant": {},
-    "rationale": "Currency tools provide historical rate conversion and disallow trade execution."
+    "rationale": "Currency tools provide historical rate conversion and disallow trade execution.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-unrelated-deepsea",
@@ -399,7 +427,8 @@
     "category": "unrelated",
     "text": "Steer an underwater submarine robotic arm to collect deep sea hydrothermal vent samples.",
     "relevant": {},
-    "rationale": "No marine robotics or oceanographic sampling capabilities exist in the catalog."
+    "rationale": "No marine robotics or oceanographic sampling capabilities exist in the catalog.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-unrelated-bakery",
@@ -409,7 +438,8 @@
     "category": "unrelated",
     "text": "Knead sourdough bread dough and set fermentation proofing timer.",
     "relevant": {},
-    "rationale": "No culinary or bakery automation capabilities exist in the catalog."
+    "rationale": "No culinary or bakery automation capabilities exist in the catalog.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-partial-finance",
@@ -428,7 +458,8 @@
       "expenses-skill": 1,
       "expenses-plugin": 1
     },
-    "rationale": "General accounting paperwork is partially supported by invoice and expense audit tools."
+    "rationale": "General accounting paperwork is partially supported by invoice and expense audit tools.",
+    "agent_benchmark": false
   },
   {
     "id": "tune-partial-infra",
@@ -447,7 +478,8 @@
       "dns-skill": 1,
       "dns-plugin": 1
     },
-    "rationale": "Infrastructure asset checks are partially addressed by cloud inventory and DNS tools."
+    "rationale": "Infrastructure asset checks are partially addressed by cloud inventory and DNS tools.",
+    "agent_benchmark": false
   },
   {
     "id": "test-weather-task",
@@ -455,15 +487,15 @@
     "family": "weather",
     "intentFamily": "weather",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to retrieve historical recorded temperatures, precipitation, and wind speeds from verified me",
+    "text": "I need past observations of rain and temperature for a city, rather than a prediction.",
     "relevant": {
       "weather-agent": 2,
       "weather-mcp_server": 2,
       "weather-skill": 2,
       "weather-plugin": 2
     },
-    "rationale": "Direct task match for Historical weather archive."
+    "rationale": "Direct task match for Historical weather archive.",
+    "agent_benchmark": false
   },
   {
     "id": "test-images-task",
@@ -471,15 +503,15 @@
     "family": "images",
     "intentFamily": "images",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to analyze product catalog photographs to detect visible objects, dominant color palettes, an",
+    "text": "What can identify objects in an existing photo and provide descriptive labels?",
     "relevant": {
       "images-agent": 2,
       "images-mcp_server": 2,
       "images-skill": 2,
       "images-plugin": 2
     },
-    "rationale": "Direct task match for Product image labeling."
+    "rationale": "Direct task match for Product image labeling.",
+    "agent_benchmark": false
   },
   {
     "id": "test-contract-task",
@@ -487,15 +519,15 @@
     "family": "contract",
     "intentFamily": "contract",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to review commercial vendor agreements to extract renewal notice periods, liability caps, and",
+    "text": "Help a reviewer locate obligations, renewal dates and risky terms in an agreement.",
     "relevant": {
       "contract-agent": 2,
       "contract-mcp_server": 2,
       "contract-skill": 2,
       "contract-plugin": 2
     },
-    "rationale": "Direct task match for Contract clause reviewer."
+    "rationale": "Direct task match for Contract clause reviewer.",
+    "agent_benchmark": false
   },
   {
     "id": "test-dependencies-task",
@@ -503,15 +535,15 @@
     "family": "dependencies",
     "intentFamily": "dependencies",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to match declared application package manifests against public security vulnerability advisor",
+    "text": "Which entries compare a dependency inventory with published vulnerability advisories?",
     "relevant": {
       "dependencies-agent": 2,
       "dependencies-mcp_server": 2,
       "dependencies-skill": 2,
       "dependencies-plugin": 2
     },
-    "rationale": "Direct task match for Dependency vulnerability scanner."
+    "rationale": "Direct task match for Dependency vulnerability scanner.",
+    "agent_benchmark": false
   },
   {
     "id": "test-support-task",
@@ -519,15 +551,15 @@
     "family": "support",
     "intentFamily": "support",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to classify incoming customer support tickets by severity, impacted product module, and appro",
+    "text": "Find help sorting incoming customer tickets and suggesting the appropriate support queue.",
     "relevant": {
       "support-agent": 2,
       "support-mcp_server": 2,
       "support-skill": 2,
       "support-plugin": 2
     },
-    "rationale": "Direct task match for Support ticket triage."
+    "rationale": "Direct task match for Support ticket triage.",
+    "agent_benchmark": false
   },
   {
     "id": "test-csv-task",
@@ -535,15 +567,15 @@
     "family": "csv",
     "intentFamily": "csv",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to validate csv tabular files against expected column data types, required constraints, and u",
+    "text": "A delimited export has inconsistent columns and types. What can check and clean it?",
     "relevant": {
       "csv-agent": 2,
       "csv-mcp_server": 2,
       "csv-skill": 2,
       "csv-plugin": 2
     },
-    "rationale": "Direct task match for CSV schema validator."
+    "rationale": "Direct task match for CSV schema validator.",
+    "agent_benchmark": false
   },
   {
     "id": "test-meeting-task",
@@ -551,15 +583,15 @@
     "family": "meeting",
     "intentFamily": "meeting",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to extract agreed action items, designated owners, and completion target dates from structure",
+    "text": "I need decisions and assigned follow-up actions extracted from a meeting transcript.",
     "relevant": {
       "meeting-agent": 2,
       "meeting-mcp_server": 2,
       "meeting-skill": 2,
       "meeting-plugin": 2
     },
-    "rationale": "Direct task match for Meeting action extractor."
+    "rationale": "Direct task match for Meeting action extractor.",
+    "agent_benchmark": false
   },
   {
     "id": "test-release-notes-task",
@@ -567,15 +599,15 @@
     "family": "release-notes",
     "intentFamily": "release-notes",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to summarize merged pull requests and issue titles into grouped, human-readable changelog rel",
+    "text": "What can turn a set of merged changes into a readable announcement of the software update?",
     "relevant": {
       "release-notes-agent": 2,
       "release-notes-mcp_server": 2,
       "release-notes-skill": 2,
       "release-notes-plugin": 2
     },
-    "rationale": "Direct task match for Release notes generator."
+    "rationale": "Direct task match for Release notes generator.",
+    "agent_benchmark": false
   },
   {
     "id": "test-shipment-task",
@@ -583,15 +615,15 @@
     "family": "shipment",
     "intentFamily": "shipment",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to retrieve current carrier transit status, checkpoint timestamps, and estimated delivery dat",
+    "text": "Find a way to check where a parcel is and report delays in its delivery.",
     "relevant": {
       "shipment-agent": 2,
       "shipment-mcp_server": 2,
       "shipment-skill": 2,
       "shipment-plugin": 2
     },
-    "rationale": "Direct task match for Shipment tracking lookup."
+    "rationale": "Direct task match for Shipment tracking lookup.",
+    "agent_benchmark": true
   },
   {
     "id": "test-kubernetes-task",
@@ -599,15 +631,15 @@
     "family": "kubernetes",
     "intentFamily": "kubernetes",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to inspect kubernetes pod health status, restart counts, and container exit codes across clus",
+    "text": "Which entries let an operator inspect unhealthy pods and their events without modifying the cluster?",
     "relevant": {
       "kubernetes-agent": 2,
       "kubernetes-mcp_server": 2,
       "kubernetes-skill": 2,
       "kubernetes-plugin": 2
     },
-    "rationale": "Direct task match for Kubernetes pod inspector."
+    "rationale": "Direct task match for Kubernetes pod inspector.",
+    "agent_benchmark": false
   },
   {
     "id": "test-markdown-task",
@@ -615,15 +647,15 @@
     "family": "markdown",
     "intentFamily": "markdown",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to scan markdown files to identify broken internal relative links, missing anchor headings, a",
+    "text": "I need to identify broken references and formatting problems in repository documentation.",
     "relevant": {
       "markdown-agent": 2,
       "markdown-mcp_server": 2,
       "markdown-skill": 2,
       "markdown-plugin": 2
     },
-    "rationale": "Direct task match for Markdown link validator."
+    "rationale": "Direct task match for Markdown link validator.",
+    "agent_benchmark": false
   },
   {
     "id": "test-seo-task",
@@ -631,15 +663,15 @@
     "family": "seo",
     "intentFamily": "seo",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to inspect html web pages for title tags, opengraph metadata, canonical urls, and structured ",
+    "text": "What can inspect a web page for missing search-engine metadata and related content issues?",
     "relevant": {
       "seo-agent": 2,
       "seo-mcp_server": 2,
       "seo-skill": 2,
       "seo-plugin": 2
     },
-    "rationale": "Direct task match for SEO metadata audit."
+    "rationale": "Direct task match for SEO metadata audit.",
+    "agent_benchmark": false
   },
   {
     "id": "test-backup-task",
@@ -647,15 +679,15 @@
     "family": "backup",
     "intentFamily": "backup",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to verify database backup archive headers, checksums, and restoration manifests without perfo",
+    "text": "Which entries check that a recovery archive is complete and its checksums agree?",
     "relevant": {
       "backup-agent": 2,
       "backup-mcp_server": 2,
       "backup-skill": 2,
       "backup-plugin": 2
     },
-    "rationale": "Direct task match for Backup integrity checker."
+    "rationale": "Direct task match for Backup integrity checker.",
+    "agent_benchmark": true
   },
   {
     "id": "test-email-task",
@@ -663,15 +695,15 @@
     "family": "email",
     "intentFamily": "email",
     "category": "task",
-    "agent_benchmark": false,
-    "text": "Find a resource to render localized transactional email notifications with variable substitution and html/pla",
+    "text": "Find a way to sort incoming email by topic, urgency and the person who should handle it.",
     "relevant": {
       "email-agent": 2,
       "email-mcp_server": 2,
       "email-skill": 2,
       "email-plugin": 2
     },
-    "rationale": "Direct task match for Email template renderer."
+    "rationale": "Direct task match for Email template renderer.",
+    "agent_benchmark": false
   },
   {
     "id": "test-performance-task",
@@ -679,15 +711,15 @@
     "family": "performance",
     "intentFamily": "performance",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to parse http load test results to calculate latency percentiles (p50, p95, p99), throughput,",
+    "text": "Which entries measure request latency and error rates for an HTTP service under a controlled load?",
     "relevant": {
       "performance-agent": 2,
       "performance-mcp_server": 2,
       "performance-skill": 2,
       "performance-plugin": 2
     },
-    "rationale": "Direct task match for HTTP benchmark analyzer."
+    "rationale": "Direct task match for HTTP benchmark analyzer.",
+    "agent_benchmark": false
   },
   {
     "id": "test-certs-task",
@@ -695,15 +727,15 @@
     "family": "certs",
     "intentFamily": "certs",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to inspect ssl/tls server certificate chains to calculate days remaining until expiration and",
+    "text": "I need to inspect a TLS certificate chain and identify certificates nearing expiry.",
     "relevant": {
       "certs-agent": 2,
       "certs-mcp_server": 2,
       "certs-skill": 2,
       "certs-plugin": 2
     },
-    "rationale": "Direct task match for TLS certificate monitor."
+    "rationale": "Direct task match for TLS certificate monitor.",
+    "agent_benchmark": false
   },
   {
     "id": "test-network-task",
@@ -711,15 +743,15 @@
     "family": "network",
     "intentFamily": "network",
     "category": "task",
-    "agent_benchmark": false,
-    "text": "Find a resource to measure network path hops, round-trip times, and packet drop rates to diagnose latency bot",
+    "text": "Find help diagnosing connectivity and the route packets take between hosts.",
     "relevant": {
       "network-agent": 2,
       "network-mcp_server": 2,
       "network-skill": 2,
       "network-plugin": 2
     },
-    "rationale": "Direct task match for Network route tracer."
+    "rationale": "Direct task match for Network route tracer.",
+    "agent_benchmark": false
   },
   {
     "id": "test-audio-task",
@@ -727,15 +759,15 @@
     "family": "audio",
     "intentFamily": "audio",
     "category": "task",
-    "agent_benchmark": false,
-    "text": "Find a resource to align raw speech-to-text transcripts with recorded audio timestamps to remove filler words",
+    "text": "I have a speech transcript that needs punctuation and removal of filler words.",
     "relevant": {
       "audio-agent": 2,
       "audio-mcp_server": 2,
       "audio-skill": 2,
       "audio-plugin": 2
     },
-    "rationale": "Direct task match for Audio transcript alignment."
+    "rationale": "Direct task match for Audio transcript alignment.",
+    "agent_benchmark": false
   },
   {
     "id": "test-secrets-task",
@@ -743,15 +775,15 @@
     "family": "secrets",
     "intentFamily": "secrets",
     "category": "task",
-    "agent_benchmark": true,
-    "text": "Find a resource to scan repository commit history for accidentally committed api keys, private certificates, ",
+    "text": "What can flag credentials accidentally stored in a source repository?",
     "relevant": {
       "secrets-agent": 2,
       "secrets-mcp_server": 2,
       "secrets-skill": 2,
       "secrets-plugin": 2
     },
-    "rationale": "Direct task match for Git secret scanner."
+    "rationale": "Direct task match for Git secret scanner.",
+    "agent_benchmark": false
   },
   {
     "id": "test-incident-task",
@@ -759,15 +791,15 @@
     "family": "incident",
     "intentFamily": "incident",
     "category": "task",
-    "agent_benchmark": false,
-    "text": "Find a resource to aggregate timestamped chat messages, alert triggers, and mitigation actions into a unified",
+    "text": "I need one ordered account of alerts, decisions and mitigations from an outage.",
     "relevant": {
       "incident-agent": 2,
       "incident-mcp_server": 2,
       "incident-skill": 2,
       "incident-plugin": 2
     },
-    "rationale": "Direct task match for Incident timeline builder."
+    "rationale": "Direct task match for Incident timeline builder.",
+    "agent_benchmark": false
   },
   {
     "id": "test-json-schema-task",
@@ -775,15 +807,15 @@
     "family": "json-schema",
     "intentFamily": "json-schema",
     "category": "task",
-    "agent_benchmark": false,
-    "text": "Find a resource to compare two json schema definitions to detect breaking changes such as removed properties ",
+    "text": "Which entries identify incompatible field changes between two JSON data contracts?",
     "relevant": {
       "json-schema-agent": 2,
       "json-schema-mcp_server": 2,
       "json-schema-skill": 2,
       "json-schema-plugin": 2
     },
-    "rationale": "Direct task match for JSON Schema diff validator."
+    "rationale": "Direct task match for JSON Schema diff validator.",
+    "agent_benchmark": false
   },
   {
     "id": "test-terraform-task",
@@ -791,15 +823,15 @@
     "family": "terraform",
     "intentFamily": "terraform",
     "category": "task",
-    "agent_benchmark": false,
-    "text": "Find a resource to parse hcl terraform code to check naming conventions, required provider tags, and syntax e",
+    "text": "I need to check infrastructure configuration syntax and required naming or tagging rules.",
     "relevant": {
       "terraform-agent": 2,
       "terraform-mcp_server": 2,
       "terraform-skill": 2,
       "terraform-plugin": 2
     },
-    "rationale": "Direct task match for Terraform syntax linter."
+    "rationale": "Direct task match for Terraform syntax linter.",
+    "agent_benchmark": false
   },
   {
     "id": "test-docker-task",
@@ -807,15 +839,15 @@
     "family": "docker",
     "intentFamily": "docker",
     "category": "task",
-    "agent_benchmark": false,
-    "text": "Find a resource to analyze containerfiles and dockerfiles to detect multi-stage build issues, root user execu",
+    "text": "What can inspect a container build recipe for unsafe users and unversioned base images?",
     "relevant": {
       "docker-agent": 2,
       "docker-mcp_server": 2,
       "docker-skill": 2,
       "docker-plugin": 2
     },
-    "rationale": "Direct task match for Containerfile best practice linter."
+    "rationale": "Direct task match for Containerfile best practice linter.",
+    "agent_benchmark": false
   },
   {
     "id": "test-cache-task",
@@ -823,15 +855,15 @@
     "family": "cache",
     "intentFamily": "cache",
     "category": "task",
-    "agent_benchmark": false,
-    "text": "Find a resource to inspect in-memory key-value cache statistics to report hit ratios, memory fragmentation, a",
+    "text": "Find a way to summarize cache efficiency, evictions and memory fragmentation.",
     "relevant": {
       "cache-agent": 2,
       "cache-mcp_server": 2,
       "cache-skill": 2,
       "cache-plugin": 2
     },
-    "rationale": "Direct task match for Cache hit rate monitor."
+    "rationale": "Direct task match for Cache hit rate monitor.",
+    "agent_benchmark": false
   },
   {
     "id": "test-weather-filtered",
@@ -839,12 +871,13 @@
     "family": "weather",
     "intentFamily": "weather",
     "category": "filtered",
-    "text": "Search for a agent that helps with weather operations.",
+    "text": "Find a Agent. I need past observations of rain and temperature for a city, rather than a prediction.",
     "kind": "agent",
     "relevant": {
       "weather-agent": 2
     },
-    "rationale": "Explicitly filtered to agent for weather."
+    "rationale": "Explicitly filtered to agent for weather.",
+    "agent_benchmark": true
   },
   {
     "id": "test-images-filtered",
@@ -852,12 +885,13 @@
     "family": "images",
     "intentFamily": "images",
     "category": "filtered",
-    "text": "Search for a mcp_server that helps with images operations.",
+    "text": "Find a MCP Server. What can identify objects in an existing photo and provide descriptive labels?",
     "kind": "mcp_server",
     "relevant": {
       "images-mcp_server": 2
     },
-    "rationale": "Explicitly filtered to mcp_server for images."
+    "rationale": "Explicitly filtered to mcp_server for images.",
+    "agent_benchmark": true
   },
   {
     "id": "test-contract-filtered",
@@ -865,12 +899,13 @@
     "family": "contract",
     "intentFamily": "contract",
     "category": "filtered",
-    "text": "Search for a skill that helps with contract operations.",
+    "text": "Find a Skill. Help a reviewer locate obligations, renewal dates and risky terms in an agreement.",
     "kind": "skill",
     "relevant": {
       "contract-skill": 2
     },
-    "rationale": "Explicitly filtered to skill for contract."
+    "rationale": "Explicitly filtered to skill for contract.",
+    "agent_benchmark": true
   },
   {
     "id": "test-dependencies-filtered",
@@ -878,12 +913,13 @@
     "family": "dependencies",
     "intentFamily": "dependencies",
     "category": "filtered",
-    "text": "Search for a plugin that helps with dependencies operations.",
+    "text": "Find a Plugin. Which entries compare a dependency inventory with published vulnerability advisories?",
     "kind": "plugin",
     "relevant": {
       "dependencies-plugin": 2
     },
-    "rationale": "Explicitly filtered to plugin for dependencies."
+    "rationale": "Explicitly filtered to plugin for dependencies.",
+    "agent_benchmark": true
   },
   {
     "id": "test-support-filtered",
@@ -891,12 +927,13 @@
     "family": "support",
     "intentFamily": "support",
     "category": "filtered",
-    "text": "Search for a agent that helps with support operations.",
+    "text": "Find a Agent. Find help sorting incoming customer tickets and suggesting the appropriate support queue.",
     "kind": "agent",
     "relevant": {
       "support-agent": 2
     },
-    "rationale": "Explicitly filtered to agent for support."
+    "rationale": "Explicitly filtered to agent for support.",
+    "agent_benchmark": true
   },
   {
     "id": "test-csv-filtered",
@@ -904,12 +941,13 @@
     "family": "csv",
     "intentFamily": "csv",
     "category": "filtered",
-    "text": "Search for a mcp_server that helps with csv operations.",
+    "text": "Find a MCP Server. A delimited export has inconsistent columns and types. What can check and clean it?",
     "kind": "mcp_server",
     "relevant": {
       "csv-mcp_server": 2
     },
-    "rationale": "Explicitly filtered to mcp_server for csv."
+    "rationale": "Explicitly filtered to mcp_server for csv.",
+    "agent_benchmark": true
   },
   {
     "id": "test-meeting-filtered",
@@ -917,12 +955,13 @@
     "family": "meeting",
     "intentFamily": "meeting",
     "category": "filtered",
-    "text": "Search for a skill that helps with meeting operations.",
+    "text": "Find a Skill. I need decisions and assigned follow-up actions extracted from a meeting transcript.",
     "kind": "skill",
     "relevant": {
       "meeting-skill": 2
     },
-    "rationale": "Explicitly filtered to skill for meeting."
+    "rationale": "Explicitly filtered to skill for meeting.",
+    "agent_benchmark": true
   },
   {
     "id": "test-release-notes-filtered",
@@ -930,12 +969,13 @@
     "family": "release-notes",
     "intentFamily": "release-notes",
     "category": "filtered",
-    "text": "Search for a plugin that helps with release notes operations.",
+    "text": "Find a Plugin. What can turn a set of merged changes into a readable announcement of the software update?",
     "kind": "plugin",
     "relevant": {
       "release-notes-plugin": 2
     },
-    "rationale": "Explicitly filtered to plugin for release-notes."
+    "rationale": "Explicitly filtered to plugin for release-notes.",
+    "agent_benchmark": true
   },
   {
     "id": "test-shipment-filtered",
@@ -943,12 +983,13 @@
     "family": "shipment",
     "intentFamily": "shipment",
     "category": "filtered",
-    "text": "Search for a agent that helps with shipment operations.",
+    "text": "Find a Agent. Find a way to check where a parcel is and report delays in its delivery.",
     "kind": "agent",
     "relevant": {
       "shipment-agent": 2
     },
-    "rationale": "Explicitly filtered to agent for shipment."
+    "rationale": "Explicitly filtered to agent for shipment.",
+    "agent_benchmark": false
   },
   {
     "id": "test-kubernetes-filtered",
@@ -956,12 +997,13 @@
     "family": "kubernetes",
     "intentFamily": "kubernetes",
     "category": "filtered",
-    "text": "Search for a mcp_server that helps with kubernetes operations.",
+    "text": "Find a MCP Server. Which entries let an operator inspect unhealthy pods and their events without modifying the cluster?",
     "kind": "mcp_server",
     "relevant": {
       "kubernetes-mcp_server": 2
     },
-    "rationale": "Explicitly filtered to mcp_server for kubernetes."
+    "rationale": "Explicitly filtered to mcp_server for kubernetes.",
+    "agent_benchmark": false
   },
   {
     "id": "test-markdown-filtered",
@@ -969,12 +1011,13 @@
     "family": "markdown",
     "intentFamily": "markdown",
     "category": "filtered",
-    "text": "Search for a skill that helps with markdown operations.",
+    "text": "Find a Skill. I need to identify broken references and formatting problems in repository documentation.",
     "kind": "skill",
     "relevant": {
       "markdown-skill": 2
     },
-    "rationale": "Explicitly filtered to skill for markdown."
+    "rationale": "Explicitly filtered to skill for markdown.",
+    "agent_benchmark": false
   },
   {
     "id": "test-seo-filtered",
@@ -982,12 +1025,13 @@
     "family": "seo",
     "intentFamily": "seo",
     "category": "filtered",
-    "text": "Search for a plugin that helps with seo operations.",
+    "text": "Find a Plugin. What can inspect a web page for missing search-engine metadata and related content issues?",
     "kind": "plugin",
     "relevant": {
       "seo-plugin": 2
     },
-    "rationale": "Explicitly filtered to plugin for seo."
+    "rationale": "Explicitly filtered to plugin for seo.",
+    "agent_benchmark": false
   },
   {
     "id": "test-backup-short",
@@ -1002,7 +1046,8 @@
       "backup-skill": 2,
       "backup-plugin": 2
     },
-    "rationale": "Short keyword query for backup."
+    "rationale": "Short keyword query for backup.",
+    "agent_benchmark": false
   },
   {
     "id": "test-certs-short",
@@ -1017,7 +1062,8 @@
       "certs-skill": 2,
       "certs-plugin": 2
     },
-    "rationale": "Short keyword query for certs."
+    "rationale": "Short keyword query for certs.",
+    "agent_benchmark": false
   },
   {
     "id": "test-network-short",
@@ -1032,7 +1078,8 @@
       "network-skill": 2,
       "network-plugin": 2
     },
-    "rationale": "Short keyword query for network."
+    "rationale": "Short keyword query for network.",
+    "agent_benchmark": false
   },
   {
     "id": "test-audio-short",
@@ -1047,7 +1094,8 @@
       "audio-skill": 2,
       "audio-plugin": 2
     },
-    "rationale": "Short keyword query for audio."
+    "rationale": "Short keyword query for audio.",
+    "agent_benchmark": false
   },
   {
     "id": "test-secrets-short",
@@ -1062,7 +1110,8 @@
       "secrets-skill": 2,
       "secrets-plugin": 2
     },
-    "rationale": "Short keyword query for secrets."
+    "rationale": "Short keyword query for secrets.",
+    "agent_benchmark": false
   },
   {
     "id": "test-incident-short",
@@ -1077,7 +1126,8 @@
       "incident-skill": 2,
       "incident-plugin": 2
     },
-    "rationale": "Short keyword query for incident."
+    "rationale": "Short keyword query for incident.",
+    "agent_benchmark": false
   },
   {
     "id": "test-terraform-short",
@@ -1092,7 +1142,8 @@
       "terraform-skill": 2,
       "terraform-plugin": 2
     },
-    "rationale": "Short keyword query for terraform."
+    "rationale": "Short keyword query for terraform.",
+    "agent_benchmark": false
   },
   {
     "id": "test-docker-short",
@@ -1107,7 +1158,8 @@
       "docker-skill": 2,
       "docker-plugin": 2
     },
-    "rationale": "Short keyword query for docker."
+    "rationale": "Short keyword query for docker.",
+    "agent_benchmark": false
   },
   {
     "id": "test-weather-hard-neg-0",
@@ -1117,7 +1169,8 @@
     "category": "hard-negative",
     "text": "Forecast next week's hurricane trajectory and rainfall probability.",
     "relevant": {},
-    "rationale": "Weather resource contains past historical records and explicitly excludes forward forecasting."
+    "rationale": "Weather resource contains past historical records and explicitly excludes forward forecasting.",
+    "agent_benchmark": true
   },
   {
     "id": "test-images-hard-neg-1",
@@ -1127,7 +1180,8 @@
     "category": "hard-negative",
     "text": "Generate realistic synthetic artwork and fantasy 3D renders from text prompts.",
     "relevant": {},
-    "rationale": "Image labeling tools analyze existing photos and do not generate images."
+    "rationale": "Image labeling tools analyze existing photos and do not generate images.",
+    "agent_benchmark": true
   },
   {
     "id": "test-contract-hard-neg-2",
@@ -1137,7 +1191,8 @@
     "category": "hard-negative",
     "text": "Represent our organization as legal counsel in federal court proceedings.",
     "relevant": {},
-    "rationale": "Contract review tools summarize agreement clauses and exclude courtroom representation."
+    "rationale": "Contract review tools summarize agreement clauses and exclude courtroom representation.",
+    "agent_benchmark": false
   },
   {
     "id": "test-dependencies-hard-neg-3",
@@ -1147,7 +1202,8 @@
     "category": "hard-negative",
     "text": "Execute untested malicious binary in production to analyze malware behavior.",
     "relevant": {},
-    "rationale": "Dependency scanner matches CVE advisories and forbids arbitrary binary execution."
+    "rationale": "Dependency scanner matches CVE advisories and forbids arbitrary binary execution.",
+    "agent_benchmark": false
   },
   {
     "id": "test-kubernetes-hard-neg-4",
@@ -1157,7 +1213,8 @@
     "category": "hard-negative",
     "text": "Terminate all nodes in a production Kubernetes cluster immediately.",
     "relevant": {},
-    "rationale": "Kubernetes pod inspector is read-only and forbids destructive node termination."
+    "rationale": "Kubernetes pod inspector is read-only and forbids destructive node termination.",
+    "agent_benchmark": false
   },
   {
     "id": "test-secrets-hard-neg-5",
@@ -1167,7 +1224,8 @@
     "category": "hard-negative",
     "text": "Automatically decrypt and broadcast found API keys to a public channel.",
     "relevant": {},
-    "rationale": "Secret scanner detects committed credentials and does not broadcast secrets."
+    "rationale": "Secret scanner detects committed credentials and does not broadcast secrets.",
+    "agent_benchmark": false
   },
   {
     "id": "test-backup-hard-neg-6",
@@ -1177,7 +1235,8 @@
     "category": "hard-negative",
     "text": "Purge all historical disaster recovery backups without verification.",
     "relevant": {},
-    "rationale": "Backup checker verifies archive integrity and prohibits destructive purge actions."
+    "rationale": "Backup checker verifies archive integrity and prohibits destructive purge actions.",
+    "agent_benchmark": false
   },
   {
     "id": "test-audio-hard-neg-7",
@@ -1187,7 +1246,8 @@
     "category": "hard-negative",
     "text": "Synthesize fake celebrity voice audio clone from sample speech.",
     "relevant": {},
-    "rationale": "Audio tool cleans transcripts and does not synthesize deepfake voice clones."
+    "rationale": "Audio tool cleans transcripts and does not synthesize deepfake voice clones.",
+    "agent_benchmark": false
   },
   {
     "id": "test-unrelated-astronomy",
@@ -1197,7 +1257,8 @@
     "category": "unrelated",
     "text": "Point the orbital space telescope toward the Andromeda galaxy.",
     "relevant": {},
-    "rationale": "No space telescope positioning capabilities exist."
+    "rationale": "No space telescope positioning capabilities exist.",
+    "agent_benchmark": true
   },
   {
     "id": "test-unrelated-farming",
@@ -1207,7 +1268,8 @@
     "category": "unrelated",
     "text": "Irrigate the north agricultural field with automated tractor sprinklers.",
     "relevant": {},
-    "rationale": "No agricultural tractor irrigation capabilities exist."
+    "rationale": "No agricultural tractor irrigation capabilities exist.",
+    "agent_benchmark": true
   },
   {
     "id": "test-unrelated-surgery",
@@ -1217,7 +1279,8 @@
     "category": "unrelated",
     "text": "Perform robotic laparoscopic cardiac bypass surgery.",
     "relevant": {},
-    "rationale": "No medical surgical capabilities exist."
+    "rationale": "No medical surgical capabilities exist.",
+    "agent_benchmark": false
   },
   {
     "id": "test-unrelated-geology",
@@ -1227,7 +1290,8 @@
     "category": "unrelated",
     "text": "Simulate tectonic plate continental drift over fifty million years.",
     "relevant": {},
-    "rationale": "No geological simulation capabilities exist."
+    "rationale": "No geological simulation capabilities exist.",
+    "agent_benchmark": false
   },
   {
     "id": "test-partial-devops",
@@ -1246,7 +1310,8 @@
       "docker-skill": 1,
       "docker-plugin": 1
     },
-    "rationale": "General cluster devops tasks are partially addressed by pod inspection and Containerfile linting."
+    "rationale": "General cluster devops tasks are partially addressed by pod inspection and Containerfile linting.",
+    "agent_benchmark": true
   },
   {
     "id": "test-partial-security",
@@ -1265,7 +1330,8 @@
       "dependencies-skill": 1,
       "dependencies-plugin": 1
     },
-    "rationale": "Security posture auditing is partially addressed by secret scanning and dependency checking."
+    "rationale": "Security posture auditing is partially addressed by secret scanning and dependency checking.",
+    "agent_benchmark": true
   },
   {
     "id": "test-partial-content",
@@ -1284,7 +1350,8 @@
       "meeting-skill": 1,
       "meeting-plugin": 1
     },
-    "rationale": "Documentation announcements are partially aided by release summaries and meeting action logs."
+    "rationale": "Documentation announcements are partially aided by release summaries and meeting action logs.",
+    "agent_benchmark": false
   },
   {
     "id": "test-partial-web",
@@ -1303,7 +1370,8 @@
       "performance-skill": 1,
       "performance-plugin": 1
     },
-    "rationale": "Website landing page health is partially addressed by SEO audits and HTTP latency tests."
+    "rationale": "Website landing page health is partially addressed by SEO audits and HTTP latency tests.",
+    "agent_benchmark": false
   },
   {
     "id": "test-weather-exact",
@@ -1317,7 +1385,8 @@
     "relevant": {
       "weather-agent": 2
     },
-    "rationale": "Exact AIR identifier lookup for weather-agent."
+    "rationale": "Exact AIR identifier lookup for weather-agent.",
+    "agent_benchmark": false
   },
   {
     "id": "test-images-exact",
@@ -1331,7 +1400,8 @@
     "relevant": {
       "images-mcp_server": 2
     },
-    "rationale": "Exact AIR identifier lookup for images-mcp_server."
+    "rationale": "Exact AIR identifier lookup for images-mcp_server.",
+    "agent_benchmark": false
   },
   {
     "id": "test-contract-exact",
@@ -1345,7 +1415,8 @@
     "relevant": {
       "contract-skill": 2
     },
-    "rationale": "Exact AIR identifier lookup for contract-skill."
+    "rationale": "Exact AIR identifier lookup for contract-skill.",
+    "agent_benchmark": false
   },
   {
     "id": "test-dependencies-exact",
@@ -1359,6 +1430,7 @@
     "relevant": {
       "dependencies-plugin": 2
     },
-    "rationale": "Exact AIR identifier lookup for dependencies-plugin."
+    "rationale": "Exact AIR identifier lookup for dependencies-plugin.",
+    "agent_benchmark": false
   }
 ]

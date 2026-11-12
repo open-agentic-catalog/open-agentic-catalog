@@ -1,12 +1,12 @@
 {
-  "version": 1,
+  "version": 2,
+  "surface": "control-local-english",
   "profiles": [
     "bge-small-v1",
     "minilm-l6-v1",
     "granite-278m-v1",
     "multilingual-e5-large-v1"
   ],
-  "lexical": true,
   "thresholds": [
     0.2,
     0.25,
@@ -26,10 +26,14 @@
     0.95,
     1.0
   ],
-  "selection": "least-added-no-answer-errors_then-highest-mean-hybrid-ndcg_then-profile-id",
+  "selection": "control-nonexact_no-added-errors_ndcg_recall_stricter-cutoff_profile-id",
   "rrf_k": 60,
   "minimum_ndcg_gain": 0.05,
-  "agent_model": "qwen2.5:7b",
   "agent_repeats": 3,
-  "agent_task_count": 16
+  "agent_task_count": 16,
+  "episode_seconds": 120,
+  "run_seconds": 21600,
+  "startup_seconds": 900,
+  "index_seconds": 900,
+  "bootstrap_seed": 27062
 }

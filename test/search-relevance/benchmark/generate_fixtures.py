@@ -49,6 +49,51 @@ FAMILIES = [
     ("cache", "Cache hit rate monitor", "Inspect in-memory key-value cache statistics to report hit ratios, memory fragmentation, and key eviction counts.", ["cache", "redis", "performance"], ["Monitor cache hit ratio and eviction count", "Inspect in-memory cache memory stats"], "test"),
 ]
 
+TASKS = {
+    "email": "Find a way to sort incoming email by topic, urgency and the person who should handle it.",
+    "performance": "Which entries measure request latency and error rates for an HTTP service under a controlled load?",
+    "invoice": "Which entries help an accounts clerk reconcile a vendor bill against goods received?",
+    "calendar": "Our colleagues work in different time zones. Find something that proposes a time everyone can attend.",
+    "inventory": "We keep running out of stock. What can suggest when to reorder from sales history?",
+    "redaction": "I need to share customer conversations after removing names, email addresses and phone numbers.",
+    "sql": "Find a way to inspect tables in approved database views without changing their contents.",
+    "expenses": "Which receipts from a business trip exceed our reimbursement rules?",
+    "currency": "What can restate an old transaction in another currency using the rate on that date?",
+    "translation": "Find help converting an engineering manual from English into Spanish while keeping its code intact.",
+    "duplicate": "Our exported customer list contains the same person several times with slightly different details.",
+    "compliance": "I need to check that access-review evidence appears in retained system audit records.",
+    "dns": "A domain change has not reached every resolver. What can compare the published records?",
+    "billing": "Find something that turns recorded API consumption and pricing tiers into a monthly charge.",
+    "git": "What helps examine the changes and possible conflicts between two development branches?",
+    "metrics": "I want a time-window summary of service utilization and errors from our monitoring series.",
+    "cloud": "Which entries list the compute, object storage and security resources we already have, without changing them?",
+    "auth": "I need to examine bearer-token fields and expiry. Cryptographic verification is a separate task.",
+    "weather": "I need past observations of rain and temperature for a city, rather than a prediction.",
+    "images": "What can identify objects in an existing photo and provide descriptive labels?",
+    "contract": "Help a reviewer locate obligations, renewal dates and risky terms in an agreement.",
+    "dependencies": "Which entries compare a dependency inventory with published vulnerability advisories?",
+    "support": "Find help sorting incoming customer tickets and suggesting the appropriate support queue.",
+    "csv": "A delimited export has inconsistent columns and types. What can check and clean it?",
+    "meeting": "I need decisions and assigned follow-up actions extracted from a meeting transcript.",
+    "release-notes": "What can turn a set of merged changes into a readable announcement of the software update?",
+    "shipment": "Find a way to check where a parcel is and report delays in its delivery.",
+    "kubernetes": "Which entries let an operator inspect unhealthy pods and their events without modifying the cluster?",
+    "markdown": "I need to identify broken references and formatting problems in repository documentation.",
+    "seo": "What can inspect a web page for missing search-engine metadata and related content issues?",
+    "backup": "Which entries check that a recovery archive is complete and its checksums agree?",
+    "certs": "I need to inspect a TLS certificate chain and identify certificates nearing expiry.",
+    "network": "Find help diagnosing connectivity and the route packets take between hosts.",
+    "audio": "I have a speech transcript that needs punctuation and removal of filler words.",
+    "secrets": "What can flag credentials accidentally stored in a source repository?",
+    "incident": "I need one ordered account of alerts, decisions and mitigations from an outage.",
+    "json-schema": "Which entries identify incompatible field changes between two JSON data contracts?",
+    "terraform": "I need to check infrastructure configuration syntax and required naming or tagging rules.",
+    "docker": "What can inspect a container build recipe for unsafe users and unversioned base images?",
+    "cache": "Find a way to summarize cache efficiency, evictions and memory fragmentation."
+}
+KIND_NAMES = {"agent": "Agent", "mcp_server": "MCP Server", "skill": "Skill", "plugin": "Plugin"}
+
+
 KINDS = ["agent", "mcp_server", "skill", "plugin"]
 KIND_DESCRIPTIONS = {
     "agent": "An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
@@ -60,7 +105,6 @@ KIND_DESCRIPTIONS = {
 
 def build_corpus():
     documents = []
-    idx = 0
     for family_key, name, base_desc, tags, rep_queries, split in FAMILIES:
         for kind in KINDS:
             doc_id = f"{family_key}-{kind}"
@@ -68,12 +112,7 @@ def build_corpus():
             kind_suffix = {"agent": "Assistant", "mcp_server": "Connector", "skill": "Procedure", "plugin": "Toolkit"}[kind]
             doc_name = f"{name} {kind_suffix}"
             doc_desc = f"{base_desc} {KIND_DESCRIPTIONS[kind]}"
-            
-            # 120 local, 40 indexed. 80 public (true), 80 private (false). All public are local.
-            # Local is 3 out of 4 (agent, mcp_server, skill local; plugin indexed for some, or evenly distributed)
-            is_local = (idx % 4 != 3)  # 75% local = 120 local, 40 indexed
-            is_public = is_local and (idx % 2 == 0)  # 80 public local
-            
+
             documents.append({
                 "id": doc_id,
                 "identifier": identifier,
@@ -83,17 +122,16 @@ def build_corpus():
                 "representativeQueries": rep_queries,
                 "kind": kind,
                 "family": family_key,
-                "source": "local" if is_local else "indexed",
-                "public": is_public,
+                "source": "local",
+                "public": False,
             })
-            idx += 1
     return documents
 
 
 def build_queries(documents):
     doc_map = {d["id"]: d for d in documents}
     queries = []
-    
+
     # 1. Tuning queries (32 queries across 16 tuning families)
     # 16 task queries (grade 2 for all 4 kinds in family)
     # 4 filtered queries (kind specific)
@@ -101,7 +139,7 @@ def build_queries(documents):
     # 4 hard-negative queries (grade 0, family: "no-answer")
     # 2 unrelated queries (grade 0, family: "no-answer")
     # 2 partial queries (grade 1)
-    
+
     tuning_families = [f for f in FAMILIES if f[5] == "tune"]
     for fam in tuning_families[:16]:
         f_key, name, base_desc, tags, rep, _ = fam
@@ -112,11 +150,11 @@ def build_queries(documents):
             "family": f_key,
             "intentFamily": f_key,
             "category": "task",
-            "text": f"I need a solution for {name.lower()} to {base_desc.lower()[:80]}",
+            "text": TASKS[f_key],
             "relevant": {f"{f_key}-{k}": 2 for k in KINDS},
             "rationale": f"Explicit match for {name} capability across all resource kinds.",
         })
-    
+
     # 4 filtered tuning queries
     for i, f_key in enumerate(["invoice", "calendar", "sql", "redaction"]):
         kind = KINDS[i]
@@ -126,12 +164,12 @@ def build_queries(documents):
             "family": f_key,
             "intentFamily": f_key,
             "category": "filtered",
-            "text": f"Find a {kind} for {f_key} operations.",
+            "text": f"Find a {KIND_NAMES[kind]}. " + TASKS[f_key],
             "kind": kind,
             "relevant": {f"{f_key}-{kind}": 2},
             "rationale": f"Explicitly filtered to {kind} for {f_key}.",
         })
-    
+
     # 4 short tuning queries
     for f_key in ["inventory", "expenses", "currency", "git"]:
         queries.append({
@@ -144,7 +182,7 @@ def build_queries(documents):
             "relevant": {f"{f_key}-{k}": 2 for k in KINDS},
             "rationale": f"Short keyword search for {f_key}.",
         })
-    
+
     # 4 hard negatives (tuning)
     hard_neg_tune = [
         ("sql", "Execute schema DDL migration dropping a production database table.", "SQL tools are strictly read-only and disallow DDL schema mutations."),
@@ -163,7 +201,7 @@ def build_queries(documents):
             "relevant": {},
             "rationale": rat,
         })
-    
+
     # 2 unrelated (tuning)
     unrelated_tune = [
         ("deepsea", "Steer an underwater submarine robotic arm to collect deep sea hydrothermal vent samples.", "No marine robotics or oceanographic sampling capabilities exist in the catalog."),
@@ -180,7 +218,7 @@ def build_queries(documents):
             "relevant": {},
             "rationale": rat,
         })
-    
+
     # 2 partial queries (tuning)
     queries.append({
         "id": "tune-partial-finance",
@@ -205,28 +243,21 @@ def build_queries(documents):
 
     # 2. Held-out queries (64 queries across 24 held-out families)
     heldout_families = [f for f in FAMILIES if f[5] == "test"]
-    
+
     # 24 task queries (1 per held-out family)
     for fam in heldout_families:
         f_key, name, base_desc, tags, rep, _ = fam
-        # 16 of these are selected for the LangGraph agent benchmark!
-        agent_bench = f_key in [
-            "weather", "images", "contract", "dependencies", "support", "csv",
-            "meeting", "release-notes", "shipment", "kubernetes", "markdown",
-            "seo", "backup", "certs", "secrets", "performance"
-        ]
         queries.append({
             "id": f"test-{f_key}-task",
             "split": "test",
             "family": f_key,
             "intentFamily": f_key,
             "category": "task",
-            "agent_benchmark": agent_bench,
-            "text": f"Find a resource to {base_desc.lower()[:90]}",
+            "text": TASKS[f_key],
             "relevant": {f"{f_key}-{k}": 2 for k in KINDS},
             "rationale": f"Direct task match for {name}.",
         })
-    
+
     # 12 filtered test queries (across different kinds)
     for i, f_key in enumerate(["weather", "images", "contract", "dependencies", "support", "csv", "meeting", "release-notes", "shipment", "kubernetes", "markdown", "seo"]):
         kind = KINDS[i % 4]
@@ -236,12 +267,12 @@ def build_queries(documents):
             "family": f_key,
             "intentFamily": f_key,
             "category": "filtered",
-            "text": f"Search for a {kind} that helps with {f_key.replace('-', ' ')} operations.",
+            "text": f"Find a {KIND_NAMES[kind]}. " + TASKS[f_key],
             "kind": kind,
             "relevant": {f"{f_key}-{kind}": 2},
             "rationale": f"Explicitly filtered to {kind} for {f_key}.",
         })
-    
+
     # 8 short test queries
     for f_key in ["backup", "certs", "network", "audio", "secrets", "incident", "terraform", "docker"]:
         queries.append({
@@ -254,7 +285,7 @@ def build_queries(documents):
             "relevant": {f"{f_key}-{k}": 2 for k in KINDS},
             "rationale": f"Short keyword query for {f_key}.",
         })
-    
+
     # 8 hard-negative queries (held-out)
     hard_neg_test = [
         ("weather", "Forecast next week's hurricane trajectory and rainfall probability.", "Weather resource contains past historical records and explicitly excludes forward forecasting."),
@@ -277,7 +308,7 @@ def build_queries(documents):
             "relevant": {},
             "rationale": rat,
         })
-    
+
     # 4 unrelated test queries
     unrelated_test = [
         ("astronomy", "Point the orbital space telescope toward the Andromeda galaxy.", "No space telescope positioning capabilities exist."),
@@ -296,7 +327,7 @@ def build_queries(documents):
             "relevant": {},
             "rationale": rat,
         })
-    
+
     # 4 partial test queries
     queries.append({
         "id": "test-partial-devops",
@@ -356,6 +387,12 @@ def build_queries(documents):
             "rationale": f"Exact AIR identifier lookup for {doc['id']}.",
         })
 
+    agent_ids = {"test-" + family + "-filtered" for family in
+                 ("weather", "images", "contract", "dependencies", "support", "csv", "meeting", "release-notes")}
+    agent_ids.update({"test-shipment-task", "test-backup-task", "test-weather-hard-neg-0", "test-images-hard-neg-1",
+                      "test-unrelated-astronomy", "test-unrelated-farming", "test-partial-devops", "test-partial-security"})
+    for query in queries:
+        query["agent_benchmark"] = query["id"] in agent_ids
     return queries
 
 
@@ -363,15 +400,15 @@ def main():
     root = Path(__file__).resolve().parent
     documents = build_corpus()
     queries = build_queries(documents)
-    
+
     print(f"Generated {len(documents)} documents across 4 kinds:")
     for k in KINDS:
         print(f"  {k}: {sum(d['kind'] == k for d in documents)}")
-    
+
     tune_count = sum(q['split'] == 'tune' for q in queries)
     test_count = sum(q['split'] == 'test' for q in queries)
     print(f"Generated {len(queries)} queries ({tune_count} tune, {test_count} test)")
-    
+
     (root / "corpus.json").write_text(json.dumps(documents, indent=2) + "\n")
     (root / "queries.json").write_text(json.dumps(queries, indent=2) + "\n")
     print("Saved corpus.json and queries.json successfully.")
