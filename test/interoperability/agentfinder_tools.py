@@ -2,12 +2,10 @@
 
 import hashlib
 import json
-import os
 from pathlib import Path
 import shutil
 import urllib.request
 
-from common import run
 from runner import ROOT, fingerprint
 
 HERE = Path(__file__).resolve().parent

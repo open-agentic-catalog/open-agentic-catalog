@@ -1,6 +1,5 @@
 """Isolated Agent Finder catalog publication checks; no processes, sockets or network execution."""
 
-import copy
 import json
 from pathlib import Path
 import tempfile
@@ -8,8 +7,6 @@ import unittest
 from unittest.mock import patch
 
 import agentfinder_tools as tools
-
-CACHED_ARTIFACT = tools.INPUTS / "ai-catalog.json"
 
 
 class AgentFinderPreflightTests(unittest.TestCase):

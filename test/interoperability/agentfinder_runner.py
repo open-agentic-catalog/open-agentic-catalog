@@ -10,15 +10,11 @@ from datetime import datetime, timezone
 import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import os
-from pathlib import Path
-import sys
 import threading
 import time
 import urllib.request
 
 import agentfinder_tools as tools
-from common import Result
 from runner import ROOT
 
 OUTPUT = ROOT / "output/interoperability/agentfinder"
@@ -93,7 +89,7 @@ class AgentFinderFixtureServer:
 def run_qualification():
     """Execute the qualification suite and produce structured report."""
     print("Starting GitHub Agent Finder Catalog Interoperability Qualification...")
-    installed_info = tools.installed()
+    tools.installed()
 
     raw_artifact = (tools.INPUTS / "ai-catalog.json").read_bytes()
     stats = tools.verify_artifact_bytes(raw_artifact)
