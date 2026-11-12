@@ -3,7 +3,9 @@
 import copy
 import json
 from pathlib import Path
+import tempfile
 import unittest
+from unittest.mock import patch
 
 import agentfinder_tools as tools
 
@@ -136,13 +138,47 @@ class AgentFinderPreflightTests(unittest.TestCase):
                 f"Media type {media_type} must not be in native supported kind mapping",
             )
 
-    def test_installation_stamp_matches_identity(self):
-        """US-1: Installation stamp matches current identity."""
-        installed_data = tools.installed()
-        self.assertEqual(installed_data["revision"], tools.REVISION)
-        self.assertEqual(installed_data["sha256"], tools.EXPECTED_SHA256)
-        self.assertEqual(installed_data["size"], tools.EXPECTED_SIZE)
-        self.assertEqual(installed_data["total_entries"], tools.TOTAL_ENTRIES)
+    def test_missing_installation_fails_with_instruction(self):
+        """US-1: Missing installation stamp raises informative RuntimeError."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing_stamp = Path(temp_dir) / "missing_installation.json"
+            with patch.object(tools, "STAMP", missing_stamp):
+                with self.assertRaisesRegex(RuntimeError, "Agent Finder tools not installed"):
+                    tools.installed()
+
+    def test_installed_verifies_stamp_and_cached_identity(self):
+        """US-1: Valid installation stamp matching identity succeeds."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            stamp_file = temp / "installation.json"
+            stamp_data = {
+                "identity": tools.identity(),
+                "revision": tools.REVISION,
+                "sha256": tools.EXPECTED_SHA256,
+                "size": tools.EXPECTED_SIZE,
+                "total_entries": tools.TOTAL_ENTRIES,
+            }
+            stamp_file.write_text(json.dumps(stamp_data))
+            with patch.object(tools, "STAMP", stamp_file):
+                result = tools.installed()
+                self.assertEqual(result["revision"], tools.REVISION)
+                self.assertEqual(result["sha256"], tools.EXPECTED_SHA256)
+                self.assertEqual(result["size"], tools.EXPECTED_SIZE)
+                self.assertEqual(result["total_entries"], tools.TOTAL_ENTRIES)
+
+    def test_installed_rejects_identity_drift(self):
+        """US-1: Mismatched stamp identity fails validation."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            stamp_file = temp / "installation.json"
+            stamp_data = {
+                "identity": "stale_or_drifted_identity_hash",
+                "revision": tools.REVISION,
+            }
+            stamp_file.write_text(json.dumps(stamp_data))
+            with patch.object(tools, "STAMP", stamp_file):
+                with self.assertRaisesRegex(RuntimeError, "identity changed"):
+                    tools.installed()
 
 
 if __name__ == "__main__":
