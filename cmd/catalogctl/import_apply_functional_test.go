@@ -221,7 +221,7 @@ func TestImportApplyHTTPRecoveryAtEveryStep(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fixture.serve(t, w, r) }))
 			defer server.Close()
 			options := remoteOptions{baseURL: server.URL, token: "snapshot-token", timeout: 10 * time.Second}
-			state := filepath.Join(t.TempDir(), "private", "state.json")
+			state := filepath.Join(canonicalTempDir(t), "private", "state.json")
 			outcome, err := applyImport(t.Context(), singleImportTestBatch(plan), options, state, false)
 			if err == nil || outcome.Disposition != "uncertain" || fixture.calls != index+1 {
 				t.Fatalf("did not stop uncertain success: %#v %v", outcome, err)
@@ -273,7 +273,7 @@ func TestImportApplyHTTPRefusalsAndPartialOutcomes(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fixture.serve(t, w, r) }))
 			defer server.Close()
 			options := remoteOptions{baseURL: server.URL, token: "snapshot-token", timeout: 10 * time.Second}
-			state := filepath.Join(t.TempDir(), "private", "state.json")
+			state := filepath.Join(canonicalTempDir(t), "private", "state.json")
 			outcome, err := applyImport(t.Context(), singleImportTestBatch(plan), options, state, false)
 			if err == nil || outcome.Disposition != test.want || fixture.calls != test.calls {
 				t.Fatalf("unexpected outcome %#v %v", outcome, err)
@@ -314,7 +314,7 @@ func TestImportApplyResumeBindingsAndExpiry(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fixture.serve(t, w, r) }))
 			defer server.Close()
 			options := remoteOptions{baseURL: server.URL, token: "snapshot-token", timeout: 10 * time.Second}
-			name := filepath.Join(t.TempDir(), "private", "state.json")
+			name := filepath.Join(canonicalTempDir(t), "private", "state.json")
 			if _, err := applyImport(t.Context(), singleImportTestBatch(plan), options, name, false); err == nil {
 				t.Fatal("fault not injected")
 			}
@@ -384,7 +384,7 @@ func TestImportApplyReceiptFailureAndCancellation(t *testing.T) {
 		t.Run(fault, func(t *testing.T) {
 			plan := importApplyTestPlan(t)
 			fixture := newImportHTTPFixture(t, plan)
-			name := filepath.Join(t.TempDir(), "private", "state.json")
+			name := filepath.Join(canonicalTempDir(t), "private", "state.json")
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
 			fixture.beforeReply = func(index int) {
@@ -429,12 +429,12 @@ func TestImportApplyReceiptFailureAndCancellation(t *testing.T) {
 func TestImportApplyCLIProcessFourKinds(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	build := exec.CommandContext(ctx, "go", "build", "-o", binary, ".") // #nosec G204,G702 -- fixed package and owned binary.
 	if raw, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build CLI: %v %s", err, raw)
 	}
-	combinedDir := t.TempDir()
+	combinedDir := canonicalTempDir(t)
 	combined := importManifest{Format: 1}
 	for _, kind := range []catalog.Kind{catalog.KindAgent, catalog.KindMCPServer, catalog.KindSkill, catalog.KindPlugin} {
 		t.Run(string(kind), func(t *testing.T) {

@@ -87,7 +87,7 @@ func TestAuditExportVerifierCommandsAreBoundedAndNetworkFree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	directory := t.TempDir()
+	directory := canonicalTempDir(t)
 	exportPath := filepath.Join(directory, "audit-export.json")
 	if err := os.WriteFile(exportPath, raw, 0o600); err != nil {
 		t.Fatal(err)
@@ -449,9 +449,20 @@ func writeCatalogctlTestConfig(t *testing.T, configuration config.Config) string
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(t.TempDir(), "catalogctl.json")
+	path := filepath.Join(canonicalTempDir(t), "catalogctl.json")
 	if err := os.WriteFile(path, raw, 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return path
+}
+
+// canonicalTempDir resolves only a newly allocated, trusted test root. Explicit
+// unsafe paths still reach the production symlink-refusal boundary unchanged.
+func canonicalTempDir(tb testing.TB) string {
+	tb.Helper()
+	directory, err := filepath.EvalSymlinks(tb.TempDir())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return directory
 }

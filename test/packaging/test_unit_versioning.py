@@ -131,12 +131,24 @@ class VersionTests(unittest.TestCase):
             with self.assertRaises(ValueError) as reported:
                 v.run(["tool"], self.root, report=True)
         self.assertNotIn("lockfile", str(quiet.exception))
-        self.assertIn("lockfile at `uv.lock` needs to be updated", str(reported.exception))
+        self.assertIn("uv.lock is stale", str(reported.exception))
         self.assertNotIn("\x1b", str(reported.exception))
         long = subprocess.CompletedProcess([], 2, "", "e" * 5000)
         with patch.object(v.subprocess, "run", return_value=long), self.assertRaises(ValueError) as bounded:
             v.run(["tool"], self.root, report=True)
         self.assertLess(len(str(bounded.exception)), 600)
+
+    def test_reported_uv_failure_never_copies_private_tool_output(self):
+        for stderr in (
+            "error: request failed https://private.invalid/?token=synthetic-private-value\n",
+            "error: The lockfile at `synthetic-private-value/uv.lock` needs to be updated\n",
+        ):
+            failed = subprocess.CompletedProcess([], 2, "", stderr)
+            with self.subTest(stderr=stderr), patch.object(v.subprocess, "run", return_value=failed):
+                with self.assertRaises(ValueError) as failure:
+                    v.run(["uv", "sync"], self.root, report=True)
+                self.assertNotIn("synthetic-private-value", str(failure.exception))
+                self.assertNotIn("https://", str(failure.exception))
 
     def test_sdk_metadata_parity_rejects_each_stale_derived_copy(self):
         import shutil

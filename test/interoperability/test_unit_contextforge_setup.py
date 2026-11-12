@@ -18,7 +18,7 @@ class Setup(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.output = Path(temporary.name)
+        self.output = Path(temporary.name).resolve()
         self.directory = self.output / "catalog-contextforge-012345abcdef"
         self.directory.mkdir()
         self.private = self.directory / "private"

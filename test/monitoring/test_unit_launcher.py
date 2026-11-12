@@ -87,7 +87,7 @@ class MonitoringSafety(unittest.TestCase):
                     self.assertEqual(0 if stage == "stop" else 1, len(starts))
     def test_ui_inputs_are_private_retained_and_scoped(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             (root / "config").mkdir()
             (root / "config/postgres.json").write_text(json.dumps({"auth": {"developmentTokens": {"test-reader": {"subject": "Reader"}}}}))
             with patch.object(launcher, "ROOT", root):
@@ -186,7 +186,7 @@ class MonitoringSafety(unittest.TestCase):
                     launcher.image_pins()
     def test_invalid_or_writable_secret_is_never_replaced(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             path = root / "grafana-password"
             for raw, mode in [(b"invalid\n", 0o444), (b"a" * 64 + b"\ntrailing", 0o444), (b"a" * 64 + b"\n", 0o666)]:
                 if path.exists():
@@ -239,7 +239,7 @@ class MonitoringSafety(unittest.TestCase):
     def test_pins_and_private_secret_reuse(self):
         self.assertEqual({"prometheus", "grafana"}, set(launcher.image_pins()))
         with tempfile.TemporaryDirectory() as temporary:
-            path = launcher.secret_file(Path(temporary) / "private")
+            path = launcher.secret_file(Path(temporary).resolve() / "private")
             first = path.read_bytes()
             self.assertEqual(first, launcher.secret_file(path.parent).read_bytes())
             self.assertEqual(65, len(first))
@@ -247,7 +247,7 @@ class MonitoringSafety(unittest.TestCase):
             self.assertEqual(0, path.stat().st_mode & 0o022)
     def test_state_and_secret_links_refused(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             (root / "link").symlink_to(root, target_is_directory=True)
             with self.assertRaises(launcher.Failure):
                 launcher.private_directory(root / "link" / "state")
@@ -323,12 +323,12 @@ class DemoArchiveLifecycle(unittest.TestCase):
 
     def test_prepared_files_admitted_without_rotation_or_seed(self):
         with tempfile.TemporaryDirectory() as temporary:
-            directory = Path(temporary)
+            directory = Path(temporary).resolve()
             for name, mode in (("cert.pem", 0o644), ("key.pem", 0o600), ("demo-archives", 0o700), ("allowlist.json", 0o644)):
                 path = directory / name
                 path.write_text("inert unit fixture")
                 path.chmod(mode)
-            settings = {"LOCAL_DEMO_ARCHIVES": "on", "DEMO_ARCHIVE_DIR": temporary}
+            settings = {"LOCAL_DEMO_ARCHIVES": "on", "DEMO_ARCHIVE_DIR": str(directory)}
             with patch.dict(os.environ, settings, clear=True), patch.object(launcher, "command", return_value=b"") as command:
                 launcher.development("up", "catalog", "off")
                 calls = [call.args[0] for call in command.call_args_list]

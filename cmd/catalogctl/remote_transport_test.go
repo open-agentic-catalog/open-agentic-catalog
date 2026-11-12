@@ -35,7 +35,7 @@ func (b *catalogctlTrackedBody) Close() error { b.closes++; return b.closeErr }
 
 func TestRemoteSessionUsesExplicitFreshLoginWithoutIssuerTraffic(t *testing.T) {
 	t.Parallel()
-	directory := t.TempDir()
+	directory := canonicalTempDir(t)
 	if err := os.Chmod(directory, 0700); err != nil { // #nosec G302 -- credential directory requires owner-only traversal.
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestRemoteTrustRequestPreservesVersionPresence(t *testing.T) {
 			if version != "absent" {
 				raw = strings.Replace(raw, `"versionPresent":false`, `"versionPresent":true,"version":"`+version+`"`, 1)
 			}
-			path := filepath.Join(t.TempDir(), "request.json")
+			path := filepath.Join(canonicalTempDir(t), "request.json")
 			if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
 				t.Fatal(err)
 			}
@@ -340,7 +340,7 @@ func TestRemoteExchangeBodyBoundsAndFailures(t *testing.T) {
 
 func TestRemoteFileBoundsAndCancelledPreflight(t *testing.T) {
 	t.Parallel()
-	file := filepath.Join(t.TempDir(), "mounted-secret")
+	file := filepath.Join(canonicalTempDir(t), "mounted-secret")
 	for _, limit := range []int{remoteMaxToken, remoteMaxCA} {
 		data := strings.Repeat("a", limit)
 		if err := os.WriteFile(file, []byte(data), 0600); err != nil {

@@ -67,7 +67,7 @@ func configuredSeedProcessPlan(t *testing.T, origin string) (string, demodata.Pl
 	if err != nil {
 		t.Fatal(err)
 	}
-	filename := filepath.Join(t.TempDir(), "catalog.yaml")
+	filename := filepath.Join(canonicalTempDir(t), "catalog.yaml")
 	if err = os.WriteFile(filename, raw, 0600); err != nil { // #nosec G703 -- fixed manifest in this test's private temporary directory.
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestConfiguredSeedProcessRecovery(t *testing.T) {
 				defer mu.Unlock()
 				return len(mutations)
 			}
-			state := filepath.Join(t.TempDir(), "PRIVATE_SEED_PROCESS", "receipt.json")
+			state := filepath.Join(canonicalTempDir(t), "PRIVATE_SEED_PROCESS", "receipt.json")
 			args := []string{"seed-demo", "--data-file", file, "--sample-set", "process-recovery", "--base-url", server.URL, "--state-file", state, "--archive-origin", origin, "--archive-trust-file", trust, "--timeout", "25s"}
 			start := func(collect bool) *processCommand {
 				var environment []string

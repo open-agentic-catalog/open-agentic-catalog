@@ -48,7 +48,7 @@ class NativeCoverageTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         self.snapshot = self.root / "snapshot"
         self.artifacts = self.root / "artifacts"
         self.artifacts.mkdir()

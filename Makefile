@@ -1833,7 +1833,7 @@ docs-site-check: ## Lint JS, check Astro, test root/base docs builds; leave root
 # Preserve copied upstream Markdown; the corpus guide remains in this audit.
 # Adapter units own its checksum and complete-inventory checks.
 docs-check: ## Lint Markdown and audit documentation plus tracked workflow defaults
-	"$(MARKDOWNLINT)" --dot --ignore schemas/upstream --ignore samples/upstream --ignore internal/adapter/testdata/upstream/openai --ignore internal/adapter/testdata/upstream/huggingface --ignore internal/adapter/testdata/upstream/context7/plugin --ignore specs --ignore documentation/node_modules --ignore documentation/.astro --ignore documentation/dist --ignore documentation/src/content/docs/generated --ignore catalog-ui/node_modules --ignore catalog-ui/dist --ignore test/validation/node_modules --ignore test/interoperability/mcp/node_modules --ignore test/validation/.tools --ignore test/apigenerated/.tools --ignore test/sdk/.tools --ignore examples/langgraph/.venv --ignore sdk/typescript/node_modules --ignore sdk/rust/target --ignore test/sdk/rust/consumer/target --ignore examples/rust-catalog-report/target --ignore extensions/vscode/node_modules --ignore extensions/vscode/.tools --ignore extensions/vscode/dist --ignore test/vscode/.tools --ignore .tools --ignore output '**/*.md' '**/*.mdx'
+	"$(MARKDOWNLINT)" --dot --ignore .venv --ignore schemas/upstream --ignore samples/upstream --ignore internal/adapter/testdata/upstream/openai --ignore internal/adapter/testdata/upstream/huggingface --ignore internal/adapter/testdata/upstream/context7/plugin --ignore specs --ignore documentation/node_modules --ignore documentation/.astro --ignore documentation/dist --ignore documentation/src/content/docs/generated --ignore catalog-ui/node_modules --ignore catalog-ui/dist --ignore test/validation/node_modules --ignore test/interoperability/mcp/node_modules --ignore test/validation/.tools --ignore test/apigenerated/.tools --ignore test/sdk/.tools --ignore examples/langgraph/.venv --ignore sdk/typescript/node_modules --ignore sdk/rust/target --ignore test/sdk/rust/consumer/target --ignore examples/rust-catalog-report/target --ignore extensions/vscode/node_modules --ignore extensions/vscode/.tools --ignore extensions/vscode/dist --ignore test/vscode/.tools --ignore .tools --ignore output '**/*.md' '**/*.mdx'
 	$(PYTHON) -B test/packaging/completion.py go --required TestDocumentationContracts -- $(GO) test ./internal/platform/runtime -run '^TestDocumentationContracts$$' -count=1 -json
 
 
@@ -2019,7 +2019,7 @@ test-postgres-pitr: ## Restore a Catalog physical backup to a named point and re
 test-functional-workflow: conformance-prerequisite
 	@set -eu; \
 		test -n "$${CATALOG_FUNCTIONAL_STATE_DIRECTORY:-}" || { printf '%s\n' 'Use make test-functional.' >&2; exit 2; }; \
-		if $(CURL) --version 2>/dev/null | grep -Fq SecureTransport; then printf '%s\n' 'Functional curl cannot verify the fixture certificate.' 'The selected curl uses SecureTransport, which lacks Ed25519 support. Set CURL to an OpenSSL build.' >&2; exit 1; fi; \
+		if $(CURL) --version 2>/dev/null | sed -n -e '1s/([^)]*)//g' -e '1p' | grep -Fq SecureTransport; then printf '%s\n' 'Functional curl cannot verify the fixture certificate.' 'The selected curl uses SecureTransport, which lacks Ed25519 support. Set CURL to an OpenSSL build.' >&2; exit 1; fi; \
 		suffix="$${CATALOG_FUNCTIONAL_SUFFIX:?}"; \
 		project="open-agentic-catalog-functional-$$suffix"; \
 		image="$${CATALOG_FUNCTIONAL_CANDIDATE_IMAGE:-open-agentic-catalog:functional-$$suffix}"; \

@@ -18,7 +18,7 @@ class ToolingCoverageFunctionalTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         self.repository = coverage.ROOT
         self.paths = []
         for owner, value in (("alpha", 7), ("beta", 9)):

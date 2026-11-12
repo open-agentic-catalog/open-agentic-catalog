@@ -14,6 +14,36 @@ from publication_report_test_helpers import evidence as report_evidence
 
 
 class RunnerTests(unittest.TestCase):
+    def test_cleanup_removes_only_the_owned_mount_probe_and_verifies_removal(self):
+        for remove_fails in (False, True):
+            with self.subTest(remove_fails=remove_fails), tempfile.TemporaryDirectory() as directory, \
+                    mock.patch.object(Path, "cwd", return_value=Path(directory)):
+                instance = runner.Runner({})
+                instance.environment = runner.compose_environment({"CATALOG_FUNCTIONAL_COMMIT": "a" * 40}, instance.suffix, Path(directory))
+                instance.compose += ["-p", instance.project]
+                probe, unrelated = "a" * 64, "b" * 64
+                remaining = {probe, unrelated}
+
+                def engine(arguments, _environment, _seconds, **_options):
+                    if arguments[:3] == ["docker", "container", "rm"]:
+                        self.assertEqual(arguments[-1], probe)
+                        self.assertIn("--volumes", arguments)
+                        if remove_fails:
+                            raise runner.Failure("child-failed")
+                        remaining.remove(probe)
+                    if arguments[:3] == ["docker", "container", "ls"]:
+                        self.assertIn("label=com.docker.compose.project=" + instance.project, arguments)
+                        names = [a for a in arguments if a.startswith("name=")]
+                        if names:
+                            self.assertEqual(names, ["name=^/" + instance.project + "-mount-probe$"])
+                        return probe.encode() if probe in remaining else b""
+                    return b""
+
+                with mock.patch.object(runner, "command", side_effect=engine):
+                    self.assertEqual(instance.cleanup(), not remove_fails)
+                self.assertIn(unrelated, remaining)
+                self.assertEqual(probe in remaining, remove_fails)
+
     def test_candidate_build_identity_and_cleanup_preserve_borrowed_images(self):
         commit = "a" * 40
         value = {"service": "open-agentic-catalog", "version": "0.1.0", "commit": commit, "sourceState": "clean",
@@ -437,24 +467,28 @@ class RunnerTests(unittest.TestCase):
     def test_fixture_mount_probe_requires_the_marker_and_removes_it(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory)
+            project = "open-agentic-catalog-functional-owned"
             seen = []
             def visible(arguments, environment, seconds, **options):
                 seen.append((arguments, (fixture / ".mount-probe").exists()))
                 return b".mount-probe\ntrust\n"
             with mock.patch.object(runner, "command", side_effect=visible):
-                self.assertTrue(runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5))
+                self.assertTrue(runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5, project))
             self.assertTrue(seen[0][1], "marker must exist while the probe runs")
             self.assertIn(str(fixture) + ":/probe:ro", seen[0][0])
             self.assertIn("none", seen[0][0])
+            self.assertEqual(seen[0][0][seen[0][0].index("--pull") + 1], "never")
+            self.assertEqual(seen[0][0][seen[0][0].index("--name") + 1], project + "-mount-probe")
+            self.assertIn("com.docker.compose.project=" + project, seen[0][0])
             self.assertFalse((fixture / ".mount-probe").exists())
             with mock.patch.object(runner, "command", return_value=b"trust\n"), self.assertRaises(runner.Failure) as unshared:
-                runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5)
+                runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5, project)
             self.assertEqual(str(unshared.exception), "fixture-directory-not-shared")
             self.assertFalse((fixture / ".mount-probe").exists())
             with mock.patch.object(runner, "command", side_effect=runner.Failure("child-failed")):
-                self.assertFalse(runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5))
+                self.assertFalse(runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5, project))
             with mock.patch.object(runner, "command", side_effect=runner.Failure("deadline")), self.assertRaises(runner.Failure) as late:
-                runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5)
+                runner.verify_fixture_mount(["docker"], "image", fixture, {}, 5, project)
             self.assertEqual(str(late.exception), "deadline")
 
     def test_http_diagnostic_is_closed_and_survives_every_pipe_split(self):

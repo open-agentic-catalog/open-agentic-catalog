@@ -164,7 +164,7 @@ def functional(*, scope="all"):
         # short private path also stays within Unix-domain socket path limits.
         # Create it after the initial report so setup failure cannot retain an
         # old passing result. Never change the host's desktop runtime path.
-        runtime = tempfile.TemporaryDirectory(prefix="oac-vscode-runtime-")
+        runtime = tempfile.TemporaryDirectory(prefix="oac-")
         stamp = {key: value for key, value in test_stamp.items() if key not in ("go", "go_hash")}
         report["testToolchain"] = {"editor": state, "go": test_stamp.get("go"), "go_hash": test_stamp.get("go_hash")}
         build(stamp, mode="test")
@@ -241,7 +241,7 @@ def screenshots():
         report["package"] = manifest
         report["testToolchain"] = {"editor": state, "go": test_stamp.get("go"), "go_hash": test_stamp.get("go_hash")}
         env = {"CATALOG_VSCODE_HOST": state["host"], "CATALOG_VSCODE_ORAS": state["oras"], "CATALOG_VSCODE_VSIX": str(artifact), "CATALOG_VSCODE_SCREENSHOTS": str(output)}
-        with tempfile.TemporaryDirectory(prefix="capture-", dir=output) as work, tempfile.TemporaryDirectory(prefix="oac-vscode-runtime-") as runtime:
+        with tempfile.TemporaryDirectory(prefix="capture-", dir=output) as work, tempfile.TemporaryDirectory(prefix="oac-") as runtime:
             env["XDG_RUNTIME_DIR"] = runtime
             env["CATALOG_VSCODE_WORKSPACE"] = str(Path(runtime) / "Catalog workshop")
             sdk.qualify_catalog(Path(work), test_stamp, workflow=HERE / "screenshots.mjs", fixture=HERE / "catalog_host_functional_test.go.txt", pattern="^TestVSCodeGuideScreenshots$", timeout="180s", extra_env=env | {"CATALOG_VSCODE_RUN_DIR": work})

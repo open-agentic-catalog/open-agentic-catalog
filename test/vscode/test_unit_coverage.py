@@ -24,7 +24,7 @@ class CoverageUnits(unittest.TestCase):
 
     def test_report_admission_requires_each_selection_and_consistent_unique_coverage(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             _, module, tests, xml, lcov = self.fixture(root)
             invalid = [
                 ("", lcov), ("<broken", lcov), (xml.replace('testsuites', 'unknown'), lcov),
@@ -77,7 +77,7 @@ class CoverageUnits(unittest.TestCase):
     def test_publication_invalidates_previous_success_and_publishes_only_valid_bound_reports(self):
         for failure in (None, 'snapshot', 'inputs', 'process', 'skipped', 'missing', 'source'):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 ext, _, _, xml, lcov = self.fixture(root)
                 destination = root / 'output/vscode/unit-coverage'
                 destination.mkdir(parents=True)

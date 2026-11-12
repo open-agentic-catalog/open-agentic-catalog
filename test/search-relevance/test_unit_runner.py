@@ -81,7 +81,7 @@ class RunnerTests(unittest.TestCase):
         manifest = {"model": "org/model", "revision": "a"*40, "files": {"config.json": hashlib.sha256(content).hexdigest()}, "tei_image": "tei@sha256:fixture", "postgres_image": "pg@sha256:fixture"}
         for failure in (None, "existing", "concurrent", "download"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as temporary:
-                model = Path(temporary) / "model"
+                model = Path(temporary).resolve() / "model"
                 target = model / "config.json"
                 if failure == "existing":
                     model.mkdir()
@@ -182,7 +182,7 @@ class RunnerTests(unittest.TestCase):
         document = dict(docs[0], secret="excluded")
         query = dict(queries[0], rationale="excluded")
         with tempfile.TemporaryDirectory() as temporary, patch.object(runner, "command", side_effect=["", '{"control":{},"public":{}}']) as command:
-            directory = Path(temporary)
+            directory = Path(temporary).resolve()
             self.assertEqual(runner.baseline([document], [query], directory), {"control": {}, "public": {}})
             self.assertEqual(command.call_args_list[0].args[0], ["go", "build", "-o", str(directory / "baseline"), "./test/search-relevance/baseline"])
             payload = json.loads(command.call_args.kwargs["data"])
@@ -212,7 +212,7 @@ class RunnerTests(unittest.TestCase):
             runner.request("http://127.0.0.1:1", "/info")
 
     def test_model_integrity_and_symlinks(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "MODEL", Path(directory)/"model"):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "MODEL", Path(directory).resolve()/"model"):
             runner.MODEL.mkdir()
             path = runner.MODEL/"config.json"
             path.write_text("{}")
@@ -227,7 +227,7 @@ class RunnerTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 runner.verify_model(manifest)
             path.unlink()
-            path.symlink_to(Path(directory)/"outside")
+            path.symlink_to(Path(directory).resolve()/"outside")
             with self.assertRaises(ValueError):
                 runner.verify_model(manifest)
 
@@ -236,7 +236,7 @@ class RunnerTests(unittest.TestCase):
             runner.command(["tool"])
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(ValueError):
-                runner.save(Path(directory)/"bad.json", {"value": float("nan")})
+                runner.save(Path(directory).resolve()/"bad.json", {"value": float("nan")})
 
     def test_changed_inputs_fail_instead_of_mixing_evidence(self):
         report = {"inputs": {"manifest.json": "expected"}, "scorer_inputs": {"internal/catalog/search_profile.go": "expected"}}
@@ -247,15 +247,15 @@ class RunnerTests(unittest.TestCase):
 
     def test_failed_evaluation_retains_report(self):
         manifest, docs, queries = ev.fixtures()
-        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "OUTPUT", Path(directory)), patch.object(runner, "verify_model"), patch.object(runner, "command", return_value="revision"), patch.object(runner, "baseline", side_effect=RuntimeError("bridge failed")), contextlib.redirect_stdout(io.StringIO()):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "OUTPUT", Path(directory).resolve()), patch.object(runner, "verify_model"), patch.object(runner, "command", return_value="revision"), patch.object(runner, "baseline", side_effect=RuntimeError("bridge failed")), contextlib.redirect_stdout(io.StringIO()):
             with self.assertRaisesRegex(RuntimeError, "bridge failed"):
                 runner.evaluate(manifest, docs, queries)
-            paths = list(Path(directory).glob("run-*/report.json"))
+            paths = list(Path(directory).resolve().glob("run-*/report.json"))
             self.assertEqual(len(paths), 1)
             self.assertEqual(json.loads(paths[0].read_text())["status"], "failed")
 
     def test_install_reuses_pins_and_rejects_bad_download(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "MODEL", Path(directory)/"model"), contextlib.redirect_stdout(io.StringIO()):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "MODEL", Path(directory).resolve()/"model"), contextlib.redirect_stdout(io.StringIO()):
             runner.MODEL.mkdir()
             path = runner.MODEL/"config.json"
             path.write_text("{}")
@@ -301,9 +301,9 @@ class RunnerTests(unittest.TestCase):
                 runner.pgvector_parity(manifest, {"pg": "owned"}, [doc], [query], {"d": vec}, {"q": vec}, 0.65, {s: {"q": {"d": 1}} for s in ("control", "public")})
 
     def test_install_rejects_escaping_parent_before_creating_directories(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "MODEL", Path(directory)/"model"):
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "MODEL", Path(directory).resolve()/"model"):
             runner.MODEL.mkdir()
-            outside = Path(directory)/"outside"
+            outside = Path(directory).resolve()/"outside"
             outside.mkdir()
             (runner.MODEL/"link").symlink_to(outside, target_is_directory=True)
             with self.assertRaises(ValueError):

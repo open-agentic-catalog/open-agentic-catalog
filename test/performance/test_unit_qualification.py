@@ -57,12 +57,12 @@ class QualificationTests(unittest.TestCase):
         def expired(_environment):
             handlers[signal.SIGALRM](signal.SIGALRM, None)
         for mode, seconds in [("smoke", 900), ("load", 1800), ("soak", 4800)]:
-            with tempfile.TemporaryDirectory() as temporary, patch.object(runner, "ROOT", Path(temporary)), patch.object(runner, "engine_identity", return_value="engine"), patch.object(runner, "source_identity", side_effect=expired), patch.object(runner, "cleanup") as cleanup, patch.object(runner.signal, "signal", side_effect=install), patch.object(runner.signal, "alarm") as alarm, patch.dict(os.environ, {}, clear=True):
+            with tempfile.TemporaryDirectory() as temporary, patch.object(runner, "ROOT", Path(temporary).resolve()), patch.object(runner, "engine_identity", return_value="engine"), patch.object(runner, "source_identity", side_effect=expired), patch.object(runner, "cleanup") as cleanup, patch.object(runner.signal, "signal", side_effect=install), patch.object(runner.signal, "alarm") as alarm, patch.dict(os.environ, {}, clear=True):
                 with self.assertRaisesRegex(runner.Failure, "incomplete-see-safe-report"):
                     runner.run(mode)
                 cleanup.assert_called_once()
                 self.assertEqual([seconds, 0], [call.args[0] for call in alarm.call_args_list])
-                report = json.loads(next(Path(temporary).rglob("report.json")).read_text())
+                report = json.loads(next(Path(temporary).resolve().rglob("report.json")).read_text())
                 self.assertEqual("incomplete", report["status"])
                 self.assertEqual("passed", report["cleanup"])
                 self.assertEqual("interrupted-or-deadline", report["failure"])

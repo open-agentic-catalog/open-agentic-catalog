@@ -34,7 +34,7 @@ class ReceiverFuzzTests(unittest.TestCase):
 
     def test_exact_receiver_corpus_reuses_bounded_collector(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             name = f.MODULE / "testdata/fuzz" / f.TARGET / "0123456789abcdef"
             data = b'go test fuzz v1\n[]byte("synthetic")\n'
             (root / name).parent.mkdir(parents=True)

@@ -117,13 +117,13 @@ func TestDemoArchiveRuntimeInspection(t *testing.T) {
 	peer := httptest.NewTLSServer(demofixture.Handler())
 	defer peer.Close()
 	bundle := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: peer.Certificate().Raw})
-	path := filepath.Join(t.TempDir(), "archive-ca.pem")
+	path := filepath.Join(canonicalTempDir(t), "archive-ca.pem")
 	if err := os.WriteFile(path, bundle, 0600); err != nil {
 		t.Fatal(err)
 	}
 	cfg := localRuntimeConfig()
 	cfg.Environment = "development"
-	prepared := filepath.Join(t.TempDir(), "prepared")
+	prepared := filepath.Join(canonicalTempDir(t), "prepared")
 	if err := demodata.Prepare(prepared, demodata.DefaultPlan("expanded", peer.URL)); err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestDemoPreparedCustomArchivePolicy(t *testing.T) {
 	plan := demodata.DefaultPlan("expanded", "")
 	plan.Resources = plan.Resources[len(plan.Resources)-1:]
 	plan.Resources[0].Resource.Key = "additional-plugin"
-	directory := filepath.Join(t.TempDir(), "prepared")
+	directory := filepath.Join(canonicalTempDir(t), "prepared")
 	if err := demodata.Prepare(directory, plan); err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestDemoPreparedCustomArchivePolicy(t *testing.T) {
 		demofixture.PreparedHandler(files).ServeHTTP(w, r)
 	}))
 	defer peer.Close()
-	trust := filepath.Join(t.TempDir(), "trust.pem")
+	trust := filepath.Join(canonicalTempDir(t), "trust.pem")
 	if err := os.WriteFile(trust, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: peer.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -218,4 +218,15 @@ func TestDemoPreparedCustomArchivePolicy(t *testing.T) {
 	if _, err := mismatched.Fetch(t.Context(), request); err == nil {
 		t.Fatal("server/allowlist disagreement accepted")
 	}
+}
+
+// canonicalTempDir resolves only a newly allocated, trusted test root. Explicit
+// unsafe paths still reach the production symlink-refusal boundary unchanged.
+func canonicalTempDir(tb testing.TB) string {
+	tb.Helper()
+	directory, err := filepath.EvalSymlinks(tb.TempDir())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return directory
 }

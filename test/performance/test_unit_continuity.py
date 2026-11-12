@@ -87,7 +87,7 @@ class ContinuityTests(unittest.TestCase):
         workload = {"verdict": "passed", "warmup": {"clockAdjustmentMillis": 0},
                     "measured": {"clockAdjustmentMillis": 0, "count": 10, "failed": 0, "elapsedSeconds": 60}}
         with tempfile.TemporaryDirectory() as temporary, ExitStack() as stack:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             (root / "config").mkdir()
             (root / "config/postgres.json").write_text("{}")
             stack.enter_context(patch.dict(os.environ, ({"PERF_SQL_PLANS": "on"} if plans_error else {}) | ({"PERF_SCALE_WORKLOAD": selected_workload} if selected_workload != "standard" else {}), clear=True))

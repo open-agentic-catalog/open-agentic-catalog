@@ -25,7 +25,7 @@ def completed_snapshot(api, source_id, job_id):
     return snapshot
 
 
-def wait_revoked(api, path, seconds=15):
+def wait_revoked(api, path, credential_revision, seconds=15):
     """Wait until the API container sees the renamed credential file.
 
     Engines that share host paths through a VM (for example virtiofs) can show a
@@ -40,6 +40,7 @@ def wait_revoked(api, path, seconds=15):
         result, _ = api.request("POST", path + ":test", {}, (200, 503), request_headers)
         if result.get("code") == "DEPENDENCY_UNAVAILABLE":
             return
+        assert result.get("status") == "succeeded" and result.get("credentialRevision") == credential_revision, "revocation probe returned an unexpected source-test result"
         assert time.monotonic() < deadline, "revoked binding stayed readable"
         time.sleep(0.25)
 
@@ -89,7 +90,7 @@ def run():
         revoked = metadata_path.with_suffix(".revoked")
         metadata_path.replace(revoked)
         try:
-            wait_revoked(owned.api, path)
+            wait_revoked(owned.api, path, "two")
             _, headers = owned.api.request("GET", path)
             result, _ = mutate(owned.api, "POST", path + ":test", {}, 503, header(headers, "ETag"))
             assert result["code"] == "DEPENDENCY_UNAVAILABLE", "revoked binding did not fail closed"

@@ -128,7 +128,7 @@ class PerformanceOwnership(unittest.TestCase):
             if path.name == "report.json":
                 raise OSError("simulated-full-disk")
             original(path, value)
-        with tempfile.TemporaryDirectory() as temporary, patch.object(runner, "ROOT", Path(temporary)), patch.object(runner, "engine_identity", return_value="engine"), patch.object(runner, "source_identity", side_effect=runner.Failure("source-failure")), patch.object(runner, "cleanup") as cleanup, patch.object(runner.local.safety, "write_document", side_effect=write), patch.dict(os.environ, {}, clear=True):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(runner, "ROOT", Path(temporary).resolve()), patch.object(runner, "engine_identity", return_value="engine"), patch.object(runner, "source_identity", side_effect=runner.Failure("source-failure")), patch.object(runner, "cleanup") as cleanup, patch.object(runner.local.safety, "write_document", side_effect=write), patch.dict(os.environ, {}, clear=True):
             with self.assertRaises(OSError):
                 runner.run("smoke")
             cleanup.assert_called_once()

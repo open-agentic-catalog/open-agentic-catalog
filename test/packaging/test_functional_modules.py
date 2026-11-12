@@ -11,8 +11,8 @@ import modules
 class ModuleSourceTests(unittest.TestCase):
     def test_current_source_includes_edits_and_new_files_but_not_ignored_outputs(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory) / "source"
-            target = Path(directory) / "stage"
+            root = Path(directory).resolve() / "source"
+            target = Path(directory).resolve() / "stage"
             root.mkdir()
             subprocess.run(["git", "init", "--quiet", str(root)], check=True)
             (root / ".gitignore").write_text("output/\nnode_modules/\n.env\n")

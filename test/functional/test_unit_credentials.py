@@ -6,6 +6,52 @@ from unittest import mock
 import credentials
 
 
+class CredentialRevocationTests(unittest.TestCase):
+    def test_waits_only_for_successful_reads_of_the_previous_binding(self):
+        for delays in (0, 2):
+            with self.subTest(delays=delays):
+                replies, etags, keys = [], [], []
+                for index in range(delays + 1):
+                    etag, key = f'"rev-{index + 1}"', f"attempt-{index + 1}"
+                    etags.append(etag)
+                    keys.append(key)
+                    result = {"status": "succeeded", "credentialRevision": "two"} if index < delays else {"code": "DEPENDENCY_UNAVAILABLE"}
+                    replies.extend([({}, {"ETag": etag}), (result, {})])
+                api = mock.Mock()
+                api.request.side_effect = replies
+                with mock.patch.object(credentials, "key", side_effect=keys), \
+                        mock.patch.object(credentials.time, "monotonic", return_value=0), \
+                        mock.patch.object(credentials.time, "sleep") as sleep:
+                    credentials.wait_revoked(api, "/source", "two")
+                posts = [c for c in api.request.call_args_list if c.args[0] == "POST"]
+                self.assertEqual(posts, [mock.call("POST", "/source:test", {}, (200, 503), {"Idempotency-Key": key, "If-Match": etag})
+                                         for key, etag in zip(keys, etags, strict=True)])
+                self.assertEqual(api.request.call_count, 2 * (delays + 1))
+                self.assertEqual(sleep.call_count, delays)
+
+    def test_unexpected_result_or_uncertain_command_outcome_is_not_retried(self):
+        for result in ({"status": "failed"}, {"status": "succeeded", "credentialRevision": "one"},
+                       {"code": "OTHER"}, RuntimeError("synthetic transport failure")):
+            with self.subTest(result=result):
+                api = mock.Mock()
+                api.request.side_effect = [({}, {"ETag": '"rev-1"'}), result if isinstance(result, Exception) else (result, {})]
+                with mock.patch.object(credentials.time, "sleep") as sleep:
+                    with self.assertRaises((AssertionError, RuntimeError)):
+                        credentials.wait_revoked(api, "/source", "two")
+                self.assertEqual(api.request.call_count, 2)
+                sleep.assert_not_called()
+
+    def test_readable_binding_at_the_deadline_fails_without_sleeping(self):
+        api = mock.Mock()
+        api.request.side_effect = [({}, {"ETag": '"rev-1"'}), ({"status": "succeeded", "credentialRevision": "two"}, {})]
+        with mock.patch.object(credentials.time, "monotonic", side_effect=[0, 16]), \
+                mock.patch.object(credentials.time, "sleep") as sleep:
+            with self.assertRaisesRegex(AssertionError, "revoked binding stayed readable"):
+                credentials.wait_revoked(api, "/source", "two")
+        self.assertEqual(api.request.call_count, 2)
+        sleep.assert_not_called()
+
+
 class CredentialSnapshotTests(unittest.TestCase):
     def test_completed_job_selects_exact_snapshot_despite_tied_history(self):
         # Clock clamping can produce equal timestamps; UUID tie-break order is

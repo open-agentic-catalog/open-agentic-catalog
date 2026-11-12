@@ -32,7 +32,7 @@ func configuredDemoRuntime(t *testing.T) (*platformruntime.Runtime, *httptest.Se
 }
 func configuredDemoRuntimeWithPeerControl(t *testing.T, fault *atomic.Int32) (*platformruntime.Runtime, *httptest.Server, string, string, *atomic.Int64) {
 	t.Helper()
-	dir := filepath.Join(t.TempDir(), "archives")
+	dir := filepath.Join(canonicalTempDir(t), "archives")
 	peer := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if fault != nil && fault.Load() != 0 {
 			if fault.Load() == 1 {
@@ -51,7 +51,7 @@ func configuredDemoRuntimeWithPeerControl(t *testing.T, fault *atomic.Int32) (*p
 		demofixture.PreparedHandler(files).ServeHTTP(w, r)
 	}))
 	t.Cleanup(peer.Close)
-	trust := filepath.Join(t.TempDir(), "trust.pem")
+	trust := filepath.Join(canonicalTempDir(t), "trust.pem")
 	if err := os.WriteFile(trust, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: peer.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestConfiguredDemoCuratedAndLegacyAdoption(t *testing.T) {
 	for _, legacy := range []string{"", "minimal", "expanded"} {
 		t.Run("from-"+legacy, func(t *testing.T) {
 			_, server, origin, trust, writes := configuredDemoRuntime(t)
-			path := filepath.Join(t.TempDir(), "receipt.json")
+			path := filepath.Join(canonicalTempDir(t), "receipt.json")
 			plan, e := demodata.Load("", "curated", origin)
 			if e != nil {
 				t.Fatal(e)
@@ -151,7 +151,7 @@ func TestConfiguredDemoCuratedAndLegacyAdoption(t *testing.T) {
 }
 func TestConfiguredDemoInvalidAndAppendOnlyInputs(t *testing.T) {
 	_, server, origin, trust, writes := configuredDemoRuntime(t)
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	plan, e := demodata.Load("", "curated", origin)
 	if e != nil {
 		t.Fatal(e)
@@ -174,7 +174,7 @@ func TestConfiguredDemoInvalidAndAppendOnlyInputs(t *testing.T) {
 			t.Fatal("unsafe change accepted", fault, e)
 		}
 	}
-	custom := filepath.Join(t.TempDir(), "catalog.yaml")
+	custom := filepath.Join(canonicalTempDir(t), "catalog.yaml")
 	if e = os.WriteFile(custom, []byte("format: 1\nformat: 1\n"), 0600); e != nil {
 		t.Fatal(e)
 	}
@@ -215,7 +215,7 @@ func TestConfiguredDemoInterruptedGovernance(t *testing.T) {
 				_, _ = w.Write(capture.Body.Bytes())
 			}))
 			defer server.Close()
-			path := filepath.Join(t.TempDir(), "receipt.json")
+			path := filepath.Join(canonicalTempDir(t), "receipt.json")
 			old, err := executeExpandedDemo(t.Context(), server.URL, path, origin, false)
 			if err != nil {
 				t.Fatal(err)
@@ -253,7 +253,7 @@ func TestConfiguredDemoInterruptedGovernance(t *testing.T) {
 func copyConfiguredSampleManifest(t *testing.T) string {
 	t.Helper()
 	// Copy the complete checked-in asset tree once. No network acquisition.
-	directory := t.TempDir()
+	directory := canonicalTempDir(t)
 	if err := fs.WalkDir(samples.Files, ".", func(name string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -293,7 +293,7 @@ func decodeConfiguredSampleManifest(t *testing.T, raw []byte) demodata.Manifest 
 func TestConfiguredDemoCustomFileAndAdditiveParents(t *testing.T) {
 	_, server, origin, trust, writes := configuredDemoRuntime(t)
 	file := copyConfiguredSampleManifest(t)
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	plan, err := demodata.Load(file, "curated", origin)
 	if err != nil {
 		t.Fatal(err)
@@ -399,7 +399,7 @@ func TestConfiguredDemoOwnedCompose(t *testing.T) {
 
 func TestConfiguredDemoCompletedJournalCleanupAndCollision(t *testing.T) {
 	runtime, _, origin, trust, _ := configuredDemoRuntime(t)
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	var completed []byte
 	var writes atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -437,7 +437,7 @@ func TestConfiguredDemoCompletedJournalCleanupAndCollision(t *testing.T) {
 		t.Fatal("complete journal not removed")
 	}
 	// A missing receipt is not permission to adopt colliding API records.
-	if _, err = executeConfiguredDemo(t.Context(), server.URL, filepath.Join(t.TempDir(), "another.json"), origin, trust, false, plan); err == nil || writes.Load() != before {
+	if _, err = executeConfiguredDemo(t.Context(), server.URL, filepath.Join(canonicalTempDir(t), "another.json"), origin, trust, false, plan); err == nil || writes.Load() != before {
 		t.Fatal("unowned collision caused writes", err)
 	}
 	lock, err := lockDemoState(path)
@@ -464,7 +464,7 @@ func TestConfiguredDemoArchiveFailureBoundaries(t *testing.T) {
 		runtime.HTTP.Handler().ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	plan, err := demodata.Load("", "curated", origin)
 	if err != nil {
 		t.Fatal(err)
@@ -518,7 +518,7 @@ func TestConfiguredDemoArchiveFailureBoundaries(t *testing.T) {
 
 func TestConfiguredDemoPreservesUnrelatedRelease(t *testing.T) {
 	_, server, origin, trust, _ := configuredDemoRuntime(t)
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	plan, err := demodata.Load("", "curated", origin)
 	if err != nil {
 		t.Fatal(err)
@@ -576,14 +576,14 @@ func TestConfiguredDemoIdentityPreflight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = executeConfiguredDemo(t.Context(), server.URL, filepath.Join(t.TempDir(), "receipt.json"), origin, trust, false, plan); err == nil || writes.Load() != 0 {
+	if _, err = executeConfiguredDemo(t.Context(), server.URL, filepath.Join(canonicalTempDir(t), "receipt.json"), origin, trust, false, plan); err == nil || writes.Load() != 0 {
 		t.Fatal("missing Reader role caused mutation", err)
 	}
 }
 
 func TestConfiguredDemoFirstPluginOrigin(t *testing.T) {
 	_, server, origin, trust, writes := configuredDemoRuntime(t)
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	unusedOrigin := "https://127.0.0.1:1"
 	minimal, err := demodata.Load("", "minimal", unusedOrigin)
 	if err != nil {
@@ -649,7 +649,7 @@ func TestConfiguredDemoNonPublicSkillPackages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	result, err := executeConfiguredDemo(t.Context(), server.URL, path, origin, trust, false, plan)
 	if err != nil || len(result.Items) != 14 {
 		t.Fatal("non-public package load failed", err)

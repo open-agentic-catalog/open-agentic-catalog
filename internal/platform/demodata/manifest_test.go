@@ -378,7 +378,7 @@ func TestAssetAndPackageBoundaries(t *testing.T) {
 }
 func TestPreparedPublicationIsAtomicAndImmutable(t *testing.T) {
 	plan := DefaultPlan("expanded", "https://127.0.0.1:18443")
-	dir := filepath.Join(t.TempDir(), "prepared")
+	dir := filepath.Join(canonicalTempDir(t), "prepared")
 	if err := Prepare(dir, plan); err != nil {
 		t.Fatal(err)
 	}
@@ -450,7 +450,7 @@ func TestPreparedPublicationIsAtomicAndImmutable(t *testing.T) {
 	}
 }
 func TestFilesystemSelectionRejectsLinks(t *testing.T) {
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	m, _ := manifestFixture(t)
 	raw := manifestJSON(t, m)
 	if err := os.WriteFile(filepath.Join(dir, "catalog.yaml"), raw, 0600); err != nil {
@@ -464,7 +464,7 @@ func TestFilesystemSelectionRejectsLinks(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "catalog.yaml"), raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	outside := filepath.Join(t.TempDir(), "card.json")
+	outside := filepath.Join(canonicalTempDir(t), "card.json")
 	if err := os.WriteFile(outside, DefaultPlan("minimal", "").Resources[0].Representation.Data, 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -474,7 +474,7 @@ func TestFilesystemSelectionRejectsLinks(t *testing.T) {
 	if _, err := Load(filepath.Join(dir, "catalog.yaml"), "expanded", ""); err == nil {
 		t.Fatal("file link accepted")
 	}
-	alias := filepath.Join(t.TempDir(), "alias")
+	alias := filepath.Join(canonicalTempDir(t), "alias")
 	if err := os.Symlink(dir, alias); err != nil {
 		t.Fatal(err)
 	}
@@ -533,7 +533,7 @@ func TestSkillPackageAndEncodedRequestLimit(t *testing.T) {
 }
 func TestPreviewIsLocalAndBounded(t *testing.T) {
 	plan := DefaultPlan("minimal", "")
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	filename := filepath.Join(dir, "receipt.json")
 	preview, err := PreviewReceipt(plan, filename)
 	if err != nil || preview.Items[0].Disposition != "candidate addition" {
@@ -571,7 +571,7 @@ func TestPreviewIsLocalAndBounded(t *testing.T) {
 
 func TestPreviewReceiptBoundsAndFailurePropagation(t *testing.T) {
 	plan := DefaultPlan("minimal", "")
-	directory := t.TempDir()
+	directory := canonicalTempDir(t)
 	filename := filepath.Join(directory, "receipt.json")
 	for _, count := range []int{MaxResources, MaxResources + 1} {
 		items := make([]map[string]string, 0, count)
@@ -674,8 +674,8 @@ func TestManifestCollectionAndTransportBoundaries(t *testing.T) {
 }
 
 func TestPreparationRejectsAncestorLinksBeforeWrites(t *testing.T) {
-	target := t.TempDir()
-	alias := filepath.Join(t.TempDir(), "alias")
+	target := canonicalTempDir(t)
+	alias := filepath.Join(canonicalTempDir(t), "alias")
 	if err := os.Symlink(target, alias); err != nil {
 		t.Fatal(err)
 	}
@@ -686,11 +686,11 @@ func TestPreparationRejectsAncestorLinksBeforeWrites(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(target, "new-directory")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("unsafe selection created output before rejection")
 	}
-	dir := filepath.Join(t.TempDir(), "prepared")
+	dir := filepath.Join(canonicalTempDir(t), "prepared")
 	if err := Prepare(dir, DefaultPlan("expanded", "")); err != nil {
 		t.Fatal(err)
 	}
-	alias = filepath.Join(t.TempDir(), "prepared-alias")
+	alias = filepath.Join(canonicalTempDir(t), "prepared-alias")
 	if err := os.Symlink(dir, alias); err != nil {
 		t.Fatal(err)
 	}
@@ -703,14 +703,14 @@ func TestPrivateDirectoryRefusesInvalidSelections(t *testing.T) {
 	if PrepareDirectory("") == nil || PrepareDirectory("invalid\x00path") == nil {
 		t.Fatal("invalid directory accepted")
 	}
-	path := filepath.Join(t.TempDir(), "regular-file")
+	path := filepath.Join(canonicalTempDir(t), "regular-file")
 	if err := os.WriteFile(path, []byte("not a directory"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if PrepareDirectory(path) == nil {
 		t.Fatal("file selected as private directory")
 	}
-	directory := filepath.Join(t.TempDir(), "public")
+	directory := filepath.Join(canonicalTempDir(t), "public")
 	// #nosec G301 -- deliberately non-private owned test directory must be refused.
 	if err := os.Mkdir(directory, 0755); err != nil {
 		t.Fatal(err)
@@ -751,12 +751,12 @@ func TestOriginalReceiptPreparesOmittedArchivePaths(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state := filepath.Join(t.TempDir(), "receipt.json")
+	state := filepath.Join(canonicalTempDir(t), "receipt.json")
 	raw := []byte(`{"dataset":"catalog-demo-v2","tenantId":"00000000-0000-7000-8000-000000000001","items":[{"key":"repository-essentials"},{"key":"documentation-toolkit"},{"key":"release-workflow"}]}`)
 	if err = os.WriteFile(state, raw, 0600); err != nil {
 		t.Fatal(err)
 	}
-	dir := filepath.Join(t.TempDir(), "tls-only-directory")
+	dir := filepath.Join(canonicalTempDir(t), "tls-only-directory")
 	if err = PrepareWithReceipt(dir, plan, state, origin); err != nil {
 		t.Fatal(err)
 	}
@@ -785,4 +785,15 @@ func TestOriginalReceiptPreparesOmittedArchivePaths(t *testing.T) {
 			t.Fatal("ambiguous parent accepted", fault)
 		}
 	}
+}
+
+// canonicalTempDir resolves only a newly allocated, trusted test root. Explicit
+// unsafe paths still reach the production symlink-refusal boundary unchanged.
+func canonicalTempDir(tb testing.TB) string {
+	tb.Helper()
+	directory, err := filepath.EvalSymlinks(tb.TempDir())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return directory
 }

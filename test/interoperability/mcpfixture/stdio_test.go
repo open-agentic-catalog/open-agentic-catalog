@@ -73,11 +73,11 @@ func TestStdioPeerHasIndependentVersionAndNoExecutionControls(t *testing.T) {
 
 func TestPrepareStdioConfinesTLSAndUsesExistingSyntheticArchiveData(t *testing.T) {
 	for _, ip := range []string{"127.0.0.1", "8.8.8.8", "::1", "invalid"} {
-		if err := prepareStdio(t.TempDir(), ip); err == nil {
+		if err := prepareStdio(canonicalTempDir(t), ip); err == nil {
 			t.Fatal("accepted unselected address", ip)
 		}
 	}
-	directory := filepath.Join(t.TempDir(), "private")
+	directory := filepath.Join(canonicalTempDir(t), "private")
 	if err := os.Mkdir(directory, 0700); err != nil {
 		t.Fatal(err)
 	}
@@ -96,4 +96,15 @@ func TestPrepareStdioConfinesTLSAndUsesExistingSyntheticArchiveData(t *testing.T
 			}
 		}
 	}
+}
+
+// canonicalTempDir resolves only a newly allocated, trusted test root. Explicit
+// unsafe paths still reach the production symlink-refusal boundary unchanged.
+func canonicalTempDir(tb testing.TB) string {
+	tb.Helper()
+	directory, err := filepath.EvalSymlinks(tb.TempDir())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return directory
 }

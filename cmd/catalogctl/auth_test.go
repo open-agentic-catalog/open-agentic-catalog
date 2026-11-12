@@ -20,7 +20,7 @@ func TestAuthLocalCommandsAndSafeErrors(t *testing.T) {
 			t.Fatal("auth help failed")
 		}
 	}
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	if err := os.Chmod(dir, 0700); err != nil { // #nosec G302 -- Private test directory requires owner traversal.
 		t.Fatal(err)
 	}
@@ -48,7 +48,7 @@ func (authFailedOutput) Write([]byte) (int, error) {
 
 func TestAuthCommandsRejectUnsafeInputsAndOutputWithoutNetwork(t *testing.T) {
 	getenv := func(string) string { return "" }
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	if err := os.Chmod(dir, 0700); err != nil { // #nosec G302 -- Owned private credential fixture.
 		t.Fatal(err)
 	}

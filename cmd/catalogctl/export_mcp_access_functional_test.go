@@ -50,7 +50,7 @@ func TestMCPExportCurrentAccessAndAudit(t *testing.T) {
 	defer runtime.Close()
 	bootstrap := httptest.NewServer(runtime.HTTP.Handler())
 	defer bootstrap.Close()
-	receipt, err := executeDemo(ctx, bootstrap.URL, filepath.Join(t.TempDir(), "receipt.json"))
+	receipt, err := executeDemo(ctx, bootstrap.URL, filepath.Join(canonicalTempDir(t), "receipt.json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestMCPExportCurrentAccessAndAudit(t *testing.T) {
 	}
 	run := func(releaseID, format string, wantSuccess bool, wantCode string) exportManifest {
 		t.Helper()
-		directory := filepath.Join(t.TempDir(), "connection")
+		directory := filepath.Join(canonicalTempDir(t), "connection")
 		var output bytes.Buffer
 		before := acquisition.calls.Load()
 		err := runExport(ctx, []string{"--release-id", releaseID, "--format", format, "--output-dir", directory}, remoteTestEnvironment(server.URL, "local-reader"), &output)

@@ -27,11 +27,11 @@ func expandedDemoRuntime(t *testing.T) (*platformruntime.Runtime, string) {
 	t.Helper()
 	peer := httptest.NewTLSServer(demofixture.Handler())
 	t.Cleanup(peer.Close)
-	trust := filepath.Join(t.TempDir(), "trust.pem")
+	trust := filepath.Join(canonicalTempDir(t), "trust.pem")
 	if err := os.WriteFile(trust, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: peer.Certificate().Raw}), 0600); err != nil {
 		t.Fatal(err)
 	}
-	prepared := filepath.Join(t.TempDir(), "prepared")
+	prepared := filepath.Join(canonicalTempDir(t), "prepared")
 	if err := demodata.Prepare(prepared, demodata.DefaultPlan("expanded", peer.URL)); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +55,7 @@ func TestExpandedDemoFreshExtensionAndRerun(t *testing.T) {
 				runtime.HTTP.Handler().ServeHTTP(w, r)
 			}))
 			defer server.Close()
-			path := filepath.Join(t.TempDir(), "receipt.json")
+			path := filepath.Join(canonicalTempDir(t), "receipt.json")
 			var original demoReport
 			var err error
 			if extend {
@@ -111,7 +111,7 @@ func TestExpandedDemoInterruptedExtension(t *testing.T) {
 				runtime.HTTP.Handler().ServeHTTP(w, r)
 			}))
 			defer server.Close()
-			path := filepath.Join(t.TempDir(), "receipt.json")
+			path := filepath.Join(canonicalTempDir(t), "receipt.json")
 			original, err := executeDemo(t.Context(), server.URL, path)
 			if err != nil {
 				t.Fatal(err)
@@ -152,7 +152,7 @@ func TestExpandedDemoRefusesDriftCollisionAndMissingReceipt(t *testing.T) {
 				runtime.HTTP.Handler().ServeHTTP(w, r)
 			}))
 			defer server.Close()
-			path := filepath.Join(t.TempDir(), "receipt.json")
+			path := filepath.Join(canonicalTempDir(t), "receipt.json")
 			old, err := executeDemo(t.Context(), server.URL, path)
 			if err != nil {
 				t.Fatal(err)
@@ -178,7 +178,7 @@ func TestExpandedDemoRefusesDriftCollisionAndMissingReceipt(t *testing.T) {
 			case "missing receipt":
 				err = os.Remove(path)
 			case "nonempty fresh":
-				path = filepath.Join(t.TempDir(), "fresh.json")
+				path = filepath.Join(canonicalTempDir(t), "fresh.json")
 			}
 			if err != nil {
 				t.Fatal(err)
@@ -196,7 +196,7 @@ func TestExpandedDemoPreservesUnrelatedPublishedRelease(t *testing.T) {
 	runtime, origin := expandedDemoRuntime(t)
 	server := httptest.NewServer(runtime.HTTP.Handler())
 	defer server.Close()
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	original, err := executeDemo(t.Context(), server.URL, path)
 	if err != nil {
 		t.Fatal(err)
@@ -293,7 +293,7 @@ func TestExpandedDemoFreshRecoveryWithoutCommandReplay(t *testing.T) {
 				runtime.HTTP.Handler().ServeHTTP(w, r)
 			}))
 			defer server.Close()
-			path := filepath.Join(t.TempDir(), "receipt.json")
+			path := filepath.Join(canonicalTempDir(t), "receipt.json")
 			if _, err := executeExpandedDemo(t.Context(), server.URL, path, origin, false); err == nil || fault.Load() {
 				t.Fatal("fault not selected")
 			}
@@ -325,7 +325,7 @@ func TestExpandedDemoPartialDriftFailsBeforeNewCommands(t *testing.T) {
 		runtime.HTTP.Handler().ServeHTTP(w, r)
 	}))
 	defer server.Close()
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	if _, err := executeExpandedDemo(t.Context(), server.URL, path, origin, false); err == nil {
 		t.Fatal("pause not selected")
 	}
@@ -357,7 +357,7 @@ func TestExpandedDemoOwnedCompose(t *testing.T) {
 	if err != nil || parsed.Scheme != "http" || parsed.Hostname() != "127.0.0.1" || parsed.Path != "" || parsed.RawQuery != "" || parsed.User != nil || parsed.Fragment != "" {
 		t.Fatal("owned loopback origin required")
 	}
-	path := filepath.Join(t.TempDir(), "compose-receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "compose-receipt.json")
 	original, err := executeDemo(t.Context(), baseURL, path)
 	if err != nil {
 		t.Fatal(err)

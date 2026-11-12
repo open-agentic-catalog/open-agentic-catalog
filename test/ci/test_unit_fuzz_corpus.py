@@ -17,7 +17,7 @@ class FuzzCorpusTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="catalog-fuzz-evidence-")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         self.output = self.root / "output/report/fuzz-corpus"
         guard = patch.object(f.subprocess, "run", side_effect=AssertionError("unit started a process"))
         guard.start()

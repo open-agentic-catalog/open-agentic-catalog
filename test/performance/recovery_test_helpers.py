@@ -7,7 +7,7 @@ class SupervisorRecoveryFixture:
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         root = patch.object(runner, "ROOT", self.root)
         root.start()
         self.addCleanup(root.stop)

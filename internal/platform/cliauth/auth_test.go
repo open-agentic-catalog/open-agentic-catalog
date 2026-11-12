@@ -54,7 +54,7 @@ func TestCodeExchangeErrorUsesOnlyFixedDiagnostics(t *testing.T) {
 
 func privateDirectory(t *testing.T) string {
 	t.Helper()
-	path := t.TempDir()
+	path := canonicalTempDir(t)
 	if err := os.Chmod(path, 0700); err != nil { // #nosec G302 -- Private test directory requires owner traversal.
 		t.Fatal(err)
 	}
@@ -442,4 +442,15 @@ func FuzzLoginCallback(f *testing.F) {
 			t.Fatal("callback response disclosed input")
 		}
 	})
+}
+
+// canonicalTempDir resolves only a newly allocated, trusted test root. Explicit
+// unsafe paths still reach the production symlink-refusal boundary unchanged.
+func canonicalTempDir(tb testing.TB) string {
+	tb.Helper()
+	directory, err := filepath.EvalSymlinks(tb.TempDir())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return directory
 }

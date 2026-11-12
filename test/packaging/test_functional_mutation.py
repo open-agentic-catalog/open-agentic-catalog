@@ -18,7 +18,7 @@ from make_test_helpers import ROOT
 class MutationBoundaryTests(unittest.TestCase):
     def test_make_bypasses_env_before_inclusion_and_rejects_mixed_goals(self):
         with tempfile.TemporaryDirectory() as directory:
-            fixture = Path(directory)
+            fixture = Path(directory).resolve()
             marker = fixture / "loaded"
             envfile = fixture / "workflow.env"
             envfile.write_text(f"FAIL := $(shell touch {marker})\n")
@@ -45,7 +45,7 @@ class MutationBoundaryTests(unittest.TestCase):
 
     def test_hook_records_only_executed_assertion_failures(self):
         with tempfile.TemporaryDirectory(prefix="mutation fixture ") as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             (root / "policy.go").write_text("original\n")
             temp = root / "tmp"
             temp.mkdir()
@@ -76,7 +76,7 @@ class MutationBoundaryTests(unittest.TestCase):
 
     def test_make_fixes_exported_selection_and_assertion_settings(self):
         with tempfile.TemporaryDirectory() as directory:
-            stub = Path(directory) / "python"
+            stub = Path(directory).resolve() / "python"
             stub.write_text('#!/usr/bin/env python3\nimport json,os,sys\nprint(json.dumps({k:os.environ.get(k) for k in ["GOFLAGS","GOWORK","PYTHONOPTIMIZE","MUTATION_PACKAGE"]}))\n')
             stub.chmod(0o700)
             result = subprocess.check_output(["make", "--no-print-directory", "test-mutation", "PYTHON=" + str(stub),
@@ -88,7 +88,7 @@ class MutationBoundaryTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "linux", "qualified process group boundary uses Linux /proc")
     def test_outer_deadline_and_cancellation_reap_hook_grandchildren(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             for cancel in (False, True):
                 case = root / str(cancel)
                 case.mkdir()
@@ -139,7 +139,7 @@ class MutationBoundaryTests(unittest.TestCase):
 
     def test_bounds_and_symlink_refusal(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             source = root / "source"
             source.write_text("hello")
             link = root / "link"

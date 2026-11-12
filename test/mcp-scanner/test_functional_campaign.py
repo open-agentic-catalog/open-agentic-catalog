@@ -24,7 +24,7 @@ spec.loader.exec_module(campaign)
 class CampaignProcesses(unittest.TestCase):
     def test_sigterm_records_interruption_and_runs_owned_cleanup(self):
         with tempfile.TemporaryDirectory(prefix="scanner-signal-control-") as raw:
-            directory = Path(raw)
+            directory = Path(raw).resolve()
             script = directory / "signal-control.py"
             script.write_text('''import importlib.util,json,pathlib,sys,time
 spec=importlib.util.spec_from_file_location("signal_campaign",sys.argv[1])
@@ -73,7 +73,7 @@ raise SystemExit(c.main())
 
     def test_compose_renders_one_private_network_without_container_port_publication(self):
         with tempfile.TemporaryDirectory(prefix="scanner-compose-source-") as raw:
-            directory = Path(raw)
+            directory = Path(raw).resolve()
             env = campaign.environment() | {"CATALOG_IMAGE": "owned-fixture:local", "PRIVATE": str(directory),
                 "REPOSITORY": str(campaign.ROOT), "RUN_UID": str(os.getuid()), "RUN_GID": str(os.getgid()),
                 "PG_PASSWORD": "synthetic-local-password", "GATEWAY": "172.29.1.1", "SUBNET": "172.29.1.0/28"}
@@ -262,7 +262,7 @@ raise SystemExit(c.main())
 
     def test_sigterm_during_thread_registration_closes_all_listeners(self):
         with tempfile.TemporaryDirectory(prefix="scanner-relay-start-signal-") as raw:
-            script = Path(raw) / "control.py"
+            script = Path(raw).resolve() / "control.py"
             script.write_text('''import importlib.util,os,signal,socket,sys
 spec=importlib.util.spec_from_file_location("owned_relay",sys.argv[1])
 r=importlib.util.module_from_spec(spec);spec.loader.exec_module(r)
@@ -437,7 +437,7 @@ finally:
 
     def test_actual_fixture_tls_metadata_controls_and_shutdown(self):
         with tempfile.TemporaryDirectory(prefix="scanner-native-fixture-") as raw:
-            directory = Path(raw)
+            directory = Path(raw).resolve()
             go = str(campaign.go_executable())
             env = campaign.environment() | {"GOWORK": "off", "GOTOOLCHAIN": "local", "GOPROXY": "off", "GOSUMDB": "off", "CGO_ENABLED": "0"}
             for output, argv in (("trust", [go, "build", "-mod=readonly", "-o", str(directory / "trust"), "./test/functional/fixture"]),

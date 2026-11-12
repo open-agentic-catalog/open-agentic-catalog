@@ -23,9 +23,9 @@ def snapshot(root):
 
     result = {}
     for directory, children, files in os.walk(root, followlinks=False, onerror=fail):
-        if Path(directory) == root and ".git" in children:
+        if Path(directory).resolve() == root and ".git" in children:
             children.remove(".git")
-        for path in [Path(directory), *(Path(directory) / name for name in children + files)]:
+        for path in [Path(directory).resolve(), *(Path(directory).resolve() / name for name in children + files)]:
             metadata = path.lstat()
             content = os.readlink(path) if stat.S_ISLNK(metadata.st_mode) else path.read_bytes() if stat.S_ISREG(metadata.st_mode) else None
             result[str(path.relative_to(root))] = (stat.S_IMODE(metadata.st_mode), content)
@@ -143,8 +143,8 @@ class CleanTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="catalog-clean-test-")
         self.addCleanup(self.temporary.cleanup)
-        self.addCleanup(restore_fixture_permissions, Path(self.temporary.name))
-        self.root = Path(self.temporary.name) / "checkout"
+        self.addCleanup(restore_fixture_permissions, Path(self.temporary.name).resolve())
+        self.root = Path(self.temporary.name).resolve() / "checkout"
         self.root.mkdir()
         cleaner.git(self.root, "init", "--quiet")
         self.write(".gitignore", "node_modules/\noutput/\nbin/\ncoverage/\n__pycache__/\n")
@@ -378,7 +378,7 @@ class CleanTests(unittest.TestCase):
             path.chmod(0o600)
         self.write("examples/langgraph/.venv/lib/package.py")
         (self.root / "examples/langgraph/.venv/lib64").symlink_to("lib", target_is_directory=True)
-        outside = Path(self.temporary.name) / "outside"
+        outside = Path(self.temporary.name).resolve() / "outside"
         outside.mkdir()
         (outside / "keep").write_text("outside sentinel")
         (outside / "keep").chmod(0o440)
@@ -388,18 +388,18 @@ class CleanTests(unittest.TestCase):
         readonly.chmod(0o444)
         for path in (readonly.parent, readonly.parent.parent):
             path.chmod(0o555)
-        before = snapshot(Path(self.temporary.name))
+        before = snapshot(Path(self.temporary.name).resolve())
         dry = public_make(self.root, "clean-dry-run")
         self.assertEqual(dry.returncode, 0, dry.stderr)
         for name in literal:
             self.assertIn("Would remove " + name, dry.stdout)
-        self.assertEqual(snapshot(Path(self.temporary.name)), before)
+        self.assertEqual(snapshot(Path(self.temporary.name).resolve()), before)
         removed = public_make(self.root, "clean")
         self.assertEqual(removed.returncode, 0, removed.stderr)
         self.assertTrue(all(not (self.root / name).exists() for name in literal))
         for path in retained + [outside, outside / "keep"]:
-            relative = str(path.relative_to(self.temporary.name))
-            self.assertEqual(snapshot(Path(self.temporary.name))[relative], before[relative])
+            relative = str(path.relative_to(self.root.parent))
+            self.assertEqual(snapshot(Path(self.temporary.name).resolve())[relative], before[relative])
         repeated = public_make(self.root, "clean")
         self.assertEqual(repeated.returncode, 0, repeated.stderr)
         self.assertIn("No known build artifacts", repeated.stdout)
@@ -414,13 +414,13 @@ class CleanTests(unittest.TestCase):
         readonly = self.write(".tools/ans/cache/module/source.go", "readonly sentinel").parent
         readonly.chmod(0o555)
         self.write("node_modules/sealed/.git/config", "nested repository sentinel")
-        outside = Path(self.temporary.name) / "outside"
+        outside = Path(self.temporary.name).resolve() / "outside"
         outside.write_text("outside sentinel")
         outside.chmod(0o400)
         for name in ("node_modules", "node_modules/sealed"):
             with self.subTest(path=name):
                 inaccessible = self.root / name
-                before = snapshot(Path(self.temporary.name))
+                before = snapshot(Path(self.temporary.name).resolve())
                 mode = stat.S_IMODE(inaccessible.stat().st_mode)
                 inaccessible.chmod(0)
                 try:
@@ -435,7 +435,7 @@ class CleanTests(unittest.TestCase):
                         self.assertEqual(outside.read_text(), "outside sentinel")
                 finally:
                     inaccessible.chmod(mode)
-                self.assertEqual(snapshot(Path(self.temporary.name)), before)
+                self.assertEqual(snapshot(Path(self.temporary.name).resolve()), before)
         readonly.chmod(0o755)
 
     def test_mount_inventory_decodes_paths_and_fails_closed(self):
@@ -485,7 +485,7 @@ class CleanTests(unittest.TestCase):
         available = subprocess.run([*namespace, "true"], capture_output=True, text=True, timeout=10, check=False)
         if available.returncode != 0:
             self.skipTest("Owned user/mount namespace unavailable: " + available.stderr.strip())
-        result = subprocess.run([*namespace, sys.executable, "-B", __file__, "--qualify-mounts", self.temporary.name],
+        result = subprocess.run([*namespace, sys.executable, "-B", __file__, "--qualify-mounts", str(self.root.parent)],
                                 capture_output=True, text=True, timeout=180, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         facts = json.loads(result.stdout)
@@ -500,7 +500,7 @@ class CleanTests(unittest.TestCase):
             with self.subTest(relative=relative):
                 link = self.root / relative
                 link.parent.mkdir(parents=True, exist_ok=True)
-                outside = Path(self.temporary.name) / "external"
+                outside = Path(self.temporary.name).resolve() / "external"
                 outside.mkdir(exist_ok=True)
                 sentinel = outside / "important"
                 sentinel.write_text("keep")

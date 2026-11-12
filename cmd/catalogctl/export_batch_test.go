@@ -93,7 +93,7 @@ func TestExportSelectionFilesAndIdentity(t *testing.T) {
 		t.Fatal(items, err)
 	}
 	selection := exportSelection{Format: 1, Origin: "https://catalog.invalid", Complete: true, StopReason: "exhausted", Items: append(items, items...)}
-	filename := filepath.Join(t.TempDir(), "selection.json")
+	filename := filepath.Join(canonicalTempDir(t), "selection.json")
 	raw := importTestJSON(t, selection)
 	if err := os.WriteFile(filename, raw, 0600); err != nil {
 		t.Fatal(err)
@@ -150,7 +150,7 @@ func TestExportSelectionFilesAndIdentity(t *testing.T) {
 			t.Fatal("ambiguous/oversized selection accepted")
 		}
 	}
-	link := filepath.Join(t.TempDir(), "symlink")
+	link := filepath.Join(canonicalTempDir(t), "symlink")
 	if err := os.Symlink(filename, link); err != nil {
 		t.Fatal(err)
 	}
@@ -171,7 +171,7 @@ func TestExportSelectionFilesAndIdentity(t *testing.T) {
 
 func TestExportSelectionCompletionAndFileLimit(t *testing.T) {
 	selection := exportSelection{Format: 1, Origin: "https://catalog.invalid", Complete: false, StopReason: "server_partial", Items: []exportSelectionItem{}}
-	filename := filepath.Join(t.TempDir(), "selection.json")
+	filename := filepath.Join(canonicalTempDir(t), "selection.json")
 	raw := importTestJSON(t, selection)
 	// Whitespace keeps the complete input valid JSON, so rejection above the
 	// boundary must come from the file limit rather than a syntax error.
@@ -407,7 +407,7 @@ func TestExportBatchPartialFailureAndSharedDocuments(t *testing.T) {
 				}
 				return exportTestResponse(bytes.ReplaceAll(exportTestRecord(exportTestRepresentation(`{"large":9007199254740993,"decimal":1.200}`)), []byte(exportReleaseID), []byte(id)), 200), nil
 			}))
-			parent, name, err := openExportParent(filepath.Join(t.TempDir(), "batch"))
+			parent, name, err := openExportParent(filepath.Join(canonicalTempDir(t), "batch"))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -462,7 +462,7 @@ func TestExportBatchSelectsEachRepresentation(t *testing.T) {
 		calls++
 		return exportTestResponse(bytes.ReplaceAll(record, []byte(exportReleaseID), []byte(id)), http.StatusOK), nil
 	}))
-	root, err := os.OpenRoot(t.TempDir())
+	root, err := os.OpenRoot(canonicalTempDir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -536,7 +536,7 @@ func TestExportFrozenSelectionRefusesArtifactBeforeDownload(t *testing.T) {
 func TestExportBatchPreflightAndOriginBinding(t *testing.T) {
 	for _, fault := range []string{"selection", "origin", "cancelled", "output", "flags"} {
 		t.Run(fault, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := canonicalTempDir(t)
 			output := filepath.Join(dir, "export")
 			filename := filepath.Join(dir, "selection.json")
 			selection := exportSelection{Format: 1, Origin: "https://other.invalid", Complete: true, StopReason: "exhausted", Items: []exportSelectionItem{{ReleaseID: exportReleaseID}}}
@@ -577,7 +577,7 @@ func TestExportBatchPreflightAndOriginBinding(t *testing.T) {
 func TestExportEmptySelectionUsesOnlyLocalFiles(t *testing.T) {
 	for _, complete := range []bool{true, false} {
 		t.Run(map[bool]string{true: "complete", false: "partial"}[complete], func(t *testing.T) {
-			dir := t.TempDir()
+			dir := canonicalTempDir(t)
 			selection := exportSelection{Format: 1, Origin: "https://catalog.invalid", Complete: complete, StopReason: "exhausted", Items: []exportSelectionItem{}}
 			if !complete {
 				selection.StopReason = "server_partial"
@@ -639,7 +639,7 @@ func TestExportReportByteLimitAndOutputFailure(t *testing.T) {
 	if err := writeExportJSON(&output, value); err != nil || output.Len() != exportSelectionLimit {
 		t.Fatalf("exact report budget refused: %v, bytes %d", err, output.Len())
 	}
-	root, err := os.OpenRoot(t.TempDir())
+	root, err := os.OpenRoot(canonicalTempDir(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -664,7 +664,7 @@ func TestExportReportByteLimitAndOutputFailure(t *testing.T) {
 	if _, err := root.Lstat("batch.json"); !os.IsNotExist(err) {
 		t.Fatal("oversized report published a completion file", err)
 	}
-	closed, err := os.CreateTemp(t.TempDir(), "closed-output")
+	closed, err := os.CreateTemp(canonicalTempDir(t), "closed-output")
 	if err != nil {
 		t.Fatal(err)
 	}

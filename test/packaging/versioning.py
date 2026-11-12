@@ -26,7 +26,7 @@ def environment():
 
 
 def run(arguments, root, *, env=None, report=False):
-    """Run a bounded argv-only tool and retain errors privately unless reviewed as safe."""
+    """Keep tool output private; optionally add a fixed uv installation hint."""
     result = subprocess.run(arguments, cwd=root, env=environment() if env is None else env,
                             capture_output=True, text=True, timeout=120, check=False)
     if result.returncode:
@@ -38,10 +38,10 @@ def run(arguments, root, *, env=None, report=False):
 
 
 def diagnostic(text):
-    """Bound uv's own resolver message: last printable lines, no control characters."""
-    lines = [line.strip() for line in text.splitlines() if line.strip()][-3:]
-    cleaned = " | ".join("".join(c for c in line if c.isprintable()) for line in lines)
-    return cleaned[:400] or "no tool message"
+    """Classify a stale lock without copying paths, URLs or private tool text."""
+    if "The lockfile at " in text and "needs to be updated" in text:
+        return "uv.lock is stale; regenerate it with pinned uv and review the changes"
+    return "uv sync failed; check the selected Python interpreter and locked package availability"
 
 
 def base_version(root):
@@ -95,7 +95,7 @@ def check(root):
     if config["dependency-groups"]["dev"] != expected:
         raise ValueError("shared dev group must match the reviewed exact tool pins")
     if config.get("project") != {"name": "catalog-dev-tools", "version": "0", "requires-python": ">=3.12,<3.15"}:
-        raise ValueError("shared dev project must declare only the supported Python range")
+        raise ValueError("shared dev project must match the reviewed virtual identity and Python range")
     if config["tool"]["uv"]["required-version"] != "==" + UV_VERSION:
         raise ValueError("uv pin differs from the qualified installer")
     if tomllib.loads((root / "ruff.toml").read_text())["required-version"] != "==" + TOOL_PINS["ruff"]:

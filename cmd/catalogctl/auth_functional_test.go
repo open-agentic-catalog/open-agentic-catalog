@@ -20,7 +20,7 @@ import (
 func TestAuthActualCommandStatusLogoutAndNoMutationReplay(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
 	defer cancel()
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	if err := os.Chmod(dir, 0700); err != nil { // #nosec G302 -- Private test directory requires owner traversal.
 		t.Fatal(err)
 	}

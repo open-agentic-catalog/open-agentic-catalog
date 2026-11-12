@@ -87,7 +87,7 @@ func TestExportArgumentsAndSafeHelp(t *testing.T) {
 func TestExportStartupRefusalsLeaveNoOutput(t *testing.T) {
 	for _, failure := range []string{"invalid flags", "invalid origin", "missing token file", "cancelled"} {
 		t.Run(failure, func(t *testing.T) {
-			directory := filepath.Join(t.TempDir(), "export")
+			directory := filepath.Join(canonicalTempDir(t), "export")
 			args := []string{"--release-id", exportReleaseID, "--output-dir", directory}
 			ctx, cancel := context.WithCancel(t.Context())
 			defer cancel()
@@ -99,7 +99,7 @@ func TestExportStartupRefusalsLeaveNoOutput(t *testing.T) {
 			case "invalid origin":
 				origin, want = "https://user:PRIVATE_SENTINEL@catalog.invalid", "--base-url" // #nosec G101 -- synthetic credential proves unsafe origins are rejected without disclosure.
 			case "missing token file":
-				args = append(args, "--token-file", filepath.Join(t.TempDir(), "PRIVATE_SENTINEL"))
+				args = append(args, "--token-file", filepath.Join(canonicalTempDir(t), "PRIVATE_SENTINEL"))
 				want = "token file"
 			case "cancelled":
 				cancel()
@@ -231,7 +231,7 @@ func TestExportReferencesRetainInspectionWithoutFetching(t *testing.T) {
 				t.Fatal("available exact Plugin document lost")
 			}
 		}
-		parent, err := os.OpenRoot(t.TempDir())
+		parent, err := os.OpenRoot(canonicalTempDir(t))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -273,7 +273,7 @@ func TestExportPrivateFilesNoOverwriteAndCleanup(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest.File.Digest, manifest.File.Size = exportChecksum(rep.Data), int64(len(rep.Data))
-	base := t.TempDir()
+	base := canonicalTempDir(t)
 	directory := filepath.Join(base, "selected")
 	parent, name, err := openExportParent(directory)
 	if err != nil {
@@ -333,7 +333,7 @@ func TestExportPrivateFilesNoOverwriteAndCleanup(t *testing.T) {
 }
 
 func TestExportRefusesSymlinksSpecialFilesAndMissingParents(t *testing.T) {
-	base := t.TempDir()
+	base := canonicalTempDir(t)
 	if err := os.Symlink(base, filepath.Join(base, "link")); err != nil {
 		t.Fatal(err)
 	}

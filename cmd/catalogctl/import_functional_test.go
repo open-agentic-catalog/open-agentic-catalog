@@ -24,7 +24,7 @@ import (
 func TestImportPreviewCLIProcess(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	build := exec.CommandContext(ctx, "go", "build", "-mod=readonly", "-o", binary, ".") // #nosec G204,G702 -- fixed build and invocation-owned executable.
 	if raw, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %s %v", raw, err)

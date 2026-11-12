@@ -58,7 +58,7 @@ func writeImportTestFile(t *testing.T, dir, name string, raw []byte, mode os.Fil
 
 func importTestInput(t *testing.T) (string, importManifest) {
 	t.Helper()
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	writeImportTestFile(t, dir, "agent.json", []byte(`{"name":"Private example","framework":"custom","unknown":{"integer":9007199254740993}}`), 0600)
 	manifest, err := decodeImportManifest([]byte(importTestYAML))
 	if err != nil {
@@ -693,7 +693,7 @@ func TestImportAdditionalPreparationGuards(t *testing.T) {
 }
 
 func TestImportDirectoryAndArchiveSafetyGuards(t *testing.T) {
-	dir := t.TempDir()
+	dir := canonicalTempDir(t)
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		t.Fatal(err)
