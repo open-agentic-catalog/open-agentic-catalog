@@ -22,6 +22,8 @@ The separate [local MCP control](mcp/README.md) uses `make mcp-tools-install` fo
 
 The separate [Catalog Control MCP qualification](mcp/README.md#catalog-control-stdio-qualification) uses `make mcp-catalog-tools-install`, then `make test-interoperability-mcp-catalog`. The locked Python SDK checks stdio and HTTP with both selected protocols. Seventeen legacy groups retain current authority and fault/lifecycle controls. Thirteen groups per matrix combination add four-kind local/indexed/live discovery and PostgreSQL replica/restart continuation. All results and owned cleanup must pass. Discovered resources are never executed.
 
+The separate [GitHub Agent Finder Catalog qualification](agentfinder/README.md) uses `make agentfinder-tools-install`, then `make test-interoperability-agentfinder`. It qualifies one-way consumption of the pinned, unaltered `ai-catalog.json` publication (commit `3286bfd843a3831b52a8a72b0ff6f3eb0f730d7f`, 1,718 entries across 5 declared media types) on an owned loopback HTTPS fixture with zero outbound network egress. It verifies native document envelope admission (`ai-catalog-1.0-b062278`), unsupported kind classification, administrative observation retention, and search exclusion.
+
 The OpenARD native List evaluation does not select a maintained target. Its native List returns entries. However, direct Search inspection records no List capability, and indexed enrollment returns HTTP 412. This is not worker synchronization qualification.
 
 ## Run

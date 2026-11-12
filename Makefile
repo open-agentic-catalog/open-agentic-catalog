@@ -128,7 +128,7 @@ $(error Cleanup targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
+ifneq ($(filter adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills agentfinder-tools-install test-interoperability-agentfinder test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error Interoperability targets must run alone)
 endif
@@ -1436,6 +1436,13 @@ skill-tools-install: ## Install the pinned test-only Skill reference reader and 
 
 test-interoperability-skills: ## Verify independent immutable Skill consumption on owned offline fixtures
 	$(PYTHON) -B test/interoperability/skills_runner.py check
+
+.PHONY: agentfinder-tools-install test-interoperability-agentfinder
+agentfinder-tools-install: ## Install and verify the pinned test-only GitHub Agent Finder publication offline
+	$(PYTHON) -B test/interoperability/agentfinder_tools.py install
+
+test-interoperability-agentfinder: ## Qualify one-way consumption of pinned GitHub Agent Finder catalog publication
+	$(PYTHON) -B test/interoperability/agentfinder_runner.py check
 
 .PHONY: adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup
 adk-tools-install: ## Install the locked execution-only Google ADK MCP adapter (downloads allowed)
