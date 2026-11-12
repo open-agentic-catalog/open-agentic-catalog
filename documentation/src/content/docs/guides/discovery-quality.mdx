@@ -1,0 +1,155 @@
+---
+title: Measure discovery quality locally
+---
+
+Use this benchmark to compare lexical Search with optional embedding models. It measures authenticated searches of local Catalog records. It also tests whether a local LangGraph assistant can find, read and recommend suitable records. It does not execute discovered resources.
+
+Run it to compare search configurations on a repeatable workload. The supplied English examples give you a starting point. Evaluate your own reviewed tasks before making a deployment decision.
+
+For production setup, see [hybrid search](../operations/hybrid-search.mdx). For ranking diagnostics without an assistant, see the [offline relevance experiments](../../../../../test/search-relevance/README.md).
+
+## Prepare your machine
+
+Use the repository Go and Python toolchains and a Linux AMD64 Docker engine. Allocate at least 16 GiB of Docker memory and 16 GiB of free disk. Installation downloads several GiB of model files. ARM and emulated inference are outside the supported benchmark setup.
+
+The benchmark starts its own Catalog and PostgreSQL instance. It leaves existing Catalog deployments and data alone. Model servers and Python frameworks are optional test tools; they add no application or SDK runtime dependency.
+
+Run these commands separately from the repository root:
+
+```sh
+make search-relevance-benchmark-check
+make search-relevance-benchmark-install
+```
+
+The first command checks the test data and isolated helper tests. It needs no database or model. The second installs the locked [LangGraph environment](../../../../../examples/langgraph/README.md#install-the-locked-environment), embedding models and local reasoning model. Verified downloads are reused.
+
+Use the pinned uv and Python tools from the [development tools guide](../contributing/build-and-release.md#shared-development-tools). Supply `UV` or `DEV_PYTHON` if those executables are not on your path.
+
+| Search configuration | Dimensions | Model input |
+| --- | --- | --- |
+| Lexical | None | Semantic search disabled. |
+| BGE small English v1.5 | 384 | CLS pooling and the model's query instruction. |
+| MiniLM L6 v2 | 384 | Mean pooling, no prefix, 256-token context. |
+| Granite embedding 278M multilingual | 768 | CLS pooling, no prefix. |
+| Multilingual E5 large | 1,024 | Mean pooling; `query:` for queries and `passage:` for documents, each followed by one space. |
+
+The [model profiles](../../../../../deployments/embeddings/profiles/README.md) pin model files, preprocessing and the TEI server image. The [reasoning model configuration](../../../../../test/langgraph/model.json) pins Qwen2.5 7B and Ollama. These pins let you repeat the comparison with the same model inputs.
+
+## Check the setup
+
+```sh
+make search-relevance-benchmark BENCHMARK_MODE=smoke
+```
+
+This shorter run checks the real Catalog API, database, BGE model and search index. A scripted assistant searches and reads records through the Python SDK. It checks that the setup works; it does not measure reasoning-model quality.
+
+The supplied data contains 160 released records: 40 Agents, 40 MCP Servers, 40 Skills and 40 Plugins. Related records share 40 task families. All records are local and tenant-visible. A reader with access to one namespace performs the searches. Separate access checks cover other namespaces, tenants and unreleased records.
+
+## Compare search and assistant results
+
+```sh
+make search-relevance-benchmark
+```
+
+Allow several hours on a CPU-only machine. The command has a six-hour limit. Each assistant attempt has a 120-second deadline. A stalled model request can time out earlier. Run the comparison without competing build or test workloads. Finish source and test-data changes before starting; changes during measurement invalidate the comparison.
+
+The benchmark first uses 32 tuning questions to select a similarity cutoff for each model. It then compares lexical Search and all four embedding models on 64 different questions. Related questions stay in the same tuning or test group. Test results do not change the selected cutoffs.
+
+The assistant compares lexical Search with up to two models selected during tuning. It runs 16 tasks three times for each configuration, for up to 144 attempts. The reasoning model, prompt, tools and deadlines stay the same. Every attempt starts with a fresh conversation. Failed answers and expired deadlines remain in the totals.
+
+Inference uses downloaded local models. It needs no hosted model account or tracing service. The Docker network uses a normal bridge; it does not enforce network isolation.
+
+The command prints where it saved the results. Use the Markdown summary to compare ranking scores, assistant outcomes, response times and model costs.
+
+## Interpret the scores
+
+Read search quality and assistant quality separately. Search can return a useful record that the assistant overlooks. The assistant can also read a record and still choose it for the wrong task.
+
+- **nDCG@10** measures the relevance and order of the first ten results. Higher values are better; one is the maximum.
+- **Recall@10** measures the fraction of judged matches present in those ten results. Higher values are better.
+- **No-answer errors** count searches that return candidates when the test data contains no suitable match. Lower values are better.
+- **Assistant success** requires a direct match among the recommendations and no unsuitable selections. Each recommendation must refer to a record found and read during that attempt.
+- **Appropriate abstention** requires the assistant to search before concluding that no suitable record exists.
+
+Direct-match tasks have a suitable record. Partial-match tasks have only incomplete alternatives. No-answer tasks have no suitable record. Scores keep these groups separate. Exact-identifier queries check identity lookup and are excluded from relevance scores and API latency comparisons.
+
+Repeated questions and related records are correlated. The uncertainty estimates group results by task family instead of treating every question or repeated attempt as independent. Small synthetic datasets can reveal regressions, but they do not establish quality for every workload.
+
+## Reference comparison
+
+These figures describe the supplied English test data with the pinned models. Each inference service had four CPUs. Embedding memory was limited to 4 GiB; reasoning memory was limited to 8 GiB. Use the comparison to understand the tradeoffs, then repeat it for your workload and hardware.
+
+### Search quality
+
+Each configuration uses the same 64 test questions: 44 direct-match, 12 no-answer, four partial-match and four exact-identifier checks. nDCG and Recall below cover the 44 direct-match questions. Each model uses its own cutoff selected during tuning.
+
+| Search configuration | Cutoff | nDCG@10 | Recall@10 | No-answer errors |
+| --- | --- | --- | --- | --- |
+| Lexical | None | 0.182 | 0.182 | 0/12 |
+| BGE small | 0.75 | 0.484 | 0.472 | 0/12 |
+| MiniLM L6 | 0.55 | 0.572 | 0.551 | 0/12 |
+| Granite 278M | 0.70 | 0.754 | 0.739 | 1/12 |
+| E5 large | 0.85 | 0.452 | 0.455 | 0/12 |
+
+MiniLM gives the best ranking score among models with no added no-answer errors. Its estimated ranking gain over lexical has a 95% family interval of [0.232, 0.537], across 24 task families.
+
+Granite gives the highest average ranking score, but returns a candidate for one task without a suitable match. It therefore fails the benchmark's no-added-errors criterion. Choosing a model from average ranking scores alone would miss this tradeoff.
+
+None of the configurations returned a judged partial match in the first ten results for the four partial-match questions. This remains a limitation even where direct-match scores improve.
+
+### Response time and model cost
+
+| Search configuration | API median / p95, ms | Vector data, KiB | Model memory peak, MiB |
+| --- | --- | --- | --- |
+| Lexical | 12 / 19 | None | None |
+| BGE small | 71 / 148 | 243 | 187 |
+| MiniLM L6 | 76 / 82 | 243 | 124 |
+| Granite 278M | 102 / 107 | 484 | 1,894 |
+| E5 large | 139 / 183 | 645 | 2,745 |
+
+Timing covers 60 serial, non-exact first-page requests per configuration. Vector sizes cover 161 indexed releases, including an access-control test record. They exclude table and index overhead. Memory includes model startup. Expect different timing and memory use on your machine; these figures are not capacity limits.
+
+### Assistant quality
+
+The assistant compares lexical Search with the tuning-selected Granite and MiniLM models. Each configuration has 30 direct-match, 12 no-answer and six partial-match attempts. Qwen2.5 7B uses the same prompt and tools throughout.
+
+| Assistant search | Direct-match success | Appropriate abstention | Deadline reached | Median time, seconds |
+| --- | --- | --- | --- | --- |
+| Lexical | 0/30 | 6/12 | 9/48 | 35.6 |
+| Granite 278M | 9/30 | 6/12 | 10/48 | 39.4 |
+| MiniLM L6 | 6/30 | 6/12 | 9/48 | 36.6 |
+
+In each configuration, six answers skipped the required Search. They did not count as appropriate abstentions. MiniLM also made three wrong selections on direct-match tasks, despite reading the selected records. Reading a record proves that the assistant accessed it. These scores do not assess the factual accuracy of its written explanation.
+
+No configuration made a useful partial-match recommendation. The assistant either abstained, chose an unsuitable record or reached its deadline. All p95 times were approximately 120 seconds. The reasoning server used up to 6.5 GiB of memory.
+
+Granite's discovery-success gain over lexical is 0.30, with a 95% family interval of [0.00, 0.60]. MiniLM's gain is 0.20, with [0.00, 0.50]. Both intervals include zero and use only ten task families. The observed gains need broader testing before drawing a general conclusion. Abstention did not improve.
+
+## Choose a model for your workload
+
+Start by evaluating MiniLM when you want a compact model for English metadata Search. In this comparison, it improves ranking and Recall without added no-answer errors. It uses 384-dimensional vectors and has the smallest observed memory peak.
+
+Consider Granite when ranking gains justify a larger model and further no-answer evaluation. Its stronger ranking score does not meet the no-added-errors criterion here. BGE and E5 also improve fixed-query retrieval, but E5 uses more memory and vector storage while scoring below MiniLM.
+
+Evaluate an assistant separately from Search. Check missed tasks, wrong recommendations, abstention and deadlines. The supplied assistant results show why better retrieval alone is insufficient. Use a separate experiment when changing the assistant's prompt, context or time budget.
+
+English synthetic results do not establish multilingual quality or the actual capabilities of a discovered resource.
+
+## Use your own sample questions
+
+Edit the questions, resource descriptions and relevance judgments in the [fixture generator](../../../../../test/search-relevance/benchmark/generate_fixtures.py). Keep the existing fixture size, resource kinds and tuning/test structure. The maintained benchmark expects 160 records and 96 questions. Keep descriptions short enough to fit every listed model's input limit.
+
+Regenerate the sample files and check them before running another comparison:
+
+```sh
+python3 -B test/search-relevance/benchmark/generate_fixtures.py
+make search-relevance-benchmark-check
+```
+
+Review which records satisfy each question before measuring model results. Keep related questions in one tuning or test group. If earlier test results guide your changes, use fresh test questions for the revised comparison.
+
+## Stop the benchmark
+
+Normal completion and Ctrl-C remove the temporary Catalog, database and model services. Downloaded model files remain available for another run. Existing development deployments and data remain in place.
+
+After a host failure or forced termination, follow the [benchmark cleanup instructions](../../../../../test/search-relevance/benchmark/README.md). They describe how to identify and remove only that benchmark's resources.

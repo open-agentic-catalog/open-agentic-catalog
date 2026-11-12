@@ -146,7 +146,7 @@ $(error SDK targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter langgraph-tools-install test-langgraph-unit test-langgraph test-langgraph-model,$(MAKECMDGOALS)),)
+ifneq ($(filter langgraph-tools-install test-langgraph-unit test-langgraph test-langgraph-model search-relevance-benchmark-check search-relevance-benchmark-install search-relevance-benchmark,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error LangGraph installation and verification targets must run alone)
 endif
@@ -1905,6 +1905,7 @@ compose-check: ## Validate every maintained Compose model without starting conta
 	@CATALOG_FUNCTIONAL_SUFFIX=compose-check CATALOG_FUNCTIONAL_COMMIT=compose-check CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/security/compose.yaml -p open-agentic-catalog-security-check config --quiet
 	@CATALOG_EMBEDDING_IMAGE=open-agentic-catalog:compose-check-embeddings CATALOG_EMBEDDING_MODEL=fixture CATALOG_EMBEDDING_REVISION=fixture CATALOG_EMBEDDING_MODEL_DIRECTORY="$(CURDIR)/test/embeddings" IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 $(COMPOSE) --env-file /dev/null -f compose.yaml -f compose.embeddings.yaml -f test/embeddings/semantic.compose.yaml -f test/embeddings/semantic_restore.compose.yaml --profile semantic-restore -p open-agentic-catalog-semantic-check config --quiet
 	@CATALOG_EMBEDDING_IMAGE=open-agentic-catalog:compose-check-embeddings CATALOG_EMBEDDING_MODEL=fixture CATALOG_EMBEDDING_REVISION=fixture CATALOG_EMBEDDING_MODEL_DIRECTORY="$(CURDIR)/test/embeddings" IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 $(COMPOSE) --env-file /dev/null -f compose.yaml -f compose.embeddings.yaml -f test/embeddings/semantic.compose.yaml -f test/embeddings/semantic_restore.compose.yaml -f test/embeddings/semantic_restored_runtime.compose.yaml --profile semantic-restore -p open-agentic-catalog-semantic-check config --quiet
+	@CATALOG_EMBEDDING_IMAGE=open-agentic-catalog:compose-check-embeddings CATALOG_EMBEDDING_MODEL=fixture CATALOG_EMBEDDING_REVISION=fixture CATALOG_EMBEDDING_MODEL_DIRECTORY="$(CURDIR)/test/embeddings" CATALOG_BENCHMARK_CONFIG="$(CURDIR)/config/postgres.json" CATALOG_BENCHMARK_REASONER_IMAGE=open-agentic-catalog:compose-check-reasoner CATALOG_BENCHMARK_REASONER_CACHE="$(CURDIR)/test/langgraph" CATALOG_BENCHMARK_UID=1001 CATALOG_BENCHMARK_GID=1001 CATALOG_BENCHMARK_EMBEDDING_PORT=18082 CATALOG_BENCHMARK_REASONER_PORT=18083 CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 $(COMPOSE) --env-file /dev/null -f compose.yaml -f compose.embeddings.yaml -f test/embeddings/semantic.compose.yaml -f test/search-relevance/benchmark/runtime.compose.yaml --profile agent -p open-agentic-catalog-quality-check config --quiet
 	@CATALOG_FUNCTIONAL_ARCHIVE_UID=1001 CATALOG_FUNCTIONAL_ARCHIVE_GID=1001 CATALOG_FUNCTIONAL_ARCHIVE_IP=172.31.255.252 IMAGE=open-agentic-catalog:compose-check CATALOG_FUNCTIONAL_PEER_HTTP_PORT=18081 CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/peers.compose.yaml -p open-agentic-catalog-functional-check config --quiet
 	@CATALOG_FUNCTIONAL_ARCHIVE_UID=1001 CATALOG_FUNCTIONAL_ARCHIVE_GID=1001 CATALOG_FUNCTIONAL_ARCHIVE_IP=172.31.255.252 IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/webhooks.compose.yaml -f test/functional/backup_restore.compose.yaml --profile backup-restore -p open-agentic-catalog-functional-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/failover.compose.yaml --profile failover -p open-agentic-catalog-functional-check config --quiet
@@ -2589,7 +2590,7 @@ test-minikube-replicas: helm-check test-minikube-contract ## Test three UI/API/w
 
 .PHONY: embeddings-install embeddings-check test-embeddings test-semantic test-semantic-restore test-semantic-restore-prepare search-relevance-install
 .PHONY: search-relevance-check search-relevance-evaluate search-relevance-compare-install
-.PHONY: search-relevance-compare
+.PHONY: search-relevance-compare search-relevance-benchmark-check search-relevance-benchmark-install search-relevance-benchmark
 
 embeddings-install: ## Acquire one pinned local embedding profile and fixture images explicitly
 	$(PYTHON) test/embeddings/runner.py install --profile "$(EMBEDDING_PROFILE)"
@@ -2623,6 +2624,17 @@ search-relevance-compare-install: ## Acquire pinned BGE/MiniLM inputs for the se
 
 search-relevance-compare: ## Tune BGE/MiniLM then qualify only the frozen winner on fresh held-out queries
 	$(PYTHON) test/search-relevance/comparison.py evaluate
+
+search-relevance-benchmark-check: ## Check campaign inputs and isolated units without services or optional frameworks
+	$(PYTHON) test/search-relevance/benchmark/benchmark.py check
+	$(PYTHON) -m unittest discover -s test/search-relevance -p 'test_unit_*.py'
+
+search-relevance-benchmark-install: ## Download pinned model inputs and images for the benchmark
+	$(PYTHON) test/search-relevance/benchmark/benchmark.py install --uv "$(UV)" --python "$(DEV_PYTHON)"
+
+BENCHMARK_MODE ?= full
+search-relevance-benchmark: ## Run the owned real API/agent campaign (BENCHMARK_MODE=smoke selects tuning controls)
+	examples/langgraph/.venv/bin/python -B test/search-relevance/benchmark/benchmark.py evaluate --mode "$(BENCHMARK_MODE)"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

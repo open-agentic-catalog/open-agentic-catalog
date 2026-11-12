@@ -8,6 +8,8 @@ The original commands below retain the fixed BGE experiment. The separate [two-p
 
 These relevance experiments remain offline and separate from endpoint/runtime qualification. The implemented `make test-embeddings`, `make test-semantic` and `make test-minikube-semantic` cover the production HTTP adapter and enabled Compose/Helm runtime; see [embedding endpoint tests](../embeddings/README.md).
 
+The separate [real API and LangGraph campaign](benchmark/README.md) uses a fresh local-release corpus and explicit `search-relevance-benchmark` targets. Its helper units remain model-free; the live campaign is opt-in.
+
 ## Run
 
 From the repository root:

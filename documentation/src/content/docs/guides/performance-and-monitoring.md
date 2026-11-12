@@ -9,6 +9,7 @@ Choose a tool for the question you need to answer. Run measurements serially on 
 | Question | Command or procedure |
 | --- | --- |
 | Does runtime instrumentation add allocations or CPU work? | `make bench`; compare matched reports with [benchstat](https://pkg.go.dev/golang.org/x/perf/cmd/benchstat). |
+| Does an embedding model improve discovery and recommendations? | Follow the [local discovery-quality campaign](discovery-quality.mdx). |
 | Does Search use the expected SQL reads? | `make test-integration` for exact-role query-count regressions. |
 | Is hydration or query planning expensive? | `make bench-search` or `make bench-search-plans`. |
 | Does a short Search workload remain correct? | `make test-load-smoke`. |

@@ -361,3 +361,7 @@ The scripted check retains its six-minute workflow limit. Only the explicitly se
 You own model-service shutdown and its cache. A scripted-model pass does not establish real-model behavior; require the separate real-model target when you change the model or agent instructions.
 
 Unit coverage belongs to this optional example. It is not backend Go coverage or a measure of model quality. Reports and dependency inventories stay under ignored `output/langgraph/`. Use the [testing guide](../../documentation/src/content/docs/contributing/testing.md#optional-langgraph-discovery-example) for the broader verification strategy.
+
+## Compare retrieval configurations
+
+The optional [discovery-quality campaign](../../documentation/src/content/docs/guides/discovery-quality.mdx) runs this graph against a disposable PostgreSQL-backed Catalog. It compares lexical and pinned embedding configurations with repeated actual-model episodes. Its explicit Make targets, frozen judgments and resource measurements remain separate from this example's unit and functional checks.

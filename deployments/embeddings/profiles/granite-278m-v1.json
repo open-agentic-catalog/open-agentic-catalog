@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "model": "ibm-granite/granite-embedding-278m-multilingual",
+  "revision": "a9cb5338491faf32b73dd17b714a31821c021bbf",
+  "files": {
+    "config.json": "1a0e6b783e85be5265ab4fa3a92b79c0d5fd733617fe3d3264411cf3e5d13c8e",
+    "tokenizer.json": "2a0d7366dd7780ea36cc42431dd74cd79289b783ab01acd33013fcc96865a8e9",
+    "tokenizer_config.json": "0b3223bec744a0e449daf1ece51510681d25c935aaf16373039e836c3d94559e",
+    "special_tokens_map.json": "378eb3bf733eb16e65792d7e3fda5b8a4631387ca04d2015199c4d4f22ae554d",
+    "1_Pooling/config.json": "d81961da36b56f4a1abfbf59a2469e1c49efa04b94a876908c48780894b0b307",
+    "modules.json": "21ddb3037a55ebf4549eb5c1dc44c3f28f10b56ec7f1335c92fd90e5b30d88ac",
+    "sentence_bert_config.json": "ed20daeb5b882c3e1f116ce7b3d53e6643d11063aa9baaa31f5ae91770cfad8f",
+    "sentencepiece.bpe.model": "cfc8146abe2a0488e9e2a0c56de7952f7c11ab059eca145a0a727afce0db2865",
+    "README.md": "5f899714f04d612484d6daeb2c9f9ab93680382ccaa95090643cc691f11c6633",
+    "model.safetensors": "b522423ae15d1a6fd48c55ef4f599c0c2c0737603da94e4b4815760c2c06ebac"
+  },
+  "tei_image": "ghcr.io/huggingface/text-embeddings-inference:cpu-1.9.4@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d",
+  "postgres_image": "pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11",
+  "dimensions": 768,
+  "template": "metadata-v1",
+  "query_prefix": "",
+  "rrf_k": 60,
+  "thresholds": [
+    0.6,
+    0.65,
+    0.7,
+    0.75,
+    0.8,
+    0.85,
+    0.9,
+    0.95,
+    1.01
+  ],
+  "minimum_ndcg_gain": 0.05,
+  "numeric_tolerance": 0.00001,
+  "pooling": "cls",
+  "max_input_length": 512
+}
