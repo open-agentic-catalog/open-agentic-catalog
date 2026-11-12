@@ -1,5 +1,9 @@
 # Independent interoperability qualification
 
+The optional [native ADK MCP qualification](adk/README.md) uses `make adk-tools-install`, then `make test-interoperability-adk`. It discovers Catalog tools and makes deterministic native calls through private HTTPS, without an LLM or Google model credentials. The owned in-memory fixture checks exact release metadata, filters, refusals, current grant revocation, protocol/traffic and cleanup. It does not invoke discovered resources.
+
+Use `make test-interoperability-adk-cleanup` separately to repeat the valid, intentional metadata-failure and actual SIGTERM campaigns with independent cleanup checks. All commands and control code are maintained in the repository; ignored output contains only results and installed tools.
+
 The optional [Pi ARD qualification](pi-ard/README.md) uses an unchanged native Pi/pi-ard session with model networking disabled. Run `make pi-ard-tools-install`, then `make test-interoperability-pi-ard`, separately. The campaign checks actual owned Catalog HTTP, continuation, refusals and declined installation. The startup-only `test-interoperability-pi-ard-prepare` target remains available.
 
 The optional [ARD Explorer check](ard-explorer/README.md) selects unchanged source and confines its native proxy, browser and owned Catalog. Run `make ard-explorer-tools-install`, then `make test-interoperability-ard-explorer`, separately. It tests public Search, filters, continuation, Explore, one List page and separate synthetic HTTP controls. Authentication, `queryContext`, List continuation and full Search-referral Connect behavior retain documented client limits. The startup-only target remains available for focused confinement checks.

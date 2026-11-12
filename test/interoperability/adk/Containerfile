@@ -1,0 +1,13 @@
+# Execution-only native ADK MCP adapter; no model or Catalog runtime dependency.
+FROM python:3.13.17-slim-bookworm@sha256:e32be0e55814a08977501ca863271d9bd02443710db8f2afaf8372e2c4508530
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+WORKDIR /tools
+COPY requirements.txt ./
+RUN pip install --no-cache-dir --only-binary=:all: --require-hashes -r requirements.txt \
+    && pip check \
+    && python -m pip uninstall --yes pip
+COPY ADK-LICENSE MCP-LICENSE /tools/notices/
+ENV GOOGLE_API_USE_CLIENT_CERTIFICATE=false OTEL_SDK_DISABLED=true OTEL_PROPAGATORS=none \
+    OTEL_TRACES_EXPORTER=none OTEL_METRICS_EXPORTER=none OTEL_LOGS_EXPORTER=none
+USER 65532:65532
+ENTRYPOINT ["python", "-B"]

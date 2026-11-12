@@ -253,6 +253,8 @@ Default call limits are 30 seconds, 8 MiB API response, 256 KiB serialized resul
 
 The separate `make test-interoperability-mcp-catalog` target qualifies official Python MCP SDK 2.3.0 with stdio/HTTP and both selected protocols. It retains seventeen legacy authority/fault/lifecycle groups and adds 52 PostgreSQL matrix groups, four API restarts and cleanup.
 
+The separate `make test-interoperability-adk` target qualifies unchanged Google ADK Python 2.13.0/MCP 2.3.0 over private HTTPS with negotiated `2025-11-25`. Thirteen native groups cover tool/schema adaptation, local lexical reads, exact release references, refusals and current grant revocation through one live toolset. Execution uses an owned in-memory Catalog, no LLM or Google model credentials, and independent traffic/cleanup checks. `make test-interoperability-adk-cleanup` repeats a valid campaign, a metadata-mismatch failure and SIGTERM at a fixed checkpoint. The [ADK harness](test/interoperability/adk/README.md) owns acquisition, evidence and limits.
+
 The Catalog MCP HTTP transport provides shared reads, local facets and caller-access pages. It supports Authorization Code/S256 PKCE, private-CA TLS, browser CORS and optional exact-path Helm ingress. Independent-client tests cover both supported protocols and shared-PostgreSQL replica/restart behavior. Live filters include Markdown Skill types. The implementation uses the official MCP SDK without adding a root-service dependency on a generated Catalog SDK.
 
 ## Publication and public discovery
