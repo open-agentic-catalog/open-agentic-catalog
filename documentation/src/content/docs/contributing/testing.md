@@ -618,6 +618,20 @@ The native session uses a scripted local provider with model networking disabled
 
 Run `make test-interoperability-pi-ard` separately for the full local client campaign. It builds current commands offline, publishes six Resources through governed workflows, then dispatches 18 native Pi tool calls. The campaign checks public HTTP, exact continuation, private-read rejection, error handling and declined installation. It compares raw HTTP, server counters, retained records and snapshot bytes. No retained Catalog is contacted, and no resource is installed.
 
+## Native ADK MCP qualification
+
+Run `make adk-tools-install`, then `make test-interoperability-adk`, as separate commands. The [ADK harness](../../../../../test/interoperability/adk/README.md) qualifies native tool discovery, schema adaptation, exact metadata and refusals through the actual local Catalog. Predetermined calls use no LLM, model credentials, embeddings or discovered-resource execution.
+
+Use a non-root Linux account, Python 3.12-3.14, the repository Go compiler and a local Linux Docker engine through a Unix socket. Host and engine architectures must match. Prepare the Go module cache explicitly with `GOTELEMETRY=off go mod download`. Installation also needs the `gh` CLI and package/image registry access. Tests do not acquire missing tools.
+
+The owned private-HTTPS fixture uses an in-memory Catalog and publishes synthetic data through normal governance. A single live native toolset spans reader-grant revocation. Independent HTTP observations bind negotiated protocol and calls, including authentication and certificate failures. All thirteen native groups, process completion and scoped cleanup are required. Source/binary/tool identities and partial failures remain under ignored `output/interoperability/adk/`.
+
+Run `make test-interoperability-adk-cleanup` separately to reproduce the full valid campaign, an intentional expected-metadata mismatch and actual SIGTERM cleanup. The controller pauses at the existing revocation checkpoint, checks precise partial outcomes and independently confirms owned container/private-state absence. No manual scripts or signal timing are needed. Its summary is under `output/interoperability/adk/cleanup-*/report.json`; missing evidence, wrong failures, source/image drift or cleanup uncertainty fail the target.
+
+The cleanup target includes the normal campaign. Expected negative controls have nonzero child exits with `verified=true`, `childSuccess=false` and `cleanup=true`. Require the aggregate command to exit 0 with all three controls verified. The harness documents [report interpretation and cleanup](../../../../../test/interoperability/adk/README.md#reports-and-cleanup), [expected outcomes](../../../../../test/interoperability/adk/README.md#reproduce-failure-and-interruption-cleanup) and [troubleshooting](../../../../../test/interoperability/adk/README.md#troubleshooting). Keep sources unchanged while the campaigns run.
+
+Ordinary Go/Python units and local functional wrappers do not import or execute ADK. The explicit native target remains separate from broader MCP replica/protocol qualification, cloud deployment and LLM reasoning tests. See the harness for installation, dependency review, confinement and current limits.
+
 ## Local A2A interoperability control
 
 Run `make a2a-tools-install`, then `make test-interoperability-a2a`, each alone. This explicit functional qualification uses official Python A2A SDK 1.2.3 with the unchanged upstream Hello World executor, a single-interface HTTPS deployment card and an actual SDK client. It needs a local Linux Docker engine, a non-root developer, Python 3.10+, Make, OpenSSL, the repository Go toolchain and cached modules; `gh` is needed for installation. Installation downloads hash-locked test tools. Execution builds current Catalog commands offline, uses an owned in-memory Catalog and Docker loopback, ignores deployment environment files and needs no prebuilt binaries, database or model.

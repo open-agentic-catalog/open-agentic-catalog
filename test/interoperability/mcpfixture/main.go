@@ -1,4 +1,4 @@
-// Command mcpfixture provides test-only TLS and admission around unmodified Everything.
+// Command mcpfixture provides test-only TLS around unchanged MCP implementations.
 // It forwards MCP bytes; it does not implement an MCP server.
 package main
 
@@ -243,6 +243,8 @@ func main() {
 		err = serveStdio(ctx)
 	case len(os.Args) == 2 && os.Args[1] == "serve-matrix":
 		err = serveStdioMode(ctx, true)
+	case len(os.Args) == 2 && os.Args[1] == "serve-control":
+		err = serveControl(ctx)
 	case len(os.Args) == 2 && os.Args[1] == "probe":
 		err = probe(ctx)
 	case len(os.Args) == 2 && os.Args[1] == "catalog-request":

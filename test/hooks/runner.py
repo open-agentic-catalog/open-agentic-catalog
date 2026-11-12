@@ -31,7 +31,7 @@ MARKDOWN_POLICY = ".markdownlint.json"
 # These selections follow shell-check, python-lint, docs-check and container-check.
 SHELL_FILES = {"test/functional/housekeeping.sh", "test/functional/restore.sh",
                "deployments/container/licenses.sh", "test/hooks/pre-commit"}
-CONTAINER_FILES = {"Containerfile", "test/functional/Containerfile", "catalog-ui/Containerfile",
+CONTAINER_FILES = {"Containerfile", "test/functional/Containerfile", "catalog-ui/Containerfile", "test/interoperability/adk/Containerfile",
                    "test/interoperability/Containerfile", "test/embeddings/Containerfile",
                    *(f"test/interoperability/{name}/Containerfile" for name in
                      ("mcp", "a2a", "skills", "plugins", "agntcy/router", "ans")),

@@ -1,0 +1,4 @@
+# Native ADK MCP adapter; execution-only qualification, without a model.
+google-adk[mcp]==2.13.0
+mcp==2.3.0
+pip==26.2.2
