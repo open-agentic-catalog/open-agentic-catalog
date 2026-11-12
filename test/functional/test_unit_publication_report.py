@@ -1,6 +1,7 @@
 """Reject event/report mismatches without processes, sockets or PostgreSQL."""
 
 import copy
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -13,6 +14,25 @@ from test_unit_webhook_crash import evidence as crash_evidence
 
 
 class PublicationReportTests(unittest.TestCase):
+    def test_report_polling_retries_only_a_missing_file(self):
+        """A missing mount observation must not hide corrupt or unreadable evidence."""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "report.json"
+            self.assertIsNone(report.read_report(path))
+            saved = {"lastSuccessfulObservation": {"label": "Last observed publication state"}}
+            runner.write_document(path, saved)
+            self.assertEqual(report.read_report(path), saved)
+            for raw in (b'{"unfinished":', b'{"duplicate":1,"duplicate":2}', b'[]', b'null',
+                        b' ' * (runner.MAX_DOCUMENT + 1)):
+                with self.subTest(raw=raw[:40]):
+                    path.write_bytes(raw)
+                    with self.assertRaises(runner.Failure):
+                        report.read_report(path)
+            for error in (PermissionError("synthetic refusal"), OSError("synthetic I/O failure")):
+                with self.subTest(error=type(error).__name__), mock.patch.object(report, "read_document", side_effect=error):
+                    with self.assertRaises(type(error)):
+                        report.read_report(path)
+
     def test_receiver_image_must_match_the_catalog_build(self):
         digest = "sha256:" + "a" * 64
         services = ("api", "worker", "postgres", "federation-fixture", "publication-report")
@@ -101,15 +121,31 @@ class PublicationReportTests(unittest.TestCase):
                 runner.webhook_evidence(path)
 
     def test_preparation_keeps_private_inputs_out_of_catalog_mounts(self):
+        """Container modes remain explicit even when the developer uses umask 077."""
+        for mask in (0o022, 0o077):
+            with self.subTest(umask=oct(mask)):
+                previous = os.umask(mask)
+                try:
+                    self.assert_private_preparation()
+                finally:
+                    os.umask(previous)
+
+    def assert_private_preparation(self):
+        """Check mount separation, private file modes and the exact outbound policy."""
         with tempfile.TemporaryDirectory() as directory:
-            fixture = Path(directory)
+            parent = Path(directory)
+            fixture = parent / "fixture"
+            fixture.mkdir(mode=0o755)
+            fixture.chmod(0o755)
             (fixture / "webhooks").mkdir()
             (fixture / "server.pem").write_bytes(b"certificate")
             (fixture / "server-key.pem").write_bytes(b"private TLS key")
+            for name in ("server.pem", "server-key.pem"):
+                (fixture / name).chmod(0o444)
             original = {"privateProfiles": [{"name": "original", "origins": ["https://fixture:8443"]}]}
             runner.write_document(fixture / "webhooks/policy.json", original)
             (fixture / "webhooks/policy.json").chmod(0o444)
-            env = {"CATALOG_FUNCTIONAL_PROFILE": "webhooks", "CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY": directory,
+            env = {"CATALOG_FUNCTIONAL_PROFILE": "webhooks", "CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY": str(fixture),
                    "CATALOG_FUNCTIONAL_SUBNET": "172.31.1.0/28"}
             report.prepare(env)
             policy = runner.read_document(fixture / "webhooks/policy.json")
@@ -119,6 +155,10 @@ class PublicationReportTests(unittest.TestCase):
                 "trustBundleFile": "/config/webhooks/ca.pem", "transportRef": "direct"})
             self.assertEqual((fixture / "publication-report").stat().st_mode & 0o777, 0o755)
             self.assertEqual((fixture / "publication-report-output").stat().st_mode & 0o777, 0o777)
+            self.assertEqual(parent.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(fixture.stat().st_mode & 0o777, 0o755)
+            for name in ("server.pem", "server-key.pem"):
+                self.assertEqual((fixture / name).stat().st_mode & 0o777, 0o444)
             for name in ("server.pem", "server-key.pem", "catalog-token"):
                 self.assertEqual((fixture / "publication-report" / name).stat().st_mode & 0o777, 0o600)
                 self.assertFalse((fixture / "webhooks" / name).exists())

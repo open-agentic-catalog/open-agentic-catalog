@@ -14,6 +14,39 @@ from make_test_helpers import ROOT
 
 
 class MakeScopeTests(helpers.MakeScopeTestsFixture, unittest.TestCase):
+    def test_container_fixture_builds_override_the_host_operating_system(self):
+        """Execute the real recipes with a compiler double for both container CPUs."""
+        source = (ROOT / "Makefile").read_text().splitlines()
+        recipes = []
+        for output in ('"$$fixture_directory/demo-archives"', '"$$fixture_directory/publication-report/receiver"'):
+            selected = [line.strip().removesuffix("\\").rstrip() for line in source if "$(GO)" in line and " -o " + output in line]
+            self.assertEqual(len(selected), 1)
+            recipes.append(selected[0])
+        with tempfile.TemporaryDirectory(prefix="catalog-linux-fixtures-") as directory:
+            root = Path(directory)
+            (root / "go.py").write_text('''import json, os, sys
+with open("builds.jsonl", "a") as output:
+ output.write(json.dumps({"args": sys.argv[1:], "os": os.getenv("GOOS"), "arch": os.getenv("GOARCH"), "cgo": os.getenv("CGO_ENABLED")}) + "\\n")
+''')
+            makefile = "GO := " + shlex.quote(sys.executable) + " go.py\nprobe:\n"
+            for recipe in recipes:
+                makefile += "\t@set -eu; fixture_directory='fixture inputs'; peer_overlay=selected; backup_overlay=; " + recipe + "\n"
+            (root / "Makefile").write_text(makefile)
+            environment = {key: value for key, value in os.environ.items() if key not in {"MAKEFLAGS", "MFLAGS"}}
+            environment.update(GOOS="darwin", GOARCH="host-value", CGO_ENABLED="1")
+            for architecture in ("amd64", "arm64"):
+                with self.subTest(architecture=architecture):
+                    (root / "builds.jsonl").unlink(missing_ok=True)
+                    result = subprocess.run(["make", "--no-print-directory", "probe", "HOST_GOARCH=" + architecture],
+                                            cwd=root, env=environment, capture_output=True, text=True, timeout=10, check=False)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    builds = [json.loads(line) for line in (root / "builds.jsonl").read_text().splitlines()]
+                    self.assertEqual(len(builds), 2)
+                    for build in builds:
+                        self.assertEqual((build["os"], build["arch"], build["cgo"]), ("linux", architecture, "0"))
+                    for build, output in zip(builds, ("fixture inputs/demo-archives", "fixture inputs/publication-report/receiver"), strict=True):
+                        self.assertEqual(build["args"][build["args"].index("-o") + 1], output)
+
     def test_functional_curl_gate_checks_the_active_backend_only(self):
         source = (ROOT / "Makefile").read_text()
         gate = next(line.strip().removesuffix("\\").rstrip() for line in source.splitlines()
