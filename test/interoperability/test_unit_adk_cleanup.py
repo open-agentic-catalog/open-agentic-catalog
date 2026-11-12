@@ -80,12 +80,13 @@ class CleanupContractTests(unittest.TestCase):
 
     def test_child_report_location_is_bounded_and_unambiguous(self):
         """Never discover or act on a different concurrent invocation's report."""
-        with tempfile.TemporaryDirectory(dir=cleanup.native.ROOT / "output") as temporary:
-            root = Path(temporary)
-            owned = root / "children"
-            advertised = (owned / "run-abc_123").relative_to(cleanup.native.ROOT)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            owned = root / "output/interoperability/adk"
+            advertised = (owned / "run-abc_123").relative_to(root)
             log = root / "child.log"
-            with patch.object(cleanup.native.tools, "OUTPUT", owned):
+            with patch.object(cleanup.native, "ROOT", root), patch.object(cleanup.native.tools, "OUTPUT", owned):
+                self.assertFalse((root / "output").exists())
                 log.write_text("startup\n")
                 self.assertIsNone(cleanup.report_from_log(log))
                 log.write_text("ADK report: " + str(advertised) + "\n")
@@ -94,6 +95,7 @@ class CleanupContractTests(unittest.TestCase):
                     log.write_text(text)
                     with self.assertRaises(AssertionError):
                         cleanup.report_from_log(log)
+                self.assertFalse((root / "output").exists())
 
     def test_cleanup_requires_exact_absence_and_preserves_unrelated_names(self):
         """Only the registered three-name family is inspected; residue is a failure."""
