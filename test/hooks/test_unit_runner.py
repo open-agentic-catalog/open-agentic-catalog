@@ -19,13 +19,17 @@ class StagedSelectionTests(unittest.TestCase):
         expected = {
             "test/a.py": "ruff", "extensions/vscode/tooling/a.py": "ruff",
             "examples/langgraph/app.py": "ruff", "examples/tutorials/local-oidc/service-read.py": "ruff",
+            "examples/mcp-scanner/worker.py": "ruff",
             "test/hooks/pre-commit": "shellcheck", "test/functional/restore.sh": "shellcheck",
-            "deployments/container/licenses.sh": "shellcheck",
+            "test/functional/pitr_archive.sh": "shellcheck", "deployments/container/licenses.sh": "shellcheck",
             "README.md": "markdownlint", "todo/with [brackets]\nand spaces.md": "markdownlint",
             "documentation/src/content/docs/index.mdx": "markdownlint",
             "internal/adapter/testdata/upstream/README.md": "markdownlint",
             "internal/adapter/testdata/upstream/other/README.md": "markdownlint",
             "Containerfile": "hadolint", "test/interoperability/gateway/Containerfile.auth": "hadolint", "test/interoperability/adk/Containerfile": "hadolint",
+            "test/ci/Containerfile.act": "hadolint", "test/mcp-scanner/Containerfile": "hadolint",
+            "examples/tutorials/local-oidc/Containerfile": "hadolint",
+            "test/interoperability/mcp/catalog/Containerfile": "hadolint",
             ".github/workflows/check.yml": "actionlint", ".github/workflows/other.yaml": "actionlint",
         }
         for path, tool in expected.items():
