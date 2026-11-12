@@ -25,13 +25,23 @@ def environment():
             and key not in ("VIRTUAL_ENV", "PYTHONPATH", "PYTHONHOME")}
 
 
-def run(arguments, root, *, env=None):
-    """Run a bounded argv-only tool and retain errors privately."""
+def run(arguments, root, *, env=None, report=False):
+    """Keep tool output private; optionally add a fixed uv installation hint."""
     result = subprocess.run(arguments, cwd=root, env=environment() if env is None else env,
                             capture_output=True, text=True, timeout=120, check=False)
     if result.returncode:
-        raise ValueError("tool command failed; check prerequisites and local repository state")
+        message = "tool command failed; check prerequisites and local repository state"
+        if report:
+            message += ": " + diagnostic(result.stderr)
+        raise ValueError(message)
     return result.stdout.strip()
+
+
+def diagnostic(text):
+    """Classify a stale lock without copying paths, URLs or private tool text."""
+    if "The lockfile at " in text and "needs to be updated" in text:
+        return "uv.lock is stale; regenerate it with pinned uv and review the changes"
+    return "uv sync failed; check the selected Python interpreter and locked package availability"
 
 
 def base_version(root):
@@ -82,8 +92,10 @@ def check(root):
     base = base_version(root)
     config = tomllib.loads((root / "pyproject.toml").read_text())
     expected = [f"{name}=={pin}" for name, pin in TOOL_PINS.items()]
-    if config.get("project") is not None or config["dependency-groups"]["dev"] != expected:
+    if config["dependency-groups"]["dev"] != expected:
         raise ValueError("shared dev group must match the reviewed exact tool pins")
+    if config.get("project") != {"name": "catalog-dev-tools", "version": "0", "requires-python": ">=3.12,<3.15"}:
+        raise ValueError("shared dev project must match the reviewed virtual identity and Python range")
     if config["tool"]["uv"]["required-version"] != "==" + UV_VERSION:
         raise ValueError("uv pin differs from the qualified installer")
     if tomllib.loads((root / "ruff.toml").read_text())["required-version"] != "==" + TOOL_PINS["ruff"]:
@@ -218,7 +230,7 @@ def install(root, uv, python):
     env["UV_PROJECT_ENVIRONMENT"] = str(target)
     cutoff = tomllib.loads((root / "pyproject.toml").read_text())["tool"]["uv"]["exclude-newer"]
     run([uv, "sync", "--no-config", "--project", str(root), "--locked", "--only-group", "dev",
-         "--python", python, "--no-python-downloads", "--no-build", "--exclude-newer", cutoff], root, env=env)
+         "--python", python, "--no-python-downloads", "--no-build", "--exclude-newer", cutoff], root, env=env, report=True)
     verify_tools(target / "bin/python", root)
     print("Shared development tools installed in .tools/dev")
 

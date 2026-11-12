@@ -66,7 +66,7 @@ func TestImportLoginCredentials(t *testing.T) {
 	writeImportDraftTest(t, filename, draft)
 	for _, action := range []string{"apply", "resume"} {
 		t.Run(action, func(t *testing.T) {
-			directory := t.TempDir()
+			directory := canonicalTempDir(t)
 			if err := os.Chmod(directory, 0700); err != nil { // #nosec G302 -- Private synthetic credential directory requires owner-only access.
 				t.Fatal(err)
 			}

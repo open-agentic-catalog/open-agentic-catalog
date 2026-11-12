@@ -60,7 +60,7 @@ class WorkflowAdmissionTests(unittest.TestCase):
     def test_ci_npm_aliases_preserve_node_distribution_and_refuse_existing_commands(self):
         for existing in (False, True):
             with tempfile.TemporaryDirectory() as directory, self.subTest(existing=existing):
-                root = Path(directory)
+                root = Path(directory).resolve()
                 project = root / "documentation"
                 project.mkdir()
                 (project / ".nvmrc").write_text("22.23.4")

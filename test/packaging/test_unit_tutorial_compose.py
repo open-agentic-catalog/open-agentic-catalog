@@ -16,7 +16,7 @@ class TutorialComposeTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="catalog-tutorial-selection-")
         self.addCleanup(self.temporary.cleanup)
-        self.directory = Path(self.temporary.name)
+        self.directory = Path(self.temporary.name).resolve()
         self.path = write_inputs(self.directory)
         self.assertEqual(compose.prepared_inputs(self.directory)[1], inputs(self.directory))
 

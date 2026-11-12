@@ -20,14 +20,14 @@ class RuntimeInputs(unittest.TestCase):
 
     def test_missing_stale_tools_before_credentials(self):
         with tempfile.TemporaryDirectory() as temporary, patch.object(runtimes, 'tools', side_effect=RuntimeError('stale')):
-            path = Path(temporary) / 'inputs'
+            path = Path(temporary).resolve() / 'inputs'
             with self.assertRaises(RuntimeError):
                 runtimes.inputs({'DEMO_RUNTIME_DIR': str(path)}, True, None)
             self.assertFalse(path.exists())
 
     def test_selection_and_stop_without_tools_or_rotation(self):
         with tempfile.TemporaryDirectory() as temporary, patch.object(runtimes, 'tools') as tools:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             state = {'a2aImage': 'sha256:' + 'a'*64, 'mcpImage': 'sha256:' + 'b'*64, 'a2aPort': '21443', 'mcpPort': '21444'}
             (root / 'inputs.json').write_text(json.dumps(state))
             result = runtimes.inputs({'DEMO_RUNTIME_DIR': str(root)}, False, None)
@@ -43,7 +43,7 @@ class RuntimeInputs(unittest.TestCase):
 
     def test_private_directory_and_input_link_rejection(self):
         with tempfile.TemporaryDirectory() as temporary:
-            base = Path(temporary)
+            base = Path(temporary).resolve()
             target = base / 'target'
             link = base / 'link'
             link.symlink_to(target)
@@ -68,7 +68,7 @@ class RuntimeInputs(unittest.TestCase):
 
     def test_linked_state_and_lock_fail_without_write_or_build(self):
         with tempfile.TemporaryDirectory() as temporary, patch.object(runtimes, 'tools', return_value=({}, {}, 'amd64')):
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             state = root / 'inputs.json'
             state.symlink_to(root / 'missing')
             with self.assertRaises(ValueError):

@@ -29,7 +29,7 @@ import (
 // The existing coverage collector owns optional child counters and their cleanup.
 func buildCatalogctlProcessBinary(t *testing.T, ctx context.Context) string {
 	t.Helper()
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	arguments := []string{"build", "-mod=readonly", "-o", binary}
 	if os.Getenv("CATALOG_PROCESS_COVERAGE_DIR") != "" {
 		arguments = append(arguments, "-cover", "-covermode=atomic", "-coverpkg=github.com/open-agentic-catalog/open-agentic-catalog/cmd/catalogctl")
@@ -46,7 +46,7 @@ func buildCatalogctlProcessBinary(t *testing.T, ctx context.Context) string {
 // Only an intentionally hard-killed child uses it directly: that child cannot flush counters.
 func catalogctlProcessBaseEnvironment(t *testing.T) []string {
 	t.Helper()
-	return []string{"PATH=" + os.Getenv("PATH"), "HOME=" + t.TempDir()}
+	return []string{"PATH=" + os.Getenv("PATH"), "HOME=" + canonicalTempDir(t)}
 }
 
 // catalogctlProcessEnvironment adds complete orderly-child evidence to the selected collector.
@@ -189,7 +189,7 @@ func TestCatalogctlProcessContracts(t *testing.T) {
 	binary := buildCatalogctlProcessBinary(t, ctx)
 	t.Run("help and terminal failures", func(t *testing.T) {
 		const sentinel = "PRIVATE_PROCESS_SENTINEL"
-		missing := filepath.Join(t.TempDir(), sentinel, "missing.json")
+		missing := filepath.Join(canonicalTempDir(t), sentinel, "missing.json")
 		for _, test := range []struct {
 			name, prefix, stage string
 			arguments           []string
@@ -380,7 +380,7 @@ func qualifyLoginProcessSignal(t *testing.T, ctx context.Context, binary string)
 		w.WriteHeader(http.StatusUnauthorized)
 	}))
 	defer api.Close()
-	directory := t.TempDir()
+	directory := canonicalTempDir(t)
 	if err := os.Chmod(directory, 0700); err != nil { // #nosec G302 -- Owned private credential fixture.
 		t.Fatal(err)
 	}

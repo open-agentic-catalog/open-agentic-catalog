@@ -31,13 +31,13 @@ import (
 func TestMCPStdioAgainstCatalog(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	build := exec.CommandContext(ctx, "go", "build", "-mod=readonly", "-ldflags=-X main.version=1.2.3-test", "-o", binary, ".") // #nosec G204,G702 -- fixed source and invocation-owned binary.
 	if raw, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %s %v", raw, err)
 	}
 	runtime, server, origin, _, writes := configuredDemoRuntime(t)
-	report, err := executeExpandedDemo(ctx, server.URL, filepath.Join(t.TempDir(), "seed.json"), origin, false)
+	report, err := executeExpandedDemo(ctx, server.URL, filepath.Join(canonicalTempDir(t), "seed.json"), origin, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -276,7 +276,7 @@ func TestMCPStdioAgainstCatalog(t *testing.T) {
 func TestMCPStdioFrameRefusal(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 30*time.Second)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	build := exec.CommandContext(ctx, "go", "build", "-mod=readonly", "-o", binary, ".") // #nosec G204,G702 -- owned compiled command.
 	if raw, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %s %v", raw, err)
@@ -309,7 +309,7 @@ func TestMCPStdioFrameRefusal(t *testing.T) {
 func TestMCPStdioCancellationAndTermination(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	build := exec.CommandContext(ctx, "go", "build", "-mod=readonly", "-o", binary, ".") // #nosec G204,G702 -- owned compiled command.
 	if raw, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %s %v", raw, err)

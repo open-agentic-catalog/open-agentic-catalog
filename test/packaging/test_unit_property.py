@@ -68,7 +68,7 @@ class PropertyTests(unittest.TestCase):
 
     def test_corpus_identity_includes_changes_and_refuses_symlinks(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             self.assertEqual(p.corpus(root, "."), {})
             path = root / "testdata/rapid/TestPropertyExample"
             path.mkdir(parents=True)

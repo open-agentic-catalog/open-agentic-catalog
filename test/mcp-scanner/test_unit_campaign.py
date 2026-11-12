@@ -18,7 +18,7 @@ class CampaignUnits(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="catalog-scanner-unit-")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         patcher = mock.patch.object(campaign, "OUTPUT", self.root)
         patcher.start()
         self.addCleanup(patcher.stop)

@@ -27,7 +27,7 @@ func importDraftTestFile(t *testing.T, listing bool) (string, draftfile.File) {
 	if listing {
 		f.Listing = &draftfile.Listing{DisplayName: "Example", Description: "Example draft", Visibility: catalog.VisibilityPrivate}
 	}
-	return filepath.Join(t.TempDir(), "draft.json"), f
+	return filepath.Join(canonicalTempDir(t), "draft.json"), f
 }
 
 func writeImportDraftTest(t *testing.T, filename string, f draftfile.File) {
@@ -149,7 +149,7 @@ func TestImportDraftIncompleteInputsAndPackageMappings(t *testing.T) {
 			if err != nil || plan.Preview.LocallyValid || len(plan.Preview.Resources[0].Findings) == 0 {
 				t.Fatal("missing inputs were not reported before writes", err)
 			}
-			if _, err := applyImport(t.Context(), plan, remoteOptions{}, filepath.Join(t.TempDir(), "never-created", "state"), false); err == nil {
+			if _, err := applyImport(t.Context(), plan, remoteOptions{}, filepath.Join(canonicalTempDir(t), "never-created", "state"), false); err == nil {
 				t.Fatal("incomplete draft applied")
 			}
 		})
@@ -464,7 +464,7 @@ func TestImportDraftExistingTargetReadFences(t *testing.T) {
 					value[test.field] = json.RawMessage(test.value)
 				}
 			})
-			state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+			state, err := openImportState(filepath.Join(canonicalTempDir(t), "private", "state.json"), false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -529,7 +529,7 @@ func TestImportDraftListingLookupCompletenessAndIdentity(t *testing.T) {
 					page["items"] = importTestJSON(t, items)
 				}
 			})
-			state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+			state, err := openImportState(filepath.Join(canonicalTempDir(t), "private", "state.json"), false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -556,7 +556,7 @@ func TestImportDraftFinitePlansAndResponseLoss(t *testing.T) {
 				plan := importDraftTestPlan(t, mode)
 				api := newImportDraftUnitAPI(t, plan, mode)
 				api.lossKind = loss
-				state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+				state, err := openImportState(filepath.Join(canonicalTempDir(t), "private", "state.json"), false)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -604,7 +604,7 @@ func TestImportDraftPreflightAndBoundResumeRefusals(t *testing.T) {
 					api.permissions = slices.DeleteFunc(api.permissions, func(s string) bool { return s == permission })
 				}
 			}
-			state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+			state, err := openImportState(filepath.Join(canonicalTempDir(t), "private", "state.json"), false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -625,7 +625,7 @@ func TestImportDraftPreflightAndBoundResumeRefusals(t *testing.T) {
 			if fault == "definite failure" {
 				api.loss = "rejected"
 			}
-			state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+			state, err := openImportState(filepath.Join(canonicalTempDir(t), "private", "state.json"), false)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -674,7 +674,7 @@ func TestImportDraftBlockedAcknowledgementsAndReceiptShapes(t *testing.T) {
 		plan := importDraftTestPlan(t, mode)
 		api := newImportDraftUnitAPI(t, plan, mode)
 		api.fault = "blocked"
-		state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+		state, err := openImportState(filepath.Join(canonicalTempDir(t), "private", "state.json"), false)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -716,7 +716,7 @@ func TestImportReceiptFormatsDoNotCrossNativeManifestBoundary(t *testing.T) {
 	shared := importDraftTestPlan(t, "create-listing")
 	native := singleImportTestBatch(shared.Items[0])
 	api := newImportDraftUnitAPI(t, shared, "create-listing")
-	state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+	state, err := openImportState(filepath.Join(canonicalTempDir(t), "private", "state.json"), false)
 	if err != nil {
 		t.Fatal(err)
 	}

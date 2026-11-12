@@ -285,8 +285,17 @@ def validate_search_page_failure(value):
     return value
 
 
+PREFLIGHT_FAILURES = {
+    b"Functional federation fixture did not become ready.": "fixture-readiness-timeout",
+    b"Functional curl cannot verify the fixture certificate.": "curl-tls-unsupported",
+}
+
+
 def readiness_failure_chunk(tail, block):
     """Classify existing shell wait failures without retaining child output."""
+    for message, code in PREFLIGHT_FAILURES.items():
+        if re.search(rb"\n" + re.escape(message) + rb"\r?(?=\n)", tail + block):
+            return code
     match = re.search(rb"\nFunctional (API|worker) (read-only readiness|dependency readiness|readiness) timed out waiting for (?:worker )?HTTP (?:200|503)(?:; last status was [0-9]{3})?\.\r?(?=\n)", tail + block)
     if match is None:
         return None
@@ -652,6 +661,33 @@ def port():
         return listener.getsockname()[1]
 
 
+def verify_fixture_mount(engine, image, fixture, environment, seconds, project):
+    """Prove the engine can read the fixture directory before the stack starts.
+
+    A container engine that runs in a VM shares only some host paths. An
+    unshared bind mount is empty, so later fixture failures give no cause. A
+    probe that cannot run (uncached image, no engine support) is inconclusive.
+    Its invocation label and name keep it within cleanup after a client timeout.
+    """
+    marker = fixture / ".mount-probe"
+    marker.write_text("probe\n", encoding="ascii")
+    try:
+        listing = command(engine + ["run", "--rm", "--pull", "never", "--network", "none",
+                                    "--name", project + "-mount-probe", "--label", "com.docker.compose.project=" + project,
+                                    "--entrypoint", "ls",
+                                    "--volume", str(fixture) + ":/probe:ro", image, "-A", "/probe"],
+                          environment, seconds, capture=True, limit=4096)
+    except Failure as error:
+        if str(error) != "child-failed":
+            raise
+        return False
+    finally:
+        marker.unlink(missing_ok=True)
+    if b".mount-probe" not in listing.split():
+        raise Failure("fixture-directory-not-shared")
+    return True
+
+
 def compose_environment(base, suffix, fixture):
     environment = dict(base)
     index = secrets.randbelow(4096)
@@ -831,7 +867,10 @@ class Runner:
 
     def execute(self):
         deadline = time.monotonic() + RUN_SECONDS
-        self.directory = Path(tempfile.mkdtemp(prefix="open-agentic-catalog-functional-"))
+        # Allocate under the checkout, not the system temporary directory. A
+        # container engine that runs in a VM, such as Colima, shares the home
+        # directory but not the host's per-user temporary directory.
+        self.directory = Path(tempfile.mkdtemp(prefix="open-agentic-catalog-functional-", dir=self.report_path.parent))
         self.fixture = self.directory / "fixture"
         self.fixture.mkdir(mode=0o700)
         self.state = self.directory / "state"
@@ -885,6 +924,9 @@ class Runner:
             self.report["generatedConfigurationDigest"] = digest_files(["test/functional/generated-api.compose.yaml", "test/functional/generated_api.py"])
         write_document(self.report_path, self.report)
         print(f"Functional {self.report['profile']} run {self.report['runId']}; bounded output is not copied into evidence.", flush=True)
+        probe_image = re.search(r"(?m)^\s+image: (pgvector/pgvector:\S+)$", (self.root / "compose.yaml").read_text())
+        if probe_image is not None:
+            verify_fixture_mount(self.engine, probe_image[1], self.fixture, self.environment, min(180, deadline - time.monotonic()), self.project)
         command(self.make + ["--no-print-directory", "test-functional-workflow"] + (["CATALOG_ENV_FILE=/dev/null"] if self.report["profile"] == "pitr-recovery" else []), self.environment, deadline - time.monotonic())
         self.report["servedVersion"] = read_document(self.state / "version.json")
         if self.report["profile"] == "peers":
@@ -985,6 +1027,26 @@ class Runner:
                     command(arguments, self.environment, min(45, deadline - time.monotonic()))
                 except (Failure, OSError):
                     success = False
+            # A timed-out Docker client can leave its daemon-owned probe alive.
+            # Compose does not own this one-off container; remove only its exact
+            # invocation name and project label, then use the checks below.
+            try:
+                probe = command(self.engine + ["container", "ls", "--all", "--quiet", "--no-trunc",
+                                "--filter", "label=com.docker.compose.project=" + self.project,
+                                "--filter", "name=^/" + self.project + "-mount-probe$"],
+                                self.environment, min(10, deadline - time.monotonic()), capture=True).decode().strip()
+                if probe:
+                    if not re.fullmatch(r"[0-9a-f]{64}", probe):
+                        raise Failure("invalid-mount-probe-identity")
+                    try:
+                        command(self.engine + ["container", "rm", "--force", "--volumes", probe], self.environment, min(10, deadline - time.monotonic()))
+                    except Failure as error:
+                        if str(error) != "child-failed":
+                            raise
+                        # An auto-removed probe can disappear after listing.
+                        # The independent label check still requires no residue.
+            except (Failure, OSError, UnicodeError):
+                success = False
             # Compose can exit successfully with profile-scoped resources left
             # behind. Check ownership labels, not just the down exit status.
             for kind in ("container", "volume", "network"):

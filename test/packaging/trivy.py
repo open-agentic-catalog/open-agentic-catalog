@@ -327,7 +327,7 @@ if __name__ == "__main__":
     print("Qualified Trivy " + VERSION)
     try:
         root = Path(__file__).resolve().parents[2]
-        count = scan_development_dependencies(selected, root)
+        count = scan_development_dependencies(selected, root, {"catalog-dev-tools": {"virtual": "."}})
         sdk_count = scan_development_dependencies(selected, root / "test/sdk/python", {
             "catalog-python-sdk-tools": {"virtual": "."},
             "open-agentic-catalog": {"directory": "../../../sdk/python"},

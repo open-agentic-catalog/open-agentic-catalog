@@ -239,7 +239,7 @@ class OutputCleanupTests(unittest.TestCase):
         if available.returncode:
             self.skipTest("Owned user/mount namespace is unavailable")
         result = subprocess.run([*namespace, sys.executable, "-B", fixtures.__file__, "--qualify-output-mounts",
-                                 self.fixture.temporary.name], capture_output=True, text=True, timeout=180, check=False)
+                                 str(self.fixture.root.parent)], capture_output=True, text=True, timeout=180, check=False)
         self.assertEqual(result.returncode, 0, result.stderr)
         facts = json.loads(result.stdout)
         self.assertEqual(facts["sameFilesystemBindCases"], 5)

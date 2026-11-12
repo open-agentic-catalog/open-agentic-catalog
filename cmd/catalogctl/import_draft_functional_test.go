@@ -23,14 +23,14 @@ import (
 func TestImportDraftCLIRealAPI(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	build := exec.CommandContext(ctx, "go", "build", "-mod=readonly", "-o", binary, ".") // #nosec G204,G702 -- fixed source and invocation-owned binary.
 	if raw, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %s %v", raw, err)
 	}
 	fault := &atomic.Int32{}
 	runtime, server, archiveOrigin, _, writes := configuredDemoRuntimeWithPeerControl(t, fault)
-	seed, err := executeExpandedDemo(ctx, server.URL, filepath.Join(t.TempDir(), "seed.json"), archiveOrigin, false)
+	seed, err := executeExpandedDemo(ctx, server.URL, filepath.Join(canonicalTempDir(t), "seed.json"), archiveOrigin, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		if item.Kind == catalog.KindAgent {
 			agent = record
 		}
-		directory := filepath.Join(t.TempDir(), "export")
+		directory := filepath.Join(canonicalTempDir(t), "export")
 		run(true, "export", "--format", "draft", "--version-revision-id", record.VersionRevision.ID, "--listing-revision-id", record.ListingRevision.ID, "--output-dir", directory)
 		filename := filepath.Join(directory, "draft.json")
 		raw, err := os.ReadFile(filename) // #nosec G304 -- fixed file in owned export directory.
@@ -86,7 +86,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		if json.Unmarshal(run(true, "import", "preview", "--file", filename, "--namespace-id", record.Resource.NamespaceID, "--publisher-id", record.ListingRevision.PublisherID), &preview) != nil || !preview.LocallyValid {
 			t.Fatal("four-kind offline preview failed")
 		}
-		state := filepath.Join(t.TempDir(), "private", "state.json")
+		state := filepath.Join(canonicalTempDir(t), "private", "state.json")
 		var outcome importOutcome
 		args := []string{"--file", filename, "--namespace-id", record.Resource.NamespaceID, "--publisher-id", record.ListingRevision.PublisherID, "--state-file", state}
 		if json.Unmarshal(run(true, append([]string{"import", "apply"}, args...)...), &outcome) != nil || outcome.Disposition != "complete" || len(outcome.Items[0].Steps) != 4 {
@@ -111,7 +111,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 			fault.Store(2)
 			file.CanonicalIdentifier = "custom:changed-reusable-plugin"
 			writeImportDraftTest(t, filename, file)
-			failedState := filepath.Join(t.TempDir(), "private", "state.json")
+			failedState := filepath.Join(canonicalTempDir(t), "private", "state.json")
 			var failed importOutcome
 			if json.Unmarshal(run(false, "import", "apply", "--file", filename, "--namespace-id", record.Resource.NamespaceID, "--content-only", "--state-file", failedState), &failed) != nil || len(failed.Items[0].Steps) != 2 || failed.Items[0].Steps[0].State != "acknowledged" || failed.Items[0].Steps[1].State != "failed" {
 				t.Fatal("changed Plugin archive was admitted or lost partial progress")
@@ -131,14 +131,14 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 	}
 	// The reusable file contains only a handoff. Package bytes come from one
 	// confined explicit CLI argument and retain the normal server inspection.
-	packageDir := t.TempDir()
+	packageDir := canonicalTempDir(t)
 	packageFile := filepath.Join(packageDir, "draft.json")
 	handoff := `{"oci":{"reference":"registry.example.com/safe-skill@sha256:` + strings.Repeat("a", 64) + `"}}`
 	packaged := draftfile.File{Format: draftfile.Format, Kind: catalog.KindSkill, CanonicalIdentifier: "custom:reusable-package", Version: "1.0.0", Representations: []draftfile.Representation{{Role: catalog.RepresentationPrimary, MediaType: catalog.SkillPackageMediaZIP, ProfileID: adapter.ProfileAgentSkills, Input: draftfile.Input{Mode: "skill-package", Handoff: &handoff}}}}
 	writeImportDraftTest(t, packageFile, packaged)
 	writeImportTestFile(t, packageDir, "safe-skill/SKILL.md", []byte("---\nname: safe-skill\ndescription: Inspect metadata.\n---\nDo not execute this example.\n"), 0600)
 	writeImportTestFile(t, packageDir, "safe-skill/scripts/run.sh", []byte("#!/bin/sh\nexit 1\n"), 0700)
-	missingState := filepath.Join(t.TempDir(), "private", "state.json")
+	missingState := filepath.Join(canonicalTempDir(t), "private", "state.json")
 	before := writes.Load()
 	run(false, "import", "preview", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID)
 	run(false, "import", "apply", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID, "--state-file", missingState)
@@ -149,7 +149,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		t.Fatal("missing package created a command receipt")
 	}
 	var packageResult importOutcome
-	raw := run(true, "import", "apply", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID, "--package-directory", "1=safe-skill", "--state-file", filepath.Join(t.TempDir(), "private", "state.json"))
+	raw := run(true, "import", "apply", "--file", packageFile, "--namespace-id", agent.Resource.NamespaceID, "--package-directory", "1=safe-skill", "--state-file", filepath.Join(canonicalTempDir(t), "private", "state.json"))
 	if json.Unmarshal(raw, &packageResult) != nil || packageResult.Disposition != "complete" || len(packageResult.Items[0].Steps) != 2 {
 		t.Fatal("separate Skill package import failed")
 	}
@@ -220,7 +220,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		writeImportDraftTest(t, filename, file)
 		// The target's valid 512-character identifier exceeds 768 bytes. It
 		// belongs to the exact read; both real upload bodies fit this limit.
-		args := []string{"--file", filename, "--resource-id", longTarget.ID, "--max-request-bytes", "768", "--state-file", filepath.Join(t.TempDir(), "private", "state.json")}
+		args := []string{"--file", filename, "--resource-id", longTarget.ID, "--max-request-bytes", "768", "--state-file", filepath.Join(canonicalTempDir(t), "private", "state.json")}
 		wantSteps := 1
 		if withListing {
 			wantSteps = 2
@@ -242,7 +242,7 @@ func TestImportDraftCLIRealAPI(t *testing.T) {
 		if otherTenant {
 			token = clientSkillToken(t, "other-tenant-admin")
 		}
-		state := filepath.Join(t.TempDir(), "private", "state.json")
+		state := filepath.Join(canonicalTempDir(t), "private", "state.json")
 		args := []string{"import", "apply", "--file", filename, "--publisher-id", agent.ListingRevision.PublisherID, "--state-file", state}
 		if otherTenant {
 			args = append(args, "--resource-id", agent.Resource.ID)

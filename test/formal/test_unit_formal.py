@@ -66,7 +66,7 @@ class FormalUnitTests(unittest.TestCase):
 
     def test_installer_checks_archive_and_member_hashes_before_publication(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             area = root / formal.AREA
             area.mkdir(parents=True)
             archive = root / "fixture.zip"
@@ -111,14 +111,14 @@ class FormalUnitTests(unittest.TestCase):
         with patch.object(formal.platform, "machine", return_value="aarch64"), self.assertRaises(ValueError):
             formal.host()
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "input"
+            path = Path(directory).resolve() / "input"
             with self.assertRaises(ValueError):
                 formal.read(path)
             path.write_bytes(b"123")
             self.assertEqual(formal.read(path, 3), b"123")
             with self.assertRaises(ValueError):
                 formal.read(path, 2)
-            link = Path(directory) / "link"
+            link = Path(directory).resolve() / "link"
             link.symlink_to(path)
             with self.assertRaises(ValueError):
                 formal.read(link)

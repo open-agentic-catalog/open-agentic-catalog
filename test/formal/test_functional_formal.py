@@ -18,8 +18,8 @@ import run as formal
 class FormalBoundaryTests(unittest.TestCase):
     def test_make_targets_are_explicit_isolated_and_do_not_load_workflow_env(self):
         with tempfile.TemporaryDirectory() as directory:
-            marker = Path(directory) / "loaded"
-            envfile = Path(directory) / "workflow.env"
+            marker = Path(directory).resolve() / "loaded"
+            envfile = Path(directory).resolve() / "workflow.env"
             envfile.write_text(f"SIDE_EFFECT := $(shell touch {marker})\n")
             for goals, success in ((["test-formal"], True), (["formal-tools-install"], True),
                                    (["test-formal", "check"], False), (["formal-tools-install", "test-formal"], False)):
@@ -79,7 +79,7 @@ sys.exit(1)
 
     def test_cli_interruption_kills_owned_child_and_retains_incomplete_report(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             self.fixture(root)
             (root / formal.AREA / "run.py").write_bytes((formal.ROOT / formal.AREA / "run.py").read_bytes())
             common = root / "test/interoperability/common.py"
@@ -111,7 +111,7 @@ sys.exit(1)
 
     def test_installed_execution_and_failed_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             source = self.fixture(root)
             env = dict(PATH=str(root) + os.pathsep + os.environ["PATH"], FORMAL_SOURCE=str(source))
             with patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()):

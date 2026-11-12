@@ -29,7 +29,7 @@ class VSCodeRunnerUnits(unittest.TestCase):
     def test_screenshot_capture_is_separate_source_bound_and_never_copies_assets(self):
         for failure in (None, "desktop", "source", "artifact", "prerequisite"):
             with self.subTest(failure=failure), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 artifact = root / "output/artifacts/vscode/guide.vsix"
                 artifact.parent.mkdir(parents=True)
                 artifact.write_bytes(b"package")
@@ -76,8 +76,8 @@ class VSCodeRunnerUnits(unittest.TestCase):
 
     def test_failed_prerequisites_replace_old_success_and_create_fresh_report(self):
         for previous in (False, True):
-            with self.subTest(previous=previous), tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory)), patch.object(runner.sys, "argv", ["runner.py", "test"]), patch.object(runner, "installed", side_effect=RuntimeError("Run make vscode-tools-install")), patch.object(runner, "run") as run:
-                report = Path(directory) / "output/vscode/qualification.json"
+            with self.subTest(previous=previous), tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory).resolve()), patch.object(runner.sys, "argv", ["runner.py", "test"]), patch.object(runner, "installed", side_effect=RuntimeError("Run make vscode-tools-install")), patch.object(runner, "run") as run:
+                report = Path(directory).resolve() / "output/vscode/qualification.json"
                 if previous:
                     report.parent.mkdir(parents=True)
                     report.write_text('{"status":"passed"}')
@@ -89,8 +89,8 @@ class VSCodeRunnerUnits(unittest.TestCase):
                 run.assert_not_called()
 
     def test_failed_packaging_replaces_old_success_report(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory)), patch.object(runner, "installed", return_value=({"go":"go"}, {"host": "host", "oras": "oras", "uvx": "uvx"})), patch.object(runner, "build"), patch.object(core, "coverage"), patch.object(runner, "package", side_effect=RuntimeError("package refused")), patch.object(runner.sdk, "environment", return_value={}):
-            report = Path(directory) / "output/vscode/qualification.json"
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory).resolve()), patch.object(runner, "installed", return_value=({"go":"go"}, {"host": "host", "oras": "oras", "uvx": "uvx"})), patch.object(runner, "build"), patch.object(core, "coverage"), patch.object(runner, "package", side_effect=RuntimeError("package refused")), patch.object(runner.sdk, "environment", return_value={}):
+            report = Path(directory).resolve() / "output/vscode/qualification.json"
             report.parent.mkdir(parents=True)
             report.write_text('{"status":"passed"}')
             with self.assertRaisesRegex(RuntimeError, "package refused"):
@@ -100,8 +100,8 @@ class VSCodeRunnerUnits(unittest.TestCase):
             self.assertEqual(actual["phases"], {"toolingFunctional": "not_run", "localFunctional": "not_run", "packagedDesktop": "not_run", "linuxRemoteAndBrowser": "not_run", "linuxMcpRunners": "not_run", "cleanup": "not_confirmed"})
 
     def test_runtime_creation_failure_replaces_old_success_before_build(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory)), patch.object(runner, "installed", return_value=({}, {})), patch.object(runner, "build") as build:
-            report = Path(directory) / "output/vscode/qualification.json"
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory).resolve()), patch.object(runner, "installed", return_value=({}, {})), patch.object(runner, "build") as build:
+            report = Path(directory).resolve() / "output/vscode/qualification.json"
             report.parent.mkdir(parents=True)
             report.write_text('{"status":"passed"}')
             with patch.object(runner.tempfile, "TemporaryDirectory", side_effect=OSError("runtime directory unavailable")):
@@ -116,7 +116,7 @@ class VSCodeRunnerUnits(unittest.TestCase):
     def test_qualification_records_failed_phases_and_refuses_late_source_or_vsix_drift(self):
         for scope, failure in ((scope, failure) for scope in ("all", "runtime") for failure in (None, "local", "desktop", "remote", "runners", "remote-cleanup", "runners-stale", "source", "vsix")):
             with self.subTest(scope=scope, failure=failure), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 artifacts = root / "output/artifacts/vscode"
                 artifacts.mkdir(parents=True)
                 artifact = artifacts / "test.vsix"
@@ -132,7 +132,8 @@ class VSCodeRunnerUnits(unittest.TestCase):
                         runtime = Path(env["XDG_RUNTIME_DIR"])
                         self.assertTrue(runtime.is_dir())
                         self.assertEqual(runtime.stat().st_mode & 0o777, 0o700)
-                        self.assertLess(len(str(runtime / "vscode-12345678-1.14-main.sock").encode()), 108)
+                        # Darwin allows 104 bytes including the terminator.
+                        self.assertLess(len(str(runtime / "vscode-12345678-1.14-main.sock").encode()), 104)
                         runtime_paths.append(runtime)
                     def qualify(*args, **kwargs):
                         check_runtime(kwargs["extra_env"])
@@ -194,8 +195,8 @@ class VSCodeRunnerUnits(unittest.TestCase):
                         desktop.assert_not_called()
 
     def test_runtime_scope_cli_and_failed_prerequisites_keep_full_report_separate(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory)), patch.object(runner.sys, "argv", ["runner.py", "test", "--scope", "runtime"]), patch.object(runner, "installed", side_effect=RuntimeError("missing test prerequisites")), patch.object(runner, "run") as run:
-            full = Path(directory) / "output/vscode/qualification.json"
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "ROOT", Path(directory).resolve()), patch.object(runner.sys, "argv", ["runner.py", "test", "--scope", "runtime"]), patch.object(runner, "installed", side_effect=RuntimeError("missing test prerequisites")), patch.object(runner, "run") as run:
+            full = Path(directory).resolve() / "output/vscode/qualification.json"
             full.parent.mkdir(parents=True)
             full.write_bytes(b"prior full-scope evidence")
             with self.assertRaisesRegex(RuntimeError, "missing test prerequisites"):
@@ -220,17 +221,17 @@ class VSCodeRunnerUnits(unittest.TestCase):
                     runner.assert_sources(sources, inputs)
 
     def test_missing_or_stale_installation_never_acquires_tools(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "TOOLS", Path(directory)), patch.object(runner.core, "installed", return_value={}), patch.object(runner.sdk, "installed", return_value={}), patch.object(runner, "inputs", return_value={}), patch.object(runner, "run") as run:
+        with tempfile.TemporaryDirectory() as directory, patch.object(runner, "TOOLS", Path(directory).resolve()), patch.object(runner.core, "installed", return_value={}), patch.object(runner.sdk, "installed", return_value={}), patch.object(runner, "inputs", return_value={}), patch.object(runner, "run") as run:
             for value in (None, "invalid", "{}", '{"inputs":{"old":"hash"}}'):
                 if value:
-                    (Path(directory) / "installed.json").write_text(value)
+                    (Path(directory).resolve() / "installed.json").write_text(value)
                 with self.assertRaisesRegex(RuntimeError, "test-tools-install"):
                     runner.installed()
             run.assert_not_called()
 
     def test_drift_in_source_host_or_tools_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             executable = root / "host"
             executable.write_bytes(b"qualified")
             stamp = {"uvx": str(executable), "uvx_hash": runner.sdk.digest(executable), "oras": str(executable), "oras_hash": runner.sdk.digest(executable), "inputs": {}, "host": str(executable), "host_hash": runner.sdk.digest(executable), "tool_hashes": {"tool": "good"}, "node_hash": runner.sdk.digest(executable)}
@@ -250,7 +251,7 @@ class VSCodeRunnerUnits(unittest.TestCase):
 
     def test_sdk_manifest_binds_source_bytes_archive_and_reviewed_lock(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             ext = root / "extension"
             ext.mkdir()
             (root / "VERSION").write_text("1.2.3\n")
@@ -278,7 +279,7 @@ class VSCodeRunnerUnits(unittest.TestCase):
 
     def test_unchanged_a2a_sample_is_hash_checked_and_only_explicitly_acquired(self):
         with tempfile.TemporaryDirectory() as directory:
-            sample = Path(directory) / "sample.ts"
+            sample = Path(directory).resolve() / "sample.ts"
             expected = b"unchanged upstream sample"
             digest = hashlib.sha256(expected).hexdigest()
             with patch.object(runner, "A2A_SAMPLE", sample), patch.object(runner, "A2A_SAMPLE_HASH", digest), patch.object(runner, "run", return_value=base64.b64encode(expected).decode()) as run:
@@ -295,8 +296,8 @@ class VSCodeRunnerUnits(unittest.TestCase):
                 self.assertEqual(sample.read_bytes(), b"drift")
 
     def test_vsix_requires_runtime_notices_and_excludes_development_payload(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(core, "ROOT", Path(directory)):
-            root = Path(directory)
+        with tempfile.TemporaryDirectory() as directory, patch.object(core, "ROOT", Path(directory).resolve()):
+            root = Path(directory).resolve()
             (root / "VERSION").write_text("1.2.3\n")
             metadata = {"version": "1.2.3", "main": "./dist/extension.cjs", "name": "catalog", "publisher": "local", "icon": "media/catalog-icon.png"}
             payload = {name: (json.dumps(metadata) if relative == "package.json" else "exact " + relative).encode() for name, relative in core.PAYLOAD.items()}

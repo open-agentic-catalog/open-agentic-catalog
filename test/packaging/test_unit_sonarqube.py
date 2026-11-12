@@ -115,7 +115,7 @@ class SonarTests(unittest.TestCase):
                      "/tmp/main.go", "internal/../private.go", "documentation/.astro/types.d.ts"):
             self.assertFalse(sonar.selected(path), path)
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             (root / "internal").mkdir()
             (root / "internal/main.go").write_text("package main\n")
             (root / ".env").write_text("private-secret")
@@ -133,7 +133,7 @@ class SonarTests(unittest.TestCase):
 
     def test_coverage_paths_are_normalized_and_unknown_sources_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             for name in ("internal/a.go", "catalog-ui/src/a.ts"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
@@ -168,10 +168,10 @@ class SonarTests(unittest.TestCase):
 
     def test_private_state_rejects_symlinks_and_is_not_world_readable(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "state.json"
+            path = Path(directory).resolve() / "state.json"
             sonar.write_json(path, {"password": "synthetic"})
             self.assertEqual(path.stat().st_mode & 0o777, 0o600)
-            alias = Path(directory) / "alias"
+            alias = Path(directory).resolve() / "alias"
             alias.symlink_to(path)
             with self.assertRaises(sonar.Failure):
                 sonar.write_json(alias, {})
@@ -196,7 +196,7 @@ class SonarTests(unittest.TestCase):
 
     def test_restart_waits_through_connection_reset_and_retains_credentials(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             local = object.__new__(sonar.Local)
             local.state = {"initialized": True, "password": "retained-secret", "port": 19000}
             local.credentials = root / "credentials.json"
@@ -216,7 +216,7 @@ class SonarTests(unittest.TestCase):
     def test_first_start_guarantees_password_classes_before_initialization(self):
         for random_part in ("a" * 43, "A" * 43, "0" * 43, "-" * 43):
             with self.subTest(random_class=random_part[0]), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 local = object.__new__(sonar.Local)
                 local.state, local.name = None, "owned"
                 local.credentials = root / "credentials.json"
@@ -248,7 +248,7 @@ class SonarTests(unittest.TestCase):
 
     def test_first_start_refusal_retains_pending_password_for_retry(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             local = object.__new__(sonar.Local)
             local.state, local.name = None, "owned"
             local.credentials = root / "credentials.json"
@@ -287,7 +287,7 @@ class SonarTests(unittest.TestCase):
     def test_scanner_failure_revokes_token_redacts_log_and_preserves_unowned_container(self):
         for cleanup_case in ("absent", "unowned", "docker-unavailable"):
             with self.subTest(cleanup_case=cleanup_case), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
+                root = Path(directory).resolve()
                 (root / "catalog-ui/node_modules").mkdir(parents=True)
                 state = root / "output"
                 state.mkdir()

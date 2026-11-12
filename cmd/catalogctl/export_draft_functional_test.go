@@ -22,14 +22,14 @@ import (
 func TestExportDraftCLIEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	build := exec.CommandContext(ctx, "go", "build", "-mod=readonly", "-o", binary, ".") // #nosec G204,G702 -- owned compiled command with fixed build arguments.
 	if raw, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %s %v", raw, err)
 	}
 	fault := &atomic.Int32{}
 	runtime, server, archiveOrigin, _, writes := configuredDemoRuntimeWithPeerControl(t, fault)
-	seed, err := executeExpandedDemo(ctx, server.URL, filepath.Join(t.TempDir(), "seed.json"), archiveOrigin, false)
+	seed, err := executeExpandedDemo(ctx, server.URL, filepath.Join(canonicalTempDir(t), "seed.json"), archiveOrigin, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +89,7 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 		if err != nil || json.Unmarshal(reply.Data, &record) != nil {
 			t.Fatal("exact governed record missing", err)
 		}
-		directory := filepath.Join(t.TempDir(), "draft")
+		directory := filepath.Join(canonicalTempDir(t), "draft")
 		result := run(true, readerToken, "--format", "draft", "--release-id", item.ReleaseID, "--output-dir", directory)
 		var output exportResult
 		file := readDraft(directory)
@@ -128,11 +128,11 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 	}
 
 	var preview bytes.Buffer
-	previewDir := filepath.Join(t.TempDir(), "preview")
+	previewDir := filepath.Join(canonicalTempDir(t), "preview")
 	if err := runExport(ctx, []string{"preview", "--query", "browse", "--output-dir", previewDir, "--base-url", server.URL, "--token-file", readerToken}, remoteTestEnvironment("", ""), &preview); err != nil {
 		t.Fatal(err)
 	}
-	batchDir := filepath.Join(t.TempDir(), "batch")
+	batchDir := filepath.Join(canonicalTempDir(t), "batch")
 	var batch exportBatchReport
 	raw := run(true, readerToken, "batch", "--format", "draft", "--selection-file", filepath.Join(previewDir, "selection.json"), "--output-dir", batchDir)
 	if json.Unmarshal(raw, &batch) != nil || !batch.Complete || len(batch.Items) == 0 {
@@ -155,7 +155,7 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 	if err != nil || evidence.State != catalog.EvidenceBlocked {
 		t.Fatal("blocked draft fixture did not retain content", err)
 	}
-	directory := filepath.Join(t.TempDir(), "incomplete")
+	directory := filepath.Join(canonicalTempDir(t), "incomplete")
 	run(true, readerToken, "--format", "draft", "--version-revision-id", revision.ID, "--output-dir", directory)
 	file := readDraft(directory)
 	if file.Listing != nil || len(file.Representations) != 2 || *file.Representations[0].Input.Text != incomplete || file.Representations[1].Role != catalog.RepresentationMetadata {
@@ -184,7 +184,7 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	packageDir := filepath.Join(t.TempDir(), "package-only")
+	packageDir := filepath.Join(canonicalTempDir(t), "package-only")
 	run(true, readerToken, "--format", "draft", "--version-revision-id", skillRevision.ID, "--output-dir", packageDir)
 	packageFile := readDraft(packageDir)
 	if packageFile.Representations[0].Input.Mode != "skill-package" || packageFile.Representations[0].Input.Handoff == nil || !strings.Contains(*packageFile.Representations[0].Input.Handoff, "registry.example.com/safe-skill@sha256:") {
@@ -214,10 +214,10 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 	if _, err := runtime.Identity.GrantAuthorizationAssignment(adminCtx, identity.AccessAssignmentInput{RoleDefinitionID: role.ID, MembershipID: reader.MembershipID, NamespaceID: selected.Resource.NamespaceID, Reason: "Test exact revision export"}, "draft-assignment"); err != nil {
 		t.Fatal(err)
 	}
-	noHistory := filepath.Join(t.TempDir(), "no-history")
+	noHistory := filepath.Join(canonicalTempDir(t), "no-history")
 	run(true, readerToken, "--format", "draft", "--version-revision-id", selected.VersionRevision.ID, "--listing-revision-id", selected.ListingRevision.ID, "--output-dir", noHistory)
 	readDraft(noHistory)
-	artifactScope := filepath.Join(t.TempDir(), "scoped-artifact")
+	artifactScope := filepath.Join(canonicalTempDir(t), "scoped-artifact")
 	run(true, readerToken, "--format", "draft", "--version-revision-id", revision.ID, "--output-dir", artifactScope)
 	readDraft(artifactScope)
 	beforeRoleChange := time.Now().UTC()
@@ -232,7 +232,7 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 		t.Fatal("cross-tenant control did not authenticate in another tenant", err)
 	}
 	for _, token := range []string{readerToken, clientSkillToken(t, "other-tenant-admin")} {
-		denied := filepath.Join(t.TempDir(), "denied")
+		denied := filepath.Join(canonicalTempDir(t), "denied")
 		run(false, token, "--format", "draft", "--version-revision-id", selected.VersionRevision.ID, "--output-dir", denied)
 		if _, err := os.Lstat(denied); !os.IsNotExist(err) {
 			t.Fatal("denied draft export left content")

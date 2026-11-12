@@ -12,7 +12,7 @@ func TestPreparedPublicationRefusesInvalidRetainedState(t *testing.T) {
 	plan := DefaultPlan("expanded", "")
 	for _, fault := range []string{"malformed allowlist", "declared size mismatch", "missing object"} {
 		t.Run(fault, func(t *testing.T) {
-			directory := filepath.Join(t.TempDir(), "prepared")
+			directory := filepath.Join(canonicalTempDir(t), "prepared")
 			if err := Prepare(directory, plan); err != nil {
 				t.Fatal(err)
 			}
@@ -66,7 +66,7 @@ func TestPreparationRefusesUnadmittedObjectReplacement(t *testing.T) {
 	item := plan.Resources[0]
 	for _, fault := range []string{"identical bytes", "different bytes", "directory"} {
 		t.Run(fault, func(t *testing.T) {
-			directory := filepath.Join(t.TempDir(), "prepared")
+			directory := filepath.Join(canonicalTempDir(t), "prepared")
 			if err := PrepareDirectory(directory); err != nil {
 				t.Fatal(err)
 			}
@@ -125,7 +125,7 @@ func TestPreparationRejectsCorruptNewArchiveBeforePublication(t *testing.T) {
 	if len(plan.Resources) != 1 || len(plan.Resources[0].Archive) == 0 {
 		t.Fatal("no archived sample control")
 	}
-	control := filepath.Join(t.TempDir(), "control")
+	control := filepath.Join(canonicalTempDir(t), "control")
 	if err := Prepare(control, plan); err != nil {
 		t.Fatal("valid new archive refused", err)
 	}
@@ -140,7 +140,7 @@ func TestPreparationRejectsCorruptNewArchiveBeforePublication(t *testing.T) {
 	if err := plan.Allowlist().Validate(); err != nil {
 		t.Fatal("invalid metadata masks the archive integrity check", err)
 	}
-	directory := filepath.Join(t.TempDir(), "invalid")
+	directory := filepath.Join(canonicalTempDir(t), "invalid")
 	if err := Prepare(directory, plan); err == nil {
 		t.Fatal("corrupt new archive was published")
 	}

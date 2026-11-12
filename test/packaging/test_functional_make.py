@@ -14,6 +14,29 @@ from make_test_helpers import ROOT
 
 
 class MakeScopeTests(helpers.MakeScopeTestsFixture, unittest.TestCase):
+    def test_functional_curl_gate_checks_the_active_backend_only(self):
+        source = (ROOT / "Makefile").read_text()
+        gate = next(line.strip().removesuffix("\\").rstrip() for line in source.splitlines()
+                    if line.strip().startswith("if $(CURL) --version"))
+        with tempfile.TemporaryDirectory(prefix="catalog-curl-gate-") as directory:
+            root = Path(directory)
+            curl = root / "curl"
+            curl.write_text('#!/bin/sh\nprintf "%s\\n" "$TEST_CURL_VERSION"\n')
+            curl.chmod(0o700)
+            (root / "Makefile").write_text("CURL := " + shlex.quote(str(curl)) + "\nprobe:\n\t@set -eu; " + gate + "\n\t@printf accepted\n")
+            for backend, accepted in (("OpenSSL/3.0.0", True), ("OpenSSL/3.0.0 (SecureTransport)", True),
+                                      ("SecureTransport (OpenSSL/3.0.0)", False)):
+                with self.subTest(backend=backend):
+                    environment = dict(os.environ, TEST_CURL_VERSION="curl 8.0.0 (aarch64-apple-darwin) libcurl/8.0.0 " + backend)
+                    environment.pop("MAKEFLAGS", None)
+                    environment.pop("MFLAGS", None)
+                    result = subprocess.run(["make", "--no-print-directory", "probe"], cwd=root, env=environment,
+                                            capture_output=True, text=True, timeout=10, check=False)
+                    self.assertEqual(result.returncode == 0, accepted, result.stderr)
+                    self.assertEqual(result.stdout, "accepted" if accepted else "")
+                    if not accepted:
+                        self.assertIn("Functional curl cannot verify the fixture certificate.", result.stderr)
+
     def test_integration_projects_include_the_ci_run_and_cleanup_the_same_project(self):
         source = (ROOT / "Makefile").read_text().split("define run_postgres_integration\n", 1)[1].split("\nendef", 1)[0]
         with tempfile.TemporaryDirectory(prefix="catalog-integration-project-") as directory:
@@ -662,6 +685,7 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
         commands = self.run_make("-n", "docs-check")
         lint = next(shlex.split(line) for line in commands.splitlines() if "--dot --ignore" in line)
         ignored = [lint[i + 1] for i, word in enumerate(lint) if word == "--ignore"]
+        self.assertIn(".venv", ignored)
         self.assertIn("test/interoperability/mcp/node_modules", ignored)
         self.assertNotIn("test/interoperability/mcp", ignored)
         self.assertNotIn("test/interoperability/mcp/README.md", ignored)

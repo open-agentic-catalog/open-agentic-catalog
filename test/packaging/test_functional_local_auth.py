@@ -20,12 +20,12 @@ with mock.patch.dict(sys.modules, {"compose": load_example("compose"), "prepare"
 class LocalAuthenticationInputsTests(TestCase):
     def test_preparation_reuse_rejection_and_certificate_renewal(self):
         with tempfile.TemporaryDirectory(prefix="catalog-local-auth-") as temporary:
-            directory = Path(temporary) / "private"
+            directory = Path(temporary).resolve() / "private"
             args = argparse.Namespace(directory=str(directory), backend_image="test-backend:unrun", ui_image="test-ui:unrun",
                                       subnet="172.29.245.0/24", frontend_address="172.29.245.10")
             root, command, environment = local_auth.initialize(args)
             self.assertEqual(root, directory)
-            linked = Path(temporary) / "linked"
+            linked = Path(temporary).resolve() / "linked"
             linked.symlink_to(directory, target_is_directory=True)
             with self.assertRaisesRegex(ValueError, "symbolic link"):
                 local_auth.initialize(argparse.Namespace(**{**vars(args), "directory": str(linked)}))

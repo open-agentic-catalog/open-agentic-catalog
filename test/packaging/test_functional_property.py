@@ -16,7 +16,7 @@ import property as p
 class PropertyBoundaryTests(unittest.TestCase):
     def test_make_isolation_and_normal_suite_settings(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             marker, envfile = root / "loaded", root / "workflow.env"
             envfile.write_text(f"SIDE_EFFECT := $(shell touch {marker})\n")
             for goals, valid in ((["test-property"], True), (["test-property", "test-unit"], False)):
@@ -46,7 +46,7 @@ class PropertyBoundaryTests(unittest.TestCase):
 
     def test_launcher_retains_success_and_rejects_incomplete_or_failed_execution(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             (root / "go.mod").write_text("module example.com/property\n")
             (root / "go.sum").write_text("fixture\n")
             (root / "sample").mkdir()

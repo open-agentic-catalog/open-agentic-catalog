@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -27,7 +28,7 @@ class GitVersionTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory(prefix="catalog version fixture ")
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         for name in ("VERSION", "pyproject.toml", "uv.lock", "ruff.toml", "go.mod"):
             shutil.copyfile(v.ROOT / name, self.root / name)
         for name in {rule["filename"] for rule in v.bump_files()} - {"VERSION"}:
@@ -45,6 +46,28 @@ class GitVersionTests(unittest.TestCase):
 
     def git(self, *args):
         return v.run(["git", *args], self.root)
+
+    def test_installer_cli_reports_fixed_hints_without_private_child_output(self):
+        """Qualify actual CLI stderr, including the known stale-lock control."""
+        script = self.root / "test/packaging/versioning.py"
+        script.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(v.__file__, script)
+        uv = self.root / "uv"
+        for message, expected in (
+            ("error: fetch https://private.invalid/?token=synthetic-private-value", "uv sync failed"),
+            ("error: The lockfile at `synthetic-private-value/uv.lock` needs to be updated", "uv.lock is stale"),
+        ):
+            with self.subTest(expected=expected):
+                uv.write_text('#!/bin/sh\nif [ "$1" = "--version" ]; then printf "uv ' + v.UV_VERSION + '\\n"; exit 0; fi\n'
+                              + "printf '%s\\n' 'synthetic-private-value on stdout'\n"
+                              + "printf '%s\\n' '" + message + "' >&2\nexit 2\n")
+                uv.chmod(0o700)
+                result = subprocess.run([sys.executable, "-B", str(script), "install", "--uv", str(uv), "--python", sys.executable],
+                                        cwd=self.root, env=make_environment(), capture_output=True, text=True, timeout=15, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(expected, result.stderr)
+                self.assertNotIn("synthetic-private-value", result.stdout + result.stderr)
+                self.assertNotIn("private.invalid", result.stdout + result.stderr)
 
     def test_real_git_source_states_tagging_and_override_isolation(self):
         self.assertEqual(v.metadata(self.root)["sourceState"], "clean")

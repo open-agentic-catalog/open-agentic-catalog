@@ -29,7 +29,7 @@ func qualifyImportStarter(t *testing.T, binary string) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Minute)
 	defer cancel()
 	source := filepath.Join("..", "..", "examples", "native-import")
-	directory := t.TempDir()
+	directory := canonicalTempDir(t)
 	if err := os.CopyFS(directory, os.DirFS(source)); err != nil {
 		t.Fatal(err)
 	}

@@ -16,7 +16,7 @@ import data_checks
 class DataWorkflowTests(unittest.TestCase):
     def test_inventory_uses_worktree_handles_names_and_preserves_files(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             subprocess.run(['git', 'init', '-q', directory], check=True)
             (root / '.gitignore').write_text('output/\n')
             (root / 'old.json').write_text('{}')
@@ -44,7 +44,7 @@ class DataWorkflowTests(unittest.TestCase):
 
     def test_actual_json_make_target_accepts_valid_and_propagates_invalid_data(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             subprocess.run(['git', 'init', '-q', directory], check=True)
             for name in ('Makefile', 'go.mod', 'test/packaging/data_checks.py'):
                 target = root / name
@@ -65,7 +65,7 @@ class DataWorkflowTests(unittest.TestCase):
 
     def test_git_failure_is_not_an_empty_success(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             # Stop ancestor discovery even when TMPDIR is beneath a checkout.
             (root / '.git').write_text('gitdir: missing-git-directory\n')
             with self.assertRaises(subprocess.CalledProcessError):
@@ -73,7 +73,7 @@ class DataWorkflowTests(unittest.TestCase):
 
     def test_yaml_invocation_preserves_paths_config_and_failure(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             subprocess.run(['git', 'init', '-q', directory], check=True)
             (root / '.yamllint.yml').write_text('extends: default\n')
             (root / 'space name.yaml').write_text('name: example\n')

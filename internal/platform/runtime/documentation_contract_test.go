@@ -30,7 +30,7 @@ var (
 	adrIndexLink         = regexp.MustCompile(`^\[([0-9]{4})\]\(([^)]+)\)$`)
 	adrHeading           = regexp.MustCompile(`(?m)^title: "?ADR-([0-9]{4}):`)
 	adrStatus            = regexp.MustCompile(`(?m)^- Status: ([A-Za-z]+)$`)
-	skippedMarkdownTrees = map[string]struct{}{`.git`: {}, `.tools`: {}, `.playwright-cli`: {}, `bin`: {}, `coverage`: {}, `objects`: {}, `schemas/upstream`: {}, `samples/upstream`: {}, `internal/adapter/testdata/upstream/openai`: {}, `internal/adapter/testdata/upstream/huggingface`: {}, `internal/adapter/testdata/upstream/context7/plugin`: {}, `specs`: {}, `output`: {}, `documentation/node_modules`: {}, `documentation/.astro`: {}, `documentation/dist`: {}, `documentation/src/content/docs/generated`: {}, `catalog-ui/node_modules`: {}, `catalog-ui/dist`: {}, `test/validation/node_modules`: {}, `test/interoperability/mcp/node_modules`: {}, `test/validation/.tools`: {}, `test/sdk/.tools`: {}, `examples/langgraph/.venv`: {}, `sdk/typescript/node_modules`: {}, `sdk/rust/target`: {}, `test/sdk/rust/consumer/target`: {}, `extensions/vscode/node_modules`: {}, `extensions/vscode/.tools`: {}, `extensions/vscode/dist`: {}, `test/vscode/.tools`: {}}
+	skippedMarkdownTrees = map[string]struct{}{`.git`: {}, `.venv`: {}, `.tools`: {}, `.playwright-cli`: {}, `bin`: {}, `coverage`: {}, `objects`: {}, `schemas/upstream`: {}, `samples/upstream`: {}, `internal/adapter/testdata/upstream/openai`: {}, `internal/adapter/testdata/upstream/huggingface`: {}, `internal/adapter/testdata/upstream/context7/plugin`: {}, `specs`: {}, `output`: {}, `documentation/node_modules`: {}, `documentation/.astro`: {}, `documentation/dist`: {}, `documentation/src/content/docs/generated`: {}, `catalog-ui/node_modules`: {}, `catalog-ui/dist`: {}, `test/validation/node_modules`: {}, `test/interoperability/mcp/node_modules`: {}, `test/validation/.tools`: {}, `test/sdk/.tools`: {}, `examples/langgraph/.venv`: {}, `sdk/typescript/node_modules`: {}, `sdk/rust/target`: {}, `test/sdk/rust/consumer/target`: {}, `extensions/vscode/node_modules`: {}, `extensions/vscode/.tools`: {}, `extensions/vscode/dist`: {}, `test/vscode/.tools`: {}}
 )
 
 type indexedADR struct {
@@ -345,6 +345,7 @@ func TestDocumentationSourceTreeBoundaries(t *testing.T) {
 		"documentation/README.md":                                             &fstest.MapFile{},
 		"documentation/src/content/docs/guide.md":                             &fstest.MapFile{},
 		"documentation/src/content/docs/generated/spec.md":                    &fstest.MapFile{},
+		".venv/lib/site-packages/tool/LICENSE.md":                             &fstest.MapFile{},
 		".tools/agntcy/source/README.md":                                      &fstest.MapFile{},
 		".tools/dev/lib/third-party/README.md":                                &fstest.MapFile{},
 		"documentation/node_modules/tool/README.md":                           &fstest.MapFile{},

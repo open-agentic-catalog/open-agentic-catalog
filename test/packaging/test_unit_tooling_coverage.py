@@ -16,7 +16,7 @@ class ToolingCoverageTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
-        self.root = Path(temporary.name)
+        self.root = Path(temporary.name).resolve()
         self.paths = ["test/alpha/helper.py", "test/alpha/test_unit_helper.py", "test/beta/unseen.py"]
         for name in self.paths:
             path = self.root / name

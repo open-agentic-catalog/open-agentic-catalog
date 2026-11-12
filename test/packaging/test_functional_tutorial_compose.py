@@ -23,7 +23,7 @@ class TutorialLauncherTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="catalog-tutorial-launcher-")
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.temporary.name).resolve()
         self.directory = self.root / "prepared"
         self.directory.mkdir(mode=0o700)
         self.metadata = write_inputs(self.directory)
@@ -133,7 +133,7 @@ class TutorialPreparationTests(unittest.TestCase):
     def test_partial_certificate_failure_preserves_inputs_and_fresh_destination_recovers(self):
         openssl = shutil.which("openssl")
         with tempfile.TemporaryDirectory(prefix="catalog-tutorial-preparation-") as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             bin_directory = root / "bin"
             bin_directory.mkdir()
             failing = bin_directory / "openssl"

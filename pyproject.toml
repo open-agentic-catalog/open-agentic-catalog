@@ -1,4 +1,10 @@
 # Shared development tools only; this repository is not a Python package.
+# The project-level range keeps uv from inferring it from the selected interpreter.
+[project]
+name = "catalog-dev-tools"
+version = "0"
+requires-python = ">=3.12,<3.15"
+
 [dependency-groups]
 dev = [
     "ruff==0.17.3",

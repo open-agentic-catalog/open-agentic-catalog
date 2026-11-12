@@ -152,7 +152,7 @@ func TestImportReceiptsPrivateAtomicAndBound(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	name := filepath.Join(t.TempDir(), "private", "progress.json")
+	name := filepath.Join(canonicalTempDir(t), "private", "progress.json")
 	f, err := openImportState(name, false)
 	if err != nil {
 		t.Fatal(err)
@@ -260,7 +260,7 @@ func TestImportReceiptAttemptAndAcknowledgementStates(t *testing.T) {
 func TestImportStateRejectsLinksAndPermissions(t *testing.T) {
 	for _, kind := range []string{"safe resume", "directory permissions", "file permissions", "file link", "lock link", "dangling lock link", "ancestor link", "existing apply"} {
 		t.Run(kind, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := canonicalTempDir(t)
 			if err := os.Chmod(dir, 0700); err != nil { // #nosec G302 -- private directory requires owner traversal.
 				t.Fatal(err)
 			}
@@ -301,7 +301,7 @@ func TestImportStateRejectsLinksAndPermissions(t *testing.T) {
 					t.Fatal(err)
 				}
 			case "ancestor link":
-				link := filepath.Join(t.TempDir(), "linked")
+				link := filepath.Join(canonicalTempDir(t), "linked")
 				if err := os.Symlink(dir, link); err != nil {
 					t.Fatal(err)
 				}
@@ -336,7 +336,7 @@ func TestImportReplayWindowDoesNotReset(t *testing.T) {
 }
 
 func TestImportSessionSnapshotsCredentialFile(t *testing.T) {
-	filename := filepath.Join(t.TempDir(), "token")
+	filename := filepath.Join(canonicalTempDir(t), "token")
 	if err := os.WriteFile(filename, []byte("original-token"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +417,7 @@ func TestImportPreparedSequenceWithControlledTransport(t *testing.T) {
 		t.Run(fault, func(t *testing.T) {
 			plan := importApplyTestPlan(t)
 			replies := importTestReplies(t, plan)
-			state, err := openImportState(filepath.Join(t.TempDir(), "private", "state.json"), false)
+			state, err := openImportState(filepath.Join(canonicalTempDir(t), "private", "state.json"), false)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -20,7 +20,7 @@ import (
 // Exercise the real command and private TLS transport. Every URL is an owned
 // loopback fixture; a declared MCP path must never receive a request.
 func TestMCPExportCLIPrivateTLS(t *testing.T) {
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	build := exec.CommandContext(t.Context(), "go", "build", "-mod=readonly", "-o", binary, ".") // #nosec G204,G702 -- fixed build in an owned temporary directory.
 	if raw, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %s %v", raw, err)
@@ -89,11 +89,11 @@ func TestMCPExportCLIPrivateTLS(t *testing.T) {
 			case "wrong kind":
 				record = bytes.ReplaceAll(record, []byte(`"kind":"mcp_server"`), []byte(`"kind":"agent"`))
 			}
-			ca := filepath.Join(t.TempDir(), "ca.pem")
+			ca := filepath.Join(canonicalTempDir(t), "ca.pem")
 			if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
 				t.Fatal(err)
 			}
-			directory := filepath.Join(t.TempDir(), "configuration")
+			directory := filepath.Join(canonicalTempDir(t), "configuration")
 			run := func() ([]byte, error) {
 				args := []string{"export", "--release-id", exportReleaseID, "--format", "mcp-claude-code", "--output-dir", directory, "--base-url", server.URL, "--ca-file", ca}
 				if scenario == "explicit remote" {

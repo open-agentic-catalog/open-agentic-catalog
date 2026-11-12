@@ -30,13 +30,13 @@ import (
 func TestExportCLIEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	binary := filepath.Join(t.TempDir(), "catalogctl")
+	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
 	build := exec.CommandContext(ctx, "go", "build", "-mod=readonly", "-o", binary, ".") // #nosec G204,G702 -- fixed build into an owned temporary directory.
 	if raw, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %s %v", raw, err)
 	}
 	runtime, server, origin, _, writes := configuredDemoRuntime(t)
-	report, err := executeExpandedDemo(ctx, server.URL, filepath.Join(t.TempDir(), "seed.json"), origin, false)
+	report, err := executeExpandedDemo(ctx, server.URL, filepath.Join(canonicalTempDir(t), "seed.json"), origin, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestExportCLIEndToEnd(t *testing.T) {
 			t.Fatal("missing governed fixture")
 		}
 		rep := record.VersionRevision.Representations[0]
-		directory := filepath.Join(t.TempDir(), "export")
+		directory := filepath.Join(canonicalTempDir(t), "export")
 		result := run(item.ReleaseID, directory, readerToken, true, "--representation-id", rep.ID)
 		root, err := os.OpenRoot(directory)
 		if err != nil {
@@ -131,7 +131,7 @@ func TestExportCLIEndToEnd(t *testing.T) {
 
 		if item.Kind == catalog.KindMCPServer {
 			for _, format := range []string{"mcp-vscode", "mcp-claude-code", "mcp-cursor"} {
-				clientDir := filepath.Join(t.TempDir(), "client-config")
+				clientDir := filepath.Join(canonicalTempDir(t), "client-config")
 				result := run(item.ReleaseID, clientDir, readerToken, true, "--format", format)
 				if result.Disposition != "mcp_client_configuration" {
 					t.Fatal("missing client configuration result")
@@ -158,7 +158,7 @@ func TestExportCLIEndToEnd(t *testing.T) {
 					t.Fatalf("wrong client configuration: %s", content)
 				}
 				run(item.ReleaseID, clientDir, readerToken, false, "--format", format)
-				run(item.ReleaseID, filepath.Join(t.TempDir(), "wrong-tenant-client"), clientSkillToken(t, "other-tenant-admin"), false, "--format", format)
+				run(item.ReleaseID, filepath.Join(canonicalTempDir(t), "wrong-tenant-client"), clientSkillToken(t, "other-tenant-admin"), false, "--format", format)
 			}
 		}
 		original := append([]byte{}, raw...)
@@ -183,12 +183,12 @@ func TestExportCLIEndToEnd(t *testing.T) {
 		t.Fatal("batch export performed mutations")
 	}
 	// An explicit representation must belong to the exact selected revision.
-	denied := filepath.Join(t.TempDir(), "unselected-representation")
+	denied := filepath.Join(canonicalTempDir(t), "unselected-representation")
 	run(artifactRecord.Release.ID, denied, readerToken, false, "--representation-id", exportRepID)
 	if _, err := os.Lstat(denied); !os.IsNotExist(err) {
 		t.Fatal("representation refusal left output")
 	}
-	denied = filepath.Join(t.TempDir(), "cross-tenant")
+	denied = filepath.Join(canonicalTempDir(t), "cross-tenant")
 	run(artifactRecord.Release.ID, denied, clientSkillToken(t, "other-tenant-admin"), false)
 	if _, err := os.Lstat(denied); !os.IsNotExist(err) {
 		t.Fatal("cross-tenant refusal left output")
@@ -220,18 +220,18 @@ func TestExportCLIEndToEnd(t *testing.T) {
 		t.Fatal(err)
 	}
 	before = writes.Load()
-	denied = filepath.Join(t.TempDir(), "content-denied")
+	denied = filepath.Join(canonicalTempDir(t), "content-denied")
 	run(artifactRecord.Release.ID, denied, readerToken, false)
 	if _, err := os.Lstat(denied); !os.IsNotExist(err) {
 		t.Fatal("content refusal left output")
 	}
 	// The record API already discloses inline JSON to this metadata Reader.
-	run(inlineRecord.Release.ID, filepath.Join(t.TempDir(), "metadata-json"), readerToken, true)
+	run(inlineRecord.Release.ID, filepath.Join(canonicalTempDir(t), "metadata-json"), readerToken, true)
 	if writes.Load() != before {
 		t.Fatal("export performed a mutating API request")
 	}
 	var changedAccess bytes.Buffer
-	if err := runExport(ctx, []string{"batch", "--selection-file", selectionPath, "--output-dir", filepath.Join(t.TempDir(), "changed-permissions"), "--base-url", server.URL, "--token-file", readerToken}, remoteTestEnvironment("", ""), &changedAccess); err == nil {
+	if err := runExport(ctx, []string{"batch", "--selection-file", selectionPath, "--output-dir", filepath.Join(canonicalTempDir(t), "changed-permissions"), "--base-url", server.URL, "--token-file", readerToken}, remoteTestEnvironment("", ""), &changedAccess); err == nil {
 		t.Fatal("old preview preserved revoked content permissions")
 	}
 	var changedReport exportBatchReport
@@ -249,7 +249,7 @@ func TestExportCLIEndToEnd(t *testing.T) {
 	// A frozen plan does not confer the permissions held during preview. Actual
 	// CLI reads must now report denied/not-found outcomes and retain no content.
 	var after bytes.Buffer
-	directory := filepath.Join(t.TempDir(), "revoked-batch")
+	directory := filepath.Join(canonicalTempDir(t), "revoked-batch")
 	if err := runExport(ctx, []string{"batch", "--selection-file", selectionPath, "--output-dir", directory, "--base-url", server.URL, "--token-file", clientSkillToken(t, "other-tenant-admin")}, remoteTestEnvironment("", ""), &after); err == nil {
 		t.Fatal("cross-tenant batch unexpectedly succeeded")
 	}
@@ -278,12 +278,12 @@ func qualifyExportBatchCLI(t *testing.T, ctx context.Context, binary, origin, to
 		}
 	}
 	var search, browse exportSelection
-	directory := filepath.Join(t.TempDir(), "search")
+	directory := filepath.Join(canonicalTempDir(t), "search")
 	run(true, &search, "preview", "--query", "search", "--output-dir", directory, "--limit", "1", "--max-pages", "64")
 	if !search.Complete || len(search.Items) != expected {
 		t.Fatalf("missing Search releases: %d != %d", len(search.Items), expected)
 	}
-	run(true, &browse, "preview", "--query", "browse", "--output-dir", filepath.Join(t.TempDir(), "browse"), "--limit", "2", "--max-pages", "64")
+	run(true, &browse, "preview", "--query", "browse", "--output-dir", filepath.Join(canonicalTempDir(t), "browse"), "--limit", "2", "--max-pages", "64")
 	searchIDs := map[string]bool{}
 	for _, item := range search.Items {
 		searchIDs[item.ReleaseID] = true
@@ -297,7 +297,7 @@ func qualifyExportBatchCLI(t *testing.T, ctx context.Context, binary, origin, to
 		}
 	}
 	var report exportBatchReport
-	output := filepath.Join(t.TempDir(), "batch")
+	output := filepath.Join(canonicalTempDir(t), "batch")
 	run(true, &report, "batch", "--selection-file", filepath.Join(directory, "selection.json"), "--output-dir", output)
 	if !report.Complete || !report.SelectionComplete || len(report.Items) != expected {
 		t.Fatal("batch incomplete", report)
@@ -320,11 +320,11 @@ func qualifyExportBatchCLI(t *testing.T, ctx context.Context, binary, origin, to
 	// Execute the same real local boundary in-process for source coverage. The
 	// compiled invocation above separately owns exit status and stderr checks.
 	var inProcess bytes.Buffer
-	if err := runExport(ctx, []string{"preview", "--query", "browse", "--limit", "2", "--max-pages", "64", "--output-dir", filepath.Join(t.TempDir(), "covered-preview"), "--base-url", origin, "--token-file", token}, remoteTestEnvironment("", ""), &inProcess); err != nil {
+	if err := runExport(ctx, []string{"preview", "--query", "browse", "--limit", "2", "--max-pages", "64", "--output-dir", filepath.Join(canonicalTempDir(t), "covered-preview"), "--base-url", origin, "--token-file", token}, remoteTestEnvironment("", ""), &inProcess); err != nil {
 		t.Fatal(err)
 	}
 	inProcess.Reset()
-	coveredDir := filepath.Join(t.TempDir(), "covered-batch")
+	coveredDir := filepath.Join(canonicalTempDir(t), "covered-batch")
 	if err := runExport(ctx, []string{"batch", "--selection-file", filepath.Join(directory, "selection.json"), "--output-dir", coveredDir, "--base-url", origin, "--token-file", token}, remoteTestEnvironment("", ""), &inProcess); err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func qualifyExportBatchCLI(t *testing.T, ctx context.Context, binary, origin, to
 		t.Fatal("in-process real batch lost outcomes")
 	}
 	// A completed batch survives a broken stdout consumer, as single exports do.
-	failedOutput := filepath.Join(t.TempDir(), "failed-stdout")
+	failedOutput := filepath.Join(canonicalTempDir(t), "failed-stdout")
 	if err := runExport(ctx, []string{"batch", "--release-id", search.Items[0].ReleaseID, "--output-dir", failedOutput, "--base-url", origin, "--token-file", token}, remoteTestEnvironment("", ""), importShortWriter{}); err == nil {
 		t.Fatal("short stdout accepted")
 	}
@@ -343,17 +343,17 @@ func qualifyExportBatchCLI(t *testing.T, ctx context.Context, binary, origin, to
 	// Exact duplicate UUIDs collapse, regardless of spelling. Content digests do
 	// not deduplicate different release identities.
 	duplicate := search.Items[0].ReleaseID
-	run(true, &report, "batch", "--release-id", duplicate, "--release-id", strings.ToUpper(duplicate), "--output-dir", filepath.Join(t.TempDir(), "duplicates"))
+	run(true, &report, "batch", "--release-id", duplicate, "--release-id", strings.ToUpper(duplicate), "--output-dir", filepath.Join(canonicalTempDir(t), "duplicates"))
 	if len(report.Items) != 1 {
 		t.Fatal("exact selection not deduplicated")
 	}
 	var limited exportSelection
-	limitedDir := filepath.Join(t.TempDir(), "limited")
+	limitedDir := filepath.Join(canonicalTempDir(t), "limited")
 	run(false, &limited, "preview", "--query", "search", "--max-records", "1", "--output-dir", limitedDir)
 	if limited.Complete || limited.StopReason != "record_limit" || len(limited.Items) != 1 {
 		t.Fatal("limited selection misreported")
 	}
-	run(false, &report, "batch", "--selection-file", filepath.Join(limitedDir, "selection.json"), "--output-dir", filepath.Join(t.TempDir(), "limited-batch"))
+	run(false, &report, "batch", "--selection-file", filepath.Join(limitedDir, "selection.json"), "--output-dir", filepath.Join(canonicalTempDir(t), "limited-batch"))
 	if report.Complete || report.SelectionComplete || report.Items[0].Outcome != "complete" && report.Items[0].Outcome != "reference_only" {
 		t.Fatal("incomplete enumeration hidden", report)
 	}
@@ -375,7 +375,7 @@ func qualifyExportBatchByteBudget(t *testing.T, ctx context.Context, origin, tok
 	limit := recordBytes + artifact.VersionRevision.Representations[0].Size
 	for _, delta := range []int64{0, -1} {
 		t.Run("aggregate-artifact-budget/"+strconv.FormatInt(delta, 10), func(t *testing.T) {
-			directory := filepath.Join(t.TempDir(), "batch")
+			directory := filepath.Join(canonicalTempDir(t), "batch")
 			args := []string{"batch", "--release-id", inline.Release.ID, "--release-id", artifact.Release.ID, "--output-dir", directory, "--base-url", origin, "--token-file", token, "--max-total-bytes", strconv.FormatInt(limit+delta, 10)}
 			// A later selector must remain unattempted after overflow.
 			if delta < 0 {
@@ -439,7 +439,7 @@ func qualifyExportBatchSignal(t *testing.T, parent context.Context, binary strin
 	}))
 	defer server.Close()
 	defer cancel()
-	directory := filepath.Join(t.TempDir(), "batch")
+	directory := filepath.Join(canonicalTempDir(t), "batch")
 	command := exec.CommandContext(ctx, binary, "export", "batch", "--release-id", exportReleaseID, "--release-id", exportRepID, "--release-id", "00000000-0000-7000-8000-000000000099", "--base-url", server.URL, "--token-file", clientSkillToken(t, "fixture-token"), "--output-dir", directory) // #nosec G204,G702 -- owned compiled CLI, loopback fixture and synthetic token.
 	command.Env = append(os.Environ(), "CATALOG_REMOTE_CA_FILE=", "CATALOG_REMOTE_TOKEN=ignored", "CATALOG_DATABASE_DSN=ignored", "CATALOG_CONFIG_FILE=/missing")
 	var output, diagnostic bytes.Buffer
@@ -504,7 +504,7 @@ func TestExportBatchCancellationRetainsReport(t *testing.T) {
 		_, _ = w.Write(exportTestRecord(exportTestRepresentation(`{"safe":"native"}`)))
 	}))
 	defer server.Close()
-	directory := filepath.Join(t.TempDir(), "batch")
+	directory := filepath.Join(canonicalTempDir(t), "batch")
 	var output bytes.Buffer
 	err := runExport(ctx, []string{"batch", "--release-id", exportReleaseID, "--release-id", exportRepID, "--release-id", "00000000-0000-7000-8000-000000000099", "--output-dir", directory}, remoteTestEnvironment(server.URL, "synthetic"), &output)
 	var report exportBatchReport
@@ -537,7 +537,7 @@ func TestExportPreviewMalformedCursorLeavesNoSelection(t *testing.T) {
 				_, _ = w.Write(page)
 			}))
 			defer server.Close()
-			directory := filepath.Join(t.TempDir(), "preview")
+			directory := filepath.Join(canonicalTempDir(t), "preview")
 			var output bytes.Buffer
 			err := runExport(t.Context(), []string{"preview", "--query", mode, "--output-dir", directory}, remoteTestEnvironment(server.URL, "fixture-token"), &output)
 			if err == nil || output.Len() != 0 || calls.Load() != 1 {
@@ -558,7 +558,7 @@ func TestExportLocalTLSFaultsAndDeadline(t *testing.T) {
 			destination := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { redirectCalls.Add(1) }))
 			defer destination.Close()
 			const content = "# Exact retained document\r\n"
-			directory := filepath.Join(t.TempDir(), "export")
+			directory := filepath.Join(canonicalTempDir(t), "export")
 			artifactEntered := make(chan struct{})
 			rep, headers := exportTestArtifact([]byte(content))
 			repJSON, err := json.Marshal(rep)
@@ -622,7 +622,7 @@ func TestExportLocalTLSFaultsAndDeadline(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			ca := filepath.Join(t.TempDir(), "root.pem")
+			ca := filepath.Join(canonicalTempDir(t), "root.pem")
 			if err := os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}), 0600); err != nil {
 				t.Fatal(err)
 			}

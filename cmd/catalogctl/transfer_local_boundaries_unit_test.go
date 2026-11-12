@@ -28,7 +28,7 @@ func transferBoundaryReceipt(t *testing.T) importReceipt {
 }
 
 func TestTransferLocalAssetLimitAndCancellation(t *testing.T) {
-	directory := t.TempDir()
+	directory := canonicalTempDir(t)
 	content := []byte("exact local bytes\x00with a final newline\n")
 	filename := filepath.Join(directory, "asset.bin")
 	if err := os.WriteFile(filename, content, 0600); err != nil {
@@ -80,7 +80,7 @@ func TestTransferReceiptDecoderEnforcesExactByteCeiling(t *testing.T) {
 func TestTransferStatePathRefusalsDoNotCreateProgress(t *testing.T) {
 	for _, kind := range []string{"new state control", "reserved lock suffix", "missing parent"} {
 		t.Run(kind, func(t *testing.T) {
-			directory := t.TempDir()
+			directory := canonicalTempDir(t)
 			if err := os.Chmod(directory, 0700); err != nil { // #nosec G302 -- this fixture models the required private state directory.
 				t.Fatal(err)
 			}
@@ -122,7 +122,7 @@ func TestTransferFirstStateSavePreservesUnexpectedExistingFile(t *testing.T) {
 	receipt := transferBoundaryReceipt(t)
 	for _, interference := range []bool{false, true} {
 		t.Run(map[bool]string{false: "new state control", true: "file appeared before first save"}[interference], func(t *testing.T) {
-			directory := t.TempDir()
+			directory := canonicalTempDir(t)
 			if err := os.Chmod(directory, 0700); err != nil { // #nosec G302 -- owner-only state directory is a prerequisite.
 				t.Fatal(err)
 			}

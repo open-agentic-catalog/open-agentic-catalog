@@ -1449,6 +1449,8 @@ Set fixture-specific environment values inside the test fixture. Typed lint prob
 
 A temporary directory may be beneath another Git repository, so Git failure controls must deliberately invalidate their own repository discovery. The local archive shell fixture requires writable `/tmp` and allocates a private random root there to model the container path grammar. Preserve restrictive permissions, checked cleanup and runtime guards.
 
+When a tested boundary refuses symlinks, resolve the trusted, newly allocated temporary root before creating valid fixture files. Use `filepath.EvalSymlinks` in Go or `Path.resolve()` in Python. Construct explicit linked inputs separately for refusal cases so each assertion reaches its intended guard. This accommodates operating-system temporary-directory aliases without changing the application's path policy.
+
 Do not clear the entire launcher environment to hide a fixture dependency.
 
 When changing observability, assert final HTTP classification, committed versus interrupted Job results, tracing-disabled and sampled/unsampled logging, private-data exclusion and independent metric counts under filtering/suppression. Use isolated clocks and span recorders for decisions, local transports for wire behavior, `make test-tracing` for exported cross-process causality and `make test-monitoring` for the shipped PromQL, including absent/stale scrapes and counter resets. Inspect changed dashboard panels in a browser. Completion logs belong to the operation owner, not the tracing provider.
@@ -1942,6 +1944,14 @@ With both product runtimes stopped, the target checks that migration planning re
 It then inserts one structurally invalid inactive publication candidate through test-owner SQL, requires the verifier to report it without altering the valid active snapshot, removes the fixture corruption, and proves a final valid traversal. Fixture request state must remain unchanged, which proves the no-network verifier did not contact even the local approved source. This qualifies the packaged logical preflight and safe repair order, not an actual backup, point-in-time recovery, external provenance system, or permission to enable traffic.
 
 The target then sends SIGTERM to the idle API and worker with a Compose stop allowance longer than the configured shutdown bound, requires both containers to exit with status zero, and starts those exact containers without their dependencies. Both readiness checks plus final manifest and immutable Skill-document reads prove clean role restart over the retained state. This is an idle termination baseline, not evidence for in-flight HTTP drain timing, leased-job recovery, physical database backup or restoration, PostgreSQL HA, or queued-work recovery. Those remain separate operational or tracked boundaries.
+
+### Engines that run in a virtual machine
+
+Packaged functional runs are qualified on Linux hosts. On macOS with a VM-based engine such as Colima, three host differences can stop a run. Check them before you start:
+
+- The engine must share the fixture directory. The supervisor creates it beside the run report under ignored `output/functional/`, not under `TMPDIR`. Keep the checkout in a location shared by the selected VM; Colima normally shares the home directory, subject to its mount configuration. A network-disabled probe uses the cached pinned PostgreSQL image and stops with `fixture-directory-not-shared` if the marker is absent. It does not pull an image. An unavailable probe is inconclusive; the full workflow must still pass. The probe has the invocation's ownership label and exact name so cleanup can remove it after a client timeout.
+- The selected `CURL` must support Ed25519 fixture certificates. The workflow refuses an active SecureTransport backend with `curl-tls-unsupported`; inactive backends listed in parentheses do not trigger that refusal. On macOS, install Homebrew curl and select it with `make test-functional CURL="$(brew --prefix curl)/bin/curl"`. This works with Intel and Apple Silicon Homebrew prefixes and retains certificate and hostname verification.
+- Mounted credential changes can propagate later with VM filesystems. The credential scenario allows a 15-second polling budget for successful reads of the previous binding, then runs the strict revocation check. Unexpected results and request failures stop the scenario immediately. Existing bounded HTTP request timeouts, backend credential validation, readiness and retained-state assertions remain in force.
 
 ### Reports and owned cleanup
 

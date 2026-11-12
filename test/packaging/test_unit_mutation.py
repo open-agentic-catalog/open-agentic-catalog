@@ -115,7 +115,7 @@ class MutationEventsTests(unittest.TestCase):
 class MutationReportTests(unittest.TestCase):
     def test_selected_sources_reject_files_outside_discovery_and_generated_code(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             for package, files in m.SCOPES.items():
                 with self.subTest(package=package):
                     for name in files:

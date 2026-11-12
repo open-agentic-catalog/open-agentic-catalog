@@ -134,7 +134,7 @@ func TestExportDraftDownloadsUseExactTargetsAndRawFiles(t *testing.T) {
 				if release && len(paths) != 2 || !release && len(paths) != 4+map[bool]int{false: 0, true: 2}[withListing] {
 					t.Fatal("unbounded or missing exact reads", paths)
 				}
-				parent, err := os.OpenRoot(t.TempDir())
+				parent, err := os.OpenRoot(canonicalTempDir(t))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -155,12 +155,12 @@ func TestExportDraftDownloadsUseExactTargetsAndRawFiles(t *testing.T) {
 }
 
 func TestExportDraftRejectsSelectionFileRepresentationBeforeReads(t *testing.T) {
-	filename := filepath.Join(t.TempDir(), "selection.json")
+	filename := filepath.Join(canonicalTempDir(t), "selection.json")
 	selection := exportSelection{Format: 1, Origin: "https://catalog.invalid", Complete: true, StopReason: "exhausted", Items: []exportSelectionItem{{ReleaseID: exportReleaseID, RepresentationID: exportRepID}}}
 	if err := os.WriteFile(filename, importTestJSON(t, selection), 0600); err != nil {
 		t.Fatal(err)
 	}
-	directory := filepath.Join(t.TempDir(), "new")
+	directory := filepath.Join(canonicalTempDir(t), "new")
 	var output bytes.Buffer
 	err := runExportBatch(t.Context(), []string{"batch", "--format", "draft", "--selection-file", filename, "--output-dir", directory}, remoteTestEnvironment("https://never-contact.invalid", ""), &output)
 	if err == nil || !strings.Contains(safeerr.Message(err), "representation selectors") || output.Len() != 0 {
@@ -209,7 +209,7 @@ func TestExportDraftBatchPreservesPartialResults(t *testing.T) {
 				}
 				return exportTestResponse(payload, 200), nil
 			}))
-			root, err := os.OpenRoot(t.TempDir())
+			root, err := os.OpenRoot(canonicalTempDir(t))
 			if err != nil {
 				t.Fatal(err)
 			}

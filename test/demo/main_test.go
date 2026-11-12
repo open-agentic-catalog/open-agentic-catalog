@@ -8,7 +8,7 @@ import (
 )
 
 func TestPrepareTLSRetainsPrivateIdentity(t *testing.T) {
-	directory := filepath.Join(t.TempDir(), "tls")
+	directory := filepath.Join(canonicalTempDir(t), "tls")
 	if err := prepareTLS(directory); err != nil {
 		t.Fatal(err)
 	}
@@ -35,7 +35,7 @@ func TestPrepareTLSRetainsPrivateIdentity(t *testing.T) {
 func TestPrepareTLSRejectsPartialAndLinkedFiles(t *testing.T) {
 	for _, kind := range []string{"partial", "linked", "directory"} {
 		t.Run(kind, func(t *testing.T) {
-			directory := filepath.Join(t.TempDir(), "tls")
+			directory := filepath.Join(canonicalTempDir(t), "tls")
 			if err := os.Mkdir(directory, 0700); err != nil {
 				t.Fatal(err)
 			}
@@ -62,7 +62,7 @@ func TestPrepareTLSRejectsPartialAndLinkedFiles(t *testing.T) {
 }
 
 func TestPrepareTLSExactPrivateFixtureAddress(t *testing.T) {
-	directory := filepath.Join(t.TempDir(), "tls")
+	directory := filepath.Join(canonicalTempDir(t), "tls")
 	for _, ip := range []string{"127.0.0.1", "8.8.8.8", "172.030.254.41", "not-an-ip"} {
 		if prepareTLSForIP(directory, ip) == nil {
 			t.Fatal("unsafe fixture IP accepted", ip)
@@ -77,8 +77,8 @@ func TestPrepareTLSExactPrivateFixtureAddress(t *testing.T) {
 }
 
 func TestTLSPreparationRejectsAncestorLinkWithoutOutput(t *testing.T) {
-	target := t.TempDir()
-	alias := filepath.Join(t.TempDir(), "alias")
+	target := canonicalTempDir(t)
+	alias := filepath.Join(canonicalTempDir(t), "alias")
 	if err := os.Symlink(target, alias); err != nil {
 		t.Fatal(err)
 	}
@@ -88,4 +88,15 @@ func TestTLSPreparationRejectsAncestorLinkWithoutOutput(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(target, "new-tls")); !errors.Is(err, os.ErrNotExist) {
 		t.Fatal("TLS wrote before rejecting linked ancestor")
 	}
+}
+
+// canonicalTempDir resolves only a newly allocated, trusted test root. Explicit
+// unsafe paths still reach the production symlink-refusal boundary unchanged.
+func canonicalTempDir(tb testing.TB) string {
+	tb.Helper()
+	directory, err := filepath.EvalSymlinks(tb.TempDir())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return directory
 }

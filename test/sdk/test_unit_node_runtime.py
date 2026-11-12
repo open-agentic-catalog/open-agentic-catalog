@@ -41,7 +41,7 @@ class NodeRuntimeUnits(unittest.TestCase):
 
     def test_checksum_failure_does_not_activate_runtime_and_cleans_staging(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(runtime.platform, "system", return_value="Linux"), patch.object(runtime.platform, "machine", return_value="x86_64"), patch.object(runtime.urllib.request, "urlopen", return_value=io.BytesIO(b"untrusted archive")):
-            destination = Path(directory)
+            destination = Path(directory).resolve()
             with self.assertRaisesRegex(RuntimeError, "checksum mismatch"):
                 runtime.install("24.22.1", destination)
             self.assertEqual(list(destination.iterdir()), [])
@@ -57,7 +57,7 @@ class NodeRuntimeUnits(unittest.TestCase):
                 bundle.addfile(member, io.BytesIO(b"node"))
         payload = archive.getvalue()
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             (root / "node-runtimes.json").write_text(json.dumps({"24.21.0": {filename: hashlib.sha256(payload).hexdigest()}}))
             with patch.object(runtime, "HERE", root), patch.object(runtime.platform, "system", return_value="Linux"), patch.object(runtime.platform, "machine", return_value="x86_64"), patch.object(runtime.urllib.request, "urlopen", return_value=io.BytesIO(payload)) as acquire:
                 result = runtime.install("24.21.0", root / "installed")
@@ -77,7 +77,7 @@ class NodeRuntimeUnits(unittest.TestCase):
 
     def test_npm_installs_separately_reuses_receipt_and_refuses_drift(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             pins, asset, response = npm_fixture(root)
             node = root / "reviewed-node/bin/node"
             node.parent.mkdir(parents=True)
@@ -106,7 +106,7 @@ class NodeRuntimeUnits(unittest.TestCase):
 
     def test_failed_npm_acquisition_cleans_staging_without_activation(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             pins, _, _ = npm_fixture(root)
             target = root / "target"
             with patch.object(runtime, "NPM_PINS", pins), patch.object(runtime.urllib.request, "urlopen", side_effect=OSError("download failed")):
@@ -116,7 +116,7 @@ class NodeRuntimeUnits(unittest.TestCase):
 
     def test_missing_or_inconsistent_npm_pin_stops_before_download(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             pins, asset, _ = npm_fixture(root)
             for change in ({"version": "12.2.1"}, {"filename": "../npm.tgz"}, {"sha256": "not-a-hash"},
                            {"url": "https://other.example/npm.tgz"}, {"sha256": None}):
@@ -134,7 +134,7 @@ class NodeRuntimeUnits(unittest.TestCase):
 
     def test_wrong_npm_bytes_fail_before_extraction(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             pins, _, response = npm_fixture(root)
             response.write(b"substituted archive")
             response.seek(0)
@@ -151,7 +151,7 @@ class NodeRuntimeUnits(unittest.TestCase):
 
     def test_npm_refuses_escaping_archive_and_redirected_destination(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
+            root = Path(directory).resolve()
             pins, _, response = npm_fixture(root, extra={"package/../escape": "untrusted"})
             outside = root / "outside"
             outside.mkdir()

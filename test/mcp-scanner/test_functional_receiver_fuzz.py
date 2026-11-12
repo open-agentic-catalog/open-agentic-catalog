@@ -15,7 +15,7 @@ class ReceiverFuzzNativeTests(unittest.TestCase):
     def fixture(self, body):
         owned = tempfile.TemporaryDirectory(prefix="catalog-receiver-fuzz-control-")
         self.addCleanup(owned.cleanup)
-        root = Path(owned.name)
+        root = Path(owned.name).resolve()
         module = root / f.MODULE
         module.mkdir(parents=True)
         version = next(line.split()[1] for line in (f.ROOT / "go.mod").read_text().splitlines() if line.startswith("go "))

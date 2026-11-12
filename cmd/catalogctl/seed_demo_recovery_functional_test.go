@@ -45,7 +45,7 @@ func TestConfiguredDemoUncommittedIntentRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	if _, err = executeConfiguredDemo(t.Context(), server.URL, path, origin, trust, false, plan); err == nil || strings.Contains(err.Error(), "private fault detail") {
 		t.Fatalf("interrupted load: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestConfiguredDemoUncertainVersionRefusesAdoption(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			path := filepath.Join(t.TempDir(), "receipt.json")
+			path := filepath.Join(canonicalTempDir(t), "receipt.json")
 			if _, err = executeConfiguredDemo(t.Context(), server.URL, path, origin, trust, false, plan); err == nil || pause.Load() {
 				t.Fatal("uncertain version fault not exercised", err)
 			}
@@ -237,7 +237,7 @@ func TestConfiguredDemoUncertainListingRevisionRecovery(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			path := filepath.Join(t.TempDir(), "receipt.json")
+			path := filepath.Join(canonicalTempDir(t), "receipt.json")
 			if _, err = executeConfiguredDemo(t.Context(), server.URL, path, origin, trust, false, plan); err == nil || committed.Load() == nil || strings.Contains(err.Error(), "private lost revision response") {
 				t.Fatal("uncertain listing revision was not established safely", err)
 			}
@@ -292,7 +292,7 @@ func readDemoRecoveryFile(t *testing.T, path string) []byte {
 
 func TestConfiguredDemoCompletedReceiptRejectsUnmatchedJournal(t *testing.T) {
 	runtime, _, origin, trust, _ := configuredDemoRuntime(t)
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	var writes atomic.Int64
 	var mu sync.Mutex
 	var completed []byte
@@ -392,7 +392,7 @@ func TestConfiguredDemoFinalReadbackRecoveryWithoutCommands(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	if _, err = executeConfiguredDemo(t.Context(), server.URL, path, origin, trust, false, plan); err == nil || !strings.Contains(err.Error(), "incomplete local discovery") || observed.Load() != 1 {
 		t.Fatal("partial final readback accepted", err)
 	}
@@ -477,7 +477,7 @@ func TestConfiguredDemoActivationResponseBindsCommandPath(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(t.TempDir(), "receipt.json")
+	path := filepath.Join(canonicalTempDir(t), "receipt.json")
 	if _, err = executeConfiguredDemo(t.Context(), server.URL, path, origin, trust, false, plan); err == nil || !strings.Contains(err.Error(), "command response does not match fixed fixture input") || changed.Load() != 1 || foreignReads.Load() != 0 {
 		t.Fatal("foreign snapshot success was used", err)
 	}
