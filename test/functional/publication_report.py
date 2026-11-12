@@ -32,8 +32,10 @@ def prepare(environment):
         raise Failure("invalid-publication-report-profile")
     fixture = Path(environment["CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY"])
     inputs = fixture / "publication-report"
-    inputs.mkdir(mode=0o700)
-    (fixture / "publication-report-output").mkdir(mode=0o700)
+    inputs.mkdir(mode=0o755)
+    inputs.chmod(0o755)
+    (fixture / "publication-report-output").mkdir(mode=0o777)
+    (fixture / "publication-report-output").chmod(0o777)
     for name in ("server.pem", "server-key.pem"):
         private_write(inputs / name, (fixture / name).read_bytes())
     private_write(inputs / "catalog-token", b"local-template-service-client")
@@ -83,6 +85,17 @@ def init_arguments(database_file="receiver.dsn"):
             "--database-file", "/report-inputs/" + database_file]
 
 
+def read_report(path):
+    """Retry an absent report; malformed documents and other I/O errors fail."""
+    try:
+        saved = read_document(path)
+    except FileNotFoundError:
+        return None
+    if not isinstance(saved, dict):
+        raise Failure("invalid-publication-report")
+    return saved
+
+
 def qualify(journey):
     inputs = journey.fixture / "publication-report"
     output = journey.fixture / "publication-report-output/report.json"
@@ -127,9 +140,9 @@ def qualify(journey):
     journey.compose("--profile", "publication-report", "up", "--no-deps", "--force-recreate", "--detach", "publication-report")
     try:
         def initial():
-            if not output.exists():
+            saved = read_report(output)
+            if saved is None:
                 return False
-            saved = read_document(output)
             observed = saved.get("lastSuccessfulObservation")
             return (isinstance(observed, dict) and "trigger" not in observed and saved.get("lossCountsObservedAt")
                     and not saved.get("refreshFailure"))
@@ -153,7 +166,9 @@ def qualify(journey):
                 row = json.loads(report_sql(journey, "SELECT json_build_object('done',EXISTS(SELECT 1 FROM publication_receiver_inbox WHERE source='" + SOURCE + "' AND id='" + event_id + "' AND event='" + json.dumps(trigger) + "'::jsonb AND completed_at IS NOT NULL),'report',last_success,'failure',failure) FROM publication_receiver_report WHERE singleton"))
                 if not row["done"]:
                     return False
-                saved = read_document(output)
+                saved = read_report(output)
+                if saved is None:
+                    return False
                 assert not row["failure"] and check_observation({"lastSuccessfulObservation": row["report"]}, trigger, expected)
                 return check_observation(saved, trigger, expected) and saved["lastSuccessfulObservation"] == row["report"]
             journey.wait("publication-report-activation" if action == "publication.activated" else "publication-report-unpublish", completed)
