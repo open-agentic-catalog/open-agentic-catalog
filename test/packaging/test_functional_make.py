@@ -1,4 +1,5 @@
 import ast
+import importlib.util
 from pathlib import Path
 import json
 import os
@@ -628,6 +629,102 @@ if Path("fail-" + stage).exists():
                 "test/validation": "node --test *.unit.test.mjs",
             }
             self.assertEqual(script, expected[project])
+
+    def test_python_lint_roots_match_the_staged_hook_and_cover_first_party_python(self):
+        command = next(line for line in self.run_make("-n", "python-lint").splitlines() if " check " in line)
+        roots = shlex.split(command)[shlex.split(command).index("--no-fix") + 1:]
+        spec = importlib.util.spec_from_file_location("hook_runner", ROOT / "test/hooks/runner.py")
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        self.assertEqual({root + "/" for root in roots}, set(runner.PYTHON_ROOTS), "hook and python-lint roots differ")
+        # Python outside these roots must have another named owner: the SDK gate lints sdk/python.
+        owned_elsewhere = ("sdk/python/", "schemas/upstream/", "samples/upstream/", "internal/adapter/testdata/upstream/")
+        environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        listed = subprocess.run(["git", "-C", str(ROOT), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+                                env=environment, check=True, capture_output=True, timeout=30).stdout.split(b"\0")
+        unowned = sorted(name for name in map(os.fsdecode, listed)
+                         if name.endswith(".py") and not name.startswith(tuple(r + "/" for r in roots) + owned_elsewhere)
+                         and (ROOT / name).is_file())
+        self.assertEqual(unowned, [], "Python source outside python-lint and named owners")
+
+    def test_container_sources_have_a_container_check_owner_in_make_and_the_hook(self):
+        command = next(line for line in self.run_make("-n", "container-check").splitlines() if line.startswith("hadolint "))
+        selected = set(shlex.split(command)[1:])
+        spec = importlib.util.spec_from_file_location("hook_runner", ROOT / "test/hooks/runner.py")
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        listed = subprocess.run(["git", "-C", str(ROOT), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+                                env=environment, check=True, capture_output=True, timeout=30).stdout.split(b"\0")
+        found = {name for name in map(os.fsdecode, listed) if (ROOT / name).is_file()
+                 and re.fullmatch(r"(?:Containerfile|Dockerfile)(?:\.[^/]+)?", Path(name).name)
+                 and not name.startswith(("schemas/upstream/", "samples/upstream/", "internal/adapter/testdata/upstream/"))}
+        # The compatibility Dockerfile is a byte copy checked by container-sync-check.
+        copy = "deployments/container/Dockerfile"
+        self.assertIn(copy, found)
+        self.assertEqual(found - {copy} - selected, set(), "Containerfile outside make container-check")
+        self.assertEqual(selected - found, set(), "container-check names a missing or non-Containerfile path")
+        self.assertEqual(set(runner.CONTAINER_FILES), selected, "staged-hook Containerfile list differs from container-check")
+
+    # Shell scripts have one explicit owner list: the Makefile shell-check recipe.
+    # Immutable or copied upstream trees are not first-party shell source.
+    SHELL_EXCLUDED = ("schemas/upstream/", "samples/upstream/", "internal/adapter/testdata/upstream/")
+    SHELL_SHEBANG = re.compile(rb"#!\s*(?:/usr/bin/env\s+(?:-S\s+)?)?(?:\S*/)?(?:ba|da|z|k)?sh(?:\s|$)")
+
+    @classmethod
+    def shell_sources(cls, root):
+        """List current first-party shell files by extension or shebang, without printing contents."""
+        environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        listed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            env=environment, check=True, capture_output=True, timeout=30,
+        ).stdout.split(b"\0")
+        found = set()
+        for raw in listed:
+            name = os.fsdecode(raw)
+            path = root / name
+            if not name or name.startswith(cls.SHELL_EXCLUDED) or path.is_symlink() or not path.is_file():
+                continue
+            if name.endswith((".sh", ".bash")):
+                found.add(name)
+                continue
+            with path.open("rb") as handle:
+                if cls.SHELL_SHEBANG.match(handle.readline(256)):
+                    found.add(name)
+        return found
+
+    def test_shell_sources_have_a_shell_check_owner_in_make_and_the_hook(self):
+        selected = shlex.split(next(line for line in self.run_make("-n", "shell-check").splitlines()
+                                    if line.startswith("shellcheck ")))[1:]
+        self.assertEqual(len(selected), len(set(selected)))
+        sources = self.shell_sources(ROOT)
+        self.assertEqual(sources - set(selected), set(), "shell source outside make shell-check")
+        self.assertEqual(set(selected) - sources, set(), "shell-check names a non-shell or missing file")
+        spec = importlib.util.spec_from_file_location("hook_runner", ROOT / "test/hooks/runner.py")
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        self.assertEqual(set(runner.SHELL_FILES), set(selected), "staged-hook shell list differs from make shell-check")
+
+    def test_shell_inventory_detects_unowned_scripts_and_ignores_excluded_inputs(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            subprocess.run(["git", "init", "-q", directory], check=True)
+            (root / ".gitignore").write_text("output/\n")
+            files = {
+                "scripts/by-extension.sh": "echo ok\n", "scripts/by-shebang": "#!/usr/bin/env bash\n",
+                "scripts/posix": "#!/bin/sh\n", "scripts/env-split": "#!/usr/bin/env -S sh -eu\n",
+                "scripts/python-tool": "#!/usr/bin/env python3\n", "scripts/shell-named.py": "#!/usr/bin/env python3\n",
+                "scripts/shellish": "#!/usr/bin/env shellcheck-wrapper\n",
+                "schemas/upstream/vendor.sh": "echo vendored\n", "output/ignored.sh": "echo ignored\n",
+            }
+            for name, content in files.items():
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / name).write_text(content)
+            (root / "scripts/linked.sh").symlink_to(root / "scripts/by-extension.sh")
+            (root / "scripts/directory.sh").mkdir()
+            self.assertEqual(self.shell_sources(root), {
+                "scripts/by-extension.sh", "scripts/by-shebang", "scripts/posix", "scripts/env-split",
+            })
 
     def test_source_gate_failures_stop_later_checks_without_installing_tools(self):
         """Execute maintained Make/shell sequences with owned tool doubles."""
