@@ -84,7 +84,7 @@ def install(manifest, model=None, *, postgres=True):
         url = f"https://huggingface.co/{manifest['model']}/resolve/{manifest['revision']}/{name}"
         print(f"Downloading pinned {name}", flush=True)
         with tempfile.NamedTemporaryFile(dir=path.parent, prefix="download-") as temporary:
-            command(["curl", "--fail", "--location", "--silent", "--show-error", "--proto", "=https", "--proto-redir", "=https", "--max-time", "300", "--max-filesize", "150000000", "--output", temporary.name, url], timeout=310)
+            command(["curl", "--fail", "--location", "--silent", "--show-error", "--proto", "=https", "--proto-redir", "=https", "--max-time", "900", "--max-filesize", "3000000000", "--output", temporary.name, url], timeout=910)
             if ev.digest(temporary.name) != expected:
                 raise ValueError(f"download checksum mismatch: {name}")
             # Same-filesystem exclusive final creation avoids replacing an input.

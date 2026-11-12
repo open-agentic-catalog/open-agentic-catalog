@@ -1,0 +1,3198 @@
+[
+  {
+    "id": "invoice-agent",
+    "identifier": "urn:air:catalog.example.test:demo:invoice-agent",
+    "name": "Invoice reconciliation Assistant",
+    "description": "Compare supplier invoices with purchase orders and receipts, flag price discrepancies and prepare an accounts-payable exception report. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "finance",
+      "invoice"
+    ],
+    "representativeQueries": [
+      "Invoice reconciliation",
+      "Check supplier invoice discrepancies"
+    ],
+    "kind": "agent",
+    "family": "invoice",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "invoice-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:invoice-mcp_server",
+    "name": "Invoice reconciliation Connector",
+    "description": "Compare supplier invoices with purchase orders and receipts, flag price discrepancies and prepare an accounts-payable exception report. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "finance",
+      "invoice",
+      "mcp_server"
+    ],
+    "representativeQueries": [
+      "Invoice reconciliation",
+      "Check supplier invoice discrepancies"
+    ],
+    "kind": "mcp_server",
+    "family": "invoice",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "invoice-skill",
+    "identifier": "urn:air:catalog.example.test:demo:invoice-skill",
+    "name": "Invoice reconciliation Procedure",
+    "description": "Compare supplier invoices with purchase orders and receipts, flag price discrepancies and prepare an accounts-payable exception report. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "finance",
+      "invoice",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Invoice reconciliation",
+      "Check supplier invoice discrepancies"
+    ],
+    "kind": "skill",
+    "family": "invoice",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "invoice-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:invoice-plugin",
+    "name": "Invoice reconciliation Toolkit",
+    "description": "Compare supplier invoices with purchase orders and receipts, flag price discrepancies and prepare an accounts-payable exception report. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "finance",
+      "invoice",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Invoice reconciliation",
+      "Check supplier invoice discrepancies"
+    ],
+    "kind": "plugin",
+    "family": "invoice",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "calendar-agent",
+    "identifier": "urn:air:catalog.example.test:demo:calendar-agent",
+    "name": "Calendar scheduling Assistant",
+    "description": "Find overlapping availability across timezones for distributed team members and propose conflict-free meeting slots. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "calendar",
+      "productivity",
+      "scheduling"
+    ],
+    "representativeQueries": [
+      "Find team meeting slots",
+      "Cross-timezone schedule availability"
+    ],
+    "kind": "agent",
+    "family": "calendar",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "calendar-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:calendar-mcp_server",
+    "name": "Calendar scheduling Connector",
+    "description": "Find overlapping availability across timezones for distributed team members and propose conflict-free meeting slots. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "calendar",
+      "mcp_server",
+      "productivity",
+      "scheduling"
+    ],
+    "representativeQueries": [
+      "Find team meeting slots",
+      "Cross-timezone schedule availability"
+    ],
+    "kind": "mcp_server",
+    "family": "calendar",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "calendar-skill",
+    "identifier": "urn:air:catalog.example.test:demo:calendar-skill",
+    "name": "Calendar scheduling Procedure",
+    "description": "Find overlapping availability across timezones for distributed team members and propose conflict-free meeting slots. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "calendar",
+      "productivity",
+      "scheduling",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Find team meeting slots",
+      "Cross-timezone schedule availability"
+    ],
+    "kind": "skill",
+    "family": "calendar",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "calendar-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:calendar-plugin",
+    "name": "Calendar scheduling Toolkit",
+    "description": "Find overlapping availability across timezones for distributed team members and propose conflict-free meeting slots. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "calendar",
+      "plugin",
+      "productivity",
+      "scheduling"
+    ],
+    "representativeQueries": [
+      "Find team meeting slots",
+      "Cross-timezone schedule availability"
+    ],
+    "kind": "plugin",
+    "family": "calendar",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "inventory-agent",
+    "identifier": "urn:air:catalog.example.test:demo:inventory-agent",
+    "name": "Inventory forecasting Assistant",
+    "description": "Analyze warehouse stock levels and historic sales velocity to recommend replenishment orders before stockouts occur. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "inventory",
+      "supply-chain",
+      "warehouse"
+    ],
+    "representativeQueries": [
+      "Warehouse stock forecasting",
+      "Predict replenishment needs"
+    ],
+    "kind": "agent",
+    "family": "inventory",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "inventory-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:inventory-mcp_server",
+    "name": "Inventory forecasting Connector",
+    "description": "Analyze warehouse stock levels and historic sales velocity to recommend replenishment orders before stockouts occur. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "inventory",
+      "mcp_server",
+      "supply-chain",
+      "warehouse"
+    ],
+    "representativeQueries": [
+      "Warehouse stock forecasting",
+      "Predict replenishment needs"
+    ],
+    "kind": "mcp_server",
+    "family": "inventory",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "inventory-skill",
+    "identifier": "urn:air:catalog.example.test:demo:inventory-skill",
+    "name": "Inventory forecasting Procedure",
+    "description": "Analyze warehouse stock levels and historic sales velocity to recommend replenishment orders before stockouts occur. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "inventory",
+      "skill",
+      "supply-chain",
+      "warehouse"
+    ],
+    "representativeQueries": [
+      "Warehouse stock forecasting",
+      "Predict replenishment needs"
+    ],
+    "kind": "skill",
+    "family": "inventory",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "inventory-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:inventory-plugin",
+    "name": "Inventory forecasting Toolkit",
+    "description": "Analyze warehouse stock levels and historic sales velocity to recommend replenishment orders before stockouts occur. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "inventory",
+      "plugin",
+      "supply-chain",
+      "warehouse"
+    ],
+    "representativeQueries": [
+      "Warehouse stock forecasting",
+      "Predict replenishment needs"
+    ],
+    "kind": "plugin",
+    "family": "inventory",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "redaction-agent",
+    "identifier": "urn:air:catalog.example.test:demo:redaction-agent",
+    "name": "PII redaction Assistant",
+    "description": "Detect and mask personal identifiers, phone numbers, and email addresses in customer transcripts before distribution. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "privacy",
+      "redaction",
+      "security"
+    ],
+    "representativeQueries": [
+      "Mask PII in transcript",
+      "Redact personal data"
+    ],
+    "kind": "agent",
+    "family": "redaction",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "redaction-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:redaction-mcp_server",
+    "name": "PII redaction Connector",
+    "description": "Detect and mask personal identifiers, phone numbers, and email addresses in customer transcripts before distribution. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "mcp_server",
+      "privacy",
+      "redaction",
+      "security"
+    ],
+    "representativeQueries": [
+      "Mask PII in transcript",
+      "Redact personal data"
+    ],
+    "kind": "mcp_server",
+    "family": "redaction",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "redaction-skill",
+    "identifier": "urn:air:catalog.example.test:demo:redaction-skill",
+    "name": "PII redaction Procedure",
+    "description": "Detect and mask personal identifiers, phone numbers, and email addresses in customer transcripts before distribution. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "privacy",
+      "redaction",
+      "security",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Mask PII in transcript",
+      "Redact personal data"
+    ],
+    "kind": "skill",
+    "family": "redaction",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "redaction-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:redaction-plugin",
+    "name": "PII redaction Toolkit",
+    "description": "Detect and mask personal identifiers, phone numbers, and email addresses in customer transcripts before distribution. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "plugin",
+      "privacy",
+      "redaction",
+      "security"
+    ],
+    "representativeQueries": [
+      "Mask PII in transcript",
+      "Redact personal data"
+    ],
+    "kind": "plugin",
+    "family": "redaction",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "sql-agent",
+    "identifier": "urn:air:catalog.example.test:demo:sql-agent",
+    "name": "Read-only SQL querying Assistant",
+    "description": "Execute safe read-only queries against approved relational database views and format result tables without modifying data. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "database",
+      "query",
+      "sql"
+    ],
+    "representativeQueries": [
+      "Query relational database",
+      "Fetch read-only SQL table"
+    ],
+    "kind": "agent",
+    "family": "sql",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "sql-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:sql-mcp_server",
+    "name": "Read-only SQL querying Connector",
+    "description": "Execute safe read-only queries against approved relational database views and format result tables without modifying data. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "database",
+      "mcp_server",
+      "query",
+      "sql"
+    ],
+    "representativeQueries": [
+      "Query relational database",
+      "Fetch read-only SQL table"
+    ],
+    "kind": "mcp_server",
+    "family": "sql",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "sql-skill",
+    "identifier": "urn:air:catalog.example.test:demo:sql-skill",
+    "name": "Read-only SQL querying Procedure",
+    "description": "Execute safe read-only queries against approved relational database views and format result tables without modifying data. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "database",
+      "query",
+      "skill",
+      "sql"
+    ],
+    "representativeQueries": [
+      "Query relational database",
+      "Fetch read-only SQL table"
+    ],
+    "kind": "skill",
+    "family": "sql",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "sql-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:sql-plugin",
+    "name": "Read-only SQL querying Toolkit",
+    "description": "Execute safe read-only queries against approved relational database views and format result tables without modifying data. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "database",
+      "plugin",
+      "query",
+      "sql"
+    ],
+    "representativeQueries": [
+      "Query relational database",
+      "Fetch read-only SQL table"
+    ],
+    "kind": "plugin",
+    "family": "sql",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "expenses-agent",
+    "identifier": "urn:air:catalog.example.test:demo:expenses-agent",
+    "name": "Expense policy audit Assistant",
+    "description": "Check submitted employee receipts against corporate travel and entertainment expense limits, flagging non-compliant items. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "expenses",
+      "finance",
+      "policy"
+    ],
+    "representativeQueries": [
+      "Audit expense receipts",
+      "Check travel expense limits"
+    ],
+    "kind": "agent",
+    "family": "expenses",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "expenses-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:expenses-mcp_server",
+    "name": "Expense policy audit Connector",
+    "description": "Check submitted employee receipts against corporate travel and entertainment expense limits, flagging non-compliant items. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "expenses",
+      "finance",
+      "mcp_server",
+      "policy"
+    ],
+    "representativeQueries": [
+      "Audit expense receipts",
+      "Check travel expense limits"
+    ],
+    "kind": "mcp_server",
+    "family": "expenses",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "expenses-skill",
+    "identifier": "urn:air:catalog.example.test:demo:expenses-skill",
+    "name": "Expense policy audit Procedure",
+    "description": "Check submitted employee receipts against corporate travel and entertainment expense limits, flagging non-compliant items. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "expenses",
+      "finance",
+      "policy",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Audit expense receipts",
+      "Check travel expense limits"
+    ],
+    "kind": "skill",
+    "family": "expenses",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "expenses-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:expenses-plugin",
+    "name": "Expense policy audit Toolkit",
+    "description": "Check submitted employee receipts against corporate travel and entertainment expense limits, flagging non-compliant items. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "expenses",
+      "finance",
+      "plugin",
+      "policy"
+    ],
+    "representativeQueries": [
+      "Audit expense receipts",
+      "Check travel expense limits"
+    ],
+    "kind": "plugin",
+    "family": "expenses",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "currency-agent",
+    "identifier": "urn:air:catalog.example.test:demo:currency-agent",
+    "name": "Currency conversion Assistant",
+    "description": "Retrieve historical foreign exchange reference rates and convert past financial transactions between currencies accurately. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "currency",
+      "finance",
+      "forex"
+    ],
+    "representativeQueries": [
+      "Historical exchange rate lookup",
+      "Convert foreign currency amounts"
+    ],
+    "kind": "agent",
+    "family": "currency",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "currency-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:currency-mcp_server",
+    "name": "Currency conversion Connector",
+    "description": "Retrieve historical foreign exchange reference rates and convert past financial transactions between currencies accurately. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "currency",
+      "finance",
+      "forex",
+      "mcp_server"
+    ],
+    "representativeQueries": [
+      "Historical exchange rate lookup",
+      "Convert foreign currency amounts"
+    ],
+    "kind": "mcp_server",
+    "family": "currency",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "currency-skill",
+    "identifier": "urn:air:catalog.example.test:demo:currency-skill",
+    "name": "Currency conversion Procedure",
+    "description": "Retrieve historical foreign exchange reference rates and convert past financial transactions between currencies accurately. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "currency",
+      "finance",
+      "forex",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Historical exchange rate lookup",
+      "Convert foreign currency amounts"
+    ],
+    "kind": "skill",
+    "family": "currency",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "currency-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:currency-plugin",
+    "name": "Currency conversion Toolkit",
+    "description": "Retrieve historical foreign exchange reference rates and convert past financial transactions between currencies accurately. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "currency",
+      "finance",
+      "forex",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Historical exchange rate lookup",
+      "Convert foreign currency amounts"
+    ],
+    "kind": "plugin",
+    "family": "currency",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "translation-agent",
+    "identifier": "urn:air:catalog.example.test:demo:translation-agent",
+    "name": "Technical translation Assistant",
+    "description": "Translate technical documentation and developer guides accurately between English and Spanish maintaining code syntax. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "language",
+      "localization",
+      "translation"
+    ],
+    "representativeQueries": [
+      "Translate documentation English to Spanish",
+      "Technical Spanish translation"
+    ],
+    "kind": "agent",
+    "family": "translation",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "translation-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:translation-mcp_server",
+    "name": "Technical translation Connector",
+    "description": "Translate technical documentation and developer guides accurately between English and Spanish maintaining code syntax. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "language",
+      "localization",
+      "mcp_server",
+      "translation"
+    ],
+    "representativeQueries": [
+      "Translate documentation English to Spanish",
+      "Technical Spanish translation"
+    ],
+    "kind": "mcp_server",
+    "family": "translation",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "translation-skill",
+    "identifier": "urn:air:catalog.example.test:demo:translation-skill",
+    "name": "Technical translation Procedure",
+    "description": "Translate technical documentation and developer guides accurately between English and Spanish maintaining code syntax. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "language",
+      "localization",
+      "skill",
+      "translation"
+    ],
+    "representativeQueries": [
+      "Translate documentation English to Spanish",
+      "Technical Spanish translation"
+    ],
+    "kind": "skill",
+    "family": "translation",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "translation-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:translation-plugin",
+    "name": "Technical translation Toolkit",
+    "description": "Translate technical documentation and developer guides accurately between English and Spanish maintaining code syntax. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "language",
+      "localization",
+      "plugin",
+      "translation"
+    ],
+    "representativeQueries": [
+      "Translate documentation English to Spanish",
+      "Technical Spanish translation"
+    ],
+    "kind": "plugin",
+    "family": "translation",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "duplicate-agent",
+    "identifier": "urn:air:catalog.example.test:demo:duplicate-agent",
+    "name": "Duplicate contact detection Assistant",
+    "description": "Identify duplicated customer profiles and contact records across CRM exports using fuzzy similarity matching. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "contacts",
+      "crm",
+      "data-quality"
+    ],
+    "representativeQueries": [
+      "Find duplicate CRM contacts",
+      "Fuzzy matching customer records"
+    ],
+    "kind": "agent",
+    "family": "duplicate",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "duplicate-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:duplicate-mcp_server",
+    "name": "Duplicate contact detection Connector",
+    "description": "Identify duplicated customer profiles and contact records across CRM exports using fuzzy similarity matching. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "contacts",
+      "crm",
+      "data-quality",
+      "mcp_server"
+    ],
+    "representativeQueries": [
+      "Find duplicate CRM contacts",
+      "Fuzzy matching customer records"
+    ],
+    "kind": "mcp_server",
+    "family": "duplicate",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "duplicate-skill",
+    "identifier": "urn:air:catalog.example.test:demo:duplicate-skill",
+    "name": "Duplicate contact detection Procedure",
+    "description": "Identify duplicated customer profiles and contact records across CRM exports using fuzzy similarity matching. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "contacts",
+      "crm",
+      "data-quality",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Find duplicate CRM contacts",
+      "Fuzzy matching customer records"
+    ],
+    "kind": "skill",
+    "family": "duplicate",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "duplicate-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:duplicate-plugin",
+    "name": "Duplicate contact detection Toolkit",
+    "description": "Identify duplicated customer profiles and contact records across CRM exports using fuzzy similarity matching. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "contacts",
+      "crm",
+      "data-quality",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Find duplicate CRM contacts",
+      "Fuzzy matching customer records"
+    ],
+    "kind": "plugin",
+    "family": "duplicate",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "compliance-agent",
+    "identifier": "urn:air:catalog.example.test:demo:compliance-agent",
+    "name": "Compliance log review Assistant",
+    "description": "Verify system audit logs for mandatory access review markers and generate regulatory compliance verification reports. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "audit",
+      "compliance",
+      "security"
+    ],
+    "representativeQueries": [
+      "Verify audit log compliance",
+      "Regulatory access review check"
+    ],
+    "kind": "agent",
+    "family": "compliance",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "compliance-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:compliance-mcp_server",
+    "name": "Compliance log review Connector",
+    "description": "Verify system audit logs for mandatory access review markers and generate regulatory compliance verification reports. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "audit",
+      "compliance",
+      "mcp_server",
+      "security"
+    ],
+    "representativeQueries": [
+      "Verify audit log compliance",
+      "Regulatory access review check"
+    ],
+    "kind": "mcp_server",
+    "family": "compliance",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "compliance-skill",
+    "identifier": "urn:air:catalog.example.test:demo:compliance-skill",
+    "name": "Compliance log review Procedure",
+    "description": "Verify system audit logs for mandatory access review markers and generate regulatory compliance verification reports. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "audit",
+      "compliance",
+      "security",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Verify audit log compliance",
+      "Regulatory access review check"
+    ],
+    "kind": "skill",
+    "family": "compliance",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "compliance-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:compliance-plugin",
+    "name": "Compliance log review Toolkit",
+    "description": "Verify system audit logs for mandatory access review markers and generate regulatory compliance verification reports. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "audit",
+      "compliance",
+      "plugin",
+      "security"
+    ],
+    "representativeQueries": [
+      "Verify audit log compliance",
+      "Regulatory access review check"
+    ],
+    "kind": "plugin",
+    "family": "compliance",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "dns-agent",
+    "identifier": "urn:air:catalog.example.test:demo:dns-agent",
+    "name": "DNS record inspector Assistant",
+    "description": "Query and validate public DNS records (A, AAAA, CNAME, MX, TXT) across multiple nameservers to detect propagation issues. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "dns",
+      "infrastructure",
+      "network"
+    ],
+    "representativeQueries": [
+      "Inspect DNS record propagation",
+      "Lookup domain MX and CNAME records"
+    ],
+    "kind": "agent",
+    "family": "dns",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "dns-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:dns-mcp_server",
+    "name": "DNS record inspector Connector",
+    "description": "Query and validate public DNS records (A, AAAA, CNAME, MX, TXT) across multiple nameservers to detect propagation issues. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "dns",
+      "infrastructure",
+      "mcp_server",
+      "network"
+    ],
+    "representativeQueries": [
+      "Inspect DNS record propagation",
+      "Lookup domain MX and CNAME records"
+    ],
+    "kind": "mcp_server",
+    "family": "dns",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "dns-skill",
+    "identifier": "urn:air:catalog.example.test:demo:dns-skill",
+    "name": "DNS record inspector Procedure",
+    "description": "Query and validate public DNS records (A, AAAA, CNAME, MX, TXT) across multiple nameservers to detect propagation issues. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "dns",
+      "infrastructure",
+      "network",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Inspect DNS record propagation",
+      "Lookup domain MX and CNAME records"
+    ],
+    "kind": "skill",
+    "family": "dns",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "dns-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:dns-plugin",
+    "name": "DNS record inspector Toolkit",
+    "description": "Query and validate public DNS records (A, AAAA, CNAME, MX, TXT) across multiple nameservers to detect propagation issues. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "dns",
+      "infrastructure",
+      "network",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Inspect DNS record propagation",
+      "Lookup domain MX and CNAME records"
+    ],
+    "kind": "plugin",
+    "family": "dns",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "billing-agent",
+    "identifier": "urn:air:catalog.example.test:demo:billing-agent",
+    "name": "Usage billing calculator Assistant",
+    "description": "Calculate monthly customer charges based on metered API usage, tier thresholds, and discount schedules. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "billing",
+      "finance",
+      "metering"
+    ],
+    "representativeQueries": [
+      "Calculate metered usage charges",
+      "Compute monthly billing tier"
+    ],
+    "kind": "agent",
+    "family": "billing",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "billing-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:billing-mcp_server",
+    "name": "Usage billing calculator Connector",
+    "description": "Calculate monthly customer charges based on metered API usage, tier thresholds, and discount schedules. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "billing",
+      "finance",
+      "mcp_server",
+      "metering"
+    ],
+    "representativeQueries": [
+      "Calculate metered usage charges",
+      "Compute monthly billing tier"
+    ],
+    "kind": "mcp_server",
+    "family": "billing",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "billing-skill",
+    "identifier": "urn:air:catalog.example.test:demo:billing-skill",
+    "name": "Usage billing calculator Procedure",
+    "description": "Calculate monthly customer charges based on metered API usage, tier thresholds, and discount schedules. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "billing",
+      "finance",
+      "metering",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Calculate metered usage charges",
+      "Compute monthly billing tier"
+    ],
+    "kind": "skill",
+    "family": "billing",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "billing-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:billing-plugin",
+    "name": "Usage billing calculator Toolkit",
+    "description": "Calculate monthly customer charges based on metered API usage, tier thresholds, and discount schedules. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "billing",
+      "finance",
+      "metering",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Calculate metered usage charges",
+      "Compute monthly billing tier"
+    ],
+    "kind": "plugin",
+    "family": "billing",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "git-agent",
+    "identifier": "urn:air:catalog.example.test:demo:git-agent",
+    "name": "Git branch difference inspector Assistant",
+    "description": "Analyze commits and changed files between two Git branches, identifying merge conflicts and stale changes. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "devtools",
+      "git",
+      "vcs"
+    ],
+    "representativeQueries": [
+      "Compare Git branches",
+      "Inspect commit differences between branches"
+    ],
+    "kind": "agent",
+    "family": "git",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "git-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:git-mcp_server",
+    "name": "Git branch difference inspector Connector",
+    "description": "Analyze commits and changed files between two Git branches, identifying merge conflicts and stale changes. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "devtools",
+      "git",
+      "mcp_server",
+      "vcs"
+    ],
+    "representativeQueries": [
+      "Compare Git branches",
+      "Inspect commit differences between branches"
+    ],
+    "kind": "mcp_server",
+    "family": "git",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "git-skill",
+    "identifier": "urn:air:catalog.example.test:demo:git-skill",
+    "name": "Git branch difference inspector Procedure",
+    "description": "Analyze commits and changed files between two Git branches, identifying merge conflicts and stale changes. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "devtools",
+      "git",
+      "skill",
+      "vcs"
+    ],
+    "representativeQueries": [
+      "Compare Git branches",
+      "Inspect commit differences between branches"
+    ],
+    "kind": "skill",
+    "family": "git",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "git-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:git-plugin",
+    "name": "Git branch difference inspector Toolkit",
+    "description": "Analyze commits and changed files between two Git branches, identifying merge conflicts and stale changes. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "devtools",
+      "git",
+      "plugin",
+      "vcs"
+    ],
+    "representativeQueries": [
+      "Compare Git branches",
+      "Inspect commit differences between branches"
+    ],
+    "kind": "plugin",
+    "family": "git",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "metrics-agent",
+    "identifier": "urn:air:catalog.example.test:demo:metrics-agent",
+    "name": "Prometheus metric aggregator Assistant",
+    "description": "Query Prometheus time-series metrics to summarize service CPU, memory, and error rates over custom time windows. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "monitoring",
+      "observability",
+      "prometheus"
+    ],
+    "representativeQueries": [
+      "Query Prometheus service metrics",
+      "Aggregate server CPU and memory usage"
+    ],
+    "kind": "agent",
+    "family": "metrics",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "metrics-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:metrics-mcp_server",
+    "name": "Prometheus metric aggregator Connector",
+    "description": "Query Prometheus time-series metrics to summarize service CPU, memory, and error rates over custom time windows. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "mcp_server",
+      "monitoring",
+      "observability",
+      "prometheus"
+    ],
+    "representativeQueries": [
+      "Query Prometheus service metrics",
+      "Aggregate server CPU and memory usage"
+    ],
+    "kind": "mcp_server",
+    "family": "metrics",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "metrics-skill",
+    "identifier": "urn:air:catalog.example.test:demo:metrics-skill",
+    "name": "Prometheus metric aggregator Procedure",
+    "description": "Query Prometheus time-series metrics to summarize service CPU, memory, and error rates over custom time windows. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "monitoring",
+      "observability",
+      "prometheus",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Query Prometheus service metrics",
+      "Aggregate server CPU and memory usage"
+    ],
+    "kind": "skill",
+    "family": "metrics",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "metrics-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:metrics-plugin",
+    "name": "Prometheus metric aggregator Toolkit",
+    "description": "Query Prometheus time-series metrics to summarize service CPU, memory, and error rates over custom time windows. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "monitoring",
+      "observability",
+      "plugin",
+      "prometheus"
+    ],
+    "representativeQueries": [
+      "Query Prometheus service metrics",
+      "Aggregate server CPU and memory usage"
+    ],
+    "kind": "plugin",
+    "family": "metrics",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "cloud-agent",
+    "identifier": "urn:air:catalog.example.test:demo:cloud-agent",
+    "name": "Cloud resource inventory Assistant",
+    "description": "List and filter provisioned cloud virtual machines, storage buckets, and security groups across regions without mutations. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "cloud",
+      "infrastructure",
+      "inventory"
+    ],
+    "representativeQueries": [
+      "List cloud virtual machines",
+      "Inventory storage buckets and security groups"
+    ],
+    "kind": "agent",
+    "family": "cloud",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "cloud-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:cloud-mcp_server",
+    "name": "Cloud resource inventory Connector",
+    "description": "List and filter provisioned cloud virtual machines, storage buckets, and security groups across regions without mutations. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "cloud",
+      "infrastructure",
+      "inventory",
+      "mcp_server"
+    ],
+    "representativeQueries": [
+      "List cloud virtual machines",
+      "Inventory storage buckets and security groups"
+    ],
+    "kind": "mcp_server",
+    "family": "cloud",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "cloud-skill",
+    "identifier": "urn:air:catalog.example.test:demo:cloud-skill",
+    "name": "Cloud resource inventory Procedure",
+    "description": "List and filter provisioned cloud virtual machines, storage buckets, and security groups across regions without mutations. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "cloud",
+      "infrastructure",
+      "inventory",
+      "skill"
+    ],
+    "representativeQueries": [
+      "List cloud virtual machines",
+      "Inventory storage buckets and security groups"
+    ],
+    "kind": "skill",
+    "family": "cloud",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "cloud-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:cloud-plugin",
+    "name": "Cloud resource inventory Toolkit",
+    "description": "List and filter provisioned cloud virtual machines, storage buckets, and security groups across regions without mutations. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "cloud",
+      "infrastructure",
+      "inventory",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "List cloud virtual machines",
+      "Inventory storage buckets and security groups"
+    ],
+    "kind": "plugin",
+    "family": "cloud",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "auth-agent",
+    "identifier": "urn:air:catalog.example.test:demo:auth-agent",
+    "name": "JWT token inspector Assistant",
+    "description": "Decode and validate JSON Web Token (JWT) headers, claims, and expiration timestamps without verifying cryptographic signatures. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "auth",
+      "jwt",
+      "security"
+    ],
+    "representativeQueries": [
+      "Decode JWT token claims",
+      "Check token expiration timestamp"
+    ],
+    "kind": "agent",
+    "family": "auth",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "auth-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:auth-mcp_server",
+    "name": "JWT token inspector Connector",
+    "description": "Decode and validate JSON Web Token (JWT) headers, claims, and expiration timestamps without verifying cryptographic signatures. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "auth",
+      "jwt",
+      "mcp_server",
+      "security"
+    ],
+    "representativeQueries": [
+      "Decode JWT token claims",
+      "Check token expiration timestamp"
+    ],
+    "kind": "mcp_server",
+    "family": "auth",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "auth-skill",
+    "identifier": "urn:air:catalog.example.test:demo:auth-skill",
+    "name": "JWT token inspector Procedure",
+    "description": "Decode and validate JSON Web Token (JWT) headers, claims, and expiration timestamps without verifying cryptographic signatures. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "auth",
+      "jwt",
+      "security",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Decode JWT token claims",
+      "Check token expiration timestamp"
+    ],
+    "kind": "skill",
+    "family": "auth",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "auth-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:auth-plugin",
+    "name": "JWT token inspector Toolkit",
+    "description": "Decode and validate JSON Web Token (JWT) headers, claims, and expiration timestamps without verifying cryptographic signatures. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "auth",
+      "jwt",
+      "plugin",
+      "security"
+    ],
+    "representativeQueries": [
+      "Decode JWT token claims",
+      "Check token expiration timestamp"
+    ],
+    "kind": "plugin",
+    "family": "auth",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "weather-agent",
+    "identifier": "urn:air:catalog.example.test:demo:weather-agent",
+    "name": "Historical weather archive Assistant",
+    "description": "Retrieve historical recorded temperatures, precipitation, and wind speeds from verified meteorological observation stations. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "archive",
+      "climate",
+      "weather"
+    ],
+    "representativeQueries": [
+      "Lookup historical station weather",
+      "Past rainfall and temperature records"
+    ],
+    "kind": "agent",
+    "family": "weather",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "weather-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:weather-mcp_server",
+    "name": "Historical weather archive Connector",
+    "description": "Retrieve historical recorded temperatures, precipitation, and wind speeds from verified meteorological observation stations. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "archive",
+      "climate",
+      "mcp_server",
+      "weather"
+    ],
+    "representativeQueries": [
+      "Lookup historical station weather",
+      "Past rainfall and temperature records"
+    ],
+    "kind": "mcp_server",
+    "family": "weather",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "weather-skill",
+    "identifier": "urn:air:catalog.example.test:demo:weather-skill",
+    "name": "Historical weather archive Procedure",
+    "description": "Retrieve historical recorded temperatures, precipitation, and wind speeds from verified meteorological observation stations. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "archive",
+      "climate",
+      "skill",
+      "weather"
+    ],
+    "representativeQueries": [
+      "Lookup historical station weather",
+      "Past rainfall and temperature records"
+    ],
+    "kind": "skill",
+    "family": "weather",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "weather-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:weather-plugin",
+    "name": "Historical weather archive Toolkit",
+    "description": "Retrieve historical recorded temperatures, precipitation, and wind speeds from verified meteorological observation stations. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "archive",
+      "climate",
+      "plugin",
+      "weather"
+    ],
+    "representativeQueries": [
+      "Lookup historical station weather",
+      "Past rainfall and temperature records"
+    ],
+    "kind": "plugin",
+    "family": "weather",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "images-agent",
+    "identifier": "urn:air:catalog.example.test:demo:images-agent",
+    "name": "Product image labeling Assistant",
+    "description": "Analyze product catalog photographs to detect visible objects, dominant color palettes, and category tags. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "catalog",
+      "images",
+      "vision"
+    ],
+    "representativeQueries": [
+      "Tag objects in product photos",
+      "Detect colors in merchandise pictures"
+    ],
+    "kind": "agent",
+    "family": "images",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "images-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:images-mcp_server",
+    "name": "Product image labeling Connector",
+    "description": "Analyze product catalog photographs to detect visible objects, dominant color palettes, and category tags. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "catalog",
+      "images",
+      "mcp_server",
+      "vision"
+    ],
+    "representativeQueries": [
+      "Tag objects in product photos",
+      "Detect colors in merchandise pictures"
+    ],
+    "kind": "mcp_server",
+    "family": "images",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "images-skill",
+    "identifier": "urn:air:catalog.example.test:demo:images-skill",
+    "name": "Product image labeling Procedure",
+    "description": "Analyze product catalog photographs to detect visible objects, dominant color palettes, and category tags. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "catalog",
+      "images",
+      "skill",
+      "vision"
+    ],
+    "representativeQueries": [
+      "Tag objects in product photos",
+      "Detect colors in merchandise pictures"
+    ],
+    "kind": "skill",
+    "family": "images",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "images-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:images-plugin",
+    "name": "Product image labeling Toolkit",
+    "description": "Analyze product catalog photographs to detect visible objects, dominant color palettes, and category tags. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "catalog",
+      "images",
+      "plugin",
+      "vision"
+    ],
+    "representativeQueries": [
+      "Tag objects in product photos",
+      "Detect colors in merchandise pictures"
+    ],
+    "kind": "plugin",
+    "family": "images",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "contract-agent",
+    "identifier": "urn:air:catalog.example.test:demo:contract-agent",
+    "name": "Contract clause reviewer Assistant",
+    "description": "Review commercial vendor agreements to extract renewal notice periods, liability caps, and termination provisions. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "contracts",
+      "legal",
+      "review"
+    ],
+    "representativeQueries": [
+      "Find contract renewal deadline",
+      "Extract agreement liability terms"
+    ],
+    "kind": "agent",
+    "family": "contract",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "contract-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:contract-mcp_server",
+    "name": "Contract clause reviewer Connector",
+    "description": "Review commercial vendor agreements to extract renewal notice periods, liability caps, and termination provisions. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "contracts",
+      "legal",
+      "mcp_server",
+      "review"
+    ],
+    "representativeQueries": [
+      "Find contract renewal deadline",
+      "Extract agreement liability terms"
+    ],
+    "kind": "mcp_server",
+    "family": "contract",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "contract-skill",
+    "identifier": "urn:air:catalog.example.test:demo:contract-skill",
+    "name": "Contract clause reviewer Procedure",
+    "description": "Review commercial vendor agreements to extract renewal notice periods, liability caps, and termination provisions. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "contracts",
+      "legal",
+      "review",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Find contract renewal deadline",
+      "Extract agreement liability terms"
+    ],
+    "kind": "skill",
+    "family": "contract",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "contract-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:contract-plugin",
+    "name": "Contract clause reviewer Toolkit",
+    "description": "Review commercial vendor agreements to extract renewal notice periods, liability caps, and termination provisions. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "contracts",
+      "legal",
+      "plugin",
+      "review"
+    ],
+    "representativeQueries": [
+      "Find contract renewal deadline",
+      "Extract agreement liability terms"
+    ],
+    "kind": "plugin",
+    "family": "contract",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "dependencies-agent",
+    "identifier": "urn:air:catalog.example.test:demo:dependencies-agent",
+    "name": "Dependency vulnerability scanner Assistant",
+    "description": "Match declared application package manifests against public security vulnerability advisories to identify vulnerable libraries. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "dependencies",
+      "security",
+      "vulnerability"
+    ],
+    "representativeQueries": [
+      "Scan package dependencies for CVEs",
+      "Check library security advisories"
+    ],
+    "kind": "agent",
+    "family": "dependencies",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "dependencies-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:dependencies-mcp_server",
+    "name": "Dependency vulnerability scanner Connector",
+    "description": "Match declared application package manifests against public security vulnerability advisories to identify vulnerable libraries. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "dependencies",
+      "mcp_server",
+      "security",
+      "vulnerability"
+    ],
+    "representativeQueries": [
+      "Scan package dependencies for CVEs",
+      "Check library security advisories"
+    ],
+    "kind": "mcp_server",
+    "family": "dependencies",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "dependencies-skill",
+    "identifier": "urn:air:catalog.example.test:demo:dependencies-skill",
+    "name": "Dependency vulnerability scanner Procedure",
+    "description": "Match declared application package manifests against public security vulnerability advisories to identify vulnerable libraries. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "dependencies",
+      "security",
+      "skill",
+      "vulnerability"
+    ],
+    "representativeQueries": [
+      "Scan package dependencies for CVEs",
+      "Check library security advisories"
+    ],
+    "kind": "skill",
+    "family": "dependencies",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "dependencies-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:dependencies-plugin",
+    "name": "Dependency vulnerability scanner Toolkit",
+    "description": "Match declared application package manifests against public security vulnerability advisories to identify vulnerable libraries. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "dependencies",
+      "plugin",
+      "security",
+      "vulnerability"
+    ],
+    "representativeQueries": [
+      "Scan package dependencies for CVEs",
+      "Check library security advisories"
+    ],
+    "kind": "plugin",
+    "family": "dependencies",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "support-agent",
+    "identifier": "urn:air:catalog.example.test:demo:support-agent",
+    "name": "Support ticket triage Assistant",
+    "description": "Classify incoming customer support tickets by severity, impacted product module, and appropriate resolution queue. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "customer-service",
+      "support",
+      "tickets"
+    ],
+    "representativeQueries": [
+      "Classify customer ticket priority",
+      "Route support issue by product module"
+    ],
+    "kind": "agent",
+    "family": "support",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "support-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:support-mcp_server",
+    "name": "Support ticket triage Connector",
+    "description": "Classify incoming customer support tickets by severity, impacted product module, and appropriate resolution queue. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "customer-service",
+      "mcp_server",
+      "support",
+      "tickets"
+    ],
+    "representativeQueries": [
+      "Classify customer ticket priority",
+      "Route support issue by product module"
+    ],
+    "kind": "mcp_server",
+    "family": "support",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "support-skill",
+    "identifier": "urn:air:catalog.example.test:demo:support-skill",
+    "name": "Support ticket triage Procedure",
+    "description": "Classify incoming customer support tickets by severity, impacted product module, and appropriate resolution queue. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "customer-service",
+      "skill",
+      "support",
+      "tickets"
+    ],
+    "representativeQueries": [
+      "Classify customer ticket priority",
+      "Route support issue by product module"
+    ],
+    "kind": "skill",
+    "family": "support",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "support-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:support-plugin",
+    "name": "Support ticket triage Toolkit",
+    "description": "Classify incoming customer support tickets by severity, impacted product module, and appropriate resolution queue. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "customer-service",
+      "plugin",
+      "support",
+      "tickets"
+    ],
+    "representativeQueries": [
+      "Classify customer ticket priority",
+      "Route support issue by product module"
+    ],
+    "kind": "plugin",
+    "family": "support",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "csv-agent",
+    "identifier": "urn:air:catalog.example.test:demo:csv-agent",
+    "name": "CSV schema validator Assistant",
+    "description": "Validate CSV tabular files against expected column data types, required constraints, and unique key rules. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "csv",
+      "data-quality",
+      "validation"
+    ],
+    "representativeQueries": [
+      "Validate CSV column types",
+      "Check spreadsheet uniqueness constraints"
+    ],
+    "kind": "agent",
+    "family": "csv",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "csv-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:csv-mcp_server",
+    "name": "CSV schema validator Connector",
+    "description": "Validate CSV tabular files against expected column data types, required constraints, and unique key rules. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "csv",
+      "data-quality",
+      "mcp_server",
+      "validation"
+    ],
+    "representativeQueries": [
+      "Validate CSV column types",
+      "Check spreadsheet uniqueness constraints"
+    ],
+    "kind": "mcp_server",
+    "family": "csv",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "csv-skill",
+    "identifier": "urn:air:catalog.example.test:demo:csv-skill",
+    "name": "CSV schema validator Procedure",
+    "description": "Validate CSV tabular files against expected column data types, required constraints, and unique key rules. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "csv",
+      "data-quality",
+      "skill",
+      "validation"
+    ],
+    "representativeQueries": [
+      "Validate CSV column types",
+      "Check spreadsheet uniqueness constraints"
+    ],
+    "kind": "skill",
+    "family": "csv",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "csv-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:csv-plugin",
+    "name": "CSV schema validator Toolkit",
+    "description": "Validate CSV tabular files against expected column data types, required constraints, and unique key rules. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "csv",
+      "data-quality",
+      "plugin",
+      "validation"
+    ],
+    "representativeQueries": [
+      "Validate CSV column types",
+      "Check spreadsheet uniqueness constraints"
+    ],
+    "kind": "plugin",
+    "family": "csv",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "meeting-agent",
+    "identifier": "urn:air:catalog.example.test:demo:meeting-agent",
+    "name": "Meeting action extractor Assistant",
+    "description": "Extract agreed action items, designated owners, and completion target dates from structured meeting minutes. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "meetings",
+      "notes",
+      "productivity"
+    ],
+    "representativeQueries": [
+      "Extract meeting action items and assignees",
+      "Parse deadlines from meeting minutes"
+    ],
+    "kind": "agent",
+    "family": "meeting",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "meeting-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:meeting-mcp_server",
+    "name": "Meeting action extractor Connector",
+    "description": "Extract agreed action items, designated owners, and completion target dates from structured meeting minutes. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "mcp_server",
+      "meetings",
+      "notes",
+      "productivity"
+    ],
+    "representativeQueries": [
+      "Extract meeting action items and assignees",
+      "Parse deadlines from meeting minutes"
+    ],
+    "kind": "mcp_server",
+    "family": "meeting",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "meeting-skill",
+    "identifier": "urn:air:catalog.example.test:demo:meeting-skill",
+    "name": "Meeting action extractor Procedure",
+    "description": "Extract agreed action items, designated owners, and completion target dates from structured meeting minutes. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "meetings",
+      "notes",
+      "productivity",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Extract meeting action items and assignees",
+      "Parse deadlines from meeting minutes"
+    ],
+    "kind": "skill",
+    "family": "meeting",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "meeting-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:meeting-plugin",
+    "name": "Meeting action extractor Toolkit",
+    "description": "Extract agreed action items, designated owners, and completion target dates from structured meeting minutes. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "meetings",
+      "notes",
+      "plugin",
+      "productivity"
+    ],
+    "representativeQueries": [
+      "Extract meeting action items and assignees",
+      "Parse deadlines from meeting minutes"
+    ],
+    "kind": "plugin",
+    "family": "meeting",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "release-notes-agent",
+    "identifier": "urn:air:catalog.example.test:demo:release-notes-agent",
+    "name": "Release notes generator Assistant",
+    "description": "Summarize merged pull requests and issue titles into grouped, human-readable changelog release notes. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "devtools",
+      "documentation",
+      "release"
+    ],
+    "representativeQueries": [
+      "Generate release notes from merged PRs",
+      "Compile changelog from commit messages"
+    ],
+    "kind": "agent",
+    "family": "release-notes",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "release-notes-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:release-notes-mcp_server",
+    "name": "Release notes generator Connector",
+    "description": "Summarize merged pull requests and issue titles into grouped, human-readable changelog release notes. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "devtools",
+      "documentation",
+      "mcp_server",
+      "release"
+    ],
+    "representativeQueries": [
+      "Generate release notes from merged PRs",
+      "Compile changelog from commit messages"
+    ],
+    "kind": "mcp_server",
+    "family": "release-notes",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "release-notes-skill",
+    "identifier": "urn:air:catalog.example.test:demo:release-notes-skill",
+    "name": "Release notes generator Procedure",
+    "description": "Summarize merged pull requests and issue titles into grouped, human-readable changelog release notes. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "devtools",
+      "documentation",
+      "release",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Generate release notes from merged PRs",
+      "Compile changelog from commit messages"
+    ],
+    "kind": "skill",
+    "family": "release-notes",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "release-notes-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:release-notes-plugin",
+    "name": "Release notes generator Toolkit",
+    "description": "Summarize merged pull requests and issue titles into grouped, human-readable changelog release notes. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "devtools",
+      "documentation",
+      "plugin",
+      "release"
+    ],
+    "representativeQueries": [
+      "Generate release notes from merged PRs",
+      "Compile changelog from commit messages"
+    ],
+    "kind": "plugin",
+    "family": "release-notes",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "shipment-agent",
+    "identifier": "urn:air:catalog.example.test:demo:shipment-agent",
+    "name": "Shipment tracking lookup Assistant",
+    "description": "Retrieve current carrier transit status, checkpoint timestamps, and estimated delivery dates for shipment tracking numbers. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "logistics",
+      "shipping",
+      "tracking"
+    ],
+    "representativeQueries": [
+      "Track carrier shipment status",
+      "Lookup delivery checkpoint updates"
+    ],
+    "kind": "agent",
+    "family": "shipment",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "shipment-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:shipment-mcp_server",
+    "name": "Shipment tracking lookup Connector",
+    "description": "Retrieve current carrier transit status, checkpoint timestamps, and estimated delivery dates for shipment tracking numbers. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "logistics",
+      "mcp_server",
+      "shipping",
+      "tracking"
+    ],
+    "representativeQueries": [
+      "Track carrier shipment status",
+      "Lookup delivery checkpoint updates"
+    ],
+    "kind": "mcp_server",
+    "family": "shipment",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "shipment-skill",
+    "identifier": "urn:air:catalog.example.test:demo:shipment-skill",
+    "name": "Shipment tracking lookup Procedure",
+    "description": "Retrieve current carrier transit status, checkpoint timestamps, and estimated delivery dates for shipment tracking numbers. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "logistics",
+      "shipping",
+      "skill",
+      "tracking"
+    ],
+    "representativeQueries": [
+      "Track carrier shipment status",
+      "Lookup delivery checkpoint updates"
+    ],
+    "kind": "skill",
+    "family": "shipment",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "shipment-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:shipment-plugin",
+    "name": "Shipment tracking lookup Toolkit",
+    "description": "Retrieve current carrier transit status, checkpoint timestamps, and estimated delivery dates for shipment tracking numbers. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "logistics",
+      "plugin",
+      "shipping",
+      "tracking"
+    ],
+    "representativeQueries": [
+      "Track carrier shipment status",
+      "Lookup delivery checkpoint updates"
+    ],
+    "kind": "plugin",
+    "family": "shipment",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "kubernetes-agent",
+    "identifier": "urn:air:catalog.example.test:demo:kubernetes-agent",
+    "name": "Kubernetes pod inspector Assistant",
+    "description": "Inspect Kubernetes pod health status, restart counts, and container exit codes across cluster namespaces. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "infrastructure",
+      "k8s",
+      "kubernetes"
+    ],
+    "representativeQueries": [
+      "Inspect Kubernetes pod health and restarts",
+      "Check cluster container exit codes"
+    ],
+    "kind": "agent",
+    "family": "kubernetes",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "kubernetes-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:kubernetes-mcp_server",
+    "name": "Kubernetes pod inspector Connector",
+    "description": "Inspect Kubernetes pod health status, restart counts, and container exit codes across cluster namespaces. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "infrastructure",
+      "k8s",
+      "kubernetes",
+      "mcp_server"
+    ],
+    "representativeQueries": [
+      "Inspect Kubernetes pod health and restarts",
+      "Check cluster container exit codes"
+    ],
+    "kind": "mcp_server",
+    "family": "kubernetes",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "kubernetes-skill",
+    "identifier": "urn:air:catalog.example.test:demo:kubernetes-skill",
+    "name": "Kubernetes pod inspector Procedure",
+    "description": "Inspect Kubernetes pod health status, restart counts, and container exit codes across cluster namespaces. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "infrastructure",
+      "k8s",
+      "kubernetes",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Inspect Kubernetes pod health and restarts",
+      "Check cluster container exit codes"
+    ],
+    "kind": "skill",
+    "family": "kubernetes",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "kubernetes-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:kubernetes-plugin",
+    "name": "Kubernetes pod inspector Toolkit",
+    "description": "Inspect Kubernetes pod health status, restart counts, and container exit codes across cluster namespaces. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "infrastructure",
+      "k8s",
+      "kubernetes",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Inspect Kubernetes pod health and restarts",
+      "Check cluster container exit codes"
+    ],
+    "kind": "plugin",
+    "family": "kubernetes",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "markdown-agent",
+    "identifier": "urn:air:catalog.example.test:demo:markdown-agent",
+    "name": "Markdown link validator Assistant",
+    "description": "Scan Markdown files to identify broken internal relative links, missing anchor headings, and malformed image tags. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "docs",
+      "linting",
+      "markdown"
+    ],
+    "representativeQueries": [
+      "Check Markdown broken links",
+      "Validate document anchor references"
+    ],
+    "kind": "agent",
+    "family": "markdown",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "markdown-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:markdown-mcp_server",
+    "name": "Markdown link validator Connector",
+    "description": "Scan Markdown files to identify broken internal relative links, missing anchor headings, and malformed image tags. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "docs",
+      "linting",
+      "markdown",
+      "mcp_server"
+    ],
+    "representativeQueries": [
+      "Check Markdown broken links",
+      "Validate document anchor references"
+    ],
+    "kind": "mcp_server",
+    "family": "markdown",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "markdown-skill",
+    "identifier": "urn:air:catalog.example.test:demo:markdown-skill",
+    "name": "Markdown link validator Procedure",
+    "description": "Scan Markdown files to identify broken internal relative links, missing anchor headings, and malformed image tags. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "docs",
+      "linting",
+      "markdown",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Check Markdown broken links",
+      "Validate document anchor references"
+    ],
+    "kind": "skill",
+    "family": "markdown",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "markdown-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:markdown-plugin",
+    "name": "Markdown link validator Toolkit",
+    "description": "Scan Markdown files to identify broken internal relative links, missing anchor headings, and malformed image tags. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "docs",
+      "linting",
+      "markdown",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Check Markdown broken links",
+      "Validate document anchor references"
+    ],
+    "kind": "plugin",
+    "family": "markdown",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "seo-agent",
+    "identifier": "urn:air:catalog.example.test:demo:seo-agent",
+    "name": "SEO metadata audit Assistant",
+    "description": "Inspect HTML web pages for title tags, OpenGraph metadata, canonical URLs, and structured schema markup. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "marketing",
+      "seo",
+      "web"
+    ],
+    "representativeQueries": [
+      "Audit webpage SEO metadata tags",
+      "Check OpenGraph and canonical URL tags"
+    ],
+    "kind": "agent",
+    "family": "seo",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "seo-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:seo-mcp_server",
+    "name": "SEO metadata audit Connector",
+    "description": "Inspect HTML web pages for title tags, OpenGraph metadata, canonical URLs, and structured schema markup. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "marketing",
+      "mcp_server",
+      "seo",
+      "web"
+    ],
+    "representativeQueries": [
+      "Audit webpage SEO metadata tags",
+      "Check OpenGraph and canonical URL tags"
+    ],
+    "kind": "mcp_server",
+    "family": "seo",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "seo-skill",
+    "identifier": "urn:air:catalog.example.test:demo:seo-skill",
+    "name": "SEO metadata audit Procedure",
+    "description": "Inspect HTML web pages for title tags, OpenGraph metadata, canonical URLs, and structured schema markup. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "marketing",
+      "seo",
+      "skill",
+      "web"
+    ],
+    "representativeQueries": [
+      "Audit webpage SEO metadata tags",
+      "Check OpenGraph and canonical URL tags"
+    ],
+    "kind": "skill",
+    "family": "seo",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "seo-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:seo-plugin",
+    "name": "SEO metadata audit Toolkit",
+    "description": "Inspect HTML web pages for title tags, OpenGraph metadata, canonical URLs, and structured schema markup. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "marketing",
+      "plugin",
+      "seo",
+      "web"
+    ],
+    "representativeQueries": [
+      "Audit webpage SEO metadata tags",
+      "Check OpenGraph and canonical URL tags"
+    ],
+    "kind": "plugin",
+    "family": "seo",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "backup-agent",
+    "identifier": "urn:air:catalog.example.test:demo:backup-agent",
+    "name": "Backup integrity checker Assistant",
+    "description": "Verify database backup archive headers, checksums, and restoration manifests without performing a full database restore. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "backup",
+      "database",
+      "disaster-recovery"
+    ],
+    "representativeQueries": [
+      "Verify database backup checksums",
+      "Check backup archive header integrity"
+    ],
+    "kind": "agent",
+    "family": "backup",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "backup-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:backup-mcp_server",
+    "name": "Backup integrity checker Connector",
+    "description": "Verify database backup archive headers, checksums, and restoration manifests without performing a full database restore. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "backup",
+      "database",
+      "disaster-recovery",
+      "mcp_server"
+    ],
+    "representativeQueries": [
+      "Verify database backup checksums",
+      "Check backup archive header integrity"
+    ],
+    "kind": "mcp_server",
+    "family": "backup",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "backup-skill",
+    "identifier": "urn:air:catalog.example.test:demo:backup-skill",
+    "name": "Backup integrity checker Procedure",
+    "description": "Verify database backup archive headers, checksums, and restoration manifests without performing a full database restore. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "backup",
+      "database",
+      "disaster-recovery",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Verify database backup checksums",
+      "Check backup archive header integrity"
+    ],
+    "kind": "skill",
+    "family": "backup",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "backup-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:backup-plugin",
+    "name": "Backup integrity checker Toolkit",
+    "description": "Verify database backup archive headers, checksums, and restoration manifests without performing a full database restore. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "backup",
+      "database",
+      "disaster-recovery",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Verify database backup checksums",
+      "Check backup archive header integrity"
+    ],
+    "kind": "plugin",
+    "family": "backup",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "email-agent",
+    "identifier": "urn:air:catalog.example.test:demo:email-agent",
+    "name": "Email template renderer Assistant",
+    "description": "Render localized transactional email notifications with variable substitution and HTML/plain-text duality. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "communication",
+      "email",
+      "templates"
+    ],
+    "representativeQueries": [
+      "Render localized email template",
+      "Substitute variables in HTML email"
+    ],
+    "kind": "agent",
+    "family": "email",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "email-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:email-mcp_server",
+    "name": "Email template renderer Connector",
+    "description": "Render localized transactional email notifications with variable substitution and HTML/plain-text duality. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "communication",
+      "email",
+      "mcp_server",
+      "templates"
+    ],
+    "representativeQueries": [
+      "Render localized email template",
+      "Substitute variables in HTML email"
+    ],
+    "kind": "mcp_server",
+    "family": "email",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "email-skill",
+    "identifier": "urn:air:catalog.example.test:demo:email-skill",
+    "name": "Email template renderer Procedure",
+    "description": "Render localized transactional email notifications with variable substitution and HTML/plain-text duality. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "communication",
+      "email",
+      "skill",
+      "templates"
+    ],
+    "representativeQueries": [
+      "Render localized email template",
+      "Substitute variables in HTML email"
+    ],
+    "kind": "skill",
+    "family": "email",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "email-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:email-plugin",
+    "name": "Email template renderer Toolkit",
+    "description": "Render localized transactional email notifications with variable substitution and HTML/plain-text duality. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "communication",
+      "email",
+      "plugin",
+      "templates"
+    ],
+    "representativeQueries": [
+      "Render localized email template",
+      "Substitute variables in HTML email"
+    ],
+    "kind": "plugin",
+    "family": "email",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "performance-agent",
+    "identifier": "urn:air:catalog.example.test:demo:performance-agent",
+    "name": "HTTP benchmark analyzer Assistant",
+    "description": "Parse HTTP load test results to calculate latency percentiles (p50, p95, p99), throughput, and error rates. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "benchmark",
+      "latency",
+      "performance"
+    ],
+    "representativeQueries": [
+      "Analyze HTTP latency percentiles",
+      "Calculate benchmark throughput and p99"
+    ],
+    "kind": "agent",
+    "family": "performance",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "performance-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:performance-mcp_server",
+    "name": "HTTP benchmark analyzer Connector",
+    "description": "Parse HTTP load test results to calculate latency percentiles (p50, p95, p99), throughput, and error rates. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "benchmark",
+      "latency",
+      "mcp_server",
+      "performance"
+    ],
+    "representativeQueries": [
+      "Analyze HTTP latency percentiles",
+      "Calculate benchmark throughput and p99"
+    ],
+    "kind": "mcp_server",
+    "family": "performance",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "performance-skill",
+    "identifier": "urn:air:catalog.example.test:demo:performance-skill",
+    "name": "HTTP benchmark analyzer Procedure",
+    "description": "Parse HTTP load test results to calculate latency percentiles (p50, p95, p99), throughput, and error rates. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "benchmark",
+      "latency",
+      "performance",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Analyze HTTP latency percentiles",
+      "Calculate benchmark throughput and p99"
+    ],
+    "kind": "skill",
+    "family": "performance",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "performance-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:performance-plugin",
+    "name": "HTTP benchmark analyzer Toolkit",
+    "description": "Parse HTTP load test results to calculate latency percentiles (p50, p95, p99), throughput, and error rates. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "benchmark",
+      "latency",
+      "performance",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Analyze HTTP latency percentiles",
+      "Calculate benchmark throughput and p99"
+    ],
+    "kind": "plugin",
+    "family": "performance",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "certs-agent",
+    "identifier": "urn:air:catalog.example.test:demo:certs-agent",
+    "name": "TLS certificate monitor Assistant",
+    "description": "Inspect SSL/TLS server certificate chains to calculate days remaining until expiration and detect weak cipher suites. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "certificates",
+      "security",
+      "tls"
+    ],
+    "representativeQueries": [
+      "Check TLS certificate expiration date",
+      "Inspect SSL certificate chain validity"
+    ],
+    "kind": "agent",
+    "family": "certs",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "certs-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:certs-mcp_server",
+    "name": "TLS certificate monitor Connector",
+    "description": "Inspect SSL/TLS server certificate chains to calculate days remaining until expiration and detect weak cipher suites. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "certificates",
+      "mcp_server",
+      "security",
+      "tls"
+    ],
+    "representativeQueries": [
+      "Check TLS certificate expiration date",
+      "Inspect SSL certificate chain validity"
+    ],
+    "kind": "mcp_server",
+    "family": "certs",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "certs-skill",
+    "identifier": "urn:air:catalog.example.test:demo:certs-skill",
+    "name": "TLS certificate monitor Procedure",
+    "description": "Inspect SSL/TLS server certificate chains to calculate days remaining until expiration and detect weak cipher suites. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "certificates",
+      "security",
+      "skill",
+      "tls"
+    ],
+    "representativeQueries": [
+      "Check TLS certificate expiration date",
+      "Inspect SSL certificate chain validity"
+    ],
+    "kind": "skill",
+    "family": "certs",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "certs-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:certs-plugin",
+    "name": "TLS certificate monitor Toolkit",
+    "description": "Inspect SSL/TLS server certificate chains to calculate days remaining until expiration and detect weak cipher suites. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "certificates",
+      "plugin",
+      "security",
+      "tls"
+    ],
+    "representativeQueries": [
+      "Check TLS certificate expiration date",
+      "Inspect SSL certificate chain validity"
+    ],
+    "kind": "plugin",
+    "family": "certs",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "network-agent",
+    "identifier": "urn:air:catalog.example.test:demo:network-agent",
+    "name": "Network route tracer Assistant",
+    "description": "Measure network path hops, round-trip times, and packet drop rates to diagnose latency bottlenecks. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "diagnostics",
+      "network",
+      "traceroute"
+    ],
+    "representativeQueries": [
+      "Trace network packet route hops",
+      "Diagnose network latency and drop rate"
+    ],
+    "kind": "agent",
+    "family": "network",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "network-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:network-mcp_server",
+    "name": "Network route tracer Connector",
+    "description": "Measure network path hops, round-trip times, and packet drop rates to diagnose latency bottlenecks. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "diagnostics",
+      "mcp_server",
+      "network",
+      "traceroute"
+    ],
+    "representativeQueries": [
+      "Trace network packet route hops",
+      "Diagnose network latency and drop rate"
+    ],
+    "kind": "mcp_server",
+    "family": "network",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "network-skill",
+    "identifier": "urn:air:catalog.example.test:demo:network-skill",
+    "name": "Network route tracer Procedure",
+    "description": "Measure network path hops, round-trip times, and packet drop rates to diagnose latency bottlenecks. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "diagnostics",
+      "network",
+      "skill",
+      "traceroute"
+    ],
+    "representativeQueries": [
+      "Trace network packet route hops",
+      "Diagnose network latency and drop rate"
+    ],
+    "kind": "skill",
+    "family": "network",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "network-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:network-plugin",
+    "name": "Network route tracer Toolkit",
+    "description": "Measure network path hops, round-trip times, and packet drop rates to diagnose latency bottlenecks. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "diagnostics",
+      "network",
+      "plugin",
+      "traceroute"
+    ],
+    "representativeQueries": [
+      "Trace network packet route hops",
+      "Diagnose network latency and drop rate"
+    ],
+    "kind": "plugin",
+    "family": "network",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "audio-agent",
+    "identifier": "urn:air:catalog.example.test:demo:audio-agent",
+    "name": "Audio transcript alignment Assistant",
+    "description": "Align raw speech-to-text transcripts with recorded audio timestamps to remove filler words and clean punctuation. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "audio",
+      "speech",
+      "transcription"
+    ],
+    "representativeQueries": [
+      "Align speech transcript timestamps",
+      "Clean punctuation in audio transcript"
+    ],
+    "kind": "agent",
+    "family": "audio",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "audio-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:audio-mcp_server",
+    "name": "Audio transcript alignment Connector",
+    "description": "Align raw speech-to-text transcripts with recorded audio timestamps to remove filler words and clean punctuation. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "audio",
+      "mcp_server",
+      "speech",
+      "transcription"
+    ],
+    "representativeQueries": [
+      "Align speech transcript timestamps",
+      "Clean punctuation in audio transcript"
+    ],
+    "kind": "mcp_server",
+    "family": "audio",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "audio-skill",
+    "identifier": "urn:air:catalog.example.test:demo:audio-skill",
+    "name": "Audio transcript alignment Procedure",
+    "description": "Align raw speech-to-text transcripts with recorded audio timestamps to remove filler words and clean punctuation. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "audio",
+      "skill",
+      "speech",
+      "transcription"
+    ],
+    "representativeQueries": [
+      "Align speech transcript timestamps",
+      "Clean punctuation in audio transcript"
+    ],
+    "kind": "skill",
+    "family": "audio",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "audio-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:audio-plugin",
+    "name": "Audio transcript alignment Toolkit",
+    "description": "Align raw speech-to-text transcripts with recorded audio timestamps to remove filler words and clean punctuation. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "audio",
+      "plugin",
+      "speech",
+      "transcription"
+    ],
+    "representativeQueries": [
+      "Align speech transcript timestamps",
+      "Clean punctuation in audio transcript"
+    ],
+    "kind": "plugin",
+    "family": "audio",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "secrets-agent",
+    "identifier": "urn:air:catalog.example.test:demo:secrets-agent",
+    "name": "Git secret scanner Assistant",
+    "description": "Scan repository commit history for accidentally committed API keys, private certificates, and bearer tokens. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "git",
+      "secrets",
+      "security"
+    ],
+    "representativeQueries": [
+      "Scan Git repo for hardcoded API keys",
+      "Detect committed private certificates"
+    ],
+    "kind": "agent",
+    "family": "secrets",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "secrets-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:secrets-mcp_server",
+    "name": "Git secret scanner Connector",
+    "description": "Scan repository commit history for accidentally committed API keys, private certificates, and bearer tokens. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "git",
+      "mcp_server",
+      "secrets",
+      "security"
+    ],
+    "representativeQueries": [
+      "Scan Git repo for hardcoded API keys",
+      "Detect committed private certificates"
+    ],
+    "kind": "mcp_server",
+    "family": "secrets",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "secrets-skill",
+    "identifier": "urn:air:catalog.example.test:demo:secrets-skill",
+    "name": "Git secret scanner Procedure",
+    "description": "Scan repository commit history for accidentally committed API keys, private certificates, and bearer tokens. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "git",
+      "secrets",
+      "security",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Scan Git repo for hardcoded API keys",
+      "Detect committed private certificates"
+    ],
+    "kind": "skill",
+    "family": "secrets",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "secrets-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:secrets-plugin",
+    "name": "Git secret scanner Toolkit",
+    "description": "Scan repository commit history for accidentally committed API keys, private certificates, and bearer tokens. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "git",
+      "plugin",
+      "secrets",
+      "security"
+    ],
+    "representativeQueries": [
+      "Scan Git repo for hardcoded API keys",
+      "Detect committed private certificates"
+    ],
+    "kind": "plugin",
+    "family": "secrets",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "incident-agent",
+    "identifier": "urn:air:catalog.example.test:demo:incident-agent",
+    "name": "Incident timeline builder Assistant",
+    "description": "Aggregate timestamped chat messages, alert triggers, and mitigation actions into a unified postmortem incident timeline. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "incident-response",
+      "postmortem",
+      "sre"
+    ],
+    "representativeQueries": [
+      "Build incident postmortem timeline",
+      "Aggregate incident alerts and mitigation events"
+    ],
+    "kind": "agent",
+    "family": "incident",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "incident-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:incident-mcp_server",
+    "name": "Incident timeline builder Connector",
+    "description": "Aggregate timestamped chat messages, alert triggers, and mitigation actions into a unified postmortem incident timeline. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "incident-response",
+      "mcp_server",
+      "postmortem",
+      "sre"
+    ],
+    "representativeQueries": [
+      "Build incident postmortem timeline",
+      "Aggregate incident alerts and mitigation events"
+    ],
+    "kind": "mcp_server",
+    "family": "incident",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "incident-skill",
+    "identifier": "urn:air:catalog.example.test:demo:incident-skill",
+    "name": "Incident timeline builder Procedure",
+    "description": "Aggregate timestamped chat messages, alert triggers, and mitigation actions into a unified postmortem incident timeline. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "incident-response",
+      "postmortem",
+      "skill",
+      "sre"
+    ],
+    "representativeQueries": [
+      "Build incident postmortem timeline",
+      "Aggregate incident alerts and mitigation events"
+    ],
+    "kind": "skill",
+    "family": "incident",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "incident-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:incident-plugin",
+    "name": "Incident timeline builder Toolkit",
+    "description": "Aggregate timestamped chat messages, alert triggers, and mitigation actions into a unified postmortem incident timeline. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "incident-response",
+      "plugin",
+      "postmortem",
+      "sre"
+    ],
+    "representativeQueries": [
+      "Build incident postmortem timeline",
+      "Aggregate incident alerts and mitigation events"
+    ],
+    "kind": "plugin",
+    "family": "incident",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "json-schema-agent",
+    "identifier": "urn:air:catalog.example.test:demo:json-schema-agent",
+    "name": "JSON Schema diff validator Assistant",
+    "description": "Compare two JSON Schema definitions to detect breaking changes such as removed properties or tightened constraints. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "api-design",
+      "json",
+      "schema"
+    ],
+    "representativeQueries": [
+      "Compare JSON Schema definitions for breaking changes",
+      "Detect removed fields in JSON Schema"
+    ],
+    "kind": "agent",
+    "family": "json-schema",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "json-schema-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:json-schema-mcp_server",
+    "name": "JSON Schema diff validator Connector",
+    "description": "Compare two JSON Schema definitions to detect breaking changes such as removed properties or tightened constraints. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "api-design",
+      "json",
+      "mcp_server",
+      "schema"
+    ],
+    "representativeQueries": [
+      "Compare JSON Schema definitions for breaking changes",
+      "Detect removed fields in JSON Schema"
+    ],
+    "kind": "mcp_server",
+    "family": "json-schema",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "json-schema-skill",
+    "identifier": "urn:air:catalog.example.test:demo:json-schema-skill",
+    "name": "JSON Schema diff validator Procedure",
+    "description": "Compare two JSON Schema definitions to detect breaking changes such as removed properties or tightened constraints. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "api-design",
+      "json",
+      "schema",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Compare JSON Schema definitions for breaking changes",
+      "Detect removed fields in JSON Schema"
+    ],
+    "kind": "skill",
+    "family": "json-schema",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "json-schema-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:json-schema-plugin",
+    "name": "JSON Schema diff validator Toolkit",
+    "description": "Compare two JSON Schema definitions to detect breaking changes such as removed properties or tightened constraints. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "api-design",
+      "json",
+      "plugin",
+      "schema"
+    ],
+    "representativeQueries": [
+      "Compare JSON Schema definitions for breaking changes",
+      "Detect removed fields in JSON Schema"
+    ],
+    "kind": "plugin",
+    "family": "json-schema",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "terraform-agent",
+    "identifier": "urn:air:catalog.example.test:demo:terraform-agent",
+    "name": "Terraform syntax linter Assistant",
+    "description": "Parse HCL Terraform code to check naming conventions, required provider tags, and syntax errors. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "devops",
+      "iac",
+      "terraform"
+    ],
+    "representativeQueries": [
+      "Lint Terraform HCL configuration",
+      "Check Terraform provider tags and syntax"
+    ],
+    "kind": "agent",
+    "family": "terraform",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "terraform-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:terraform-mcp_server",
+    "name": "Terraform syntax linter Connector",
+    "description": "Parse HCL Terraform code to check naming conventions, required provider tags, and syntax errors. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "devops",
+      "iac",
+      "mcp_server",
+      "terraform"
+    ],
+    "representativeQueries": [
+      "Lint Terraform HCL configuration",
+      "Check Terraform provider tags and syntax"
+    ],
+    "kind": "mcp_server",
+    "family": "terraform",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "terraform-skill",
+    "identifier": "urn:air:catalog.example.test:demo:terraform-skill",
+    "name": "Terraform syntax linter Procedure",
+    "description": "Parse HCL Terraform code to check naming conventions, required provider tags, and syntax errors. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "devops",
+      "iac",
+      "skill",
+      "terraform"
+    ],
+    "representativeQueries": [
+      "Lint Terraform HCL configuration",
+      "Check Terraform provider tags and syntax"
+    ],
+    "kind": "skill",
+    "family": "terraform",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "terraform-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:terraform-plugin",
+    "name": "Terraform syntax linter Toolkit",
+    "description": "Parse HCL Terraform code to check naming conventions, required provider tags, and syntax errors. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "devops",
+      "iac",
+      "plugin",
+      "terraform"
+    ],
+    "representativeQueries": [
+      "Lint Terraform HCL configuration",
+      "Check Terraform provider tags and syntax"
+    ],
+    "kind": "plugin",
+    "family": "terraform",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "docker-agent",
+    "identifier": "urn:air:catalog.example.test:demo:docker-agent",
+    "name": "Containerfile best practice linter Assistant",
+    "description": "Analyze Containerfiles and Dockerfiles to detect multi-stage build issues, root user execution, and untagged base images. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "containers",
+      "docker",
+      "linting"
+    ],
+    "representativeQueries": [
+      "Lint Containerfile for security best practices",
+      "Check Dockerfile non-root user and image tags"
+    ],
+    "kind": "agent",
+    "family": "docker",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "docker-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:docker-mcp_server",
+    "name": "Containerfile best practice linter Connector",
+    "description": "Analyze Containerfiles and Dockerfiles to detect multi-stage build issues, root user execution, and untagged base images. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "containers",
+      "docker",
+      "linting",
+      "mcp_server"
+    ],
+    "representativeQueries": [
+      "Lint Containerfile for security best practices",
+      "Check Dockerfile non-root user and image tags"
+    ],
+    "kind": "mcp_server",
+    "family": "docker",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "docker-skill",
+    "identifier": "urn:air:catalog.example.test:demo:docker-skill",
+    "name": "Containerfile best practice linter Procedure",
+    "description": "Analyze Containerfiles and Dockerfiles to detect multi-stage build issues, root user execution, and untagged base images. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "containers",
+      "docker",
+      "linting",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Lint Containerfile for security best practices",
+      "Check Dockerfile non-root user and image tags"
+    ],
+    "kind": "skill",
+    "family": "docker",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "docker-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:docker-plugin",
+    "name": "Containerfile best practice linter Toolkit",
+    "description": "Analyze Containerfiles and Dockerfiles to detect multi-stage build issues, root user execution, and untagged base images. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "containers",
+      "docker",
+      "linting",
+      "plugin"
+    ],
+    "representativeQueries": [
+      "Lint Containerfile for security best practices",
+      "Check Dockerfile non-root user and image tags"
+    ],
+    "kind": "plugin",
+    "family": "docker",
+    "source": "indexed",
+    "public": false
+  },
+  {
+    "id": "cache-agent",
+    "identifier": "urn:air:catalog.example.test:demo:cache-agent",
+    "name": "Cache hit rate monitor Assistant",
+    "description": "Inspect in-memory key-value cache statistics to report hit ratios, memory fragmentation, and key eviction counts. An autonomous AI Agent that manages multi-step workflows, coordinates tasks, and provides reasoned recommendations.",
+    "tags": [
+      "agent",
+      "cache",
+      "performance",
+      "redis"
+    ],
+    "representativeQueries": [
+      "Monitor cache hit ratio and eviction count",
+      "Inspect in-memory cache memory stats"
+    ],
+    "kind": "agent",
+    "family": "cache",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "cache-mcp_server",
+    "identifier": "urn:air:catalog.example.test:demo:cache-mcp_server",
+    "name": "Cache hit rate monitor Connector",
+    "description": "Inspect in-memory key-value cache statistics to report hit ratios, memory fragmentation, and key eviction counts. A Model Context Protocol (MCP) server providing standard tool endpoints and context resources for client assistants.",
+    "tags": [
+      "cache",
+      "mcp_server",
+      "performance",
+      "redis"
+    ],
+    "representativeQueries": [
+      "Monitor cache hit ratio and eviction count",
+      "Inspect in-memory cache memory stats"
+    ],
+    "kind": "mcp_server",
+    "family": "cache",
+    "source": "local",
+    "public": false
+  },
+  {
+    "id": "cache-skill",
+    "identifier": "urn:air:catalog.example.test:demo:cache-skill",
+    "name": "Cache hit rate monitor Procedure",
+    "description": "Inspect in-memory key-value cache statistics to report hit ratios, memory fragmentation, and key eviction counts. A modular Agent Skill package specifying step-by-step instructions, constraints, and validation rules for repeatable execution.",
+    "tags": [
+      "cache",
+      "performance",
+      "redis",
+      "skill"
+    ],
+    "representativeQueries": [
+      "Monitor cache hit ratio and eviction count",
+      "Inspect in-memory cache memory stats"
+    ],
+    "kind": "skill",
+    "family": "cache",
+    "source": "local",
+    "public": true
+  },
+  {
+    "id": "cache-plugin",
+    "identifier": "urn:air:catalog.example.test:demo:cache-plugin",
+    "name": "Cache hit rate monitor Toolkit",
+    "description": "Inspect in-memory key-value cache statistics to report hit ratios, memory fragmentation, and key eviction counts. An extensible Agent Plugin bundling capabilities, configuration presets, and IDE client integration points.",
+    "tags": [
+      "cache",
+      "performance",
+      "plugin",
+      "redis"
+    ],
+    "representativeQueries": [
+      "Monitor cache hit ratio and eviction count",
+      "Inspect in-memory cache memory stats"
+    ],
+    "kind": "plugin",
+    "family": "cache",
+    "source": "indexed",
+    "public": false
+  }
+]

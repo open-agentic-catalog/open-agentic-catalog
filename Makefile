@@ -2589,7 +2589,7 @@ test-minikube-replicas: helm-check test-minikube-contract ## Test three UI/API/w
 
 .PHONY: embeddings-install embeddings-check test-embeddings test-semantic test-semantic-restore test-semantic-restore-prepare search-relevance-install
 .PHONY: search-relevance-check search-relevance-evaluate search-relevance-compare-install
-.PHONY: search-relevance-compare
+.PHONY: search-relevance-compare search-relevance-benchmark-check search-relevance-benchmark-install search-relevance-benchmark
 
 embeddings-install: ## Acquire one pinned local embedding profile and fixture images explicitly
 	$(PYTHON) test/embeddings/runner.py install --profile "$(EMBEDDING_PROFILE)"
@@ -2623,6 +2623,15 @@ search-relevance-compare-install: ## Acquire pinned BGE/MiniLM inputs for the se
 
 search-relevance-compare: ## Tune BGE/MiniLM then qualify only the frozen winner on fresh held-out queries
 	$(PYTHON) test/search-relevance/comparison.py evaluate
+
+search-relevance-benchmark-check: ## Test benchmark fixtures, profiles, and runner without a model or database
+	$(PYTHON) test/search-relevance/benchmark/benchmark.py check
+
+search-relevance-benchmark-install: ## Download pinned model inputs and images for the benchmark
+	$(PYTHON) test/search-relevance/benchmark/benchmark.py install
+
+search-relevance-benchmark: ## Run full multi-model retrieval and LangGraph recommendation benchmark
+	$(PYTHON) test/search-relevance/benchmark/benchmark.py evaluate
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
