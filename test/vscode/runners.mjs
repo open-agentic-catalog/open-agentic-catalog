@@ -292,7 +292,8 @@ with zipfile.ZipFile(root/'catalog_owned_uv-1.0.0-py3-none-any.whl','w') as z:
       JSON.parse(directDocker.trim()).result.serverInfo.name,
       "owned-docker",
     );
-    for (let n = 0; dockerStarts < 1 && n < 50; n++)
+    //added NOSONAR as dockerStarts is getting modified asynchronously and giving out a blocker warning in sonarqube
+    for (let n = 0; dockerStarts < 1 && n < 50; n++) // NOSONAR
       await new Promise((done) => setTimeout(done, 100));
     assert.equal(
       dockerStarts,
