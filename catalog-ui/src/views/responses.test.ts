@@ -392,6 +392,7 @@ const sampleFederationChangePreview = {
   sendsQueriesUpstream: false,
 };
 const sampleFederationSnapshot = {
+  sourceRevision: 1,
   enumerationComplete: false,
   reconcileCurrentView: false,
   added: 0,
@@ -1096,6 +1097,7 @@ const cases = [
     value: sampleFederationSnapshot,
     invalidFields: [
       "enumerationComplete",
+      "sourceRevision",
       "reconcileCurrentView",
       "added",
       "updated",

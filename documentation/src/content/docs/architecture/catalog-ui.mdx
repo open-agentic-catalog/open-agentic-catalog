@@ -59,6 +59,8 @@ Previous-page navigation retains at most ten request cursors in memory and rerea
 
 Administration screens show summaries before complete evidence. Accepted synchronization Jobs, completed source snapshots and activated discovery snapshots are separate outcomes. Search indexing opens the existing Service section and capability read, without a global cache or extra navigation requests. Provenance, immutable review evidence and one-time webhook secrets keep their existing disclosure limits.
 
+Source history supports exact before/after snapshot selection across pages. The comparison screen checks the selected after snapshot's state and source revision before requesting entry changes, then pages the server's compact occurrence summaries. Ineligible selections show their state and revision context without calculating a diff. Continuation uses the same immutable pair; failed reads clear obsolete comparison results. Raw observations remain explicit, separately authorized reads. See [Compare two saved synchronizations](../operations/federation.mdx#compare-two-saved-synchronizations) for eligibility, duplicate keys and absence semantics.
+
 ## Client architecture
 
 [ADR-0018](decisions/0018-optional-catalog-browser-client.md) records the selected client and session boundary. Native controls cover dialogs and forms without a component library. Typed lint rejects unsafe value use in application, colocated unit, browser and configuration code. Optional request fields are omitted when absent; local draft state may explicitly hold `undefined` to clear a value. The compiler and lint checks complement the runtime consumed-field checks and backend contract tests; they do not prove full response-schema conformance.

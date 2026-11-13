@@ -3078,6 +3078,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/federation/snapshots/{snapshotId}/comparison": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Publication or source snapshot identifier for the selected route. */
+                snapshotId: components["parameters"]["SnapshotId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Compare retained source synchronization memberships
+         * @description Requires current tenant source.read and, when enforced, sources.read OAuth authority. Compares complete occurrence-bound memberships from the same source configuration revision, including after source removal. No upstream requests, Jobs, writes or raw-document reads occur. Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match. Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes are independent of synchronization counters and current observation freshness. Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text. SQL checks membership counts and evidence before selecting at most limit plus one result rows. A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete, failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned. Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+         */
+        get: operations["compareFederationSourceSnapshots"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/observations": {
         parameters: {
             query?: never;
@@ -6536,6 +6559,46 @@ export interface components {
         };
         FederationSnapshotPage: {
             items: components["schemas"]["FederationSnapshot"][];
+            nextCursor?: string;
+        };
+        FederationSnapshotComparisonSummary: {
+            id: components["schemas"]["UUID"];
+            memberCount: number;
+            /** Format: date-time */
+            startedAt: string;
+            withdrawalAuthority: boolean;
+        };
+        FederationSnapshotComparisonMember: {
+            observationId: components["schemas"]["UUID"];
+            identifier: string;
+            version: string;
+            /** @description Missing and present-empty versions remain distinct. */
+            versionPresent: boolean;
+            /** @description Retained kind or empty when unavailable. */
+            kind: string;
+            identityDigest: string;
+            occurrence: components["schemas"]["ObservationOccurrence"];
+        };
+        /** @description Unique keys have at most one member on either side. Changed compares exact-entry, normalization-input, normalized-entry and identity digests; occurrence timing or retrieval changes alone are not content changes. Multiple rows preserve every occurrence on its own side whenever either selected membership repeats a key. No arbitrary correspondence is asserted for those rows. Exact raw bytes are not included. */
+        FederationSnapshotEntryChange: {
+            /** @description Stable position in the selected filtered comparison. */
+            position: number;
+            /** @description Retained source-local correspondence key; unidentifiable entries use their exact occurrence-based key. */
+            sourceKey: string;
+            /** @enum {string} */
+            change: "added" | "absent" | "changed" | "unchanged" | "multiple";
+            beforeCount: number;
+            afterCount: number;
+            before?: components["schemas"]["FederationSnapshotComparisonMember"];
+            after?: components["schemas"]["FederationSnapshotComparisonMember"];
+        };
+        FederationSnapshotComparisonPage: {
+            sourceId: components["schemas"]["UUID"];
+            /** Format: int64 */
+            sourceRevision: number;
+            before: components["schemas"]["FederationSnapshotComparisonSummary"];
+            after: components["schemas"]["FederationSnapshotComparisonSummary"];
+            items: components["schemas"]["FederationSnapshotEntryChange"][];
             nextCursor?: string;
         };
         ObservationCompatibility: {
@@ -12503,6 +12566,40 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["FederationSnapshot"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    compareFederationSourceSnapshots: {
+        parameters: {
+            query: {
+                /** @description Exact after snapshot. The path snapshot is the before selection; chronological order is not required. */
+                otherSnapshotId: components["schemas"]["UUID"];
+                /** @description Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible. */
+                view?: "changes" | "all";
+                /** @description Maximum items in one page. Follow nextCursor with the same page size and filters to continue. */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                /** @description Publication or source snapshot identifier for the selected route. */
+                snapshotId: components["parameters"]["SnapshotId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Compact historical membership comparison; raw evidence keeps its separate audited read boundary. */
+            200: {
+                headers: {
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FederationSnapshotComparisonPage"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };

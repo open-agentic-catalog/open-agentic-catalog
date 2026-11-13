@@ -69,9 +69,9 @@ def valid_evidence(value):
     return (isinstance(value, dict) and set(value) == {"core", "hybrid", "liveOnly", "cli", "browser"}
             and all(value[name] is True for name in ("core", "hybrid", "liveOnly", "cli"))
             and value["browser"] == [{"mode": mode, "livePages": 2, "combinedPages": 2,
-                                     "sameTokenRetry": True, "cleanup": "passed"} for mode in ("core", "hybrid")]
+                                     "sameTokenRetry": True, "sourceComparison": True, "cleanup": "passed"} for mode in ("core", "hybrid")]
             and all(type(row["livePages"]) is int and type(row["combinedPages"]) is int
-                    and row["sameTokenRetry"] is True for row in value["browser"]))
+                    and row["sameTokenRetry"] is True and row["sourceComparison"] is True for row in value["browser"]))
 
 
 def walk(scenario, client, path, body, expected, *, public=False, tier=None):
@@ -133,11 +133,17 @@ def retry_control(scenario, client, path, body, token_field):
     return first
 
 
-def browser(scenario, directory, mode, expected, live_ids):
-    write_document(directory / "scenario.json", {"mode": mode, "expected": sorted(expected), "live": sorted(live_ids)})
+def browser(scenario, directory, mode, expected, live_ids, source):
+    retained, _ = scenario.b.request("GET", "/api/v1/federation/sources/" + source["id"])
+    snapshot_id = retained["lastCompleteSnapshotId"]
+    snapshot, _ = scenario.b.request("GET", "/api/v1/federation/snapshots/" + snapshot_id)
+    identifiers = sorted(row["identifier"] for row in observations(scenario.b, source["id"]))
+    assert snapshot["state"] == "complete" and snapshot["memberCount"] == len(identifiers) and len(set(identifiers)) == len(identifiers), "owned comparison requires unique complete membership"
+    comparison = {"sourceId": source["id"], "snapshotId": snapshot_id, "sourceRevision": snapshot["sourceRevision"], "identifiers": identifiers}
+    write_document(directory / "scenario.json", {"mode": mode, "expected": sorted(expected), "live": sorted(live_ids), "comparison": comparison})
     result = json.loads(command(["node", "catalog-ui/scripts/peer-journeys.mjs", str(directory), scenario.b.base_url,
                                 scenario.public.base_url, str(scenario.fixture / "trust/functional-ca.pem")], scenario.env, 120, capture=True))
-    assert result == {"mode": mode, "livePages": 2, "combinedPages": 2, "sameTokenRetry": True, "cleanup": "passed"}, "browser peer qualification incomplete"
+    assert result == {"mode": mode, "livePages": 2, "combinedPages": 2, "sameTokenRetry": True, "sourceComparison": True, "cleanup": "passed"}, "browser peer qualification incomplete"
     return result
 
 
@@ -192,7 +198,7 @@ def qualify(scenario, source, fresh_ids):
     command(["go", "build", "-o", str(directory / "catalog-ui"), "./catalog-ui/cmd/catalog-ui"], scenario.env, 120)
     command(["npm", "--prefix", "catalog-ui", "run", "build", "--", "--outDir", str(directory / "assets")], scenario.env, 120)
     expected = core_expected | live_ids
-    core_browser = browser(scenario, directory, "core", expected, live_ids)
+    core_browser = browser(scenario, directory, "core", expected, live_ids, source)
     enabled = False
     try:
         enabled = True
@@ -211,7 +217,7 @@ def qualify(scenario, source, fresh_ids):
         local = scenario.b_private.request("POST", "/ard/v1/search", {**public_body, "federation": "none", "pageSize": 100})[0]["results"]
         assert [row for page in public_pages for row in page["results"]][:len(local)] == local, "public hybrid prefix changed"
         retry_control(scenario, scenario.b_private, "/ard/v1/search", public_body, "pageToken")
-        hybrid_browser = browser(scenario, directory, "hybrid", expected, live_ids)
+        hybrid_browser = browser(scenario, directory, "hybrid", expected, live_ids, source)
     finally:
         scenario.continuation_fault(False)
         if enabled:

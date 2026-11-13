@@ -880,7 +880,8 @@
         "http:listFederationSourceSnapshots",
         "http:listObservations",
         "http:listObservationOccurrences",
-        "http:getJob"
+        "http:getJob",
+        "http:compareFederationSourceSnapshots"
       ],
       "evidence": [
         {
@@ -907,7 +908,7 @@
         }
       ],
       "reason": "Owned private HTTPS Registry List traversal/conditional retry and API/worker bearer, API-key and mTLS mounts, rotation and revocation. Origin/redirect/credential-race permutations remain in the real-TLS router tests. The opt-in peer profile joins two independent Catalog deployments over their real published hybrid manifest, including update/removal, failure preservation, recovery and source credentials.",
-      "success": "Inspect/connect a Registry, sync and read bounded snapshots, observations, occurrences and the resulting Job.",
+      "success": "Inspect/connect a Registry, sync and read bounded snapshots, observations, occurrences and the resulting Job. Compare exact complete Registry memberships, including observation reuse, reverse/unchanged pages and non-authoritative absence without upstream requests.",
       "rejection": "Refuse changed/invalid source evidence and preserve the last complete view on partial failure.",
       "recovery": "Retry after fixture recovery; O-05 proves worker lease takeover and deduplication.",
       "gaps": []

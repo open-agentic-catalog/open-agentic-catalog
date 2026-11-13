@@ -178,6 +178,7 @@ const workflows = {
   pauseFederationSource: "screen:federation",
   resumeFederationSource: "screen:federation",
   getFederationSourceSnapshot: "screen:federation",
+  compareFederationSourceSnapshots: "screen:federation",
   listObservations: "screen:federation",
   getObservationGroup: "screen:federation",
   getRawObservation: "screen:federation",

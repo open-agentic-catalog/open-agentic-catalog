@@ -251,6 +251,22 @@
   },
   {
     "consumption": "buffered",
+    "method": "compare_federation_source_snapshots",
+    "operation_id": "compareFederationSourceSnapshots",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1federation~1snapshots~1{snapshotId}~1comparison/get",
+    "source_method": "GET",
+    "source_operation_id": "compareFederationSourceSnapshots",
+    "source_path": "/api/v1/federation/snapshots/{snapshotId}/comparison",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "connect_federation_source",
     "operation_id": "connectFederationSource",
     "response_excluded_statuses": [],

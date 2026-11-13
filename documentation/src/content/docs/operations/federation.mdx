@@ -92,6 +92,36 @@ Source-restricted observations and snapshot history require a current nonremoved
 
 See the [exact occurrence example](#select-and-read-the-exact-retained-occurrence) for the retained reference tuple.
 
+### Compare two saved synchronizations
+
+Use this comparison to investigate what changed between two imports, including nonconsecutive imports. It reads saved occurrence membership without contacting the source or changing current search results.
+
+1. Open a Source and choose **Sync history**.
+2. Select **Before** and **After** on two complete snapshots of the same source revision, then choose **Compare selected snapshots**. Selections remain while you page through history.
+3. Inspect the entry changes. Choose **Include unchanged entries** to check entries that were retained by both imports. Use **Next page** for the rest of the selected view.
+
+You can also open an exact saved Snapshot ID and enter the **After snapshot ID** under **Compare saved entries**. The selected after snapshot's state and source revision explain an ineligible pair before any entry difference is requested. This route remains available after source removal if you retain current summary-read permission. The before/after labels describe your selection; you can reverse their chronological order.
+
+| Result | Meaning |
+| --- | --- |
+| Added | The source key appears only in the after membership. |
+| Absent | The source key appears only in the before membership. This does not establish upstream deletion. |
+| Changed | A unique source key appears in both, with different exact-entry, normalization-input, normalized-entry or identity digests. |
+| Unchanged | Both unique entries have the same retained digests. A different retrieval or observation time alone is not a content change. |
+| Multiple occurrences | Either membership repeats a source key. Every occurrence is shown on its own side; the comparison does not choose a preferred entry or invent a match. |
+
+Each entry links to its saved observation and shows the exact snapshot, retrieval digest and entry location in its occurrence details. Missing versions and explicitly empty versions remain different identities. Entries without an identifier use their exact occurrence-based source key, so the comparison does not infer continuity when that key changes.
+
+Registry List absence is especially limited: a complete enumeration can change current results without proving upstream withdrawal. Failed or incomplete attempts cannot be compared as empty successful imports. Snapshots of different source revisions are also refused because changed scopes or configuration would make absence ambiguous. A complete, successfully enumerated empty snapshot is supported.
+
+The entry counts belong to the selected snapshots. Pairwise changes need not equal either synchronization's Added, Updated or Withdrawn counters. Later changes to observation freshness or last-seen time do not alter this comparison.
+
+Summary reads require current tenant `source.read` permission and, when enforced, the `sources.read` OAuth scope. The comparison does not read native documents. Follow an observation link and explicitly read its raw entry only when needed; that action retains its separate `source.read_evidence` permission and audit requirement.
+
+The supported input is at most 10,000 occurrences per snapshot and 32 MiB of projected text across both memberships. Over-budget or inconsistent saved evidence produces a refusal, not a partial comparison. Use **Reload comparison** after a read failure; a rejected continuation restarts the same pair from its first page. Changing permission or identity invalidates old continuation and comparison state.
+
+API clients use `GET /api/v1/federation/snapshots/{snapshotId}/comparison?otherSnapshotId={afterSnapshotId}`. The path snapshot is the before selection. Optional `view=all` includes unchanged entries; the default is `changes`. Continue with the returned cursor, the same pair, view and page size. The [Control API contract](../../../../../api/openapi/control-v1.yaml) defines the compact response and errors.
+
 ### Review test results and prepared changes
 
 **Test source** shows the recorded succeeded/failed outcome, tested time, HTTP status or **No HTTP response**, safe diagnostic, entry count and advertised capabilities. Full policy/profile evidence remains under **Command result**. A failed retrieval result is different from API admission refusal or an unknown command outcome. The UI checks the exact Source and returned revision before displaying a receipt. Success activates refreshed policy evidence and returns the requested revision plus one. A returned failed retrieval keeps the requested revision. Reload before another command. Testing does not synchronize observations or establish future availability.

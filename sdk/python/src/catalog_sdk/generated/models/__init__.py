@@ -260,6 +260,18 @@ from catalog_sdk.generated.models.federation_retrieval_evidence import (
     FederationRetrievalEvidence,
 )
 from catalog_sdk.generated.models.federation_snapshot import FederationSnapshot
+from catalog_sdk.generated.models.federation_snapshot_comparison_member import (
+    FederationSnapshotComparisonMember,
+)
+from catalog_sdk.generated.models.federation_snapshot_comparison_page import (
+    FederationSnapshotComparisonPage,
+)
+from catalog_sdk.generated.models.federation_snapshot_comparison_summary import (
+    FederationSnapshotComparisonSummary,
+)
+from catalog_sdk.generated.models.federation_snapshot_entry_change import (
+    FederationSnapshotEntryChange,
+)
 from catalog_sdk.generated.models.federation_snapshot_page import FederationSnapshotPage
 from catalog_sdk.generated.models.federation_source import FederationSource
 from catalog_sdk.generated.models.federation_source_inspection import (

@@ -303,6 +303,8 @@ Public fresh queries above 1,000 filtered entries fall back before inference. En
 
 ## Federation and provenance
 
+Source Administrators can compare two exact complete synchronization memberships of the same source revision through the Control API and optional UI. Comparison reads immutable occurrences, includes reused observations and separate normalization-input/digest differences, and pages compact results without fetching upstream or raw documents. Repeated source keys retain separate occurrence rows rather than an arbitrary correspondence. Failed, incomplete, differently configured, inconsistent and over-budget inputs are refused. Each side supports 10,000 occurrences; projected text across both sides is bounded at 32 MiB. Absence describes selected membership, not proven upstream deletion. Current summary authority and signed continuation remain required after source removal. See [historical comparison](documentation/src/content/docs/operations/federation.mdx#compare-two-saved-synchronizations).
+
 Origin inspection uses the existing well-known and advertised discovery paths. It does not read `/robots.txt`. Optional `Agentmap:` discovery is not implemented.
 
 Operators define reachable origins, address policy, trust and private routes; Source Administrators approve sources within them. Ordinary callers cannot choose source URLs/topology or redirect credentials.

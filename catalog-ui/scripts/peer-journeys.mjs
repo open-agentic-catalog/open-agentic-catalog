@@ -55,6 +55,94 @@ async function fault(enabled) {
     call.end(body);
   });
 }
+/** Exercise the real saved-membership API through the host while its peer is unavailable. */
+async function qualifySavedMembership(page) {
+  const saved = scenario.comparison;
+  if (!saved || !Array.isArray(saved.identifiers) || !saved.identifiers.length)
+    throw new Error("Owned retained comparison prerequisite missing");
+  const writes = [];
+  const observe = (call) => {
+    if (
+      new URL(call.url()).pathname.includes("/_catalog/api/") &&
+      call.method() !== "GET"
+    )
+      writes.push(call.method());
+    if (call.url().includes("/raw")) writes.push("raw evidence read");
+  };
+  page.on("request", observe);
+  try {
+    await fault(true);
+    const comparisonReply = (view) =>
+      page.waitForResponse((reply) => {
+        const url = new URL(reply.url());
+        return (
+          url.pathname.endsWith(`/snapshots/${saved.snapshotId}/comparison`) &&
+          url.searchParams.get("view") === view
+        );
+      });
+    const first = comparisonReply("changes");
+    await page.goto(
+      `${origin}/source-snapshots/${saved.snapshotId}?compare=${saved.snapshotId}`,
+    );
+    const reply = await first;
+    expect(reply.status()).toBe(200);
+    expect((await reply.json()).items).toEqual([]);
+    await expect(
+      page.getByText("No entry differences between these snapshots.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    const all = comparisonReply("all");
+    await page.getByLabel("Include unchanged entries", { exact: true }).check();
+    let response = await all;
+    const identifiers = [];
+    for (let budget = 0; budget < 10; budget++) {
+      expect(response.status()).toBe(200);
+      const current = await response.json();
+      expect(current.sourceId).toBe(saved.sourceId);
+      expect(current.sourceRevision).toBe(saved.sourceRevision);
+      expect(current.before.id).toBe(saved.snapshotId);
+      expect(current.after.id).toBe(saved.snapshotId);
+      for (const entry of current.items) {
+        expect(entry.change).toBe("unchanged");
+        expect(entry.before.observationId).toBe(entry.after.observationId);
+        expect(entry.before.occurrence.snapshotId).toBe(saved.snapshotId);
+        expect(entry.after.occurrence.snapshotId).toBe(saved.snapshotId);
+        identifiers.push(entry.after.identifier);
+        await expect(
+          page.getByRole("heading", {
+            name: `Unchanged: ${entry.after.identifier}`,
+            exact: true,
+          }),
+        ).toBeVisible();
+      }
+      if (!current.nextCursor) break;
+      const next = comparisonReply("all");
+      await page
+        .getByRole("group", { name: "Source comparison pages" })
+        .getByRole("button", { name: "Next page", exact: true })
+        .click();
+      response = await next;
+    }
+    expect(identifiers.sort()).toEqual(saved.identifiers);
+    expect(writes).toEqual([]);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await json(`source-comparison-${scenario.mode}.json`, {
+      result: "passed",
+      snapshotId: saved.snapshotId,
+      sourceId: saved.sourceId,
+      sourceRevision: saved.sourceRevision,
+      rows: identifiers.length,
+      peerUnavailable: true,
+      noMutations: true,
+      noRawEvidenceReads: true,
+    });
+  } finally {
+    page.off("request", observe);
+    await fault(false);
+  }
+}
+
 const listener = createServer();
 await new Promise((resolve, reject) => {
   listener.once("error", reject);
@@ -140,6 +228,9 @@ try {
   await page.goto(origin + "/catalog");
   await page.getByRole("button", { name: "local-admin", exact: true }).click();
   const cards = page.locator("article.resource-card");
+  await expect(cards.first()).toBeVisible();
+  await qualifySavedMembership(page);
+  await page.goto(origin + "/catalog");
   await expect(cards.first()).toBeVisible();
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   await page
@@ -266,6 +357,7 @@ process.stdout.write(
     livePages: 2,
     combinedPages: 2,
     sameTokenRetry: true,
+    sourceComparison: true,
     cleanup: "passed",
   }),
 );

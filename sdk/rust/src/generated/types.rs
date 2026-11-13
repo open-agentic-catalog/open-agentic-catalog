@@ -4556,46 +4556,6 @@ pub struct ObservationGroupContribution {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct ObservationOccurrence {
-    ///Exact `/entries/N` manifest location or `/items/N` Registry List page location for complete retained evidence.
-    ///Constraint: minLength=1, maxLength=1024
-    #[serde(rename = "entryLocation")]
-    pub entry_location: String,
-    #[serde(rename = "evidenceComplete")]
-    pub evidence_complete: bool,
-    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
-    #[serde(rename = "exactEntryDigest")]
-    pub exact_entry_digest: String,
-    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
-    #[serde(
-        rename = "normalizationInputDigest",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub normalization_input_digest: Option<String>,
-    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
-    #[serde(
-        rename = "normalizedEntryDigest",
-        skip_serializing_if = "Option::is_none"
-    )]
-    pub normalized_entry_digest: Option<String>,
-    #[serde(rename = "observationId")]
-    pub observation_id: UUID,
-    #[serde(rename = "observedAt")]
-    pub observed_at: chrono::DateTime<chrono::Utc>,
-    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
-    #[serde(rename = "retrievalDigest")]
-    pub retrieval_digest: String,
-    #[serde(rename = "snapshotId")]
-    pub snapshot_id: UUID,
-    #[serde(rename = "sourceId")]
-    pub source_id: UUID,
-    ///Exact retained source revision.
-    ///Constraint: minimum=1
-    #[serde(rename = "sourceRevision")]
-    pub source_revision: i64,
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct ObservationAdoption {
     pub evidence: EvidenceSet,
     pub listing: CatalogListing,
@@ -7126,6 +7086,151 @@ pub struct FederationSnapshotPage {
     ///Constraint: maxLength=2048
     #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FederationSnapshotComparisonPage {
+    pub after: FederationSnapshotComparisonSummary,
+    pub before: FederationSnapshotComparisonSummary,
+    ///Constraint: maxItems=100
+    pub items: Vec<FederationSnapshotEntryChange>,
+    ///Constraint: maxLength=2048
+    #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    #[serde(rename = "sourceId")]
+    pub source_id: UUID,
+    ///Constraint: minimum=1
+    #[serde(rename = "sourceRevision")]
+    pub source_revision: i64,
+}
+///Unique keys have at most one member on either side. Changed compares exact-entry, normalization-input, normalized-entry and identity digests; occurrence timing or retrieval changes alone are not content changes. Multiple rows preserve every occurrence on its own side whenever either selected membership repeats a key. No arbitrary correspondence is asserted for those rows. Exact raw bytes are not included.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FederationSnapshotEntryChange {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub after: Option<FederationSnapshotComparisonMember>,
+    ///Constraint: minimum=0, maximum=10000
+    #[serde(rename = "afterCount")]
+    pub after_count: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub before: Option<FederationSnapshotComparisonMember>,
+    ///Constraint: minimum=0, maximum=10000
+    #[serde(rename = "beforeCount")]
+    pub before_count: i64,
+    pub change: FederationSnapshotEntryChangeChange,
+    ///Stable position in the selected filtered comparison.
+    ///Constraint: minimum=1, maximum=20000
+    pub position: i64,
+    ///Retained source-local correspondence key; unidentifiable entries use their exact occurrence-based key.
+    ///Constraint: maxLength=2048
+    #[serde(rename = "sourceKey")]
+    pub source_key: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum FederationSnapshotEntryChangeChange {
+    #[default]
+    #[serde(rename = "added")]
+    Added,
+    #[serde(rename = "absent")]
+    Absent,
+    #[serde(rename = "changed")]
+    Changed,
+    #[serde(rename = "unchanged")]
+    Unchanged,
+    #[serde(rename = "multiple")]
+    Multiple,
+}
+impl FederationSnapshotEntryChangeChange {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Added => "added",
+            Self::Absent => "absent",
+            Self::Changed => "changed",
+            Self::Unchanged => "unchanged",
+            Self::Multiple => "multiple",
+        }
+    }
+}
+impl ::std::fmt::Display for FederationSnapshotEntryChangeChange {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for FederationSnapshotEntryChangeChange {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FederationSnapshotComparisonSummary {
+    pub id: UUID,
+    ///Constraint: minimum=0, maximum=10000
+    #[serde(rename = "memberCount")]
+    pub member_count: i64,
+    #[serde(rename = "startedAt")]
+    pub started_at: chrono::DateTime<chrono::Utc>,
+    #[serde(rename = "withdrawalAuthority")]
+    pub withdrawal_authority: bool,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct FederationSnapshotComparisonMember {
+    ///Constraint: maxLength=2048
+    pub identifier: String,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "identityDigest")]
+    pub identity_digest: String,
+    ///Retained kind or empty when unavailable.
+    pub kind: String,
+    #[serde(rename = "observationId")]
+    pub observation_id: UUID,
+    pub occurrence: ObservationOccurrence,
+    ///Constraint: maxLength=128
+    pub version: String,
+    ///Missing and present-empty versions remain distinct.
+    #[serde(rename = "versionPresent")]
+    pub version_present: bool,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ObservationOccurrence {
+    ///Exact `/entries/N` manifest location or `/items/N` Registry List page location for complete retained evidence.
+    ///Constraint: minLength=1, maxLength=1024
+    #[serde(rename = "entryLocation")]
+    pub entry_location: String,
+    #[serde(rename = "evidenceComplete")]
+    pub evidence_complete: bool,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "exactEntryDigest")]
+    pub exact_entry_digest: String,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(
+        rename = "normalizationInputDigest",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub normalization_input_digest: Option<String>,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(
+        rename = "normalizedEntryDigest",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub normalized_entry_digest: Option<String>,
+    #[serde(rename = "observationId")]
+    pub observation_id: UUID,
+    #[serde(rename = "observedAt")]
+    pub observed_at: chrono::DateTime<chrono::Utc>,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "retrievalDigest")]
+    pub retrieval_digest: String,
+    #[serde(rename = "snapshotId")]
+    pub snapshot_id: UUID,
+    #[serde(rename = "sourceId")]
+    pub source_id: UUID,
+    ///Exact retained source revision.
+    ///Constraint: minimum=1
+    #[serde(rename = "sourceRevision")]
+    pub source_revision: i64,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
