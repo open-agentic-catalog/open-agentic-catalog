@@ -9,6 +9,31 @@ import SemanticGeneration from "../../../components/architecture/SemanticGenerat
 
 Hybrid search combines keyword and semantic matches from one configured embedding model. It is disabled by default. Core search, exact identifiers, filters, List and browse work without a model or [pgvector](https://github.com/pgvector/pgvector). Catalog never executes resources or sends their code, artifacts, feedback, identity records or audit data to inference.
 
+The Catalog needs an embedding endpoint for hybrid Search. A reasoning model is only needed by optional assistant clients.
+
+## Choose an embedding model
+
+Start by evaluating MiniLM for short English metadata. In the [controlled model comparison](../guides/discovery-quality.mdx#reference-comparison), it gave the strongest ranking score among models with no added no-answer errors. It also had the smallest observed embedding-server memory peak. Check representative questions from your own Catalog before choosing a model.
+
+| Model | When to evaluate it |
+| --- | --- |
+| MiniLM L6 v2 | Compact candidate for short English metadata. Uses 384-dimensional vectors and a 256-token input limit. |
+| BGE small English v1.5 | Compact alternative with 384 dimensions and a 512-token input limit. Scored below MiniLM on the reference questions. |
+| Granite embedding 278M multilingual | Higher ranking scores in the English comparison, with one added no-answer error and greater memory use. Uses 768 dimensions. |
+| Multilingual E5 large | Evaluate for a workload that justifies its 1,024 dimensions and larger memory use. Its English scores were below MiniLM. |
+
+The comparison used English synthetic data. It does not establish multilingual quality or deployment capacity. Use its timings and memory figures as reference observations, with headroom for your query concurrency and indexing workload.
+
+For MiniLM, serve `sentence-transformers/all-MiniLM-L6-v2` with mean pooling and 384 output dimensions. Leave both query and document prefixes empty. Its 256-token limit includes the complete metadata input, not only the description. Pin the weights and server image using the [model profile](../../../../../deployments/embeddings/profiles/README.md).
+
+## Setup sequence
+
+1. Complete [database setup](#database-setup), with API and worker processes drained before schema or privilege changes.
+2. Start the embedding provider with the selected weights and preprocessing. For local development, use the [MiniLM Compose service](#local-compose-and-helm).
+3. Apply [matching configuration](#configuration) to API and worker, then restart both through your deployment procedure.
+4. Wait for indexing and inspect any inputs that remain keyword-only. See [indexing and recovery](#indexing-and-recovery).
+5. Test task descriptions and questions without suitable matches. Check the actual retrieval mode and [calibrate the cutoff](#calibrate-the-similarity-cutoff).
+
 ## Data sent to the provider
 
 Semantic search sends permitted data to one operator-configured endpoint.
@@ -46,14 +71,17 @@ Enable `semanticSearch` in both API and worker configuration, or use the `CATALO
 
 The provider must support the [OpenAI embedding API](https://developers.openai.com/api/reference/resources/embeddings) subset with indexed float vectors. Catalog has no runtime model allowlist or per-query provider selector.
 
+This `semanticSearch` value uses the pinned MiniLM revision. Replace the endpoint with your provider's exact URL. Add `tokenFile` and `caFile` only when the provider requires them. Private endpoints also require the appropriate `allowedAddressPrefixes`.
+
 ```json
 {
   "enabled": true,
   "endpoint": "https://embeddings.example.com/v1/embeddings",
-  "model": "deployment-model",
-  "profileRevision": "reviewed-model-revision-1",
+  "model": "sentence-transformers/all-MiniLM-L6-v2",
+  "profileRevision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
   "dimensions": 384,
-  "tokenFile": "/etc/open-agentic-catalog/embeddings/token",
+  "queryPrefix": "",
+  "documentPrefix": "",
   "similarityCutoff": 0.5
 }
 ```
@@ -80,10 +108,20 @@ The provider must support the [OpenAI embedding API](https://developers.openai.c
 
 Model, dimensions, prefixes, input limit or template changes create a new embedding profile. A changed ranking cutoff changes cursor compatibility without re-embedding unchanged metadata. Credentials and transport trust are separate from model identity. A hosted alias does not prove immutable model weights.
 
+### Calibrate the similarity cutoff
+
+The configured default is `0.5`. The controlled comparison selected `0.55` for MiniLM on its sample questions. That value is specific to those questions and is not a production recommendation.
+
+Choose representative questions with direct matches, partial alternatives and no suitable record. Use one set to choose a cutoff, then test it on separate questions. Check that Search reports `tier: hybrid` during the comparison; keyword fallback does not measure the selected semantic configuration.
+
+Lower cutoffs admit more semantic candidates; higher cutoffs admit fewer. Keyword candidates remain eligible independently. Increasing the cutoff cannot remove an unsuitable keyword match. Check missed records and unwanted results together before accepting a change.
+
+MiniLM's token limit is separate from `maxInputBytes`. Keep the combined name, description, tags and representative queries within the provider's token limit. Configure the provider to reject oversized inputs instead of silently truncating them. Rejected records remain searchable by keyword.
+
 ## Database setup
 
-1. Provision PostgreSQL 18 with pgvector 0.8.7 using the database administrator's normal extension procedure.
-2. Drain API and worker processes before changing their exact privilege manifests.
+1. Drain existing API and worker processes before installing extensions or changing the optional schema and runtime privileges.
+2. Provision PostgreSQL 18 with pgvector 0.8.7 using the database administrator's normal extension procedure.
 3. Run `make migrate-semantic-plan`, then `make migrate-semantic-apply` with the selected schema-owner connection. These targets apply the separate checksummed optional schema and reconcile restricted API/worker privileges under the existing migration lock. They never call inference.
 4. Start API and worker roles with matching enabled configuration. They validate optional storage and privileges but never run DDL.
 
@@ -170,7 +208,25 @@ If command delivery is uncertain, keep **Retry same command** and its captured b
 
 After a model/profile change or restore, workers reconcile missing or stale derived state. Search uses keyword fallback until the configured generation is ready. Disabling semantic search preserves derived state but makes no provider calls; re-enabling reconciles it. Do not delete Catalog data or reset a retained database to repair embeddings.
 
+### Change the model or preprocessing
+
+1. Select immutable model weights and the required pooling, dimensions and prefixes.
+2. Drain API and worker before replacing weights at an existing endpoint. Update the provider and set matching `model`, `profileRevision`, dimensions and prefixes for both roles. Restart API and worker through [coordinated deployment](maintenance.mdx#coordinated-release-deployment).
+3. Let workers build the new index. Different model profiles never share incompatible vectors. Fresh queries can use keyword fallback while indexing finishes.
+4. Check the current indexing Job, keyword-only input counts and actual Search tier before evaluating quality. Restart searches whose old continuation tokens are rejected.
+
+Update `profileRevision` when weights change behind an unchanged model name. Changing only `similarityCutoff` affects ranking and continuation compatibility without requiring new embeddings.
+
 ## Search behavior and monitoring
+
+### Confirm hybrid Search is active
+
+1. Open **Service information**. With reindex permission, check **Catalog index status**, its Job link and the number of items that remain keyword-only.
+2. Wait for indexing to finish. Inspect failed inputs as well as the Job's terminal state; a usable generation can still contain rejected metadata.
+3. Search for a known resource using a task description. Use a new, non-empty query rather than an exact AIR identifier. Check the returned `tier` and any `fallbackReason` or `partialIndex` value.
+4. Test a question with no suitable resource. Confirm that the returned candidates meet your relevance expectations before using the model more widely.
+
+Configured capability and a healthy Catalog do not prove that a query used embeddings. Empty queries and exact AIR lookups use model-free paths even when hybrid Search is enabled.
 
 <SearchContinuation />
 
@@ -202,6 +258,8 @@ Capabilities report configuration and the API process's last observed provider s
 
 `open_agentic_catalog_embedding_request_duration_seconds` measures bounded query and batch attempts by fixed outcome. `open_agentic_catalog_search_retrieval_total` records actual retrieval and fallback outcomes. Labels exclude tenants, queries, models, URLs and resources. Disabled processes create no model scrape targets.
 
+Size the provider for API queries and worker batches together. Account for `queryConcurrency` across API replicas and `batchConcurrency` across worker replicas. Measure representative queries while indexing runs, and allow memory headroom before setting resource limits. The reference comparison uses serial requests and does not establish production throughput.
+
 ## Verification
 
 | Target | Scope |
@@ -213,3 +271,7 @@ Capabilities report configuration and the API process's last observed provider s
 | `make test-minikube-semantic` | Optional Helm configuration with multiple API, worker, UI and model replicas. |
 
 The Compose test also seeds 1,000 searchable releases and checks counts, filters, facets and pagination. It measures concurrent search and saves read-only SQL plans and container samples. Runtime targets clean owned resources and retain the verified model cache. These are functional and small-load checks, not 100,000-item capacity tests. Relevance experiments remain separate from functional and deployment checks.
+
+## Compare model quality
+
+Use the optional [discovery-quality benchmark](../guides/discovery-quality.mdx) to compare Search configurations and a local assistant. Evaluate ranking, missed matches, no-answer errors, response times and resource use together. The regular setup above uses an embedding provider independently of that benchmark.

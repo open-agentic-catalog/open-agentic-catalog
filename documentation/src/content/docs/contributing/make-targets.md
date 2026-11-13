@@ -81,12 +81,13 @@ Append `SDK_LANGUAGE=go`, `python`, `typescript` or `rust` for one language. Go-
 
 Independent A2A handoff qualification uses `make a2a-tools-install`, then `make test-interoperability-a2a`, separately. It runs the official SDK client and unchanged Hello World executor over private HTTPS on owned loopback without external egress. It builds an owned in-memory Catalog, governs and publishes an Agent Card, then qualifies exact CLI-selected invocation, immutable evidence and Catalog/TLS/outage denials. See [A2A control testing](../contributing/testing.md#local-a2a-interoperability-control) for pins, prerequisites and reports.
 
-Install and test the two independent MCP selections separately:
+Install and test each MCP selection separately:
 
 | Installer | Test target and boundary |
 | --- | --- |
 | `make mcp-catalog-tools-install` | `make test-interoperability-mcp-catalog` uses the pinned Python client for Catalog Control tools over stdio and stateless HTTP. See [Catalog MCP qualification](testing.md#catalog-control-tools-over-stdio). |
 | `make mcp-tools-install` | `make test-interoperability-mcp` uses Inspector/Everything and a disposable memory Catalog on owned loopback. It checks discovery into an explicit MCP connection. See [MCP control testing](testing.md#local-mcp-interoperability-control). |
+| `make adk-tools-install` | `make test-interoperability-adk` qualifies native Google ADK without a model. `make test-interoperability-adk-cleanup` adds repeatable failure/SIGTERM controls. See [ADK testing](testing.md#native-adk-mcp-qualification). |
 
 Independent HF qualification uses `make interoperability-tools-install`, then either `make test-interoperability` for clients or `make test-interoperability-hf` for owned HTTPS peers. Run each target separately. The client target creates an isolated in-memory Catalog. The peer target runs the real API and worker against owned HTTPS peers. Neither requires an HF account or calls a hosted HF catalog. See [independent client testing](../contributing/testing.md#independent-hugging-face-interoperability) for prerequisites, reports and cleanup.
 

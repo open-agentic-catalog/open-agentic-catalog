@@ -128,7 +128,7 @@ $(error Cleanup targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
+ifneq ($(filter adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills agentfinder-tools-install test-interoperability-agentfinder test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error Interoperability targets must run alone)
 endif
@@ -146,7 +146,7 @@ $(error SDK targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter langgraph-tools-install test-langgraph-unit test-langgraph test-langgraph-model,$(MAKECMDGOALS)),)
+ifneq ($(filter langgraph-tools-install test-langgraph-unit test-langgraph test-langgraph-model search-relevance-benchmark-check search-relevance-benchmark-install search-relevance-benchmark,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error LangGraph installation and verification targets must run alone)
 endif
@@ -1437,6 +1437,23 @@ skill-tools-install: ## Install the pinned test-only Skill reference reader and 
 test-interoperability-skills: ## Verify independent immutable Skill consumption on owned offline fixtures
 	$(PYTHON) -B test/interoperability/skills_runner.py check
 
+.PHONY: agentfinder-tools-install test-interoperability-agentfinder
+agentfinder-tools-install: ## Verify bundled Agent Finder inputs and acquire the pinned Python runner image
+	$(PYTHON) -B test/interoperability/agentfinder_tools.py install
+
+test-interoperability-agentfinder: ## Qualify one-way consumption of pinned GitHub Agent Finder catalog publication
+	$(PYTHON) -B test/interoperability/agentfinder_runner.py check
+
+.PHONY: adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup
+adk-tools-install: ## Install the locked execution-only Google ADK MCP adapter (downloads allowed)
+	PYTHONOPTIMIZE=0 $(PYTHON) -B test/interoperability/adk_runner.py install
+
+test-interoperability-adk: ## Qualify native ADK MCP discovery and refusals on owned HTTPS without a model
+	PYTHONOPTIMIZE=0 $(PYTHON) -B test/interoperability/adk_runner.py check
+
+test-interoperability-adk-cleanup: ## Repeat native ADK success, metadata-failure and SIGTERM cleanup controls
+	PYTHONOPTIMIZE=0 $(PYTHON) -B test/interoperability/adk_cleanup.py
+
 a2a-tools-install: ## Install the locked test-only official A2A SDK and unchanged Hello World executor
 	$(PYTHON) -B test/interoperability/a2a_runner.py install
 
@@ -1849,7 +1866,7 @@ container-sync-check: ## Verify compatibility files match the canonical containe
 	@cmp -s .containerignore .dockerignore || { printf '%s\n' '.containerignore and .dockerignore differ.' >&2; exit 1; }
 
 container-check: container-sync-check ## Verify compatibility files and lint every Containerfile
-	$(HADOLINT) "$(CONTAINERFILE)" "$(FUNCTIONAL_CONTAINERFILE)" catalog-ui/Containerfile test/ci/Containerfile.act test/interoperability/Containerfile test/embeddings/Containerfile test/interoperability/mcp/Containerfile test/interoperability/a2a/Containerfile test/interoperability/skills/Containerfile test/interoperability/plugins/Containerfile test/interoperability/agntcy/router/Containerfile test/interoperability/gateway/Containerfile.auth test/interoperability/ans/Containerfile test/mcp-scanner/Containerfile
+	$(HADOLINT) "$(CONTAINERFILE)" "$(FUNCTIONAL_CONTAINERFILE)" catalog-ui/Containerfile test/ci/Containerfile.act test/interoperability/Containerfile test/embeddings/Containerfile test/interoperability/mcp/Containerfile test/interoperability/a2a/Containerfile test/interoperability/adk/Containerfile test/interoperability/skills/Containerfile test/interoperability/plugins/Containerfile test/interoperability/agntcy/router/Containerfile test/interoperability/gateway/Containerfile.auth test/interoperability/ans/Containerfile test/mcp-scanner/Containerfile
 
 container-build: container-sync-check ## Build the minimal OCI runtime image with Docker or Podman
 	@case "$(CONTAINER_PLATFORM)" in linux/amd64|linux/arm64) ;; *) printf 'CONTAINER_PLATFORM must be linux/amd64 or linux/arm64, got %s\n' "$(CONTAINER_PLATFORM)" >&2; exit 2 ;; esac
@@ -1895,6 +1912,7 @@ compose-check: ## Validate every maintained Compose model without starting conta
 	@CATALOG_FUNCTIONAL_SUFFIX=compose-check CATALOG_FUNCTIONAL_COMMIT=compose-check CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/security/compose.yaml -p open-agentic-catalog-security-check config --quiet
 	@CATALOG_EMBEDDING_IMAGE=open-agentic-catalog:compose-check-embeddings CATALOG_EMBEDDING_MODEL=fixture CATALOG_EMBEDDING_REVISION=fixture CATALOG_EMBEDDING_MODEL_DIRECTORY="$(CURDIR)/test/embeddings" IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 $(COMPOSE) --env-file /dev/null -f compose.yaml -f compose.embeddings.yaml -f test/embeddings/semantic.compose.yaml -f test/embeddings/semantic_restore.compose.yaml --profile semantic-restore -p open-agentic-catalog-semantic-check config --quiet
 	@CATALOG_EMBEDDING_IMAGE=open-agentic-catalog:compose-check-embeddings CATALOG_EMBEDDING_MODEL=fixture CATALOG_EMBEDDING_REVISION=fixture CATALOG_EMBEDDING_MODEL_DIRECTORY="$(CURDIR)/test/embeddings" IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 $(COMPOSE) --env-file /dev/null -f compose.yaml -f compose.embeddings.yaml -f test/embeddings/semantic.compose.yaml -f test/embeddings/semantic_restore.compose.yaml -f test/embeddings/semantic_restored_runtime.compose.yaml --profile semantic-restore -p open-agentic-catalog-semantic-check config --quiet
+	@CATALOG_EMBEDDING_IMAGE=open-agentic-catalog:compose-check-embeddings CATALOG_EMBEDDING_MODEL=fixture CATALOG_EMBEDDING_REVISION=fixture CATALOG_EMBEDDING_MODEL_DIRECTORY="$(CURDIR)/test/embeddings" CATALOG_BENCHMARK_CONFIG="$(CURDIR)/config/postgres.json" CATALOG_BENCHMARK_REASONER_IMAGE=open-agentic-catalog:compose-check-reasoner CATALOG_BENCHMARK_REASONER_CACHE="$(CURDIR)/test/langgraph" CATALOG_BENCHMARK_UID=1001 CATALOG_BENCHMARK_GID=1001 CATALOG_BENCHMARK_EMBEDDING_PORT=18082 CATALOG_BENCHMARK_REASONER_PORT=18083 CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 $(COMPOSE) --env-file /dev/null -f compose.yaml -f compose.embeddings.yaml -f test/embeddings/semantic.compose.yaml -f test/search-relevance/benchmark/runtime.compose.yaml --profile agent -p open-agentic-catalog-quality-check config --quiet
 	@CATALOG_FUNCTIONAL_ARCHIVE_UID=1001 CATALOG_FUNCTIONAL_ARCHIVE_GID=1001 CATALOG_FUNCTIONAL_ARCHIVE_IP=172.31.255.252 IMAGE=open-agentic-catalog:compose-check CATALOG_FUNCTIONAL_PEER_HTTP_PORT=18081 CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/peers.compose.yaml -p open-agentic-catalog-functional-check config --quiet
 	@CATALOG_FUNCTIONAL_ARCHIVE_UID=1001 CATALOG_FUNCTIONAL_ARCHIVE_GID=1001 CATALOG_FUNCTIONAL_ARCHIVE_IP=172.31.255.252 IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/webhooks.compose.yaml -f test/functional/backup_restore.compose.yaml --profile backup-restore -p open-agentic-catalog-functional-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/failover.compose.yaml --profile failover -p open-agentic-catalog-functional-check config --quiet
@@ -1906,6 +1924,7 @@ compose-check: ## Validate every maintained Compose model without starting conta
 	CATALOG_COMPOSE_WEBHOOK_DIRECTORY=./config $(COMPOSE) --env-file /dev/null -f compose.yaml -f compose.webhooks.yaml -p open-agentic-catalog-webhooks-check config --quiet
 	$(COMPOSE) --env-file /dev/null -f compose.integration.yaml -p open-agentic-catalog-integration-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -p open-agentic-catalog-functional-check config --quiet
+	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/interoperability/agentfinder/compose.yaml -p open-agentic-catalog-agentfinder-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/oidc-trust.compose.yaml -p open-agentic-catalog-functional-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/compose.credentials.yaml -p open-agentic-catalog-functional-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" CATALOG_FUNCTIONAL_OIDC_PORT=18444 CATALOG_FUNCTIONAL_OIDC_HOSTS='[]' $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/compose.oidc.yaml -p open-agentic-catalog-functional-check config --quiet
@@ -2119,12 +2138,12 @@ test-functional-workflow: conformance-prerequisite
 		set --; \
 		case "$${CATALOG_FUNCTIONAL_PROFILE:-default-off}" in webhooks|backup-restore|pitr-recovery) set -- --webhooks;; esac; \
 		$(GO) run ./test/functional/fixture generate --directory "$$fixture_directory" --subnet "$$subnet" "$$@"; \
-		if [ -n "$$peer_overlay$$backup_overlay" ]; then CGO_ENABLED=0 $(GO) build -o "$$fixture_directory/demo-archives" ./test/demo; fi; \
+		if [ -n "$$peer_overlay$$backup_overlay" ]; then CGO_ENABLED=0 GOOS=linux GOARCH=$(HOST_GOARCH) $(GO) build -o "$$fixture_directory/demo-archives" ./test/demo; fi; \
 		if [ -n "$$peer_overlay" ]; then $(PYTHON) test/functional/peers.py prepare; fi; \
 		if [ -n "$$backup_overlay" ]; then $(PYTHON) test/functional/backup_restore.py prepare; fi; \
 		if [ "$${CATALOG_FUNCTIONAL_PROFILE:-}" = webhooks ]; then \
 			$(PYTHON) test/functional/publication_report.py prepare; \
-			GOWORK=off CGO_ENABLED=0 $(GO) -C examples/publication-report build -mod=readonly -trimpath -o "$$fixture_directory/publication-report/receiver" .; \
+			GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=$(HOST_GOARCH) $(GO) -C examples/publication-report build -mod=readonly -trimpath -o "$$fixture_directory/publication-report/receiver" .; \
 		fi; \
 		printf 'Starting isolated functional stack %s on 127.0.0.1:%s.\n' "$$project" "$$http_port"; \
 		if [ -n "$${CATALOG_FUNCTIONAL_CANDIDATE_IMAGE:-}" ]; then \
@@ -2579,7 +2598,7 @@ test-minikube-replicas: helm-check test-minikube-contract ## Test three UI/API/w
 
 .PHONY: embeddings-install embeddings-check test-embeddings test-semantic test-semantic-restore test-semantic-restore-prepare search-relevance-install
 .PHONY: search-relevance-check search-relevance-evaluate search-relevance-compare-install
-.PHONY: search-relevance-compare
+.PHONY: search-relevance-compare search-relevance-benchmark-check search-relevance-benchmark-install search-relevance-benchmark
 
 embeddings-install: ## Acquire one pinned local embedding profile and fixture images explicitly
 	$(PYTHON) test/embeddings/runner.py install --profile "$(EMBEDDING_PROFILE)"
@@ -2613,6 +2632,17 @@ search-relevance-compare-install: ## Acquire pinned BGE/MiniLM inputs for the se
 
 search-relevance-compare: ## Tune BGE/MiniLM then qualify only the frozen winner on fresh held-out queries
 	$(PYTHON) test/search-relevance/comparison.py evaluate
+
+search-relevance-benchmark-check: ## Check campaign inputs and isolated units without services or optional frameworks
+	$(PYTHON) test/search-relevance/benchmark/benchmark.py check
+	$(PYTHON) -m unittest discover -s test/search-relevance -p 'test_unit_*.py'
+
+search-relevance-benchmark-install: ## Download pinned model inputs and images for the benchmark
+	$(PYTHON) test/search-relevance/benchmark/benchmark.py install --uv "$(UV)" --python "$(DEV_PYTHON)"
+
+BENCHMARK_MODE ?= full
+search-relevance-benchmark: ## Run the owned real API/agent campaign (BENCHMARK_MODE=smoke selects tuning controls)
+	examples/langgraph/.venv/bin/python -B test/search-relevance/benchmark/benchmark.py evaluate --mode "$(BENCHMARK_MODE)"
 
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

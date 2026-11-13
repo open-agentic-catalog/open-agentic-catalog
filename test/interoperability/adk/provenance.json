@@ -1,0 +1,33 @@
+{
+  "cutoff": "2026-10-29T00:00:00Z",
+  "adk": {
+    "version": "2.13.0",
+    "repository": "google/adk-python",
+    "revision": "d68ca857d5e3bab8e968d4e5f98ef028eb37dc87",
+    "wheel_sha256": "bec4c4ee0aa3e63a2243c23365c5aef666ea539bc48c78dfbbf004dbddfc5f00",
+    "published": "2026-10-23T18:26:31.805727Z",
+    "source_files": {
+      "google/adk/tools/mcp_tool/mcp_toolset.py": "8e2da47f318aa962ffc21c63f303ae3a6eb338c358c4e9b97f4828edd3058c59",
+      "google/adk/tools/mcp_tool/mcp_tool.py": "5755be01cf3677bdfc2d34f395052841fa9a2332a632a484ccb8688271b3238d",
+      "google/adk/tools/mcp_tool/mcp_session_manager.py": "390723c65f74808ec8cd393bd9f69395f8f16159eb15e07536a241ede611147b",
+      "google/adk/tools/base_authenticated_tool.py": "77b42bb112506cfcf156362e9b10764802b259f684989d301e7ec422dde7e5ed"
+    }
+  },
+  "mcp": {
+    "version": "2.3.0",
+    "repository": "modelcontextprotocol/python-sdk",
+    "revision": "2118f14f8a19bc158d8a1cf90af58d85d187f849",
+    "wheels": [
+      {
+        "digests": {
+          "blake2b_256": "20d74a2878f128df729db3ca04e71bfce26405cc2e0c9ebe19c592feeb4c61b9",
+          "md5": "221a310cb352d8678b051da78b3ca52c",
+          "sha256": "dd0c44c089d16453e8ae31a3877a0054d7a2314caaa81f5e0541b9b1734b2377"
+        },
+        "filename": "mcp-2.3.0-py3-none-any.whl",
+        "upload_time_iso_8601": "2026-10-02T22:06:52.119073Z",
+        "url": "https://files.pythonhosted.org/packages/20/d7/4a2878f128df729db3ca04e71bfce26405cc2e0c9ebe19c592feeb4c61b9/mcp-2.3.0-py3-none-any.whl"
+      }
+    ]
+  }
+}

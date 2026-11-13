@@ -253,6 +253,8 @@ Default call limits are 30 seconds, 8 MiB API response, 256 KiB serialized resul
 
 The separate `make test-interoperability-mcp-catalog` target qualifies official Python MCP SDK 2.3.0 with stdio/HTTP and both selected protocols. It retains seventeen legacy authority/fault/lifecycle groups and adds 52 PostgreSQL matrix groups, four API restarts and cleanup.
 
+The separate `make test-interoperability-adk` target qualifies unchanged Google ADK Python 2.13.0/MCP 2.3.0 over private HTTPS with negotiated `2025-11-25`. Thirteen native groups cover tool/schema adaptation, local lexical reads, exact release references, refusals and current grant revocation through one live toolset. Execution uses an owned in-memory Catalog, no LLM or Google model credentials, and independent traffic/cleanup checks. `make test-interoperability-adk-cleanup` repeats a valid campaign, a metadata-mismatch failure and SIGTERM at a fixed checkpoint. The [ADK harness](test/interoperability/adk/README.md) owns acquisition, evidence and limits.
+
 The Catalog MCP HTTP transport provides shared reads, local facets and caller-access pages. It supports Authorization Code/S256 PKCE, private-CA TLS, browser CORS and optional exact-path Helm ingress. Independent-client tests cover both supported protocols and shared-PostgreSQL replica/restart behavior. Live filters include Markdown Skill types. The implementation uses the official MCP SDK without adding a root-service dependency on a generated Catalog SDK.
 
 ## Publication and public discovery
@@ -320,6 +322,8 @@ Complete authoritative manifests can prove withdrawal. Pinned Registry List lack
 Live discovery bounds topology, fan-out, hops, loops, time, bytes and results. Peer failures preserve valid results; valid-empty is success. ARD `none` uses the local snapshot, `referrals` adds descriptors without contact, and core `auto` can continue an unchanged bounded live window. Hybrid `auto` preserves exact durable order before a distinct live tail.
 
 Explicit adoption creates local governed work retaining origin evidence; validation/review/publication still apply. Change previews bind affected observation membership/content and source revision, so synchronization can invalidate a preview without changing configuration.
+
+The optional [Agent Finder publication gate](test/interoperability/agentfinder/README.md) checks exact pinned metadata through owned HTTPS and real API/worker/PostgreSQL. All 1,718 entries remain unsupported administrative evidence, excluded from reader Search. The fixture's explicit AI Catalog transport is admitted; generic JSON refusal remains visible. No hosted Agent Finder, Copilot or searchable transfer is implied.
 
 ## Standards and retained representations
 
@@ -891,6 +895,8 @@ Private `/api/v1/tenant-settings` and Administration > Settings expose three opt
 ## Optional LangGraph client example
 
 The [LangGraph guide](examples/langgraph/README.md) publishes under Build integrations. Its independent Python environment uses the SDK, two read-only tools and an operator-owned local Ollama model. Credentials and namespace stay outside model arguments; Search is local-only and recommendations bind exact records. The example adds no resource execution, installation, mutation, persistent checkpoint or hosted tracing. Framework packages and model weights remain outside application images and SDK runtime requirements. Isolated, scripted HTTP and actual-model checks have separate Make gates and do not establish universal model quality or Go coverage.
+
+The optional [discovery-quality campaign](documentation/src/content/docs/guides/discovery-quality.mdx) compares real local Control Search and this graph through separate Make targets. Isolated helper tests require no environment. Runtime/model qualification and measured recommendations remain distinct from historical offline relevance experiments and ordinary application correctness.
 
 The [MCP Scanner example](examples/mcp-scanner/README.md) supplies capture validation, a locked YARA runner and private reports outside the Catalog runtime. Its signed receiver supports durable acceptance, explicit local HTTPS mappings, bounded MCP metadata reads and reconciliation. Receiver tests use a scanner executable double.
 

@@ -4,4 +4,7 @@
 documentation/src/content/docs/operations/docker.mdx:curl-auth-header:220
 # Public local-reader development identity, shown in the local MCP curl example.
 # Permit only this exact finding; production bearer tokens remain secret-scanned.
-documentation/src/content/docs/guides/mcp-server.mdx:curl-auth-header:112
+documentation/src/content/docs/guides/mcp-server.mdx:curl-auth-header:127
+# Public SHA-256 of the upstream ADK base_authenticated_tool.py source file.
+# Its filename resembles an authentication assignment; the value is not a credential.
+test/interoperability/adk/provenance.json:generic-api-key:13

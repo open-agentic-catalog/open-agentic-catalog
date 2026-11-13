@@ -25,7 +25,7 @@ class StagedSelectionTests(unittest.TestCase):
             "documentation/src/content/docs/index.mdx": "markdownlint",
             "internal/adapter/testdata/upstream/README.md": "markdownlint",
             "internal/adapter/testdata/upstream/other/README.md": "markdownlint",
-            "Containerfile": "hadolint", "test/interoperability/gateway/Containerfile.auth": "hadolint",
+            "Containerfile": "hadolint", "test/interoperability/gateway/Containerfile.auth": "hadolint", "test/interoperability/adk/Containerfile": "hadolint",
             ".github/workflows/check.yml": "actionlint", ".github/workflows/other.yaml": "actionlint",
         }
         for path, tool in expected.items():

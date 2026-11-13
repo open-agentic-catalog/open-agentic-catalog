@@ -1,0 +1,41 @@
+{
+  "repository": "github/agentfinder-catalog",
+  "revision": "3286bfd843a3831b52a8a72b0ff6f3eb0f730d7f",
+  "artifact": "ai-catalog.json",
+  "files": {
+    "LICENSE": "2510b446bc1f0cf9702453075d20cd88631e20e5642658edb7325d9c1eb534f7",
+    "ai-catalog.json": "7ca6ac36768ebffb05639084681d85334b3c8b72a8637264fb01fc43710853bb"
+  },
+  "artifact_size": 1248214,
+  "artifact_sha256": "7ca6ac36768ebffb05639084681d85334b3c8b72a8637264fb01fc43710853bb",
+  "inventory": {
+    "total_entries": 1718,
+    "unique_identities": 1718,
+    "types": {
+      "application/mcp-server+json": {
+        "count": 647,
+        "version_present": true
+      },
+      "application/ai-skill": {
+        "count": 925,
+        "version_present": false
+      },
+      "application/vnd.anthropic.claude-plugin+json": {
+        "count": 69,
+        "version_present": false
+      },
+      "application/vnd.cursor.cursor-plugin+json": {
+        "count": 22,
+        "version_present": false
+      },
+      "application/vnd.github.copilot-plugin": {
+        "count": 55,
+        "version_present": false
+      }
+    }
+  },
+  "reviewed_sources": {
+    "README.md": "1ef29c5e00be22b221b9fc686933a39dfa7aaca8131da3f9ea7e118235e892c3",
+    "scripts/generate_ai_catalog.py": "d7fa387026080dbe9ea7909841f58343e4ff8b986a6addf8e98b61207891e94c"
+  }
+}

@@ -1,5 +1,9 @@
 # Independent interoperability qualification
 
+The optional [native ADK MCP qualification](adk/README.md) uses `make adk-tools-install`, then `make test-interoperability-adk`. It discovers Catalog tools and makes deterministic native calls through private HTTPS, without an LLM or Google model credentials. The owned in-memory fixture checks exact release metadata, filters, refusals, current grant revocation, protocol/traffic and cleanup. It does not invoke discovered resources.
+
+Use `make test-interoperability-adk-cleanup` separately to repeat the valid, intentional metadata-failure and actual SIGTERM campaigns with independent cleanup checks. All commands and control code are maintained in the repository; ignored output contains only results and installed tools.
+
 The optional [Pi ARD qualification](pi-ard/README.md) uses an unchanged native Pi/pi-ard session with model networking disabled. Run `make pi-ard-tools-install`, then `make test-interoperability-pi-ard`, separately. The campaign checks actual owned Catalog HTTP, continuation, refusals and declined installation. The startup-only `test-interoperability-pi-ard-prepare` target remains available.
 
 The optional [ARD Explorer check](ard-explorer/README.md) selects unchanged source and confines its native proxy, browser and owned Catalog. Run `make ard-explorer-tools-install`, then `make test-interoperability-ard-explorer`, separately. It tests public Search, filters, continuation, Explore, one List page and separate synthetic HTTP controls. Authentication, `queryContext`, List continuation and full Search-referral Connect behavior retain documented client limits. The startup-only target remains available for focused confinement checks.
@@ -17,6 +21,8 @@ The [Gateway qualification](gateway/README.md) uses `make gateway-tools-install`
 The separate [local MCP control](mcp/README.md) uses `make mcp-tools-install` followed by `make test-interoperability-mcp`. It qualifies real Inspector/Everything HTTPS controls and a governed Catalog release through exact CLI discovery into metadata-derived initialization, tool listing and echo on isolated loopback.
 
 The separate [Catalog Control MCP qualification](mcp/README.md#catalog-control-stdio-qualification) uses `make mcp-catalog-tools-install`, then `make test-interoperability-mcp-catalog`. The locked Python SDK checks stdio and HTTP with both selected protocols. Seventeen legacy groups retain current authority and fault/lifecycle controls. Thirteen groups per matrix combination add four-kind local/indexed/live discovery and PostgreSQL replica/restart continuation. All results and owned cleanup must pass. Discovered resources are never executed.
+
+The optional [GitHub Agent Finder publication qualification](agentfinder/README.md) uses `make agentfinder-tools-install`, then `make test-interoperability-agentfinder`, separately. It serves exact pinned metadata through owned HTTPS and qualifies real API/worker/PostgreSQL retention, immutable provenance, repeat/outage recovery, tenant/TLS refusals and confined requests. All five media types remain unsupported and excluded from ordinary Search. It does not qualify hosted Agent Finder, native Copilot consumption or searchable transfer.
 
 The OpenARD native List evaluation does not select a maintained target. Its native List returns entries. However, direct Search inspection records no List capability, and indexed enrollment returns HTTP 412. This is not worker synchronization qualification.
 

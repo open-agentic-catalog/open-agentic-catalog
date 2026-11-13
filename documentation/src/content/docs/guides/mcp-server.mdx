@@ -27,6 +27,21 @@ Use the [ContextForge guide](contextforge.mdx) to test gateway access to these t
 
 Use an [SDK](../../../../../sdk/README.md) or the HTTP API for authoring, administration and other operations. The [assistant discovery Skill](assistant-discovery.md) provides a separate shell-based workflow. These Control API tools do not implement the optional ARD Registry MCP wrapper.
 
+## Use Google ADK without a model
+
+Google's Agent Development Kit (ADK) can discover Catalog tools through its native `McpToolset` and call them with predetermined arguments. A native context and in-memory session supply bookkeeping. This workflow needs no LLM, Google model credentials or embeddings. Catalog authentication and current permissions still apply.
+
+Use ADK's supported HTTP-client factory for explicit private-CA trust and bounded transport. Set `GOOGLE_API_USE_CLIENT_CERTIFICATE=false` for the selected bearer-token workflow; ADK otherwise attempts automatic Google mTLS credential discovery. Keep certificate verification enabled. Tool results retain the same distinction between successful data and refusals described below.
+
+Contributors can run the [native ADK qualification](../../../../../test/interoperability/adk/README.md):
+
+```sh
+make adk-tools-install
+make test-interoperability-adk
+```
+
+Run each command separately. The campaign uses an isolated Catalog with synthetic data. It checks native discovery, exact metadata, filters, authentication, TLS and current grant revocation. It does not invoke cataloged MCP Servers or assess LLM tool selection and answer quality.
+
 ## Set up your MCP host
 
 ### Prepare the binary and credentials

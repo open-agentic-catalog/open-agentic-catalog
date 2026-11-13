@@ -26,7 +26,7 @@ The manual's sidebar starts with Get started (including the existing-Catalog rea
 
 **Develop and contribute > Build and release** covers [VS Code development setup, source ownership and packaging](src/content/docs/contributing/build-and-release.md#optional-vs-code-package). **Tests and quality checks** explains [extension test placement, Make targets, coverage and installed-editor reports](src/content/docs/contributing/testing.md#optional-vs-code-extension).
 
-**Build integrations > Catalog MCP server** contains the [MCP guide](src/content/docs/guides/mcp-server.mdx). It covers local stdio and optional stateless HTTP setup, the six read-only discovery tools, permissions, pagination, limits and troubleshooting. This interface connects to the Catalog API; it does not invoke cataloged MCP Servers.
+**Build integrations > Catalog MCP server** contains the [MCP guide](src/content/docs/guides/mcp-server.mdx). It covers local stdio and optional stateless HTTP setup, the six read-only discovery tools, permissions, pagination, limits and troubleshooting. It includes [Google ADK qualification without a model](src/content/docs/guides/mcp-server.mdx#use-google-adk-without-a-model). This interface connects to the Catalog API; it does not invoke cataloged MCP Servers.
 
 **Build integrations > Connect with ContextForge** contains the [setup tutorial](src/content/docs/guides/contextforge.mdx). It covers isolated setup, native registrations, Catalog MCP proxying, governed virtual-server handoff, the Admin UI, separate credentials and scoped cleanup. It also explains the connection settings for an existing Catalog and ContextForge deployment.
 

@@ -162,6 +162,10 @@
     "route": "guides/performance-and-monitoring"
   },
   {
+    "source": "documentation/src/content/docs/guides/discovery-quality.mdx",
+    "route": "guides/discovery-quality"
+  },
+  {
     "source": "documentation/src/content/docs/operations/audit.md",
     "route": "operations/audit"
   },
