@@ -323,6 +323,8 @@ Live discovery bounds topology, fan-out, hops, loops, time, bytes and results. P
 
 Explicit adoption creates local governed work retaining origin evidence; validation/review/publication still apply. Change previews bind affected observation membership/content and source revision, so synchronization can invalidate a preview without changing configuration.
 
+The optional [Agent Finder publication gate](test/interoperability/agentfinder/README.md) checks exact pinned metadata through owned HTTPS and real API/worker/PostgreSQL. All 1,718 entries remain unsupported administrative evidence, excluded from reader Search. The fixture's explicit AI Catalog transport is admitted; generic JSON refusal remains visible. No hosted Agent Finder, Copilot or searchable transfer is implied.
+
 ## Standards and retained representations
 
 Profiles are immutable vendored inputs bound by `schemas/checksums.txt`, retained commits and licenses. Builds/tests do not track upstream `main`; ignored `specs/` checkouts are research only.
