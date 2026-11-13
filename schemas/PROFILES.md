@@ -4,6 +4,8 @@ The service builds against immutable upstream inputs. `checksums.txt` binds ever
 
 [Upstream proposals](../documentation/src/content/docs/reference/standards.mdx#unsupported-discovery-features) do not change the active bundle. The selected contracts and their runtime use are documented below and in the [schema validation guide](../documentation/src/content/docs/contributing/testing.md#schema-validation-and-ard-conformance).
 
+The individual [IETF ARD draft-00 documents](../documentation/src/content/docs/reference/standards.mdx#ietf-ard-drafts) are tracked, not selected as a profile. Their media types, continuation and trust requirements must not be inferred from this bundle or the pinned conformance CLI.
+
 ## Active profiles
 
 | Profile | Upstream repository | Pinned commit | Purpose |

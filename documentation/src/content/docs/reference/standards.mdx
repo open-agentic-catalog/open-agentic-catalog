@@ -53,6 +53,14 @@ A standards profile identifies the exact specification files and validation rule
 
 The [profile reference](../../../../../schemas/PROFILES.md) lists exact source commits and bundled files. General specification links can describe newer versions than the Catalog supports. Supporting a metadata format does not mean the Catalog implements its runtime protocol.
 
+### IETF ARD drafts
+
+The Catalog tracks the individual [ARD Discovery-00](https://datatracker.ietf.org/doc/html/draft-bu-dawn-ard-discovery-00), [Initial Contact-00](https://datatracker.ietf.org/doc/html/draft-jimenez-dawn-ard-initial-contact-00) and [Architecture-00](https://datatracker.ietf.org/doc/html/draft-bu-dawn-ard-architecture-00) drafts. These work-in-progress documents are not selected Catalog profiles. Use `ard-0.91-aa3e598` when integrating with the supported discovery interface.
+
+The draft Search response uses `nextPageToken`; the supported Catalog response uses `pageToken`. Catalog ingestion already recognizes `application/ard+json`, but its public ARD manifest uses `application/json`. Accepting that input media type does not establish draft conformance.
+
+The Catalog checks declared trust metadata without verifying ARD publisher signatures. It does not implement the drafts' complete initial-contact procedure or exchange their proposed federation headers. A future profile change requires an explicit compatibility decision; it does not automatically convert retained entries or change approved Sources.
+
 ### Local resources and external entries
 
 | Step | Resources you author locally | Entries imported from another catalog |

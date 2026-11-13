@@ -329,6 +329,8 @@ The optional [Agent Finder publication gate](test/interoperability/agentfinder/R
 
 Profiles are immutable vendored inputs bound by `schemas/checksums.txt`, retained commits and licenses. Builds/tests do not track upstream `main`; ignored `specs/` checkouts are research only.
 
+The [IETF ARD draft-00 assessment](documentation/records/ietf-ard-draft-00-assessment.md) records a track decision. The individual drafts are not selected runtime profiles and no IETF draft conformance is claimed. The current discovery contract and unverified publisher-declaration boundary remain unchanged.
+
 | Active profile | Purpose |
 | --- | --- |
 | `ard-0.91-aa3e598` | ARD manifests, Registry interface, context, schemas and official conformance runner. |
