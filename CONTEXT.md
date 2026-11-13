@@ -323,6 +323,8 @@ Live discovery bounds topology, fan-out, hops, loops, time, bytes and results. P
 
 Explicit adoption creates local governed work retaining origin evidence; validation/review/publication still apply. Change previews bind affected observation membership/content and source revision, so synchronization can invalidate a preview without changing configuration.
 
+The optional [Agent Finder publication gate](test/interoperability/agentfinder/README.md) checks exact pinned metadata through owned HTTPS and real API/worker/PostgreSQL. All 1,718 entries remain unsupported administrative evidence, excluded from reader Search. The fixture's explicit AI Catalog transport is admitted; generic JSON refusal remains visible. No hosted Agent Finder, Copilot or searchable transfer is implied.
+
 ## Standards and retained representations
 
 Profiles are immutable vendored inputs bound by `schemas/checksums.txt`, retained commits and licenses. Builds/tests do not track upstream `main`; ignored `specs/` checkouts are research only.
@@ -893,6 +895,8 @@ Private `/api/v1/tenant-settings` and Administration > Settings expose three opt
 ## Optional LangGraph client example
 
 The [LangGraph guide](examples/langgraph/README.md) publishes under Build integrations. Its independent Python environment uses the SDK, two read-only tools and an operator-owned local Ollama model. Credentials and namespace stay outside model arguments; Search is local-only and recommendations bind exact records. The example adds no resource execution, installation, mutation, persistent checkpoint or hosted tracing. Framework packages and model weights remain outside application images and SDK runtime requirements. Isolated, scripted HTTP and actual-model checks have separate Make gates and do not establish universal model quality or Go coverage.
+
+The optional [discovery-quality campaign](documentation/src/content/docs/guides/discovery-quality.mdx) compares real local Control Search and this graph through separate Make targets. Isolated helper tests require no environment. Runtime/model qualification and measured recommendations remain distinct from historical offline relevance experiments and ordinary application correctness.
 
 The [MCP Scanner example](examples/mcp-scanner/README.md) supplies capture validation, a locked YARA runner and private reports outside the Catalog runtime. Its signed receiver supports durable acceptance, explicit local HTTPS mappings, bounded MCP metadata reads and reconciliation. Receiver tests use a scanner executable double.
 

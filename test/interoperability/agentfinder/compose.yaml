@@ -1,0 +1,36 @@
+# Optional owned publication qualification; never applied to the retained stack.
+services:
+  api:
+    networks:
+      default:
+        aliases: [federation-fixture]
+    ports: !reset []
+    dns: [127.0.0.1]
+    environment:
+      CATALOG_PUBLIC_BASE_URL: http://127.0.0.1:8080
+      CATALOG_HTTP_REQUEST_TIMEOUT: 20s
+      CATALOG_HTTP_WRITE_TIMEOUT: 45s
+      CATALOG_HTTP_SHUTDOWN_TIMEOUT: 45s
+      CATALOG_FEDERATION_REQUEST_TIMEOUT: 5s
+      CATALOG_FEDERATION_MAX_RESPONSE_BYTES: "2097152"
+      CATALOG_WEBHOOKS_ENABLED: "false"
+  worker:
+    ports: !reset []
+    dns: [127.0.0.1]
+    environment:
+      CATALOG_PUBLIC_BASE_URL: http://127.0.0.1:8080
+      CATALOG_WORKER_LEASE_DURATION: 60s
+      CATALOG_FEDERATION_REQUEST_TIMEOUT: 5s
+      CATALOG_FEDERATION_MAX_RESPONSE_BYTES: "2097152"
+      CATALOG_WEBHOOKS_ENABLED: "false"
+  postgres:
+    ports: !reset []
+  federation-fixture:
+    network_mode: service:api
+    networks: !reset []
+    ports: !reset []
+    command: [serve, --directory, /fixture, --publication, /fixture/ai-catalog.json]
+    dns: !reset []
+networks:
+  default:
+    internal: true

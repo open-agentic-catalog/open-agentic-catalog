@@ -149,6 +149,7 @@ export default defineConfig({
         { label: 'Testing overview', slug: 'contributing/testing-map', attrs: { 'data-nav-icon': 'list-format' } },
         { label: 'Tests and quality checks', slug: 'contributing/testing', attrs: { 'data-nav-icon': 'list-format' } },
         { label: 'Performance testing and diagnostics', slug: 'guides/performance-and-monitoring', attrs: { 'data-nav-icon': 'analytics' } },
+        { label: 'Discovery quality benchmark', slug: 'guides/discovery-quality', attrs: { 'data-nav-icon': 'analytics' } },
         { label: 'Dependency and tooling policy', slug: 'reference/dependencies', attrs: { 'data-nav-icon': 'setting' } },
         { label: 'Maintain the documentation', slug: 'contributing/documentation', attrs: { 'data-nav-icon': 'pen' } },
         { label: 'Report a vulnerability', slug: 'reference/reporting-security', attrs: { 'data-nav-icon': 'padlock' } },

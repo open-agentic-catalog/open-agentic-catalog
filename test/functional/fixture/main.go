@@ -305,6 +305,7 @@ func writePEM(path, blockType string, raw []byte) error {
 func serve(arguments []string) error {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	directory := flags.String("directory", "/fixture", "certificate directory")
+	publication := flags.String("publication", "", "serve only one unchanged local publication and its controls")
 	credentials := flags.Bool("credentials", false, "enable the owned mounted-credential fixture")
 	publisherDNS := flags.Bool("publisher-dns", false, "serve owned Publisher TXT answers on port 53")
 	peer := flags.Bool("peer", false, "serve only the fixed Catalog A discovery frontend")
@@ -359,6 +360,19 @@ func serve(arguments []string) error {
 	mux.HandleFunc("GET /webhooks/barrier", receiver.barrierReport)
 	mux.HandleFunc("POST /webhooks/events", receiver.receive)
 	tlsServer := &http.Server{Addr: ":" + strconv.Itoa(fixturePort), Handler: mux, ReadHeaderTimeout: 2 * time.Second, ReadTimeout: 5 * time.Second, WriteTimeout: 5 * time.Second, IdleTimeout: 10 * time.Second}
+	if *publication != "" {
+		if *peer || *credentials || *publisherDNS || *oidcAddress != "" {
+			return errors.New("publication serving cannot enable other fixture modes")
+		}
+		raw, err := os.ReadFile(*publication)
+		if err != nil {
+			return err
+		}
+		if len(raw) == 0 || len(raw) > 2<<20 {
+			return errors.New("publication must contain at most 2 MiB")
+		}
+		tlsServer.Handler = publicationHandler(raw)
+	}
 	if *peer {
 		if *credentials || *oidcAddress != "" {
 			return errors.New("peer frontend cannot enable other fixture modes")

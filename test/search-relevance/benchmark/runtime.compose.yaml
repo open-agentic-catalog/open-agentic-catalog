@@ -1,0 +1,36 @@
+# Owned benchmark only. No service or volume belongs to retained development.
+services:
+  api:
+    volumes:
+      - ${CATALOG_BENCHMARK_CONFIG:?owned configuration required}:/config/config.json:ro
+  worker:
+    volumes:
+      - ${CATALOG_BENCHMARK_CONFIG:?owned configuration required}:/config/config.json:ro
+  embeddings:
+    ports:
+      - "127.0.0.1:${CATALOG_BENCHMARK_EMBEDDING_PORT:?owned port required}:80"
+    environment:
+      HF_HUB_DISABLE_TELEMETRY: "1"
+  reasoner:
+    image: ${CATALOG_BENCHMARK_REASONER_IMAGE:?pinned reasoner required}
+    pull_policy: never
+    profiles: [agent]
+    user: "${CATALOG_BENCHMARK_UID:?owned user required}:${CATALOG_BENCHMARK_GID:?owned group required}"
+    environment:
+      HOME: /model
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_MODELS: /model/models
+      OLLAMA_NO_CLOUD: "1"
+      OLLAMA_CONTEXT_LENGTH: "4096"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "1"
+    ports:
+      - "127.0.0.1:${CATALOG_BENCHMARK_REASONER_PORT:?owned port required}:11434"
+    volumes:
+      - ${CATALOG_BENCHMARK_REASONER_CACHE:?verified model cache required}:/model
+    cpus: 4
+    mem_limit: 8g
+    memswap_limit: 8g
+    pids_limit: 256
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
