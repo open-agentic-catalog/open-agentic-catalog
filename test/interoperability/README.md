@@ -24,6 +24,8 @@ The separate [Catalog Control MCP qualification](mcp/README.md#catalog-control-s
 
 The optional [GitHub Agent Finder publication qualification](agentfinder/README.md) uses `make agentfinder-tools-install`, then `make test-interoperability-agentfinder`, separately. It serves exact pinned metadata through owned HTTPS and qualifies real API/worker/PostgreSQL retention, immutable provenance, repeat/outage recovery, tenant/TLS refusals and confined requests. All five media types remain unsupported and excluded from ordinary Search. It does not qualify hosted Agent Finder, native Copilot consumption or searchable transfer.
 
+The [Wellknown indexed-import assessment](../../documentation/records/wellknown-indexed-import-assessment.md) records one bounded hosted List read. Its reported inventory exceeds Catalog's existing synchronization bounds. Complete import and referenced artifacts remain unqualified; no hosted import target is selected.
+
 The OpenARD native List evaluation does not select a maintained target. Its native List returns entries. However, direct Search inspection records no List capability, and indexed enrollment returns HTTP 412. This is not worker synchronization qualification.
 
 ## Run

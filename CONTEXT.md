@@ -331,6 +331,8 @@ Profiles are immutable vendored inputs bound by `schemas/checksums.txt`, retaine
 
 The [IETF ARD draft-00 assessment](documentation/records/ietf-ard-draft-00-assessment.md) records a track decision. The individual drafts are not selected runtime profiles and no IETF draft conformance is claimed. The current discovery contract and unverified publisher-declaration boundary remain unchanged.
 
+The [Wellknown indexed-import assessment](documentation/records/wellknown-indexed-import-assessment.md) records a hosted inventory beyond the existing synchronization bounds. Complete import remains unqualified. A successful initial List read does not establish source admission, complete enumeration or native artifact validity.
+
 | Active profile | Purpose |
 | --- | --- |
 | `ard-0.91-aa3e598` | ARD manifests, Registry interface, context, schemas and official conformance runner. |
