@@ -331,6 +331,8 @@ Profiles are immutable vendored inputs bound by `schemas/checksums.txt`, retaine
 
 The [IETF ARD draft-00 assessment](documentation/records/ietf-ard-draft-00-assessment.md) records a track decision. The individual drafts are not selected runtime profiles and no IETF draft conformance is claimed. The current discovery contract and unverified publisher-declaration boundary remain unchanged.
 
+The optional [configured ARD registry campaign](test/interoperability/ard-registry/README.md) uses unchanged peer `0ba2b4b` with real PostgreSQL publication. It checks exact one-way List/Search metadata and retained manifest origin through Listing update, member retirement, malformed/outage retention, intact snapshot restart and recovery, with separate native TLS refusal and owned cleanup controls. The peer collapses versions by identifier and emits an incompatible null terminal List token; reverse indexed replication remains unqualified. No model or resource execution is involved.
+
 The [Wellknown indexed-import assessment](documentation/records/wellknown-indexed-import-assessment.md) records a hosted inventory beyond the existing synchronization bounds. Complete import remains unqualified. A successful initial List read does not establish source admission, complete enumeration or native artifact validity.
 
 | Active profile | Purpose |

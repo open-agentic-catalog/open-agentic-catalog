@@ -2618,3 +2618,9 @@ These selections complement `make test-interoperability-mcp-catalog`, which requ
 ## Human CLI authentication tests
 
 `make test-unit` covers local credential storage, safe status/logout, callback admission and credential-source conflicts. `make test-functional-local` adds real local HTTPS issuer exchanges, signed tokens, Catalog membership resolution and concurrent refresh. Valid refresh controls permit an omitted ID token or optional claims. Invalid supplied values must fail before API contact and preserve credentials without retry. The selection also tests the compiled CLI's output and refusal to replay a mutation after `401`. `make test-ui-oidc` reuses the owned Keycloak deployment to test public-client CLI login, remote access, real refresh and local logout. The browser opens only the local issuer and the invocation-owned callback. No hosted identities are used. `make test-fuzz` includes `FuzzLoginCallback`, which checks state admission and fixed, credential-free responses.
+
+## Configured ARD registry qualification
+
+Use the optional [native registry campaign](../../../../../test/interoperability/ard-registry/README.md) to test unchanged Catalog publication with an independently implemented crawler. Run `make ard-registry-tools-install`, then `make test-interoperability-ard-registry` and `make test-interoperability-ard-registry-cleanup`, each separately. The guide covers exact peer and package pins, real PostgreSQL publication, private HTTPS, source lifecycle, snapshot restart and independent cleanup checks. No model or cloud service is needed.
+
+The selected peer retains one version per identifier and has an incompatible null terminal List token. Success qualifies the one-way publication-consumer path; reverse indexed replication and crash-durable snapshots remain unqualified. Ordinary unit tests do not execute this independent peer.

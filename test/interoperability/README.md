@@ -1,5 +1,7 @@
 # Independent interoperability qualification
 
+The optional [configured ARD registry campaign](ard-registry/README.md) checks unchanged Catalog publication through a native crawler, exact List/Search metadata, update, withdrawal, outage retention and snapshot restart. Run `make ard-registry-tools-install`, `make test-interoperability-ard-registry` and `make test-interoperability-ard-registry-cleanup` separately. It owns a disposable PostgreSQL/API/worker environment and needs no model. Reverse List remains incompatible at the selected peer revision.
+
 The optional [native ADK MCP qualification](adk/README.md) uses `make adk-tools-install`, then `make test-interoperability-adk`. It discovers Catalog tools and makes deterministic native calls through private HTTPS, without an LLM or Google model credentials. The owned in-memory fixture checks exact release metadata, filters, refusals, current grant revocation, protocol/traffic and cleanup. It does not invoke discovered resources.
 
 Use `make test-interoperability-adk-cleanup` separately to repeat the valid, intentional metadata-failure and actual SIGTERM campaigns with independent cleanup checks. All commands and control code are maintained in the repository; ignored output contains only results and installed tools.

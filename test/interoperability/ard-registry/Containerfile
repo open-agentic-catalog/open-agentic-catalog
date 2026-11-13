@@ -1,0 +1,24 @@
+# Test-only independent crawler, built from unchanged TypeScript and its frozen lock.
+FROM docker.io/library/node:22.23.4-alpine3.24@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 AS build
+ENV CI=true PNPM_DISABLE_SELF_UPDATE_CHECK=true npm_config_audit=false npm_config_fund=false npm_config_update_notifier=false
+WORKDIR /peer
+COPY pnpm.tgz /tmp/pnpm.tgz
+RUN mkdir /tools && tar -xzf /tmp/pnpm.tgz -C /tools --strip-components=1 && rm /tmp/pnpm.tgz
+COPY source/ ./
+RUN node /tools/bin/pnpm.cjs install --frozen-lockfile --ignore-scripts --reporter=append-only --store-dir=/tmp/pnpm-store
+RUN --network=none node node_modules/typescript/bin/tsc -p tsconfig.json && \
+    node /tools/bin/pnpm.cjs --config.store-dir=/tmp/pnpm-store licenses list --json > /peer-dependency-licenses.json && \
+    node -e 'console.log(JSON.stringify({node:process.version,pnpm:require("node:child_process").execFileSync(process.execPath,["/tools/bin/pnpm.cjs","--version"],{encoding:"utf8"}).trim()}))' > /peer-tool-versions.json
+RUN --network=none rm -rf node_modules && node /tools/bin/pnpm.cjs install --prod --offline --frozen-lockfile --ignore-scripts --store-dir=/tmp/pnpm-store
+
+FROM docker.io/library/node:22.23.4-alpine3.24@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+# The prepared runtime needs Node and production packages, not npm, pnpm or compilers.
+RUN rm -rf /usr/local/lib/node_modules /opt/yarn-* /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/yarn /usr/local/bin/yarnpkg
+WORKDIR /peer
+COPY --from=build /peer/package.json /peer/pnpm-lock.yaml ./
+COPY --from=build /peer/node_modules ./node_modules
+COPY --from=build /peer/dist/src ./dist/src
+COPY --from=build /peer/src/http/console.html ./dist/src/http/console.html
+COPY --from=build /peer-dependency-licenses.json /peer-tool-versions.json /
+USER 65532:65532
+ENTRYPOINT ["node", "dist/src/main.js"]
