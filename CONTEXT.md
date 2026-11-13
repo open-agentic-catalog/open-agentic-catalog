@@ -428,6 +428,8 @@ Keep secrets/private evidence out of source, sample configuration, Helm values, 
 
 The React/TypeScript client and static Go host have their own image and one upstream API, with generated contract types and no SQL access. Screens cover discovery, exact references/downloads, four-kind authoring and local JSON/Markdown loading, histories/review/releases, publication, sources/adoption, access, Jobs, webhooks, audit/export and connected API reference.
 
+Version, Listing and review comparisons highlight changes in explicitly selected, checksum-verified retained documents. Previous/Next controls focus changed regions and announce their position. Whitespace, numeric tokens, BOMs and line endings remain distinguishable. Bounded local line/character comparison refuses incomplete output while preserving the original text view. It adds no API or archive fetch; current content permissions and identity clearing still apply.
+
 Development login uses explicit fixtures. Production OIDC uses code/PKCE, exact redirects/origins, state and nonce. Validate the ID token for the UI client and forward the separate Catalog-audience access token; self-context must succeed before login completes. OIDC failure never falls back to development login.
 
 Sessions use encrypted HttpOnly, SameSite=Lax cookies, Secure over HTTPS; tokens never enter JavaScript/local storage. Replicas share keys/configuration without Redis, sticky sessions or refresh-token storage. Session/state cookies are capped at 3,600 encoded bytes; oversized tokens fail login. All replicas must accept a new key before any writes with it.

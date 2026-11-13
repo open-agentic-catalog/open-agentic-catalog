@@ -649,7 +649,15 @@ Review detail shows immutable decisions with action, reviewer, timestamp and rea
 
 Version, Listing and review detail offer **Choose revisions to compare**. Choose exact before/after IDs from bounded history and select **Compare selected revisions**. Review comparisons fix the after-side to the submitted revision. Listing fields show additions, removals and changes; arrays retain order. Version comparisons show representation roles, formats, delivery references and digests. History access alone does not grant document access. **Compare linked Version revisions** explicitly reads the native revisions referenced by the selected Listing revisions. On a review, its after-side remains the submission's immutable native revision, even if the current candidate changes.
 
-**Inspect selected documents** reads retained documents only on request. Available exact text retains whitespace and numeric tokens and passes checksum verification. Decoded inline JSON displays a precision limitation; unsupported lossless comparisons are refused. Plugin/Skill manifests and inventories can be inspected, but comparison never fetches or reconstructs their archives.
+**Inspect selected documents** reads retained documents only on request. Changing either representation clears the previous documents; select Inspect again to read the new pair. Available exact text retains whitespace and numeric tokens and passes checksum verification. Decoded inline JSON displays a precision limitation; unsupported lossless comparisons are refused. Plugin/Skill manifests and inventories can be inspected, but comparison never fetches or reconstructs their archives.
+
+**Document changes** highlights removed and added text, including small changes within a JSON line. Select **Next change** or **Previous change** to move keyboard focus to a changed region. With a change focused, use **Alt+Down** or **Alt+Up** to continue in either direction. The summary announces its position. Both selected revision IDs remain above the comparison.
+
+Excerpts mark spaces, tabs, line endings and a leading byte order mark (BOM). These markers help distinguish changes that look identical on screen. The original documents remain below, with their exact text and copy controls. **Format JSON** affects only that original-document display; it does not change the comparison or stored bytes.
+
+Identical verified bytes produce no changes. Detailed navigation has smaller work limits than the 2 MiB original-document view. If it is unavailable, inspect both originals; the UI does not present a partial comparison as complete. Comparison reads do not edit or approve either revision.
+
+If document verification or UTF-8 decoding fails, neither document is shown. The message identifies the failed check; **Reload** retries the selected pair. API access errors retain their separate explanation. Signing out clears the comparison and cancels pending document reads.
 
 [![Exact Version revisions compared by representation, with an explicit warning when a lossless document comparison is unavailable.](../../../../assets/catalog-ui/version-comparison.png)](../../../../assets/catalog-ui/version-comparison.png)
 

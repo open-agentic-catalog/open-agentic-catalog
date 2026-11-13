@@ -14,6 +14,23 @@ See the [logging runbook](../documentation/src/content/docs/operations/observabi
 
 UI host configuration, mounted key/user JSON and development-login controls use exact field names and reject unknown fields, explicit typed nulls and malformed Unicode. Omit optional settings instead of setting them to null; `scopes` may be omitted or an empty array when no extra OIDC scopes are configured. Arbitrary upstream standards fields keep their own contracts.
 
+## Document comparison limits
+
+Revision comparison uses `diff` (jsdiff) on verified original text. Line differences select blocks; character differences locate edits within each block. It does not use a JSON serializer, ignore whitespace or retrieve external content. The original text view keeps its independent 2 MiB limit per document.
+
+Detailed navigation enforces these fixed bounds. Exceeding any bound discards all detailed output and leaves the original view available.
+
+| Bound | Limit |
+| --- | --- |
+| Input per side | 65,536 UTF-16 code units and 2,000 LF-delimited lines |
+| Line edit distance | 128 insertions/deletions |
+| Character refinement | 8,192 code units per changed block, 32,768 across all blocks |
+| Character edit distance | 256 insertions/deletions per block |
+| Rendered changes | 100 regions, each with up to 60 Unicode code points of context per edge |
+| Algorithm deadline | 50 ms for lines; 25 ms per character block, in addition to hard work bounds |
+
+Excerpts mark invisible whitespace and retain original token spelling. Line/column locations count Unicode code points. Plain documents retain exact decoded text, including a leading BOM; equality uses verified SHA-256 artifact identities. Read/selection/session lifetimes remain owned by `RevisionComparison`. There is no persistent cache, worker or backend comparison service. See the [reader procedure](../documentation/src/content/docs/guides/resource-authoring.mdx#compare-revisions-and-inspect-lifecycle).
+
 ## Current scope
 
 The lazy [Content overview](../documentation/src/content/docs/guides/catalog-ui.mdx#read-the-content-overview) shows independent Resource, current-release, indexed-record, Namespace and Publisher summaries. Each read applies its own permission and OAuth scope. Four kind tiles show Resource counts without a duplicate table. Explicit refresh, limited counts and independent failures retain their meanings. Fixed Resource-kind and Catalog-origin URL presets apply actual filters without storing private criteria. Review summaries show the queue, waiting times and median review time. Chart and Daily breakdown controls switch between a 30-day graph and its exact outcomes. The approved queue supports an exact unreleased filter. Publication summaries separate configured host audiences from recorded active metadata and known differences.

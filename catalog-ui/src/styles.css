@@ -1889,6 +1889,43 @@
 .revision-comparison-grid > div {
   min-width: 0;
 }
+
+.document-changes {
+  padding-left: 1.5rem;
+}
+.document-changes section {
+  scroll-margin-top: calc(var(--header-height, 5rem) + 1rem);
+  padding: 0.75rem;
+  margin-block: 0.75rem;
+  border: 1px solid var(--control-border);
+  border-radius: 0.35rem;
+}
+.document-changes section:focus {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.document-changes pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 20rem;
+  overflow: auto;
+  padding: 0.5rem;
+}
+.document-changes del {
+  color: var(--danger);
+  background: var(--danger-soft);
+  text-decoration: line-through;
+}
+.document-changes ins {
+  color: var(--success);
+  background: var(--success-soft);
+  text-decoration: underline;
+}
+@media (forced-colors: active) {
+  .document-changes section:focus {
+    outline-color: Highlight;
+  }
+}
 .validation-findings li {
   margin-block: 0.75rem;
   overflow-wrap: anywhere;

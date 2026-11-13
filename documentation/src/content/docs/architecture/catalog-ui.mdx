@@ -225,6 +225,8 @@ Do not place Search terms in shareable URLs by default. Deep links may carry saf
 
 ## Interaction reliability and limits
 
+Revision comparison reads selected immutable Version or Listing revisions, with separate history/content permission checks. Exact documents load only after inspection and pass artifact SHA-256 verification. Local bounded line/character differences supply changed excerpts and accessible Previous/Next navigation. Verified artifact identities decide byte equality; decoding preserves BOMs and line endings. Detailed work refusal leaves the original text available and never exposes a partial result as complete. Selections and private text clear with session/access changes. See the [comparison procedure](../guides/resource-authoring.mdx#compare-revisions-and-inspect-lifecycle) and [implementation limits](../../../../../catalog-ui/README.md#document-comparison-limits).
+
 Keep API results authoritative. Preserve exact keys, bodies and preconditions for a deliberate retry. Disable duplicate submissions and show uncertain outcomes rather than creating another command. Handle ETag conflicts with reload, comparison and deliberate resubmission. Do not overwrite a newer revision blindly.
 
 Track each validator against its mutable Resource, ResourceVersion, CatalogListing, submission or release. An immutable child ID is not an interchangeable concurrency token. Multi-step authoring keeps successfully created server drafts and identifies the failed step. It does not simulate rollback or silently delete evidence.

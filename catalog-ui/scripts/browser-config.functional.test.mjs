@@ -114,7 +114,7 @@ test("browser discovery keeps visual comparisons opt-in and requires owned fixtu
     visual.stdout,
     /MCP client configuration controls in light and narrow dark layouts/,
   );
-  assert.match(visual.stdout, /Total: 20 tests in 1 file/);
+  assert.match(visual.stdout, /Total: 21 tests in 1 file/);
   assert.doesNotMatch(
     visual.stdout,
     /accessibility\.spec\.ts|plugins\.spec\.ts/,
