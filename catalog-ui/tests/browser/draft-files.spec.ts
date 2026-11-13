@@ -743,6 +743,8 @@ test("root: existing numeric metadata requires explicit input before preparing a
   await page
     .getByRole("button", { name: "Next: Listing details", exact: true })
     .click();
+  // Reach the stored Listing editor before testing its numeric-metadata guard.
+  await expect(page.getByLabel("Display name", { exact: true })).toBeVisible();
   await page
     .getByRole("button", { name: "Create version", exact: true })
     .click();

@@ -1,5 +1,7 @@
 # Independent interoperability qualification
 
+The optional [configured ARD registry campaign](ard-registry/README.md) checks unchanged Catalog publication through a native crawler, exact List/Search metadata, update, withdrawal, outage retention and snapshot restart. Run `make ard-registry-tools-install`, `make test-interoperability-ard-registry` and `make test-interoperability-ard-registry-cleanup` separately. It owns a disposable PostgreSQL/API/worker environment and needs no model. Reverse List remains incompatible at the selected peer revision.
+
 The optional [native ADK MCP qualification](adk/README.md) uses `make adk-tools-install`, then `make test-interoperability-adk`. It discovers Catalog tools and makes deterministic native calls through private HTTPS, without an LLM or Google model credentials. The owned in-memory fixture checks exact release metadata, filters, refusals, current grant revocation, protocol/traffic and cleanup. It does not invoke discovered resources.
 
 Use `make test-interoperability-adk-cleanup` separately to repeat the valid, intentional metadata-failure and actual SIGTERM campaigns with independent cleanup checks. All commands and control code are maintained in the repository; ignored output contains only results and installed tools.
@@ -23,6 +25,8 @@ The separate [local MCP control](mcp/README.md) uses `make mcp-tools-install` fo
 The separate [Catalog Control MCP qualification](mcp/README.md#catalog-control-stdio-qualification) uses `make mcp-catalog-tools-install`, then `make test-interoperability-mcp-catalog`. The locked Python SDK checks stdio and HTTP with both selected protocols. Seventeen legacy groups retain current authority and fault/lifecycle controls. Thirteen groups per matrix combination add four-kind local/indexed/live discovery and PostgreSQL replica/restart continuation. All results and owned cleanup must pass. Discovered resources are never executed.
 
 The optional [GitHub Agent Finder publication qualification](agentfinder/README.md) uses `make agentfinder-tools-install`, then `make test-interoperability-agentfinder`, separately. It serves exact pinned metadata through owned HTTPS and qualifies real API/worker/PostgreSQL retention, immutable provenance, repeat/outage recovery, tenant/TLS refusals and confined requests. All five media types remain unsupported and excluded from ordinary Search. It does not qualify hosted Agent Finder, native Copilot consumption or searchable transfer.
+
+The [Wellknown indexed-import assessment](../../documentation/records/wellknown-indexed-import-assessment.md) records one bounded hosted List read. Its reported inventory exceeds Catalog's existing synchronization bounds. Complete import and referenced artifacts remain unqualified; no hosted import target is selected.
 
 The OpenARD native List evaluation does not select a maintained target. Its native List returns entries. However, direct Search inspection records no List capability, and indexed enrollment returns HTTP 412. This is not worker synchronization qualification.
 

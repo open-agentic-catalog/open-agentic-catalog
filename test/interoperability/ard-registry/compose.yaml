@@ -1,0 +1,60 @@
+# Invocation-only native consumer, using existing API, worker and TLS fixtures.
+services:
+  api:
+    networks:
+      default:
+        aliases: [api-a, peer-a.test, federation-fixture]
+    ports: !reset []
+    dns: [127.0.0.1]
+    environment:
+      CATALOG_PUBLIC_BASE_URL: http://127.0.0.1:8080
+      CATALOG_WEBHOOKS_ENABLED: "false"
+      CATALOG_DISCOVERY_HOSTS: &hosts >-
+        [{"host":"peer-a.test","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"catalog.example.com"}]
+  worker:
+    ports: !reset []
+    dns: [127.0.0.1]
+    environment:
+      CATALOG_PUBLIC_BASE_URL: http://127.0.0.1:8080
+      CATALOG_WEBHOOKS_ENABLED: "false"
+      CATALOG_DISCOVERY_HOSTS: *hosts
+  postgres:
+    ports: !reset []
+  federation-fixture:
+    network_mode: service:api
+    networks: !reset []
+    ports: !reset []
+    dns: !reset []
+    command: [serve, --directory, /fixture, --peer]
+  ard-registry:
+    image: ${CATALOG_ARD_REGISTRY_IMAGE:?prepare the native registry tools first}
+    pull_policy: never
+    user: ${CATALOG_ARD_REGISTRY_USER:?owned peer UID required}
+    network_mode: service:api
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      ARD_HOST: 127.0.0.1
+      ARD_PORT: "9010"
+      ARD_SELF_URL: http://127.0.0.1:9010/api
+      ARD_SOURCES: '[{"id":"owned-oac","url":"https://peer-a.test:8443/.well-known/ai-catalog.json"}]'
+      ARD_UPSTREAMS: '[]'
+      ARD_SNAPSHOT: /state/snapshot.json
+      ARD_CRAWL_INTERVAL_MS: "1000"
+      NODE_EXTRA_CA_CERTS: /fixture/trust/functional-ca.pem
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 512m
+    cpus: 1
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    volumes:
+      - ${CATALOG_ARD_REGISTRY_STATE:?owned state directory required}:/state
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?owned trust directory required}:/fixture:ro
+networks:
+  default:
+    internal: true

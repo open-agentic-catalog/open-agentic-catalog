@@ -67,6 +67,7 @@ func routedPeerHandler(transport http.RoundTripper, routes map[string]string) ht
 	failContinuations := false
 	failInitial := false
 	failOffline := false
+	failManifestJSON := false
 	pageCap := 0
 	peerHost := func(host string) bool {
 		_, ok := routes[host]
@@ -116,10 +117,11 @@ func routedPeerHandler(transport http.RoundTripper, routes map[string]string) ht
 				raw, err := io.ReadAll(http.MaxBytesReader(writer, request.Body, 1024))
 				_ = request.Body.Close()
 				var control struct {
-					Enabled  *bool `json:"enabled"`
-					Offline  bool  `json:"offline,omitempty"`
-					Initial  bool  `json:"initial,omitempty"`
-					PageSize *int  `json:"pageSize,omitempty"`
+					Enabled   *bool `json:"enabled"`
+					Offline   bool  `json:"offline,omitempty"`
+					Malformed bool  `json:"malformed,omitempty"`
+					Initial   bool  `json:"initial,omitempty"`
+					PageSize  *int  `json:"pageSize,omitempty"`
 				}
 				if err != nil || jsondoc.Decode(raw, &control) != nil || control.Enabled == nil || control.PageSize != nil && (*control.PageSize < 0 || *control.PageSize > 50) {
 					http.Error(writer, "Invalid peer fault control", http.StatusBadRequest)
@@ -129,6 +131,7 @@ func routedPeerHandler(transport http.RoundTripper, routes map[string]string) ht
 				failContinuations = *control.Enabled
 				failInitial = control.Initial
 				failOffline = *control.Enabled && control.Offline
+				failManifestJSON = *control.Enabled && control.Malformed
 				if control.PageSize != nil {
 					pageCap = *control.PageSize
 				}
@@ -213,9 +216,15 @@ func routedPeerHandler(transport http.RoundTripper, routes map[string]string) ht
 		}}
 		mutex.Lock()
 		fail := failOffline && strings.HasPrefix(request.Host, "peer-a.") || failContinuations && strings.HasPrefix(request.Host, "peer-a.") && request.URL.Path == "/ard/v1/search" && (page == "continuation" || failInitial)
+		malformed := failManifestJSON && strings.HasPrefix(request.Host, "peer-a.") && request.URL.Path == "/.well-known/ai-catalog.json"
 		mutex.Unlock()
 		if fail {
 			http.Error(response, "Catalog peer continuation unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if malformed {
+			response.Header().Set("Content-Type", "application/ai-catalog+json")
+			_, _ = response.Write([]byte(`{"entries":`))
 			return
 		}
 		proxy.ServeHTTP(response, request.WithContext(ctx))
