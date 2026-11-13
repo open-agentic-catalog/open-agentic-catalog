@@ -10,6 +10,21 @@ This procedure starts with indexed synchronization of A's active ARD manifest. L
 
 For a complete local setup with user passwords, separate A/B databases and an installed editor, follow the [two-Catalog federation tutorial](../guides/two-catalog-federation.mdx). This runbook owns the reusable source lifecycle and policy details.
 
+## Qualify a static Agent Finder publication
+
+The optional [Agent Finder test](../../../../../test/interoperability/agentfinder/README.md) checks one pinned generated publication against a disposable Catalog. It uses real source inspection, worker synchronization, private TLS and PostgreSQL; it does not query hosted Agent Finder.
+
+Run these commands separately after installing the repository development prerequisites:
+
+```sh
+make agentfinder-tools-install
+make test-interoperability-agentfinder
+```
+
+Preparation verifies bundled source bytes and acquires the pinned local Python runner image if needed. The test builds owned application/fixture images, retains the exact administrative metadata, checks repeat/outage recovery and removes its temporary stack. Existing deployments and data remain intact.
+
+All five declared media types are unsupported by the current Catalog kind mapping. Their observations remain private source evidence and do not appear in reader Search. The fixture deliberately sends `application/ai-catalog+json`, which selects the predecessor profile. The same bytes served as generic JSON are refused. These results characterize the selected static publication and transport, not GitHub hosting, Copilot support or two-way exchange.
+
 ## Prepare both Catalogs
 
 On A, publish the intended Resources through independent review and release publication. Generate and activate a discovery snapshot for the exact upstream host. Follow [resource publication](../guides/publishing.mdx), including publisher-domain approval and host/audience selection. A published release alone does not create a discoverable manifest.
