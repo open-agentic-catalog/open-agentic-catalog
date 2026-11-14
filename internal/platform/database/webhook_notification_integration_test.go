@@ -209,18 +209,34 @@ capacity_loss_count FROM webhook_notification_state WHERE tenant_id=$1`, houseke
 	if err := db.operator.QueryRow(ctx, "SELECT max(created_at)+interval '1 second' FROM outbox_events").Scan(&claimAt); err != nil {
 		t.Fatal(err)
 	}
-	claimed, err := workerRepo.ClaimOutbox(ctx, "capacity-worker", claimAt, time.Minute, 1)
-	if err != nil || len(claimed) != 1 {
+	// The worker claims across tenants. Two rows guarantee a tenant A event
+	// even when tenant B's sole pending event sorts first; result order is not
+	// tenant selection, and another tenant's acknowledgement frees no A slot.
+	claimed, err := workerRepo.ClaimOutbox(ctx, "capacity-worker", claimAt, time.Minute, 2)
+	if err != nil || len(claimed) != 2 {
 		t.Fatalf("claim: %v", err)
+	}
+	var event *catalog.OutboxEvent
+	for i := range claimed {
+		if claimed[i].TenantID == tenant {
+			event = &claimed[i]
+			break
+		}
+	}
+	if event == nil {
+		t.Fatal("cross-tenant batch contains no tenant A event")
 	}
 	if readState(tenant).PendingEvents != 1000 {
 		t.Fatal("claim released capacity")
 	}
-	if _, err := db.operator.Exec(ctx, `UPDATE outbox_events SET published_at=$3,lease_owner=NULL,lease_expires_at=NULL WHERE tenant_id=$1 AND id=$2`, claimed[0].TenantID, claimed[0].ID, claimAt.Add(time.Millisecond)); err != nil {
+	if err := workerRepo.MarkOutboxPublished(ctx, event.TenantID, event.ID, "capacity-worker", claimAt.Add(time.Millisecond)); err != nil {
 		t.Fatal(err)
 	}
 	if got := readState(tenant); got.PendingEvents != 999 {
 		t.Fatalf("acknowledged event did not release slot: %#v", got)
+	}
+	if got := readState(housekeepingTenantB); got.PendingEvents != 1 || got.CapacityLossCount != 0 {
+		t.Fatalf("tenant A acknowledgement changed tenant B capacity: %#v", got)
 	}
 	if err := insert(db.worker, tenant, false); err != nil {
 		t.Fatal(err)

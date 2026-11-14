@@ -23,7 +23,11 @@ export function DocumentChanges({
   const count = diff.changes.length;
   function move(index: number) {
     setCurrent(index);
-    regions.current[index]!.focus();
+    const region = regions.current[index]!;
+    region.focus({ preventScroll: true });
+    // Native focus can center a tall region behind the sticky header.
+    // Start alignment respects its existing header-aware scroll margin.
+    region.scrollIntoView({ block: "start", inline: "nearest" });
   }
   return (
     <section aria-label="Document changes">

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import {
   cleanup,
   fireEvent,
@@ -19,6 +19,10 @@ it("navigates deterministic regions with focus, announcements and endpoint contr
   );
   const previous = screen.getByRole("button", { name: "Previous change" });
   const next = screen.getByRole("button", { name: "Next change" });
+  // jsdom has no scrolling geometry; the real browser regression checks that
+  // keyboard navigation exposes the heading below the sticky header.
+  for (const region of screen.getAllByRole("region", { name: /^Change / }))
+    region.scrollIntoView = vi.fn();
   expect(screen.getByRole("status").textContent).toBe("2 changed regions.");
   expect(previous).toHaveProperty("disabled", true);
   fireEvent.click(next);

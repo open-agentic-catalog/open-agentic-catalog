@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { request } from "node:https";
 import { networkObserver } from "./network-observer.mjs";
+import AxeBuilder from "@axe-core/playwright";
 
 const [directory, apiOrigin, fixtureOrigin, caFile] = process.argv.slice(2);
 if (
@@ -125,6 +126,113 @@ async function qualifySavedMembership(page) {
       response = await next;
     }
     expect(identifiers.sort()).toEqual(saved.identifiers);
+    // This pair comes from the earlier real B/C correction, independently
+    // checked against exact retained bytes before later imports and policies.
+    const changed = saved.changed;
+    expect(changed.beforeId).not.toBe(changed.afterId);
+    expect(changed.beforeDigest).not.toBe(changed.afterDigest);
+    await page.goto(`${origin}/sources/${saved.sourceId}`);
+    await page
+      .getByRole("button", { name: "Sync history", exact: true })
+      .click();
+    const history = page.locator("section.workspace-panel").filter({
+      has: page.getByRole("heading", {
+        name: "Synchronization snapshots",
+        exact: true,
+      }),
+    });
+    await history
+      .getByRole("radio", { name: `Before ${changed.beforeId}`, exact: true })
+      .check();
+    await history
+      .getByRole("radio", { name: `After ${changed.afterId}`, exact: true })
+      .check();
+    const selected = history.getByRole("link", {
+      name: "Compare selected snapshots",
+      exact: true,
+    });
+    await expect(selected).toHaveAttribute(
+      "href",
+      `/source-snapshots/${changed.beforeId}?compare=${changed.afterId}#snapshot-comparison`,
+    );
+    const changedReply = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname.endsWith(`/snapshots/${changed.beforeId}/comparison`) &&
+        url.searchParams.get("otherSnapshotId") === changed.afterId
+      );
+    });
+    await selected.click();
+    const actual = await changedReply;
+    expect(actual.status()).toBe(200);
+    const difference = await actual.json();
+    expect(difference.before.id).toBe(changed.beforeId);
+    expect(difference.after.id).toBe(changed.afterId);
+    expect(difference.sourceId).toBe(saved.sourceId);
+    expect(difference.sourceRevision).toBe(changed.sourceRevision);
+    expect(difference.nextCursor).toBeUndefined();
+    expect(difference.items).toHaveLength(1);
+    const row = difference.items[0];
+    expect(row.change).toBe("changed");
+    expect(row.before.identifier).toBe(changed.identifier);
+    expect(row.after.identifier).toBe(changed.identifier);
+    expect(row.before.observationId).toBe(changed.beforeObservationId);
+    expect(row.after.observationId).toBe(changed.afterObservationId);
+    expect(row.before.occurrence.snapshotId).toBe(changed.beforeId);
+    expect(row.after.occurrence.snapshotId).toBe(changed.afterId);
+    expect(row.before.occurrence.exactEntryDigest).toBe(changed.beforeDigest);
+    expect(row.after.occurrence.exactEntryDigest).toBe(changed.afterDigest);
+    const panel = page.locator("#snapshot-comparison");
+    await expect(panel).toBeFocused();
+    await expect(
+      panel.getByRole("heading", {
+        name: "Compare saved entries",
+        exact: true,
+      }),
+    ).toBeInViewport();
+    await expect(
+      panel.getByRole("heading", {
+        name: `Changed: ${changed.identifier}`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("link", {
+        name: "Inspect before observation and occurrences",
+      }),
+    ).toHaveAttribute("href", `/observations/${changed.beforeObservationId}`);
+    await expect(
+      panel.getByRole("link", {
+        name: "Inspect after observation and occurrences",
+      }),
+    ).toHaveAttribute("href", `/observations/${changed.afterObservationId}`);
+    await panel.screenshot({
+      path: join(directory, `source-comparison-changed-${scenario.mode}.png`),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByLabel("Appearance", { exact: true }).click();
+    await page.getByRole("radio", { name: "Dark", exact: true }).check();
+    await page.keyboard.press("Escape");
+    expect(
+      await page.evaluate(
+        () =>
+          globalThis.document.documentElement.scrollWidth <=
+          globalThis.innerWidth,
+      ),
+    ).toBe(true);
+    expect(
+      await new AxeBuilder({ page }).include("#snapshot-comparison").analyze(),
+    ).toMatchObject({ violations: [], incomplete: [] });
+    await panel.screenshot({
+      path: join(
+        directory,
+        `source-comparison-changed-${scenario.mode}-narrow.png`,
+      ),
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.getByLabel("Appearance", { exact: true }).click();
+    await page.getByRole("radio", { name: "System", exact: true }).check();
+    await page.keyboard.press("Escape");
     expect(writes).toEqual([]);
     await expect(page.getByRole("alert")).toHaveCount(0);
     await json(`source-comparison-${scenario.mode}.json`, {
@@ -136,6 +244,8 @@ async function qualifySavedMembership(page) {
       peerUnavailable: true,
       noMutations: true,
       noRawEvidenceReads: true,
+      distinctSnapshotChange: true,
+      historySelection: true,
     });
   } finally {
     page.off("request", observe);

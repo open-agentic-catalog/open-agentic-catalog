@@ -5,6 +5,135 @@ use super::*;
 const RESOURCE_ID: &str = "00000000-0000-7000-8000-000000000010";
 const VERSION_ID: &str = "00000000-0000-7000-8000-000000000011";
 
+#[tokio::test]
+async fn snapshot_comparison_preserves_selection_members_cursor_and_refusal() {
+    const BEFORE: &str = "00000000-0000-7000-8000-000000000001";
+    const AFTER: &str = "00000000-0000-7000-8000-000000000002";
+    const CURSOR: &str = "opaque+/=& café";
+    let wire = br#"{"sourceId":"00000000-0000-7000-8000-000000000003","sourceRevision":7,"before":{"id":"00000000-0000-7000-8000-000000000001","memberCount":2,"startedAt":"2026-01-01T00:00:00Z","withdrawalAuthority":true},"after":{"id":"00000000-0000-7000-8000-000000000002","memberCount":1,"startedAt":"2026-01-02T00:00:00Z","withdrawalAuthority":false},"items":[{"position":1,"sourceKey":"a-missing-version","change":"absent","beforeCount":1,"afterCount":0,"before":{"observationId":"00000000-0000-7000-8000-000000000004","identifier":"urn:air:example.com:demo:agent","version":"","versionPresent":false,"kind":"agent","identityDigest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","occurrence":{"observationId":"00000000-0000-7000-8000-000000000004","sourceId":"00000000-0000-7000-8000-000000000003","sourceRevision":7,"snapshotId":"00000000-0000-7000-8000-000000000001","retrievalDigest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","entryLocation":"/entries/0","exactEntryDigest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","evidenceComplete":true,"observedAt":"2026-01-01T00:00:00Z"}}},{"position":2,"sourceKey":"b-empty-version","change":"added","beforeCount":0,"afterCount":1,"after":{"observationId":"00000000-0000-7000-8000-000000000005","identifier":"urn:air:example.com:demo:agent","version":"","versionPresent":true,"kind":"agent","identityDigest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","occurrence":{"observationId":"00000000-0000-7000-8000-000000000005","sourceId":"00000000-0000-7000-8000-000000000003","sourceRevision":7,"snapshotId":"00000000-0000-7000-8000-000000000002","retrievalDigest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","entryLocation":"/entries/0","exactEntryDigest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","evidenceComplete":true,"observedAt":"2026-01-02T00:00:00Z"}}}],"nextCursor":"opaque+/=& caf\u00e9"}"#;
+    let mut terminal: Value = serde_json::from_slice(wire).unwrap();
+    terminal.as_object_mut().unwrap().remove("nextCursor");
+    let mut last = terminal["items"][0].clone();
+    last["position"] = json!(3);
+    last["sourceKey"] = json!("c-other");
+    last["before"]["observationId"] = json!("00000000-0000-7000-8000-000000000006");
+    last["before"]["identifier"] = json!("urn:air:example.com:demo:other");
+    last["before"]["identityDigest"] = json!(format!("sha256:{}", "e".repeat(64)));
+    last["before"]["occurrence"]["observationId"] = last["before"]["observationId"].clone();
+    last["before"]["occurrence"]["entryLocation"] = json!("/entries/1");
+    last["before"]["occurrence"]["exactEntryDigest"] = json!(format!("sha256:{}", "f".repeat(64)));
+    terminal["items"] = json!([last]);
+    let terminal_wire = serde_json::to_vec(&terminal).unwrap();
+    let transport = Scripted::new(vec![reply(200, wire), reply(200, &terminal_wire), reply(400, br#"{"type":"about:blank","title":"Invalid argument","status":400,"code":"INVALID_ARGUMENT","detail":"Selected evidence unavailable","requestId":"comparison-refusal"}"#)]);
+    let client = client(transport.clone());
+    let response = client
+        .compare_federation_source_snapshots(
+            BEFORE,
+            AFTER,
+            Some(CompareFederationSourceSnapshotsView::Changes),
+            Some(2),
+            None::<&str>,
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status, 200);
+    assert_eq!(response.raw_body, wire);
+    let page = response.data.unwrap();
+    assert_eq!(page.before.id.to_string(), BEFORE);
+    assert_eq!(page.after.id.to_string(), AFTER);
+    assert_eq!(page.source_revision, 7);
+    assert!(!page.after.withdrawal_authority);
+    assert_eq!(page.next_cursor.as_deref(), Some(CURSOR));
+    assert_eq!(page.items.len(), 2);
+    assert!(page.items[0].after.is_none());
+    let absent = page.items[0].before.as_ref().unwrap();
+    assert!(!absent.version_present);
+    assert_eq!(absent.version, "");
+    assert!(page.items[1].before.is_none());
+    let added = page.items[1].after.as_ref().unwrap();
+    assert!(added.version_present);
+    assert_eq!(added.version, "");
+    assert_eq!(
+        transport.requests.lock().unwrap().len(),
+        1,
+        "must not continue automatically"
+    );
+    let completed = client
+        .compare_federation_source_snapshots(
+            BEFORE,
+            AFTER,
+            Some(CompareFederationSourceSnapshotsView::Changes),
+            Some(2),
+            page.next_cursor.as_deref(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(completed.status, 200);
+    assert_eq!(completed.raw_body, terminal_wire);
+    let last_page = completed.data.unwrap();
+    assert!(last_page.next_cursor.is_none());
+    assert_eq!(last_page.before.member_count, 2);
+    assert_eq!(last_page.items.len(), 1);
+    assert_eq!(last_page.items[0].position, 3);
+    assert_eq!(last_page.items[0].source_key, "c-other");
+    assert_eq!(
+        last_page.items[0]
+            .before
+            .as_ref()
+            .unwrap()
+            .observation_id
+            .to_string(),
+        "00000000-0000-7000-8000-000000000006"
+    );
+    assert_eq!(
+        transport.requests.lock().unwrap().len(),
+        2,
+        "terminal page must not trigger another read"
+    );
+    let refused = client
+        .compare_federation_source_snapshots(
+            BEFORE,
+            AFTER,
+            Some(CompareFederationSourceSnapshotsView::Changes),
+            Some(2),
+            page.next_cursor.as_deref(),
+        )
+        .await
+        .unwrap_err();
+    match refused {
+        ApiOpError::Api(error) => {
+            assert_eq!(error.status, 400);
+            assert_eq!(
+                serde_json::from_slice::<Value>(&error.raw_body).unwrap()["code"],
+                "INVALID_ARGUMENT"
+            );
+        }
+        other => panic!("Expected HTTP refusal: {other:?}"),
+    }
+    let requests = transport.requests.lock().unwrap();
+    assert_eq!(requests.len(), 3, "must not restart or retry");
+    for (index, request) in requests.iter().enumerate() {
+        assert_eq!(request.method(), reqwest::Method::GET);
+        assert_eq!(
+            request.url().path(),
+            format!("/api/v1/federation/snapshots/{BEFORE}/comparison")
+        );
+        let query: std::collections::BTreeMap<_, _> =
+            request.url().query_pairs().into_owned().collect();
+        assert_eq!(
+            query.get("otherSnapshotId").map(String::as_str),
+            Some(AFTER)
+        );
+        assert_eq!(query.get("view").map(String::as_str), Some("changes"));
+        assert_eq!(query.get("limit").map(String::as_str), Some("2"));
+        assert_eq!(
+            query.get("cursor").map(String::as_str),
+            if index == 0 { None } else { Some(CURSOR) }
+        );
+        assert!(request.headers().get("Idempotency-Key").is_none());
+    }
+}
+
 /// A complete Resource response keeps identifier text distinct from its API UUID.
 fn resource_wire(identifier: &str) -> Value {
     json!({

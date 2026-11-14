@@ -8,11 +8,13 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import type { components } from "../api/schema";
 import { APIError } from "../api/client";
 import { SourceSnapshotComparison } from "./SourceSnapshotComparison";
-import { SourceSnapshots } from "./SourceSnapshots";
+import { SourceSnapshot, SourceSnapshots } from "./SourceSnapshots";
+import { testAccess } from "../../tests/unit/access-fixtures";
 import { FederationSnapshotComparison } from "./responses";
 import { deferred, reply, workspace } from "../../tests/unit/fixtures";
 
@@ -65,33 +67,44 @@ const member = (
     observedAt: at,
   },
 });
-const page = (): Schema["FederationSnapshotComparisonPage"] => ({
-  sourceId: sourceID,
-  sourceRevision: 2,
-  before: {
-    id: beforeID,
-    memberCount: 1,
-    startedAt: at,
-    withdrawalAuthority: false,
-  },
-  after: {
-    id: afterID,
-    memberCount: 1,
-    startedAt: at,
-    withdrawalAuthority: false,
-  },
-  items: [
-    {
-      position: 1,
-      sourceKey: "key",
-      change: "unchanged",
-      beforeCount: 1,
-      afterCount: 1,
-      before: member(beforeID),
-      after: member(afterID),
+const page = (
+  change: "changed" | "unchanged" = "changed",
+): Schema["FederationSnapshotComparisonPage"] => {
+  const after = member(afterID);
+  if (change === "changed") {
+    after.observationId = "00000000-0000-7000-8000-000000000106";
+    after.identityDigest = "sha256:" + "b".repeat(64);
+    after.occurrence.observationId = after.observationId;
+    after.occurrence.exactEntryDigest = after.identityDigest;
+  }
+  return {
+    sourceId: sourceID,
+    sourceRevision: 2,
+    before: {
+      id: beforeID,
+      memberCount: 1,
+      startedAt: at,
+      withdrawalAuthority: false,
     },
-  ],
-});
+    after: {
+      id: afterID,
+      memberCount: 1,
+      startedAt: at,
+      withdrawalAuthority: false,
+    },
+    items: [
+      {
+        position: 1,
+        sourceKey: "key",
+        change,
+        beforeCount: 1,
+        afterCount: 1,
+        before: member(beforeID),
+        after,
+      },
+    ],
+  };
+};
 afterEach(() => {
   cleanup();
   history.replaceState(null, "", "/");
@@ -125,18 +138,86 @@ function select(after = afterID) {
   );
 }
 
+it("refuses an unselected before snapshot and recovers only through an exact reread", async () => {
+  const { props, get } = workspace();
+  const requested = "00000000-0000-7000-8000-00000000ABCD";
+  const canonical = requested.toLowerCase();
+  get
+    .mockResolvedValueOnce(reply({ ...snapshot, id: thirdID }))
+    .mockResolvedValue(reply({ ...snapshot, id: canonical }));
+  render(
+    <SourceSnapshot
+      {...props}
+      id={requested}
+      access={{ ...props.access, ...testAccess(["source_admin"]) }}
+    />,
+  );
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "This page could not be loaded",
+  );
+  expect(screen.queryByText("Compare saved entries")).toBeNull();
+  expect(screen.queryByRole("link", { name: "Source" })).toBeNull();
+  expect(get).toHaveBeenCalledTimes(1);
+  expect(props.onFailure).toHaveBeenCalledWith(
+    new Error("Snapshot selection does not match."),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Reload snapshot" }));
+  await screen.findByRole("heading", { name: "Compare saved entries" });
+  expect(get).toHaveBeenCalledTimes(2);
+  for (const [, options] of get.mock.calls)
+    expect(options).toMatchObject({
+      params: { path: { snapshotId: canonical } },
+    });
+});
+
+it("clears a loaded comparison on permission loss and aborts its pending refresh", async () => {
+  const { props, get, snapshotRead } = comparisonWorkspace();
+  history.replaceState(
+    null,
+    "",
+    `/unit/source-snapshots/${beforeID}?compare=${afterID}`,
+  );
+  get.mockResolvedValue(reply(page()));
+  const access = { ...props.access, ...testAccess(["source_admin"]) };
+  const { rerender } = render(
+    <SourceSnapshot {...props} id={beforeID} access={access} />,
+  );
+  await screen.findByRole("heading", { name: /Changed:/ });
+  const pending = deferred<ReturnType<typeof reply>>();
+  get.mockReturnValueOnce(pending.promise);
+  fireEvent.click(screen.getByRole("button", { name: "Reload comparison" }));
+  await waitFor(() => expect(get).toHaveBeenCalledTimes(2));
+  const signal = (get.mock.calls[1]![1] as { signal: AbortSignal }).signal;
+  const headersBeforeRevocation = snapshotRead.mock.calls.length;
+  expect(signal.aborted).toBe(false);
+  rerender(<SourceSnapshot {...props} id={beforeID} />);
+  expect(signal.aborted).toBe(true);
+  expect(screen.getByRole("alert").textContent).toContain("source.read");
+  expect(screen.queryByRole("heading", { name: /Changed:/ })).toBeNull();
+  await act(async () => pending.resolve(reply(page())));
+  expect(screen.queryByText("Compare saved entries")).toBeNull();
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(snapshotRead).toHaveBeenCalledTimes(headersBeforeRevocation);
+  expect(props.onFailure).not.toHaveBeenCalled();
+});
+
 it("reads only the explicit immutable pair and renders occurrence links without fetching raw evidence", async () => {
   const { props, get, transport, snapshotRead } = comparisonWorkspace();
-  get.mockResolvedValue(reply(page()));
+  get
+    .mockResolvedValueOnce(reply({ ...page("unchanged"), items: [] }))
+    .mockResolvedValue(reply(page("unchanged")));
   render(<SourceSnapshotComparison {...props} snapshot={snapshot} />);
   expect(get).not.toHaveBeenCalled();
   select();
+  await screen.findByText("No entry differences between these snapshots.");
+  expect(get).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByLabelText("Include unchanged entries"));
   await screen.findByRole("heading", {
     name: "Unchanged: urn:air:peer.example:agent",
   });
-  expect(get).toHaveBeenCalledTimes(1);
-  expect(transport).toHaveBeenCalledTimes(2);
-  expect(snapshotRead).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(transport).toHaveBeenCalledTimes(4);
+  expect(snapshotRead).toHaveBeenCalledTimes(2);
   expect(get.mock.calls[0]).toEqual([
     "/api/v1/federation/snapshots/{snapshotId}/comparison",
     expect.objectContaining({
@@ -146,6 +227,9 @@ it("reads only the explicit immutable pair and renders occurrence links without 
       },
     }),
   ]);
+  expect(get.mock.calls[1]![1]).toMatchObject({
+    params: { query: { otherSnapshotId: afterID, view: "all", limit: 25 } },
+  });
   expect(
     screen
       .getByRole("link", { name: "Inspect before observation and occurrences" })
@@ -156,8 +240,112 @@ it("reads only the explicit immutable pair and renders occurrence links without 
     screen.getByText(/Absence alone does not prove upstream deletion/),
   ).toBeTruthy();
   fireEvent.click(screen.getByText("Exact after occurrence"));
-  expect(get).toHaveBeenCalledTimes(1);
+  expect(get).toHaveBeenCalledTimes(2);
   expect(screen.getAllByText("Not supplied")).toHaveLength(2);
+});
+
+it.each([
+  ["processing inputs", "Unchanged", "Changed", "Changed"],
+  ["raw formatting", "Changed", "Unchanged", "Unchanged"],
+] as const)(
+  "distinguishes changes to %s without conflating exact and normalized evidence",
+  async (mode, exact, inputs, normalized) => {
+    const { props, get } = comparisonWorkspace();
+    const response = page();
+    const before = response.items[0]!.before!;
+    const after = response.items[0]!.after!;
+    before.occurrence.normalizationInputDigest = digest;
+    before.occurrence.normalizedEntryDigest = digest;
+    after.occurrence.normalizationInputDigest = digest;
+    after.occurrence.normalizedEntryDigest = digest;
+    if (mode === "processing inputs") {
+      after.occurrence.exactEntryDigest = before.occurrence.exactEntryDigest;
+      after.occurrence.normalizationInputDigest = after.identityDigest;
+      after.occurrence.normalizedEntryDigest = after.identityDigest;
+    }
+    get.mockResolvedValue(reply(response));
+    render(<SourceSnapshotComparison {...props} snapshot={snapshot} />);
+    select();
+    await screen.findByRole("heading", { name: /Changed:/ });
+    for (const [label, value] of [
+      ["Exact entry", exact],
+      ["Normalization inputs", inputs],
+      ["Normalized entry", normalized],
+      ["Observation", "Different retained observation"],
+    ])
+      expect(screen.getByText(label!).nextElementSibling?.textContent).toBe(
+        value,
+      );
+    expect(get).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("keeps added unidentified entries and absent identified entries on their own sides", async () => {
+  const { props, get } = comparisonWorkspace();
+  const response = page();
+  const added = response.items[0]!.after!;
+  added.identifier = "";
+  added.kind = "";
+  added.versionPresent = true;
+  added.version = "1.0.0";
+  response.items = [
+    {
+      position: 1,
+      sourceKey: "a-opaque-occurrence-key",
+      change: "added",
+      beforeCount: 0,
+      afterCount: 1,
+      after: added,
+    },
+    {
+      position: 2,
+      sourceKey: "b-identified-key",
+      change: "absent",
+      beforeCount: 1,
+      afterCount: 0,
+      before: member(beforeID),
+    },
+  ];
+  get.mockResolvedValue(reply(response));
+  render(<SourceSnapshotComparison {...props} snapshot={snapshot} />);
+  select();
+  const addedHeading = await screen.findByRole("heading", {
+    name: "Added: a-opaque-occurrence-key",
+  });
+  const absentHeading = screen.getByRole("heading", {
+    name: "Absent: urn:air:peer.example:agent",
+  });
+  const additions = within(addedHeading.closest("article")!);
+  const absences = within(absentHeading.closest("article")!);
+  expect(additions.getByText("Not available")).toBeTruthy();
+  expect(additions.getByText("1.0.0")).toBeTruthy();
+  expect(additions.queryByRole("link", { name: /Inspect before/ })).toBeNull();
+  expect(absences.queryByRole("link", { name: /Inspect after/ })).toBeNull();
+  expect(absences.getByText("Not supplied")).toBeTruthy();
+  expect(screen.queryByText("Exact entry")).toBeNull();
+});
+
+it("distinguishes no differences from two complete empty memberships", async () => {
+  const { props, get, snapshotRead } = comparisonWorkspace();
+  const response = page();
+  response.items = [];
+  response.before.memberCount = response.after.memberCount = 0;
+  snapshotRead.mockResolvedValue(
+    reply({ ...snapshot, id: afterID, memberCount: 0 }),
+  );
+  get.mockResolvedValue(reply(response));
+  render(
+    <SourceSnapshotComparison
+      {...props}
+      snapshot={{ ...snapshot, memberCount: 0 }}
+    />,
+  );
+  select();
+  await screen.findByText("No entry differences between these snapshots.");
+  fireEvent.click(screen.getByLabelText("Include unchanged entries"));
+  await screen.findByText("Both selected memberships are empty.");
+  expect(screen.queryByRole("heading", { level: 3 })).toBeNull();
+  expect(get).toHaveBeenCalledTimes(2);
 });
 
 it("retains selections across source history pages and refuses different-revision choices locally", async () => {
@@ -243,15 +431,15 @@ it("clears rejected pages and restarts the same pair explicitly without replayin
   get
     .mockResolvedValueOnce(reply({ ...page(), nextCursor: "next" }))
     .mockRejectedValueOnce(new Error("cursor refused"))
-    .mockResolvedValue(reply({ ...page(), items: [] }));
+    .mockResolvedValue(reply({ ...page(), nextCursor: "next" }));
   render(<SourceSnapshotComparison {...props} snapshot={snapshot} />);
   select();
-  await screen.findByRole("heading", { name: /Unchanged:/ });
+  await screen.findByRole("heading", { name: /Changed:/ });
   fireEvent.click(screen.getByRole("button", { name: "Next page" }));
   await screen.findByRole("alert");
-  expect(screen.queryByRole("heading", { name: /Unchanged:/ })).toBeNull();
+  expect(screen.queryByRole("heading", { name: /Changed:/ })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Reload comparison" }));
-  await screen.findByText("No entry differences between these snapshots.");
+  await screen.findByRole("heading", { name: /Changed:/ });
   expect(get.mock.calls[2]?.[1]).toMatchObject({
     params: { query: { otherSnapshotId: afterID, view: "changes", limit: 25 } },
   });
@@ -284,7 +472,7 @@ it("fences a late result when another after snapshot is selected", async () => {
     pending.resolve(reply(page()));
   });
   expect(signal.aborted).toBe(true);
-  expect(screen.queryByRole("heading", { name: /Unchanged:/ })).toBeNull();
+  expect(screen.queryByRole("heading", { name: /Changed:/ })).toBeNull();
   expect(props.onFailure).not.toHaveBeenCalled();
 });
 

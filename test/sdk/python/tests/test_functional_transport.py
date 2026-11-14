@@ -11,11 +11,13 @@ import tempfile
 import threading
 import time
 import unittest
+from urllib.parse import parse_qs, urlsplit
 from unittest.mock import Mock, patch
 
 from catalog_sdk import Client, Config, SDKError
 from catalog_sdk.generated.api.service_api import ServiceApi
 from catalog_sdk.generated.api.discovery_api import DiscoveryApi
+from catalog_sdk.generated.api.federation_api import FederationApi
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -38,9 +40,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self, record=True):
         if record:
             self.server.calls.append((self.path, self.headers, b""))
-        if self.path == "/api/v1/capabilities":
+        if self.path == "/api/v1/capabilities" or urlsplit(self.path).path.endswith("/comparison"):
             self.send_response(self.server.scenario_status)
-            self.send_header("Content-Type", "application/problem+json")
+            self.send_header("Content-Type", "application/json" if self.server.scenario_status == 200 and urlsplit(self.path).path.endswith("/comparison") else "application/problem+json")
             self.send_header("Retry-After", "2")
             self.send_header("X-Request-ID", "typed-response")
             data = self.server.scenario_body
@@ -111,6 +113,65 @@ class Handler(BaseHTTPRequestHandler):
 
 
 class TransportFunctional(unittest.TestCase):
+    def test_snapshot_comparison_selection_cursor_members_and_refusal(self):
+        before = "00000000-0000-7000-8000-000000000001"
+        after = "00000000-0000-7000-8000-000000000002"
+        cursor = "opaque+/=& café"
+        server, port = self.server()
+        server.scenario_status = 200
+        server.scenario_body = br'{"sourceId":"00000000-0000-7000-8000-000000000003","sourceRevision":7,"before":{"id":"00000000-0000-7000-8000-000000000001","memberCount":2,"startedAt":"2026-01-01T00:00:00Z","withdrawalAuthority":true},"after":{"id":"00000000-0000-7000-8000-000000000002","memberCount":1,"startedAt":"2026-01-02T00:00:00Z","withdrawalAuthority":false},"items":[{"position":1,"sourceKey":"a-missing-version","change":"absent","beforeCount":1,"afterCount":0,"before":{"observationId":"00000000-0000-7000-8000-000000000004","identifier":"urn:air:example.com:demo:agent","version":"","versionPresent":false,"kind":"agent","identityDigest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","occurrence":{"observationId":"00000000-0000-7000-8000-000000000004","sourceId":"00000000-0000-7000-8000-000000000003","sourceRevision":7,"snapshotId":"00000000-0000-7000-8000-000000000001","retrievalDigest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","entryLocation":"/entries/0","exactEntryDigest":"sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc","evidenceComplete":true,"observedAt":"2026-01-01T00:00:00Z"}}},{"position":2,"sourceKey":"b-empty-version","change":"added","beforeCount":0,"afterCount":1,"after":{"observationId":"00000000-0000-7000-8000-000000000005","identifier":"urn:air:example.com:demo:agent","version":"","versionPresent":true,"kind":"agent","identityDigest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","occurrence":{"observationId":"00000000-0000-7000-8000-000000000005","sourceId":"00000000-0000-7000-8000-000000000003","sourceRevision":7,"snapshotId":"00000000-0000-7000-8000-000000000002","retrievalDigest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","entryLocation":"/entries/0","exactEntryDigest":"sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd","evidenceComplete":true,"observedAt":"2026-01-02T00:00:00Z"}}}],"nextCursor":"opaque+/=& caf\u00e9"}'
+        api = FederationApi(Client(Config(origin=f"http://127.0.0.1:{port}", allow_loopback_http=True, token="explicit")))
+        result = api.compare_federation_source_snapshots_sync_with_http_info(snapshot_id=before, other_snapshot_id=after, view="changes", limit=2)
+        self.assertEqual(result.status_code, 200)
+        data = result.data
+        self.assertEqual(str(data.before.id), before)
+        self.assertEqual(str(data.after.id), after)
+        self.assertEqual(data.source_revision, 7)
+        self.assertFalse(data.after.withdrawal_authority)
+        self.assertEqual(data.next_cursor, cursor)
+        self.assertEqual(len(data.items), 2)
+        self.assertIsNone(data.items[0].after)
+        self.assertFalse(data.items[0].before.version_present)
+        self.assertEqual(data.items[0].before.version, "")
+        self.assertIsNone(data.items[1].before)
+        self.assertTrue(data.items[1].after.version_present)
+        self.assertEqual(data.items[1].after.version, "")
+        self.assertEqual(len(server.calls), 1, "must not continue automatically")
+        path, headers, body = server.calls[0]
+        self.assertEqual(urlsplit(path).path, f"/api/v1/federation/snapshots/{before}/comparison")
+        query = {"otherSnapshotId": [after], "view": ["changes"], "limit": ["2"]}
+        self.assertEqual(parse_qs(urlsplit(path).query), query)
+        self.assertEqual(headers["Authorization"], "Bearer explicit")
+        self.assertNotIn("Idempotency-Key", headers)
+        self.assertEqual(body, b"")
+        terminal = json.loads(server.scenario_body)
+        last = terminal["items"][0]
+        last.update(position=3, sourceKey="c-other")
+        member = last["before"]
+        member.update(observationId="00000000-0000-7000-8000-000000000006", identifier="urn:air:example.com:demo:other", identityDigest="sha256:" + "e" * 64)
+        member["occurrence"].update(observationId=member["observationId"], entryLocation="/entries/1", exactEntryDigest="sha256:" + "f" * 64)
+        terminal["items"] = [last]
+        del terminal["nextCursor"]
+        server.scenario_body = json.dumps(terminal).encode()
+        completed = api.compare_federation_source_snapshots_sync_with_http_info(snapshot_id=before, other_snapshot_id=after, view="changes", limit=2, cursor=data.next_cursor)
+        self.assertEqual(completed.status_code, 200)
+        self.assertIsNone(completed.data.next_cursor)
+        self.assertEqual(completed.data.before.member_count, 2)
+        self.assertEqual(len(completed.data.items), 1)
+        self.assertEqual(completed.data.items[0].position, 3)
+        self.assertEqual(completed.data.items[0].source_key, "c-other")
+        self.assertEqual(str(completed.data.items[0].before.observation_id), "00000000-0000-7000-8000-000000000006")
+        self.assertEqual(len(server.calls), 2, "terminal page must not trigger another read")
+        self.assertEqual(parse_qs(urlsplit(server.calls[1][0]).query), {**query, "cursor": [cursor]})
+        server.scenario_status = 400
+        server.scenario_body = b'{"type":"about:blank","title":"Invalid argument","status":400,"code":"INVALID_ARGUMENT","detail":"Selected evidence unavailable","requestId":"typed-response"}'
+        refusal = api.compare_federation_source_snapshots_sync_with_http_info(snapshot_id=before, other_snapshot_id=after, view="changes", limit=2, cursor=data.next_cursor)
+        self.assertEqual(refusal.status_code, 400)
+        self.assertEqual(refusal.data.code, "INVALID_ARGUMENT")
+        self.assertEqual(refusal.headers["X-Request-ID"], "typed-response")
+        self.assertEqual(len(server.calls), 3, "must not restart or retry refused continuation")
+        self.assertEqual(parse_qs(urlsplit(server.calls[2][0]).query), {**query, "cursor": [cursor]})
+
     def setUp(self):
         self.servers = []
 

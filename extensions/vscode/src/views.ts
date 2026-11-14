@@ -16,6 +16,17 @@ import type { Session } from "./session.js";
 
 type Node =
   { item: Item } | { saved: number; reference: Bookmark; scope: number };
+
+function evidenceUris(input: unknown): vscode.Uri[] {
+  const uris =
+    input instanceof vscode.TabInputText
+      ? [input.uri]
+      : input instanceof vscode.TabInputTextDiff
+        ? [input.original, input.modified]
+        : [];
+  return uris.filter((uri) => uri.scheme === "oac-evidence");
+}
+
 export class CatalogViews
   implements vscode.TreeDataProvider<Node>, vscode.Disposable
 {
@@ -65,20 +76,19 @@ export class CatalogViews
     this.disposables.push(
       vscode.window.tabGroups.onDidChangeTabs((event) => {
         for (const tab of event.closed) {
-          if (!(tab.input instanceof vscode.TabInputText)) continue;
-          const uri = tab.input.uri;
-          if (uri.scheme !== "oac-evidence") continue;
-          const remainsOpen = vscode.window.tabGroups.all.some((group) =>
-            group.tabs.some(
-              (other) =>
-                other.input instanceof vscode.TabInputText &&
-                other.input.uri.toString() === uri.toString(),
-            ),
-          );
-          if (!remainsOpen && this.contents.delete(uri.toString())) {
-            // Closing a tab need not unload its TextDocument. Release the
-            // view slot and redact any retained editor buffer immediately.
-            this.documentChanged.fire(uri);
+          for (const uri of evidenceUris(tab.input)) {
+            const remainsOpen = vscode.window.tabGroups.all.some((group) =>
+              group.tabs.some((other) =>
+                evidenceUris(other.input).some(
+                  (open) => open.toString() === uri.toString(),
+                ),
+              ),
+            );
+            if (!remainsOpen && this.contents.delete(uri.toString())) {
+              // Closing a tab need not unload its TextDocument. Release the
+              // view slot only after its last text or diff tab closes.
+              this.documentChanged.fire(uri);
+            }
           }
         }
       }),

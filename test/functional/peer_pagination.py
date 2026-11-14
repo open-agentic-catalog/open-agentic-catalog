@@ -133,13 +133,14 @@ def retry_control(scenario, client, path, body, token_field):
     return first
 
 
-def browser(scenario, directory, mode, expected, live_ids, source):
+def browser(scenario, directory, mode, expected, live_ids, source, changed_comparison):
     retained, _ = scenario.b.request("GET", "/api/v1/federation/sources/" + source["id"])
     snapshot_id = retained["lastCompleteSnapshotId"]
     snapshot, _ = scenario.b.request("GET", "/api/v1/federation/snapshots/" + snapshot_id)
     identifiers = sorted(row["identifier"] for row in observations(scenario.b, source["id"]))
     assert snapshot["state"] == "complete" and snapshot["memberCount"] == len(identifiers) and len(set(identifiers)) == len(identifiers), "owned comparison requires unique complete membership"
-    comparison = {"sourceId": source["id"], "snapshotId": snapshot_id, "sourceRevision": snapshot["sourceRevision"], "identifiers": identifiers}
+    comparison = {"sourceId": source["id"], "snapshotId": snapshot_id, "sourceRevision": snapshot["sourceRevision"],
+                  "identifiers": identifiers, "changed": changed_comparison}
     write_document(directory / "scenario.json", {"mode": mode, "expected": sorted(expected), "live": sorted(live_ids), "comparison": comparison})
     result = json.loads(command(["node", "catalog-ui/scripts/peer-journeys.mjs", str(directory), scenario.b.base_url,
                                 scenario.public.base_url, str(scenario.fixture / "trust/functional-ca.pem")], scenario.env, 120, capture=True))
@@ -168,7 +169,7 @@ def semantic(scenario, enabled):
     scenario.compose("exec", "-T", "worker", "/usr/local/bin/catalogctl", "probe", "--url", "http://127.0.0.1:9090/readyz")
 
 
-def qualify(scenario, source, fresh_ids):
+def qualify(scenario, source, fresh_ids, changed_comparison):
     """Add real peer/CLI/browser/hybrid evidence without replacing lifecycle checks."""
     before_index = observations(scenario.b, source["id"])
     core_expected = scenario.b_private_native | fresh_ids | {x["identifier"] for x in before_index}
@@ -198,7 +199,7 @@ def qualify(scenario, source, fresh_ids):
     command(["go", "build", "-o", str(directory / "catalog-ui"), "./catalog-ui/cmd/catalog-ui"], scenario.env, 120)
     command(["npm", "--prefix", "catalog-ui", "run", "build", "--", "--outDir", str(directory / "assets")], scenario.env, 120)
     expected = core_expected | live_ids
-    core_browser = browser(scenario, directory, "core", expected, live_ids, source)
+    core_browser = browser(scenario, directory, "core", expected, live_ids, source, changed_comparison)
     enabled = False
     try:
         enabled = True
@@ -217,7 +218,7 @@ def qualify(scenario, source, fresh_ids):
         local = scenario.b_private.request("POST", "/ard/v1/search", {**public_body, "federation": "none", "pageSize": 100})[0]["results"]
         assert [row for page in public_pages for row in page["results"]][:len(local)] == local, "public hybrid prefix changed"
         retry_control(scenario, scenario.b_private, "/ard/v1/search", public_body, "pageToken")
-        hybrid_browser = browser(scenario, directory, "hybrid", expected, live_ids, source)
+        hybrid_browser = browser(scenario, directory, "hybrid", expected, live_ids, source, changed_comparison)
     finally:
         scenario.continuation_fault(False)
         if enabled:

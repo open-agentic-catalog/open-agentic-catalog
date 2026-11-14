@@ -122,6 +122,8 @@ The supported input is at most 10,000 occurrences per snapshot and 32 MiB of pro
 
 API clients use `GET /api/v1/federation/snapshots/{snapshotId}/comparison?otherSnapshotId={afterSnapshotId}`. The path snapshot is the before selection. Optional `view=all` includes unchanged entries; the default is `changes`. Continue with the returned cursor, the same pair, view and page size. The [Control API contract](../../../../../api/openapi/control-v1.yaml) defines the compact response and errors.
 
+For shell use, run [`catalogctl remote source-compare`](../reference/commands.md#compare-saved-source-synchronizations) with the two snapshot UUIDs. The [four SDKs](../../../../../sdk/README.md#choose-a-task) expose the same operation. VS Code remains a discovery and consumption client; source administration and synchronization history are available in the Catalog UI and authorized API clients.
+
 ### Review test results and prepared changes
 
 **Test source** shows the recorded succeeded/failed outcome, tested time, HTTP status or **No HTTP response**, safe diagnostic, entry count and advertised capabilities. Full policy/profile evidence remains under **Command result**. A failed retrieval result is different from API admission refusal or an unknown command outcome. The UI checks the exact Source and returned revision before displaying a receipt. Success activates refreshed policy evidence and returns the requested revision plus one. A returned failed retrieval keeps the requested revision. Reload before another command. Testing does not synchronize observations or establish future availability.

@@ -50,7 +50,7 @@ function member(
       snapshotId,
       sourceRevision: 2,
       retrievalDigest: digest,
-      entryLocation: `/entries/${index}`,
+      entryLocation: `/entries/${index}${index === 25 ? "/nested-entry".repeat(24) : ""}`,
       exactEntryDigest:
         snapshotId === beforeID || index === 26 ? digest : different,
       evidenceComplete: true,
@@ -199,9 +199,84 @@ for (const location of ["root", "subpath"]) {
         exact: true,
       }),
     ).toBeVisible();
+    await after.evaluate((element) =>
+      element.scrollIntoView({ block: "center" }),
+    );
+    await page.screenshot({
+      path: test.info().outputPath("source-comparison-desktop-controls.png"),
+    });
+    await panel
+      .locator("article")
+      .first()
+      .screenshot({
+        path: test.info().outputPath("source-comparison-desktop-entry.png"),
+      });
+    const alignment = await panel
+      .getByRole("form", { name: "Select source snapshots" })
+      .evaluate((form) => {
+        const input = form.querySelector("input")!.getBoundingClientRect();
+        const button = form.querySelector("button")!.getBoundingClientRect();
+        return { inputTop: input.top, buttonTop: button.top };
+      });
+    expect(
+      Math.abs(alignment.inputTop - alignment.buttonTop),
+      "The submit action should align with its snapshot input",
+    ).toBeLessThanOrEqual(1);
+    // Expanding exact occurrence evidence must not push long paths/digests
+    // outside the entry or hide adjacent controls at narrower widths.
+    const entry = panel.locator("article").first();
+    await entry.getByText("Exact before occurrence", { exact: true }).click();
+    for (const width of [900, 760, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      const geometry = await panel.evaluate((element) => {
+        const form = element.querySelector("form")!;
+        const input = form.querySelector("input")!.getBoundingClientRect();
+        const button = form.querySelector("button")!.getBoundingClientRect();
+        const controls = element.querySelector(
+          ":scope > div.workspace-toolbar",
+        )!;
+        const reload = controls
+          .querySelector("button")!
+          .getBoundingClientRect();
+        const link = controls.querySelector("a")!.getBoundingClientRect();
+        return {
+          overflow:
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+          formGap:
+            button.top >= input.bottom
+              ? button.top - input.bottom
+              : Math.abs(button.top - input.top),
+          stacked: button.top >= input.bottom,
+          actionGap:
+            link.top >= reload.bottom
+              ? link.top - reload.bottom
+              : link.left - reload.right,
+          overflowingReferences: Array.from(
+            element.querySelectorAll(".handoff-reference, article, pre"),
+          ).filter((node) => node.scrollWidth > node.clientWidth + 1).length,
+        };
+      });
+      expect(geometry.overflow).toBeLessThanOrEqual(1);
+      expect(geometry.stacked).toBe(width <= 600);
+      if (geometry.stacked) expect(geometry.formGap).toBeGreaterThanOrEqual(8);
+      else expect(geometry.formGap).toBeLessThanOrEqual(1);
+      expect(geometry.actionGap).toBeGreaterThanOrEqual(8);
+      expect(geometry.overflowingReferences).toBe(0);
+    }
+    await entry.getByText("Exact before occurrence", { exact: true }).click();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.screenshot({
+      path: test.info().outputPath("source-comparison-light.png"),
+      fullPage: true,
+    });
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ colorScheme: "dark" });
+    await page.getByLabel("Appearance", { exact: true }).click();
+    await page.getByRole("radio", { name: "Compact", exact: true }).check();
+    await page.keyboard.press("Escape");
     await doubleText(page);
+    await entry.getByText("Exact before occurrence", { exact: true }).click();
     expect(
       await page.evaluate(
         () =>
@@ -212,6 +287,69 @@ for (const location of ["root", "subpath"]) {
     expect(
       await new AxeBuilder({ page }).include("#snapshot-comparison").analyze(),
     ).toMatchObject({ violations: [], incomplete: [] });
+    await page.screenshot({
+      path: test.info().outputPath("source-comparison-narrow-dark.png"),
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 320, height: 900 });
+    expect(
+      await panel.evaluate(
+        (element) => element.scrollWidth - element.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      await page.evaluate(
+        () =>
+          document.documentElement.scrollWidth -
+          document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(1);
+    await after.evaluate((element) =>
+      element.scrollIntoView({ block: "center" }),
+    );
+    await page.screenshot({
+      path: test.info().outputPath("source-comparison-320-controls.png"),
+    });
+    const entryHeading = entry.getByRole("heading", { level: 3 });
+    await entryHeading.evaluate((element) =>
+      element.scrollIntoView({ block: "center" }),
+    );
+    await page.screenshot({
+      path: test.info().outputPath("source-comparison-320-entry.png"),
+    });
+    const occurrence = entry.locator("details[open] pre");
+    await occurrence.evaluate((element) =>
+      element.scrollIntoView({ block: "center" }),
+    );
+    expect(
+      await occurrence.evaluate(
+        (element) => element.scrollWidth - element.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(1);
+    await page.screenshot({
+      path: test.info().outputPath("source-comparison-320-occurrence.png"),
+    });
+    // A history link arrives before its asynchronously loaded target exists.
+    // The completed snapshot read must expose and focus that target itself.
+    await page.goto(
+      `${catalog.origin}${catalog.basePath}/source-snapshots/${beforeID}?compare=${afterID}#snapshot-comparison`,
+    );
+    await expect(panel).toBeFocused();
+    const heading = panel.getByRole("heading", {
+      name: "Compare saved entries",
+      exact: true,
+    });
+    await expect(heading).toBeInViewport();
+    await expect
+      .poll(async () => {
+        const target = await heading.boundingBox();
+        const banner = await page.getByRole("banner").boundingBox();
+        return !!target && !!banner && target.y >= banner.y + banner.height;
+      })
+      .toBe(true);
+    await page.screenshot({
+      path: test.info().outputPath("source-comparison-linked-viewport.png"),
+    });
     expect(writes).toEqual([]);
     expect(rawReads).toEqual([]);
     await signOut(page);
@@ -225,10 +363,11 @@ for (const location of ["root", "subpath"]) {
     catalog,
   }) => {
     let comparisons = 0;
+    let selectedHeader = snapshot;
     const changedRevisionID = "00000000-0000-7000-8000-000000005104";
     await page.route(
       `**/_catalog/api/v1/federation/snapshots/${beforeID}`,
-      (route) => route.fulfill({ json: snapshot }),
+      (route) => route.fulfill({ json: selectedHeader }),
     );
     await page.route(
       `**/_catalog/api/v1/federation/snapshots/${afterID}`,
@@ -290,6 +429,21 @@ for (const location of ["root", "subpath"]) {
         .getByText("After source revision", { exact: true })
         .locator("xpath=following-sibling::dd[1]"),
     ).toHaveText("3");
+    expect(comparisons).toBe(0);
+    selectedHeader = { ...snapshot, id: changedRevisionID };
+    await page.reload();
+    await expect(page.getByRole("alert")).toContainText(
+      "This page could not be loaded",
+    );
+    await expect(panel).toHaveCount(0);
+    expect(comparisons).toBe(0);
+    selectedHeader = snapshot;
+    await page
+      .getByRole("button", { name: "Reload snapshot", exact: true })
+      .click();
+    await expect(panel.getByRole("alert")).toContainText(
+      "Comparable membership is unavailable",
+    );
     expect(comparisons).toBe(0);
   });
 }

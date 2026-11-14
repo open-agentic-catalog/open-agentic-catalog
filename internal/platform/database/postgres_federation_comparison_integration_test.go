@@ -301,6 +301,44 @@ func TestPostgresSourceComparisonMaximumMembership(t *testing.T) {
 		t.Fatalf("sparse maximum comparison: %+v %v", page, err)
 	}
 	t.Logf("10,000 members, only last key changed: %s", time.Since(started))
+	// A duplicate-heavy input must retain every occurrence without multiplying
+	// rows in the final joins or inventing a correspondence between the sides.
+	duplicates := make([]comparisonSeedEntry, federation.MaxSynchronizationEntries)
+	for i := range duplicates {
+		duplicates[i] = comparisonSeedEntry{identifier: "duplicate", value: "same"}
+	}
+	duplicateBefore := commitComparisonFixture(t, db, source, at.Add(4*time.Hour), duplicates)
+	duplicateAfter := commitComparisonFixture(t, db, source, at.Add(5*time.Hour), duplicates)
+	started = time.Now()
+	var reusedID string
+	for _, position := range []int{0, federation.MaxSynchronizationEntries - 1, 2*federation.MaxSynchronizationEntries - 1} {
+		page, err := db.federation.CompareSnapshots(t.Context(), source.TenantID, federation.SnapshotComparisonRequest{
+			BeforeID: duplicateBefore.ID, AfterID: duplicateAfter.ID, AfterPosition: position, Limit: 2,
+		})
+		want := min(2, 2*federation.MaxSynchronizationEntries-position)
+		if err != nil || len(page.Items) != want {
+			t.Fatalf("maximum duplicate page at %d: %+v %v", position, page, err)
+		}
+		for index, item := range page.Items {
+			expectedPosition := position + index + 1
+			if item.Position != expectedPosition || item.Change != "multiple" || item.BeforeCount != len(duplicates) || item.AfterCount != len(duplicates) {
+				t.Fatalf("duplicate occurrence position or counts changed: %+v", item)
+			}
+			member, other, snapshotID := item.Before, item.After, duplicateBefore.ID
+			if expectedPosition > len(duplicates) {
+				member, other, snapshotID = item.After, item.Before, duplicateAfter.ID
+			}
+			if member == nil || other != nil || member.Occurrence.SnapshotID != snapshotID {
+				t.Fatalf("duplicate sides were paired or multiplied: %+v", item)
+			}
+			if reusedID == "" {
+				reusedID = member.ObservationID
+			} else if member.ObservationID != reusedID {
+				t.Fatal("identical duplicate bytes did not reuse the retained observation")
+			}
+		}
+	}
+	t.Logf("10,000 duplicate occurrences per side, first/boundary/final pages: %s", time.Since(started))
 	// The output limit is still two, but selection must notice an extra input
 	// occurrence before pairing or returning even the first compact row.
 	_, err = db.operator.Exec(t.Context(), `INSERT INTO observation_occurrences

@@ -254,6 +254,64 @@ test("subpath: compare selected retained documents without normalizing their exa
   expect(
     await new AxeBuilder({ page }).include(".document-changes").analyze(),
   ).toMatchObject({ violations: [], incomplete: [] });
+  await changes.screenshot({
+    path: test.info().outputPath("definition-changes-light.png"),
+  });
+  // Measure the real paired excerpts and original documents across both
+  // layout modes. jsdom cannot establish wrapping, CSS gaps or containment.
+  for (const width of [1440, 900, 760, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    const layout = await selections.evaluate((element) => ({
+      overflow:
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+      pairs: Array.from(
+        element.querySelectorAll(".revision-comparison-grid"),
+        (grid) => {
+          const before = grid.children[0]!.getBoundingClientRect();
+          const after = grid.children[1]!.getBoundingClientRect();
+          const stacked = after.top >= before.bottom;
+          return {
+            stacked,
+            gap: stacked
+              ? after.top - before.bottom
+              : after.left - before.right,
+            alignment: stacked
+              ? Math.abs(before.left - after.left)
+              : Math.abs(before.top - after.top),
+          };
+        },
+      ),
+      overflowingPanels: Array.from(
+        element.querySelectorAll(".revision-comparison-grid, pre"),
+      ).filter((node) => node.scrollWidth > node.clientWidth + 1).length,
+    }));
+    expect(layout.overflow).toBeLessThanOrEqual(1);
+    expect(layout.pairs).toHaveLength(4);
+    for (const pair of layout.pairs) {
+      expect(pair.stacked).toBe(width <= 900);
+      expect(pair.gap).toBeGreaterThanOrEqual(10);
+      expect(pair.alignment).toBeLessThanOrEqual(1);
+    }
+    expect(layout.overflowingPanels).toBe(0);
+    await firstChange.focus();
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect(
+      changes.getByRole("region", {
+        name: "Change 2: Added text",
+        exact: true,
+      }),
+    ).toBeFocused();
+    if (width === 1440 || width === 320)
+      await page.screenshot({
+        path: test
+          .info()
+          .outputPath(`definition-changes-${width}-viewport.png`),
+      });
+  }
+  await previous.focus();
+  await page.keyboard.press("Enter");
+  await expect(firstChange).toBeFocused();
   for (const [index, side] of ["Before", "After"].entries()) {
     const panel = selections
       .getByRole("heading", { name: `${side} document`, exact: true })
@@ -290,6 +348,21 @@ test("subpath: compare selected retained documents without normalizing their exa
   await expect(
     changes.getByRole("region", { name: "Change 2: Added text", exact: true }),
   ).toBeFocused();
+  await page.screenshot({
+    path: test.info().outputPath("definition-changes-narrow-viewport.png"),
+  });
+  const selectedHeading = changes.getByRole("heading", {
+    name: "Change 2: Added text",
+    exact: true,
+  });
+  await expect(selectedHeading).toBeInViewport();
+  await expect
+    .poll(async () => {
+      const heading = await selectedHeading.boundingBox();
+      const banner = await page.getByRole("banner").boundingBox();
+      return !!heading && !!banner && heading.y >= banner.y + banner.height;
+    })
+    .toBe(true);
   const bounds = await changes.evaluate((element) => ({
     width: element.clientWidth,
     scroll: element.scrollWidth,
@@ -298,6 +371,43 @@ test("subpath: compare selected retained documents without normalizing their exa
   expect(
     await new AxeBuilder({ page }).include(".document-changes").analyze(),
   ).toMatchObject({ violations: [], incomplete: [] });
+  await changes.screenshot({
+    path: test.info().outputPath("definition-changes-narrow-dark.png"),
+  });
+  await page.setViewportSize({ width: 320, height: 900 });
+  // Resizing enlarged text reflows the header. Wait for its ResizeObserver
+  // measurement before sending the navigation key, as the normal UI does.
+  await expect
+    .poll(() =>
+      firstChange.evaluate((element) =>
+        Math.abs(
+          parseFloat(
+            getComputedStyle(element).getPropertyValue("--header-height"),
+          ) - document.querySelector(".topbar")!.getBoundingClientRect().height,
+        ),
+      ),
+    )
+    .toBeLessThanOrEqual(1);
+  await firstChange.focus();
+  await page.keyboard.press("Alt+ArrowDown");
+  await expect(selectedHeading).toBeInViewport();
+  await expect
+    .poll(async () => {
+      const heading = await selectedHeading.boundingBox();
+      const banner = await page.getByRole("banner").boundingBox();
+      return !!heading && !!banner && heading.y >= banner.y + banner.height;
+    })
+    .toBe(true);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(1);
+  await page.screenshot({
+    path: test.info().outputPath("definition-changes-320-doubled-text.png"),
+  });
 
   // Separate authenticated reads verify retained bytes and wire digests independently of the UI display.
   for (const document of documents) {

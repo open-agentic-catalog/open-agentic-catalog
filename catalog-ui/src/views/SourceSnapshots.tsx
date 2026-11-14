@@ -172,16 +172,21 @@ export function SourceSnapshot(props: WorkspaceProps) {
 }
 /** Fetch one retained synchronization snapshot after explicit detail navigation. */
 function SnapshotRead(props: WorkspaceProps) {
+  const snapshotId = props.id.toLowerCase();
   const read = useCurrentRead(
-    props.id,
-    async (signal) =>
-      result(
+    snapshotId,
+    async (signal) => {
+      const snapshot = result(
         await props.client.api.GET(
           "/api/v1/federation/snapshots/{snapshotId}",
-          { params: { path: { snapshotId: props.id } }, signal },
+          { params: { path: { snapshotId } }, signal },
         ),
         checks.FederationSnapshot,
-      ),
+      );
+      if (snapshot.id !== snapshotId)
+        throw new Error("Snapshot selection does not match.");
+      return snapshot;
+    },
     props.onFailure,
   );
   return (

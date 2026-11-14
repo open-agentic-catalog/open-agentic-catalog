@@ -344,6 +344,31 @@
       "gaps": []
     },
     {
+      "id": "source-comparison-cli",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:remote source-compare"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/remote_comparison_functional_test.go",
+          "symbol": "TestRemoteSourceComparisonContractAndWire"
+        },
+        {
+          "path": "test/functional/peers.py"
+        },
+        {
+          "path": "test/functional/operators.py"
+        }
+      ],
+      "reason": "The packaged operator journey compares two retained synchronizations through the shipped CLI, including default/all views and reader/cross-tenant refusal. The owned two-Catalog peer journey also checks changed B/C membership.",
+      "success": "Read one page for an explicit before/after snapshot pair through the shipped binary without runtime SQL authority.",
+      "rejection": "Refuse missing or invalid selections locally; preserve an HTTP refusal and its request ID without success output. The shipped command denies a reader without source permission and another tenant.",
+      "recovery": "Keep opaque cursors unchanged on explicit continuation; never retry or silently restart a refused page.",
+      "gaps": []
+    },
+    {
       "id": "service-activity",
       "disposition": "lower-level-only",
       "status": "covered",

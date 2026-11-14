@@ -1,6 +1,6 @@
 // Historical comparison displays compact saved membership; raw evidence stays
 // behind the observation screen's explicit, separately authorized read.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { components } from "../api/schema";
 import { APIError, result } from "../api/client";
 import type { WorkspaceProps } from "./workspace";
@@ -25,11 +25,23 @@ type ComparisonReadResult =
 export function SourceSnapshotComparison(
   props: WorkspaceProps & { snapshot: Summary },
 ) {
+  const panel = useRef<HTMLElement>(null);
   const [draft, setDraft] = useState(
     () => new URLSearchParams(location.search).get("compare") || "",
   );
   const [after, setAfter] = useState(draft.toLowerCase());
   const [includeUnchanged, setIncludeUnchanged] = useState(false);
+  useEffect(() => {
+    // The selected snapshot loads after native fragment navigation has finished.
+    if (location.hash === "#snapshot-comparison" && panel.current) {
+      panel.current.focus({ preventScroll: true });
+      panel.current.scrollIntoView({ block: "start" });
+    }
+  }, [
+    props.snapshot.id,
+    props.snapshot.state,
+    props.snapshot.enumerationComplete,
+  ]);
   if (
     props.snapshot.state !== "complete" ||
     !props.snapshot.enumerationComplete
@@ -45,7 +57,12 @@ export function SourceSnapshotComparison(
       </section>
     );
   return (
-    <section className="workspace-panel" id="snapshot-comparison">
+    <section
+      className="workspace-panel record-section-target"
+      id="snapshot-comparison"
+      ref={panel}
+      tabIndex={-1}
+    >
       <h2>Compare saved entries</h2>
       <p>
         Compare this snapshot with another complete snapshot from the same
@@ -54,7 +71,7 @@ export function SourceSnapshotComparison(
       </p>
       <CopyReference label="Before snapshot ID" value={props.snapshot.id} />
       <form
-        className="workspace-toolbar"
+        className="workspace-toolbar workspace-lookup"
         aria-label="Select source snapshots"
         onSubmit={(event) => {
           event.preventDefault();
@@ -70,7 +87,9 @@ export function SourceSnapshotComparison(
             pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
           />
         </Field>
-        <button type="submit">Compare snapshots</button>
+        <div className="workspace-actions">
+          <button type="submit">Compare snapshots</button>
+        </div>
       </form>
       {after && (
         <ComparisonRead
@@ -187,15 +206,17 @@ function ComparisonRead(
           onChange={(event) => props.onIncludeUnchanged(event.target.checked)}
         />
       </Field>
-      <button type="button" disabled={read.busy} onClick={refresh}>
-        Reload comparison
-      </button>
+      <div className="workspace-toolbar">
+        <button type="button" disabled={read.busy} onClick={refresh}>
+          Reload comparison
+        </button>
+        <a
+          href={`${props.runtime.basePath}/source-snapshots/${encodeURIComponent(props.after)}`}
+        >
+          Inspect after snapshot
+        </a>
+      </div>
       <ReadState {...read} refresh={refresh} />
-      <a
-        href={`${props.runtime.basePath}/source-snapshots/${encodeURIComponent(props.after)}`}
-      >
-        Inspect after snapshot
-      </a>
       {ineligible && (
         <section
           className="workspace-panel"

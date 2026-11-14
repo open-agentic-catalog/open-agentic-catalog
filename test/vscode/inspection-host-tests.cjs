@@ -250,14 +250,51 @@ exports.run = async (api) => {
       () => opened.every((d) => d.isClosed || !d.getText().includes(expected)),
       "closed buffers release private evidence",
     );
-    await inspect(151, expected, "markdown");
+    await progress(
+      "native diff retains inspected documents until its final tab closes",
+    );
+    const beforeDiff = await inspect(151, expected, "markdown");
+    await vscode.commands.executeCommand("workbench.action.keepEditor");
+    const afterDiff = await inspect(151, expected, "markdown");
+    await vscode.commands.executeCommand("workbench.action.keepEditor");
+    await vscode.commands.executeCommand(
+      "vscode.diff",
+      beforeDiff.uri,
+      afterDiff.uri,
+      "Inspected Catalog documents",
+    );
+    await until(
+      () =>
+        vscode.window.tabGroups.all.some((group) =>
+          group.tabs.some(
+            (tab) =>
+              tab.input instanceof vscode.TabInputTextDiff &&
+              tab.input.original.toString() === beforeDiff.uri.toString() &&
+              tab.input.modified.toString() === afterDiff.uri.toString(),
+          ),
+        ),
+      "native evidence diff tab",
+    );
+    const textTabs = vscode.window.tabGroups.all
+      .flatMap((group) => group.tabs)
+      .filter(
+        (tab) =>
+          tab.input instanceof vscode.TabInputText &&
+          [beforeDiff.uri.toString(), afterDiff.uri.toString()].includes(
+            tab.input.uri.toString(),
+          ),
+      );
+    assert.equal(textTabs.length, 2);
+    assert.equal(await vscode.window.tabGroups.close(textTabs), true);
+    assert.equal(beforeDiff.getText(), expected);
+    assert.equal(afterDiff.getText(), expected);
     await api.signOut();
     await until(
       () =>
-        vscode.window.activeTextEditor.document
-          .getText()
-          .includes("Catalog session changed"),
-      "private evidence redaction",
+        [beforeDiff, afterDiff].every((document) =>
+          document.getText().includes("Catalog session changed"),
+        ),
+      "private evidence redaction in native diff",
     );
     await vscode.commands.executeCommand("workbench.action.closeAllEditors");
     await progress("long Published identities and all version states");
