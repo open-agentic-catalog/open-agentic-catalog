@@ -1,0 +1,13 @@
+{
+  "repository": "n1k0ver3E/ard-registry",
+  "revision": "0ba2b4bd18870202e741eb1ce9e3e74a3cdd7b40",
+  "sourceDigest": "f966846bd7346562d8fa0df3c4edd2250fb059a2e5f025d40cea3d323061619c",
+  "lockDigest": "6b4fb105f1883b10fb924979e55c051a752990b6d87711a472f9d074dd79e43c",
+  "license": "Apache-2.0",
+  "node": "22.23.4",
+  "pnpm": {
+    "version": "10.34.9",
+    "url": "https://registry.npmjs.org/pnpm/-/pnpm-10.34.9.tgz",
+    "integrity": "sha512-9JtajqD97bRLs8DB1ldQkqU8KVDZW3rRXfEfF5dId6LeOgHAfpNOmyjOcW5RwJqUlixzBtCb4uHksYqMh2L9Mg=="
+  }
+}

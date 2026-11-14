@@ -13,6 +13,45 @@ import (
 
 type peerRoundTrip func(*http.Request) (*http.Response, error)
 
+func TestPeerMalformedManifestControlIsScopedAndReversible(t *testing.T) {
+	t.Parallel()
+	calls := 0
+	const original = `{"specVersion":"1.0","entries":[{"identifier":"unchanged"}]}`
+	handler := peerHandler(peerRoundTrip(func(_ *http.Request) (*http.Response, error) {
+		calls++
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/ai-catalog+json"}}, Body: io.NopCloser(strings.NewReader(original))}, nil
+	}))
+	request := func(host, method, path, body string) *httptest.ResponseRecorder {
+		r := httptest.NewRequestWithContext(t.Context(), method, path, strings.NewReader(body))
+		r.Host = host
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		return w
+	}
+	for _, enabled := range []bool{true, false} {
+		body := `{"enabled":false}`
+		if enabled {
+			body = `{"enabled":true,"malformed":true}`
+		}
+		control := request("127.0.0.1:8443", http.MethodPost, "/peer-fault", body)
+		if control.Code != http.StatusOK {
+			t.Fatal("owned control failed")
+		}
+		before := calls
+		result := request("peer-a.test:8443", http.MethodGet, "/.well-known/ai-catalog.json", "")
+		if result.Code != http.StatusOK || enabled && (json.Valid(result.Body.Bytes()) || calls != before) || !enabled && (result.Body.String() != original || calls != before+1) {
+			t.Fatal("malformed control changed normal bytes or reached upstream")
+		}
+		other := request("peer-b.test:8443", http.MethodGet, "/.well-known/ai-catalog.json", "")
+		if other.Body.String() != original || other.Code != http.StatusOK {
+			t.Fatal("malformed control affected another peer")
+		}
+		if request("peer-a.test:8443", http.MethodPost, "/peer-fault", body).Code != http.StatusNotFound {
+			t.Fatal("public peer origin admitted control")
+		}
+	}
+}
+
 func (f peerRoundTrip) RoundTrip(request *http.Request) (*http.Response, error) { return f(request) }
 
 // peerFailedBody models an interrupted response without a socket or a sleep.
