@@ -99,6 +99,7 @@ it("pages snapshot summaries without fetching their evidence", async () => {
           {
             id: "snapshot-a",
             sourceId: "source-a",
+            sourceRevision: 1,
             startedAt: "2026-01-01T00:00:00Z",
             state: "complete",
             memberCount: 2,
@@ -111,6 +112,7 @@ it("pages snapshot summaries without fetching their evidence", async () => {
           {
             id: "snapshot-partial",
             sourceId: "source-a",
+            sourceRevision: 1,
             startedAt: "2026-01-02T00:00:00Z",
             state: "incomplete",
             memberCount: 1,
@@ -180,6 +182,7 @@ it("retains an exact snapshot across failed refresh and recovers without fetchin
   const snapshot = {
     id: "snapshot-a",
     sourceId: "source-a",
+    sourceRevision: 1,
     startedAt: "2026-01-01T00:00:00Z",
     state: "complete",
     memberCount: 0,
@@ -319,6 +322,7 @@ it.each([
       reply({
         id: "snapshot-a",
         sourceId: "source-a",
+        sourceRevision: 1,
         state,
         enumerationComplete: state === "complete",
         withdrawalAuthority: false,

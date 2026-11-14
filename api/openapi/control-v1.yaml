@@ -3895,6 +3895,45 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/FederationSnapshot'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/federation/snapshots/{snapshotId}/comparison:
+    parameters: [{$ref: '#/components/parameters/SnapshotId'}]
+    get:
+      tags: [Federation]
+      summary: Compare retained source synchronization memberships
+      operationId: compareFederationSourceSnapshots
+      description: >-
+        Requires current tenant source.read and, when enforced, sources.read OAuth authority.
+        Compares complete occurrence-bound memberships from the same source configuration revision,
+        including after source removal. No upstream requests, Jobs, writes or raw-document reads occur.
+        Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match.
+        Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes
+        are independent of synchronization counters and current observation freshness.
+        Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text.
+        SQL checks membership counts and evidence before selecting at most limit plus one result rows.
+        A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete,
+        failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned.
+        Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+      parameters:
+        - name: otherSnapshotId
+          in: query
+          required: true
+          description: Exact after snapshot. The path snapshot is the before selection; chronological order is not required.
+          schema: {$ref: '#/components/schemas/UUID'}
+        - name: view
+          in: query
+          description: Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible.
+          schema: {type: string, enum: [changes, all], default: changes}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Compact historical membership comparison; raw evidence keeps its separate audited read boundary.
+          headers:
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FederationSnapshotComparisonPage'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/observations:
     get:
       tags: [Federation]
@@ -10630,6 +10669,55 @@ components:
       required: [items]
       properties:
         items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/FederationSnapshot'}}
+        nextCursor: {type: string, maxLength: 2048}
+    FederationSnapshotComparisonSummary:
+      type: object
+      additionalProperties: false
+      required: [id, memberCount, startedAt, withdrawalAuthority]
+      properties:
+        id: {$ref: '#/components/schemas/UUID'}
+        memberCount: {type: integer, minimum: 0, maximum: 10000}
+        startedAt: {type: string, format: date-time}
+        withdrawalAuthority: {type: boolean}
+    FederationSnapshotComparisonMember:
+      type: object
+      additionalProperties: false
+      required: [observationId, identifier, version, versionPresent, kind, identityDigest, occurrence]
+      properties:
+        observationId: {$ref: '#/components/schemas/UUID'}
+        identifier: {type: string, maxLength: 2048}
+        version: {type: string, maxLength: 128}
+        versionPresent: {type: boolean, description: Missing and present-empty versions remain distinct.}
+        kind: {type: string, description: Retained kind or empty when unavailable.}
+        identityDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
+        occurrence: {$ref: '#/components/schemas/ObservationOccurrence'}
+    FederationSnapshotEntryChange:
+      type: object
+      additionalProperties: false
+      required: [position, sourceKey, change, beforeCount, afterCount]
+      properties:
+        position: {type: integer, minimum: 1, maximum: 20000, description: Stable position in the selected filtered comparison.}
+        sourceKey: {type: string, maxLength: 2048, description: Retained source-local correspondence key; unidentifiable entries use their exact occurrence-based key.}
+        change: {type: string, enum: [added, absent, changed, unchanged, multiple]}
+        beforeCount: {type: integer, minimum: 0, maximum: 10000}
+        afterCount: {type: integer, minimum: 0, maximum: 10000}
+        before: {$ref: '#/components/schemas/FederationSnapshotComparisonMember'}
+        after: {$ref: '#/components/schemas/FederationSnapshotComparisonMember'}
+      description: >-
+        Unique keys have at most one member on either side. Changed compares exact-entry, normalization-input,
+        normalized-entry and identity digests; occurrence timing or retrieval changes alone are not content changes.
+        Multiple rows preserve every occurrence on its own side whenever either selected membership repeats a key.
+        No arbitrary correspondence is asserted for those rows. Exact raw bytes are not included.
+    FederationSnapshotComparisonPage:
+      type: object
+      additionalProperties: false
+      required: [sourceId, sourceRevision, before, after, items]
+      properties:
+        sourceId: {$ref: '#/components/schemas/UUID'}
+        sourceRevision: {type: integer, format: int64, minimum: 1}
+        before: {$ref: '#/components/schemas/FederationSnapshotComparisonSummary'}
+        after: {$ref: '#/components/schemas/FederationSnapshotComparisonSummary'}
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/FederationSnapshotEntryChange'}}
         nextCursor: {type: string, maxLength: 2048}
     ObservationCompatibility:
       type: object

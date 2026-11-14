@@ -117,17 +117,12 @@ exports.qualifySkills = async (api, multiRoot = false) => {
       );
       // A second exact selection skips source selection, consent, download and writes.
       await api.installSkill(0, root);
-      // Use the supported user command through the real Command Palette.
-      await vscode.commands.executeCommand("workbench.action.showCommands");
-      await ui.until(
-        "document.querySelector('.quick-input-widget input') !== null",
+      // Open the actual native editor through its registered user command.
+      await vscode.commands.executeCommand(
+        "aiCustomization.openManagementEditor",
       );
-      await ui.evaluate(
-        `(()=>{const input=document.querySelector('.quick-input-widget input');input.value='>Chat: Open Customizations';input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
-      );
-      await ui.key("Enter");
       await ui.until(
-        "document.body.innerText.includes('Customizations') && document.body.innerText.includes('Skills')",
+        "[...document.querySelectorAll('.ai-customization-management-editor .section-label')].some(e=>e.textContent.trim()==='Skills')",
       );
       await ui.evaluate(
         "[...document.querySelectorAll('.ai-customization-management-editor .section-label')].find(e=>e.textContent.trim()==='Skills')?.closest('.monaco-list-row')?.click()",

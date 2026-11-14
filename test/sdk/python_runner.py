@@ -252,6 +252,14 @@ else:
             # Store additional values, including nulls, in Pydantic's extra map.
 """)
         path.write_text(source)
+    # The generator emits the boolean singleton enum as the string "true".
+    # Keep StrictBool admission and the schema's exact true-only constraint.
+    occurrence = destination / "catalog_sdk/generated/models/observation_occurrence.py"
+    source = occurrence.read_text()
+    enum_marker = "if value not in set(['true']):"
+    if source.count(enum_marker) != 1:
+        raise RuntimeError("Unsupported Python ObservationOccurrence boolean enum template")
+    occurrence.write_text(source.replace(enum_marker, "if value is not True:"))
     run([TOOLS / "bin/ruff", "format", "--config", ROOT / "ruff.toml",
          destination / "catalog_sdk/generated"], env=environment(), capture=True)
     (work / "generation.log").write_text(result)

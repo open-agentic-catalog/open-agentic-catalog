@@ -1,15 +1,21 @@
 # Reviewed visual baselines
 
+Source-snapshot comparison updates only `api-endpoints-light.png` and `api-definitions-light.png` for 199 operations and 455 definitions. Reviewed diffs contain only those contract totals; layout, controls and dark references remain unchanged.
+
 Reusable draft transfer refreshes only `authoring-narrow.png` and `confirmation-narrow.png`. Reviewed run `run-MFCE4d` shows the intended gaps below Namespace refresh and the AIR builder. Run `run-YgK4vE` shows only the shifted page background at the dialog's transparent top edge. The dialog's content and dimensions stay unchanged. The expanded AIR actions also use the existing wrapping action row. All other expected images retain their bytes.
 
 Reusable draft transfer updates the two API light references for 197 operations and 443 definitions. The reviewed diffs contain only these contract totals. Source captures are in `run-XlgdYK`. Both complete comparisons pass in `run-0depBQ` and `run-u2wkJ8`.
 
 These expected PNGs belong to the opt-in `visual.spec.ts` tests. They are not documentation screenshots. Actual, previous and diff images remain under ignored `output/playwright/ui-tests/run-*`.
 
-The suite compares forty-two expected images across nineteen tests. The table lists every expected image and its view.
+The suite compares forty-six expected images across twenty-one tests. The table lists every expected image and its view.
 
 | Image                                     | Stable view                                                                                                             |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `document-changes-light.png`              | Selected retained Skill document changes, with exact before/after lines in light desktop appearance.                    |
+| `document-changes-dark-narrow.png`        | The same document changes in a 390px dark viewport, retaining readable line and change context.                         |
+| `mcp-client-controls-light.png`           | Local MCP client configuration controls on a published resource, light desktop.                                         |
+| `mcp-client-controls-dark-narrow.png`     | The same configuration controls at 390px with dark appearance and doubled text.                                         |
 | `overview-administration-light.png`       | Human/Service lifecycle bars, exact tables, definitions, feedback categories and retained rating states, light desktop. |
 | `overview-administration-dark-narrow.png` | The same synthetic Administration values at 390px in dark appearance, without horizontal overflow.                      |
 | `api-endpoints-light.png`                 | Grouped endpoint section, combined filters and collapsed membership operation, light desktop.                           |
@@ -63,7 +69,7 @@ Run from the repository root after `make ui-install ui-browser-install`:
 
 ```sh
 make ui-visual          # Compare; missing or changed baselines fail
-make ui-visual-update   # Deliberately regenerate all forty-two expected images
+make ui-visual-update   # Deliberately regenerate all forty-six expected images
 ```
 
 Both targets use the private-build fixture and leave development servers/assets alone. Visual tests are excluded from `make test-ui`; they do not silently add an OS-sensitive pixel gate to ordinary functional tests. Retries stay disabled. Normal comparison never creates an expected baseline; only the explicit update command enables that behavior.

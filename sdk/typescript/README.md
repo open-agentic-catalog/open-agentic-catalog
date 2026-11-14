@@ -339,3 +339,23 @@ export type SearchRoute = paths["/api/v1/catalog/search"]["post"];
 These declarations check request and response shapes at compile time. They do not validate incoming JSON or establish permission. The API remains the authority for conditional fields, authorization and lifecycle transitions. Functions above use TypeScript annotations; remove type-only imports and annotations for plain JavaScript.
 
 Per-call fetch, base URL, serializer, middleware and Request overrides are refused at runtime. Configure the factory once. Do not use the upstream unmanaged `openapi-fetch` client for these guarantees. SDK installation needs only runtime packages; generation, tests and build tools remain development dependencies. See [JavaScript/TypeScript SDK verification](../../documentation/src/content/docs/contributing/testing.md#javascripttypescript-sdk-verification). This package uses root VERSION as its release base. The local package name does not establish npm ownership. CommonJS is not provided. Return to the [SDK overview](../README.md) to compare languages.
+
+## Compare saved source snapshots
+
+Use a configured `client` and two complete snapshot UUIDs from the same source revision:
+
+```typescript
+const query = { otherSnapshotId: afterId, view: "changes" as const, limit: 25 };
+const result = await client.api.GET(
+  "/api/v1/federation/snapshots/{snapshotId}/comparison",
+  { params: { path: { snapshotId: beforeId }, query } },
+);
+if (!result.response.ok || !result.data) {
+  throw new Error(`Comparison returned HTTP ${result.response.status}`);
+}
+const page = result.data;
+// Read page.items. To continue explicitly, add cursor: page.nextCursor
+// to query and keep the same snapshot pair, view and limit.
+```
+
+Set `view: "all"` to include unchanged entries. The SDK reads one page and does not restart a refused continuation. See the [comparison semantics and permissions](../../documentation/src/content/docs/operations/federation.mdx#compare-two-saved-synchronizations) before interpreting absence or multiple occurrences.

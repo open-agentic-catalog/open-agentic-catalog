@@ -22,6 +22,32 @@ fn __pct_encode_path_segment(s: &str) -> String {
     }
     out
 }
+///Allowed values for the `view` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum CompareFederationSourceSnapshotsView {
+    #[serde(rename = "changes")]
+    Changes,
+    #[serde(rename = "all")]
+    All,
+}
+impl CompareFederationSourceSnapshotsView {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Changes => "changes",
+            Self::All => "all",
+        }
+    }
+}
+impl std::fmt::Display for CompareFederationSourceSnapshotsView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for CompareFederationSourceSnapshotsView {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
 ///Allowed values for the `audience` query parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum GetRatingSharingAudience {
@@ -543,6 +569,11 @@ pub enum CheckPublisherDomainVerificationApiError {
 ///Typed error responses for `clearPublisherDomainVerification`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ClearPublisherDomainVerificationApiError {
+    Default(Problem),
+}
+///Typed error responses for `compareFederationSourceSnapshots`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum CompareFederationSourceSnapshotsApiError {
     Default(Problem),
 }
 ///Typed error responses for `connectFederationSource`. One variant per declared non-2xx response.
@@ -2770,6 +2801,107 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(ClearPublisherDomainVerificationApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Compare retained source synchronization memberships
+    ///
+    /// Requires current tenant source.read and, when enforced, sources.read OAuth authority. Compares complete occurrence-bound memberships from the same source configuration revision, including after source removal. No upstream requests, Jobs, writes or raw-document reads occur. Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match. Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes are independent of synchronization counters and current observation freshness. Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text. SQL checks membership counts and evidence before selecting at most limit plus one result rows. A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete, failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned. Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+    ///
+    /// `GET /api/v1/federation/snapshots/{snapshotId}/comparison`
+    pub async fn compare_federation_source_snapshots(
+        &self,
+        snapshot_id: impl AsRef<str>,
+        other_snapshot_id: impl AsRef<str>,
+        view: Option<CompareFederationSourceSnapshotsView>,
+        limit: Option<i64>,
+        cursor: Option<impl AsRef<str>>,
+    ) -> Result<
+        Response<FederationSnapshotComparisonPage>,
+        ApiOpError<CompareFederationSourceSnapshotsApiError>,
+    > {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/federation/snapshots/{}/comparison",
+                __pct_encode_path_segment(snapshot_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            query_params.push((
+                "otherSnapshotId".to_string(),
+                other_snapshot_id.as_ref().to_string(),
+            ));
+            if let Some(v) = view {
+                query_params.push(("view".to_string(), v.to_string()));
+            }
+            if let Some(v) = limit {
+                query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = cursor {
+                query_params.push(("cursor".to_string(), v.as_ref().to_string()));
+            }
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<CompareFederationSourceSnapshotsApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CompareFederationSourceSnapshotsApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {

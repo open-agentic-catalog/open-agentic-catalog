@@ -15,6 +15,91 @@ import {
   feedbackFixture,
   ratingFixture,
 } from "../unit/administration-fixtures";
+import { object, text } from "./json";
+
+test("visual: retained document changes in light and narrow dark layouts", async ({
+  page,
+  catalog,
+}) => {
+  const prefix =
+    '---\nname: change-preview\ndescription: "Inspect changes before review."\n---\n# Connection\n\n';
+  const resource = await catalog.admin("POST", "/api/v1/resources", {
+    namespaceId: catalog.receipt.namespaceId,
+    kind: "skill",
+    canonicalIdentifier: "urn:air:catalog.example.com:authoring:change-preview",
+  });
+  const representation = (content: string) => [
+    {
+      role: "primary",
+      mediaType: "application/agent-skills+md",
+      profileId: "agent-skills-69ef37e",
+      content,
+    },
+  ];
+  const before = await catalog.admin(
+    "POST",
+    `/api/v1/resources/${text(resource.data.id)}/versions`,
+    {
+      version: "1.0.0",
+      representations: representation(
+        prefix + "Endpoint: https://old.example/mcp\n\nRead before use.\n",
+      ),
+    },
+  );
+  const versionId = text(object(before.data.version).id);
+  const after = await catalog.admin(
+    "POST",
+    `/api/v1/resource-versions/${versionId}/revisions`,
+    {
+      representations: representation(
+        prefix + "Endpoint: https://new.example/mcp\n\nRead before use.  \n",
+      ),
+    },
+    before.etag,
+  );
+  await login(page, catalog, "local-contributor", `/versions/${versionId}`);
+  const comparison = page.getByRole("region", {
+    name: "Revision comparison",
+    exact: true,
+  });
+  await comparison
+    .getByRole("button", { name: "Choose revisions to compare", exact: true })
+    .click();
+  await comparison
+    .getByRole("combobox", { name: "Before revision", exact: true })
+    .selectOption(text(object(before.data.revision).id));
+  await comparison
+    .getByRole("combobox", { name: "After revision", exact: true })
+    .selectOption(text(object(after.data.revision).id));
+  await comparison
+    .getByRole("button", { name: "Compare selected revisions", exact: true })
+    .click();
+  await comparison
+    .getByRole("button", { name: "Inspect selected documents", exact: true })
+    .click();
+  const changes = comparison.getByRole("region", {
+    name: "Document changes",
+    exact: true,
+  });
+  await expect(changes.getByRole("status")).toHaveText("2 changed regions.");
+  await changes.scrollIntoViewIfNeeded();
+  await page.mouse.move(0, 0);
+  await expect(changes).toHaveScreenshot("document-changes-light.png");
+  await page.getByLabel("Appearance", { exact: true }).click();
+  await page.getByRole("radio", { name: "Dark", exact: true }).check();
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 390, height: 2200 });
+  await changes.evaluate((element) =>
+    window.scrollTo(
+      0,
+      window.scrollY +
+        element.getBoundingClientRect().top -
+        document.querySelector(".topbar")!.getBoundingClientRect().height -
+        16,
+    ),
+  );
+  await expect(changes).toHaveScreenshot("document-changes-dark-narrow.png");
+});
 
 test("visual: Administration counts use exact tables and readable narrow layouts", async ({
   page,

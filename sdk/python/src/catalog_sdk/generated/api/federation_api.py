@@ -26,6 +26,9 @@ from catalog_sdk.generated.models.federation_change_preview import (
     FederationChangePreview,
 )
 from catalog_sdk.generated.models.federation_snapshot import FederationSnapshot
+from catalog_sdk.generated.models.federation_snapshot_comparison_page import (
+    FederationSnapshotComparisonPage,
+)
 from catalog_sdk.generated.models.federation_snapshot_page import FederationSnapshotPage
 from catalog_sdk.generated.models.federation_source import FederationSource
 from catalog_sdk.generated.models.federation_source_inspection import (
@@ -525,6 +528,564 @@ class FederationApi:
         return self.api_client.param_serialize(
             method="POST",
             resource_path="/api/v1/observations/{observationId}:adopt",
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def compare_federation_source_snapshots(
+        self,
+        other_snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Exact after snapshot. The path snapshot is the before selection; chronological order is not required."
+            ),
+        ],
+        snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Publication or source snapshot identifier for the selected route."
+            ),
+        ],
+        view: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> FederationSnapshotComparisonPage:
+        """Compare retained source synchronization memberships
+
+        Requires current tenant source.read and, when enforced, sources.read OAuth authority. Compares complete occurrence-bound memberships from the same source configuration revision, including after source removal. No upstream requests, Jobs, writes or raw-document reads occur. Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match. Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes are independent of synchronization counters and current observation freshness. Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text. SQL checks membership counts and evidence before selecting at most limit plus one result rows. A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete, failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned. Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+
+        :param other_snapshot_id: Exact after snapshot. The path snapshot is the before selection; chronological order is not required. (required)
+        :type other_snapshot_id: UUID
+        :param snapshot_id: Publication or source snapshot identifier for the selected route. (required)
+        :type snapshot_id: UUID
+        :param view: Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible.
+        :type view: str
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._compare_federation_source_snapshots_serialize(
+            other_snapshot_id=other_snapshot_id,
+            snapshot_id=snapshot_id,
+            view=view,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "FederationSnapshotComparisonPage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def compare_federation_source_snapshots_with_http_info(
+        self,
+        other_snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Exact after snapshot. The path snapshot is the before selection; chronological order is not required."
+            ),
+        ],
+        snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Publication or source snapshot identifier for the selected route."
+            ),
+        ],
+        view: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[FederationSnapshotComparisonPage]:
+        """Compare retained source synchronization memberships
+
+        Requires current tenant source.read and, when enforced, sources.read OAuth authority. Compares complete occurrence-bound memberships from the same source configuration revision, including after source removal. No upstream requests, Jobs, writes or raw-document reads occur. Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match. Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes are independent of synchronization counters and current observation freshness. Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text. SQL checks membership counts and evidence before selecting at most limit plus one result rows. A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete, failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned. Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+
+        :param other_snapshot_id: Exact after snapshot. The path snapshot is the before selection; chronological order is not required. (required)
+        :type other_snapshot_id: UUID
+        :param snapshot_id: Publication or source snapshot identifier for the selected route. (required)
+        :type snapshot_id: UUID
+        :param view: Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible.
+        :type view: str
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._compare_federation_source_snapshots_serialize(
+            other_snapshot_id=other_snapshot_id,
+            snapshot_id=snapshot_id,
+            view=view,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "FederationSnapshotComparisonPage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def compare_federation_source_snapshots_without_preload_content(
+        self,
+        other_snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Exact after snapshot. The path snapshot is the before selection; chronological order is not required."
+            ),
+        ],
+        snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Publication or source snapshot identifier for the selected route."
+            ),
+        ],
+        view: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Compare retained source synchronization memberships
+
+        Requires current tenant source.read and, when enforced, sources.read OAuth authority. Compares complete occurrence-bound memberships from the same source configuration revision, including after source removal. No upstream requests, Jobs, writes or raw-document reads occur. Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match. Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes are independent of synchronization counters and current observation freshness. Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text. SQL checks membership counts and evidence before selecting at most limit plus one result rows. A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete, failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned. Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+
+        :param other_snapshot_id: Exact after snapshot. The path snapshot is the before selection; chronological order is not required. (required)
+        :type other_snapshot_id: UUID
+        :param snapshot_id: Publication or source snapshot identifier for the selected route. (required)
+        :type snapshot_id: UUID
+        :param view: Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible.
+        :type view: str
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._compare_federation_source_snapshots_serialize(
+            other_snapshot_id=other_snapshot_id,
+            snapshot_id=snapshot_id,
+            view=view,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "FederationSnapshotComparisonPage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def compare_federation_source_snapshots_sync(
+        self,
+        other_snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Exact after snapshot. The path snapshot is the before selection; chronological order is not required."
+            ),
+        ],
+        snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Publication or source snapshot identifier for the selected route."
+            ),
+        ],
+        view: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> FederationSnapshotComparisonPage:
+        """Compare retained source synchronization memberships (synchronous)
+
+        Synchronous variant of :meth:`compare_federation_source_snapshots`. It calls the asynchronous
+        method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.compare_federation_source_snapshots(
+                other_snapshot_id=other_snapshot_id,
+                snapshot_id=snapshot_id,
+                view=view,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def compare_federation_source_snapshots_sync_with_http_info(
+        self,
+        other_snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Exact after snapshot. The path snapshot is the before selection; chronological order is not required."
+            ),
+        ],
+        snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Publication or source snapshot identifier for the selected route."
+            ),
+        ],
+        view: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[FederationSnapshotComparisonPage]:
+        """Compare retained source synchronization memberships (synchronous)
+
+        Synchronous variant of :meth:`compare_federation_source_snapshots_with_http_info`. It calls the
+        asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.compare_federation_source_snapshots_with_http_info(
+                other_snapshot_id=other_snapshot_id,
+                snapshot_id=snapshot_id,
+                view=view,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def compare_federation_source_snapshots_sync_without_preload_content(
+        self,
+        other_snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Exact after snapshot. The path snapshot is the before selection; chronological order is not required."
+            ),
+        ],
+        snapshot_id: Annotated[
+            UUID,
+            Field(
+                description="Publication or source snapshot identifier for the selected route."
+            ),
+        ],
+        view: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Compare retained source synchronization memberships (synchronous)
+
+        Synchronous variant of :meth:`compare_federation_source_snapshots_without_preload_content`. It calls
+        the asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.compare_federation_source_snapshots_without_preload_content(
+                other_snapshot_id=other_snapshot_id,
+                snapshot_id=snapshot_id,
+                view=view,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    def _compare_federation_source_snapshots_serialize(
+        self,
+        other_snapshot_id,
+        snapshot_id,
+        view,
+        limit,
+        cursor,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {}
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        if snapshot_id is not None:
+            _path_params["snapshotId"] = snapshot_id
+        # process the query parameters
+        if other_snapshot_id is not None:
+            _query_params.append(("otherSnapshotId", other_snapshot_id))
+
+        if view is not None:
+            _query_params.append(("view", view))
+
+        if limit is not None:
+            _query_params.append(("limit", limit))
+
+        if cursor is not None:
+            _query_params.append(("cursor", cursor))
+
+        # process the header parameters
+        # process the form parameters
+        # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json", "application/problem+json"]
+            )
+
+        # authentication setting
+        _auth_settings: List[str] = ["bearerAuth"]
+
+        return self.api_client.param_serialize(
+            method="GET",
+            resource_path="/api/v1/federation/snapshots/{snapshotId}/comparison",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

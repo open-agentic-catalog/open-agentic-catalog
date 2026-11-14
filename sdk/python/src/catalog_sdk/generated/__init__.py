@@ -199,6 +199,10 @@ __all__ = [
     "FederationChangePreview",
     "FederationRetrievalEvidence",
     "FederationSnapshot",
+    "FederationSnapshotComparisonMember",
+    "FederationSnapshotComparisonPage",
+    "FederationSnapshotComparisonSummary",
+    "FederationSnapshotEntryChange",
     "FederationSnapshotPage",
     "FederationSource",
     "FederationSourceInspection",
@@ -879,6 +883,18 @@ from catalog_sdk.generated.models.federation_retrieval_evidence import (
 )
 from catalog_sdk.generated.models.federation_snapshot import (
     FederationSnapshot as FederationSnapshot,
+)
+from catalog_sdk.generated.models.federation_snapshot_comparison_member import (
+    FederationSnapshotComparisonMember as FederationSnapshotComparisonMember,
+)
+from catalog_sdk.generated.models.federation_snapshot_comparison_page import (
+    FederationSnapshotComparisonPage as FederationSnapshotComparisonPage,
+)
+from catalog_sdk.generated.models.federation_snapshot_comparison_summary import (
+    FederationSnapshotComparisonSummary as FederationSnapshotComparisonSummary,
+)
+from catalog_sdk.generated.models.federation_snapshot_entry_change import (
+    FederationSnapshotEntryChange as FederationSnapshotEntryChange,
 )
 from catalog_sdk.generated.models.federation_snapshot_page import (
     FederationSnapshotPage as FederationSnapshotPage,

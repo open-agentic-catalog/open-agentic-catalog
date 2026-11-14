@@ -142,6 +142,60 @@ def set_fixture(fixture, mode, delay_millis=0):
     fixture.request("POST", "/control", {"mode": mode, "delayMillis": delay_millis})
 
 
+def qualify_snapshot_comparison(api, fixture, source_id, initial, recovered, partial):
+    """Compare exact Registry history with no source requests or current-view changes."""
+    source_before, _ = api.request("GET", f"/api/v1/federation/sources/{source_id}")
+    current_before = observations(api, source_id)
+    requests_before, _ = fixture.request("GET", "/state")
+
+    def pages(before, after, view):
+        items, cursor = [], ""
+        for _ in range(10):
+            # UUID letter case must not replace a selected snapshot or break
+            # continuation. Retained entry identifiers keep their exact case.
+            before_id = before["id"] if cursor else before["id"].upper()
+            after_id = after["id"] if cursor else after["id"].upper()
+            query = {"otherSnapshotId": after_id, "view": view, "limit": 1}
+            if cursor:
+                query["cursor"] = cursor
+            page, _ = api.request("GET", f"/api/v1/federation/snapshots/{before_id}/comparison?" + urllib.parse.urlencode(query))
+            assert page["sourceId"] == source_id and page["sourceRevision"] == initial["sourceRevision"], "comparison lost retained source binding"
+            assert page["before"]["id"] == before["id"] and page["after"]["id"] == after["id"], "comparison substituted a snapshot"
+            assert len(page["items"]) <= 1, "comparison exceeded its requested page"
+            for row in page["items"]:
+                for side, snapshot in (("before", before), ("after", after)):
+                    if side in row:
+                        member = row[side]
+                        occurrence = member["occurrence"]
+                        assert occurrence["snapshotId"] == snapshot["id"] and occurrence["observationId"] == member["observationId"], "comparison lost exact occurrence binding"
+                        assert not ({"rawEntry", "normalizedEntry", "freshness", "lastSeenAt"} & member.keys()), "comparison disclosed native or mutable observation data"
+            items.extend(page["items"])
+            cursor = page.get("nextCursor", "")
+            if not cursor:
+                return items
+        raise AssertionError("comparison continuation did not terminate")
+
+    rows = pages(initial, recovered, "all")
+    by_identifier = {(row.get("before") or row["after"])["identifier"]: row for row in rows}
+    assert len(rows) == 2 and set(by_identifier) == {
+        "urn:air:functional.example:default:one", "urn:air:functional.example:default:two"
+    }, "historical comparison lost selected Registry membership"
+    reused = by_identifier["urn:air:functional.example:default:one"]
+    absent = by_identifier["urn:air:functional.example:default:two"]
+    assert reused["change"] == "unchanged" and reused["before"]["observationId"] == reused["after"]["observationId"], "reused observation was compared through its creation snapshot"
+    assert absent["change"] == "absent" and "after" not in absent and not recovered["withdrawalAuthority"], "Registry absence was overstated as withdrawal"
+    assert [row["change"] for row in pages(initial, recovered, "changes")] == ["absent"], "changed-only comparison included unchanged evidence"
+    assert [row["change"] for row in pages(recovered, initial, "changes")] == ["added"], "reverse comparison lost directional membership"
+    assert pages(recovered, recovered, "changes") == [], "same-snapshot comparison manufactured a difference"
+    problem, _ = api.request("GET", f"/api/v1/federation/snapshots/{initial['id']}/comparison?otherSnapshotId={partial['id']}", expected=(412,))
+    assert problem["code"] == "PRECONDITION_FAILED", "incomplete comparison lost its stable refusal"
+    source_after, _ = api.request("GET", f"/api/v1/federation/sources/{source_id}")
+    requests_after, _ = fixture.request("GET", "/state")
+    assert source_after == source_before and observations(api, source_id) == current_before, "comparison changed current synchronization state"
+    for field in ("manifestRequests", "listRequests", "contextRequests"):
+        assert requests_after[field] == requests_before[field], "historical comparison contacted its upstream source"
+
+
 def check_job_completion(events, job):
     """Bind completion to one Job attempt, not a changing source-wide count."""
     matching = [event for event in events
@@ -357,6 +411,8 @@ def main():
     )
     if conditional["id"] in before_dedup:
         raise AssertionError("deduplicated Job reused an earlier synchronization result")
+
+    qualify_snapshot_comparison(api, fixture, source_id, initial, recovered, partial)
 
     fixture_state, _ = fixture.request("GET", "/state")
     if fixture_state["conditionalListRequests"] < 1 or fixture_state["conditionalContextRequests"] < 1:

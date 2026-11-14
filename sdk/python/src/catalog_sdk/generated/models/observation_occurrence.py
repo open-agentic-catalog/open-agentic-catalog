@@ -119,7 +119,7 @@ else:
         @field_validator("evidence_complete")
         def evidence_complete_validate_enum(cls, value):
             """Validates the enum"""
-            if value not in set(["true"]):
+            if value is not True:
                 raise ValueError("must be one of enum values ('true')")
             return value
 

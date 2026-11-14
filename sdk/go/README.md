@@ -290,3 +290,25 @@ go doc github.com/open-agentic-catalog/open-agentic-catalog/sdk/go.ClientWithRes
 ```
 
 See [Go SDK verification](../../documentation/src/content/docs/contributing/testing.md#go-sdk-verification) for generation, unit/functional selection, independent consumers and dependency checks. Return to the [SDK overview](../README.md) to compare languages.
+
+## Compare saved source snapshots
+
+Use a configured client and two complete snapshot UUIDs from the same source revision. This reads one page of retained membership without contacting the source:
+
+```go
+view, limit := catalogclient.CompareFederationSourceSnapshotsParamsViewChanges, 25
+page, err := client.CompareFederationSourceSnapshotsWithResponse(ctx, beforeID,
+    &catalogclient.CompareFederationSourceSnapshotsParams{
+        OtherSnapshotId: afterID, View: &view, Limit: &limit,
+    })
+if err != nil {
+    return err
+}
+if page.StatusCode() != 200 || page.JSON200 == nil {
+    return fmt.Errorf("comparison returned HTTP %d", page.StatusCode())
+}
+// Read page.JSON200.Items. For another explicit call, set Cursor to
+// page.JSON200.NextCursor and retain the selected pair, view and limit.
+```
+
+Here `beforeID` and `afterID` are `catalogclient.UUID` values, not Resource or observation IDs. Use `CompareFederationSourceSnapshotsParamsViewAll` to include unchanged entries. Read the [comparison semantics and permissions](../../documentation/src/content/docs/operations/federation.mdx#compare-two-saved-synchronizations) before interpreting absence or multiple occurrences. A refused continuation requires an explicit new read; the SDK does not restart it.

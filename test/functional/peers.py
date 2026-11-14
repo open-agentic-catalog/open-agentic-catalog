@@ -604,6 +604,26 @@ class Peers:
         self.check_index(updated, registry_members(self.public), ids, source)
         corrected = self.capture_correction_evidence(source, items[0]["resource"]["canonicalIdentifier"])
         self.check_correction_history(correction_history, corrected)
+        # Reuse the independently verified B/C correction evidence for the UI.
+        # The earlier A snapshot belongs to a different source configuration.
+        prior = correction_history[-1]
+        comparison = {"beforeId": prior["snapshot"]["id"], "afterId": corrected["snapshot"]["id"],
+                      "sourceRevision": corrected["snapshot"]["sourceRevision"],
+                      "identifier": items[0]["resource"]["canonicalIdentifier"],
+                      "beforeObservationId": prior["observationId"], "afterObservationId": corrected["observationId"],
+                      "beforeDigest": prior["occurrence"]["exactEntryDigest"],
+                      "afterDigest": corrected["occurrence"]["exactEntryDigest"]}
+        assert prior["snapshot"]["sourceRevision"] == comparison["sourceRevision"], "comparison fixture crossed source revisions"
+        # Exercise the shipped read-only CLI against these real retained B/C
+        # memberships, independently of the browser's local request driver.
+        query = urllib.parse.urlencode({"otherSnapshotId": comparison["afterId"], "view": "changes", "limit": 100})
+        expected_comparison = self.b.request("GET", f"/api/v1/federation/snapshots/{comparison['beforeId']}/comparison?{query}")[0]
+        cli_comparison = json.loads(self.compose("exec", "-T", "--env", "CATALOG_REMOTE_TOKEN=local-admin",
+            "--env", "CATALOG_DATABASE_DSN_FILE=/does-not-exist", "api", "/usr/local/bin/catalogctl", "remote", "source-compare",
+            "--base-url", "http://127.0.0.1:8080", "--before-snapshot-id", comparison["beforeId"],
+            "--after-snapshot-id", comparison["afterId"], "--view", "changes", "--limit", "100", capture=True))
+        assert cli_comparison["meta"]["requestId"] and cli_comparison["data"] == expected_comparison, "packaged CLI changed saved comparison"
+        assert not expected_comparison.get("nextCursor") and any(row["change"] == "changed" and row["before"]["observationId"] == comparison["beforeObservationId"] and row["after"]["observationId"] == comparison["afterObservationId"] for row in expected_comparison["items"]), "CLI fixture lacks the independently retained changed entry"
         self.check_no_adoption()
         items[2]["name"] = "peer-a-skill-draft-edit"
         self.publish_item(items[2], draft=True)
@@ -685,7 +705,7 @@ class Peers:
         self.passed("live-paging")
         self.phase("client-pagination")
         from peer_pagination import qualify
-        write_document(self.state / "peer-pagination.json", qualify(self, source, fresh_ids))
+        write_document(self.state / "peer-pagination.json", qualify(self, source, fresh_ids, comparison))
         self.passed("client-pagination")
         self.phase("credentials")
         # Keep the private endpoint published for both negative and positive

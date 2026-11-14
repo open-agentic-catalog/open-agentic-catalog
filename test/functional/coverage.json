@@ -344,6 +344,31 @@
       "gaps": []
     },
     {
+      "id": "source-comparison-cli",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:remote source-compare"
+      ],
+      "evidence": [
+        {
+          "path": "cmd/catalogctl/remote_comparison_functional_test.go",
+          "symbol": "TestRemoteSourceComparisonContractAndWire"
+        },
+        {
+          "path": "test/functional/peers.py"
+        },
+        {
+          "path": "test/functional/operators.py"
+        }
+      ],
+      "reason": "The packaged operator journey compares two retained synchronizations through the shipped CLI, including default/all views and reader/cross-tenant refusal. The owned two-Catalog peer journey also checks changed B/C membership.",
+      "success": "Read one page for an explicit before/after snapshot pair through the shipped binary without runtime SQL authority.",
+      "rejection": "Refuse missing or invalid selections locally; preserve an HTTP refusal and its request ID without success output. The shipped command denies a reader without source permission and another tenant.",
+      "recovery": "Keep opaque cursors unchanged on explicit continuation; never retry or silently restart a refused page.",
+      "gaps": []
+    },
+    {
       "id": "service-activity",
       "disposition": "lower-level-only",
       "status": "covered",
@@ -880,7 +905,8 @@
         "http:listFederationSourceSnapshots",
         "http:listObservations",
         "http:listObservationOccurrences",
-        "http:getJob"
+        "http:getJob",
+        "http:compareFederationSourceSnapshots"
       ],
       "evidence": [
         {
@@ -907,7 +933,7 @@
         }
       ],
       "reason": "Owned private HTTPS Registry List traversal/conditional retry and API/worker bearer, API-key and mTLS mounts, rotation and revocation. Origin/redirect/credential-race permutations remain in the real-TLS router tests. The opt-in peer profile joins two independent Catalog deployments over their real published hybrid manifest, including update/removal, failure preservation, recovery and source credentials.",
-      "success": "Inspect/connect a Registry, sync and read bounded snapshots, observations, occurrences and the resulting Job.",
+      "success": "Inspect/connect a Registry, sync and read bounded snapshots, observations, occurrences and the resulting Job. Compare exact complete Registry memberships, including observation reuse, reverse/unchanged pages and non-authoritative absence without upstream requests.",
       "rejection": "Refuse changed/invalid source evidence and preserve the last complete view on partial failure.",
       "recovery": "Retry after fixture recovery; O-05 proves worker lease takeover and deduplication.",
       "gaps": []

@@ -27,6 +27,179 @@ async function serve(t, handler) {
 const client = (origin) =>
   createCatalogClient({ origin, allowLoopbackHTTP: true, token: "explicit" });
 
+test("snapshot comparison preserves selected membership, opaque continuation and refusal", async (t) => {
+  const before = "00000000-0000-7000-8000-000000000001";
+  const after = "00000000-0000-7000-8000-000000000002";
+  const page = {
+    sourceId: "00000000-0000-7000-8000-000000000003",
+    sourceRevision: 7,
+    before: {
+      id: "00000000-0000-7000-8000-000000000001",
+      memberCount: 2,
+      startedAt: "2026-01-01T00:00:00Z",
+      withdrawalAuthority: true,
+    },
+    after: {
+      id: "00000000-0000-7000-8000-000000000002",
+      memberCount: 1,
+      startedAt: "2026-01-02T00:00:00Z",
+      withdrawalAuthority: false,
+    },
+    items: [
+      {
+        position: 1,
+        sourceKey: "a-missing-version",
+        change: "absent",
+        beforeCount: 1,
+        afterCount: 0,
+        before: {
+          observationId: "00000000-0000-7000-8000-000000000004",
+          identifier: "urn:air:example.com:demo:agent",
+          version: "",
+          versionPresent: false,
+          kind: "agent",
+          identityDigest:
+            "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          occurrence: {
+            observationId: "00000000-0000-7000-8000-000000000004",
+            sourceId: "00000000-0000-7000-8000-000000000003",
+            sourceRevision: 7,
+            snapshotId: "00000000-0000-7000-8000-000000000001",
+            retrievalDigest:
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            entryLocation: "/entries/0",
+            exactEntryDigest:
+              "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            evidenceComplete: true,
+            observedAt: "2026-01-01T00:00:00Z",
+          },
+        },
+      },
+      {
+        position: 2,
+        sourceKey: "b-empty-version",
+        change: "added",
+        beforeCount: 0,
+        afterCount: 1,
+        after: {
+          observationId: "00000000-0000-7000-8000-000000000005",
+          identifier: "urn:air:example.com:demo:agent",
+          version: "",
+          versionPresent: true,
+          kind: "agent",
+          identityDigest:
+            "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+          occurrence: {
+            observationId: "00000000-0000-7000-8000-000000000005",
+            sourceId: "00000000-0000-7000-8000-000000000003",
+            sourceRevision: 7,
+            snapshotId: "00000000-0000-7000-8000-000000000002",
+            retrievalDigest:
+              "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            entryLocation: "/entries/0",
+            exactEntryDigest:
+              "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+            evidenceComplete: true,
+            observedAt: "2026-01-02T00:00:00Z",
+          },
+        },
+      },
+    ],
+    nextCursor: "opaque+/=& caf\u00e9",
+  };
+  const cursor = "opaque+/=& café";
+  const last = structuredClone(page.items[0]);
+  last.position = 3;
+  last.sourceKey = "c-other";
+  last.before.observationId = "00000000-0000-7000-8000-000000000006";
+  last.before.identifier = "urn:air:example.com:demo:other";
+  last.before.identityDigest = "sha256:" + "e".repeat(64);
+  last.before.occurrence.observationId = last.before.observationId;
+  last.before.occurrence.entryLocation = "/entries/1";
+  last.before.occurrence.exactEntryDigest = "sha256:" + "f".repeat(64);
+  const terminal = {
+    sourceId: page.sourceId,
+    sourceRevision: page.sourceRevision,
+    before: page.before,
+    after: page.after,
+    items: [last],
+  };
+  let calls = 0;
+  const origin = await serve(t, (req, res) => {
+    calls++;
+    const url = new URL(req.url, "http://fixture");
+    assert.equal(req.method, "GET");
+    assert.equal(
+      url.pathname,
+      `/api/v1/federation/snapshots/${before}/comparison`,
+    );
+    assert.deepEqual(Object.fromEntries(url.searchParams), {
+      otherSnapshotId: after,
+      view: "changes",
+      limit: "2",
+      ...(calls === 1 ? {} : { cursor }),
+    });
+    assert.equal(req.headers.authorization, "Bearer explicit");
+    assert.equal(req.headers["idempotency-key"], undefined);
+    if (calls <= 2) {
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify(calls === 1 ? page : terminal));
+    } else {
+      res.writeHead(400, {
+        "Content-Type": "application/problem+json",
+        "X-Request-ID": "comparison-refusal",
+      });
+      res.end(
+        '{"type":"about:blank","title":"Invalid argument","status":400,"code":"INVALID_ARGUMENT","detail":"Selected evidence unavailable","requestId":"comparison-refusal"}',
+      );
+    }
+  });
+  const sdk = client(origin);
+  const query = { otherSnapshotId: after, view: "changes", limit: 2 };
+  const selected = await sdk.api.GET(
+    "/api/v1/federation/snapshots/{snapshotId}/comparison",
+    { params: { path: { snapshotId: before }, query } },
+  );
+  assert.equal(selected.response.status, 200);
+  assert.deepEqual(selected.data, page);
+  assert.equal(selected.data.items[0].before.versionPresent, false);
+  assert.equal(selected.data.items[0].after, undefined);
+  assert.equal(selected.data.items[1].before, undefined);
+  assert.equal(selected.data.items[1].after.versionPresent, true);
+  assert.equal(calls, 1, "no automatic continuation");
+  const completed = await sdk.api.GET(
+    "/api/v1/federation/snapshots/{snapshotId}/comparison",
+    {
+      params: {
+        path: { snapshotId: before },
+        query: { ...query, cursor: selected.data.nextCursor },
+      },
+    },
+  );
+  assert.equal(completed.response.status, 200);
+  assert.deepEqual(completed.data, terminal);
+  assert.equal(completed.data.nextCursor, undefined);
+  assert.equal(completed.data.items[0].position, 3);
+  assert.equal(calls, 2, "terminal page does not trigger another read");
+  const refused = await sdk.api.GET(
+    "/api/v1/federation/snapshots/{snapshotId}/comparison",
+    {
+      params: {
+        path: { snapshotId: before },
+        query: { ...query, cursor: selected.data.nextCursor },
+      },
+    },
+  );
+  assert.equal(refused.response.status, 400);
+  assert.equal(refused.error.code, "INVALID_ARGUMENT");
+  assert.equal(
+    refused.response.headers.get("X-Request-ID"),
+    "comparison-refusal",
+  );
+  assert.equal(refused.data, undefined);
+  assert.equal(calls, 3, "no automatic restart or retry");
+});
+
 test("real anonymous and protected ARD discovery preserve both response branches", async (t) => {
   const manifest = "/.well-known/ard.json";
   const anonymous = await serve(t, (req, res) => {

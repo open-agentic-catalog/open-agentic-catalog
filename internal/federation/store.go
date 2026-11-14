@@ -66,6 +66,7 @@ type Store interface {
 	GetSnapshot(context.Context, string, string) (Snapshot, error)
 	ListSnapshots(context.Context, string, string, int) ([]Snapshot, error)
 	ListSnapshotPage(context.Context, string, SnapshotListRequest) ([]Snapshot, error)
+	CompareSnapshots(context.Context, string, SnapshotComparisonRequest) (SnapshotComparison, error)
 	GetObservation(context.Context, string, string) (Observation, error)
 	ObservationHasSnapshotEvidence(context.Context, string, string, string, string, int64, string) (bool, error)
 	// Metadata reads omit RawEntry, NormalizedEntry and Occurrence. Call
