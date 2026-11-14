@@ -1114,3 +1114,29 @@ test("body transport failures preserve safe HTTP metadata", async () => {
       !String(e).includes("SECRET_STREAM"),
   );
 });
+
+test("declared MCP tool selection and bounded explanation survive the fixed API exchange", async () => {
+  const toolMatch = {
+    representationId: "00000000-0000-7000-8000-000000000001",
+    contentDigest: "sha256:" + "a".repeat(64),
+    matchedToolCount: 1,
+    tools: [{ name: "extract_pdf_tables", descriptionTruncated: false }],
+    truncated: false,
+  };
+  for (const body of [
+    { text: "pdf tables", includeMcpTools: true, origins: ["local"] },
+    { includeMcpTools: false },
+    {},
+  ]) {
+    let calls = 0;
+    const client = make(async (request) => {
+      calls++;
+      assert.equal(request.url, origin + "/api/v1/catalog/search");
+      assert.deepEqual(await request.json(), body);
+      return json({ items: [{ toolMatch }] });
+    });
+    const reply = await client.api.POST("/api/v1/catalog/search", { body });
+    assert.equal(calls, 1);
+    assert.deepEqual(reply.data.items[0].toolMatch, toolMatch);
+  }
+});

@@ -15,7 +15,7 @@ import (
 func (s *Service) semanticExplore(ctx context.Context, actor identity.Actor, request ExploreRequest) (response ExploreResponse, used bool, fallback string, resultErr error) {
 	defer func() { s.semantic.observe("explore", used, fallback, resultErr) }()
 	_, exactErr := ParseAIRIdentifier(request.Query.Text)
-	if s.semantic == nil || s.semantic.excludesTenant(actor.TenantID) || request.Query.Text == "" || exactErr == nil {
+	if request.Query.IncludeMCPTools || s.semantic == nil || s.semantic.excludesTenant(actor.TenantID) || request.Query.Text == "" || exactErr == nil {
 		return ExploreResponse{}, false, "", nil
 	}
 	options := s.semantic.options

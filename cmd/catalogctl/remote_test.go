@@ -348,3 +348,15 @@ func TestRemoteAgentProtocolSelection(t *testing.T) {
 		}
 	}
 }
+
+func TestRemoteDeclaredMCPToolsSelection(t *testing.T) {
+	parsed, err := parseRemote([]string{"search", "--text", "pdf tables", "--include-mcp-tools", "--origin", "local"}, remoteTestEnvironment("https://catalog.invalid", "token"))
+	if err != nil || !parsed.search.IncludeMCPTools || parsed.search.Text != "pdf tables" {
+		t.Fatal("tool selection lost", err)
+	}
+	for _, args := range [][]string{{"search", "--include-mcp-tools"}, {"search", "--include-mcp-tools", "--text", "pdf", "--origin", "indexed"}, {"search", "--include-mcp-tools", "--text", "pdf", "--origin", "local", "--kind", "agent"}, {"search", "--include-mcp-tools", "--text", "pdf", "--origin", "local", "--agent-protocol", "JSONRPC"}} {
+		if _, err := parseRemote(args, remoteTestEnvironment("", "")); err == nil {
+			t.Fatal("unsupported private tool scope", args)
+		}
+	}
+}

@@ -351,6 +351,10 @@ from catalog_sdk.generated.models.mcp_reply import MCPReply
 from catalog_sdk.generated.models.mcp_reply_id import MCPReplyId
 from catalog_sdk.generated.models.mcp_request import MCPRequest
 from catalog_sdk.generated.models.mcp_request_id import MCPRequestId
+from catalog_sdk.generated.models.mcp_tool_match import MCPToolMatch
+from catalog_sdk.generated.models.mcp_tool_match_tools_inner import (
+    MCPToolMatchToolsInner,
+)
 from catalog_sdk.generated.models.member_access_page import MemberAccessPage
 from catalog_sdk.generated.models.member_contribution import MemberContribution
 from catalog_sdk.generated.models.membership import Membership

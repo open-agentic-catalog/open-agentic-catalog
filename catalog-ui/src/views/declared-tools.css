@@ -1,0 +1,22 @@
+.declared-tool-match {
+  margin-block: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  overflow-wrap: anywhere;
+}
+.declared-tool-match ul {
+  margin-block: 0.5rem;
+  padding-inline-start: 1.25rem;
+}
+.declared-tool-match li + li {
+  margin-block-start: 0.5rem;
+}
+.declared-tool-match p {
+  margin-block: 0.35rem;
+}
+
+.resource-card .declared-tool-match button {
+  position: relative;
+  z-index: 1;
+}

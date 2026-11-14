@@ -3265,7 +3265,13 @@ paths:
       tags: [Catalog discovery]
       summary: Get a governed Catalog record
       operationId: getCatalogRecord
-      description: Returns one governed catalog record visible to the caller, including its resource and release metadata.
+      description: >-
+        Returns one governed catalog record visible to the caller. Private declared MCP tool
+        attachments require current resource.read_content in the canonical Namespace. Without
+        it, these attachments are omitted and toolDeclarationRedacted is true for every MCP
+        record, regardless of whether a declaration exists. Authorized attachment disclosure
+        requires the normal version-revision private-read audit before returning content.
+        Other record metadata is unchanged.
       responses:
         '200': {$ref: '#/components/responses/CatalogRecord'}
         default: {$ref: '#/components/responses/Problem'}
@@ -6403,6 +6409,16 @@ components:
       additionalProperties: false
       allOf:
         - if:
+            required: [includeMcpTools]
+            properties: {includeMcpTools: {const: true}}
+          then:
+            required: [text, origins]
+            properties:
+              text: {type: string, minLength: 1}
+              kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+              agentProtocol: {maxLength: 0}
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
+        - if:
             required: [agentProtocol]
             properties:
               agentProtocol: {minLength: 1}
@@ -6422,6 +6438,14 @@ components:
                     enum:
                       - local
       properties:
+        includeMcpTools:
+          type: boolean
+          description: >-
+            Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared
+            tool names/descriptions. Requires nonblank text and local-only origins (Explore is
+            intrinsically local). Current content-read permission gates tool contributions before
+            counts, ranking and paging. Each tool must match all terms; the server score is the
+            best listing or tool score, never the sum of tools. No embedding or endpoint call.
         agentProtocol:
           type: string
           maxLength: 256
@@ -9759,6 +9783,13 @@ components:
       additionalProperties: false
       required: [resource, version, versionRevision, listing, listingRevision, release, evidence, source]
       properties:
+        toolDeclarationRedacted:
+          type: boolean
+          const: true
+          description: >-
+            Current content permission does not permit private tool declaration disclosure.
+            Set for every MCP record without that permission, whether a declaration exists or not;
+            absence of a displayed attachment cannot establish not supplied.
         display: {$ref: '#/components/schemas/CatalogPresentation'}
         resource: {$ref: '#/components/schemas/Resource'}
         version: {$ref: '#/components/schemas/ResourceVersion'}
@@ -10067,11 +10098,34 @@ components:
           type: object
           additionalProperties: true
           description: Exact bounded ARD Search result entry returned by the approved live source. It is transient metadata, not locally governed content.
+    MCPToolMatch:
+      type: object
+      additionalProperties: false
+      required: [representationId, contentDigest, matchedToolCount, tools, truncated]
+      description: Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions.
+      properties:
+        representationId: {$ref: '#/components/schemas/UUID'}
+        contentDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
+        matchedToolCount: {type: integer, minimum: 1, maximum: 64}
+        truncated: {type: boolean}
+        tools:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, descriptionTruncated]
+            properties:
+              name: {type: string, minLength: 1, maxLength: 128}
+              description: {type: string, maxLength: 256}
+              descriptionTruncated: {type: boolean}
     CatalogSearchResult:
       type: object
       additionalProperties: false
       required: [id, type, identifier, versionPresent, kind, displayName, tags, score]
       properties:
+        toolMatch: {$ref: '#/components/schemas/MCPToolMatch'}
         peerRatings:
           type: object
           additionalProperties: false
@@ -10104,6 +10158,12 @@ components:
         local: {$ref: '#/components/schemas/CatalogSearchLocal'}
         indexed: {$ref: '#/components/schemas/IndexedCatalogSearchEvidence'}
         live: {$ref: '#/components/schemas/LiveCatalogSearchEvidence'}
+      allOf:
+        - if: {required: [toolMatch]}
+          then:
+            properties:
+              type: {const: local}
+              kind: {const: mcp_server}
       oneOf:
         - required: [local]
           properties: {type: {const: local}}
@@ -10137,7 +10197,7 @@ components:
         nextCursor: {type: string, maxLength: 4096}
         durableTotal: {type: integer, minimum: 0, description: Number of matching local and indexed result projections. Transient live results are excluded.}
         liveCount: {type: integer, minimum: 0, maximum: 50, description: Number of transient live results included in this response page.}
-        profile: {type: string, pattern: '^(core-lexical-v1|sha256:[a-f0-9]{64})$'}
+        profile: {type: string, pattern: '^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$'}
         generation: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
         tier: {type: string, enum: [core, hybrid]}
         fallbackReason: {type: string, enum: [indexing, provider_unavailable, index_changed, work_limit], description: Safe reason this fresh query used lexical fallback. Continuations never silently change retrieval tier.}
@@ -10361,6 +10421,16 @@ components:
       additionalProperties: false
       allOf:
         - if:
+            required: [includeMcpTools]
+            properties: {includeMcpTools: {const: true}}
+          then:
+            required: [text, origins]
+            properties:
+              text: {type: string, minLength: 1}
+              kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+              agentProtocol: {maxLength: 0}
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
+        - if:
             required: [agentProtocol]
             properties:
               agentProtocol: {minLength: 1}
@@ -10373,6 +10443,14 @@ components:
             - properties:
                 origins: {type: array, items: {type: string, enum: [local]}}
       properties:
+        includeMcpTools:
+          type: boolean
+          description: >-
+            Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared
+            tool names/descriptions. Requires nonblank text and local-only origins (Explore is
+            intrinsically local). Current content-read permission gates tool contributions before
+            counts, ranking and paging. Each tool must match all terms; the server score is the
+            best listing or tool score, never the sum of tools. No embedding or endpoint call.
         agentProtocol:
           type: string
           maxLength: 256
@@ -10460,7 +10538,25 @@ components:
     CatalogExploreQuery:
       type: object
       additionalProperties: false
+      allOf:
+        - if:
+            required: [includeMcpTools]
+            properties: {includeMcpTools: {const: true}}
+          then:
+            required: [text]
+            properties:
+              text: {type: string, minLength: 1}
+              kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+              agentProtocol: {maxLength: 0}
       properties:
+        includeMcpTools:
+          type: boolean
+          description: >-
+            Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared
+            tool names/descriptions. Requires nonblank text and local-only origins (Explore is
+            intrinsically local). Current content-read permission gates tool contributions before
+            counts, ranking and paging. Each tool must match all terms; the server score is the
+            best listing or tool score, never the sum of tools. No embedding or endpoint call.
         agentProtocol:
           type: string
           maxLength: 256
@@ -10515,7 +10611,7 @@ components:
       required: [matched, facets]
       properties:
         tier: {type: string, enum: [core, hybrid]}
-        profile: {type: string, pattern: '^(core-lexical-v1|sha256:[a-f0-9]{64})$'}
+        profile: {type: string, pattern: '^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$'}
         fallbackReason: {type: string, enum: [indexing, provider_unavailable, index_changed, work_limit]}
         partialIndex: {type: boolean}
         matched: {type: integer, minimum: 0}

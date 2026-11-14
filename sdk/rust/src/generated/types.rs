@@ -4423,6 +4423,8 @@ pub struct PersonalCriteria {
     ///All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
     ///Constraint: maxItems=16
     pub categories: Option<Vec<String>>,
+    ///Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+    pub include_mcp_tools: Option<bool>,
     ///Constraint: maxItems=4, uniqueItems=true
     pub kinds: Option<Vec<ResourceKind>>,
     ///Empty means no license filter. Trimmed, case-sensitive exact match against the immutable local Listing license or bounded external metadata.license string. No SPDX interpretation or match for absent, malformed or oversized declarations. Applies across selected origins.
@@ -4444,7 +4446,7 @@ pub struct PersonalCriteria {
     pub text: Option<String>,
     pub visibility: Option<Visibility>,
     /// The variant this value takes, alongside the fields above.
-    pub variant: PersonalCriteriaAllOfVariant2,
+    pub variant: PersonalCriteriaAllOfVariant3,
 }
 #[derive(Deserialize, Serialize)]
 struct __PersonalCriteriaBase {
@@ -4452,6 +4454,8 @@ struct __PersonalCriteriaBase {
     agent_protocol: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     categories: Option<Vec<String>>,
+    #[serde(rename = "includeMcpTools", skip_serializing_if = "Option::is_none")]
+    include_mcp_tools: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     kinds: Option<Vec<ResourceKind>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4479,6 +4483,7 @@ impl serde::Serialize for PersonalCriteria {
         let base = __PersonalCriteriaBase {
             agent_protocol: self.agent_protocol.clone(),
             categories: self.categories.clone(),
+            include_mcp_tools: self.include_mcp_tools.clone(),
             kinds: self.kinds.clone(),
             license: self.license.clone(),
             namespace_id: self.namespace_id.clone(),
@@ -4518,13 +4523,14 @@ impl<'de> serde::Deserialize<'de> for PersonalCriteria {
         let value = serde_json::Value::deserialize(deserializer)?;
         let base = serde_json::from_value::<__PersonalCriteriaBase>(value.clone())
             .map_err(serde::de::Error::custom)?;
-        let variant = match serde_json::from_value::<PersonalCriteriaAllOfVariant2>(value.clone()) {
+        let variant = match serde_json::from_value::<PersonalCriteriaAllOfVariant3>(value.clone()) {
             Ok(variant) => variant,
             Err(complete_error) => {
                 let mut variant_input = value;
                 if let Some(object) = variant_input.as_object_mut() {
                     object.remove("agentProtocol");
                     object.remove("categories");
+                    object.remove("includeMcpTools");
                     object.remove("kinds");
                     object.remove("license");
                     object.remove("namespaceId");
@@ -4534,7 +4540,7 @@ impl<'de> serde::Deserialize<'de> for PersonalCriteria {
                     object.remove("text");
                     object.remove("visibility");
                 }
-                serde_json::from_value::<PersonalCriteriaAllOfVariant2>(variant_input)
+                serde_json::from_value::<PersonalCriteriaAllOfVariant3>(variant_input)
                     .map_err(|projected_error| serde::de::Error::custom(
                         format!(
                             "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
@@ -4545,6 +4551,7 @@ impl<'de> serde::Deserialize<'de> for PersonalCriteria {
         Ok(Self {
             agent_protocol: base.agent_protocol,
             categories: base.categories,
+            include_mcp_tools: base.include_mcp_tools,
             kinds: base.kinds,
             license: base.license,
             namespace_id: base.namespace_id,
@@ -4589,11 +4596,11 @@ impl AsRef<str> for PersonalCriteriaOriginsItem {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum PersonalCriteriaAllOfVariant2 {
-    PersonalCriteriaAllOfVariant2InlineVariant(PersonalCriteriaAllOfVariant2InlineVariant),
+pub enum PersonalCriteriaAllOfVariant3 {
+    PersonalCriteriaAllOfVariant3InlineVariant(PersonalCriteriaAllOfVariant3InlineVariant),
     OriginsBlockInline(OriginsBlockInline),
 }
-pub type PersonalCriteriaAllOfVariant2InlineVariant = serde_json::Value;
+pub type PersonalCriteriaAllOfVariant3InlineVariant = serde_json::Value;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PermissionChecks {
@@ -9146,7 +9153,7 @@ pub struct CatalogSearchResponse {
     ///Some eligible metadata cannot be embedded and remains lexical-only.
     #[serde(rename = "partialIndex", skip_serializing_if = "Option::is_none")]
     pub partial_index: Option<bool>,
-    ///Constraint: pattern=`^(core-lexical-v1|sha256:[a-f0-9]{64})$`
+    ///Constraint: pattern=`^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$`
     pub profile: String,
     pub tier: CatalogSearchResponseTier,
 }
@@ -9176,6 +9183,7 @@ pub struct CatalogSearchResult {
     pub score: i64,
     ///Constraint: maxItems=100, uniqueItems=true
     pub tags: Vec<String>,
+    pub tool_match: Option<MCPToolMatch>,
     pub r#type: CatalogSearchResultType,
     ///Constraint: maxLength=128
     pub version: Option<String>,
@@ -9210,6 +9218,8 @@ struct __CatalogSearchResultBase {
     ratings: Option<RatingSummary>,
     score: i64,
     tags: Vec<String>,
+    #[serde(rename = "toolMatch", skip_serializing_if = "Option::is_none")]
+    tool_match: Option<MCPToolMatch>,
     r#type: CatalogSearchResultType,
     #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<String>,
@@ -9237,6 +9247,7 @@ impl serde::Serialize for CatalogSearchResult {
             ratings: self.ratings.clone(),
             score: self.score.clone(),
             tags: self.tags.clone(),
+            tool_match: self.tool_match.clone(),
             r#type: self.r#type.clone(),
             version: self.version.clone(),
             version_present: self.version_present.clone(),
@@ -9287,6 +9298,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearchResult {
                     object.remove("ratings");
                     object.remove("score");
                     object.remove("tags");
+                    object.remove("toolMatch");
                     object.remove("version");
                     object.remove("versionPresent");
                 }
@@ -9314,6 +9326,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearchResult {
             ratings: base.ratings,
             score: base.score,
             tags: base.tags,
+            tool_match: base.tool_match,
             r#type: base.r#type,
             version: base.version,
             version_present: base.version_present,
@@ -9332,6 +9345,32 @@ pub struct RatingSummary {
     ///Constraint: maxLength=4096
     #[serde(skip_serializing_if = "Option::is_none")]
     pub receipt: Option<String>,
+}
+///Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MCPToolMatch {
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "contentDigest")]
+    pub content_digest: String,
+    ///Constraint: minimum=1, maximum=64
+    #[serde(rename = "matchedToolCount")]
+    pub matched_tool_count: i64,
+    #[serde(rename = "representationId")]
+    pub representation_id: UUID,
+    ///Constraint: minItems=1, maxItems=3
+    pub tools: Vec<MCPToolMatchToolsItem>,
+    pub truncated: bool,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct MCPToolMatchToolsItem {
+    ///Constraint: maxLength=256
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(rename = "descriptionTruncated")]
+    pub description_truncated: bool,
+    ///Constraint: minLength=1, maxLength=128
+    pub name: String,
 }
 #[derive(Debug, Clone)]
 pub enum CatalogSearchResultVariant {
@@ -9842,6 +9881,8 @@ pub struct CatalogSearch {
     ///Opaque expiring continuation cursor bound to the principal, permissions, normalized query, core SearchProfile, and durable local and indexed generations. Core live continuation replays an unchanged bounded window of at most 50 candidates with a fixed 15-minute expiry. Changed evidence requires restart; temporary replay failure permits retrying the same cursor. Hybrid Search preserves the precise durable ranking before a separate live tail. Live-only Search binds the live window without durable generation or embedding work.
     ///Constraint: maxLength=4096
     pub cursor: Option<String>,
+    ///Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+    pub include_mcp_tools: Option<bool>,
     ///Constraint: maxItems=4, uniqueItems=true
     pub kinds: Option<Vec<ResourceKind>>,
     ///Empty means no license filter. Trimmed, case-sensitive exact match against the immutable local Listing license or bounded external metadata.license string. No SPDX interpretation or match for absent, malformed or oversized declarations. Applies across selected origins.
@@ -9865,7 +9906,7 @@ pub struct CatalogSearch {
     pub text: Option<String>,
     pub visibility: Option<Visibility>,
     /// The variant this value takes, alongside the fields above.
-    pub variant: CatalogSearchAllOfVariant2,
+    pub variant: CatalogSearchAllOfVariant3,
 }
 #[derive(Deserialize, Serialize)]
 struct __CatalogSearchBase {
@@ -9875,6 +9916,8 @@ struct __CatalogSearchBase {
     categories: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     cursor: Option<String>,
+    #[serde(rename = "includeMcpTools", skip_serializing_if = "Option::is_none")]
+    include_mcp_tools: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     kinds: Option<Vec<ResourceKind>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -9905,6 +9948,7 @@ impl serde::Serialize for CatalogSearch {
             agent_protocol: self.agent_protocol.clone(),
             categories: self.categories.clone(),
             cursor: self.cursor.clone(),
+            include_mcp_tools: self.include_mcp_tools.clone(),
             kinds: self.kinds.clone(),
             license: self.license.clone(),
             limit: self.limit.clone(),
@@ -9945,7 +9989,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearch {
         let value = serde_json::Value::deserialize(deserializer)?;
         let base = serde_json::from_value::<__CatalogSearchBase>(value.clone())
             .map_err(serde::de::Error::custom)?;
-        let variant = match serde_json::from_value::<CatalogSearchAllOfVariant2>(value.clone()) {
+        let variant = match serde_json::from_value::<CatalogSearchAllOfVariant3>(value.clone()) {
             Ok(variant) => variant,
             Err(complete_error) => {
                 let mut variant_input = value;
@@ -9953,6 +9997,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearch {
                     object.remove("agentProtocol");
                     object.remove("categories");
                     object.remove("cursor");
+                    object.remove("includeMcpTools");
                     object.remove("kinds");
                     object.remove("license");
                     object.remove("limit");
@@ -9963,7 +10008,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearch {
                     object.remove("text");
                     object.remove("visibility");
                 }
-                serde_json::from_value::<CatalogSearchAllOfVariant2>(variant_input)
+                serde_json::from_value::<CatalogSearchAllOfVariant3>(variant_input)
                     .map_err(|projected_error| serde::de::Error::custom(
                         format!(
                             "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
@@ -9975,6 +10020,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearch {
             agent_protocol: base.agent_protocol,
             categories: base.categories,
             cursor: base.cursor,
+            include_mcp_tools: base.include_mcp_tools,
             kinds: base.kinds,
             license: base.license,
             limit: base.limit,
@@ -10059,8 +10105,8 @@ impl AsRef<str> for CatalogSearchOrder {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum CatalogSearchAllOfVariant2 {
-    CatalogSearchAllOfVariant2InlineVariant(CatalogSearchAllOfVariant2InlineVariant),
+pub enum CatalogSearchAllOfVariant3 {
+    CatalogSearchAllOfVariant3InlineVariant(CatalogSearchAllOfVariant3InlineVariant),
     OriginsBlock(OriginsBlock),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
@@ -10086,7 +10132,7 @@ impl AsRef<str> for OriginsBlockOriginsItem {
         self.as_str()
     }
 }
-pub type CatalogSearchAllOfVariant2InlineVariant = serde_json::Value;
+pub type CatalogSearchAllOfVariant3InlineVariant = serde_json::Value;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogRecordPage {
@@ -10302,6 +10348,12 @@ pub struct CatalogRecord {
     pub relevance_score: Option<i64>,
     pub resource: Resource,
     pub source: CatalogRecordSource,
+    ///Current content permission does not permit private tool declaration disclosure. Set for every MCP record without that permission, whether a declaration exists or not; absence of a displayed attachment cannot establish not supplied.
+    #[serde(
+        rename = "toolDeclarationRedacted",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub tool_declaration_redacted: Option<bool>,
     pub version: ResourceVersion,
     #[serde(rename = "versionRevision")]
     pub version_revision: VersionRevision,
@@ -11414,7 +11466,7 @@ pub struct CatalogExploreResponse {
     pub matched: i64,
     #[serde(rename = "partialIndex", skip_serializing_if = "Option::is_none")]
     pub partial_index: Option<bool>,
-    ///Constraint: pattern=`^(core-lexical-v1|sha256:[a-f0-9]{64})$`
+    ///Constraint: pattern=`^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -11548,39 +11600,7 @@ impl CatalogExploreBuilder {
         self.value
     }
 }
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-#[serde(deny_unknown_fields)]
-pub struct CatalogExploreQuery {
-    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
-    ///Constraint: maxLength=256, pattern=`^[^\x00]*$`
-    #[serde(rename = "agentProtocol", skip_serializing_if = "Option::is_none")]
-    pub agent_protocol: Option<String>,
-    ///All selected categories must match local Listing categories after trimming, lowercasing and deduplication. Missing categories do not match. Explore covers local releases only.
-    ///Constraint: maxItems=16
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub categories: Option<Vec<String>>,
-    ///Constraint: maxItems=4, uniqueItems=true
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub kinds: Option<Vec<ResourceKind>>,
-    ///Empty means no license filter. Trimmed, case-sensitive exact match against the local immutable Listing license declaration. No SPDX interpretation or match for absent declarations. Explore covers local releases only.
-    ///Constraint: maxLength=256, pattern=`^$|^[^\x00]*[^\s\x00][^\x00]*$`
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub license: Option<String>,
-    #[serde(rename = "namespaceId", skip_serializing_if = "Option::is_none")]
-    pub namespace_id: Option<UUID>,
-    ///Catalog Publisher UUID. Explore covers local governed releases only.
-    ///Constraint: maxLength=256
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publisher: Option<String>,
-    ///Constraint: maxItems=32
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tags: Option<Vec<String>>,
-    ///Constraint: maxLength=500
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub text: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub visibility: Option<Visibility>,
-}
+pub type CatalogExploreQuery = serde_json::Value;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CatalogExploreFacetsItem {
     pub field: CatalogExploreFacetsItemField,

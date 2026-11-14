@@ -1,3 +1,4 @@
+import { DeclaredToolMatch } from "./DeclaredToolMatch";
 import { DraftDownload } from "./DraftDownload";
 import { Facts } from "./Facts";
 import { catalogOriginPreset } from "./overview-values";
@@ -17,7 +18,7 @@ import {
 } from "./Ratings";
 import { foreignArtworkTarget, SourceArtworkControls } from "./SourceArtwork";
 import { ArtworkIcon, ArtworkGallery } from "./Artwork";
-import { byteText } from "./input-validation";
+import { byteText, trimGoWhitespace } from "./input-validation";
 import * as checks from "./responses";
 // Catalog search separates draft controls, submitted criteria and explicit result previews.
 import {
@@ -160,9 +161,10 @@ function CatalogWorkspace({
   const liveConsentRequired =
     !request.namespaceId && !requestOriginsLocal(request.origins);
   const providerConsentRequired =
-    !!request.namespaceId ||
-    !request.origins?.length ||
-    request.origins.some((origin) => origin !== "live");
+    !request.includeMcpTools &&
+    (!!request.namespaceId ||
+      !request.origins?.length ||
+      request.origins.some((origin) => origin !== "live"));
   // Keep at most ten earlier request cursors, never previous result documents.
   function setRequest(next: components["schemas"]["CatalogSearch"]) {
     setPage({ request: next, previous: [] });
@@ -569,6 +571,8 @@ function CatalogWorkspace({
     }
     try {
       byteText(text, "Search text", 500);
+      if (request.includeMcpTools && !trimGoWhitespace(text))
+        throw new Error("Enter search text or remove declared MCP tools.");
     } catch (error) {
       setError((error as Error).message);
       searchInput.current!.focus();
@@ -603,11 +607,15 @@ function CatalogWorkspace({
       | "visibility"
       | "origins"
       | "namespaceId"
-      | "agentProtocol",
+      | "agentProtocol"
+      | "includeMcpTools",
     tag?: string,
   ) {
     const next = firstPage(request);
-    if (key === "origins" && (request.namespaceId || request.agentProtocol))
+    if (
+      key === "origins" &&
+      (request.namespaceId || request.agentProtocol || request.includeMcpTools)
+    )
       return;
     // Removal is invoked only by chips rendered from these existing arrays.
     if (key === "origins" && tag) {
@@ -682,6 +690,7 @@ function CatalogWorkspace({
     request.categories?.length ||
     request.license ||
     request.agentProtocol ||
+    request.includeMcpTools ||
     request.publisher ||
     request.visibility ||
     request.kinds?.length ||
@@ -827,7 +836,8 @@ function CatalogWorkspace({
         aria-label="Resource kinds"
       >
         <button
-          aria-pressed={!request.kinds?.length}
+          disabled={!!request.includeMcpTools}
+          aria-pressed={!request.includeMcpTools && !request.kinds?.length}
           onClick={() =>
             setRequest(applyFilters(request, { ...request, kinds: undefined }))
           }
@@ -837,10 +847,13 @@ function CatalogWorkspace({
         {kindChoices.map((item) => (
           <button
             key={item.value}
+            disabled={!!request.includeMcpTools && item.value !== "mcp_server"}
             aria-label={item.label}
             data-kind={item.value}
             aria-pressed={
-              request.kinds?.length === 1 && request.kinds[0] === item.value
+              request.includeMcpTools
+                ? item.value === "mcp_server"
+                : request.kinds?.length === 1 && request.kinds[0] === item.value
             }
             onClick={() =>
               setRequest(
@@ -883,8 +896,9 @@ function CatalogWorkspace({
         ) : (
           <>Live sources are excluded by the current filters. </>
         )}
-        Search text may also be sent to the configured semantic search provider
-        when local or synced results are included.
+        {request.includeMcpTools
+          ? "Declared-tool search uses local lexical matching. No tool server or embedding provider is contacted."
+          : "Search text may also be sent to the configured semantic search provider when local or synced results are included."}
       </p>
       {text !== (request.text ?? "") && (
         <p className="notice" id="pending-search-text" role="status">
@@ -938,29 +952,34 @@ function CatalogWorkspace({
                 live sources.
               </label>
             )}
-            <label>
-              <input
-                type="checkbox"
-                checked={providerConsent}
-                onChange={(e) => {
-                  setProviderConsent(e.target.checked);
-                  setSearchArmed(false);
-                }}
-              />
-              Allow processing by the configured embedding provider if hybrid
-              search is enabled.
-            </label>
+            {providerConsentRequired && (
+              <label>
+                <input
+                  type="checkbox"
+                  checked={providerConsent}
+                  onChange={(e) => {
+                    setProviderConsent(e.target.checked);
+                    setSearchArmed(false);
+                  }}
+                />
+                Allow processing by the configured embedding provider if hybrid
+                search is enabled.
+              </label>
+            )}
             {!providerConsentRequired && (
               <p className="muted">
-                Embedding-provider consent is not required for an explicit
-                live-only Search. Local category suggestions still require it.
+                Embedding-provider consent is not required for declared-tool or
+                explicit live-only Search. Ordinary local category suggestions
+                still require it.
               </p>
             )}
           </fieldset>
         )}
         <SearchFilters
           searchText={request.text ?? ""}
-          suggestionsAllowed={!stagedSearch || providerConsent}
+          suggestionsAllowed={
+            !stagedSearch || providerConsent || !!request.includeMcpTools
+          }
           onRefresh={refreshResults}
           refreshDisabled={
             loading ||
@@ -1006,10 +1025,16 @@ function CatalogWorkspace({
               className="filter-chip"
               key={origin}
               aria-label={`Remove origin ${originLabel(origin)}`}
-              disabled={!!request.namespaceId || !!request.agentProtocol}
+              disabled={
+                !!request.namespaceId ||
+                !!request.agentProtocol ||
+                !!request.includeMcpTools
+              }
               title={
-                request.namespaceId || request.agentProtocol
-                  ? "This filter requires local results. Remove the namespace and protocol filters before changing origins."
+                request.namespaceId ||
+                request.agentProtocol ||
+                request.includeMcpTools
+                  ? "This filter requires local results. Remove filters that require local results before changing origins."
                   : undefined
               }
               onClick={() => removeCriterion("origins", origin)}
@@ -1049,6 +1074,7 @@ function CatalogWorkspace({
           {request.text && (
             <button
               className="filter-chip"
+              disabled={!!request.includeMcpTools}
               aria-label={`Remove search text ${request.text}`}
               onClick={() => removeCriterion("text")}
             >
@@ -1060,6 +1086,7 @@ function CatalogWorkspace({
             <button
               className="filter-chip"
               key={k}
+              disabled={!!request.includeMcpTools}
               aria-label={`Remove kind ${kindLabel(k)}`}
               onClick={() => removeCriterion("kinds", k)}
             >
@@ -1078,6 +1105,17 @@ function CatalogWorkspace({
               <Icon name="close" size={12} />
             </button>
           ))}
+          {request.includeMcpTools && (
+            <button
+              type="button"
+              className="filter-chip"
+              onClick={() => removeCriterion("includeMcpTools")}
+              aria-label="Remove declared MCP tools"
+            >
+              <span>Declared MCP tools</span>
+              <Icon name="close" size={12} />
+            </button>
+          )}
           {request.agentProtocol && (
             <button
               type="button"
@@ -1451,6 +1489,10 @@ function CatalogWorkspace({
                       </span>
                     </span>
                   </div>
+                  <DeclaredToolMatch
+                    item={item}
+                    onInspect={() => preview(item)}
+                  />
                   <RatingLabels item={item} basePath={runtime.basePath} />
                   <Facts
                     className="catalog-presentation"
@@ -1567,6 +1609,10 @@ function CatalogWorkspace({
                             <p>
                               {item.description || "No description provided."}
                             </p>
+                            <DeclaredToolMatch
+                              item={item}
+                              onInspect={() => preview(item)}
+                            />
                             <RatingLabels
                               item={item}
                               basePath={runtime.basePath}

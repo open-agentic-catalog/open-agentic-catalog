@@ -289,6 +289,25 @@ Core search needs no inference: browse, exact identifiers, lexical terms, kind/p
 
 Control Search, Browse and Explore support exact `agentProtocol` selection from any interface of a released primary validated A2A Agent Card. Search and saved criteria require explicit local-only origins; current resource/content-read authority applies before matches, totals, facets and pages. The UI, CLI, Control MCP and generated SDKs retain the literal binding. Migration 000048 materializes a rebuildable binding array on retained inline representations and document blobs without rewriting source evidence; no new model input, Agent call, public ARD filter or runtime compatibility claim is added.
 
+Control Search and local Explore also accept explicit `includeMcpTools` selection
+for current local MCP releases. One private `open-agentic-catalog-mcp-tools-1`
+metadata attachment per exact VersionRevision retains at most 64 unique tool
+names and optional descriptions in 64 KiB. Current listing/content permissions
+precede tool matching, totals, snippets and paging. Listing matches remain
+available without private-content influence. Profile `core-mcp-tools-v1` uses the
+best single-tool lexical score, bounded top-three explanations, and no tool-count
+boost or provider call. Migration 000049 derives stored tool arrays and lexical
+indexes from immutable inline/blob evidence; manifest 29 grants API-only reads.
+The UI, reusable drafts, CLI, Control MCP, saved criteria and generated SDKs carry
+the selection. Private declarations never enter public feeds/artifacts or
+embedding inputs and do not verify runtime capabilities.
+
+Catalog record reads omit private tool attachments without current content-read
+permission. `toolDeclarationRedacted: true` appears for every MCP record lacking
+that permission, including records with no attachment. This flag describes
+access, not the presence of an inventory. Use the authorized exact revision or
+reusable draft export to inspect retained declarations.
+
 Catalog Search supports Name, Kind and Publisher ordering in both directions across local and indexed keyword matches, followed by a separately ordered bounded live window. Omitted order keeps relevance, including optional semantic matching, or name order without text. Sort changes restart paging; saved searches retain the order. Current local Publisher display names determine Publisher order, with generation invalidation after Publisher changes. Administration summaries wrap full opaque acting identities without expanding narrow pages.
 
 Catalog Search merges local releases, grouped indexed observations and bounded live results with core-window continuation; local exact typed identities win collisions. Control Explore covers local releases. Public Search/Explore/List use the active host snapshot, without automatically republishing indexed observations.

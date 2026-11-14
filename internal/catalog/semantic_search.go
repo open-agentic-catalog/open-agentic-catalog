@@ -148,7 +148,7 @@ func (s *Service) semanticPageWithLive(ctx context.Context, actor identity.Actor
 		return CatalogSearchResponse{}, false, "", nil
 	}
 	_, exactIdentifierError := ParseAIRIdentifier(query.Text)
-	if query.Order != "" || s.semantic == nil || s.semantic.excludesTenant(actor.TenantID) || query.Text == "" || exactIdentifierError == nil {
+	if query.IncludeMCPTools || query.Order != "" || s.semantic == nil || s.semantic.excludesTenant(actor.TenantID) || query.Text == "" || exactIdentifierError == nil {
 		if continuation {
 			return CatalogSearchResponse{}, true, "", E(CodeInvalidArgument, "hybrid search configuration changed; restart the search")
 		}

@@ -5579,7 +5579,7 @@ impl Client {
     }
     /// Get a governed Catalog record
     ///
-    /// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+    /// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
     ///
     /// `GET /api/v1/catalog/resources/{catalogRecordId}`
     pub async fn get_catalog_record(

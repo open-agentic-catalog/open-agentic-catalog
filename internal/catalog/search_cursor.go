@@ -61,7 +61,7 @@ func (s *Service) searchCursorBindingFor(ctx context.Context, purpose string, ac
 		Policy   string      `json:"policy"`
 		Profile  string      `json:"profile"`
 		Query    SearchQuery `json:"query"`
-	}{purpose, identity.DecisionDigest(ctx), s.policy, CoreSearchProfile, query})
+	}{purpose, identity.DecisionDigest(ctx), s.policy, coreProfile(query), query})
 	if err != nil {
 		return "", Wrap(CodeInternal, "bind catalog cursor", err)
 	}

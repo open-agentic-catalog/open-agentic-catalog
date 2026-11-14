@@ -304,22 +304,26 @@ type Request struct {
 }
 
 type Search struct {
-	AgentProtocol string                     `json:"agentProtocol,omitempty"`
-	Origins       []catalog.SearchResultType `json:"origins,omitempty"`
-	NamespaceID   string                     `json:"namespaceId,omitempty"`
-	License       string                     `json:"license,omitempty"`
-	Categories    []string                   `json:"categories,omitempty"`
-	Text          string                     `json:"text,omitempty"`
-	Kinds         []catalog.Kind             `json:"kinds,omitempty"`
-	Tags          []string                   `json:"tags,omitempty"`
-	Publisher     string                     `json:"publisher,omitempty"`
-	Visibility    catalog.Visibility         `json:"visibility,omitempty"`
-	Limit         int                        `json:"limit"`
-	Cursor        string                     `json:"cursor,omitempty"`
+	IncludeMCPTools bool                       `json:"includeMcpTools,omitempty"`
+	AgentProtocol   string                     `json:"agentProtocol,omitempty"`
+	Origins         []catalog.SearchResultType `json:"origins,omitempty"`
+	NamespaceID     string                     `json:"namespaceId,omitempty"`
+	License         string                     `json:"license,omitempty"`
+	Categories      []string                   `json:"categories,omitempty"`
+	Text            string                     `json:"text,omitempty"`
+	Kinds           []catalog.Kind             `json:"kinds,omitempty"`
+	Tags            []string                   `json:"tags,omitempty"`
+	Publisher       string                     `json:"publisher,omitempty"`
+	Visibility      catalog.Visibility         `json:"visibility,omitempty"`
+	Limit           int                        `json:"limit"`
+	Cursor          string                     `json:"cursor,omitempty"`
 }
 
 // Validate enforces server-compatible bounds while preserving cursor/filter values.
 func (query Search) Validate() error {
+	if query.IncludeMCPTools && (strings.TrimSpace(query.Text) == "" || query.AgentProtocol != "" || len(query.Origins) != 1 || query.Origins[0] != catalog.SearchResultLocal || len(query.Kinds) > 1 || len(query.Kinds) == 1 && query.Kinds[0] != catalog.KindMCPServer) {
+		return safeerr.New("remote: includeMcpTools requires text, local-only origins and MCP server kinds")
+	}
 	if !utf8.ValidString(query.AgentProtocol) || utf8.RuneCountInString(query.AgentProtocol) > 256 || strings.ContainsRune(query.AgentProtocol, 0) || query.AgentProtocol != "" && (strings.TrimSpace(query.AgentProtocol) == "" || len(query.Origins) != 1 || query.Origins[0] != catalog.SearchResultLocal) {
 		return safeerr.New("remote: agentProtocol requires an exact declaration of at most 256 characters and explicit local-only origins")
 	}

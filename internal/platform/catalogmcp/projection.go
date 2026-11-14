@@ -91,6 +91,7 @@ type resultProjection struct {
 	Tags           []string                       `json:"tags"`
 	Publisher      string                         `json:"publisher,omitempty"`
 	Score          int                            `json:"score"`
+	ToolMatch      *catalog.MCPToolMatch          `json:"toolMatch,omitempty"`
 	Local          *catalog.CatalogSearchLocal    `json:"local,omitempty"`
 	Indexed        *catalog.IndexedSearchEvidence `json:"indexed,omitempty"`
 	Live           *liveReference                 `json:"live,omitempty"`
@@ -103,6 +104,7 @@ func projectResult(raw json.RawMessage) (resultProjection, error) {
 		VersionPresent *bool           `json:"versionPresent"`
 		Score          *int            `json:"score"`
 		Version        json.RawMessage `json:"version"`
+		ToolMatch      json.RawMessage `json:"toolMatch"`
 	}
 	if consume(raw, &input) != nil || consume(raw, &required) != nil || required.VersionPresent == nil || required.Score == nil || !input.Kind.Valid() || input.Tags == nil || input.ID == "" || input.Identifier == "" || !bounded(input.Identifier, 512) || !bounded(input.Version, 128) || input.DisplayName == "" || !bounded(input.DisplayName, 512) || !bounded(input.Description, 4000) || input.Score < 0 || input.Score > 100 || !input.VersionPresent && input.Version != "" {
 		return resultProjection{}, bad
@@ -115,7 +117,12 @@ func projectResult(raw json.RawMessage) (resultProjection, error) {
 			return resultProjection{}, bad
 		}
 	}
-	output := resultProjection{ID: input.ID, Type: input.Type, Identifier: input.Identifier, Version: input.Version, VersionPresent: input.VersionPresent, Kind: input.Kind, DisplayName: input.DisplayName, Description: input.Description, Tags: input.Tags, Publisher: input.Publisher, Score: input.Score, Local: input.Local, Indexed: input.Indexed}
+	if len(required.ToolMatch) != 0 {
+		if input.Type != catalog.SearchResultLocal || input.Kind != catalog.KindMCPServer || !validToolMatch(input.ToolMatch) {
+			return resultProjection{}, bad
+		}
+	}
+	output := resultProjection{ID: input.ID, Type: input.Type, Identifier: input.Identifier, Version: input.Version, VersionPresent: input.VersionPresent, Kind: input.Kind, DisplayName: input.DisplayName, Description: input.Description, Tags: input.Tags, Publisher: input.Publisher, Score: input.Score, Local: input.Local, Indexed: input.Indexed, ToolMatch: input.ToolMatch}
 	switch input.Type {
 	case catalog.SearchResultLocal:
 		if input.Local == nil || input.Indexed != nil || input.Live != nil || !validLocal(*input.Local) || input.ID != "local:"+input.Local.Release.ID || input.Identifier != input.Local.Resource.CanonicalIdentifier || input.Version != input.Local.Version.Version || !input.VersionPresent || input.Kind != input.Local.Resource.Kind {
@@ -143,6 +150,20 @@ func projectResult(raw json.RawMessage) (resultProjection, error) {
 		return resultProjection{}, bad
 	}
 	return output, nil
+}
+
+func validToolMatch(match *catalog.MCPToolMatch) bool {
+	if match == nil || !identity.ValidTenantID(match.RepresentationID) || !digest(match.ContentDigest) || match.MatchedToolCount < 1 || match.MatchedToolCount > catalog.MaxMCPTools || len(match.Tools) != min(match.MatchedToolCount, catalog.MaxMCPToolMatches) || match.Truncated != (match.MatchedToolCount > catalog.MaxMCPToolMatches) {
+		return false
+	}
+	seen := map[string]bool{}
+	for _, tool := range match.Tools {
+		if !bounded(tool.Name, 128) || strings.TrimSpace(tool.Name) == "" || seen[tool.Name] || !bounded(tool.Description, catalog.MaxMCPToolSnippet) || tool.DescriptionTruncated && utf8.RuneCountInString(tool.Description) != catalog.MaxMCPToolSnippet {
+			return false
+		}
+		seen[tool.Name] = true
+	}
+	return true
 }
 
 func validLocal(local catalog.CatalogSearchLocal) bool {
@@ -215,7 +236,7 @@ func project(name string, raw json.RawMessage, selected selection) (json.RawMess
 			Partial        *bool                             `json:"partial"`
 			Diagnostics    []catalog.CatalogSearchDiagnostic `json:"diagnostics,omitempty"`
 		}
-		if consume(raw, &page) != nil || page.Items == nil || len(page.Items) > selected.limit || page.DurableTotal == nil || *page.DurableTotal < 0 || page.LiveCount == nil || *page.LiveCount < 0 || *page.LiveCount > 50 || page.Partial == nil || page.Tier != "core" && page.Tier != "hybrid" || page.Profile != "core-lexical-v1" && !digest(page.Profile) || !digest(page.Generation) || len(page.Diagnostics) > 33 {
+		if consume(raw, &page) != nil || page.Items == nil || len(page.Items) > selected.limit || page.DurableTotal == nil || *page.DurableTotal < 0 || page.LiveCount == nil || *page.LiveCount < 0 || *page.LiveCount > 50 || page.Partial == nil || page.Tier != "core" && page.Tier != "hybrid" || page.Profile != catalog.CoreSearchProfile && page.Profile != catalog.MCPToolsSearchProfile && !digest(page.Profile) || !digest(page.Generation) || len(page.Diagnostics) > 33 {
 			return nil, bad
 		}
 		var cursor string
@@ -300,6 +321,7 @@ func projectRelease(raw json.RawMessage, release string) (json.RawMessage, error
 	}
 	return json.Marshal(struct {
 		catalog.CatalogSummary
-		Representations []reference `json:"representations"`
-	}{summary, refs})
+		Representations         []reference `json:"representations"`
+		ToolDeclarationRedacted bool        `json:"toolDeclarationRedacted,omitempty"`
+	}{summary, refs, record.ToolDeclarationRedacted})
 }

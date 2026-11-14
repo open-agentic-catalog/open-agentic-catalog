@@ -57,7 +57,7 @@ This does not grant runtime access. `catalogctl migrate apply` still owns the ex
 
 ## Exact grants and extension access
 
-The checked-in bootstrap creates the two restricted local roles, grants database connection and schema use, and deliberately grants no table-wide DML or future-table authority. Version 28 of the manifest in `internal/platform/database/privileges.go` is the sole service-owned Catalog-schema grant inventory. Every current table and column defaults to no access. The manifest explicitly enables each API or worker operation.
+The checked-in bootstrap creates the two restricted local roles, grants database connection and schema use, and deliberately grants no table-wide DML or future-table authority. Version 29 of the manifest in `internal/platform/database/privileges.go` is the sole service-owned Catalog-schema grant inventory. Every current table and column defaults to no access. The manifest explicitly enables each API or worker operation.
 
 It grants no delegation option or sequence authority. The API receives core lexical query, sort-name, token and vector functions. The worker receives the token and lexical-vector functions needed for observation ingestion. Provisioned semantic tables add only the reviewed pgvector conversion, dimension/norm checks and API cosine comparison.
 
@@ -108,7 +108,7 @@ Migration 000018 tests bounded multi-replica housekeeping, exact eligibility and
 
 ## Migration drain and provisioning requirements
 
-The current runtime privilege manifest v28 is required by both runtime roles. Optional semantic tables receive column-explicit grants only when installed; merely installing pgvector does not grant its arithmetic functions. These grants follow the installed schema, not the runtime enablement flag, and remain required if semantic search is disabled after provisioning. API access is read-only, worker vectors and memberships are insert-only apart from derived-state deletion, and generation updates are limited to state and update time.
+The current runtime privilege manifest v29 is required by both runtime roles. Optional semantic tables receive column-explicit grants only when installed; merely installing pgvector does not grant its arithmetic functions. These grants follow the installed schema, not the runtime enablement flag, and remain required if semantic search is disabled after provisioning. API access is read-only, worker vectors and memberships are insert-only apart from derived-state deletion, and generation updates are limited to state and update time.
 
 Migrations 000029 and 000030 materialize six local search fields and five indexed ranking vectors. Drain both roles before applying them and reconciling current grants; allow for table rewrites/locks on Resources, ListingRevisions and observations. The API gains read-only projection columns. Both roles execute the array-normalization helper: the API for authoring, the worker for ingestion.
 

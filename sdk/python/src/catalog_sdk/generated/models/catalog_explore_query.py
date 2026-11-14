@@ -20,7 +20,7 @@ else:
     import re  # noqa: F401
     import json
 
-    from pydantic import BaseModel, ConfigDict, Field, field_validator
+    from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator
     from typing import Any, ClassVar, Dict, List, Optional
     from typing_extensions import Annotated
     from uuid import UUID
@@ -35,6 +35,11 @@ else:
         CatalogExploreQuery
         """  # noqa: E501
 
+        include_mcp_tools: Optional[StrictBool] = Field(
+            default=None,
+            description="Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.",
+            alias="includeMcpTools",
+        )
         agent_protocol: Optional[Annotated[str, Field(strict=True, max_length=256)]] = (
             Field(
                 default=None,
@@ -70,6 +75,7 @@ else:
         )
         visibility: Optional[Visibility] = None
         __properties: ClassVar[List[str]] = [
+            "includeMcpTools",
             "agentProtocol",
             "namespaceId",
             "text",
@@ -155,6 +161,7 @@ else:
 
             _obj = cls.model_validate(
                 {
+                    "includeMcpTools": obj.get("includeMcpTools"),
                     "agentProtocol": obj.get("agentProtocol"),
                     "namespaceId": obj.get("namespaceId"),
                     "text": obj.get("text"),

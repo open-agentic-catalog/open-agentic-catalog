@@ -96,7 +96,7 @@ func projectExplore(raw json.RawMessage, request catalog.ExploreRequest) (json.R
 			return nil, bad
 		}
 	}
-	if fields["tier"] != nil && input.Tier != "core" && input.Tier != "hybrid" || fields["profile"] != nil && input.Profile != catalog.CoreSearchProfile && !digest(input.Profile) {
+	if fields["tier"] != nil && input.Tier != "core" && input.Tier != "hybrid" || fields["profile"] != nil && input.Profile != catalog.CoreSearchProfile && input.Profile != catalog.MCPToolsSearchProfile && !digest(input.Profile) {
 		return nil, bad
 	}
 	result := catalog.ExploreResponse{Matched: *input.Matched, Facets: map[string]catalog.FacetResult{}, Tier: input.Tier, Profile: input.Profile, FallbackReason: input.FallbackReason, PartialIndex: input.PartialIndex}

@@ -761,3 +761,34 @@ func TestGeneratedWireSemantics(t *testing.T) {
 		}
 	}
 }
+
+func TestDeclaredMCPToolsWireRoundTrip(t *testing.T) {
+	for _, wire := range []string{`{"text":"pdf tables","includeMcpTools":true,"origins":["local"]}`, `{"includeMcpTools":false}`, `{}`} {
+		var value CatalogSearch
+		if err := json.Unmarshal([]byte(wire), &value); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want, got map[string]any
+		if err := json.Unmarshal([]byte(wire), &want); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(want, got) {
+			t.Fatal("optional private search selector changed", string(raw))
+		}
+	}
+	const wire = `{"representationId":"00000000-0000-7000-8000-000000000001","contentDigest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","matchedToolCount":1,"tools":[{"name":"extract_pdf_tables","descriptionTruncated":false}],"truncated":false}`
+	var match MCPToolMatch
+	if err := json.Unmarshal([]byte(wire), &match); err != nil {
+		t.Fatal(err)
+	}
+	if match.MatchedToolCount != 1 || len(match.Tools) != 1 || match.Tools[0].Name != "extract_pdf_tables" || match.Truncated {
+		t.Fatal("released tool explanation lost", match)
+	}
+}

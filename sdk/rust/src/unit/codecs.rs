@@ -211,3 +211,21 @@ fn skill_package_data_rejects_invalid_base64_and_wrong_wire_types() {
         );
     }
 }
+
+/// The opt-in selector and exact private explanation survive generated codecs.
+#[test]
+fn declared_mcp_tools_keep_explicit_false_distinct_from_omission() {
+    for wire in [
+        json!({"text":"pdf tables","includeMcpTools":true,"origins":["local"]}),
+        json!({"includeMcpTools":false}),
+        json!({}),
+    ] {
+        let query: CatalogSearch = serde_json::from_value(wire.clone()).unwrap();
+        assert_eq!(serde_json::to_value(query).unwrap(), wire);
+    }
+    let wire = json!({"representationId":"00000000-0000-7000-8000-000000000001",
+        "contentDigest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "matchedToolCount":1,"tools":[{"name":"extract_pdf_tables","descriptionTruncated":false}],"truncated":false});
+    let matched: MCPToolMatch = serde_json::from_value(wire.clone()).unwrap();
+    assert_eq!(serde_json::to_value(matched).unwrap(), wire);
+}

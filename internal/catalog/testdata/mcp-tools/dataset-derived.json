@@ -1,0 +1,12 @@
+{
+  "tools": [
+    {
+      "name": "app_get",
+      "description": "Get detailed app info including input/output schemas and version history"
+    },
+    {
+      "name": "app_list",
+      "description": "Search and filter available apps on inference.sh"
+    }
+  ]
+}

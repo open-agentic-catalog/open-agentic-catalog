@@ -700,18 +700,27 @@ func (s *Service) GetVersionRevision(ctx context.Context, revisionID string) (Ve
 	if _, err := requirePermission(ctx, "resource.read_content", resource.NamespaceID); err != nil {
 		return VersionRevision{}, EvidenceSet{}, "", err
 	}
+	if err := s.auditVersionRevisionRead(ctx, actor, revision); err != nil {
+		return VersionRevision{}, EvidenceSet{}, "", err
+	}
+	return revision, evidence, resource.NamespaceID, nil
+}
+
+// auditVersionRevisionRead uses the existing private-read action for exact
+// version reads and released records that disclose private tool content.
+func (s *Service) auditVersionRevisionRead(ctx context.Context, actor identity.Actor, revision VersionRevision) error {
 	record, err := s.newActorAuditRecord(ctx, actor, auditpkg.ActionVersionRevisionRead, "version_revision", revision.ID, "", map[string]any{"contentDigest": revision.ContentSetDigest}, s.clock.Now())
 	if err != nil {
-		return VersionRevision{}, EvidenceSet{}, "", err
+		return err
 	}
 	record.AfterDigest = revision.ContentSetDigest
 	if err := auditpkg.ValidateNewRecord(record); err != nil {
-		return VersionRevision{}, EvidenceSet{}, "", Wrap(CodeInternal, "validate version-revision read evidence", err)
+		return Wrap(CodeInternal, "validate version-revision read evidence", err)
 	}
 	if err := s.repo.AppendAuditEvent(ctx, record); err != nil {
-		return VersionRevision{}, EvidenceSet{}, "", Wrap(CodeDependencyUnavailable, "retain version-revision read evidence", err)
+		return Wrap(CodeDependencyUnavailable, "retain version-revision read evidence", err)
 	}
-	return revision, evidence, resource.NamespaceID, nil
+	return nil
 }
 
 // RevalidateVersionRevision returns a new validation run and canonical namespace
@@ -948,6 +957,9 @@ func (s *Service) CreateVersionRevision(ctx context.Context, versionID string, r
 // evidence before the repository transaction. Exact bounded text documents are
 // retained; transient Skill package bytes are inspected but never persisted.
 func (s *Service) buildVersionRevision(ctx context.Context, actor identity.Actor, kind Kind, versionID, expectedVersion string, number int, now time.Time, inputs []RepresentationInput) (VersionRevision, EvidenceSet, []DocumentBlob, error) {
+	if err := validateMCPToolInputs(kind, inputs); err != nil {
+		return VersionRevision{}, EvidenceSet{}, nil, err
+	}
 	if len(inputs) == 0 || len(inputs) > 16 {
 		return VersionRevision{}, EvidenceSet{}, nil, E(CodeInvalidArgument, "between one and sixteen representations are required")
 	}
@@ -1100,6 +1112,9 @@ func (s *Service) buildVersionRevision(ctx context.Context, actor identity.Actor
 			canonical, canonicalErr := canonicalJSON(object)
 			if canonicalErr != nil {
 				return VersionRevision{}, EvidenceSet{}, nil, Wrap(CodeInvalidArgument, "canonicalize inline representation", canonicalErr)
+			}
+			if IsMCPToolsMediaType(mediaType) && len(canonical) > MaxMCPToolsBytes {
+				return VersionRevision{}, EvidenceSet{}, nil, E(CodeInvalidArgument, "canonical tool declaration exceeds 65536 bytes")
 			}
 			representation.Data = canonical
 			representation.ContentDigest = digestBytes(canonical)
@@ -2375,7 +2390,11 @@ func (s *Service) Search(ctx context.Context, query SearchQuery) (Page[CatalogSu
 			return Page[CatalogSummary]{}, err
 		}
 	}
-	return Page[CatalogSummary]{Items: page.Items, NextCursor: next, Total: page.Total, FallbackReason: fallback}, nil
+	result := Page[CatalogSummary]{Items: page.Items, NextCursor: next, Total: page.Total, FallbackReason: fallback}
+	if query.IncludeMCPTools {
+		result.Tier, result.Profile = "core", MCPToolsSearchProfile
+	}
+	return result, nil
 }
 
 // Explore validates requested facets and aggregates matching local Catalog
@@ -2391,7 +2410,7 @@ func (s *Service) Explore(ctx context.Context, request ExploreRequest) (ExploreR
 	if request.Query.Limit != 0 || request.Query.Cursor != "" {
 		return ExploreResponse{}, E(CodeInvalidArgument, "catalog explore does not accept pagination controls")
 	}
-	if request.Query.AgentProtocol != "" && request.Query.Origins == nil {
+	if (request.Query.AgentProtocol != "" || request.Query.IncludeMCPTools) && request.Query.Origins == nil {
 		request.Query.Origins = []SearchResultType{SearchResultLocal}
 	}
 	if err := validateCatalogSearchQuery(request.Query); err != nil {
@@ -2424,6 +2443,10 @@ func (s *Service) Explore(ctx context.Context, request ExploreRequest) (ExploreR
 	}
 	response, err = s.repo.ExploreCatalog(ctx, actor.TenantID, request.Query, request.Facets)
 	response.FallbackReason = fallback
+	if request.Query.IncludeMCPTools {
+		response.Profile = MCPToolsSearchProfile
+		response.Tier = "core"
+	}
 	return response, err
 }
 
@@ -2442,7 +2465,45 @@ func (s *Service) GetCatalogRecord(ctx context.Context, releaseID string) (Catal
 	if _, err := requirePermission(ctx, "resource.read", value.Resource.NamespaceID); err != nil {
 		return CatalogRecord{}, err
 	}
-	return s.repo.GetCatalogRecord(ctx, actor.TenantID, releaseID)
+	// Test content authority for every MCP record, independent of whether a
+	// private declaration exists. An omitted attachment must not reveal presence.
+	redacted := false
+	if value.Resource.Kind == KindMCPServer {
+		if _, err := requirePermission(ctx, "resource.read_content", value.Resource.NamespaceID); err != nil {
+			if ErrorCodeOf(err) != CodeForbidden {
+				return CatalogRecord{}, err
+			}
+			redacted = true
+		}
+	}
+	// The repository's existing read admission fences all granted checks,
+	// including content authority, before disclosure.
+	value, err = s.repo.GetCatalogRecord(ctx, actor.TenantID, releaseID)
+	if err != nil {
+		return CatalogRecord{}, err
+	}
+	if redacted {
+		retained := make([]Representation, 0, len(value.VersionRevision.Representations))
+		for _, rep := range value.VersionRevision.Representations {
+			if IsMCPToolsMediaType(rep.MediaType) || rep.ProfileID == MCPToolsProfile {
+				continue
+			}
+			retained = append(retained, rep)
+		}
+		value.VersionRevision.Representations = retained
+		value.ToolDeclarationRedacted = true
+	}
+	if !redacted {
+		for _, rep := range value.VersionRevision.Representations {
+			if IsMCPToolsMediaType(rep.MediaType) || rep.ProfileID == MCPToolsProfile {
+				if err := s.auditVersionRevisionRead(ctx, actor, value.VersionRevision); err != nil {
+					return CatalogRecord{}, err
+				}
+				break
+			}
+		}
+	}
+	return value, nil
 }
 
 // PublicRecords returns the bounded public-only publication projection for an
@@ -2765,6 +2826,10 @@ func normalizeQueries(values []string) []string {
 // validateCatalogSearchQuery enforces supported query fields, filter values and
 // collection limits.
 func validateCatalogSearchQuery(query SearchQuery) error {
+	if query.IncludeMCPTools && (strings.TrimSpace(query.Text) == "" || query.AgentProtocol != "" || len(query.Origins) != 1 || query.Origins[0] != SearchResultLocal || len(query.Kinds) > 1 || len(query.Kinds) == 1 && query.Kinds[0] != KindMCPServer) {
+		return E(CodeInvalidArgument, "includeMcpTools requires search text, explicit local-only origins and MCP servers; Agent protocol selection is incompatible")
+	}
+
 	if !validTextLength(query.AgentProtocol, 256) || query.AgentProtocol != "" && (strings.TrimSpace(query.AgentProtocol) == "" || len(query.Origins) != 1 || query.Origins[0] != SearchResultLocal) {
 		return E(CodeInvalidArgument, "agentProtocol requires an exact declaration of at most 256 characters and explicit local-only origins")
 	}
@@ -2846,6 +2911,9 @@ func filterAndScoreRecords(records []CatalogSummary, query SearchQuery) []Catalo
 			continue
 		}
 		record.RelevanceScore = CoreLexicalScore(SearchDocument{Identifier: record.Resource.CanonicalIdentifier, DisplayName: record.ListingRevision.DisplayName, Description: record.ListingRevision.Description, Tags: record.ListingRevision.Tags, RepresentativeQueries: record.ListingRevision.RepresentativeQueries}, query.Text)
+		if query.IncludeMCPTools && record.ToolMatch != nil {
+			record.RelevanceScore = max(record.RelevanceScore, record.ToolMatch.Score)
+		}
 		if query.Text != "" && record.RelevanceScore == 0 {
 			continue
 		}

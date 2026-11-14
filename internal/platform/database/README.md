@@ -117,3 +117,24 @@ Development owner provisioning carries exact namespace grants in the same princi
 Access directories apply exact subject/name, lifecycle/type and realm predicates before SQL limits. Member contributions select bounded assignment IDs before loading role, group and latest relation metadata in one policy-bound read. Foreign-realm group coverage remains unavailable; tenant-wide direct inventory and current-realm group administration keep their separate boundaries. This adds no schema object or runtime privilege.
 
 Self-assignment group captions hydrate only distinct group IDs from the selected page, with explicit tenant/current-realm predicates and the page limit in the same coherent authorization read. Missing or failed caption rows fail closed. No schema or privilege-manifest change is needed.
+
+## Private declared-tool projection
+
+Migration 000049 adds generated `mcp_tools` arrays to immutable representations
+and document blobs, GIN lexical indexes and one-declaration-per-revision
+uniqueness. Runtime privilege manifest 29 deliberately grants the API read-only
+projection/function access and denies it to workers. Drain API/worker before the
+schema-owner migration because stored generated columns rewrite the tables.
+Apply/reconcile with the normal migration command; runtime identities never
+migrate or update the derived columns. If reconciliation fails, keep runtimes
+stopped and correct the exact role report before retrying.
+
+The declaration bytes and digest remain authoritative. Insertions and logical
+restores recompute the arrays; restore generated columns through PostgreSQL's
+normal dump/restore behavior, rather than setting them manually. A damaged GIN
+index can be rebuilt using PostgreSQL `REINDEX` under the operator's maintenance
+procedure. A changed projection format requires a new forward migration. Do not
+rewrite immutable declarations or use the indexed-observation repair command
+for these columns. `make test-integration` qualifies migration, restore-style
+insertion/reindex, exact-role access, current content permission, lifecycle,
+tenant isolation, paging and bounded maximum-inventory query plans.

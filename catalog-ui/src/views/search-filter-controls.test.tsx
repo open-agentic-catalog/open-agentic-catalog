@@ -1040,3 +1040,57 @@ it("stages exact declared bindings with locked local scope and validates before 
     expect.objectContaining({ agentProtocol: "私有+V1 ", origins: ["local"] }),
   );
 });
+
+it("stages MCP declarations with local scope, rejects blank applied text, and allows clearing the selector", () => {
+  const apply = vi.fn();
+  const v = render(
+    <SearchFilters
+      value={{ origins: ["live"] }}
+      tags={[]}
+      publishers={[]}
+      onApply={apply}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Filters/ }));
+  const checkbox = screen.getByRole("checkbox", {
+    name: "Include declared MCP tools",
+  });
+  fireEvent.click(checkbox);
+  expect(screen.getByLabelText("Agent protocol binding")).toHaveProperty(
+    "disabled",
+    true,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  expect(apply).not.toHaveBeenCalled();
+  expect(screen.getByRole("alert").textContent).toContain(
+    "Enter and apply search text",
+  );
+  v.rerender(
+    <SearchFilters
+      value={{ origins: ["live"] }}
+      tags={[]}
+      publishers={[]}
+      searchText="pdf tables"
+      onApply={apply}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  expect(apply).toHaveBeenLastCalledWith(
+    expect.objectContaining({
+      includeMcpTools: true,
+      origins: ["local"],
+      kinds: ["mcp_server"],
+    }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Filters/ }));
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Include declared MCP tools" }),
+  );
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Include declared MCP tools" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  expect(apply).toHaveBeenLastCalledWith(
+    expect.objectContaining({ includeMcpTools: false }),
+  );
+});

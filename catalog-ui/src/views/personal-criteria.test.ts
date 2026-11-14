@@ -129,3 +129,27 @@ it("preserves exact Agent declarations and requires explicit local-only saved sc
   ])
     expect(validCriteria(value)).toBe(false);
 });
+
+it("retains declared-tool criteria and rejects a saved query that would change its search scope", () => {
+  const value = {
+    text: "pdf tables",
+    includeMcpTools: true,
+    origins: ["local"],
+    kinds: ["mcp_server"],
+  };
+  expect(checkedCriteria(value)).toEqual(value);
+  expect(
+    validCriteria({ ...value, includeMcpTools: false, origins: ["indexed"] }),
+  ).toBe(true);
+  for (const invalid of [
+    { ...value, text: " " },
+    { ...value, origins: undefined },
+    { ...value, origins: ["indexed"] },
+    { ...value, kinds: ["agent"] },
+    { ...value, agentProtocol: "JSONRPC" },
+    { ...value, includeMcpTools: null },
+    { ...value, includeMcpTools: "true" },
+  ]) {
+    expect(validCriteria(invalid)).toBe(false);
+  }
+});

@@ -2502,6 +2502,7 @@ try {
           license = "",
           categories = [],
           origins = [],
+          includeMcpTools = false,
         }) =>
           JSON.parse(
             await compose(
@@ -2524,6 +2525,7 @@ try {
               ...(license ? ["--license", license] : []),
               ...categories.flatMap((value) => ["--category", value]),
               ...origins.flatMap((value) => ["--origin", value]),
+              ...(includeMcpTools ? ["--include-mcp-tools"] : []),
             ),
           ).data,
         phase: (value) => {

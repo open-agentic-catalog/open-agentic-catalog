@@ -2810,6 +2810,15 @@ export async function packagedJourneys({
     link,
     command,
   });
+  phase("compose-declared-mcp-tools");
+  await declaredMCPToolsJourney({
+    page,
+    origin,
+    login,
+    visit,
+    button,
+    remoteSearch,
+  });
   console.log(
     "Packaged federation, Job, webhook and publication journeys passed",
   );
@@ -3853,4 +3862,194 @@ export async function privateFeedbackJourney({ page, origin, network, api }) {
   expect(restored.data.availablePermissions).not.toContain("feedback.moderate");
   await login("local-reader");
   await page.goto(releaseURL);
+}
+
+// The new release lives only in this harness's PostgreSQL project. Setup uses
+// ordinary governed commands; Search, CLI and browser reads use real services.
+async function declaredMCPToolsJourney({
+  page,
+  origin,
+  login,
+  visit,
+  button,
+  remoteSearch,
+}) {
+  const request = (method, path, body, etag) =>
+    page.evaluate(
+      async ({ url, method, body, etag, key }) => {
+        const response = await fetch(url, {
+          method,
+          credentials: "same-origin",
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            "X-Catalog-Request": "1",
+            ...(body === undefined
+              ? {}
+              : { "Content-Type": "application/json" }),
+            ...(key ? { "Idempotency-Key": key } : {}),
+            ...(etag ? { "If-Match": etag } : {}),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+        return {
+          status: response.status,
+          etag: response.headers.get("ETag"),
+          data: await response.json(),
+        };
+      },
+      {
+        url: origin + "/_catalog" + path,
+        method,
+        body,
+        etag,
+        key: method === "GET" ? undefined : randomUUID(),
+      },
+    );
+  await login("local-admin");
+  const createdNamespace = await request("POST", "/api/v1/namespaces", {
+    slug: "declared-tool-qualification",
+    displayName: "Declared tool qualification",
+  });
+  expect(createdNamespace.status).toBe(201);
+  const namespace = createdNamespace.data;
+  const publishers = await request(
+    "GET",
+    "/api/v1/publishers?displayName=Demo%20Publisher",
+  );
+  expect(publishers.status).toBe(200);
+  const publisher = publishers.data.items.find(
+    (p) => p.displayName === "Demo Publisher",
+  );
+  expect(publisher).toBeTruthy();
+  const resource = await request("POST", "/api/v1/resources", {
+    namespaceId: namespace.id,
+    kind: "mcp_server",
+    canonicalIdentifier:
+      "urn:air:demo.catalog.example.com:demo:declared-tool-qualification",
+  });
+  expect(resource.status).toBe(201);
+  const native = JSON.parse(
+    await readFile(
+      new URL("../../samples/cards/order-mcp.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const version = await request(
+    "POST",
+    `/api/v1/resources/${resource.data.id}/versions`,
+    {
+      version: native.version,
+      representations: [
+        {
+          role: "primary",
+          mediaType: "application/mcp-server-card+json",
+          data: native,
+        },
+        {
+          role: "metadata",
+          mediaType: "application/vnd.open-agentic-catalog.mcp-tools+json",
+          profileId: "open-agentic-catalog-mcp-tools-1",
+          data: {
+            tools: [
+              {
+                name: "extract_packaged_pdf_tables",
+                description: "Parse packaged PDF tables",
+              },
+            ],
+          },
+        },
+      ],
+    },
+  );
+  expect(version.status).toBe(201);
+  expect(version.data.evidence.state).toBe("complete");
+  const listing = await request("POST", "/api/v1/catalog-listings", {
+    namespaceId: namespace.id,
+    resourceId: resource.data.id,
+  });
+  expect(listing.status).toBe(201);
+  const revision = await request(
+    "POST",
+    `/api/v1/catalog-listings/${listing.data.id}/revisions`,
+    {
+      versionRevisionId: version.data.revision.id,
+      publisherId: publisher.id,
+      displayName: "Owned tool qualification",
+      description: "Processes documents",
+      visibility: "tenant",
+    },
+    listing.etag,
+  );
+  expect(revision.status).toBe(201);
+  const submitted = await request(
+    "POST",
+    `/api/v1/catalog-listings/${listing.data.id}/submissions`,
+    {},
+  );
+  expect(submitted.status).toBe(201);
+  await login("local-reviewer");
+  expect(
+    (
+      await request(
+        "POST",
+        `/api/v1/review-submissions/${submitted.data.id}:approve`,
+        { reason: "Review exact private tools" },
+        submitted.etag,
+      )
+    ).status,
+  ).toBe(200);
+  await login("local-publisher");
+  const published = await request(
+    "POST",
+    `/api/v1/catalog-listings/${listing.data.id}:publish`,
+    { submissionId: submitted.data.id },
+    revision.etag,
+  );
+  expect(published.status).toBe(201);
+  const query = { text: "packaged pdf tables", origins: ["local"] };
+  await login("local-reader");
+  const ordinary = await request("POST", "/api/v1/catalog/search", query);
+  expect(ordinary.status).toBe(200);
+  expect(ordinary.data.durableTotal).toBe(0);
+  const cli = await remoteSearch({ ...query, includeMcpTools: true });
+  expect(cli).toMatchObject({
+    profile: "core-mcp-tools-v1",
+    tier: "core",
+    durableTotal: 1,
+    liveCount: 0,
+  });
+  expect(cli.items).toHaveLength(1);
+  expect(cli.items[0].local.release.id).toBe(published.data.release.id);
+  expect(cli.items[0].local.versionRevision.id).toBe(version.data.revision.id);
+  expect(cli.items[0].toolMatch.tools[0].name).toBe(
+    "extract_packaged_pdf_tables",
+  );
+  await visit("/catalog");
+  await page
+    .getByRole("searchbox", { name: "Search Catalog", exact: true })
+    .fill(query.text);
+  await button("Search").click();
+  await expect(page.locator("article.resource-card")).toHaveCount(0);
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  await page
+    .getByRole("checkbox", { name: "Include declared MCP tools", exact: true })
+    .check();
+  await button("Apply filters").click();
+  await expect(page.locator("article.resource-card")).toHaveCount(1);
+  await expect(page.locator("article.resource-card")).toContainText(
+    "extract_packaged_pdf_tables",
+  );
+  await button("Inspect released declaration").click();
+  await expect(page.getByRole("dialog")).toContainText("Declared MCP tools");
+  await page
+    .getByRole("dialog")
+    .getByText("Exact release and revision IDs", { exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    version.data.revision.id,
+  );
+  await button("Close preview").click();
+  console.log(
+    "Packaged declared-tool Search, exact revision readback and CLI passed",
+  );
 }

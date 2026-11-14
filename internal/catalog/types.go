@@ -421,16 +421,17 @@ type ListingRelease struct {
 }
 
 type CatalogRecord struct {
-	Display         *CatalogPresentation `json:"display,omitempty"`
-	Resource        Resource             `json:"resource"`
-	Version         ResourceVersion      `json:"version"`
-	VersionRevision VersionRevision      `json:"versionRevision"`
-	Listing         CatalogListing       `json:"listing"`
-	ListingRevision ListingRevision      `json:"listingRevision"`
-	Release         ListingRelease       `json:"release"`
-	Evidence        EvidenceSet          `json:"evidence"`
-	RelevanceScore  int                  `json:"relevanceScore,omitempty"`
-	Source          string               `json:"source"`
+	ToolDeclarationRedacted bool                 `json:"toolDeclarationRedacted,omitempty"`
+	Display                 *CatalogPresentation `json:"display,omitempty"`
+	Resource                Resource             `json:"resource"`
+	Version                 ResourceVersion      `json:"version"`
+	VersionRevision         VersionRevision      `json:"versionRevision"`
+	Listing                 CatalogListing       `json:"listing"`
+	ListingRevision         ListingRevision      `json:"listingRevision"`
+	Release                 ListingRelease       `json:"release"`
+	Evidence                EvidenceSet          `json:"evidence"`
+	RelevanceScore          int                  `json:"relevanceScore,omitempty"`
+	Source                  string               `json:"source"`
 }
 
 type AuditEvent = audit.Record
@@ -475,19 +476,20 @@ const (
 )
 
 type SearchQuery struct {
-	AgentProtocol string             `json:"agentProtocol,omitempty"`
-	Order         SearchOrder        `json:"order,omitempty"`
-	Origins       []SearchResultType `json:"origins,omitempty"`
-	NamespaceID   string             `json:"namespaceId,omitempty"`
-	Text          string             `json:"text"`
-	Kinds         []Kind             `json:"kinds,omitempty"`
-	Tags          []string           `json:"tags,omitempty"`
-	Categories    []string           `json:"categories,omitempty"`
-	License       string             `json:"license,omitempty"`
-	Publisher     string             `json:"publisher,omitempty"`
-	Visibility    Visibility         `json:"visibility,omitempty"`
-	Limit         int                `json:"limit,omitempty"`
-	Cursor        string             `json:"cursor,omitempty"`
+	IncludeMCPTools bool               `json:"includeMcpTools,omitempty"`
+	AgentProtocol   string             `json:"agentProtocol,omitempty"`
+	Order           SearchOrder        `json:"order,omitempty"`
+	Origins         []SearchResultType `json:"origins,omitempty"`
+	NamespaceID     string             `json:"namespaceId,omitempty"`
+	Text            string             `json:"text"`
+	Kinds           []Kind             `json:"kinds,omitempty"`
+	Tags            []string           `json:"tags,omitempty"`
+	Categories      []string           `json:"categories,omitempty"`
+	License         string             `json:"license,omitempty"`
+	Publisher       string             `json:"publisher,omitempty"`
+	Visibility      Visibility         `json:"visibility,omitempty"`
+	Limit           int                `json:"limit,omitempty"`
+	Cursor          string             `json:"cursor,omitempty"`
 }
 
 type CatalogSearchPosition struct {
@@ -565,6 +567,7 @@ type ImportedResource struct {
 	ChangedEntry bool   `json:"changedEntry"`
 }
 type CatalogSearchResult struct {
+	ToolMatch      *MCPToolMatch          `json:"toolMatch,omitempty"`
 	PeerRatings    *PeerRatingSummary     `json:"peerRatings,omitempty"`
 	ImportedHere   *ImportedResource      `json:"importedHere,omitempty"`
 	Ratings        *RatingSummary         `json:"ratings,omitempty"`

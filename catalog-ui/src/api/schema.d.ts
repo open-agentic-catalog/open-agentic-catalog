@@ -2253,7 +2253,7 @@ export interface paths {
         };
         /**
          * Get a governed Catalog record
-         * @description Returns one governed catalog record visible to the caller, including its resource and release metadata.
+         * @description Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
          */
         get: operations["getCatalogRecord"];
         put?: never;
@@ -4025,6 +4025,8 @@ export interface components {
         });
         /** @description Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search. */
         PersonalCriteria: {
+            /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
+            includeMcpTools?: boolean;
             /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
             agentProtocol?: string;
             order?: components["schemas"]["CatalogSearchOrder"];
@@ -4043,7 +4045,7 @@ export interface components {
             /** @description Source-aware selector matched against the Catalog Publisher UUID for local releases and the normalized AIR publisher component for indexed or live entries. Excludes NUL and is limited to 256 UTF-8 bytes. */
             publisher?: string;
             visibility?: components["schemas"]["Visibility"];
-        } & (unknown & (unknown | {
+        } & (unknown & unknown & (unknown | {
             origins?: "local"[];
         }));
         PersonalInput: {
@@ -5958,6 +5960,11 @@ export interface components {
             listingRevision: components["schemas"]["ListingRevision"];
         };
         CatalogRecord: {
+            /**
+             * @description Current content permission does not permit private tool declaration disclosure. Set for every MCP record without that permission, whether a declaration exists or not; absence of a displayed attachment cannot establish not supplied.
+             * @constant
+             */
+            toolDeclarationRedacted?: true;
             display?: components["schemas"]["CatalogPresentation"];
             resource: components["schemas"]["Resource"];
             version: components["schemas"]["ResourceVersion"];
@@ -6099,7 +6106,20 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        CatalogSearchResult: {
+        /** @description Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions. */
+        MCPToolMatch: {
+            representationId: components["schemas"]["UUID"];
+            contentDigest: string;
+            matchedToolCount: number;
+            truncated: boolean;
+            tools: {
+                name: string;
+                description?: string;
+                descriptionTruncated: boolean;
+            }[];
+        };
+        CatalogSearchResult: ({
+            toolMatch?: components["schemas"]["MCPToolMatch"];
             peerRatings?: {
                 /** Format: uri */
                 reporter: string;
@@ -6131,7 +6151,7 @@ export interface components {
             local?: components["schemas"]["CatalogSearchLocal"];
             indexed?: components["schemas"]["IndexedCatalogSearchEvidence"];
             live?: components["schemas"]["LiveCatalogSearchEvidence"];
-        } & ({
+        } & unknown) & ({
             /** @constant */
             type?: "local";
         } | {
@@ -6300,6 +6320,8 @@ export interface components {
          */
         CatalogSearchOrder: "name_asc" | "name_desc" | "kind_asc" | "kind_desc" | "publisher_asc" | "publisher_desc";
         CatalogSearch: {
+            /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
+            includeMcpTools?: boolean;
             /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
             agentProtocol?: string;
             order?: components["schemas"]["CatalogSearchOrder"];
@@ -6321,7 +6343,7 @@ export interface components {
             limit?: number;
             /** @description Opaque expiring continuation cursor bound to the principal, permissions, normalized query, core SearchProfile, and durable local and indexed generations. Core live continuation replays an unchanged bounded window of at most 50 candidates with a fixed 15-minute expiry. Changed evidence requires restart; temporary replay failure permits retrying the same cursor. Hybrid Search preserves the precise durable ranking before a separate live tail. Live-only Search binds the live window without durable generation or embedding work. */
             cursor?: string;
-        } & (unknown & (unknown | {
+        } & (unknown & unknown & (unknown | {
             origins?: "local"[];
         }));
         CatalogExplore: {
@@ -6334,6 +6356,8 @@ export interface components {
             }[];
         };
         CatalogExploreQuery: {
+            /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
+            includeMcpTools?: boolean;
             /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
             agentProtocol?: string;
             namespaceId?: components["schemas"]["UUID"];
@@ -6347,7 +6371,7 @@ export interface components {
             /** @description Catalog Publisher UUID. Explore covers local governed releases only. */
             publisher?: string;
             visibility?: components["schemas"]["Visibility"];
-        };
+        } & unknown;
         CatalogFacetBucket: {
             value: string;
             count: number;

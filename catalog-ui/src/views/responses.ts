@@ -176,6 +176,7 @@ export function CatalogPresentation(value: unknown): boolean {
 export function CatalogRecord(value: unknown): boolean {
   return (
     object(value) &&
+    optional(value.toolDeclarationRedacted, (redacted) => redacted === true) &&
     optional(value.display, CatalogPresentation) &&
     Resource(value.resource) &&
     ResourceVersion(value.version) &&
@@ -270,6 +271,46 @@ export function CatalogSearchResponse(value: unknown): boolean {
   );
 }
 
+function MCPToolMatch(value: unknown): boolean {
+  if (
+    !object(value) ||
+    typeof value.representationId !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value.representationId,
+    ) ||
+    typeof value.contentDigest !== "string" ||
+    !/^sha256:[a-f0-9]{64}$/.test(value.contentDigest) ||
+    typeof value.matchedToolCount !== "number" ||
+    !number(value.matchedToolCount, 1, 64, true) ||
+    !Array.isArray(value.tools) ||
+    value.tools.length !== Math.min(value.matchedToolCount, 3) ||
+    value.truncated !== value.matchedToolCount > 3
+  )
+    return false;
+  const names = new Set<string>();
+  return value.tools.every((tool: unknown) => {
+    if (
+      !object(tool) ||
+      typeof tool.name !== "string" ||
+      !tool.name.trim() ||
+      [...tool.name].length > 128 ||
+      tool.name.includes("\0") ||
+      names.has(tool.name) ||
+      !flag(tool.descriptionTruncated) ||
+      (tool.description !== undefined &&
+        (typeof tool.description !== "string" ||
+          [...tool.description].length > 256 ||
+          tool.description.includes("\0"))) ||
+      (tool.descriptionTruncated &&
+        (typeof tool.description !== "string" ||
+          [...tool.description].length !== 256))
+    )
+      return false;
+    names.add(tool.name);
+    return true;
+  });
+}
+
 export function CatalogSearchResult(value: unknown): boolean {
   return (
     object(value) &&
@@ -283,6 +324,9 @@ export function CatalogSearchResult(value: unknown): boolean {
     optional(value.description, text) &&
     array(value.tags, text) &&
     optional(value.publisher, text) &&
+    optional(value.toolMatch, MCPToolMatch) &&
+    (value.toolMatch === undefined ||
+      (value.type === "local" && value.kind === "mcp_server")) &&
     optional(value.local, CatalogSearchLocal) &&
     optional(value.indexed, IndexedCatalogSearchEvidence) &&
     optional(value.live, LiveCatalogSearchEvidence) &&

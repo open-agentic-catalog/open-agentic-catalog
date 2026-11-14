@@ -1476,7 +1476,7 @@ class CatalogDiscoveryApi:
     ) -> CatalogRecord:
         """Get a governed Catalog record
 
-        Returns one governed catalog record visible to the caller, including its resource and release metadata.
+        Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 
         :param catalog_record_id: Governed record identifier returned by Catalog browse or Search. (required)
         :type catalog_record_id: UUID
@@ -1539,7 +1539,7 @@ class CatalogDiscoveryApi:
     ) -> ApiResponse[CatalogRecord]:
         """Get a governed Catalog record
 
-        Returns one governed catalog record visible to the caller, including its resource and release metadata.
+        Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 
         :param catalog_record_id: Governed record identifier returned by Catalog browse or Search. (required)
         :type catalog_record_id: UUID
@@ -1602,7 +1602,7 @@ class CatalogDiscoveryApi:
     ) -> RESTResponseType:
         """Get a governed Catalog record
 
-        Returns one governed catalog record visible to the caller, including its resource and release metadata.
+        Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 
         :param catalog_record_id: Governed record identifier returned by Catalog browse or Search. (required)
         :type catalog_record_id: UUID

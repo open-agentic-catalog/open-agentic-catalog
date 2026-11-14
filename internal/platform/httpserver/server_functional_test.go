@@ -1134,6 +1134,7 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 	requireStatus(t, unpublish, http.StatusNotFound)
 	unpublishedManifest := requestJSON(t, testServer.URL, http.MethodGet, "/.well-known/ard.json", "", "", "", nil)
 	requireStatus(t, unpublishedManifest, http.StatusNotFound)
+	t.Run("private declared MCP tools", func(t *testing.T) { testHTTPMCPTools(t, testServer.URL, namespace.ID, publisher.ID, externalFetcher) })
 	t.Run("bounded diagnostics preserve retrieval and denial", func(t *testing.T) { testHTTPDiagnosticAmplification(t, testServer.URL, namespace.ID, publisher.ID) })
 	t.Run("bounded Job metadata preserves retained results", func(t *testing.T) {
 		testHTTPJobMetadata(t, testServer.URL, tenantID, jobStore, serviceClock.Now().Add(time.Hour))

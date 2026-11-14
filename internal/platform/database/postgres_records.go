@@ -94,7 +94,9 @@ var catalogSearchRecordsCTE = catalogSearchBaseCTE + `, matched AS (
 var catalogSearchPageSQL = strings.NewReplacer(
 	"matched AS (", "matched AS MATERIALIZED (",
 	"SELECT release_id,kind,namespace_id,sort_name,tags,categories,publisher_id,visibility,trust_state,result_id,", "SELECT release_id,sort_name,result_id,",
-).Replace(catalogSearchRecordsCTE) + `
+).Replace(catalogSearchRecordsCTE) + catalogSearchPageTailSQL
+
+const catalogSearchPageTailSQL = `
 SELECT totals.total,page.release_id::text,page.score
   FROM (SELECT count(*) AS total FROM matched) totals
   LEFT JOIN LATERAL (
@@ -116,6 +118,9 @@ var (
 // catalogSearchStatements selects the prebuilt text-present or text-absent
 // query shape; the search text and all filter values remain bound parameters.
 func catalogSearchStatements(query catalog.SearchQuery) (records, page string) {
+	if query.IncludeMCPTools {
+		return mcpToolsSearchStatements()
+	}
 	if query.Text == "" {
 		return catalogSearchEmptyRecordsCTE, catalogSearchEmptyPageSQL
 	}
@@ -343,10 +348,18 @@ func searchCatalogTx(ctx context.Context, tx pgx.Tx, tenantID string, request ca
 	if err != nil {
 		return catalog.CatalogSearchRepositoryPage{}, err
 	}
+	var toolMatches map[string]*catalog.MCPToolMatch
+	if request.Query.IncludeMCPTools {
+		toolMatches, err = readMCPToolMatches(ctx, tx, tenantID, releaseIDs, request.Query.Text)
+		if err != nil {
+			return catalog.CatalogSearchRepositoryPage{}, err
+		}
+	}
 	items := make([]catalog.CatalogSummary, 0, len(selected))
 	for _, selectedRecord := range selected {
 		record := *records[selectedRecord.id]
 		record.RelevanceScore = selectedRecord.score
+		record.ToolMatch = toolMatches[selectedRecord.id]
 		items = append(items, record)
 	}
 	return catalog.CatalogSearchRepositoryPage{Items: items, Total: total, Generation: generation, HasMore: hasMore}, nil

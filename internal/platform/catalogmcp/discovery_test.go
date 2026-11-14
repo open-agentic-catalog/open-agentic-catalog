@@ -368,3 +368,82 @@ func TestDeclaredAgentProtocolRemoteWire(t *testing.T) {
 		})
 	}
 }
+
+func TestDeclaredMCPToolsRemoteWire(t *testing.T) {
+	for _, operation := range []string{"search", "explore"} {
+		t.Run(operation, func(t *testing.T) {
+			requests := 0
+			s := unitService(func(r *http.Request) (*http.Response, error) {
+				requests++
+				if r.URL.Host != "catalog.test" || r.URL.Path != "/api/v1/catalog/"+operation {
+					t.Fatal("changed fixed API authority")
+				}
+				raw, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var body map[string]json.RawMessage
+				if err := json.Unmarshal(raw, &body); err != nil {
+					t.Fatal(err)
+				}
+				if operation == "explore" {
+					if err := json.Unmarshal(body["query"], &body); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if string(body["includeMcpTools"]) != "true" || string(body["text"]) != `"pdf tables"` {
+					t.Fatal("private tool selector lost", string(raw))
+				}
+				if operation == "explore" {
+					return response(`{"matched":1,"facets":{"kind":{"buckets":[{"value":"mcp_server","count":1}]}},"profile":"core-mcp-tools-v1","tier":"core"}`, http.StatusOK), nil
+				}
+				item := localResult()
+				item.Kind, item.Local.Resource.Kind = catalog.KindMCPServer, catalog.KindMCPServer
+				item.ToolMatch = &catalog.MCPToolMatch{RepresentationID: testID, ContentDigest: testDigest, MatchedToolCount: 1, Tools: []catalog.MCPToolSnippet{{Name: "extract_pdf_tables"}}}
+				return response(string(encoded(t, catalog.CatalogSearchResponse{Items: []catalog.CatalogSearchResult{item}, DurableTotal: 1, LiveCount: 0, Profile: catalog.MCPToolsSearchProfile, Tier: "core", Generation: testDigest})), http.StatusOK), nil
+			})
+			query := map[string]any{"text": "pdf tables", "includeMcpTools": true}
+			args := query
+			if operation == "search" {
+				query["origins"] = []string{"local"}
+			} else {
+				args = map[string]any{"query": query, "facets": []map[string]string{{"field": "kind"}}}
+			}
+			result := call(t, s, "catalog_control_"+operation, string(encoded(t, args)))
+			if result.IsError || requests != 1 {
+				t.Fatal("valid tool search refused", result)
+			}
+			if operation == "search" && !strings.Contains(string(encoded(t, result.StructuredContent)), "extract_pdf_tables") {
+				t.Fatal("match explanation discarded", result)
+			}
+			for i, invalid := range []map[string]any{{"includeMcpTools": true, "text": "pdf"}, {"includeMcpTools": true, "text": "pdf", "origins": []string{"live"}}, {"includeMcpTools": true, "text": " ", "origins": []string{"local"}}, {"includeMcpTools": nil}} {
+				if operation == "explore" {
+					invalid = map[string]any{"query": invalid, "facets": []map[string]string{{"field": "kind"}}}
+					if i == 0 {
+						continue
+					}
+				}
+				result = call(t, s, "catalog_control_"+operation, string(encoded(t, invalid)))
+				if !result.IsError || requests != 1 {
+					t.Fatal("invalid selection reached transport", invalid, requests)
+				}
+			}
+		})
+	}
+}
+
+func TestDeclaredMCPToolProjectionRejectsMalformedEvidence(t *testing.T) {
+	valid := &catalog.MCPToolMatch{RepresentationID: testID, ContentDigest: testDigest, MatchedToolCount: 1, Tools: []catalog.MCPToolSnippet{{Name: "extract_pdf_tables"}}}
+	if !validToolMatch(valid) {
+		t.Fatal("valid match refused")
+	}
+	for _, edit := range []func(*catalog.MCPToolMatch){func(m *catalog.MCPToolMatch) { m.RepresentationID = "bad" }, func(m *catalog.MCPToolMatch) { m.ContentDigest = "bad" }, func(m *catalog.MCPToolMatch) { m.MatchedToolCount = 65 }, func(m *catalog.MCPToolMatch) { m.Tools = nil }, func(m *catalog.MCPToolMatch) { m.Truncated = true }, func(m *catalog.MCPToolMatch) { m.Tools = []catalog.MCPToolSnippet{{Name: " "}} }, func(m *catalog.MCPToolMatch) {
+		m.Tools = []catalog.MCPToolSnippet{{Name: "x", DescriptionTruncated: true}}
+	}} {
+		invalid := *valid
+		edit(&invalid)
+		if validToolMatch(&invalid) {
+			t.Fatal("malformed match accepted", invalid)
+		}
+	}
+}

@@ -1026,6 +1026,7 @@ test-fuzz: ## Fuzz security-sensitive identifiers, parsers, and URLs for FUZZ_TI
 	$(GO) test ./internal/audit -run '^$$' -fuzz FuzzVerifyExport -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/catalog -run '^$$' -fuzz FuzzParseAIRIdentifier -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/catalog -run '^$$' -fuzz FuzzCatalogSearchCursor -fuzztime=$(FUZZ_TIME)
+	$(GO) test ./internal/catalog -run '^$$' -fuzz FuzzMCPToolDeclaration -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/catalog -run '^$$' -fuzz FuzzTraceContext -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/identity -run '^$$' -fuzz FuzzMembershipCursor -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/platform/httpserver -run '^$$' -fuzz FuzzMCPFiniteAdmission -fuzztime=$(FUZZ_TIME)
@@ -1204,7 +1205,7 @@ coverage-postgres-dsn-profile: ## Write PostgreSQL coverage against an explicit 
 		trap 'trap "" 1 2 15; exit 129' 1; \
 		trap 'trap "" 1 2 15; exit 130' 2; \
 		trap 'trap "" 1 2 15; exit 143' 15; \
-		$(GO) test -race -tags=integration ./internal/platform/database/... -shuffle=on -count=1 -covermode=atomic -coverpkg=$(MODULE_PATH)/internal/platform/database -coverprofile="$$profile"; \
+		$(GO) test -race -tags=integration ./internal/platform/database/... -shuffle=on -count=1 -timeout=20m -covermode=atomic -coverpkg=$(MODULE_PATH)/internal/platform/database -coverprofile="$$profile"; \
 		mv "$$profile" coverage/postgres.out; \
 		profile=""; \
 		trap - 0 1 2 15
@@ -1265,7 +1266,7 @@ test-integration: ## Run PostgreSQL and RLS tests using disposable Compose
 
 test-integration-dsn: ## Run PostgreSQL and RLS tests against an explicit disposable DSN
 	@test -n "$${CATALOG_TEST_DATABASE_DSN:-}" || { printf '%s\n' 'CATALOG_TEST_DATABASE_DSN is required.' >&2; exit 2; }
-	$(GO) test -race -tags=integration ./internal/platform/database/... -shuffle=on -count=1
+	$(GO) test -race -tags=integration ./internal/platform/database/... -shuffle=on -count=1 -timeout=20m
 
 .PHONY: webhook-report-build webhook-report-check test-webhook-report test-webhook-report-dsn
 webhook-report-build webhook-report-check test-webhook-report test-webhook-report-dsn: export GOWORK := off

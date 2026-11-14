@@ -17,6 +17,9 @@ import (
 // documents, vectors or unrequested trust-evidence lookups. SQL expressions
 // come from a closed field mapping; request values and limits remain bound.
 func catalogFacetStatement(query catalog.SearchQuery, facets []catalog.FacetRequest) (string, []any, error) {
+	if query.IncludeMCPTools {
+		return catalogFacetStatementWithFilter(query, facets, mcpToolsBaseCTE(), mcpToolsFilterSQL(), 11)
+	}
 	return catalogFacetStatementWithFilter(query, facets, catalogSearchBaseCTE, catalogSearchFilterSQL, 11)
 }
 

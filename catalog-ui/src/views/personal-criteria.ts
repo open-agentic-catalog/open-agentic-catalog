@@ -6,6 +6,7 @@ import { InputError, trimGoWhitespace } from "./input-validation";
 
 export type PersonalCriteria = components["schemas"]["PersonalCriteria"];
 const fields = [
+  "includeMcpTools",
   "agentProtocol",
   "order",
   "text",
@@ -27,6 +28,11 @@ export function criteriaDraft(value: unknown): PersonalCriteria {
     throw new Error(
       "Enter valid supported criteria. Only saved search fields are accepted.",
     );
+  if (
+    value.includeMcpTools !== undefined &&
+    typeof value.includeMcpTools !== "boolean"
+  )
+    throw new Error("includeMcpTools must be a boolean.");
   for (const key of [
     "agentProtocol",
     "text",
@@ -112,6 +118,19 @@ export function checkedCriteria(value: unknown, prefix = ""): PersonalCriteria {
     fail(
       "agentProtocol",
       "A declared protocol requires an exact nonblank value and Local Catalog alone.",
+    );
+  if (
+    criteria.includeMcpTools &&
+    (!trimGoWhitespace(criteria.text ?? "") ||
+      criteria.origins?.length !== 1 ||
+      criteria.origins[0] !== "local" ||
+      criteria.agentProtocol ||
+      (criteria.kinds?.length &&
+        (criteria.kinds.length !== 1 || criteria.kinds[0] !== "mcp_server")))
+  )
+    fail(
+      "includeMcpTools",
+      "Declared tools require search text, Local Catalog alone and MCP servers, without an Agent protocol filter.",
     );
   if (criteria.license && !criteria.license.trim())
     fail("license", "Enter a nonblank license declaration or leave it empty.");

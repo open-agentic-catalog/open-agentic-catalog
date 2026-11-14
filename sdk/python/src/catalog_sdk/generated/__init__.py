@@ -258,6 +258,8 @@ __all__ = [
     "MCPReplyId",
     "MCPRequest",
     "MCPRequestId",
+    "MCPToolMatch",
+    "MCPToolMatchToolsInner",
     "MemberAccessPage",
     "MemberContribution",
     "Membership",
@@ -1025,6 +1027,10 @@ from catalog_sdk.generated.models.mcp_reply import MCPReply as MCPReply
 from catalog_sdk.generated.models.mcp_reply_id import MCPReplyId as MCPReplyId
 from catalog_sdk.generated.models.mcp_request import MCPRequest as MCPRequest
 from catalog_sdk.generated.models.mcp_request_id import MCPRequestId as MCPRequestId
+from catalog_sdk.generated.models.mcp_tool_match import MCPToolMatch as MCPToolMatch
+from catalog_sdk.generated.models.mcp_tool_match_tools_inner import (
+    MCPToolMatchToolsInner as MCPToolMatchToolsInner,
+)
 from catalog_sdk.generated.models.member_access_page import (
     MemberAccessPage as MemberAccessPage,
 )

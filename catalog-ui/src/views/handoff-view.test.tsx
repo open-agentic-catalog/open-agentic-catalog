@@ -518,3 +518,77 @@ it.each([
     expect(get).not.toHaveBeenCalled();
   },
 );
+
+it("distinguishes withheld, absent and explicitly empty private tool declarations", () => {
+  const { props } = workspace();
+  const state = {
+    access: {
+      ...props.access,
+      permissions: ["resource.read_content" as const],
+      namespaceGrants: [],
+      scopeEnforcement: false,
+    },
+    busy: false,
+    error: "",
+    refresh: vi.fn(),
+  };
+  const record = {
+    resource: {
+      canonicalIdentifier: "urn:air:example.test:mcp:demo",
+      namespaceId: "ns",
+      kind: "mcp_server",
+    },
+    version: { version: "1.0.0" },
+    release: { id: "release" },
+    listingRevision: { id: "listing" },
+    versionRevision: { id: "revision", representations: [] },
+  } as unknown as RecordDetail;
+  const v = render(
+    <LocalHandoff
+      record={record}
+      client={props.client}
+      onFailure={props.onFailure}
+      permissionState={state}
+    />,
+  );
+  expect(screen.getByText(/Declared tools: Not supplied/)).not.toBeNull();
+  v.rerender(
+    <LocalHandoff
+      record={{ ...record, toolDeclarationRedacted: true }}
+      client={props.client}
+      onFailure={props.onFailure}
+      permissionState={state}
+    />,
+  );
+  expect(screen.queryByText(/Declared tools: Not supplied/)).toBeNull();
+  expect(
+    screen.getByText(/Content-read access is required to inspect/),
+  ).not.toBeNull();
+  const declaration = {
+    id: item.id,
+    role: "metadata" as const,
+    profileId: "open-agentic-catalog-mcp-tools-1",
+    mediaType: "application/vnd.open-agentic-catalog.mcp-tools+json",
+    contentDigest: "sha256:" + "a".repeat(64),
+    size: 12,
+    validationState: "valid" as const,
+    data: { tools: [] },
+    normalizedFacts: { declaredToolCount: 0 },
+  };
+  v.rerender(
+    <LocalHandoff
+      record={{
+        ...record,
+        versionRevision: {
+          ...record.versionRevision,
+          representations: [declaration],
+        },
+      }}
+      client={props.client}
+      onFailure={props.onFailure}
+      permissionState={state}
+    />,
+  );
+  expect(screen.getByText("Empty list (0)")).not.toBeNull();
+  expect(screen.queryByText(/Not supplied for this revision/)).toBeNull();
+});

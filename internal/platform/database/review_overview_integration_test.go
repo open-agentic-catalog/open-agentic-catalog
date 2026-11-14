@@ -22,7 +22,13 @@ func TestPostgresReviewOverviewLongHistoryKeepsFixedQueryWork(t *testing.T) {
 	seed(0)
 	author := semanticDisclosureActor(t, db, housekeepingTenantA)
 	key := sha256.Sum256([]byte(t.Name()))
-	svc, err := catalog.NewService(catalog.Options{Repository: repo, Clock: clock.Real{}, IDs: id.Generator{}, Validator: adapter.NewRegistry(), CursorKey: key[:], Policy: "search-cost-test"})
+	// The fixture's retained decisions define this cost test's observation
+	// window. A host clock step must not exclude its own freshly seeded row.
+	var decidedAt time.Time
+	if err := db.operator.QueryRow(t.Context(), `SELECT decided_at FROM review_submissions WHERE tenant_id=$1 AND state='approved' LIMIT 1`, housekeepingTenantA).Scan(&decidedAt); err != nil {
+		t.Fatal(err)
+	}
+	svc, err := catalog.NewService(catalog.Options{Repository: repo, Clock: clock.NewFake(decidedAt.Add(time.Second)), IDs: id.Generator{}, Validator: adapter.NewRegistry(), CursorKey: key[:], Policy: "search-cost-test"})
 	if err != nil {
 		t.Fatal(err)
 	}

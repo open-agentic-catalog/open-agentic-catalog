@@ -31,6 +31,47 @@ def snake(name):
 
 
 class ContractUnits(unittest.TestCase):
+    def test_declared_mcp_tools_preserve_opt_in_and_exact_match_evidence(self):
+        for wire in ({"text": "pdf tables", "includeMcpTools": True, "origins": ["local"]}, {"includeMcpTools": False}, {}):
+            with self.subTest(wire=wire):
+                self.assertEqual(models.CatalogSearch.from_dict(wire).to_dict(), wire)
+        wire = {"representationId": "00000000-0000-7000-8000-000000000001", "contentDigest": "sha256:" + "a" * 64, "matchedToolCount": 1, "tools": [{"name": "extract_pdf_tables", "descriptionTruncated": False}], "truncated": False}
+        self.assertEqual(json.loads(models.MCPToolMatch.from_dict(wire).to_json()), wire)
+
+    def test_catalog_record_decodes_true_content_redaction(self):
+        uid = "00000000-0000-7000-8000-000000000001"
+        digest = "sha256:" + "a" * 64
+        now = "2026-01-01T00:00:00Z"
+        common = {"id": uid, "tenantId": uid, "revision": 1, "createdAt": now, "updatedAt": now}
+        revision = {"id": uid, "tenantId": uid, "revisionNumber": 1, "createdBy": "author", "createdAt": now}
+        value = {
+            "toolDeclarationRedacted": True, "source": "local",
+            "resource": dict(common, namespaceId=uid, canonicalIdentifier="opaque:mcp", kind="mcp_server", createdBy="author"),
+            "version": dict(common, resourceId=uid, version="1.0.0"),
+            "versionRevision": dict(revision, resourceVersionId=uid, contentSetDigest=digest, evidenceSetId=uid, representations=[{
+                "id": uid, "role": "primary", "mediaType": "application/mcp-server-card+json", "profileId": "mcp-server-card-1",
+                "contentDigest": digest, "size": 2, "validationState": "valid", "data": {},
+            }]),
+            "listing": dict(common, namespaceId=uid, resourceId=uid),
+            "listingRevision": dict(revision, listingId=uid, versionRevisionId=uid, displayName="Document utilities", description="Documents", publisherId=uid, visibility="tenant", digest=digest),
+            "release": {"id": uid, "tenantId": uid, "listingId": uid, "submissionId": uid, "versionRevisionId": uid, "listingRevisionId": uid, "state": "published", "activatedBy": "publisher", "revision": 1, "activatedAt": now, "updatedAt": now},
+            "evidence": {"id": uid, "tenantId": uid, "subjectDigest": digest, "digest": digest, "state": "complete", "validationProfile": "test", "policyVersion": "test", "legalRights": {"state": "not_assessed"}, "trust": {"state": "not_assessed"}, "createdAt": now},
+        }
+        validator = jsonschema.Draft202012Validator({"$ref": "#/components/schemas/CatalogRecord", "components": CONTRACT["components"]})
+        validator.validate(value)
+        for codec in (models.CatalogRecord.from_dict, models.CatalogRecord.model_validate):
+            self.assertIs(codec(value).tool_declaration_redacted, True)
+            self.assertIs(json.loads(codec(value).to_json())["toolDeclarationRedacted"], True)
+            without = dict(value)
+            del without["toolDeclarationRedacted"]
+            self.assertNotIn("toolDeclarationRedacted", codec(without).to_dict())
+            for invalid in (False, "true", "false", 1, 0):
+                with self.subTest(codec=codec.__name__, invalid=invalid):
+                    with self.assertRaises(jsonschema.ValidationError):
+                        validator.validate(dict(value, toolDeclarationRedacted=invalid))
+                    with self.assertRaises(ValueError):
+                        codec(dict(value, toolDeclarationRedacted=invalid))
+
     def test_observation_occurrence_accepts_only_the_boolean_true_enum(self):
         uid = "00000000-0000-7000-8000-000000000001"
         value = {"observationId": uid, "sourceId": uid, "snapshotId": uid,

@@ -67,10 +67,16 @@ export function PersonalCriteriaEditor({
                   ))}
                 </select>
               </Field>
-              <KindSelection
-                value={criteria.kinds ?? []}
-                onChange={(kinds) => update({ ...criteria, kinds })}
-              />
+              <fieldset disabled={!!criteria.includeMcpTools}>
+                <KindSelection
+                  value={
+                    criteria.includeMcpTools
+                      ? ["mcp_server"]
+                      : (criteria.kinds ?? [])
+                  }
+                  onChange={(kinds) => update({ ...criteria, kinds })}
+                />
+              </fieldset>
               <ValueList
                 id={`${id}-tags`}
                 label="Saved tags"
@@ -99,7 +105,9 @@ export function PersonalCriteriaEditor({
                     id={`${id}-origins`}
                     type="checkbox"
                     checked={criteria.origins !== undefined}
-                    disabled={!!criteria.agentProtocol}
+                    disabled={
+                      !!criteria.agentProtocol || !!criteria.includeMcpTools
+                    }
                     onChange={(e) => {
                       const next = { ...criteria };
                       if (e.target.checked) next.origins = ["local"];
@@ -115,7 +123,9 @@ export function PersonalCriteriaEditor({
                       <input
                         type="checkbox"
                         checked={criteria.origins!.includes(origin)}
-                        disabled={!!criteria.agentProtocol}
+                        disabled={
+                          !!criteria.agentProtocol || !!criteria.includeMcpTools
+                        }
                         onChange={(e) =>
                           update({
                             ...criteria,
@@ -175,11 +185,30 @@ export function PersonalCriteriaEditor({
                   onChange={(e) => optional("license", e.target.value)}
                 />
               </Field>
+              <label>
+                <input
+                  type="checkbox"
+                  id={`${id}-includeMcpTools`}
+                  checked={!!criteria.includeMcpTools}
+                  disabled={!!criteria.agentProtocol}
+                  onChange={(e) => {
+                    const next = { ...criteria };
+                    if (e.target.checked) {
+                      next.includeMcpTools = true;
+                      next.origins = ["local"];
+                      next.kinds = ["mcp_server"];
+                    } else delete next.includeMcpTools;
+                    update(next);
+                  }}
+                />
+                Include declared MCP tools
+              </label>
               <Field
                 label="Saved Agent protocol binding"
                 hint="Exact declared A2A binding, up to 256 characters. Requires Local Catalog alone; this does not verify compatibility or authorize calls."
               >
                 <input
+                  disabled={!!criteria.includeMcpTools}
                   id={`${id}-agentProtocol`}
                   value={criteria.agentProtocol ?? ""}
                   maxLength={512}

@@ -1096,3 +1096,47 @@ it.each([
     expect(w.post).not.toHaveBeenCalled();
   },
 );
+
+it("saves the declared-tool opt-in through ordinary controls with its required scope", async () => {
+  const w = screenWorkspace();
+  render(
+    <SaveSearch
+      {...w.props}
+      basePath="/unit"
+      criteria={{ text: "pdf tables", origins: ["live"] }}
+    />,
+  );
+  fireEvent.click(screen.getByText("Save this named search"));
+  fireEvent.click(screen.getByText("More saved filters"));
+  const toggle = screen.getByRole("checkbox", {
+    name: "Include declared MCP tools",
+  });
+  fireEvent.click(toggle);
+  expect(screen.getByLabelText("Saved Agent protocol binding")).toHaveProperty(
+    "disabled",
+    true,
+  );
+  expect(
+    screen.getByRole("checkbox", { name: "Local Catalog" }),
+  ).toHaveProperty("checked", true);
+  fireEvent.click(toggle);
+  expect(screen.getByLabelText("Saved Agent protocol binding")).toHaveProperty(
+    "disabled",
+    false,
+  );
+  fireEvent.click(toggle);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Edit private saved criteria as JSON" }),
+  );
+  expect(
+    JSON.parse(
+      screen.getByLabelText<HTMLTextAreaElement>("Private saved criteria JSON")
+        .value,
+    ),
+  ).toMatchObject({
+    includeMcpTools: true,
+    origins: ["local"],
+    kinds: ["mcp_server"],
+    text: "pdf tables",
+  });
+});

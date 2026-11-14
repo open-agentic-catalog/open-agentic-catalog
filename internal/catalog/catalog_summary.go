@@ -33,6 +33,7 @@ func NewCatalogPresentation(publisher, namespace, license string) *CatalogPresen
 // records, documents, validation findings and package inventories are separate
 // authorized detail reads. Private fields support in-memory ranking/facets only.
 type CatalogSummary struct {
+	ToolMatch       *MCPToolMatch          `json:"-"`
 	Artwork         *artwork.Presentation  `json:"artwork,omitempty"`
 	Display         *CatalogPresentation   `json:"display,omitempty"`
 	Resource        CatalogResourceSummary `json:"resource"`

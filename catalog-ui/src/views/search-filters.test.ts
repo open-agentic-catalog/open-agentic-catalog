@@ -171,3 +171,38 @@ it("retains literal declared protocols in local category counts and clears stale
   expect(query.agentProtocol).toBe("私有+V1 ");
   expect(query.cursor).toBe("previous");
 });
+
+it("selects local MCP tool matching, preserves applied text and drops obsolete continuation", () => {
+  const query = {
+    text: "pdf tables",
+    cursor: "old",
+    origins: ["live" as const],
+    kinds: ["agent" as const],
+    limit: 24,
+  };
+  const selected = applyFilters(query, {
+    includeMcpTools: true,
+    origins: ["live"],
+    kinds: ["agent"],
+  });
+  expect(selected).toEqual({
+    text: "pdf tables",
+    limit: 24,
+    includeMcpTools: true,
+    origins: ["local"],
+    kinds: ["mcp_server"],
+  });
+  expect(categoryFacetQuery(selected)).toEqual({
+    text: "pdf tables",
+    includeMcpTools: true,
+    kinds: ["mcp_server"],
+  });
+  expect(
+    applyFilters(selected, { ...selected, includeMcpTools: false }),
+  ).toEqual({
+    text: "pdf tables",
+    limit: 24,
+    origins: ["local"],
+    kinds: ["mcp_server"],
+  });
+});

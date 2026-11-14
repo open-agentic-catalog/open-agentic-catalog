@@ -42,7 +42,7 @@ Unified Catalog Search uses one tenant-scoped, read-only PostgreSQL [repeatable-
 
 The stored `representations.agent_protocol_bindings` and `document_blobs.agent_protocol_bindings` arrays derive literal interface bindings from retained A2A bytes. Discovery joins these only through the released primary validated representation and current content authority. These are rebuildable derived data, not a replacement for immutable evidence.
 
-Migrations 000001-000048 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v28. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
+Migrations 000001-000049 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v29. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
 
 ### 000001 - Catalog foundation
 
@@ -353,3 +353,15 @@ The offline verifier proves file self-consistency. The read-only restore compare
 [Automatic housekeeping](../operations/housekeeping.md) - Eligible classes, retention settings, migration boundary, signals, and troubleshooting.
 
 [PostgreSQL topology decision](decisions/0004-postgresql-topology-and-provider-neutrality.md) - Why the service requires PostgreSQL without selecting an SRE provider or HA topology.
+
+### 000049 - Private MCP tool declarations
+
+Migration 000049 derives bounded private JSONB tool arrays on immutable inline
+representations and document blobs, with lexical GIN indexes and one valid
+metadata attachment per revision. The source declaration and digest stay
+unchanged; generated columns recompute on insertion and logical restore. Search
+uses exact released revision membership and current content-read authority before
+tool matches, counts and page selection. Only selected pages hydrate bounded
+explanations. Explicit selection reports `core-mcp-tools-v1` and skips embeddings.
+The [database package guide](../../../../../internal/platform/database/README.md#private-declared-tool-projection)
+explains drain, grants and rebuild boundaries.

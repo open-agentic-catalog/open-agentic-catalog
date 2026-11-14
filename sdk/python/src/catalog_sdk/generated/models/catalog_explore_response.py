@@ -74,10 +74,10 @@ else:
                 return value
 
             if isinstance(value, str) and not re.match(
-                r"^(core-lexical-v1|sha256:[a-f0-9]{64})$", value
+                r"^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$", value
             ):
                 raise ValueError(
-                    r"must validate the regular expression /^(core-lexical-v1|sha256:[a-f0-9]{64})$/"
+                    r"must validate the regular expression /^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$/"
                 )
             return value
 

@@ -110,3 +110,14 @@ const plugin: components["schemas"]["RepresentationInput"] = {
 void versionedTrust;
 void reference;
 void plugin;
+void client.api.POST("/api/v1/catalog/search", {
+  body: { text: "pdf tables", includeMcpTools: true, origins: ["local"] },
+});
+const declaredMatch: components["schemas"]["MCPToolMatch"] = {
+  representationId: "00000000-0000-7000-8000-000000000001",
+  contentDigest: "sha256:" + "a".repeat(64),
+  matchedToolCount: 1,
+  tools: [{ name: "extract_pdf_tables", descriptionTruncated: false }],
+  truncated: false,
+};
+void declaredMatch;

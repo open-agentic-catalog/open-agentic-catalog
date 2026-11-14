@@ -27,6 +27,8 @@ const MCPMetadataEditor = lazy(() => import("./MCPMetadataEditor"));
 const SkillEditor = lazy(() => import("./SkillEditor"));
 const SkillPackageGuide = lazy(() => import("./SkillPackageGuide"));
 
+const toolsMediaType = "application/vnd.open-agentic-catalog.mcp-tools+json";
+
 type Representation = components["schemas"]["RepresentationInput"];
 /** Editor-local input state; editorID is stable across file reads and is never serialized. */
 export type RepresentationDraft = {
@@ -160,21 +162,45 @@ export function RepresentationList({
           }
         />
       ))}
-      <button
-        ref={add}
-        type="button"
-        disabled={value.length >= 16}
-        onClick={() => {
-          const next = {
-            ...newRepresentation(kind),
-            role: "metadata" as const,
-          };
-          focusRow.current = next.editorID;
-          onChange((items) => [...items, next]);
-        }}
-      >
-        {controlIcons["add"]} Add representation
-      </button>
+      <div className="workspace-actions">
+        <button
+          ref={add}
+          type="button"
+          disabled={value.length >= 16}
+          onClick={() => {
+            const next = {
+              ...newRepresentation(kind),
+              role: "metadata" as const,
+            };
+            focusRow.current = next.editorID;
+            onChange((items) => [...items, next]);
+          }}
+        >
+          {controlIcons["add"]} Add representation
+        </button>
+        {kind === "mcp_server" && (
+          <button
+            type="button"
+            disabled={
+              value.length >= 16 ||
+              value.some((item) => item.mediaType === toolsMediaType)
+            }
+            onClick={() => {
+              const next = {
+                ...newRepresentation(kind),
+                role: "metadata" as const,
+                mediaType: toolsMediaType,
+                profileId: "open-agentic-catalog-mcp-tools-1",
+                content: '{"tools":[]}',
+              };
+              focusRow.current = next.editorID;
+              onChange((items) => [...items, next]);
+            }}
+          >
+            Add declared tools
+          </button>
+        )}
+      </div>
     </div>
   );
 }
@@ -335,6 +361,7 @@ export function RepresentationEditor({
     setDocumentEpoch((epoch) => epoch + 1);
     onChange(next);
   };
+  const declaredTools = value.mediaType === toolsMediaType;
   const guidedSkill =
     kind === "skill" &&
     value.mode === "content" &&
@@ -343,12 +370,18 @@ export function RepresentationEditor({
   const documentEditor = (
     <Field
       label={
-        value.mode === "data" ? "Standards document (JSON)" : "Text content"
+        declaredTools
+          ? "Declared tools (JSON)"
+          : value.mode === "data"
+            ? "Standards document (JSON)"
+            : "Text content"
       }
       hint={
-        value.mode === "data"
-          ? "For exact numbers outside the browser's safe range, choose Anonymous HTTPS document under Content source. The Catalog fetches and validates that document through its outbound security policy."
-          : ""
+        declaredTools
+          ? "Local JSON only. Names and optional descriptions are retained privately with this revision, without contacting the server."
+          : value.mode === "data"
+            ? "For exact numbers outside the browser's safe range, choose Anonymous HTTPS document under Content source. The Catalog fetches and validates that document through its outbound security policy."
+            : ""
       }
     >
       <textarea
@@ -403,16 +436,29 @@ export function RepresentationEditor({
       </legend>
       <div className="representation-layout">
         <div className="representation-controls workspace-fields">
-          <NativeStarter
-            kind={kind}
-            value={value}
-            {...(version !== undefined ? { version } : {})}
-            {...(onVersionChange ? { onVersionChange } : {})}
-            onUseExample={replaceDocument}
-            previewOpen={previewOpen}
-            onPreviewChange={setPreviewOpen}
-            inlinePreview={false}
-          />
+          {declaredTools ? (
+            <p className="notice">
+              Private author declaration for this revision. Use{" "}
+              {
+                '{"tools":[{"name":"extract_pdf_tables","description":"Extract tables from a PDF"}]}'
+              }
+              . At most 64 tools, 128 characters per unique name, 1024 per
+              description and 64 KiB total. No schemas, URLs or calls. An empty
+              list declares no tools; removing this attachment means not
+              supplied.
+            </p>
+          ) : (
+            <NativeStarter
+              kind={kind}
+              value={value}
+              {...(version !== undefined ? { version } : {})}
+              {...(onVersionChange ? { onVersionChange } : {})}
+              onUseExample={replaceDocument}
+              previewOpen={previewOpen}
+              onPreviewChange={setPreviewOpen}
+              inlinePreview={false}
+            />
+          )}
           {kind === "skill" && (
             <Suspense
               fallback={<p role="status">Loading Skill package guidance...</p>}
@@ -426,7 +472,11 @@ export function RepresentationEditor({
           {kind !== "plugin" && (
             <Field
               label="Content source"
-              hint="Choose how to provide metadata. Remote documents pass the deployment's network policy; Skill files are inspected, never executed."
+              hint={
+                declaredTools
+                  ? "Use local JSON or UTF-8 JSON text for this private declaration. Remote delivery is not supported."
+                  : "Choose how to provide metadata. Remote documents pass the deployment's network policy; Skill files are inspected, never executed."
+              }
             >
               <select
                 id={`${value.editorID}-source`}
@@ -474,19 +524,23 @@ export function RepresentationEditor({
                     {kind === "agent" &&
                     value.mediaType === "application/a2a-agent-card+json"
                       ? "Agent fields or JSON"
-                      : kind === "mcp_server"
+                      : kind === "mcp_server" && !declaredTools
                         ? "MCP fields or JSON"
                         : "JSON document"}
                   </option>
                 }
                 {
                   <option value="content">
-                    {kind === "skill"
-                      ? "Write/import SKILL.md"
-                      : "Text / Skill Markdown"}
+                    {declaredTools
+                      ? "UTF-8 JSON text"
+                      : kind === "skill"
+                        ? "Write/import SKILL.md"
+                        : "Text / Skill Markdown"}
                   </option>
                 }
-                <option value="url">Anonymous HTTPS document</option>
+                <option disabled={declaredTools} value="url">
+                  Anonymous HTTPS document
+                </option>
                 {kind === "skill" && (
                   <option value="package">
                     Upload a complete Skill package
@@ -566,7 +620,9 @@ export function RepresentationEditor({
             </>
           ) : (
             <>
-              {kind === "agent" || kind === "mcp_server" || guidedSkill ? (
+              {kind === "agent" ||
+              (kind === "mcp_server" && !declaredTools) ||
+              guidedSkill ? (
                 <details>
                   <summary>
                     Import an existing{" "}
@@ -584,7 +640,7 @@ export function RepresentationEditor({
               )}
               {guidedSkill ||
               (value.mode === "data" &&
-                (kind === "mcp_server" ||
+                ((kind === "mcp_server" && !declaredTools) ||
                   (kind === "agent" &&
                     value.mediaType === "application/a2a-agent-card+json"))) ? (
                 <>

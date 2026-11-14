@@ -383,9 +383,9 @@ SELECT table_record.relname,constraint_record.conname,constraint_record.contype,
 	}
 
 	digest := sha256.Sum256([]byte(inventory.String()))
-	// Qualified on PostgreSQL 18 through migration 000048, including exact
-	// Publisher proof timestamps and NOT NULL derived Agent binding arrays.
-	if hex.EncodeToString(digest[:]) != "54ec20cfb1a02596937ce6e44eaa137623081214e889ca41d339ecbca816fa35" {
+	// Qualified on PostgreSQL 18 through migration 000049, including exact
+	// Publisher proof timestamps and NOT NULL derived Agent/tool projections.
+	if hex.EncodeToString(digest[:]) != "140271721abbe76c5b9a5f9fd713acc4fcaf220ef56a4d66fd6e32faf23c876a" {
 		return fmt.Errorf("catalog constraint inventory or definition drifted (observed digest %x)", digest)
 	}
 	return nil

@@ -45,3 +45,14 @@ Migration `000044_principal_and_group_guards.sql` adds an exact-target audit ind
 Migration `000047_publisher_domain_verification.sql` removes obsolete approval storage after preserving its complete union, then adds separate DNS evidence. Undeclared legacy values stop the migration. Existing approvals gain no verified status. Manifest v27 grants exact API columns; workers receive no verification-table access. Restore check set 7 includes the new records. Use the drained, owner-only migration procedure and repair forward after failure. Verification remains disabled by default.
 
 Migration `000048_agent_protocol_projection.sql` materializes exact A2A interface bindings for both inline representations and retained document blobs. It preserves content bytes, digests and sealed evidence. Drain API/worker processes and budget for table rewrites before the schema owner applies it and reconciles manifest v28. API alone gains column reads and execution of the pure derivation function; workers gain neither. No semantic reindex is needed. After failure, keep runtimes stopped, fix the reported cause and retry forward through the normal migration command.
+
+Migration `000049_mcp_tool_declarations.sql` adds stored private MCP tool arrays,
+lexical GIN indexes and one valid tool declaration per immutable revision.
+Drain API/worker and budget for table rewrites before the schema owner applies
+it and reconciles manifest v29. API projection/function access is read-only;
+workers gain neither. Exact declaration bytes and digests stay unchanged.
+Generated columns recompute on insertion and logical restore; index repair uses
+normal PostgreSQL `REINDEX`, not observation repair or a semantic reindex.
+If migration/reconciliation fails, keep runtimes stopped and retry forward after
+correcting the reported cause. Omit `includeMcpTools` to use ordinary discovery;
+do not downgrade the schema or rewrite retained declarations.

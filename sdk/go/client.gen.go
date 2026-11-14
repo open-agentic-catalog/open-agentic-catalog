@@ -1517,6 +1517,21 @@ func (e CatalogRecordSource) Valid() bool {
 	}
 }
 
+// Defines values for CatalogRecordToolDeclarationRedacted.
+const (
+	CatalogRecordToolDeclarationRedactedTrue CatalogRecordToolDeclarationRedacted = true
+)
+
+// Valid indicates whether the value is a known member of the CatalogRecordToolDeclarationRedacted enum.
+func (e CatalogRecordToolDeclarationRedacted) Valid() bool {
+	switch e {
+	case CatalogRecordToolDeclarationRedactedTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CatalogRecordPageFallbackReason.
 const (
 	CatalogRecordPageFallbackReasonIndexChanged        CatalogRecordPageFallbackReason = "index_changed"
@@ -6552,8 +6567,11 @@ type CatalogExploreQuery struct {
 	AgentProtocol *string `json:"agentProtocol,omitempty"`
 
 	// Categories All selected categories must match local Listing categories after trimming, lowercasing and deduplication. Missing categories do not match. Explore covers local releases only.
-	Categories *[]string       `json:"categories,omitempty"`
-	Kinds      *[]ResourceKind `json:"kinds,omitempty"`
+	Categories *[]string `json:"categories,omitempty"`
+
+	// IncludeMcpTools Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+	IncludeMcpTools *bool           `json:"includeMcpTools,omitempty"`
+	Kinds           *[]ResourceKind `json:"kinds,omitempty"`
 
 	// License Empty means no license filter. Trimmed, case-sensitive exact match against the local immutable Listing license declaration. No SPDX interpretation or match for absent declarations. Explore covers local releases only.
 	License     *string `json:"license,omitempty"`
@@ -6639,12 +6657,18 @@ type CatalogRecord struct {
 	RelevanceScore  *int                `json:"relevanceScore,omitempty"`
 	Resource        Resource            `json:"resource"`
 	Source          CatalogRecordSource `json:"source"`
-	Version         ResourceVersion     `json:"version"`
-	VersionRevision VersionRevision     `json:"versionRevision"`
+
+	// ToolDeclarationRedacted Current content permission does not permit private tool declaration disclosure. Set for every MCP record without that permission, whether a declaration exists or not; absence of a displayed attachment cannot establish not supplied.
+	ToolDeclarationRedacted *CatalogRecordToolDeclarationRedacted `json:"toolDeclarationRedacted,omitempty"`
+	Version                 ResourceVersion                       `json:"version"`
+	VersionRevision         VersionRevision                       `json:"versionRevision"`
 }
 
 // CatalogRecordSource defines model for CatalogRecord.Source.
 type CatalogRecordSource string
+
+// CatalogRecordToolDeclarationRedacted Current content permission does not permit private tool declaration disclosure. Set for every MCP record without that permission, whether a declaration exists or not; absence of a displayed attachment cannot establish not supplied.
+type CatalogRecordToolDeclarationRedacted bool
 
 // CatalogRecordPage defines model for CatalogRecordPage.
 type CatalogRecordPage struct {
@@ -6705,8 +6729,11 @@ type CatalogSearch struct {
 	Categories *[]string `json:"categories,omitempty"`
 
 	// Cursor Opaque expiring continuation cursor bound to the principal, permissions, normalized query, core SearchProfile, and durable local and indexed generations. Core live continuation replays an unchanged bounded window of at most 50 candidates with a fixed 15-minute expiry. Changed evidence requires restart; temporary replay failure permits retrying the same cursor. Hybrid Search preserves the precise durable ranking before a separate live tail. Live-only Search binds the live window without durable generation or embedding work.
-	Cursor *string         `json:"cursor,omitempty"`
-	Kinds  *[]ResourceKind `json:"kinds,omitempty"`
+	Cursor *string `json:"cursor,omitempty"`
+
+	// IncludeMcpTools Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+	IncludeMcpTools *bool           `json:"includeMcpTools,omitempty"`
+	Kinds           *[]ResourceKind `json:"kinds,omitempty"`
 
 	// License Empty means no license filter. Trimmed, case-sensitive exact match against the immutable local Listing license or bounded external metadata.license string. No SPDX interpretation or match for absent, malformed or oversized declarations. Applies across selected origins.
 	License *string `json:"license,omitempty"`
@@ -6833,10 +6860,13 @@ type CatalogSearchResult struct {
 	} `json:"peerRatings,omitempty"`
 
 	// Publisher Catalog Publisher UUID for a local result or normalized AIR publisher component for an indexed or live result.
-	Publisher      *string                 `json:"publisher,omitempty"`
-	Ratings        *RatingSummary          `json:"ratings,omitempty"`
-	Score          int                     `json:"score"`
-	Tags           []string                `json:"tags"`
+	Publisher *string        `json:"publisher,omitempty"`
+	Ratings   *RatingSummary `json:"ratings,omitempty"`
+	Score     int            `json:"score"`
+	Tags      []string       `json:"tags"`
+
+	// ToolMatch Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions.
+	ToolMatch      *MCPToolMatch           `json:"toolMatch,omitempty"`
 	Type           CatalogSearchResultType `json:"type"`
 	Version        *string                 `json:"version,omitempty"`
 	VersionPresent bool                    `json:"versionPresent"`
@@ -7842,6 +7872,19 @@ type MCPRequest_Id struct {
 // MCPRequestJsonrpc defines model for MCPRequest.Jsonrpc.
 type MCPRequestJsonrpc string
 
+// MCPToolMatch Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions.
+type MCPToolMatch struct {
+	ContentDigest    string `json:"contentDigest"`
+	MatchedToolCount int    `json:"matchedToolCount"`
+	RepresentationId UUID   `json:"representationId"`
+	Tools            []struct {
+		Description          *string `json:"description,omitempty"`
+		DescriptionTruncated bool    `json:"descriptionTruncated"`
+		Name                 string  `json:"name"`
+	} `json:"tools"`
+	Truncated bool `json:"truncated"`
+}
+
 // MemberAccessPage defines model for MemberAccessPage.
 type MemberAccessPage struct {
 	AuthorizationRevision int64                         `json:"authorizationRevision"`
@@ -8180,8 +8223,11 @@ type PersonalCriteria struct {
 	AgentProtocol *string `json:"agentProtocol,omitempty"`
 
 	// Categories All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
-	Categories *[]string       `json:"categories,omitempty"`
-	Kinds      *[]ResourceKind `json:"kinds,omitempty"`
+	Categories *[]string `json:"categories,omitempty"`
+
+	// IncludeMcpTools Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+	IncludeMcpTools *bool           `json:"includeMcpTools,omitempty"`
+	Kinds           *[]ResourceKind `json:"kinds,omitempty"`
 
 	// License Empty means no license filter. Trimmed, case-sensitive exact match against the immutable local Listing license or bounded external metadata.license string. No SPDX interpretation or match for absent, malformed or oversized declarations. Applies across selected origins.
 	License *string `json:"license,omitempty"`
@@ -14345,6 +14391,13 @@ func (t CatalogSearch) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.IncludeMcpTools != nil {
+		object["includeMcpTools"], err = json.Marshal(t.IncludeMcpTools)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'includeMcpTools': %w", err)
+		}
+	}
+
 	if t.Kinds != nil {
 		object["kinds"], err = json.Marshal(t.Kinds)
 		if err != nil {
@@ -14447,6 +14500,13 @@ func (t *CatalogSearch) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Cursor)
 		if err != nil {
 			return fmt.Errorf("error reading 'cursor': %w", err)
+		}
+	}
+
+	if raw, found := object["includeMcpTools"]; found {
+		err = json.Unmarshal(raw, &t.IncludeMcpTools)
+		if err != nil {
+			return fmt.Errorf("error reading 'includeMcpTools': %w", err)
 		}
 	}
 
@@ -14709,6 +14769,13 @@ func (t CatalogSearchResult) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.ToolMatch != nil {
+		object["toolMatch"], err = json.Marshal(t.ToolMatch)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'toolMatch': %w", err)
+		}
+	}
+
 	object["type"], err = json.Marshal(t.Type)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'type': %w", err)
@@ -14843,6 +14910,13 @@ func (t *CatalogSearchResult) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Tags)
 		if err != nil {
 			return fmt.Errorf("error reading 'tags': %w", err)
+		}
+	}
+
+	if raw, found := object["toolMatch"]; found {
+		err = json.Unmarshal(raw, &t.ToolMatch)
+		if err != nil {
+			return fmt.Errorf("error reading 'toolMatch': %w", err)
 		}
 	}
 
@@ -15609,6 +15683,13 @@ func (t PersonalCriteria) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.IncludeMcpTools != nil {
+		object["includeMcpTools"], err = json.Marshal(t.IncludeMcpTools)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'includeMcpTools': %w", err)
+		}
+	}
+
 	if t.Kinds != nil {
 		object["kinds"], err = json.Marshal(t.Kinds)
 		if err != nil {
@@ -15697,6 +15778,13 @@ func (t *PersonalCriteria) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Categories)
 		if err != nil {
 			return fmt.Errorf("error reading 'categories': %w", err)
+		}
+	}
+
+	if raw, found := object["includeMcpTools"]; found {
+		err = json.Unmarshal(raw, &t.IncludeMcpTools)
+		if err != nil {
+			return fmt.Errorf("error reading 'includeMcpTools': %w", err)
 		}
 	}
 
@@ -18221,7 +18309,7 @@ type ClientInterface interface {
 
 	// GetCatalogRecord Get a governed Catalog record
 	//
-	// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+	// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 	//
 	// Corresponds with GET /api/v1/catalog/resources/{catalogRecordId} (the `GetCatalogRecord` operationId).
 	GetCatalogRecord(ctx context.Context, catalogRecordId CatalogRecordId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -21228,7 +21316,7 @@ func (c *Client) BrowseCatalog(ctx context.Context, params *BrowseCatalogParams,
 
 // GetCatalogRecord Get a governed Catalog record
 //
-// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 //
 // Corresponds with GET /api/v1/catalog/resources/{catalogRecordId} (the `GetCatalogRecord` operationId).
 func (c *Client) GetCatalogRecord(ctx context.Context, catalogRecordId CatalogRecordId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -37569,7 +37657,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetCatalogRecordWithResponse Get a governed Catalog record
 	//
-	// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+	// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -53894,7 +53982,7 @@ func (c *ClientWithResponses) BrowseCatalogWithResponse(ctx context.Context, par
 
 // GetCatalogRecordWithResponse Get a governed Catalog record
 //
-// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 //
 // Returns a wrapper object for the known response body format(s).
 //

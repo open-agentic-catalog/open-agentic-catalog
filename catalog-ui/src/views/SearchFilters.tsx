@@ -82,6 +82,7 @@ export default function SearchFilters({
     Number(!!value.visibility) +
     Number(!!value.namespaceId) +
     Number(!!value.agentProtocol) +
+    Number(!!value.includeMcpTools) +
     (value.origins?.length ?? 0);
   // Tags are exact values; preserve case, Unicode spelling and code-unit order.
   const tagChoices = [...new Set([...(draft.tags ?? []), ...tags])].sort(
@@ -180,6 +181,10 @@ export default function SearchFilters({
       )
         throw new Error(
           "External origins require federation.discover permission and catalog.read when scopes are enforced. Remove those selections or clear the filters.",
+        );
+      if (draft.includeMcpTools && !trimGoWhitespace(searchText))
+        throw new Error(
+          "Enter and apply search text before including declared tools.",
         );
       const agentProtocol = atField("filter-agent-protocol", () => {
         const value = characterText(
@@ -407,10 +412,14 @@ export default function SearchFilters({
                   hint="All selected categories must match. Missing declarations do not match."
                 />
               </section>
-              <KindSelection
-                value={draft.kinds ?? []}
-                onChange={(kinds) => setDraft({ ...draft, kinds })}
-              />
+              <fieldset disabled={!!draft.includeMcpTools}>
+                <KindSelection
+                  value={
+                    draft.includeMcpTools ? ["mcp_server"] : (draft.kinds ?? [])
+                  }
+                  onChange={(kinds) => setDraft({ ...draft, kinds })}
+                />
+              </fieldset>
               <section
                 className="filter-group"
                 aria-labelledby="tag-filter-heading"
@@ -524,10 +533,13 @@ export default function SearchFilters({
                             : ["local"])
                         ).includes(origin)}
                         disabled={
-                          (origin === "local" && !!draft.agentProtocol) ||
+                          (origin === "local" &&
+                            (!!draft.agentProtocol ||
+                              !!draft.includeMcpTools)) ||
                           (origin !== "local" &&
                             (!!draft.namespaceId ||
                               !!draft.agentProtocol ||
+                              !!draft.includeMcpTools ||
                               (!externalAllowed &&
                                 !draft.origins?.includes(origin))))
                         }
@@ -621,6 +633,32 @@ export default function SearchFilters({
                   onToggle={(event) => setAdvanced(event.currentTarget.open)}
                 >
                   <summary>More filters</summary>
+                  <section className="filter-group">
+                    <label className="filter-option">
+                      <input
+                        type="checkbox"
+                        checked={!!draft.includeMcpTools}
+                        disabled={!!draft.agentProtocol}
+                        onChange={(event) =>
+                          setDraft({
+                            ...draft,
+                            includeMcpTools: event.target.checked,
+                            ...(event.target.checked
+                              ? { origins: ["local"], kinds: ["mcp_server"] }
+                              : {}),
+                          })
+                        }
+                      />
+                      Include declared MCP tools
+                    </label>
+                    <p className="filter-help">
+                      Match names and descriptions in private, released tool
+                      declarations as well as listing text. Requires search text
+                      and content-read access. Selects local MCP servers and
+                      lexical search; no server or embedding provider is
+                      contacted.
+                    </p>
+                  </section>
                   <section
                     className="filter-group"
                     aria-labelledby="agent-protocol-heading"
@@ -629,6 +667,7 @@ export default function SearchFilters({
                     <label className="filter-field">
                       <span>Agent protocol binding</span>
                       <input
+                        disabled={!!draft.includeMcpTools}
                         id="filter-agent-protocol"
                         list={`${descriptionID}-protocols`}
                         value={draft.agentProtocol ?? ""}
