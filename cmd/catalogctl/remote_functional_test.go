@@ -40,7 +40,7 @@ func TestRemoteSearchContractAndWire(t *testing.T) {
 		path, method, operation string
 	}{
 		{[]string{"capabilities"}, "/api/v1/capabilities", "GET", "getCapabilities"},
-		{[]string{"search", "--text", "café", "--kind", "agent", "--kind", "skill", "--tag", "one", "--tag", "two", "--license", " MIT ", "--category", " TOOLS ", "--category", "café", "--origin", "local", "--namespace", identifier, "--publisher", "publisher", "--visibility", "tenant", "--limit", "2", "--cursor", "opaque"}, "/api/v1/catalog/search", "POST", "searchCatalog"},
+		{[]string{"search", "--agent-protocol", "HTTP+JSON", "--text", "café", "--kind", "agent", "--kind", "skill", "--tag", "one", "--tag", "two", "--license", " MIT ", "--category", " TOOLS ", "--category", "café", "--origin", "local", "--namespace", identifier, "--publisher", "publisher", "--visibility", "tenant", "--limit", "2", "--cursor", "opaque"}, "/api/v1/catalog/search", "POST", "searchCatalog"},
 		{[]string{"record", "--id", identifier}, "/api/v1/catalog/resources/{catalogRecordId}", "GET", "getCatalogRecord"},
 		{[]string{"job", "--id", identifier}, "/api/v1/jobs/{jobId}", "GET", "getJob"},
 	} {

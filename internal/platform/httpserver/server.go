@@ -405,7 +405,7 @@ func (s *Server) routes(router *http.ServeMux) {
 	router.HandleFunc("POST /api/v1/listing-releases/{releaseCommand}", s.withQueryParameters(s.dispatchReleaseCommand))
 	router.HandleFunc("GET /api/v1/artifacts/{artifactId}/content", s.withQueryParameters(s.handleArtifactGet))
 
-	router.HandleFunc("GET /api/v1/catalog/resources", s.withQueryParameters(s.handleCatalogBrowse, "limit", "cursor", "visibility", "kind", "namespaceId"))
+	router.HandleFunc("GET /api/v1/catalog/resources", s.withQueryParameters(s.handleCatalogBrowse, "limit", "cursor", "visibility", "kind", "namespaceId", "agentProtocol"))
 	router.HandleFunc("POST /api/v1/artwork/read", s.withQueryParameters(s.handleArtworkRead))
 	router.HandleFunc("GET /api/v1/federation/sources/{sourceId}/artwork", s.withQueryParameters(s.withUUIDPathParameters(s.handleArtworkOverrideGet, "sourceId"), "identifier", "versionPresent", "version", "kind", "presentationGeneration"))
 	router.HandleFunc("GET /api/v1/federation/sources/{sourceId}/artwork/history", s.withQueryParameters(s.withUUIDPathParameters(s.handleArtworkOverrideHistory, "sourceId"), "identifier", "versionPresent", "version", "kind", "presentationGeneration", "limit", "cursor"))

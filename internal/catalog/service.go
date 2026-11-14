@@ -2391,6 +2391,9 @@ func (s *Service) Explore(ctx context.Context, request ExploreRequest) (ExploreR
 	if request.Query.Limit != 0 || request.Query.Cursor != "" {
 		return ExploreResponse{}, E(CodeInvalidArgument, "catalog explore does not accept pagination controls")
 	}
+	if request.Query.AgentProtocol != "" && request.Query.Origins == nil {
+		request.Query.Origins = []SearchResultType{SearchResultLocal}
+	}
 	if err := validateCatalogSearchQuery(request.Query); err != nil {
 		return ExploreResponse{}, err
 	}
@@ -2762,6 +2765,9 @@ func normalizeQueries(values []string) []string {
 // validateCatalogSearchQuery enforces supported query fields, filter values and
 // collection limits.
 func validateCatalogSearchQuery(query SearchQuery) error {
+	if !validTextLength(query.AgentProtocol, 256) || query.AgentProtocol != "" && (strings.TrimSpace(query.AgentProtocol) == "" || len(query.Origins) != 1 || query.Origins[0] != SearchResultLocal) {
+		return E(CodeInvalidArgument, "agentProtocol requires an exact declaration of at most 256 characters and explicit local-only origins")
+	}
 	switch query.Order {
 	case "", SearchOrderNameAsc, SearchOrderNameDesc, SearchOrderKindAsc, SearchOrderKindDesc, SearchOrderPublisherAsc, SearchOrderPublisherDesc:
 	default:

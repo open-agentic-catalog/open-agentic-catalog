@@ -3510,3 +3510,33 @@ it("clears the previous result order when criteria change and retries failed sor
     ).toBe("descending"),
   );
 });
+
+it("removes the declared protocol chip without broadening local scope or carrying a cursor", async () => {
+  const { props, post } = screenWorkspace();
+  post.mockResolvedValue(reply({ ...results, nextCursor: "continuation" }));
+  render(<Catalog {...props} />);
+  await screen.findByRole("button", { name: "Local helper" });
+  click(/Filters/);
+  change("Agent protocol binding", "私有+V1 ");
+  await activate(screen.getByRole("button", { name: "Apply filters" }));
+  const applied = within(screen.getByRole("group", { name: "Applied search" }));
+  const chip = await applied.findByRole("button", {
+    name: "Remove declared A2A protocol: 私有+V1",
+  });
+  expect(post.mock.calls.at(-1)?.[1]).toMatchObject({
+    body: { agentProtocol: "私有+V1 ", origins: ["local"] },
+  });
+  expect(
+    applied.getByRole("button", { name: "Remove origin Local Catalog" }),
+  ).toHaveProperty("disabled", true);
+  await activate(chip);
+  await waitFor(() =>
+    expect(post.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      "body.agentProtocol",
+    ),
+  );
+  expect(post.mock.calls.at(-1)?.[1]).toMatchObject({
+    body: { origins: ["local"] },
+  });
+  expect(post.mock.calls.at(-1)?.[1]).not.toHaveProperty("body.cursor");
+});

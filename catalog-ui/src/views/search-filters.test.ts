@@ -146,3 +146,28 @@ it("declaration filters preserve selected origins, retain text and reset continu
   expect(query.categories).toEqual(["old"]);
   expect(filters.categories).toEqual(["tools"]);
 });
+
+it("retains literal declared protocols in local category counts and clears stale selections", () => {
+  const query = {
+    text: "agents",
+    agentProtocol: "私有+V1 ",
+    origins: ["local" as const],
+    cursor: "previous",
+    limit: 2,
+  };
+  expect(categoryFacetQuery(query)).toEqual({
+    text: "agents",
+    agentProtocol: "私有+V1 ",
+  });
+  expect(
+    applyFilters(query, { agentProtocol: "HTTP+JSON", origins: ["live"] }),
+  ).toEqual({
+    text: "agents",
+    agentProtocol: "HTTP+JSON",
+    origins: ["local"],
+    limit: 2,
+  });
+  expect(applyFilters(query, {})).toEqual({ text: "agents", limit: 2 });
+  expect(query.agentProtocol).toBe("私有+V1 ");
+  expect(query.cursor).toBe("previous");
+});

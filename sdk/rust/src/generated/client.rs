@@ -2171,6 +2171,7 @@ impl Client {
     /// `GET /api/v1/catalog/resources`
     pub async fn browse_catalog(
         &self,
+        agent_protocol: Option<impl AsRef<str>>,
         namespace_id: Option<impl AsRef<str>>,
         limit: Option<i64>,
         cursor: Option<impl AsRef<str>>,
@@ -2181,6 +2182,9 @@ impl Client {
         let mut req = self.http_client.get(request_url);
         {
             let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = agent_protocol {
+                query_params.push(("agentProtocol".to_string(), v.as_ref().to_string()));
+            }
             if let Some(v) = namespace_id {
                 query_params.push(("namespaceId".to_string(), v.as_ref().to_string()));
             }

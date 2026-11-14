@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -282,5 +283,88 @@ func TestSharedOutputCredentialChecksBelongToEachCall(t *testing.T) {
 		if result.IsError && (result.StructuredContent != nil || strings.Contains(toolText(t, result), credential)) {
 			t.Fatal("reflected credential exposed")
 		}
+	}
+}
+
+func TestDeclaredAgentProtocolToolSelection(t *testing.T) {
+	for _, binding := range []string{"HTTP+JSON", "私有+V1 "} {
+		selected, err := toolRequest("catalog_control_search", encoded(t, map[string]any{"agentProtocol": binding, "origins": []string{"local"}}))
+		if err != nil || selected.query.AgentProtocol != binding || !reflect.DeepEqual(selected.query.Origins, []catalog.SearchResultType{catalog.SearchResultLocal}) {
+			t.Fatal("protocol lost", err)
+		}
+	}
+	for _, raw := range []string{`{"agentProtocol":"HTTP+JSON"}`, `{"agentProtocol":"HTTP+JSON","origins":["local","live"]}`, `{"agentProtocol":null}`, `{"agentProtocol":" "}`} {
+		if _, err := toolRequest("catalog_control_search", json.RawMessage(raw)); err == nil {
+			t.Fatal("invalid protocol accepted", raw)
+		}
+	}
+	selected, err := toolRequest("catalog_control_explore", json.RawMessage(`{"query":{"agentProtocol":"私有+V1 "},"facets":[{"field":"category"}]}`))
+	if err != nil || selected.explore.Query.AgentProtocol != "私有+V1 " || selected.explore.Query.Origins != nil {
+		t.Fatal("local facet selection lost", err)
+	}
+}
+
+func TestDeclaredAgentProtocolRemoteWire(t *testing.T) {
+	const binding = "私有+V1 "
+	for _, operation := range []string{"search", "explore"} {
+		t.Run(operation, func(t *testing.T) {
+			requests := 0
+			s := unitService(func(r *http.Request) (*http.Response, error) {
+				requests++
+				if r.URL.Host != "catalog.test" || r.URL.Path != "/api/v1/catalog/"+operation || r.Method != http.MethodPost || r.Header.Get("Authorization") != "Bearer PRIVATE_TOKEN_SENTINEL" {
+					t.Fatal("protocol criteria changed the fixed request authority")
+				}
+				raw, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var body map[string]json.RawMessage
+				if err := json.Unmarshal(raw, &body); err != nil {
+					t.Fatal(err)
+				}
+				if operation == "explore" {
+					var query map[string]json.RawMessage
+					if err := json.Unmarshal(body["query"], &query); err != nil {
+						t.Fatal(err)
+					}
+					body = query
+				}
+				var actual string
+				if err := json.Unmarshal(body["agentProtocol"], &actual); err != nil || actual != binding {
+					t.Fatal("literal protocol lost before the API exchange", actual, err)
+				}
+				if operation == "search" {
+					var origins []string
+					if err := json.Unmarshal(body["origins"], &origins); err != nil || !reflect.DeepEqual(origins, []string{"local"}) {
+						t.Fatal("local-only Search scope lost", origins, err)
+					}
+					item := localResult()
+					item.Kind, item.Local.Resource.Kind = catalog.KindAgent, catalog.KindAgent
+					return response(string(page(t, item)), http.StatusOK), nil
+				}
+				if body["origins"] != nil || body["cursor"] != nil || body["limit"] != nil {
+					t.Fatal("Search-only fields entered Explore")
+				}
+				return response(`{"matched":1,"facets":{"kind":{"buckets":[{"value":"agent","count":1}]}}}`, http.StatusOK), nil
+			})
+			query := map[string]any{"agentProtocol": binding}
+			args := query
+			if operation == "search" {
+				query["origins"] = []string{"local"}
+			} else {
+				args = map[string]any{"query": query, "facets": []map[string]string{{"field": "kind"}}}
+			}
+			result := call(t, s, "catalog_control_"+operation, string(encoded(t, args)))
+			if result.IsError || requests != 1 {
+				t.Fatal("valid protocol selection did not make exactly one exchange", result, requests)
+			}
+			for _, invalid := range []any{nil, " ", strings.Repeat("🙂", 257)} {
+				query["agentProtocol"] = invalid
+				result := call(t, s, "catalog_control_"+operation, string(encoded(t, args)))
+				if !result.IsError || !strings.HasPrefix(toolText(t, result), "invalid_arguments:") || requests != 1 {
+					t.Fatal("invalid protocol reached the API exchange", result, requests)
+				}
+			}
+		})
 	}
 }

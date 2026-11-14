@@ -35,6 +35,13 @@ else:
         CatalogExploreQuery
         """  # noqa: E501
 
+        agent_protocol: Optional[Annotated[str, Field(strict=True, max_length=256)]] = (
+            Field(
+                default=None,
+                description="Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.",
+                alias="agentProtocol",
+            )
+        )
         namespace_id: Optional[UUID] = Field(default=None, alias="namespaceId")
         text: Optional[Annotated[str, Field(strict=True, max_length=500)]] = None
         kinds: Optional[Annotated[List[ResourceKind], Field(max_length=4)]] = None
@@ -63,6 +70,7 @@ else:
         )
         visibility: Optional[Visibility] = None
         __properties: ClassVar[List[str]] = [
+            "agentProtocol",
             "namespaceId",
             "text",
             "kinds",
@@ -72,6 +80,16 @@ else:
             "publisher",
             "visibility",
         ]
+
+        @field_validator("agent_protocol", mode="before")
+        def agent_protocol_validate_regular_expression(cls, value):
+            """Validates the regular expression"""
+            if value is None:
+                return value
+
+            if isinstance(value, str) and not re.match(r"^[^\x00]*$", value):
+                raise ValueError(r"must validate the regular expression /^[^\x00]*$/")
+            return value
 
         @field_validator("license", mode="before")
         def license_validate_regular_expression(cls, value):
@@ -137,6 +155,7 @@ else:
 
             _obj = cls.model_validate(
                 {
+                    "agentProtocol": obj.get("agentProtocol"),
                     "namespaceId": obj.get("namespaceId"),
                     "text": obj.get("text"),
                     "kinds": obj.get("kinds"),

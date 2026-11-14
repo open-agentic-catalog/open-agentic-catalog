@@ -20,7 +20,7 @@ import (
 // read-only, feedback remains API-only and vectors cannot be rewritten. Outbox
 // causal context stays worker-readable; notification-counter writes remain
 // confined to fixed owner-authorized triggers, never runtime DML or EXECUTE.
-const runtimePrivilegeManifestVersion = 27
+const runtimePrivilegeManifestVersion = 28
 
 // RuntimePrivilegeManifestVersion identifies the exact role grant contract
 // embedded in this binary for bounded operator diagnostics.
@@ -156,7 +156,7 @@ var catalogTableColumns = map[string][]string{
 	"catalog_listings":               {"id", "tenant_id", "namespace_id", "resource_id", "candidate_revision_id", "current_release_id", "revision", "created_at", "updated_at"},
 	"catalog_schema_migrations":      {"version", "checksum", "applied_at"},
 	"catalog_search_generations":     {"tenant_id", "generation"},
-	"document_blobs":                 {"tenant_id", "id", "media_type", "content_digest", "size_bytes", "content", "created_at"},
+	"document_blobs":                 {"tenant_id", "id", "media_type", "content_digest", "size_bytes", "content", "created_at", "agent_protocol_bindings"},
 	"evidence_sets":                  {"id", "tenant_id", "subject_digest", "digest", "state", "findings", "validation_profile", "policy_version", "rights", "trust", "created_at", "external_retrievals"},
 	"federation_source_audiences":    {"tenant_id", "source_id", "source_revision", "discovery_host", "audience"},
 	"federation_source_referrals":    {"tenant_id", "source_id", "source_revision", "target_source_id"},
@@ -174,7 +174,7 @@ var catalogTableColumns = map[string][]string{
 	"publication_snapshots":          {"id", "tenant_id", "host", "document_family", "profile_id", "generation", "state", "etag", "document", "created_at", "activated_at"},
 	"publisher_domain_verifications": {"id", "tenant_id", "publisher_id", "domain", "revision", "challenge_id", "nonce", "challenge_issued_at", "challenge_expires_at", "challenge_consumed", "verified_challenge_id", "verified_at", "proof_expires_at", "last_check_at", "last_check_challenge_id", "last_check_outcome", "created_at", "updated_at"},
 	"publishers":                     {"id", "tenant_id", "display_name", "domains", "revision", "created_at", "updated_at", "approved_publication_domains"},
-	"representations":                {"id", "tenant_id", "version_revision_id", "role", "media_type", "profile_id", "external_url", "inline_document", "content_digest", "size_bytes", "validation_state", "findings", "normalized_facts", "unknown_properties", "document_blob_id", "external_reference_only", "skill_package_structure_state", "skill_package_root", "skill_package_expanded_size", "skill_package_file_count", "skill_package_malware_state", "skill_package_secrets_state", "skill_package_license_state", "skill_package_sbom_state", "skill_package_provenance_state", "plugin_inspection"},
+	"representations":                {"id", "tenant_id", "version_revision_id", "role", "media_type", "profile_id", "external_url", "inline_document", "content_digest", "size_bytes", "validation_state", "findings", "normalized_facts", "unknown_properties", "document_blob_id", "external_reference_only", "skill_package_structure_state", "skill_package_root", "skill_package_expanded_size", "skill_package_file_count", "skill_package_malware_state", "skill_package_secrets_state", "skill_package_license_state", "skill_package_sbom_state", "skill_package_provenance_state", "plugin_inspection", "agent_protocol_bindings"},
 	"resource_version_revisions":     {"id", "tenant_id", "resource_version_id", "revision_number", "content_set_digest", "findings", "evidence_set_id", "created_by", "created_at", "adoption_provenance"},
 	"resource_versions":              {"id", "tenant_id", "resource_id", "version", "candidate_revision_id", "sealed_revision_id", "revision", "created_at", "updated_at"},
 	"resources":                      {"id", "tenant_id", "namespace_id", "canonical_identifier", "kind", "created_by", "revision", "created_at", "updated_at", "deleted_by", "delete_reason", "deleted_at", "search_identifier_vector"},
@@ -201,6 +201,7 @@ var catalogFunctionNames = []string{
 	"advance_catalog_search_generation()",
 	"advance_tenant_authorization()",
 	"bind_role_assignment_definition()",
+	"catalog_agent_protocol_bindings_v1(text, bytea, jsonb)",
 	"catalog_control_term_v1(text)",
 	"catalog_core_lexical_array_vector_v1(text[])",
 	"catalog_core_lexical_query_v1(text)",
@@ -275,6 +276,7 @@ func apiPrivilegeManifest() runtimePrivilegeManifest {
 		"catalog_control_term_v1(text)",
 		"catalog_observation_license_v1(jsonb)",
 		"catalog_observation_categories_v1(jsonb)",
+		"catalog_agent_protocol_bindings_v1(text, bytea, jsonb)",
 		"catalog_core_lexical_array_vector_v1(text[])",
 		"catalog_core_lexical_query_v1(text)",
 		"catalog_core_lexical_terms_v1(text)",
@@ -430,6 +432,8 @@ func workerPrivilegeManifest() runtimePrivilegeManifest {
 		manifest.tables[table] = privilege
 	}
 	for table, excluded := range map[string][]string{
+		"document_blobs":    {"agent_protocol_bindings"},
+		"representations":   {"agent_protocol_bindings"},
 		"resources":         {"search_identifier_vector"},
 		"observations":      {"search_license", "search_categories", "search_identifier_vector", "search_display_vector", "search_description_vector", "search_tags_vector", "search_queries_vector"},
 		"listing_revisions": {"search_display_vector", "search_description_vector", "search_tags_vector", "search_queries_vector", "search_sort_name"},

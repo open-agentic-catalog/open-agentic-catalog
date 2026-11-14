@@ -56,6 +56,12 @@ class CatalogDiscoveryApi:
     @validate_call(config={"hide_input_in_errors": True})
     async def browse_catalog(
         self,
+        agent_protocol: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied."
+            ),
+        ] = None,
         namespace_id: Annotated[
             Optional[UUID],
             Field(
@@ -102,6 +108,8 @@ class CatalogDiscoveryApi:
 
         Returns a bounded page of governed catalog records visible to the caller. Local drafts are not made discoverable through this endpoint.
 
+        :param agent_protocol: Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied.
+        :type agent_protocol: str
         :param namespace_id: Restrict to the local Listing namespace UUID without disclosing whether an unmatched namespace exists.
         :type namespace_id: UUID
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
@@ -128,6 +136,7 @@ class CatalogDiscoveryApi:
         """  # noqa: E501
 
         _param = self._browse_catalog_serialize(
+            agent_protocol=agent_protocol,
             namespace_id=namespace_id,
             limit=limit,
             cursor=cursor,
@@ -155,6 +164,12 @@ class CatalogDiscoveryApi:
     @validate_call(config={"hide_input_in_errors": True})
     async def browse_catalog_with_http_info(
         self,
+        agent_protocol: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied."
+            ),
+        ] = None,
         namespace_id: Annotated[
             Optional[UUID],
             Field(
@@ -201,6 +216,8 @@ class CatalogDiscoveryApi:
 
         Returns a bounded page of governed catalog records visible to the caller. Local drafts are not made discoverable through this endpoint.
 
+        :param agent_protocol: Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied.
+        :type agent_protocol: str
         :param namespace_id: Restrict to the local Listing namespace UUID without disclosing whether an unmatched namespace exists.
         :type namespace_id: UUID
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
@@ -227,6 +244,7 @@ class CatalogDiscoveryApi:
         """  # noqa: E501
 
         _param = self._browse_catalog_serialize(
+            agent_protocol=agent_protocol,
             namespace_id=namespace_id,
             limit=limit,
             cursor=cursor,
@@ -254,6 +272,12 @@ class CatalogDiscoveryApi:
     @validate_call(config={"hide_input_in_errors": True})
     async def browse_catalog_without_preload_content(
         self,
+        agent_protocol: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied."
+            ),
+        ] = None,
         namespace_id: Annotated[
             Optional[UUID],
             Field(
@@ -300,6 +324,8 @@ class CatalogDiscoveryApi:
 
         Returns a bounded page of governed catalog records visible to the caller. Local drafts are not made discoverable through this endpoint.
 
+        :param agent_protocol: Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied.
+        :type agent_protocol: str
         :param namespace_id: Restrict to the local Listing namespace UUID without disclosing whether an unmatched namespace exists.
         :type namespace_id: UUID
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
@@ -326,6 +352,7 @@ class CatalogDiscoveryApi:
         """  # noqa: E501
 
         _param = self._browse_catalog_serialize(
+            agent_protocol=agent_protocol,
             namespace_id=namespace_id,
             limit=limit,
             cursor=cursor,
@@ -349,6 +376,12 @@ class CatalogDiscoveryApi:
     @validate_call(config={"hide_input_in_errors": True})
     def browse_catalog_sync(
         self,
+        agent_protocol: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied."
+            ),
+        ] = None,
         namespace_id: Annotated[
             Optional[UUID],
             Field(
@@ -398,6 +431,7 @@ class CatalogDiscoveryApi:
         """  # noqa: E501
         return run_sync(
             self.browse_catalog(
+                agent_protocol=agent_protocol,
                 namespace_id=namespace_id,
                 limit=limit,
                 cursor=cursor,
@@ -414,6 +448,12 @@ class CatalogDiscoveryApi:
     @validate_call(config={"hide_input_in_errors": True})
     def browse_catalog_sync_with_http_info(
         self,
+        agent_protocol: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied."
+            ),
+        ] = None,
         namespace_id: Annotated[
             Optional[UUID],
             Field(
@@ -463,6 +503,7 @@ class CatalogDiscoveryApi:
         """  # noqa: E501
         return run_sync(
             self.browse_catalog_with_http_info(
+                agent_protocol=agent_protocol,
                 namespace_id=namespace_id,
                 limit=limit,
                 cursor=cursor,
@@ -479,6 +520,12 @@ class CatalogDiscoveryApi:
     @validate_call(config={"hide_input_in_errors": True})
     def browse_catalog_sync_without_preload_content(
         self,
+        agent_protocol: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied."
+            ),
+        ] = None,
         namespace_id: Annotated[
             Optional[UUID],
             Field(
@@ -528,6 +575,7 @@ class CatalogDiscoveryApi:
         """  # noqa: E501
         return run_sync(
             self.browse_catalog_without_preload_content(
+                agent_protocol=agent_protocol,
                 namespace_id=namespace_id,
                 limit=limit,
                 cursor=cursor,
@@ -543,6 +591,7 @@ class CatalogDiscoveryApi:
 
     def _browse_catalog_serialize(
         self,
+        agent_protocol,
         namespace_id,
         limit,
         cursor,
@@ -569,6 +618,9 @@ class CatalogDiscoveryApi:
 
         # process the path parameters
         # process the query parameters
+        if agent_protocol is not None:
+            _query_params.append(("agentProtocol", agent_protocol))
+
         if namespace_id is not None:
             _query_params.append(("namespaceId", namespace_id))
 

@@ -602,11 +602,13 @@ function CatalogWorkspace({
       | "publisher"
       | "visibility"
       | "origins"
-      | "namespaceId",
+      | "namespaceId"
+      | "agentProtocol",
     tag?: string,
   ) {
     const next = firstPage(request);
-    if (key === "origins" && request.namespaceId) return;
+    if (key === "origins" && (request.namespaceId || request.agentProtocol))
+      return;
     // Removal is invoked only by chips rendered from these existing arrays.
     if (key === "origins" && tag) {
       next.origins = next.origins!.filter((value) => value !== tag);
@@ -679,6 +681,7 @@ function CatalogWorkspace({
     request.tags?.length ||
     request.categories?.length ||
     request.license ||
+    request.agentProtocol ||
     request.publisher ||
     request.visibility ||
     request.kinds?.length ||
@@ -1003,10 +1006,10 @@ function CatalogWorkspace({
               className="filter-chip"
               key={origin}
               aria-label={`Remove origin ${originLabel(origin)}`}
-              disabled={!!request.namespaceId}
+              disabled={!!request.namespaceId || !!request.agentProtocol}
               title={
-                request.namespaceId
-                  ? "This namespace requires local results. Remove the namespace before changing origins."
+                request.namespaceId || request.agentProtocol
+                  ? "This filter requires local results. Remove the namespace and protocol filters before changing origins."
                   : undefined
               }
               onClick={() => removeCriterion("origins", origin)}
@@ -1075,6 +1078,17 @@ function CatalogWorkspace({
               <Icon name="close" size={12} />
             </button>
           ))}
+          {request.agentProtocol && (
+            <button
+              type="button"
+              className="filter-chip"
+              aria-label={`Remove declared A2A protocol: ${request.agentProtocol}`}
+              onClick={() => removeCriterion("agentProtocol")}
+            >
+              <span>Declared A2A: {request.agentProtocol}</span>{" "}
+              <Icon name="close" size={12} />
+            </button>
+          )}
           {request.license && (
             <button
               className="filter-chip"

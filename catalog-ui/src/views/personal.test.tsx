@@ -704,6 +704,15 @@ it("captures a named search only when opened and protects its private draft", as
   fireEvent.click(screen.getByText("More saved filters"));
   change("Saved sort order", "");
   change("Saved sort order", "kind_desc");
+  change("Saved Agent protocol binding", "Private+V1 ");
+  expect(
+    screen.getByRole("checkbox", { name: "Local Catalog" }),
+  ).toHaveProperty("disabled", true);
+  change("Saved Agent protocol binding", "");
+  expect(
+    screen.getByRole("checkbox", { name: "Local Catalog" }),
+  ).toHaveProperty("disabled", false);
+  change("Saved Agent protocol binding", "Private+V1 ");
   fireEvent.click(
     screen.getByRole("button", { name: "Edit private saved criteria as JSON" }),
   );
@@ -719,7 +728,12 @@ it("captures a named search only when opened and protects its private draft", as
       screen.getByLabelText<HTMLTextAreaElement>("Private saved criteria JSON")
         .value,
     ),
-  ).toEqual({ text: "original", order: "kind_desc" });
+  ).toEqual({
+    text: "original",
+    order: "kind_desc",
+    agentProtocol: "Private+V1 ",
+    origins: ["local"],
+  });
   fireEvent.click(screen.getByText("Save this named search"));
   expect(screen.getByLabelText("Saved label")).toHaveProperty(
     "value",

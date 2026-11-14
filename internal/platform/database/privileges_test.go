@@ -152,7 +152,7 @@ func TestRuntimePrivilegeManifestsStayNarrowAndInternallyConsistent(t *testing.T
 	if got := worker.tables["publication_snapshots"].updateColumns; len(got) != 0 {
 		t.Fatalf("worker publication update columns = %#v", got)
 	}
-	if !slices.Equal(api.functions, []string{"catalog_control_term_v1(text)", "catalog_observation_license_v1(jsonb)", "catalog_observation_categories_v1(jsonb)", "catalog_core_lexical_array_vector_v1(text[])", "catalog_core_lexical_query_v1(text)", "catalog_core_lexical_terms_v1(text)", "catalog_core_lexical_vector_v1(text)", "catalog_core_sort_name_v1(text)"}) || !slices.Equal(worker.functions, []string{"catalog_control_term_v1(text)", "catalog_observation_license_v1(jsonb)", "catalog_observation_categories_v1(jsonb)", "catalog_core_lexical_array_vector_v1(text[])", "catalog_core_lexical_terms_v1(text)", "catalog_core_lexical_vector_v1(text)"}) {
+	if !slices.Equal(api.functions, []string{"catalog_control_term_v1(text)", "catalog_observation_license_v1(jsonb)", "catalog_observation_categories_v1(jsonb)", "catalog_agent_protocol_bindings_v1(text, bytea, jsonb)", "catalog_core_lexical_array_vector_v1(text[])", "catalog_core_lexical_query_v1(text)", "catalog_core_lexical_terms_v1(text)", "catalog_core_lexical_vector_v1(text)", "catalog_core_sort_name_v1(text)"}) || !slices.Equal(worker.functions, []string{"catalog_control_term_v1(text)", "catalog_observation_license_v1(jsonb)", "catalog_observation_categories_v1(jsonb)", "catalog_core_lexical_array_vector_v1(text[])", "catalog_core_lexical_terms_v1(text)", "catalog_core_lexical_vector_v1(text)"}) {
 		t.Fatalf("runtime lexical function grants = API %#v, worker %#v", api.functions, worker.functions)
 	}
 	for _, manifest := range []runtimePrivilegeManifest{api, worker} {
@@ -226,7 +226,7 @@ func TestRuntimePrivilegeManifestSelectionAndSQLConstruction(t *testing.T) {
 	t.Parallel()
 
 	api, err := manifestForRuntimeRole(RuntimeRoleAPI)
-	if err != nil || !slices.Equal(api.functions, []string{"catalog_control_term_v1(text)", "catalog_observation_license_v1(jsonb)", "catalog_observation_categories_v1(jsonb)", "catalog_core_lexical_array_vector_v1(text[])", "catalog_core_lexical_query_v1(text)", "catalog_core_lexical_terms_v1(text)", "catalog_core_lexical_vector_v1(text)", "catalog_core_sort_name_v1(text)"}) {
+	if err != nil || !slices.Equal(api.functions, []string{"catalog_control_term_v1(text)", "catalog_observation_license_v1(jsonb)", "catalog_observation_categories_v1(jsonb)", "catalog_agent_protocol_bindings_v1(text, bytea, jsonb)", "catalog_core_lexical_array_vector_v1(text[])", "catalog_core_lexical_query_v1(text)", "catalog_core_lexical_terms_v1(text)", "catalog_core_lexical_vector_v1(text)", "catalog_core_sort_name_v1(text)"}) {
 		t.Fatalf("API manifest = %#v, %v", api, err)
 	}
 	worker, err := manifestForRuntimeRole(RuntimeRoleWorker)

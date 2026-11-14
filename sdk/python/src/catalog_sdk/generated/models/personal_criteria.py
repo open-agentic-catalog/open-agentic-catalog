@@ -42,6 +42,13 @@ else:
             default=None,
             description="Select local, indexed or transient live provenance. Omission preserves existing participation. With namespaceId, omit origins or select local alone. License and category filters apply across selected origins. Local releases shadow matching indexed identities only when local participates. Live-only search can continue a verified bounded live window and reports zero durableTotal.",
         )
+        agent_protocol: Optional[Annotated[str, Field(strict=True, max_length=256)]] = (
+            Field(
+                default=None,
+                description="Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.",
+                alias="agentProtocol",
+            )
+        )
         order: Optional[CatalogSearchOrder] = None
         namespace_id: Optional[UUID] = Field(
             default=None,
@@ -80,6 +87,7 @@ else:
         additional_properties: Dict[str, Any] = {}
         __properties: ClassVar[List[str]] = [
             "origins",
+            "agentProtocol",
             "order",
             "namespaceId",
             "text",
@@ -102,6 +110,16 @@ else:
                     raise ValueError(
                         "each list item must be one of ('local', 'indexed', 'live')"
                     )
+            return value
+
+        @field_validator("agent_protocol", mode="before")
+        def agent_protocol_validate_regular_expression(cls, value):
+            """Validates the regular expression"""
+            if value is None:
+                return value
+
+            if isinstance(value, str) and not re.match(r"^[^\x00]*$", value):
+                raise ValueError(r"must validate the regular expression /^[^\x00]*$/")
             return value
 
         @field_validator("text", mode="before")
@@ -199,6 +217,7 @@ else:
             _obj = cls.model_validate(
                 {
                     "origins": obj.get("origins"),
+                    "agentProtocol": obj.get("agentProtocol"),
                     "order": obj.get("order"),
                     "namespaceId": obj.get("namespaceId"),
                     "text": obj.get("text"),

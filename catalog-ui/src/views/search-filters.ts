@@ -53,6 +53,7 @@ export type FilterValues = {
       | "visibility"
       | "origins"
       | "namespaceId"
+      | "agentProtocol"
   ]?: SearchQuery[K] | undefined;
 };
 
@@ -63,6 +64,7 @@ export function applyFilters(
 ): SearchQuery {
   const {
     cursor: _cursor,
+    agentProtocol: _agentProtocol,
     origins: _origins,
     namespaceId: _namespaceId,
     tags: _tags,
@@ -75,9 +77,10 @@ export function applyFilters(
   } = query;
   return {
     ...rest,
-    ...(filters.namespaceId
+    ...(filters.agentProtocol ? { agentProtocol: filters.agentProtocol } : {}),
+    ...(filters.namespaceId || filters.agentProtocol
       ? {
-          namespaceId: filters.namespaceId,
+          ...(filters.namespaceId ? { namespaceId: filters.namespaceId } : {}),
           origins: ["local"] as const,
         }
       : filters.origins?.length

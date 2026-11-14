@@ -40,7 +40,9 @@ Unified Catalog Search uses one tenant-scoped, read-only PostgreSQL [repeatable-
 
 ## Migration history
 
-Migrations 000001-000047 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v27. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
+The stored `representations.agent_protocol_bindings` and `document_blobs.agent_protocol_bindings` arrays derive literal interface bindings from retained A2A bytes. Discovery joins these only through the released primary validated representation and current content authority. These are rebuildable derived data, not a replacement for immutable evidence.
+
+Migrations 000001-000048 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v28. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
 
 ### 000001 - Catalog foundation
 
@@ -238,9 +240,13 @@ Migration 000046 adds Publisher changes to tenant search-generation invalidation
 
 Migration 000047 removes the obsolete `publishers.verified_domains` column after preserving its complete approval union in `approved_publication_domains`. It rejects undeclared values instead of discarding them. Existing approvals do not become DNS evidence. The migration preserves Publisher identities, revisions and timestamps.
 
-The new `publisher_domain_verifications` table retains bounded challenges, proof and the latest check result for each declared domain. Tenant RLS, immutable identities, revision guards and Publisher-first application locks protect this state. Domain removal deletes its verification state in the same transaction. Clearing DNS evidence does not revoke approval. Runtime privilege manifest v27 grants exact API columns and no worker access to this table. Restore check set 7 includes the new state without disclosing TXT values.
+The new `publisher_domain_verifications` table retains bounded challenges, proof and the latest check result for each declared domain. Tenant RLS, immutable identities, revision guards and Publisher-first application locks protect this state. Domain removal deletes its verification state in the same transaction. Clearing DNS evidence does not revoke approval. Runtime privilege manifest v27 introduced exact API columns and no worker access to this table. Restore check set 7 includes the new state without disclosing TXT values.
 
 Drain runtimes before the schema owner applies the migration and reconciles both manifests. Runtime startup never applies migrations. After a failed migration, correct the reported inconsistency and retry through the existing maintenance procedure. No database reset, automatic rollback or mixed-version runtime overlap is supported.
+
+### 000048 - Declared Agent protocol selection
+
+Migration 000048 adds stored binding arrays to inline representations and retained document blobs. A pure derivation function supports both native ProtoJSON field spellings, preserves literal values and excludes unqueryable NUL bindings without changing authoritative bytes. Selection admits only a released valid primary A2A Agent Card under current resource/content-read authority. API read/function grants and worker denials are explicit in manifest v28. Drain runtimes for the table rewrite and use the normal owner migration/reconciliation procedure; ordinary search needs no reindex or model. Omit the protocol predicate to return to unfiltered discovery rather than downgrading the schema.
 
 ## Database identities and RLS
 

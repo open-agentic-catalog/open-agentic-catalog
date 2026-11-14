@@ -1006,3 +1006,37 @@ it("requires an explicit origin correction after an empty-origin draft without f
     tags: [],
   });
 });
+
+it("stages exact declared bindings with locked local scope and validates before Apply", () => {
+  const apply = vi.fn();
+  render(
+    <SearchFilters
+      value={{ origins: ["indexed", "live"] }}
+      tags={[]}
+      publishers={[]}
+      onApply={apply}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /Filters/ }));
+  const protocol = screen.getByLabelText("Agent protocol binding", {
+    exact: true,
+  });
+  fireEvent.change(protocol, { target: { value: " " } });
+  const local = screen.getByRole("checkbox", {
+    name: "Local Catalog",
+  });
+  expect(local).toHaveProperty("checked", true);
+  expect(local).toHaveProperty("disabled", true);
+  expect(
+    screen.getByRole("checkbox", { name: "Indexed external" }),
+  ).toHaveProperty("disabled", true);
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  expect(apply).not.toHaveBeenCalled();
+  expect(screen.getByRole("alert").textContent).toContain("nonblank");
+  expect(protocol).toBe(document.activeElement);
+  fireEvent.change(protocol, { target: { value: "私有+V1 " } });
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  expect(apply).toHaveBeenCalledWith(
+    expect.objectContaining({ agentProtocol: "私有+V1 ", origins: ["local"] }),
+  );
+});

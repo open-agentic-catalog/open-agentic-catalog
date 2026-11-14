@@ -416,7 +416,7 @@ func TestMigrationsFreshInstallAndUnsupportedStateRefusal(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(applied) != 47 || applied[0].Name != "000001_catalog.sql" || applied[1].Name != "000002_publication_domain_approval.sql" || applied[2].Name != "000003_atomic_command_results.sql" || applied[3].Name != "000004_catalog_documents.sql" || applied[4].Name != "000005_skill_packages.sql" || applied[5].Name != "000006_identity_and_discovery.sql" || applied[6].Name != "000007_controlled_federation.sql" || applied[7].Name != "000008_renewable_validation.sql" || applied[8].Name != "000009_https_representations.sql" || applied[9].Name != "000010_observation_provenance.sql" || applied[10].Name != "000011_bounded_search.sql" || applied[11].Name != "000012_practical_administration.sql" || applied[12].Name != "000013_automatic_source_maintenance.sql" || applied[13].Name != "000014_api_contract_strictness.sql" || applied[14].Name != "000015_runtime_privileges_and_history.sql" || applied[15].Name != "000016_audit_investigation_export.sql" || applied[16].Name != "000017_bounded_search_repair.sql" || applied[17].Name != "000018_operational_housekeeping.sql" || applied[18].Name != "000019_webhook_dispatch_schedule.sql" || applied[19].Name != "000020_webhook_secret_reencryption.sql" || applied[20].Name != "000021_current_command_protocol.sql" || applied[21].Name != "000022_current_evidence_baseline.sql" || applied[28].Name != "000029_local_search_projections.sql" || applied[29].Name != "000030_indexed_search_projections.sql" || applied[30].Name != "000031_agent_plugins.sql" || applied[39].Name != "000040_unicode_version_limits.sql" || applied[42].Name != "000043_personal_library.sql" || applied[43].Name != "000044_principal_and_group_guards.sql" || applied[44].Name != "000045_directory_lookup.sql" || applied[45].Name != "000046_publisher_search_order.sql" || applied[46].Name != "000047_publisher_domain_verification.sql" {
+		if len(applied) != 48 || applied[0].Name != "000001_catalog.sql" || applied[1].Name != "000002_publication_domain_approval.sql" || applied[2].Name != "000003_atomic_command_results.sql" || applied[3].Name != "000004_catalog_documents.sql" || applied[4].Name != "000005_skill_packages.sql" || applied[5].Name != "000006_identity_and_discovery.sql" || applied[6].Name != "000007_controlled_federation.sql" || applied[7].Name != "000008_renewable_validation.sql" || applied[8].Name != "000009_https_representations.sql" || applied[9].Name != "000010_observation_provenance.sql" || applied[10].Name != "000011_bounded_search.sql" || applied[11].Name != "000012_practical_administration.sql" || applied[12].Name != "000013_automatic_source_maintenance.sql" || applied[13].Name != "000014_api_contract_strictness.sql" || applied[14].Name != "000015_runtime_privileges_and_history.sql" || applied[15].Name != "000016_audit_investigation_export.sql" || applied[16].Name != "000017_bounded_search_repair.sql" || applied[17].Name != "000018_operational_housekeeping.sql" || applied[18].Name != "000019_webhook_dispatch_schedule.sql" || applied[19].Name != "000020_webhook_secret_reencryption.sql" || applied[20].Name != "000021_current_command_protocol.sql" || applied[21].Name != "000022_current_evidence_baseline.sql" || applied[28].Name != "000029_local_search_projections.sql" || applied[29].Name != "000030_indexed_search_projections.sql" || applied[30].Name != "000031_agent_plugins.sql" || applied[39].Name != "000040_unicode_version_limits.sql" || applied[42].Name != "000043_personal_library.sql" || applied[43].Name != "000044_principal_and_group_guards.sql" || applied[44].Name != "000045_directory_lookup.sql" || applied[45].Name != "000046_publisher_search_order.sql" || applied[46].Name != "000047_publisher_domain_verification.sql" || applied[47].Name != "000048_agent_protocol_projection.sql" {
 			t.Fatalf("fresh migration result = %#v", applied)
 		}
 		requireCatalogColumnInventory(t, ctx, pool, schema)
@@ -751,7 +751,7 @@ func TestPostgresDurabilityRLSLeasesAndStores(t *testing.T) {
 		}
 	}()
 	plan, err := Plan(ctx, migrationPool)
-	if err != nil || len(plan) != 47 || slices.ContainsFunc(plan, func(migration Migration) bool { return !migration.Applied }) {
+	if err != nil || len(plan) != 48 || slices.ContainsFunc(plan, func(migration Migration) bool { return !migration.Applied }) {
 		migrationPool.Close()
 		t.Fatalf("migration plan = %#v, %v", plan, err)
 	}
@@ -885,7 +885,7 @@ func TestPostgresDurabilityRLSLeasesAndStores(t *testing.T) {
 			t.Fatalf("verify current restored Catalog page %d: %v", restorePages+1, verifyErr)
 		}
 		restorePages++
-		if report.TenantID != tenantA || report.SchemaVersion != 47 || report.PrivilegeManifestVersion != runtimePrivilegeManifestVersion || report.Integrity != restoreIntegrityValid || report.Processed > restoreOptions.Limit {
+		if report.TenantID != tenantA || report.SchemaVersion != 48 || report.PrivilegeManifestVersion != runtimePrivilegeManifestVersion || report.Integrity != restoreIntegrityValid || report.Processed > restoreOptions.Limit {
 			t.Fatalf("restore verification report = %#v", report)
 		}
 		if report.Traversal == restoreTraversalDone {

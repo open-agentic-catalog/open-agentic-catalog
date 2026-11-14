@@ -116,6 +116,7 @@ var ownerCollectionPredicates = strings.NewReplacer(
 	collectionPermissionSQL("resource.read_content", "r.namespace_id"), "true",
 	collectionPermissionSQL("resource.read", "local_listing.namespace_id"), "true",
 	collectionPermissionSQL("resource.read", "listing.namespace_id"), "true",
+	collectionPermissionSQL("resource.read_content", "listing.namespace_id"), "true",
 	collectionPermissionSQL("resource.read", "resources.namespace_id"), "true",
 	collectionPermissionSQL("resource.read_history", "p.namespace_id"), "true",
 	collectionPermissionSQL("resource.read", "p.namespace_id"), "true",

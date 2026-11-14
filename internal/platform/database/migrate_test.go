@@ -83,7 +83,7 @@ func TestPlanMigrationsLeavesAnEmptySchemaUnchanged(t *testing.T) {
 func TestEmbeddedSchemaAndPrivilegeManifestVersionsAreReported(t *testing.T) {
 	t.Parallel()
 	version, err := EmbeddedSchemaVersion()
-	if err != nil || version != 47 {
+	if err != nil || version != 48 {
 		t.Fatalf("embedded schema version = %d, %v", version, err)
 	}
 	if RuntimePrivilegeManifestVersion() != runtimePrivilegeManifestVersion || RuntimePrivilegeManifestVersion() <= 0 {
@@ -122,7 +122,7 @@ func TestPlanMigrationsRejectsUnknownAppliedVersion(t *testing.T) {
 		setScanDestination(t, destinations, 0, true)
 		return nil
 	})}
-	for range 47 {
+	for range 48 {
 		queryRows = append(queryRows, scannerFunc(func(...any) error { return pgx.ErrNoRows }))
 	}
 	queryRows = append(queryRows, scannerFunc(func(destinations ...any) error {
@@ -138,7 +138,7 @@ func TestPlanMigrationsRejectsUnknownAppliedVersion(t *testing.T) {
 	}
 	arguments := transaction.queryRowArguments[len(transaction.queryRowArguments)-1]
 	versions, ok := arguments[0].([]int64)
-	if !ok || len(versions) != 47 || versions[0] != 1 || versions[len(versions)-1] != 47 {
+	if !ok || len(versions) != 48 || versions[0] != 1 || versions[len(versions)-1] != 48 {
 		t.Fatalf("embedded migration version binding = %#v", arguments)
 	}
 }

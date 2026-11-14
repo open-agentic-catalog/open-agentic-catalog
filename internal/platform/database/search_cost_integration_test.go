@@ -120,7 +120,14 @@ func newSearchCostFixtureWithListings(tb testing.TB, listings []catalog.CreateLi
 		if index%10 == 1 {
 			input = catalog.RepresentationInput{Role: catalog.RepresentationPrimary, MediaType: adapter.MediaSkillZIP, PackageData: postgresSkillPackageZIP(tb), Handoff: &catalog.SkillHandoff{Git: &catalog.GitHandoffReference{Repository: "https://git.example.com/team/skill", Commit: strings.Repeat("a", 40), Directory: "postgres-skill"}, OCI: &catalog.OCIHandoffReference{Reference: "registry.example.com/team/skill@sha256:" + strings.Repeat("b", 64)}}}
 		}
-		_, revision, _, seedErr := service.CreateVersion(author, resource.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: []catalog.RepresentationInput{input}})
+		representations := []catalog.RepresentationInput{input}
+		for index, supporting := range card {
+			if index == 0 {
+				continue
+			}
+			representations = append(representations, catalog.RepresentationInput{Role: catalog.RepresentationDocumentation, MediaType: adapter.MediaA2AAgentCard, Data: supporting})
+		}
+		_, revision, _, seedErr := service.CreateVersion(author, resource.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: representations})
 		if seedErr != nil {
 			tb.Fatal(seedErr)
 		}
@@ -131,6 +138,9 @@ func newSearchCostFixtureWithListings(tb testing.TB, listings []catalog.CreateLi
 		listingInput := catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, DisplayName: document.DisplayName, Description: document.Description, PublisherID: publisher.ID, Visibility: catalog.VisibilityTenant, Tags: document.Tags, RepresentativeQueries: document.RepresentativeQueries}
 		if len(listings) > 0 {
 			listingInput.License, listingInput.Categories = listings[index].License, listings[index].Categories
+			if listings[index].Visibility != "" {
+				listingInput.Visibility = listings[index].Visibility
+			}
 			if listings[index].PublisherID != "" {
 				listingInput.PublisherID = listings[index].PublisherID
 			}

@@ -328,3 +328,23 @@ func TestRemoteTrustSelectionArguments(t *testing.T) {
 		t.Fatal("private result path", err)
 	}
 }
+
+func TestRemoteAgentProtocolSelection(t *testing.T) {
+	for _, binding := range []string{"HTTP+JSON", "私有+V1 ", strings.Repeat("🙂", 256)} {
+		parsed, err := parseRemote([]string{"search", "--agent-protocol", binding, "--origin", "local"}, remoteTestEnvironment("https://catalog.invalid", "token"))
+		if err != nil || parsed.search.AgentProtocol != binding {
+			t.Fatal("literal selection lost", err)
+		}
+	}
+	for _, args := range [][]string{
+		{"search", "--agent-protocol", "HTTP+JSON"},
+		{"search", "--agent-protocol", "HTTP+JSON", "--origin", "indexed"},
+		{"search", "--agent-protocol", "HTTP+JSON", "--origin", "local", "--origin", "live"},
+		{"search", "--agent-protocol", "  ", "--origin", "local"},
+		{"search", "--agent-protocol", strings.Repeat("x", 257), "--origin", "local"},
+	} {
+		if _, err := parseRemote(args, remoteTestEnvironment("", "")); err == nil {
+			t.Fatal("unsupported protocol query accepted", args)
+		}
+	}
+}

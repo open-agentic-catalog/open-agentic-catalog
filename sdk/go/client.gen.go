@@ -6548,6 +6548,9 @@ type CatalogExploreFacetsField string
 
 // CatalogExploreQuery defines model for CatalogExploreQuery.
 type CatalogExploreQuery struct {
+	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+	AgentProtocol *string `json:"agentProtocol,omitempty"`
+
 	// Categories All selected categories must match local Listing categories after trimming, lowercasing and deduplication. Missing categories do not match. Explore covers local releases only.
 	Categories *[]string       `json:"categories,omitempty"`
 	Kinds      *[]ResourceKind `json:"kinds,omitempty"`
@@ -6695,6 +6698,9 @@ type CatalogRole string
 
 // CatalogSearch defines model for CatalogSearch.
 type CatalogSearch struct {
+	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+	AgentProtocol *string `json:"agentProtocol,omitempty"`
+
 	// Categories All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
 	Categories *[]string `json:"categories,omitempty"`
 
@@ -8170,6 +8176,9 @@ type PermissionKey string
 
 // PersonalCriteria Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search.
 type PersonalCriteria struct {
+	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+	AgentProtocol *string `json:"agentProtocol,omitempty"`
+
 	// Categories All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
 	Categories *[]string       `json:"categories,omitempty"`
 	Kinds      *[]ResourceKind `json:"kinds,omitempty"`
@@ -10489,6 +10498,9 @@ type GetIndexedCatalogRecordParams struct {
 
 // BrowseCatalogParams defines parameters for BrowseCatalog.
 type BrowseCatalogParams struct {
+	// AgentProtocol Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied.
+	AgentProtocol *string `form:"agentProtocol,omitempty" json:"agentProtocol,omitempty"`
+
 	// NamespaceId Restrict to the local Listing namespace UUID without disclosing whether an unmatched namespace exists.
 	NamespaceId *UUID `form:"namespaceId,omitempty" json:"namespaceId,omitempty"`
 
@@ -14312,6 +14324,13 @@ func (t CatalogSearch) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.AgentProtocol != nil {
+		object["agentProtocol"], err = json.Marshal(t.AgentProtocol)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'agentProtocol': %w", err)
+		}
+	}
+
 	if t.Categories != nil {
 		object["categories"], err = json.Marshal(t.Categories)
 		if err != nil {
@@ -14408,6 +14427,13 @@ func (t *CatalogSearch) UnmarshalJSON(b []byte) error {
 	err = json.Unmarshal(b, &object)
 	if err != nil {
 		return err
+	}
+
+	if raw, found := object["agentProtocol"]; found {
+		err = json.Unmarshal(raw, &t.AgentProtocol)
+		if err != nil {
+			return fmt.Errorf("error reading 'agentProtocol': %w", err)
+		}
 	}
 
 	if raw, found := object["categories"]; found {
@@ -15569,6 +15595,13 @@ func (t PersonalCriteria) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.AgentProtocol != nil {
+		object["agentProtocol"], err = json.Marshal(t.AgentProtocol)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'agentProtocol': %w", err)
+		}
+	}
+
 	if t.Categories != nil {
 		object["categories"], err = json.Marshal(t.Categories)
 		if err != nil {
@@ -15651,6 +15684,13 @@ func (t *PersonalCriteria) UnmarshalJSON(b []byte) error {
 	err = json.Unmarshal(b, &object)
 	if err != nil {
 		return err
+	}
+
+	if raw, found := object["agentProtocol"]; found {
+		err = json.Unmarshal(raw, &t.AgentProtocol)
+		if err != nil {
+			return fmt.Errorf("error reading 'agentProtocol': %w", err)
+		}
 	}
 
 	if raw, found := object["categories"]; found {
@@ -27820,6 +27860,18 @@ func NewBrowseCatalogRequest(server string, params *BrowseCatalogParams) (*http.
 		// styled parameters, preserving literal commas as delimiters
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
+
+		if params.AgentProtocol != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "agentProtocol", *params.AgentProtocol, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
 
 		if params.NamespaceId != nil {
 

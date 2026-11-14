@@ -279,6 +279,13 @@ for (let index = 0; index < 2; index++) {
   });
 }
 const other = createCatalogClient({ ...options, token: "other" });
+const unmatchedProtocol = await reader.api.POST("/api/v1/catalog/search", {
+  body: { agentProtocol: "HTTP+JSON", origins: ["local"] },
+});
+assert.equal(unmatchedProtocol.response.status, 200);
+assert.equal(unmatchedProtocol.data.durableTotal, 0);
+assert.deepEqual(unmatchedProtocol.data.items, []);
+
 for (const selection of ["search", "browse"]) {
   const unseen = new Set(releases.keys());
   let cursor;
@@ -287,6 +294,7 @@ for (const selection of ["search", "browse"]) {
       selection === "search"
         ? await reader.api.POST("/api/v1/catalog/search", {
             body: {
+              agentProtocol: "JSONRPC",
               origins: ["local"],
               kinds: ["agent"],
               limit: 1,
@@ -296,6 +304,7 @@ for (const selection of ["search", "browse"]) {
         : await reader.api.GET("/api/v1/catalog/resources", {
             params: {
               query: {
+                agentProtocol: "JSONRPC",
                 namespaceId: id,
                 kind: "agent",
                 limit: 1,

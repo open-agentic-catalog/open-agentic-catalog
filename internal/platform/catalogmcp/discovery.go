@@ -41,6 +41,12 @@ func parseExplore(raw json.RawMessage) (catalog.ExploreRequest, error) {
 			return catalog.ExploreRequest{}, bad
 		}
 	}
+	// Explore has intrinsically local scope; adapt it only for shared validation.
+	fields["origins"] = json.RawMessage(`["local"]`)
+	query, err := json.Marshal(fields)
+	if err != nil {
+		return catalog.ExploreRequest{}, bad
+	}
 	selected, err := toolRequest("catalog_control_search", query)
 	if err != nil {
 		return catalog.ExploreRequest{}, bad

@@ -105,3 +105,27 @@ it.each(["", "rating_desc", null, 8])(
     expect(validCriteria({ order })).toBe(false);
   },
 );
+
+it("preserves exact Agent declarations and requires explicit local-only saved scope", () => {
+  for (const agentProtocol of [
+    "HTTP+JSON",
+    "私有+V1 ",
+    "\ufeff",
+    "🙂".repeat(256),
+  ]) {
+    const value = { agentProtocol, origins: ["local"] };
+    expect(checkedCriteria(value)).toEqual(value);
+  }
+  for (const value of [
+    { agentProtocol: "HTTP+JSON" },
+    { agentProtocol: "HTTP+JSON", origins: ["indexed"] },
+    { agentProtocol: "HTTP+JSON", origins: ["local", "live"] },
+    { agentProtocol: " " },
+    { agentProtocol: "\u0085", origins: ["local"] },
+    { agentProtocol: "x".repeat(257), origins: ["local"] },
+    { agentProtocol: "x\0", origins: ["local"] },
+    { agentProtocol: null },
+    { agentProtocol: "\ud800", origins: ["local"] },
+  ])
+    expect(validCriteria(value)).toBe(false);
+});

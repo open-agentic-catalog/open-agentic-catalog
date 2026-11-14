@@ -253,6 +253,8 @@ Exit 0 means the request succeeded, including a partial Search response, a termi
 
 Use `--license Apache-2.0` for an exact case-sensitive declaration, up to 256 Unicode code points. Repeat `--category` to require every selected category after normalization. Supply up to 16 categories, each within 80 Unicode code points before normalization. Both filters cover selected origins. Entries without usable declarations do not match.
 
+Use `--agent-protocol HTTP+JSON --origin local` to match an exact declared A2A binding on a released primary Agent Card. Custom values are literal and bounded to 256 Unicode code points. This filter requires content-read access and explicit local-only scope; it does not verify or invoke the Agent. See [the protocol recipe](../guides/search-cookbook.mdx#find-local-agents-by-a-declared-a2a-protocol).
+
 Repeat `--origin local|indexed|live` to select provenance. Omission uses the caller's authorized population. Use `--origin local --origin indexed` to avoid live query disclosure. `--namespace UUID` selects local Listing releases only; combine it only with local origin. Explore remains local-only.
 
 ```sh

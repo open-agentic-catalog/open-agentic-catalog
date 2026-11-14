@@ -99,6 +99,7 @@ export function PersonalCriteriaEditor({
                     id={`${id}-origins`}
                     type="checkbox"
                     checked={criteria.origins !== undefined}
+                    disabled={!!criteria.agentProtocol}
                     onChange={(e) => {
                       const next = { ...criteria };
                       if (e.target.checked) next.origins = ["local"];
@@ -114,6 +115,7 @@ export function PersonalCriteriaEditor({
                       <input
                         type="checkbox"
                         checked={criteria.origins!.includes(origin)}
+                        disabled={!!criteria.agentProtocol}
                         onChange={(e) =>
                           update({
                             ...criteria,
@@ -140,7 +142,7 @@ export function PersonalCriteriaEditor({
                 <p className="muted">
                   Live search can disclose text and filters to approved sources.
                   A Namespace permits unspecified origins or Local Catalog
-                  alone.
+                  alone. A declared Agent protocol requires Local Catalog alone.
                 </p>
               </fieldset>
               <Field
@@ -171,6 +173,25 @@ export function PersonalCriteriaEditor({
                   id={`${id}-license`}
                   value={criteria.license ?? ""}
                   onChange={(e) => optional("license", e.target.value)}
+                />
+              </Field>
+              <Field
+                label="Saved Agent protocol binding"
+                hint="Exact declared A2A binding, up to 256 characters. Requires Local Catalog alone; this does not verify compatibility or authorize calls."
+              >
+                <input
+                  id={`${id}-agentProtocol`}
+                  value={criteria.agentProtocol ?? ""}
+                  maxLength={512}
+                  onChange={(e) => {
+                    const next = { ...criteria };
+                    if (e.target.value === "") delete next.agentProtocol;
+                    else {
+                      next.agentProtocol = e.target.value;
+                      next.origins = ["local"];
+                    }
+                    update(next);
+                  }}
                 />
               </Field>
               <Field label="Saved visibility">

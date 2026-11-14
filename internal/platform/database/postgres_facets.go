@@ -87,6 +87,8 @@ func exploreCatalogTx(ctx context.Context, tx pgx.Tx, tenantID string, query cat
 	}
 	parameters := append([]any{pgx.QueryExecModeExec}, catalogSearchParameters(tenantID, query)...)
 	parameters = append(parameters, limits...)
+	sql, bound := agentProtocolQuery(sql, parameters[1:], query)
+	parameters = append([]any{pgx.QueryExecModeExec}, bound...)
 	rows, err := tx.Query(ctx, collectionStatement(ctx, sql), parameters...)
 	if err != nil {
 		return catalog.ExploreResponse{}, translateError("query catalog facets", err)

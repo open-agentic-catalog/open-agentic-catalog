@@ -844,6 +844,50 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 		// Namespace reads already use catalog.read for tenant Readers.
 		requireStatus(t, requestJSON(t, owned.URL, http.MethodGet, "/api/v1/namespaces/"+namespace.ID, "contributor", "", "", nil), http.StatusOK)
 	})
+	t.Run("declared protocol Search Browse and Explore", func(t *testing.T) {
+		for _, binding := range []string{"JSONRPC", "HTTP+JSON", "\ufeff", ""} {
+			want := 0
+			if binding == "JSONRPC" || binding == "" {
+				want = 1
+			}
+			reply := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/search", "admin", "", "", map[string]any{"agentProtocol": binding, "origins": []string{"local"}})
+			requireStatus(t, reply, http.StatusOK)
+			requireControlSchema(t, "CatalogSearchResponse", reply.body)
+			var result catalog.CatalogSearchResponse
+			decodeResult(t, reply, &result)
+			if result.DurableTotal != want || len(result.Items) != want {
+				t.Fatal("wrong protocol population", result)
+			}
+			browse := requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/catalog/resources?agentProtocol="+url.QueryEscape(binding), "admin", "", "", nil)
+			requireStatus(t, browse, http.StatusOK)
+			var records catalog.Page[catalog.CatalogRecord]
+			decodeResult(t, browse, &records)
+			if len(records.Items) != want {
+				t.Fatal("browse ignored protocol", records)
+			}
+			facets := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/explore", "admin", "", "", map[string]any{"query": map[string]any{"agentProtocol": binding}, "facets": []any{map[string]any{"field": "kind"}}})
+			requireStatus(t, facets, http.StatusOK)
+			var explored catalog.ExploreResponse
+			decodeResult(t, facets, &explored)
+			if explored.Matched != want {
+				t.Fatal("facet ignored protocol", explored)
+			}
+		}
+		for _, raw := range []any{map[string]any{"agentProtocol": "JSONRPC"}, map[string]any{"agentProtocol": "JSONRPC", "origins": []string{"indexed"}}, map[string]any{"agentProtocol": "JSONRPC", "origins": []string{"local", "live"}}, map[string]any{"agentProtocol": nil}, map[string]any{"agentProtocol": " ", "origins": []string{"local"}}, map[string]any{"agentProtocol": "\n", "origins": []string{"local"}}} {
+			requireControlProblem(t, requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/search", "admin", "", "", raw), http.StatusBadRequest, catalog.CodeInvalidArgument)
+		}
+		for _, selected := range []any{"", nil, "PUBLIC"} {
+			for _, endpoint := range []string{"search", "explore"} {
+				body := map[string]any{"agentProtocol": "JSONRPC", "visibility": selected}
+				if endpoint == "search" {
+					body["origins"] = []string{"local"}
+				} else {
+					body = map[string]any{"query": body, "facets": []any{map[string]any{"field": "kind"}}}
+				}
+				requireControlProblem(t, requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/"+endpoint, "admin", "", "", body), http.StatusBadRequest, catalog.CodeInvalidArgument)
+			}
+		}
+	})
 	qualifyHTTPPersonalExactReference(t, testServer.URL, "contributor", personal.Reference{Origin: "local", ReleaseID: publishEnvelope.Release.ID, VersionRevisionID: publishEnvelope.Release.VersionRevisionID})
 	t.Run("current-user rating scopes and HTTP commands", func(t *testing.T) {
 		qualifyHTTPRatingScopes(t, Dependencies{RatingsStore: ratings.NewMemoryStore(repository), Catalog: catalogService, Identity: identityService, Federation: federationManager, Jobs: jobService, Authenticator: authenticator, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: 1 << 20, RequestTimeout: config.Defaults().HTTP.RequestTimeout.Duration, CursorKey: cursorKey[:], Now: serviceClock.Now}, publishEnvelope.Release.ID)
