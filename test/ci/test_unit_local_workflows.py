@@ -466,6 +466,67 @@ class WorkflowSourcePolicyTests(unittest.TestCase):
         self.assertNotIn("ui_audit", source)
         self.assertNotIn("UI_AUDIT", source)
 
+    def test_extended_weekly_schedule_is_default_branch_only_and_carries_no_inputs(self):
+        source = (local.ROOT / ".github/workflows/extended.yml").read_text()
+        triggers = source.split("\npermissions:\n", 1)[0]
+        self.assertRegex(triggers, r"(?m)^  schedule:\n    - cron: '[^']+'$")
+        schedule = triggers.split("  schedule:\n", 1)[1].split("  workflow_call:", 1)[0]
+        self.assertNotIn("inputs:", schedule)
+        self.assertIn("github.event_name != 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)", source)
+
+    def test_extended_scheduled_event_defaults_to_source_security_everywhere(self):
+        source = (local.ROOT / ".github/workflows/extended.yml").read_text()
+        expressions = re.findall(r"\$\{\{[^}]*inputs\.suite[^}]*\}\}", source)
+        self.assertGreaterEqual(len(expressions), 4)
+        for expression in expressions:
+            self.assertIn("inputs.suite || 'source-security'", expression)
+        self.assertNotIn("if: inputs.suite", source)
+        self.assertNotIn("&& inputs.suite", source)
+        self.assertIn("SUITE: ${{ inputs.suite || 'source-security' }}", source)
+
+    def test_extended_scheduled_run_cannot_upload_reports(self):
+        source = (local.ROOT / ".github/workflows/extended.yml").read_text()
+        uploads = [s for s in re.split(r"(?m)^      - ", source) if "uses: actions/upload-artifact@" in s]
+        self.assertEqual(len(uploads), 1)
+        condition = re.search(r"(?m)^        if: (.+)$", uploads[0])
+        self.assertIsNotNone(condition)
+        self.assertIn("inputs.upload_artifacts", condition[1])
+        self.assertIn("!env.ACT", condition[1])
+        self.assertNotIn("schedule", condition[1])
+        self.assertRegex(source, r"(?m)^permissions:\n  contents: read$")
+
+    def test_extended_security_failures_are_never_masked(self):
+        source = (local.ROOT / ".github/workflows/extended.yml").read_text()
+        self.assertNotIn("continue-on-error", source)
+        self.assertLess(source.index("id: advisory"), source.index("id: security"))
+        self.assertLess(source.index("id: security"), source.index("id: ui_scan"))
+        ui = source.split("id: ui_scan\n", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("!cancelled() && steps.security.outcome != 'skipped'", ui)
+        summary = source.split("Summarize coverage or security", 1)[1]
+        self.assertIn("if: always() && steps.checkout.outcome == 'success'", summary)
+        for outcome in ("ADVISORY_OUTCOME", "SECURITY_OUTCOME", "UI_SCAN_OUTCOME"):
+            self.assertIn(outcome + ": ${{ steps.", summary)
+        self.assertEqual(summary.count("|| 'not_run'"), 4)
+
+    def test_extended_security_summary_states_scope_limits_and_manual_fallback(self):
+        source = (local.ROOT / ".github/workflows/extended.yml").read_text()
+        for phrase in ("Scanner and advisory database identity",
+                       "A component with outcome not_run did not execute",
+                       "no npm registry audit is submitted",
+                       "they do not use the frozen exact-image snapshot",
+                       "Nested toolchains, peer images and published releases are not selected here",
+                       "run this workflow manually with suite source-security"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, source)
+        self.assertIn("Event: %s", source)
+        self.assertIn("Ref: %s", source)
+
+    def test_release_still_selects_source_security_explicitly(self):
+        release = (local.ROOT / ".github/workflows/release.yml").read_text()
+        caller = release.split("  security:\n", 1)[1].split("\n  candidates:", 1)[0]
+        self.assertIn("uses: ./.github/workflows/extended.yml", caller)
+        self.assertIn("suite: source-security", caller)
+
     def test_quality_summaries_copy_only_the_selected_file_under_act(self):
         source = (local.ROOT / ".github/workflows/quality.yml").read_text()
         steps = [step for step in re.split(r"(?m)^      - ", source) if step.startswith("name: Save the local job summary before runner removal")]
