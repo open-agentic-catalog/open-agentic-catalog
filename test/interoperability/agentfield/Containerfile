@@ -1,0 +1,26 @@
+# Test-only native consumer. Its original module graph is separate from Catalog.
+FROM docker.io/library/golang:1.27.3-alpine3.24@sha256:b8c9b82affbbb82a020bbcf998dad2ba9516944ac7e883524642a481a9505e9c AS build
+ENV GOTOOLCHAIN=local GOTELEMETRY=off CGO_ENABLED=0 GOFLAGS=-mod=readonly
+WORKDIR /source/control-plane
+COPY source/control-plane/ ./
+COPY source/LICENSE /source/LICENSE
+RUN go mod download all && go mod verify && GOBIN=/tools go install github.com/google/go-licenses@v1.6.0
+# Acquisition may add checksums for unlinked modules. Build from the original lock.
+COPY source/control-plane/go.sum ./go.sum
+ARG REVISION
+RUN --network=none go build -mod=readonly -trimpath -ldflags="-s -w -X main.commit=${REVISION}" -o /agentfield ./cmd/agentfield-server && \
+    go version -m /agentfield > /build.txt && /agentfield version >> /build.txt
+RUN /tools/go-licenses save --ignore=github.com/Agent-Field/agentfield/control-plane --save_path=/licenses ./cmd/agentfield-server && \
+    /tools/go-licenses report --ignore=github.com/Agent-Field/agentfield/control-plane ./cmd/agentfield-server > /dependency-licenses.csv
+ARG MOD_DIGEST
+ARG SUM_DIGEST
+RUN printf '%s  go.mod\n%s  go.sum\n' "$MOD_DIGEST" "$SUM_DIGEST" > /tmp/locks && sha256sum -c /tmp/locks
+
+FROM scratch
+COPY --from=build /agentfield /agentfield
+COPY --from=build /build.txt /dependency-licenses.csv /
+COPY --from=build /licenses /licenses
+COPY --from=build /source/LICENSE /LICENSE
+COPY --from=build /usr/local/go/LICENSE /GO-LICENSE
+USER 65532:65532
+ENTRYPOINT ["/agentfield"]

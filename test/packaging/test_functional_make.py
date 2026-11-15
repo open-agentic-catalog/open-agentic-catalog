@@ -220,6 +220,25 @@ if "port" in sys.argv:
             self.assertIn("Interoperability targets must run alone", mixed.stderr)
             self.assertNotIn("Demo evaluated", mixed.stderr)
 
+    def test_agentfield_acquisition_and_native_tests_are_separate_and_env_free(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / "workflow.env"
+            env_file.write_text("$(error AgentField evaluated inherited workflow settings)\n")
+            for target, script in (("agentfield-tools-install", "agentfield_tools.py"),
+                                   ("test-interoperability-agentfield", "agentfield_runner.py"),
+                                   ("test-interoperability-agentfield-cleanup", "agentfield_runner.py --cleanup-controls")):
+                with self.subTest(target=target):
+                    result = self.run_make("-n", target, "CATALOG_ENV_FILE=" + str(env_file))
+                    self.assertIn("test/interoperability/" + script, result)
+                    if target != "agentfield-tools-install":
+                        self.assertNotIn("agentfield_tools.py", result)
+                        self.assertNotIn("docker pull", result)
+                    mixed = subprocess.run(["make", "-n", target, "check", "CATALOG_ENV_FILE=" + str(env_file)],
+                                           cwd=ROOT, capture_output=True, text=True, timeout=30, check=False)
+                    self.assertNotEqual(mixed.returncode, 0)
+                    self.assertIn("Interoperability targets must run alone", mixed.stderr)
+                    self.assertNotIn("AgentField evaluated", mixed.stderr)
+
     def test_demo_up_orders_stages_and_stops_before_next_on_failure(self):
         # Actual recursive Make with inert fixture recipes: no Docker/API calls.
         source = (ROOT / "Makefile").read_text()

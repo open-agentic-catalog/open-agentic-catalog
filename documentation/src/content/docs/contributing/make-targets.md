@@ -91,6 +91,8 @@ Install and test each MCP selection separately:
 
 Independent HF qualification uses `make interoperability-tools-install`, then either `make test-interoperability` for clients or `make test-interoperability-hf` for owned HTTPS peers. Run each target separately. The client target creates an isolated in-memory Catalog. The peer target runs the real API and worker against owned HTTPS peers. Neither requires an HF account or calls a hosted HF catalog. See [independent client testing](../contributing/testing.md#independent-hugging-face-interoperability) for prerequisites, reports and cleanup.
 
+AgentField metadata consumption uses `make agentfield-tools-install`, then `make test-interoperability-agentfield` and `make test-interoperability-agentfield-cleanup`, each separately. The [harness guide](../../../../../test/interoperability/agentfield/README.md) covers native public Search, persistent passive imports, refusals and owned cleanup. No model or runtime invocation is needed.
+
 ## Optional LangGraph example
 
 The [SDK-based discovery assistant](../../../../../examples/langgraph/README.md) is a separate Python client. It searches local governed releases and inspects selected exact records. It does not install or execute resources.
