@@ -5063,6 +5063,24 @@ func (e ListFederationSourcesParamsStatus) Valid() bool {
 	}
 }
 
+// Defines values for ListOwnFeedbackParamsOrder.
+const (
+	Id          ListOwnFeedbackParamsOrder = "id"
+	UpdatedDesc ListOwnFeedbackParamsOrder = "updated_desc"
+)
+
+// Valid indicates whether the value is a known member of the ListOwnFeedbackParamsOrder enum.
+func (e ListOwnFeedbackParamsOrder) Valid() bool {
+	switch e {
+	case Id:
+		return true
+	case UpdatedDesc:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListJobsParamsState.
 const (
 	ListJobsParamsStateCancelled  ListJobsParamsState = "cancelled"
@@ -10748,9 +10766,15 @@ type ListOwnFeedbackParams struct {
 	ResourceId *UUID             `form:"resourceId,omitempty" json:"resourceId,omitempty"`
 	Category   *FeedbackCategory `form:"category,omitempty" json:"category,omitempty"`
 	State      *FeedbackState    `form:"state,omitempty" json:"state,omitempty"`
-	Limit      *int              `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor     *string           `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Order Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh.
+	Order  *ListOwnFeedbackParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit  *int                        `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string                     `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
+
+// ListOwnFeedbackParamsOrder defines parameters for ListOwnFeedback.
+type ListOwnFeedbackParamsOrder string
 
 // CreateFeedbackParams defines parameters for CreateFeedback.
 type CreateFeedbackParams struct {
@@ -18634,7 +18658,7 @@ type ClientInterface interface {
 
 	// ListOwnFeedback List your own feedback
 	//
-	// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+	// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 	//
 	// Corresponds with GET /api/v1/feedback (the `ListOwnFeedback` operationId).
 	ListOwnFeedback(ctx context.Context, params *ListOwnFeedbackParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -22021,7 +22045,7 @@ func (c *Client) LiveFederatedSearch(ctx context.Context, params *LiveFederatedS
 
 // ListOwnFeedback List your own feedback
 //
-// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 //
 // Corresponds with GET /api/v1/feedback (the `ListOwnFeedback` operationId).
 func (c *Client) ListOwnFeedback(ctx context.Context, params *ListOwnFeedbackParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -29593,6 +29617,18 @@ func NewListOwnFeedbackRequest(server string, params *ListOwnFeedbackParams) (*h
 		if params.State != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Order != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "order", *params.Order, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, safeError(err)
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -38014,7 +38050,7 @@ type ClientWithResponsesInterface interface {
 
 	// ListOwnFeedbackWithResponse List your own feedback
 	//
-	// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+	// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -54567,7 +54603,7 @@ func (c *ClientWithResponses) LiveFederatedSearchWithResponse(ctx context.Contex
 
 // ListOwnFeedbackWithResponse List your own feedback
 //
-// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 //
 // Returns a wrapper object for the known response body format(s).
 //

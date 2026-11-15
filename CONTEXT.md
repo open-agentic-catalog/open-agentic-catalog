@@ -431,6 +431,8 @@ Security Reviewers filter exact actor/action/request/target and half-open time r
 
 Private feedback supports human submissions, own/admin reads, exact item context, one current admin response and revision-fenced edit/address/reopen/withdraw/remove transitions. Text clearing preserves required retained context. Feedback never changes publication/ranking/discovery or supplies public comments, ratings or notifications.
 
+My feedback offers recent addressed outcomes through optional own-list `order=updated_desc`, descending update time with descending ID ties. Selection remains caller-bound and SQL-limited before hydration; the default and moderator inbox retain ascending ID order. Current mutable pages can miss cases moved ahead of the cursor until an explicit first-page refresh. The UI previews only current replies, explains addressed cases without text, preserves protected drafts and exact-case navigation, and adds no unread state or polling. A conventional owner/state/update index supports the recent selection; runtime privileges are unchanged.
+
 Restore into an isolated database with writers/egress stopped. `catalogctl restore verify` checks one tenant in bounded no-network pages: ledger, roles/RLS/guards and cross-domain integrity. Complete every page for every independently inventoried tenant; inspect findings, not only exit status.
 
 Compare trusted evidence before authorized repair; fix reported derived projections and reverify. Interrupted-command repair requires the original execution ended, old writers fenced and an eligible unchanged plan digest; a free lock is insufficient. Never alter ledgers, invent provenance, rewrite snapshots or reset data to pass verification. Deployment operators own backup/PITR, HA and recovery objectives.

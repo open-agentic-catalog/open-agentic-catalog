@@ -14,6 +14,44 @@ const code = (name) => (error) =>
   error instanceof SDKError && error.code === name;
 const manifest = "/.well-known/ard.json";
 
+test("recent own feedback retains update order and explicit one-page continuation", async () => {
+  const requests = [];
+  const client = make(async (request) => {
+    assert.equal(request.method, "GET");
+    assert.equal(request.headers.has("Idempotency-Key"), false);
+    requests.push(new URL(request.url));
+    return json(
+      {
+        items: [],
+        ...(requests.length === 1 ? { nextCursor: "opaque+/= café" } : {}),
+      },
+      { headers: { "Content-Type": "application/json" } },
+    );
+  });
+  const query = { order: "updated_desc", state: "addressed", limit: 1 };
+  const first = await client.api.GET("/api/v1/feedback", { params: { query } });
+  assert.equal(requests.length, 1);
+  assert.equal(first.data.nextCursor, "opaque+/= café");
+  const last = await client.api.GET("/api/v1/feedback", {
+    params: { query: { ...query, cursor: first.data.nextCursor } },
+  });
+  assert.equal(last.data.nextCursor, undefined);
+  const expected = { order: "updated_desc", state: "addressed", limit: "1" };
+  assert.deepEqual(
+    requests.map((url) => ({
+      path: url.pathname,
+      query: Object.fromEntries(url.searchParams),
+    })),
+    [
+      { path: "/api/v1/feedback", query: expected },
+      {
+        path: "/api/v1/feedback",
+        query: { ...expected, cursor: "opaque+/= café" },
+      },
+    ],
+  );
+});
+
 test("review queue retains namespace intersection and opaque continuation without implicit reads", async () => {
   const namespaceId = "aaaaaaaa-0000-7000-8000-000000000010";
   const requests = [];

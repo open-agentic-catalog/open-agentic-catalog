@@ -1,6 +1,20 @@
 import { createCatalogClient } from "../../../sdk/typescript/src/index.js";
 import type { components } from "../../../sdk/typescript/src/index.js";
 const client = createCatalogClient({ origin: "https://catalog.example.com" });
+void client.api.GET("/api/v1/feedback", {
+  params: {
+    query: {
+      order: "updated_desc",
+      state: "addressed",
+      limit: 20,
+      cursor: "opaque",
+    },
+  },
+});
+void client.api.GET("/api/v1/feedback", {
+  // @ts-expect-error Feedback order is a finite contract value.
+  params: { query: { order: "random" } },
+});
 void client.api.GET("/api/v1/review-submissions", {
   params: {
     query: {

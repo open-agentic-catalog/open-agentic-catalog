@@ -31,9 +31,11 @@ export function directorySearch(query: DirectoryQuery) {
 export function moderationSearch(filters: {
   state: string;
   category?: string;
+  order?: string;
 }) {
   const values = new URLSearchParams();
   if (filters.state) values.set("state", filters.state);
   if (filters.category) values.set("category", filters.category);
+  if (filters.order) values.set("order", filters.order);
   return values.size ? `?${values}` : "";
 }

@@ -759,7 +759,7 @@ export interface paths {
         };
         /**
          * List your own feedback
-         * @description Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+         * @description Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
          */
         get: operations["listOwnFeedback"];
         put?: never;
@@ -9965,6 +9965,8 @@ export interface operations {
                 resourceId?: components["schemas"]["UUID"];
                 category?: components["schemas"]["FeedbackCategory"];
                 state?: components["schemas"]["FeedbackState"];
+                /** @description Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh. */
+                order?: "id" | "updated_desc";
                 limit?: number;
                 cursor?: string;
             };

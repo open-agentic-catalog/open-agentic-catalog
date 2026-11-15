@@ -6,6 +6,71 @@ const RESOURCE_ID: &str = "00000000-0000-7000-8000-000000000010";
 const VERSION_ID: &str = "00000000-0000-7000-8000-000000000011";
 
 #[tokio::test]
+async fn recent_own_feedback_retains_update_order_and_explicit_continuation() {
+    const CURSOR: &str = "opaque+/= café";
+    let transport = Scripted::new(vec![
+        reply(
+            200,
+            "{\"items\":[],\"nextCursor\":\"opaque+/= café\"}".as_bytes(),
+        ),
+        reply(200, b"{\"items\":[]}"),
+    ]);
+    let client = client(transport.clone());
+    let first = client
+        .list_own_feedback(
+            None::<&str>,
+            None,
+            Some(FeedbackState::Addressed),
+            Some(ListOwnFeedbackOrder::UpdatedDesc),
+            Some(1),
+            None::<&str>,
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap();
+    assert_eq!(first.next_cursor.as_deref(), Some(CURSOR));
+    assert_eq!(transport.requests.lock().unwrap().len(), 1);
+    let last = client
+        .list_own_feedback(
+            None::<&str>,
+            None,
+            Some(FeedbackState::Addressed),
+            Some(ListOwnFeedbackOrder::UpdatedDesc),
+            Some(1),
+            first.next_cursor.as_deref(),
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap();
+    assert!(last.next_cursor.is_none());
+    let requests = transport.requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    for (index, request) in requests.iter().enumerate() {
+        assert_eq!(request.method(), reqwest::Method::GET);
+        assert_eq!(request.url().path(), "/api/v1/feedback");
+        assert!(request.headers().get("Idempotency-Key").is_none());
+        let mut expected = std::collections::BTreeMap::from([
+            ("order".to_string(), "updated_desc".to_string()),
+            ("state".to_string(), "addressed".to_string()),
+            ("limit".to_string(), "1".to_string()),
+        ]);
+        if index == 1 {
+            expected.insert("cursor".to_string(), CURSOR.to_string());
+        }
+        assert_eq!(
+            request
+                .url()
+                .query_pairs()
+                .into_owned()
+                .collect::<std::collections::BTreeMap<_, _>>(),
+            expected
+        );
+    }
+}
+
+#[tokio::test]
 async fn review_queue_preserves_namespace_intersection_and_explicit_continuation() {
     const NAMESPACE: &str = "aaaaaaaa-0000-7000-8000-000000000010";
     const CURSOR: &str = "opaque+/= café";

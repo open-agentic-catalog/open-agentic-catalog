@@ -4,6 +4,8 @@ This package owns human submissions, private submitter/admin reads, the current 
 
 Mutations use the retained update timestamp as a lower bound through `catalog.TransitionTime`, so replica clock skew cannot move state or its audit evidence backward. Revision checks remain the concurrency boundary; neither clocks nor previously stored timestamps are changed.
 
+Own lists optionally select `updated_desc`, with descending update-time and ID tuples. State/category/Resource and owner predicates precede limits. Current rows moved ahead of a cursor may be missed until first-page refresh; no snapshot, unread state or response history is retained. The default and moderator inbox remain ID-ordered. Recent units use static rows and injected contexts; PostgreSQL and browser suites qualify actual SQL and HTTP behavior.
+
 | File | Responsibility |
 | --- | --- |
 | `types.go` | Records, closed inputs and persistence/context ports. |

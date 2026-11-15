@@ -20,6 +20,37 @@ import (
 
 type doerFunc func(*http.Request) (*http.Response, error)
 
+func TestRecentOwnFeedbackOrderAndContinuationRemainExplicit(t *testing.T) {
+	t.Parallel()
+	order, state, limit := UpdatedDesc, FeedbackStateAddressed, 1
+	cursor := "opaque+/= café"
+	calls := 0
+	c := unitClient(t, Config{Token: "selected"}, doerFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		want := url.Values{"order": {"updated_desc"}, "state": {"addressed"}, "limit": {"1"}}
+		if calls == 2 {
+			want.Set("cursor", cursor)
+		}
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/feedback" || !reflect.DeepEqual(r.URL.Query(), want) || r.Header.Get("Idempotency-Key") != "" {
+			t.Fatal("feedback selection changed", r.URL)
+		}
+		if calls == 1 {
+			return response(`{"items":[],"nextCursor":"opaque+/= café"}`, 200, "application/json"), nil
+		}
+		return response(`{"items":[]}`, 200, "application/json"), nil
+	}))
+	params := ListOwnFeedbackParams{Order: &order, State: &state, Limit: &limit}
+	first, err := c.ListOwnFeedbackWithResponse(t.Context(), &params)
+	if err != nil || first.JSON200 == nil || first.JSON200.NextCursor == nil || *first.JSON200.NextCursor != cursor || calls != 1 {
+		t.Fatal(first, err, calls)
+	}
+	params.Cursor = first.JSON200.NextCursor
+	last, err := c.ListOwnFeedbackWithResponse(t.Context(), &params)
+	if err != nil || last.JSON200 == nil || last.JSON200.NextCursor != nil || calls != 2 {
+		t.Fatal(last, err, calls)
+	}
+}
+
 func TestReviewQueueNamespaceAndContinuationRemainExplicit(t *testing.T) {
 	t.Parallel()
 	var namespace UUID

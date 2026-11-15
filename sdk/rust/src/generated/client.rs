@@ -228,6 +228,32 @@ impl AsRef<str> for ListObservationsFreshness {
         self.as_str()
     }
 }
+///Allowed values for the `order` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum ListOwnFeedbackOrder {
+    #[serde(rename = "id")]
+    Id,
+    #[serde(rename = "updated_desc")]
+    UpdatedDesc,
+}
+impl ListOwnFeedbackOrder {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Id => "id",
+            Self::UpdatedDesc => "updated_desc",
+        }
+    }
+}
+impl std::fmt::Display for ListOwnFeedbackOrder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListOwnFeedbackOrder {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
 ///Allowed values for the `state` query parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum ListOwnRatingsState {
@@ -11647,7 +11673,7 @@ impl Client {
     }
     /// List your own feedback
     ///
-    /// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+    /// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
     ///
     /// `GET /api/v1/feedback`
     pub async fn list_own_feedback(
@@ -11655,6 +11681,7 @@ impl Client {
         resource_id: Option<impl AsRef<str>>,
         category: Option<FeedbackCategory>,
         state: Option<FeedbackState>,
+        order: Option<ListOwnFeedbackOrder>,
         limit: Option<i64>,
         cursor: Option<impl AsRef<str>>,
     ) -> Result<Response<FeedbackPage>, ApiOpError<ListOwnFeedbackApiError>> {
@@ -11670,6 +11697,9 @@ impl Client {
             }
             if let Some(v) = state {
                 query_params.push(("state".to_string(), v.to_string()));
+            }
+            if let Some(v) = order {
+                query_params.push(("order".to_string(), v.to_string()));
             }
             if let Some(v) = limit {
                 query_params.push(("limit".to_string(), v.to_string()));

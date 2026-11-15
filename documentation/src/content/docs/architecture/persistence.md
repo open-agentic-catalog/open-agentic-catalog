@@ -42,7 +42,7 @@ Unified Catalog Search uses one tenant-scoped, read-only PostgreSQL [repeatable-
 
 The stored `representations.agent_protocol_bindings` and `document_blobs.agent_protocol_bindings` arrays derive literal interface bindings from retained A2A bytes. Discovery joins these only through the released primary validated representation and current content authority. These are rebuildable derived data, not a replacement for immutable evidence.
 
-Migrations 000001-000049 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v29. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
+Migrations 000001-000050 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v29. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
 
 ### 000001 - Catalog foundation
 
@@ -365,3 +365,11 @@ tool matches, counts and page selection. Only selected pages hydrate bounded
 explanations. Explicit selection reports `core-mcp-tools-v1` and skips embeddings.
 The [database package guide](../../../../../internal/platform/database/README.md#private-declared-tool-projection)
 explains drain, grants and rebuild boundaries.
+
+### 000050 - Recent own-feedback pages
+
+Migration 000050 adds an index on tenant, submitter, state and descending update
+time and ID. It supports bounded recent addressed outcomes without changing
+feedback rows, current-only text, ownership or runtime privileges. Apply with
+feedback writers drained; index creation locks writes. Current mutable pages and
+explicit refresh are described in the [feedback guide](../guides/feedback.mdx).

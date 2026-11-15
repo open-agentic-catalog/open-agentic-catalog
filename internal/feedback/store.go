@@ -67,12 +67,16 @@ func (m *MemoryStore) List(ctx context.Context, tenant string, q ListInput) ([]R
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if q.Limit < 1 || q.Limit > 101 {
+	recent := q.Order == OrderUpdatedDesc
+	if q.Limit < 1 || q.Limit > 101 || q.Order != "" && q.Order != OrderID && !recent || recent && !identity.ValidTenantID(q.MembershipID) {
 		return nil, catalog.E(catalog.CodeInvalidArgument, "feedback page is invalid")
 	}
 	items := []Record{}
 	for _, r := range m.records {
-		if r.TenantID == tenant && r.ID > q.AfterID && (q.MembershipID == "" || r.MembershipID == q.MembershipID) && (q.ResourceID == "" || r.ResourceID == q.ResourceID) && (q.Category == "" || r.Category == q.Category) && (q.State == "" || r.State == q.State) {
+		if r.TenantID == tenant && (recent || r.ID > q.AfterID) && (q.MembershipID == "" || r.MembershipID == q.MembershipID) && (q.ResourceID == "" || r.ResourceID == q.ResourceID) && (q.Category == "" || r.Category == q.Category) && (q.State == "" || r.State == q.State) {
+			if recent && q.AfterUpdatedAt != nil && (r.UpdatedAt.After(*q.AfterUpdatedAt) || r.UpdatedAt.Equal(*q.AfterUpdatedAt) && r.ID >= q.AfterID) {
+				continue
+			}
 			if m.reader == nil {
 				return nil, catalog.E(catalog.CodeInternal, "feedback context reader is unavailable")
 			}
@@ -85,7 +89,15 @@ func (m *MemoryStore) List(ctx context.Context, tenant string, q ListInput) ([]R
 			items = append(items, r)
 		}
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+	sort.Slice(items, func(i, j int) bool {
+		if recent {
+			if !items[i].UpdatedAt.Equal(items[j].UpdatedAt) {
+				return items[i].UpdatedAt.After(items[j].UpdatedAt)
+			}
+			return items[i].ID > items[j].ID
+		}
+		return items[i].ID < items[j].ID
+	})
 	return items[:min(len(items), q.Limit)], nil
 }
 

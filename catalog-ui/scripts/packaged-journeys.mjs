@@ -3827,6 +3827,37 @@ export async function privateFeedbackJourney({ page, origin, network, api }) {
     await visit(`/my-feedback/${created.id}`);
     await expect(responseParagraph).toBeVisible();
     expect(await request("GET", path)).toEqual(persisted);
+    await visit("/my-feedback");
+    const [recent] = await Promise.all([
+      page.waitForResponse(
+        (reply) =>
+          reply.request().method() === "GET" &&
+          new URL(reply.url()).pathname === feedbackPath &&
+          new URL(reply.url()).searchParams.get("order") === "updated_desc",
+      ),
+      button("Recent addressed outcomes").click(),
+    ]);
+    expect(recent.status()).toBe(200);
+    expect(recent.headers()["cache-control"]).toBe("no-store");
+    expect(new URL(recent.url()).searchParams.get("limit")).toBe("20");
+    expect((await recent.json()).items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: created.id,
+          state: "addressed",
+          response: responseText,
+        }),
+      ]),
+    );
+    const current = page
+      .locator(".case-summary")
+      .filter({ hasText: responseText });
+    await expect(current).toHaveCount(1);
+    await current
+      .getByRole("link", { name: "Open feedback case", exact: true })
+      .click();
+    await expect(responseParagraph).toBeVisible();
+    expect(writes).toHaveLength(2);
   } finally {
     page.off("request", observe);
   }

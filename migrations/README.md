@@ -56,3 +56,10 @@ normal PostgreSQL `REINDEX`, not observation repair or a semantic reindex.
 If migration/reconciliation fails, keep runtimes stopped and retry forward after
 correcting the reported cause. Omit `includeMcpTools` to use ordinary discovery;
 do not downgrade the schema or rewrite retained declarations.
+
+Migration `000050_feedback_recent_page.sql` adds the tenant/member/state/update/ID
+index used by recent own-feedback selection. It changes no records, functions
+or runtime grants; manifest v29 is unchanged. Use the normal drained, owner-only
+migration workflow. Index creation locks feedback writes during application;
+budget maintenance time for the retained table size. Repair forward after
+failure; no row conversion, data reset or response-history backfill is needed.

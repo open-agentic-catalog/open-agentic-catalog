@@ -1,5 +1,7 @@
 # UI test strategy and coverage
 
+[Recent feedback outcomes](browser/feedback-recent.spec.ts) use owned human submissions and moderator responses. Root/subpath journeys qualify promotion of an older case, complete bounded paging, empty-response addressed outcomes, first-page refresh, exact-case returns, Back/reload, narrow layout and accessibility. A feedback-only owner remains able to read after Resource-read revocation; withdrawing feedback authority refuses continuation and clears stale rows. Component tests separately cover draft protection, prepared commands, strict order URLs and bounded Unicode previews.
+
 Every maintained Axe scan rejects violations and unreviewed incomplete results, including visual and packaged Publisher DNS checks. An empty violation list alone does not establish a pass. Existing scan tags and page scopes remain unchanged. Only the existing Filters relationship and local painted-contrast reviews can resolve their exact indeterminate targets; they are not global exceptions.
 
 The accessibility review calibration uses a temporary visible control inside an owned native modal to reach the pinned Axe popup-review branch. It then alters that native report to check unknown rules, unknown targets and violations. A failed independent `aria-expanded` check must reject the reviewed target. The test restores the DOM and repeats the successful review. Report substitutions qualify the assertion logic, not product accessibility.

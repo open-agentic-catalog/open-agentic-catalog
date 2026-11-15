@@ -8,9 +8,11 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/feedback"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
 )
 
 func TestHTTPFeedbackWorkflowAndPrivateReplay(t *testing.T) {
@@ -83,7 +85,8 @@ func TestHTTPFeedbackWorkflowAndPrivateReplay(t *testing.T) {
 
 // A signed own-list continuation cannot be moved to another caller, purpose or filter.
 func TestFeedbackCursorBinding(t *testing.T) {
-	s := newWebhookHTTPServer(t)
+	serviceClock := clock.NewFake(time.Date(2026, 8, 29, 11, 0, 0, 0, time.UTC))
+	s := newConfiguredHTTPServerWithClock(t, serviceClock, nil)
 	defer s.Close()
 	ns := requestJSON(t, s.URL, "POST", "/api/v1/namespaces", "admin", "cursor-ns", "", map[string]any{"slug": "feedback-cursor", "displayName": "Feedback cursor"})
 	requireStatus(t, ns, 201)
@@ -110,6 +113,62 @@ func TestFeedbackCursorBinding(t *testing.T) {
 	requireStatus(t, requestJSON(t, s.URL, "GET", base, "reader", "", "", nil), 200)
 	for _, test := range []struct{ path, token string }{{base, "reader-two"}, {base + "&category=other", "reader"}, {"/api/v1/feedback/inbox?limit=1&cursor=" + page.NextCursor, "admin"}, {base + "tampered", "reader"}} {
 		requireStatus(t, requestJSON(t, s.URL, "GET", test.path, test.token, "", "", nil), 400)
+	}
+	all := requestJSON(t, s.URL, "GET", "/api/v1/feedback?limit=20", "reader", "", "", nil)
+	requireStatus(t, all, 200)
+	var own struct {
+		Items []feedback.Record `json:"items"`
+	}
+	decodeResult(t, all, &own)
+	for i, r := range own.Items {
+		response := ""
+		if i != 0 {
+			response = "Current moderator reply"
+		}
+		requireStatus(t, requestJSON(t, s.URL, "POST", "/api/v1/feedback/"+r.ID+":address", "admin", fmt.Sprintf("recent-address-%d", i), fmt.Sprintf(`"rev-%d"`, r.Revision), map[string]any{"response": response}), 200)
+	}
+	recentBase := "/api/v1/feedback?order=updated_desc&state=addressed&limit=1"
+	first = requestJSON(t, s.URL, "GET", recentBase, "reader", "", "", nil)
+	requireStatus(t, first, 200)
+	requireControlSchema(t, "FeedbackPage", first.body)
+	decodeResult(t, first, &page)
+	if len(page.Items) != 1 || page.Items[0].State != "addressed" || page.NextCursor == "" || first.header.Get("Cache-Control") != "no-store" {
+		t.Fatal("recent route lost private page", page)
+	}
+	recentCursor := page.NextCursor
+	firstID := page.Items[0].ID
+	last := requestJSON(t, s.URL, "GET", recentBase+"&cursor="+recentCursor, "reader", "", "", nil)
+	requireStatus(t, last, 200)
+	page.Items, page.NextCursor = nil, ""
+	decodeResult(t, last, &page)
+	if len(page.Items) != 1 || page.Items[0].ID == firstID || page.Items[0].State != "addressed" || page.NextCursor != "" || last.header.Get("Cache-Control") != "no-store" {
+		t.Fatal("recent route continuation", page)
+	}
+	for _, query := range []string{"order=", "order=random", "order=updated_desc&order=id", "Order=updated_desc"} {
+		requireControlProblem(t, requestJSON(t, s.URL, "GET", "/api/v1/feedback?"+query, "reader", "", "", nil), 400, catalog.CodeInvalidArgument)
+	}
+	for _, target := range []struct{ path, actor string }{{"/api/v1/feedback/inbox?order=updated_desc", "admin"}, {"/api/v1/feedback?order=id&state=addressed&limit=1&cursor=" + recentCursor, "reader"}} {
+		requireControlProblem(t, requestJSON(t, s.URL, "GET", target.path, target.actor, "", "", nil), 400, catalog.CodeInvalidArgument)
+	}
+	// A replacement reply moves the unseen case ahead of the issued cursor.
+	// Continuing reads current facts; a fresh first page finds the new reply.
+	moving := page.Items[0]
+	serviceClock.Advance(time.Second)
+	updated := requestJSON(t, s.URL, "POST", "/api/v1/feedback/"+moving.ID+":address", "admin", "replace-recent-response", fmt.Sprintf(`"rev-%d"`, moving.Revision), map[string]any{"response": "Replacement current reply"})
+	requireStatus(t, updated, 200)
+	continued := requestJSON(t, s.URL, "GET", recentBase+"&cursor="+recentCursor, "reader", "", "", nil)
+	requireStatus(t, continued, 200)
+	page.Items, page.NextCursor = nil, ""
+	decodeResult(t, continued, &page)
+	if len(page.Items) != 0 || page.NextCursor != "" || continued.header.Get("Cache-Control") != "no-store" {
+		t.Fatal("current continuation returned a moved case or retained history", page)
+	}
+	refreshed := requestJSON(t, s.URL, "GET", recentBase, "reader", "", "", nil)
+	requireStatus(t, refreshed, 200)
+	requireControlSchema(t, "FeedbackPage", refreshed.body)
+	decodeResult(t, refreshed, &page)
+	if len(page.Items) != 1 || page.Items[0].ID != moving.ID || page.Items[0].Response != "Replacement current reply" || page.Items[0].Revision != moving.Revision+1 || !page.Items[0].UpdatedAt.After(moving.UpdatedAt) || refreshed.header.Get("Cache-Control") != "no-store" {
+		t.Fatal("first-page refresh did not find the current replacement", page)
 	}
 }
 

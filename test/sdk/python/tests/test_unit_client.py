@@ -17,6 +17,7 @@ from catalog_sdk.generated.api.discovery_api import DiscoveryApi
 from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
 from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
 from catalog_sdk.generated.api.personal_workspace_api import PersonalWorkspaceApi
+from catalog_sdk.generated.api.feedback_api import FeedbackApi
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
 from catalog_sdk.generated.models.trust_assessment_request import TrustAssessmentRequest
 from catalog_sdk.transport import HTTPBoundary, Response
@@ -200,6 +201,26 @@ class ConfigurationUnits(unittest.TestCase):
 
 
 class TransportUnits(unittest.IsolatedAsyncioTestCase):
+    async def test_recent_own_feedback_retains_order_state_and_explicit_cursor(self):
+        client = Client(Config(origin="https://catalog.example.com", token="selected"))
+        calls = []
+        def handler(request):
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.path, "/api/v1/feedback")
+            self.assertNotIn("Idempotency-Key", request.headers)
+            calls.append(dict(request.url.params))
+            wire = {"items": [], **({"nextCursor": "opaque+/= café"} if len(calls) == 1 else {})}
+            return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Stream([json.dumps(wire).encode()]))
+        with injected(client.rest_client, handler):
+            api = FeedbackApi(client)
+            first = await api.list_own_feedback(order="updated_desc", state="addressed", limit=1)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(first.next_cursor, "opaque+/= café")
+            last = await api.list_own_feedback(order="updated_desc", state="addressed", limit=1, cursor=first.next_cursor)
+            self.assertIsNone(last.next_cursor)
+        expected = {"order": "updated_desc", "state": "addressed", "limit": "1"}
+        self.assertEqual(calls, [expected, dict(expected, cursor="opaque+/= café")])
+
     async def test_review_queue_retains_namespace_intersection_and_cursor_without_retry(self):
         client = Client(Config(origin="https://catalog.example.com", token="selected"))
         uid = UUID("aaaaaaaa-0000-7000-8000-000000000010")

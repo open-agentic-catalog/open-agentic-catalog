@@ -9,6 +9,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/audit"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/feedback"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 )
 
 // PostgresFeedbackStore shares the admitted API repository and transaction coordinator.
@@ -38,13 +39,31 @@ func (p *PostgresFeedbackStore) Get(ctx context.Context, tenant, id string) (fee
 	})
 }
 
+// feedbackListStatement owns both ordered SQL pages; plan qualification uses the same statement.
+func feedbackListStatement(tenant string, q feedback.ListInput) (string, []any) {
+	selection := `SELECT ` + feedbackColumns + ` FROM item_feedback WHERE tenant_id=$1 AND EXISTS(SELECT 1 FROM resources WHERE resources.tenant_id=item_feedback.tenant_id AND resources.id=item_feedback.resource_id AND resources.deleted_at IS NULL)`
+	query := selection + ` AND ($2='' OR membership_id=nullif($2,'')::uuid) AND ($3='' OR resource_id=nullif($3,'')::uuid) AND ($4='' OR category=$4) AND ($5='' OR state=$5) AND ($6='' OR id>nullif($6,'')::uuid) ORDER BY id LIMIT $7`
+	args := []any{tenant, q.MembershipID, q.ResourceID, q.Category, q.State, q.AfterID, q.Limit}
+	if q.Order == feedback.OrderUpdatedDesc {
+		state := ` AND ($5='' OR state=$5)`
+		if q.State != "" {
+			state = ` AND state=$5`
+		}
+		query = selection + ` AND membership_id=$2::uuid AND ($3='' OR resource_id=nullif($3,'')::uuid) AND ($4='' OR category=$4)` + state + ` AND ($6::timestamptz IS NULL OR (updated_at,id)<($6,$7::uuid)) ORDER BY updated_at DESC,id DESC LIMIT $8`
+		args = []any{tenant, q.MembershipID, q.ResourceID, q.Category, q.State, q.AfterUpdatedAt, nullableUUID(q.AfterID), q.Limit}
+	}
+	return query, args
+}
+
 // List applies ownership and filters in SQL before selecting the bounded page.
 func (p *PostgresFeedbackStore) List(ctx context.Context, tenant string, q feedback.ListInput) ([]feedback.Record, error) {
-	if q.Limit < 1 || q.Limit > 101 {
+	recent := q.Order == feedback.OrderUpdatedDesc
+	if q.Limit < 1 || q.Limit > 101 || q.Order != "" && q.Order != feedback.OrderID && !recent || recent && !identity.ValidTenantID(q.MembershipID) {
 		return nil, catalog.E(catalog.CodeInvalidArgument, "feedback page is invalid")
 	}
 	return withTenantRead(ctx, p.repository.pool, tenant, func(tx pgx.Tx) ([]feedback.Record, error) {
-		rows, err := tx.Query(ctx, `SELECT `+feedbackColumns+` FROM item_feedback WHERE tenant_id=$1 AND EXISTS(SELECT 1 FROM resources WHERE resources.tenant_id=item_feedback.tenant_id AND resources.id=item_feedback.resource_id AND resources.deleted_at IS NULL) AND ($2='' OR membership_id=nullif($2,'')::uuid) AND ($3='' OR resource_id=nullif($3,'')::uuid) AND ($4='' OR category=$4) AND ($5='' OR state=$5) AND ($6='' OR id>nullif($6,'')::uuid) ORDER BY id LIMIT $7`, tenant, q.MembershipID, q.ResourceID, q.Category, q.State, q.AfterID, q.Limit)
+		query, args := feedbackListStatement(tenant, q)
+		rows, err := tx.Query(ctx, query, args...)
 		if err != nil {
 			return nil, translateError("list feedback", err)
 		}
