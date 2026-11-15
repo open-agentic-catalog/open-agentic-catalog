@@ -357,7 +357,7 @@ func TestPostgresAuthorizationCoreForwardMigration(t *testing.T) {
 				if _, err := pool.Exec(t.Context(), `UPDATE idempotency_keys SET released_at=clock_timestamp(), repair_reason='Owned cutover repair',execution_token=NULL WHERE tenant_id=$1 AND idempotency_key='unfinished'`, housekeepingTenantA); err != nil {
 					t.Fatal(err)
 				}
-				if resumed, err := applyMigrationsForTest(t.Context(), pool); err != nil || len(resumed) != 15 || resumed[0].Version != 36 || resumed[1].Version != 37 || resumed[2].Version != 38 || resumed[3].Version != 39 || resumed[4].Version != 40 || resumed[5].Version != 41 || resumed[6].Version != 42 || resumed[7].Version != 43 || resumed[8].Version != 44 || resumed[9].Version != 45 || resumed[10].Version != 46 || resumed[11].Version != 47 || resumed[12].Version != 48 || resumed[13].Version != 49 || resumed[14].Version != 50 {
+				if resumed, err := applyMigrationsForTest(t.Context(), pool); err != nil || len(resumed) != 16 || resumed[0].Version != 36 || resumed[1].Version != 37 || resumed[2].Version != 38 || resumed[3].Version != 39 || resumed[4].Version != 40 || resumed[5].Version != 41 || resumed[6].Version != 42 || resumed[7].Version != 43 || resumed[8].Version != 44 || resumed[9].Version != 45 || resumed[10].Version != 46 || resumed[11].Version != 47 || resumed[12].Version != 48 || resumed[13].Version != 49 || resumed[14].Version != 50 || resumed[15].Version != 51 {
 					t.Fatalf("repaired cutover did not resume: %v %v", resumed, err)
 				}
 			case invalidGate:
@@ -369,7 +369,7 @@ func TestPostgresAuthorizationCoreForwardMigration(t *testing.T) {
 					t.Fatal("failed migration left new state", err)
 				}
 			default:
-				if err != nil || len(applied) != 17 || applied[0].Version != 34 || applied[1].Version != 35 || applied[2].Version != 36 || applied[3].Version != 37 || applied[4].Version != 38 || applied[5].Version != 39 || applied[6].Version != 40 || applied[7].Version != 41 || applied[8].Version != 42 || applied[9].Version != 43 || applied[10].Version != 44 || applied[11].Version != 45 || applied[12].Version != 46 || applied[13].Version != 47 || applied[14].Version != 48 || applied[15].Version != 49 || applied[16].Version != 50 {
+				if err != nil || len(applied) != 18 || applied[0].Version != 34 || applied[1].Version != 35 || applied[2].Version != 36 || applied[3].Version != 37 || applied[4].Version != 38 || applied[5].Version != 39 || applied[6].Version != 40 || applied[7].Version != 41 || applied[8].Version != 42 || applied[9].Version != 43 || applied[10].Version != 44 || applied[11].Version != 45 || applied[12].Version != 46 || applied[13].Version != 47 || applied[14].Version != 48 || applied[15].Version != 49 || applied[16].Version != 50 || applied[17].Version != 51 {
 					t.Fatalf("%v %v", applied, err)
 				}
 				var reference string

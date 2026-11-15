@@ -114,16 +114,10 @@ func (m *MemoryStore) ReadSourceOverview(ctx context.Context, tenant string) (So
 		if source.TenantID != tenant || source.Status == SourceRemoved {
 			continue
 		}
+		attempt := m.latestCompletedSync(source)
 		var latest *SyncSummary
-		var latestSnapshotID string
-		for _, snapshot := range m.snapshots {
-			if snapshot.TenantID != tenant || snapshot.SourceID != source.ID || snapshot.SourceRevision != source.Revision || snapshot.CompletedAt == nil {
-				continue
-			}
-			if latest == nil || snapshot.CompletedAt.After(latest.CompletedAt) || snapshot.CompletedAt.Equal(latest.CompletedAt) && snapshot.ID > latestSnapshotID {
-				latest = &SyncSummary{Revision: snapshot.SourceRevision, State: snapshot.State, CompletedAt: *snapshot.CompletedAt}
-				latestSnapshotID = snapshot.ID
-			}
+		if attempt != nil {
+			latest = &SyncSummary{Revision: attempt.Revision, State: attempt.State, CompletedAt: attempt.CompletedAt}
 		}
 		var complete *SyncSummary
 		if s, ok := m.snapshots[source.LastCompleteSnapshotID]; ok && s.TenantID == tenant && s.SourceID == source.ID && s.State == SnapshotComplete && s.CompletedAt != nil {
@@ -153,4 +147,22 @@ func (m *MemoryStore) ReadSourceOverview(ctx context.Context, tenant string) (So
 		out.Problems = out.Problems[:5]
 	}
 	return out, nil
+}
+
+// latestCompletedSync requires the store read lock. Directory and Overview use
+// the same completed-time/ID ordering and current-configuration scope.
+func (m *MemoryStore) latestCompletedSync(source Source) *SourceSyncAttempt {
+	if source.RetrievalMode != RetrievalIndexed && source.RetrievalMode != RetrievalHybrid {
+		return nil
+	}
+	var latest *SourceSyncAttempt
+	for _, snapshot := range m.snapshots {
+		if snapshot.TenantID != source.TenantID || snapshot.SourceID != source.ID || snapshot.SourceRevision != source.Revision || snapshot.CompletedAt == nil {
+			continue
+		}
+		if latest == nil || snapshot.CompletedAt.After(latest.CompletedAt) || snapshot.CompletedAt.Equal(latest.CompletedAt) && snapshot.ID > latest.SnapshotID {
+			latest = &SourceSyncAttempt{SnapshotID: snapshot.ID, Revision: snapshot.SourceRevision, State: snapshot.State, CompletedAt: *snapshot.CompletedAt}
+		}
+	}
+	return latest
 }

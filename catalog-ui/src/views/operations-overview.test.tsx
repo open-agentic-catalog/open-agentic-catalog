@@ -15,7 +15,11 @@ import {
   jobsFixture,
 } from "../../tests/unit/operations-fixtures";
 import { sourceOverview, jobOverview } from "./operations-overview-values";
-import { sourceStatus, sourceDirectoryURL } from "./source-directory-state";
+import {
+  sourceStatus,
+  sourceSyncState,
+  sourceDirectoryURL,
+} from "./source-directory-state";
 import Overview from "./Overview";
 
 afterEach(() => {
@@ -428,4 +432,30 @@ it("keeps zero historical evidence distinct from a plural current count after ex
   ).toEqual([]);
   expect(f.props.onFailure).not.toHaveBeenCalled();
   expect(f.mutate).not.toHaveBeenCalled();
+});
+
+it("opens failed and incomplete Source inventories without starting work", async () => {
+  const f = operations();
+  render(<Overview {...f.props} />);
+  const panel = await screen.findByRole("region", {
+    name: "Federation sources",
+  });
+  expect(
+    (await within(panel).findByRole("link", { name: "Failed" })).getAttribute(
+      "href",
+    ),
+  ).toBe("/unit/sources?syncState=failed");
+  expect(
+    within(panel)
+      .getByRole("link", { name: "Incomplete" })
+      .getAttribute("href"),
+  ).toBe("/unit/sources?syncState=incomplete");
+  expect(sourceSyncState("")).toBe("");
+  expect(sourceSyncState("?syncState=incomplete")).toBe("incomplete");
+  expect(sourceSyncState("?syncState=failed&syncState=incomplete")).toBe(
+    "unsupported",
+  );
+  expect(sourceDirectoryURL("/unit", "active", "failed")).toBe(
+    "/unit/sources?status=active&syncState=failed",
+  );
 });

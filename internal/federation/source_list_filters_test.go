@@ -72,12 +72,12 @@ func TestSourceListFiltersBeforeBounds(t *testing.T) {
 }
 
 func TestSourceListFilterValidation(t *testing.T) {
-	for _, q := range []SourceListRequest{{DisplayName: strings.Repeat("界", 161)}, {DisplayName: "a\x00b"}, {DisplayName: string([]byte{255})}, {Status: SourceRemoved}, {Status: "Active"}} {
+	for _, q := range []SourceListRequest{{DisplayName: strings.Repeat("界", 161)}, {DisplayName: "a\x00b"}, {DisplayName: string([]byte{255})}, {Status: SourceRemoved}, {Status: "Active"}, {SyncState: SnapshotComplete}, {SyncState: SnapshotRunning}, {SyncState: "Failed"}} {
 		if catalog.ErrorCodeOf(validateSourceListFilters(q)) != catalog.CodeInvalidArgument {
 			t.Fatalf("accepted %+v", q)
 		}
 	}
-	for _, q := range []SourceListRequest{{}, {DisplayName: strings.Repeat("界", 160)}, {DisplayName: " spaced "}, {Status: SourceActive}, {Status: SourcePaused}, {Status: SourceError}} {
+	for _, q := range []SourceListRequest{{}, {DisplayName: strings.Repeat("界", 160)}, {DisplayName: " spaced "}, {Status: SourceActive}, {Status: SourcePaused}, {Status: SourceError}, {SyncState: SnapshotFailed}, {SyncState: SnapshotIncomplete}} {
 		if err := validateSourceListFilters(q); err != nil {
 			t.Fatalf("refused %+v %v", q, err)
 		}

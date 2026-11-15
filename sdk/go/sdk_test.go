@@ -20,6 +20,38 @@ import (
 
 type doerFunc func(*http.Request) (*http.Response, error)
 
+func TestSourceSyncOutcomeAndContinuationRemainExplicit(t *testing.T) {
+	t.Parallel()
+	outcome, status, limit := ListFederationSourcesParamsSyncStateFailed, ListFederationSourcesParamsStatusActive, 1
+	name := "Exact Source"
+	cursor := "opaque+/= café"
+	calls := 0
+	c := unitClient(t, Config{Token: "selected"}, doerFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		want := url.Values{"syncState": {"failed"}, "status": {"active"}, "displayName": {"Exact Source"}, "limit": {"1"}}
+		if calls == 2 {
+			want.Set("cursor", cursor)
+		}
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/federation/sources" || !reflect.DeepEqual(r.URL.Query(), want) || r.Header.Get("Idempotency-Key") != "" {
+			t.Fatal("source selection changed", r.URL)
+		}
+		if calls == 1 {
+			return response(`{"items":[],"nextCursor":"opaque+/= café"}`, 200, "application/json"), nil
+		}
+		return response(`{"items":[]}`, 200, "application/json"), nil
+	}))
+	params := ListFederationSourcesParams{SyncState: &outcome, Status: &status, DisplayName: &name, Limit: &limit}
+	first, err := c.ListFederationSourcesWithResponse(t.Context(), &params)
+	if err != nil || first.JSON200 == nil || first.JSON200.NextCursor == nil || *first.JSON200.NextCursor != cursor || calls != 1 {
+		t.Fatal(first, err, calls)
+	}
+	params.Cursor = first.JSON200.NextCursor
+	last, err := c.ListFederationSourcesWithResponse(t.Context(), &params)
+	if err != nil || last.JSON200 == nil || last.JSON200.NextCursor != nil || calls != 2 {
+		t.Fatal(last, err, calls)
+	}
+}
+
 func TestRecentOwnFeedbackOrderAndContinuationRemainExplicit(t *testing.T) {
 	t.Parallel()
 	order, state, limit := UpdatedDesc, FeedbackStateAddressed, 1

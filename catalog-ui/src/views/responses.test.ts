@@ -2840,3 +2840,40 @@ it("keeps private tool redaction explicit rather than treating withheld content 
     }),
   ).toBe(false);
 });
+
+it("validates every consumed current completed-attempt field before source navigation", () => {
+  const attempt = {
+    snapshotId: "snapshot",
+    revision: 1,
+    state: "failed",
+    completedAt: "2026-11-01T12:00:00Z",
+  };
+  expect(
+    checks.FederationSource({
+      ...sampleFederationSource,
+      latestCompletedSync: attempt,
+    }),
+  ).toBe(true);
+  for (const mismatch of [
+    null,
+    {},
+    { ...attempt, snapshotId: "" },
+    { ...attempt, revision: 2 },
+    { ...attempt, state: "running" },
+    { ...attempt, completedAt: "invalid" },
+  ]) {
+    expect(
+      checks.FederationSource({
+        ...sampleFederationSource,
+        latestCompletedSync: mismatch,
+      }),
+    ).toBe(false);
+  }
+  expect(
+    checks.FederationSource({
+      ...sampleFederationSource,
+      retrievalMode: "live",
+      latestCompletedSync: attempt,
+    }),
+  ).toBe(false);
+});

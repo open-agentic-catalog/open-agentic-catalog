@@ -437,7 +437,7 @@ func (s *Server) routes(router *http.ServeMux) {
 
 	router.HandleFunc("POST /api/v1/federation/source-inspections", s.withQueryParameters(s.handleSourceInspect))
 	router.HandleFunc("GET /api/v1/federation/source-inspections/{inspectionId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleSourceInspectionGet, "inspectionId")))
-	router.HandleFunc("GET /api/v1/federation/sources", s.withQueryParameters(s.handleSourcesList, "limit", "cursor", "displayName", "status"))
+	router.HandleFunc("GET /api/v1/federation/sources", s.withQueryParameters(s.handleSourcesList, "limit", "cursor", "displayName", "status", "syncState"))
 	router.HandleFunc("POST /api/v1/federation/sources", s.withQueryParameters(s.handleSourceConnect))
 	router.HandleFunc("GET /api/v1/federation/sources/{sourceId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleSourceGet, "sourceId")))
 	router.HandleFunc("PATCH /api/v1/federation/sources/{sourceId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleSourcePatch, "sourceId")))

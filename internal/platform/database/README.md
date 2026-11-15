@@ -142,3 +142,14 @@ rewrite immutable declarations or use the indexed-observation repair command
 for these columns. `make test-integration` qualifies migration, restore-style
 insertion/reindex, exact-role access, current content permission, lifecycle,
 tenant isolation, paging and bounded maximum-inventory query plans.
+
+## Source synchronization triage
+
+Source directory `syncState=failed|incomplete` and Overview share a scalar lateral
+lookup of the latest completed current-revision indexed attempt, ordered by
+completion time and snapshot ID. The directory applies all predicates before
+its bounded page and Source hydration. The attempt reference is a transient
+read projection, excluded from immutable configuration. Migration 000051 adds
+the supporting completed-attempt index without changing exact runtime grants.
+Real API-role tests qualify paging beyond the summary sample, tenant exclusion,
+revision changes, recovery and the query plan over 1,000 retained snapshots.

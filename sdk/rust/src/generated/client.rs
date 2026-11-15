@@ -132,6 +132,32 @@ impl AsRef<str> for ListFederationSourcesStatus {
         self.as_str()
     }
 }
+///Allowed values for the `syncState` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum ListFederationSourcesSyncState {
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "incomplete")]
+    Incomplete,
+}
+impl ListFederationSourcesSyncState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Failed => "failed",
+            Self::Incomplete => "incomplete",
+        }
+    }
+}
+impl std::fmt::Display for ListFederationSourcesSyncState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListFederationSourcesSyncState {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
 ///Allowed values for the `state` query parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum ListJobsState {
@@ -10853,7 +10879,7 @@ impl Client {
     }
     /// List federation sources
     ///
-    /// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+    /// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
     ///
     /// `GET /api/v1/federation/sources`
     pub async fn list_federation_sources(
@@ -10861,6 +10887,7 @@ impl Client {
         limit: Option<i64>,
         cursor: Option<impl AsRef<str>>,
         display_name: Option<impl AsRef<str>>,
+        sync_state: Option<ListFederationSourcesSyncState>,
         status: Option<ListFederationSourcesStatus>,
     ) -> Result<Response<FederationSourcePage>, ApiOpError<ListFederationSourcesApiError>> {
         let request_url = format!("{}{}", self.base_url, "/api/v1/federation/sources");
@@ -10875,6 +10902,9 @@ impl Client {
             }
             if let Some(v) = display_name {
                 query_params.push(("displayName".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = sync_state {
+                query_params.push(("syncState".to_string(), v.to_string()));
             }
             if let Some(v) = status {
                 query_params.push(("status".to_string(), v.to_string()));

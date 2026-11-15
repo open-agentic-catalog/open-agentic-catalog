@@ -6,6 +6,70 @@ const RESOURCE_ID: &str = "00000000-0000-7000-8000-000000000010";
 const VERSION_ID: &str = "00000000-0000-7000-8000-000000000011";
 
 #[tokio::test]
+async fn source_sync_outcome_retains_exact_filters_and_explicit_continuation() {
+    const CURSOR: &str = "opaque+/= café";
+    let transport = Scripted::new(vec![
+        reply(
+            200,
+            "{\"items\":[],\"nextCursor\":\"opaque+/= café\"}".as_bytes(),
+        ),
+        reply(200, b"{\"items\":[]}"),
+    ]);
+    let client = client(transport.clone());
+    let first = client
+        .list_federation_sources(
+            Some(1),
+            None::<&str>,
+            Some("Exact Source"),
+            Some(ListFederationSourcesSyncState::Failed),
+            Some(ListFederationSourcesStatus::Active),
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap();
+    assert_eq!(first.next_cursor.as_deref(), Some(CURSOR));
+    assert_eq!(transport.requests.lock().unwrap().len(), 1);
+    let last = client
+        .list_federation_sources(
+            Some(1),
+            first.next_cursor.as_deref(),
+            Some("Exact Source"),
+            Some(ListFederationSourcesSyncState::Failed),
+            Some(ListFederationSourcesStatus::Active),
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap();
+    assert!(last.next_cursor.is_none());
+    let requests = transport.requests.lock().unwrap();
+    assert_eq!(requests.len(), 2);
+    for (index, request) in requests.iter().enumerate() {
+        assert_eq!(request.method(), reqwest::Method::GET);
+        assert_eq!(request.url().path(), "/api/v1/federation/sources");
+        assert!(request.headers().get("Idempotency-Key").is_none());
+        let mut expected = std::collections::BTreeMap::from([
+            ("displayName".to_string(), "Exact Source".to_string()),
+            ("syncState".to_string(), "failed".to_string()),
+            ("status".to_string(), "active".to_string()),
+            ("limit".to_string(), "1".to_string()),
+        ]);
+        if index == 1 {
+            expected.insert("cursor".to_string(), CURSOR.to_string());
+        }
+        assert_eq!(
+            request
+                .url()
+                .query_pairs()
+                .into_owned()
+                .collect::<std::collections::BTreeMap<_, _>>(),
+            expected
+        );
+    }
+}
+
+#[tokio::test]
 async fn recent_own_feedback_retains_update_order_and_explicit_continuation() {
     const CURSOR: &str = "opaque+/= café";
     let transport = Scripted::new(vec![

@@ -402,6 +402,7 @@ __all__ = [
     "SourceScope",
     "SourceStateCount",
     "SourceSyncAccepted",
+    "SourceSyncAttempt",
     "SourceSyncProblem",
     "SyncSummary",
     "TenantSettings",
@@ -1388,6 +1389,9 @@ from catalog_sdk.generated.models.source_state_count import (
 )
 from catalog_sdk.generated.models.source_sync_accepted import (
     SourceSyncAccepted as SourceSyncAccepted,
+)
+from catalog_sdk.generated.models.source_sync_attempt import (
+    SourceSyncAttempt as SourceSyncAttempt,
 )
 from catalog_sdk.generated.models.source_sync_problem import (
     SourceSyncProblem as SourceSyncProblem,

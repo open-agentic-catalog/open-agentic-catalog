@@ -659,3 +659,138 @@ it("opens a selected snapshot by exact reference without a parent read", async (
   ).toBe("/unit/source-snapshots/00000000-0000-7000-8000-000000000012");
   expect(w.get).toHaveBeenCalledOnce();
 });
+
+it("applies completed outcomes before paging and refreshes from the first current page", async () => {
+  history.replaceState(null, "", "/unit/sources?syncState=failed");
+  const w = screenWorkspace();
+  const attempt = {
+    snapshotId: "failed-snapshot",
+    revision: 1,
+    state: "failed",
+    completedAt: stamp,
+  };
+  w.get.mockResolvedValue(
+    etagReply({
+      items: [
+        {
+          ...source,
+          latestCompletedSync: attempt,
+          lastCompleteSnapshotId: "retained-complete",
+        },
+      ],
+      nextCursor: "outcome-next",
+    }),
+  );
+  const view = render(<Federation {...w.props} access={administrator} />);
+  await screen.findByRole("link", { name: "Inspect completed attempt" });
+  expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+    params: { query: { syncState: "failed", limit: 25 } },
+  });
+  expect(
+    screen
+      .getByRole("link", { name: "Inspect completed attempt" })
+      .getAttribute("href"),
+  ).toBe("/unit/source-snapshots/failed-snapshot");
+  expect(
+    screen
+      .getByRole("link", { name: "Inspect last complete snapshot" })
+      .getAttribute("href"),
+  ).toBe("/unit/source-snapshots/retained-complete");
+  change("Synchronization outcome", "incomplete");
+  expect(w.get).toHaveBeenCalledTimes(1);
+  change("Source name (exact match)", "Exact Name");
+  change("Source status", "active");
+  w.get.mockResolvedValue(
+    etagReply({ items: [], nextCursor: "incomplete-next" }),
+  );
+  click("Apply source filters");
+  await screen.findByText(/synchronization incomplete/);
+  expect(location.search).toBe("?status=active&syncState=incomplete");
+  click("Next page");
+  await vi.waitFor(() => expect(w.get).toHaveBeenCalledTimes(3));
+  expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+    params: {
+      query: {
+        displayName: "Exact Name",
+        status: "active",
+        syncState: "incomplete",
+        limit: 25,
+        cursor: "incomplete-next",
+      },
+    },
+  });
+  await vi.waitFor(() =>
+    expect(screen.getByRole("button", { name: "Refresh" })).toHaveProperty(
+      "disabled",
+      false,
+    ),
+  );
+  click("Refresh");
+  await vi.waitFor(() => expect(w.get).toHaveBeenCalledTimes(4));
+  expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+    params: {
+      query: {
+        displayName: "Exact Name",
+        status: "active",
+        syncState: "incomplete",
+        limit: 25,
+      },
+    },
+  });
+  expect(w.get.mock.calls.at(-1)?.[1]).toEqual(
+    expect.objectContaining({
+      params: {
+        query: {
+          displayName: "Exact Name",
+          status: "active",
+          syncState: "incomplete",
+          limit: 25,
+        },
+      },
+    }),
+  );
+  history.replaceState(null, "", "/unit/sources?syncState=failed");
+  fireEvent(window, new PopStateEvent("popstate"));
+  await vi.waitFor(() =>
+    expect(screen.getByLabelText("Synchronization outcome")).toHaveProperty(
+      "value",
+      "failed",
+    ),
+  );
+  expect(w.post).not.toHaveBeenCalled();
+  view.rerender(<Federation {...w.props} />);
+  expect(screen.getByRole("alert").textContent).toContain("source.read");
+  expect(
+    screen.queryByRole("link", { name: "Inspect completed attempt" }),
+  ).toBeNull();
+});
+
+it.each([
+  "?syncState=",
+  "?syncState=running",
+  "?syncState=failed&syncState=incomplete",
+])("keeps malformed outcome selection closed: %s", async (query) => {
+  history.replaceState(null, "", "/unit/sources" + query);
+  const w = screenWorkspace();
+  w.get.mockRejectedValue(new Error("Invalid synchronization outcome"));
+  render(<Federation {...w.props} access={administrator} />);
+  await screen.findByRole("alert");
+  expect(
+    screen.getByRole("option", { name: "Unsupported outcome" }),
+  ).toBeTruthy();
+  expect(w.get.mock.calls[0]?.[1]).toMatchObject({
+    params: {
+      query: {
+        syncState: query === "?syncState=running" ? "running" : "unsupported",
+      },
+    },
+  });
+  w.get.mockResolvedValue(etagReply({ items: [] }));
+  click("Clear source filters");
+  await screen.findByText("No sources on this page.");
+  expect(location.search).toBe("");
+  expect(w.get.mock.calls.at(-1)?.[1]).toEqual(
+    expect.objectContaining({ params: { query: { limit: 25 } } }),
+  );
+  expect(w.post).not.toHaveBeenCalled();
+});

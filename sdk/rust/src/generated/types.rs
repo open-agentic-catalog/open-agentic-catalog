@@ -7148,6 +7148,12 @@ pub struct FederationSource {
     pub last_error: Option<String>,
     #[serde(rename = "lastSyncAt", skip_serializing_if = "Option::is_none")]
     pub last_sync_at: Option<chrono::DateTime<chrono::Utc>>,
+    ///Directory-only scalar projection of the latest completed current-revision indexed attempt. Absent for live-only or unsynchronized configurations. Not configuration, last complete membership or a freshness guarantee.
+    #[serde(
+        rename = "latestCompletedSync",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub latest_completed_sync: Option<SourceSyncAttempt>,
     pub live: LivePolicy,
     pub nesting: NestingPolicy,
     #[serde(rename = "networkProfile", skip_serializing_if = "Option::is_none")]
@@ -7195,6 +7201,46 @@ pub struct FederationSource {
     pub update_mode: FederationSourceUpdateMode,
     #[serde(rename = "updatedAt")]
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceSyncAttempt {
+    #[serde(rename = "completedAt")]
+    pub completed_at: chrono::DateTime<chrono::Utc>,
+    ///Constraint: minimum=1
+    pub revision: i64,
+    #[serde(rename = "snapshotId")]
+    pub snapshot_id: UUID,
+    pub state: SourceSyncAttemptState,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum SourceSyncAttemptState {
+    #[default]
+    #[serde(rename = "complete")]
+    Complete,
+    #[serde(rename = "incomplete")]
+    Incomplete,
+    #[serde(rename = "failed")]
+    Failed,
+}
+impl SourceSyncAttemptState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Complete => "complete",
+            Self::Incomplete => "incomplete",
+            Self::Failed => "failed",
+        }
+    }
+}
+impl ::std::fmt::Display for SourceSyncAttemptState {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for SourceSyncAttemptState {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum FederationSourceUpdateMode {

@@ -63,3 +63,10 @@ or runtime grants; manifest v29 is unchanged. Use the normal drained, owner-only
 migration workflow. Index creation locks feedback writes during application;
 budget maintenance time for the retained table size. Repair forward after
 failure; no row conversion, data reset or response-history backfill is needed.
+
+Migration `000051_source_completed_attempt_page.sql` adds the shared current-revision
+completed-attempt index for Source directory filters and Overview. It changes no
+records, functions or runtime grants; manifest v29 remains unchanged. Apply
+through the normal owner-only migration with snapshot writers drained. Index
+creation locks snapshot writes; allow maintenance time for retained history.
+Repair forward after failure without resetting Source membership or history.

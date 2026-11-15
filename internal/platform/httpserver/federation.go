@@ -82,7 +82,7 @@ func (s *Server) handleSourcesList(writer http.ResponseWriter, request *http.Req
 		return
 	}
 	filters := map[string]string{}
-	for _, name := range []string{"displayName", "status"} {
+	for _, name := range []string{"displayName", "status", "syncState"} {
 		if values, present := query[name]; present {
 			if len(values) != 1 || values[0] == "" {
 				s.fail(writer, request, catalog.E(catalog.CodeInvalidArgument, name+" must be one non-empty value"))
@@ -96,7 +96,7 @@ func (s *Server) handleSourcesList(writer http.ResponseWriter, request *http.Req
 		s.fail(writer, request, err)
 		return
 	}
-	listRequest := federation.SourceListRequest{Limit: pageRequest.Limit, DisplayName: filters["displayName"], Status: federation.SourceStatus(filters["status"])}
+	listRequest := federation.SourceListRequest{Limit: pageRequest.Limit, DisplayName: filters["displayName"], Status: federation.SourceStatus(filters["status"]), SyncState: federation.SnapshotState(filters["syncState"])}
 	if len(pageRequest.Position) > 0 {
 		if len(pageRequest.Position) != 2 {
 			s.fail(writer, request, catalog.E(catalog.CodeInvalidArgument, "cursor is invalid"))

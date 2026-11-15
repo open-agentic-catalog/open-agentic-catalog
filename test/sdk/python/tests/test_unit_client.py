@@ -18,6 +18,7 @@ from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
 from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
 from catalog_sdk.generated.api.personal_workspace_api import PersonalWorkspaceApi
 from catalog_sdk.generated.api.feedback_api import FeedbackApi
+from catalog_sdk.generated.api.federation_api import FederationApi
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
 from catalog_sdk.generated.models.trust_assessment_request import TrustAssessmentRequest
 from catalog_sdk.transport import HTTPBoundary, Response
@@ -201,6 +202,26 @@ class ConfigurationUnits(unittest.TestCase):
 
 
 class TransportUnits(unittest.IsolatedAsyncioTestCase):
+    async def test_source_sync_outcome_retains_exact_filters_and_explicit_cursor(self):
+        client = Client(Config(origin="https://catalog.example.com", token="selected"))
+        calls = []
+        def handler(request):
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.path, "/api/v1/federation/sources")
+            self.assertNotIn("Idempotency-Key", request.headers)
+            calls.append(dict(request.url.params))
+            wire = {"items": [], **({"nextCursor": "opaque+/= café"} if len(calls) == 1 else {})}
+            return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Stream([json.dumps(wire).encode()]))
+        with injected(client.rest_client, handler):
+            api = FederationApi(client)
+            first = await api.list_federation_sources(display_name="Exact Source", sync_state="failed", status="active", limit=1)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(first.next_cursor, "opaque+/= café")
+            last = await api.list_federation_sources(display_name="Exact Source", sync_state="failed", status="active", limit=1, cursor=first.next_cursor)
+            self.assertIsNone(last.next_cursor)
+        expected = {"displayName": "Exact Source", "syncState": "failed", "status": "active", "limit": "1"}
+        self.assertEqual(calls, [expected, dict(expected, cursor="opaque+/= café")])
+
     async def test_recent_own_feedback_retains_order_state_and_explicit_cursor(self):
         client = Client(Config(origin="https://catalog.example.com", token="selected"))
         calls = []

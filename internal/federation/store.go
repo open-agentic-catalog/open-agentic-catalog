@@ -193,6 +193,7 @@ func (m *MemoryStore) GetInspection(_ context.Context, tenantID, idValue string)
 // CreateSource verifies the tenant inspection binding and endpoint uniqueness
 // before retaining source evidence.
 func (m *MemoryStore) CreateSource(ctx context.Context, source Source, evidence ...MutationEvidence) (Source, error) {
+	source.LatestCompletedSync = nil
 	if identity.NeedsPermissionAdmission(ctx) {
 		var admitted0 Source
 		err := identity.WithCurrentPermissionAdmission(ctx, func(ctx context.Context) error {
@@ -236,6 +237,7 @@ func (m *MemoryStore) CreateSource(ctx context.Context, source Source, evidence 
 // UpdateSource applies a single optimistic revision change and restores prior
 // state if supplied evidence fails.
 func (m *MemoryStore) UpdateSource(ctx context.Context, source Source, expectedRevision int64, evidence ...MutationEvidence) (Source, error) {
+	source.LatestCompletedSync = nil
 	if identity.NeedsPermissionAdmission(ctx) {
 		var admitted0 Source
 		err := identity.WithCurrentPermissionAdmission(ctx, func(ctx context.Context) error {
@@ -341,6 +343,10 @@ func (m *MemoryStore) ListSourcePage(_ context.Context, tenantID string, request
 		if source.TenantID == tenantID && source.Status != SourceRemoved && after &&
 			(request.DisplayName == "" || source.DisplayName == request.DisplayName) &&
 			(request.Status == "" || source.Status == request.Status) {
+			source.LatestCompletedSync = m.latestCompletedSync(source)
+			if request.SyncState != "" && (source.LatestCompletedSync == nil || source.LatestCompletedSync.State != request.SyncState) {
+				continue
+			}
 			items = append(items, source)
 		}
 	}

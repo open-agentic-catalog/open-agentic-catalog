@@ -151,3 +151,18 @@ const declaredMatch: components["schemas"]["MCPToolMatch"] = {
   truncated: false,
 };
 void declaredMatch;
+
+void client.api.GET("/api/v1/federation/sources", {
+  params: {
+    query: {
+      syncState: "failed",
+      status: "active",
+      displayName: "Exact Source",
+    },
+  },
+});
+
+void client.api.GET("/api/v1/federation/sources", {
+  // @ts-expect-error Only failed and incomplete are supported problem selections.
+  params: { query: { syncState: "complete" } },
+});

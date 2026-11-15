@@ -592,7 +592,17 @@ export function FederationSource(value: unknown): boolean {
     number(value.revision, 1, Infinity, true) &&
     optional(value.lastSyncAt, timestamp) &&
     optional(value.lastCompleteSnapshotId, identifier) &&
-    optional(value.lastError, text)
+    optional(value.lastError, text) &&
+    optional(
+      value.latestCompletedSync,
+      (attempt) =>
+        object(attempt) &&
+        identifier(attempt.snapshotId) &&
+        attempt.revision === value.revision &&
+        choice(value.retrievalMode, ["indexed", "hybrid"]) &&
+        choice(attempt.state, ["complete", "incomplete", "failed"]) &&
+        timestamp(attempt.completedAt),
+    )
   );
 }
 

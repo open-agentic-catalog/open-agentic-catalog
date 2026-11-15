@@ -4,9 +4,11 @@ package database
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jobs"
@@ -61,6 +63,27 @@ func TestPostgresSourceOverviewRetainsHistoryAcrossFailureAndRevision(t *testing
 	// select the newest attempt without returning or hydrating that history.
 	for n := 2; n <= 1000; n++ {
 		commit(federation.SnapshotFailed, n)
+	}
+	// Qualify the real directory statement against this existing long history,
+	// without maintaining a parallel plan-only data model.
+	if _, err = db.operator.Exec(t.Context(), `ANALYZE source_snapshots`); err != nil {
+		t.Fatal(err)
+	}
+	q := federation.SourceListRequest{SyncState: federation.SnapshotFailed, Limit: 3}
+	statement, args := federationSourcePageSQL(housekeepingTenantA, &q)
+	_, err = withTenantRead(identity.WithPermissionContext(ctx), db.api, housekeepingTenantA, func(tx pgx.Tx) (struct{}, error) {
+		var raw []byte
+		if e := tx.QueryRow(t.Context(), "EXPLAIN (ANALYZE,BUFFERS,TIMING OFF,FORMAT JSON) "+statement, append([]any{pgx.QueryExecModeExec}, args...)...).Scan(&raw); e != nil {
+			return struct{}{}, e
+		}
+		if !json.Valid(raw) || !strings.Contains(string(raw), "source_snapshots_completed_attempt_page") {
+			t.Fatalf("API-role directory did not use completed-attempt index: %s", raw)
+		}
+		t.Logf("Bounded directory latest-attempt plan with 1000 retained snapshots: %s", raw)
+		return struct{}{}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 	rows, err := db.federation.ReadSourceOverview(ctx, housekeepingTenantA)
 	if err != nil || len(rows.Items) != 1 || rows.Items[0].Sync != "failed" || len(rows.Problems) != 1 || rows.Problems[0].LastComplete == nil || !rows.Problems[0].LastComplete.CompletedAt.Equal(at.Add(time.Minute)) || source.LastCompleteSnapshotID != completeID || !rows.Problems[0].Latest.CompletedAt.Equal(at.Add(1000*time.Minute)) {

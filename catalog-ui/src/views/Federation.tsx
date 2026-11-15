@@ -14,7 +14,11 @@ import { ValueList } from "./ValueList";
 import * as checks from "./responses";
 // Source administration binds connection and configuration changes to retained inspection/preview evidence.
 import { useEffect, useRef, useState } from "react";
-import { sourceStatus, sourceDirectoryURL } from "./source-directory-state";
+import {
+  sourceStatus,
+  sourceSyncState,
+  sourceDirectoryURL,
+} from "./source-directory-state";
 import { DateValue } from "./date-value";
 
 import type { components } from "../api/schema";
@@ -133,13 +137,18 @@ function SourceList(props: WorkspaceProps) {
   const [filters, setFilters] = useState(() => ({
     displayName: "",
     status: sourceStatus(location.search),
+    syncState: sourceSyncState(location.search),
   }));
   const [draft, setDraft] = useState(filters);
   const [cursor, setCursor] = useState("");
   useEffect(() => {
     const moved = () => {
       if (location.pathname !== `${props.runtime.basePath}/sources`) return;
-      const next = { displayName: "", status: sourceStatus(location.search) };
+      const next = {
+        displayName: "",
+        status: sourceStatus(location.search),
+        syncState: sourceSyncState(location.search),
+      };
       setFilters(next);
       setDraft(next);
       setCursor("");
@@ -160,6 +169,9 @@ function SourceList(props: WorkspaceProps) {
                 : {}),
               ...(filters.status
                 ? { status: filters.status as "active" | "paused" | "error" }
+                : {}),
+              ...(filters.syncState
+                ? { syncState: filters.syncState as "failed" | "incomplete" }
                 : {}),
               ...(cursor ? { cursor: cursor } : {}),
             },
@@ -182,7 +194,11 @@ function SourceList(props: WorkspaceProps) {
           history.pushState(
             null,
             "",
-            sourceDirectoryURL(props.runtime.basePath, draft.status),
+            sourceDirectoryURL(
+              props.runtime.basePath,
+              draft.status,
+              draft.syncState,
+            ),
           );
         }}
       >
@@ -218,12 +234,30 @@ function SourceList(props: WorkspaceProps) {
             <option value="error">Error</option>
           </select>
         </Field>
+        <Field label="Synchronization outcome">
+          <select
+            value={draft.syncState}
+            onChange={(event) =>
+              setDraft({ ...draft, syncState: event.target.value })
+            }
+          >
+            {draft.syncState &&
+              !["failed", "incomplete"].includes(draft.syncState) && (
+                <option value={draft.syncState} disabled>
+                  Unsupported outcome
+                </option>
+              )}
+            <option value="">All outcomes</option>
+            <option value="failed">Failed</option>
+            <option value="incomplete">Incomplete</option>
+          </select>
+        </Field>
         <div className="workspace-actions">
           <button>Apply source filters</button>
           <button
             type="button"
             onClick={() => {
-              const empty = { displayName: "", status: "" };
+              const empty = { displayName: "", status: "", syncState: "" };
               setDraft(empty);
               setFilters(empty);
               setCursor("");
@@ -241,8 +275,15 @@ function SourceList(props: WorkspaceProps) {
       <p>
         Filters: name{" "}
         {filters.displayName ? JSON.stringify(filters.displayName) : "any"};
-        status {filters.status || "all nonremoved"}. Filtering reads saved
-        metadata only.
+        status {filters.status || "all nonremoved"}; synchronization{" "}
+        {filters.syncState || "any"}. Filtering reads saved metadata only.
+      </p>
+      <p className="muted">
+        Outcomes use the latest completed indexed attempt for the current
+        configuration. A running retry does not replace it. Results can change
+        between pages; Refresh returns to the first page. Retained complete
+        membership is separate from an attempt outcome and does not guarantee
+        current availability.
       </p>
       <ExactReference
         basePath={props.runtime.basePath}
@@ -263,9 +304,7 @@ function SourceList(props: WorkspaceProps) {
         )}
         <button
           disabled={page.busy}
-          onClick={() =>
-            page.error && cursor ? setCursor("") : page.refresh()
-          }
+          onClick={() => (cursor ? setCursor("") : page.refresh())}
         >
           {controlIcons["refresh"]} Refresh
         </button>
@@ -284,7 +323,7 @@ function SourceList(props: WorkspaceProps) {
       )}
       <ReadState
         {...page}
-        refresh={() => (page.error && cursor ? setCursor("") : page.refresh())}
+        refresh={() => (cursor ? setCursor("") : page.refresh())}
       />
       {page.data?.items.map((source) => (
         <section className="workspace-panel" key={source.id}>
@@ -301,6 +340,29 @@ function SourceList(props: WorkspaceProps) {
             ]}
           />
           <CopyReference label="Source ID" value={source.id} />
+          {source.latestCompletedSync && (
+            <Facts
+              rows={[
+                [
+                  "Latest completed outcome (current configuration)",
+                  stateLabel(source.latestCompletedSync.state),
+                ],
+                [
+                  "Attempt completed",
+                  <DateValue value={source.latestCompletedSync.completedAt} />,
+                ],
+                [
+                  "Matching snapshot",
+                  <a
+                    href={`${props.runtime.basePath}/source-snapshots/${source.latestCompletedSync.snapshotId}`}
+                  >
+                    Inspect completed attempt
+                  </a>,
+                ],
+              ]}
+            />
+          )}
+
           <Facts
             rows={[
               ["Endpoint", <code>{source.endpoint}</code>],
@@ -338,7 +400,7 @@ function SourceList(props: WorkspaceProps) {
       ))}
       {page.data && !page.data.items.length && (
         <p>
-          {filters.displayName || filters.status
+          {filters.displayName || filters.status || filters.syncState
             ? "No matching sources."
             : "No sources on this page."}
         </p>

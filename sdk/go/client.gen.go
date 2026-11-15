@@ -4325,6 +4325,27 @@ func (e SourceStateCountState) Valid() bool {
 	}
 }
 
+// Defines values for SourceSyncAttemptState.
+const (
+	SourceSyncAttemptStateComplete   SourceSyncAttemptState = "complete"
+	SourceSyncAttemptStateFailed     SourceSyncAttemptState = "failed"
+	SourceSyncAttemptStateIncomplete SourceSyncAttemptState = "incomplete"
+)
+
+// Valid indicates whether the value is a known member of the SourceSyncAttemptState enum.
+func (e SourceSyncAttemptState) Valid() bool {
+	switch e {
+	case SourceSyncAttemptStateComplete:
+		return true
+	case SourceSyncAttemptStateFailed:
+		return true
+	case SourceSyncAttemptStateIncomplete:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SyncSummaryState.
 const (
 	SyncSummaryStateComplete   SyncSummaryState = "complete"
@@ -5036,6 +5057,24 @@ func (e CompareFederationSourceSnapshotsParamsView) Valid() bool {
 	case CompareFederationSourceSnapshotsParamsViewAll:
 		return true
 	case CompareFederationSourceSnapshotsParamsViewChanges:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListFederationSourcesParamsSyncState.
+const (
+	ListFederationSourcesParamsSyncStateFailed     ListFederationSourcesParamsSyncState = "failed"
+	ListFederationSourcesParamsSyncStateIncomplete ListFederationSourcesParamsSyncState = "incomplete"
+)
+
+// Valid indicates whether the value is a known member of the ListFederationSourcesParamsSyncState enum.
+func (e ListFederationSourcesParamsSyncState) Valid() bool {
+	switch e {
+	case ListFederationSourcesParamsSyncStateFailed:
+		return true
+	case ListFederationSourcesParamsSyncStateIncomplete:
 		return true
 	default:
 		return false
@@ -7296,12 +7335,15 @@ type FederationSource struct {
 	LastCompleteSnapshotId *UUID                       `json:"lastCompleteSnapshotId,omitempty"`
 	LastError              *string                     `json:"lastError,omitempty"`
 	LastSyncAt             *time.Time                  `json:"lastSyncAt,omitempty"`
-	Live                   LivePolicy                  `json:"live"`
-	Nesting                NestingPolicy               `json:"nesting"`
-	NetworkProfile         *NetworkProfileReference    `json:"networkProfile,omitempty"`
-	PolicyDigest           string                      `json:"policyDigest"`
-	PolicyId               string                      `json:"policyId"`
-	PolicyRevision         int64                       `json:"policyRevision"`
+
+	// LatestCompletedSync Directory-only scalar projection of the latest completed current-revision indexed attempt. Absent for live-only or unsynchronized configurations. Not configuration, last complete membership or a freshness guarantee.
+	LatestCompletedSync *SourceSyncAttempt       `json:"latestCompletedSync,omitempty"`
+	Live                LivePolicy               `json:"live"`
+	Nesting             NestingPolicy            `json:"nesting"`
+	NetworkProfile      *NetworkProfileReference `json:"networkProfile,omitempty"`
+	PolicyDigest        string                   `json:"policyDigest"`
+	PolicyId            string                   `json:"policyId"`
+	PolicyRevision      int64                    `json:"policyRevision"`
 
 	// PresentationGeneration Source presentation authority generation; replacement authority starts a new generation.
 	PresentationGeneration *int64         `json:"presentationGeneration,omitempty"`
@@ -9490,6 +9532,17 @@ type SourceSyncAccepted struct {
 	Job      Job  `json:"job"`
 }
 
+// SourceSyncAttempt defines model for SourceSyncAttempt.
+type SourceSyncAttempt struct {
+	CompletedAt time.Time              `json:"completedAt"`
+	Revision    int64                  `json:"revision"`
+	SnapshotId  UUID                   `json:"snapshotId"`
+	State       SourceSyncAttemptState `json:"state"`
+}
+
+// SourceSyncAttemptState defines model for SourceSyncAttempt.State.
+type SourceSyncAttemptState string
+
 // SourceSyncProblem defines model for SourceSyncProblem.
 type SourceSyncProblem struct {
 	DisplayName  string       `json:"displayName"`
@@ -10628,9 +10681,15 @@ type ListFederationSourcesParams struct {
 	// DisplayName Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid.
 	DisplayName *string `form:"displayName,omitempty" json:"displayName,omitempty"`
 
+	// SyncState Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid.
+	SyncState *ListFederationSourcesParamsSyncState `form:"syncState,omitempty" json:"syncState,omitempty"`
+
 	// Status Exact configured state. Omit for all nonremoved states; empty, repeated or removed values are invalid.
 	Status *ListFederationSourcesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
 }
+
+// ListFederationSourcesParamsSyncState defines parameters for ListFederationSources.
+type ListFederationSourcesParamsSyncState string
 
 // ListFederationSourcesParamsStatus defines parameters for ListFederationSources.
 type ListFederationSourcesParamsStatus string
@@ -18418,7 +18477,7 @@ type ClientInterface interface {
 
 	// ListFederationSources List federation sources
 	//
-	// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+	// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 	//
 	// Corresponds with GET /api/v1/federation/sources (the `ListFederationSources` operationId).
 	ListFederationSources(ctx context.Context, params *ListFederationSourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -21525,7 +21584,7 @@ func (c *Client) GetFederationSourceInspection(ctx context.Context, inspectionId
 
 // ListFederationSources List federation sources
 //
-// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 //
 // Corresponds with GET /api/v1/federation/sources (the `ListFederationSources` operationId).
 func (c *Client) ListFederationSources(ctx context.Context, params *ListFederationSourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -28458,6 +28517,18 @@ func NewListFederationSourcesRequest(server string, params *ListFederationSource
 		if params.DisplayName != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "displayName", *params.DisplayName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SyncState != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "syncState", *params.SyncState, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, safeError(err)
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -37798,7 +37869,7 @@ type ClientWithResponsesInterface interface {
 
 	// ListFederationSourcesWithResponse List federation sources
 	//
-	// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+	// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -54183,7 +54254,7 @@ func (c *ClientWithResponses) GetFederationSourceInspectionWithResponse(ctx cont
 
 // ListFederationSourcesWithResponse List federation sources
 //
-// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 //
 // Returns a wrapper object for the known response body format(s).
 //

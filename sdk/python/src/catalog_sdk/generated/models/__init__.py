@@ -573,6 +573,7 @@ from catalog_sdk.generated.models.source_overview import SourceOverview
 from catalog_sdk.generated.models.source_scope import SourceScope
 from catalog_sdk.generated.models.source_state_count import SourceStateCount
 from catalog_sdk.generated.models.source_sync_accepted import SourceSyncAccepted
+from catalog_sdk.generated.models.source_sync_attempt import SourceSyncAttempt
 from catalog_sdk.generated.models.source_sync_problem import SourceSyncProblem
 from catalog_sdk.generated.models.sync_summary import SyncSummary
 from catalog_sdk.generated.models.tenant_settings import TenantSettings

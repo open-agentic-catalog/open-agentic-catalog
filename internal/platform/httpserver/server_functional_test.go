@@ -1425,6 +1425,28 @@ func TestHTTPFederationLifecycleAndEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Directory triage is a local metadata read, even after real synchronization.
+	beforeTriageFetches := fetches.calls
+	listed := requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/federation/sources", "source-admin", "", "", nil)
+	requireStatus(t, listed, http.StatusOK)
+	requireControlSchema(t, "FederationSourcePage", listed.body)
+	var directory cursorPage[federation.Source]
+	decodeResult(t, listed, &directory)
+	if len(directory.Items) != 1 || directory.Items[0].LatestCompletedSync == nil || directory.Items[0].LatestCompletedSync.SnapshotID != snapshot.ID || directory.Items[0].LatestCompletedSync.State != federation.SnapshotComplete || directory.Items[0].LatestCompletedSync.Revision != source.Revision {
+		t.Fatalf("current attempt projection lost: %#v", directory)
+	}
+	for _, state := range []string{"failed", "incomplete"} {
+		triage := requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/federation/sources?syncState="+state, "source-admin", "", "", nil)
+		requireStatus(t, triage, http.StatusOK)
+		requireControlSchema(t, "FederationSourcePage", triage.body)
+		decodeResult(t, triage, &directory)
+		if len(directory.Items) != 0 {
+			t.Fatalf("healthy source matched %s: %#v", state, directory)
+		}
+	}
+	if fetches.calls != beforeTriageFetches {
+		t.Fatal("directory triage contacted an upstream")
+	}
 	snapshotsResult := requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/federation/sources/"+source.ID+"/snapshots?limit=10", "source-admin", "", "", nil)
 	requireStatus(t, snapshotsResult, http.StatusOK)
 	requireControlSchema(t, "FederationSnapshotPage", snapshotsResult.body)

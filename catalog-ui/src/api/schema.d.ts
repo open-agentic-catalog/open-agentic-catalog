@@ -2852,7 +2852,7 @@ export interface paths {
         };
         /**
          * List federation sources
-         * @description Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+         * @description Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
          */
         get: operations["listFederationSources"];
         put?: never;
@@ -6486,6 +6486,8 @@ export interface components {
             createdAt: string;
         };
         FederationSource: {
+            /** @description Directory-only scalar projection of the latest completed current-revision indexed attempt. Absent for live-only or unsynchronized configurations. Not configuration, last complete membership or a freshness guarantee. */
+            readonly latestCompletedSync?: components["schemas"]["SourceSyncAttempt"];
             /** @description Named operator ANS policy; empty clears selection. Inert when verification is disabled. */
             trustVerificationPolicy?: string;
             /** @description Explicit opt-in to source-provided artwork and native icons; image origin policy still applies. */
@@ -6535,6 +6537,15 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        SourceSyncAttempt: {
+            snapshotId: components["schemas"]["UUID"];
+            /** Format: int64 */
+            revision: number;
+            /** @enum {string} */
+            state: "complete" | "incomplete" | "failed";
+            /** Format: date-time */
+            completedAt: string;
         };
         FederationSourcePage: {
             items: components["schemas"]["FederationSource"][];
@@ -12370,6 +12381,8 @@ export interface operations {
                 cursor?: components["parameters"]["Cursor"];
                 /** @description Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid. */
                 displayName?: string;
+                /** @description Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid. */
+                syncState?: "failed" | "incomplete";
                 /** @description Exact configured state. Omit for all nonremoved states; empty, repeated or removed values are invalid. */
                 status?: "active" | "paused" | "error";
             };

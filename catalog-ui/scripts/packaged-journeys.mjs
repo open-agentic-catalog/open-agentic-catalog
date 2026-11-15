@@ -2301,6 +2301,50 @@ export async function packagedJourneys({
   ).toContainText("The source query failed");
   const partialJobURL = await sync();
   await waitJob("waiting");
+  // Real worker/database outcomes remain separate from retained complete membership.
+  const incompleteRead = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith("/api/v1/federation/sources") &&
+      url.searchParams.get("syncState") === "incomplete"
+    );
+  });
+  await visit("/sources?syncState=incomplete");
+  const incompleteResponse = await incompleteRead;
+  expect(incompleteResponse.status()).toBe(200);
+  const incompletePage = await incompleteResponse.json();
+  expect(
+    incompletePage.items.every(
+      (item) => item.latestCompletedSync?.state === "incomplete",
+    ),
+  ).toBe(true);
+  const incompleteSource = incompletePage.items.find(
+    (item) => item.id === sourceID,
+  );
+  expect(incompleteSource).toBeDefined();
+  expect(incompleteSource.latestCompletedSync.revision).toBe(
+    incompleteSource.revision,
+  );
+  expect(incompleteSource.lastCompleteSnapshotId).toBeTruthy();
+  expect(incompleteSource.latestCompletedSync.snapshotId).not.toBe(
+    incompleteSource.lastCompleteSnapshotId,
+  );
+  const incompletePanel = page.locator("section.workspace-panel").filter({
+    has: page.locator(`h2 a[href="${new URL(sourceURL).pathname}"]`),
+  });
+  await expect(
+    incompletePanel.getByRole("link", {
+      name: "Inspect completed attempt",
+      exact: true,
+    }),
+  ).toHaveAttribute(
+    "href",
+    new URL(origin).pathname.replace(/\/$/, "") +
+      "/source-snapshots/" +
+      incompleteSource.latestCompletedSync.snapshotId,
+  );
+  await page.goto(partialJobURL);
+
   await expect(button("Retry job")).toHaveCount(0);
   await page.goto(indexedURL);
   await expect(
@@ -2312,6 +2356,19 @@ export async function packagedJourneys({
   await fixtureRequest("/control", { mode: "initial" });
   await page.goto(partialJobURL);
   await waitJob("succeeded");
+  const recoveryRead = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith("/api/v1/federation/sources") &&
+      url.searchParams.get("syncState") === "incomplete"
+    );
+  });
+  await visit("/sources?syncState=incomplete");
+  const recoveryResponse = await recoveryRead;
+  expect(recoveryResponse.status()).toBe(200);
+  expect(
+    (await recoveryResponse.json()).items.some((item) => item.id === sourceID),
+  ).toBe(false);
 
   phase("compose-job-cancellation");
   // Stop only the invocation-owned worker to leave this new Job queued.

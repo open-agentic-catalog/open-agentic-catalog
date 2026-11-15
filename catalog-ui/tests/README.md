@@ -683,3 +683,12 @@ The additional file journeys delay real browser file reads. They verify second-f
 MCP client export units share CLI format goldens and cover endpoint selection, omitted secrets, strict native JSON, artifact integrity and stale session/selection results. `mcp-client-export.spec.ts` exercises real governed records at root/subpath URLs, all three downloaded formats, keyboard access, narrow dark layout and absence of endpoint requests. Controlled artifact responses test browser verification separately from server authorization. Packaged Compose also exports all three client formats from an actual PostgreSQL-backed Server Card. It compares exact URLs, server keys and file shapes, blocks endpoint contact and checks output removal after sign-out/re-entry.
 
 The [declared Agent protocol journey](browser/agent-protocol.spec.ts) publishes its own native cards, filters real local results, counts categories, saves/reopens exact criteria and checks Apply/Clear at root and subpath URLs. It measures the protocol input and matching namespace-field margins at a narrow viewport, and preserves explicit query-disclosure consent. The packaged Compose/OIDC journey additionally selects JSONRPC and rejects the absent HTTP+JSON binding through the shipped UI and real PostgreSQL at both hosting paths. These memory-backed browser checks supplement the [PostgreSQL protocol tests](../../internal/platform/database/agent_protocol_integration_test.go), which own current content authority, immutable release selection, both retention forms, paging, hybrid/fallback and forward-migration checks.
+
+Source outcome triage units cover Apply/Clear, URL restoration, combined filters,
+current-page refresh and consumed attempt validation. Root/subpath browser
+controls page beyond five summary problems and a full 25-row directory page,
+verify exact snapshot links and narrow enlarged-text accessibility without
+commands or evidence reads. These controlled metadata journeys do not qualify
+synchronization itself: packaged Compose checks use real partial worker
+attempts, retained complete membership and recovery, and real PostgreSQL tests
+qualify current-revision selection and its indexed plan over retained history.

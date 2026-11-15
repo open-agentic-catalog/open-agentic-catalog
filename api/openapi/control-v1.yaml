@@ -3784,10 +3784,14 @@ paths:
       operationId: listFederationSources
       description: >-
         Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID.
-        Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs.
+        Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs.
         Continuation binds filters, ordering, page size, tenant and current authority.
         Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission.
-        No peer is contacted and credential values are never returned.
+        syncState selects failed or incomplete latest completed indexed attempts for the current Source revision.
+        A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match.
+        Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents.
+        Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches.
+        No peer is contacted, Job started or raw evidence read; credential values are never returned.
       parameters:
         - {$ref: '#/components/parameters/Limit'}
         - {$ref: '#/components/parameters/Cursor'}
@@ -3795,6 +3799,10 @@ paths:
           in: query
           description: Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid.
           schema: {type: string, minLength: 1, maxLength: 160, pattern: '^[^\x00]*$'}
+        - name: syncState
+          in: query
+          description: Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid.
+          schema: {type: string, enum: [failed, incomplete]}
         - name: status
           in: query
           description: Exact configured state. Omit for all nonremoved states; empty, repeated or removed values are invalid.
@@ -10762,6 +10770,10 @@ components:
       additionalProperties: false
       required: [id, tenantId, displayName, type, endpoint, status, profileId, retrievalMode, scope, updateMode, live, referrals, nesting, policyId, policyRevision, policyDigest, revision, createdBy, createdAt, updatedAt]
       properties:
+        latestCompletedSync:
+          allOf: [{$ref: '#/components/schemas/SourceSyncAttempt'}]
+          readOnly: true
+          description: Directory-only scalar projection of the latest completed current-revision indexed attempt. Absent for live-only or unsynchronized configurations. Not configuration, last complete membership or a freshness guarantee.
         trustVerificationPolicy: {type: string, maxLength: 63, pattern: "^(?:|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)$", description: Named operator ANS policy; empty clears selection. Inert when verification is disabled.}
         artworkEnabled: {type: boolean, description: Explicit opt-in to source-provided artwork and native icons; image origin policy still applies.}
         presentationGeneration: {type: integer, format: int64, minimum: 1, description: Source presentation authority generation; replacement authority starts a new generation.}
@@ -10798,6 +10810,15 @@ components:
         createdBy: {type: string, minLength: 1}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+    SourceSyncAttempt:
+      type: object
+      additionalProperties: false
+      required: [snapshotId, revision, state, completedAt]
+      properties:
+        snapshotId: {$ref: '#/components/schemas/UUID'}
+        revision: {type: integer, format: int64, minimum: 1}
+        state: {type: string, enum: [complete, incomplete, failed]}
+        completedAt: {type: string, format: date-time}
     FederationSourcePage:
       type: object
       additionalProperties: false

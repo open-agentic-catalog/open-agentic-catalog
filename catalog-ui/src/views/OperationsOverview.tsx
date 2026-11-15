@@ -6,6 +6,7 @@ import { ReadState, useRead, type WorkspaceProps } from "./workspace";
 import { ScrollableTable } from "./ScrollableTable";
 import { sourceOverview, jobOverview } from "./operations-overview-values";
 import { jobKindLabel, stateLabel, SourceState } from "./operational-labels";
+import { sourceDirectoryURL } from "./source-directory-state";
 import { jobStates, jobQueueURL } from "./job-state";
 import { Capabilities } from "./responses";
 import WebhookOverview, { type CapabilityRead } from "./WebhookOverview";
@@ -109,7 +110,19 @@ function Sources(props: WorkspaceProps) {
                 <CategoryBars
                   title="Sync status"
                   rows={data.sync!.map((row) => ({
-                    label: labels[row.state],
+                    label: ["failed", "incomplete"].includes(row.state) ? (
+                      <a
+                        href={sourceDirectoryURL(
+                          props.runtime.basePath,
+                          "",
+                          row.state,
+                        )}
+                      >
+                        {labels[row.state]}
+                      </a>
+                    ) : (
+                      labels[row.state]
+                    ),
                     count: row.count,
                   }))}
                 />
