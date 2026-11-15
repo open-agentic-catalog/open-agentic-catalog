@@ -3098,8 +3098,8 @@ try {
           origin,
           basePath,
           memberAlias: "local-policy",
-          // The subpath policy journey follows the independently published Agent.
-          expectedCatalogCount: basePath ? 4 : 3,
+          // The publication journey retires its Agent before the subpath policy check.
+          expectedCatalogCount: 3,
           expectFailure: ledger.expectFailure,
           inspectCommandOutcome: async function inspectOwnedCommandOutcome({
             title,

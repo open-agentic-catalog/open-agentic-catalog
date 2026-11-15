@@ -20,6 +20,26 @@ import (
 
 type doerFunc func(*http.Request) (*http.Response, error)
 
+func TestWithdrawalPreviewIsOneExplicitReadAndDecodesBoundReferences(t *testing.T) {
+	const release = "00000000-0000-7000-8000-000000000101"
+	var identifier ReleaseId
+	if err := identifier.UnmarshalText([]byte(release)); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	c := unitClient(t, Config{Token: "selected"}, doerFunc(func(request *http.Request) (*http.Response, error) {
+		calls++
+		if request.Method != http.MethodGet || request.URL.Path != "/api/v1/listing-releases/"+release+"/withdrawal-preview" || !reflect.DeepEqual(request.URL.Query(), url.Values{"transition": {"retired"}}) || request.Header.Get("Idempotency-Key") != "" || request.Header.Get("If-Match") != "" {
+			t.Fatal(request.URL)
+		}
+		return response(`{"releaseId":"00000000-0000-7000-8000-000000000101","releaseRevision":3,"transition":"retired","observedAt":"2026-11-15T12:00:00Z","snapshots":[{"snapshotId":"00000000-0000-7000-8000-000000000201","host":"catalog.example.com","audience":"anonymous","generation":2,"etag":"feed-two"}]}`, 200, "application/json"), nil
+	}))
+	preview, err := c.PreviewListingReleaseWithdrawalWithResponse(t.Context(), identifier, &PreviewListingReleaseWithdrawalParams{Transition: PreviewListingReleaseWithdrawalParamsTransitionRetired})
+	if err != nil || preview.JSON200 == nil || preview.JSON200.ReleaseRevision != 3 || len(preview.JSON200.Snapshots) != 1 || preview.JSON200.Snapshots[0].Host != "catalog.example.com" || calls != 1 {
+		t.Fatal(preview, err, calls)
+	}
+}
+
 func TestSourceSyncOutcomeAndContinuationRemainExplicit(t *testing.T) {
 	t.Parallel()
 	outcome, status, limit := ListFederationSourcesParamsSyncStateFailed, ListFederationSourcesParamsStatusActive, 1

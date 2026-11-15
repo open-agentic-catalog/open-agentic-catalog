@@ -202,6 +202,26 @@ class ConfigurationUnits(unittest.TestCase):
 
 
 class TransportUnits(unittest.IsolatedAsyncioTestCase):
+    async def test_withdrawal_preview_is_one_explicit_read_with_bound_references(self):
+        release = "00000000-0000-7000-8000-000000000101"
+        client = Client(Config(origin="https://catalog.example.com", token="selected"))
+        calls = []
+        def handler(request):
+            calls.append(request)
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.path, "/api/v1/listing-releases/" + release + "/withdrawal-preview")
+            self.assertEqual(dict(request.url.params), {"transition": "retired"})
+            self.assertNotIn("Idempotency-Key", request.headers)
+            self.assertNotIn("If-Match", request.headers)
+            wire = {"releaseId": release, "releaseRevision": 3, "transition": "retired", "observedAt": "2026-11-15T12:00:00Z", "snapshots": [{"snapshotId": "00000000-0000-7000-8000-000000000201", "host": "catalog.example.com", "audience": "anonymous", "generation": 2, "etag": "feed-two"}]}
+            return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Stream([json.dumps(wire).encode()]))
+        with injected(client.rest_client, handler):
+            value = await CatalogLifecycleApi(client).preview_listing_release_withdrawal(transition="retired", release_id=UUID(release))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(value.release_revision, 3)
+        self.assertEqual(value.snapshots[0].host, "catalog.example.com")
+        self.assertEqual(value.snapshots[0].audience, "anonymous")
+
     async def test_source_sync_outcome_retains_exact_filters_and_explicit_cursor(self):
         client = Client(Config(origin="https://catalog.example.com", token="selected"))
         calls = []

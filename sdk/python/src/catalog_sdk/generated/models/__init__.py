@@ -511,6 +511,12 @@ from catalog_sdk.generated.models.reindex_catalog_request import ReindexCatalogR
 from catalog_sdk.generated.models.relationship import Relationship
 from catalog_sdk.generated.models.release_overview import ReleaseOverview
 from catalog_sdk.generated.models.release_transition import ReleaseTransition
+from catalog_sdk.generated.models.release_withdrawal_preview import (
+    ReleaseWithdrawalPreview,
+)
+from catalog_sdk.generated.models.release_withdrawal_snapshot import (
+    ReleaseWithdrawalSnapshot,
+)
 from catalog_sdk.generated.models.remove_source import RemoveSource
 from catalog_sdk.generated.models.representation import Representation
 from catalog_sdk.generated.models.representation_input import RepresentationInput

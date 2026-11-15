@@ -2164,7 +2164,8 @@ func (s *Service) validateExternalPublication(ctx context.Context, tenantID stri
 }
 
 // TransitionRelease applies a one-way release lifecycle change and withdraws
-// affected public snapshots once the governed transition has committed.
+// affected public snapshots. The PostgreSQL HTTP command coordinator commits
+// the release change, snapshot withdrawals and required evidence atomically.
 func (s *Service) TransitionRelease(ctx context.Context, releaseID string, target ReleaseState, reason, replacementID string, sunsetAt *time.Time, expectedRevision int64) (ListingRelease, error) {
 	ctx = identity.WithPermissionContext(ctx)
 	actor, err := requireActor(ctx)

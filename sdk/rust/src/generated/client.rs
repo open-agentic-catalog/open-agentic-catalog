@@ -541,6 +541,35 @@ impl AsRef<str> for ListWebhooksStatus {
         self.as_str()
     }
 }
+///Allowed values for the `transition` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum PreviewListingReleaseWithdrawalTransition {
+    #[serde(rename = "retired")]
+    Retired,
+    #[serde(rename = "superseded")]
+    Superseded,
+    #[serde(rename = "revoked")]
+    Revoked,
+}
+impl PreviewListingReleaseWithdrawalTransition {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Retired => "retired",
+            Self::Superseded => "superseded",
+            Self::Revoked => "revoked",
+        }
+    }
+}
+impl std::fmt::Display for PreviewListingReleaseWithdrawalTransition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for PreviewListingReleaseWithdrawalTransition {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
 ///Typed error responses for `activatePublicationSnapshot`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ActivatePublicationSnapshotApiError {
@@ -1283,6 +1312,11 @@ pub enum PreflightCatalogMcpoAuthMetadataApiError {
 ///Typed error responses for `previewFederationSourceChange`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum PreviewFederationSourceChangeApiError {
+    Default(Problem),
+}
+///Typed error responses for `previewListingReleaseWithdrawal`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum PreviewListingReleaseWithdrawalApiError {
     Default(Problem),
 }
 ///Typed error responses for `publishCatalogListing`. One variant per declared non-2xx response.
@@ -13931,6 +13965,92 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(PreviewFederationSourceChangeApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Preview discovery snapshots affected by release withdrawal
+    ///
+    /// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+    ///
+    /// `GET /api/v1/listing-releases/{releaseId}/withdrawal-preview`
+    pub async fn preview_listing_release_withdrawal(
+        &self,
+        release_id: impl AsRef<str>,
+        transition: PreviewListingReleaseWithdrawalTransition,
+    ) -> Result<
+        Response<ReleaseWithdrawalPreview>,
+        ApiOpError<PreviewListingReleaseWithdrawalApiError>,
+    > {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/listing-releases/{}/withdrawal-preview",
+                __pct_encode_path_segment(release_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            query_params.push(("transition".to_string(), transition.to_string()));
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<PreviewListingReleaseWithdrawalApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(PreviewListingReleaseWithdrawalApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {

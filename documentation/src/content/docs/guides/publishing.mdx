@@ -759,6 +759,22 @@ A Publisher can call `POST /api/v1/listing-releases/{releaseId}:deprecate`, `:re
 
 Authorized history reads retain the release and its reason after withdrawal. A containing snapshot is retired as a whole; the Catalog does not edit one entry out of immutable bytes. Build a new candidate to restore discovery of other eligible resources. Revoking an approved Publisher domain also withdraws affected active snapshots. See the [lifecycle API](../../../../../api/openapi/control-v1.yaml) for exact request fields.
 
+### Preview affected discovery feeds
+
+On the release screen, select **Retire**, **Supersede** or **Revoke**, then choose **Preview or refresh affected feeds**. The preview lists the active snapshots that contain that release, with their host, audience, generation and exact snapshot reference. Each listed snapshot will be withdrawn as a whole, including its other entries. Generate and activate a replacement separately when those other entries should remain available through that feed.
+
+Detailed impact requires both `resource.read_history` for the release's namespace and tenant-wide `publication.read`. Release-management permission alone does not reveal private host configuration. These read permissions do not grant permission to perform the transition. The equivalent API read is `GET /api/v1/listing-releases/{releaseId}/withdrawal-preview?transition=retired`; `superseded` and `revoked` are the other supported values. Deprecation keeps eligible discovery and has no withdrawal preview. Publisher-domain revocation is outside this preview.
+
+The observation time, release revision and snapshot references describe a completed read, not a reservation. Refresh explicitly before preparing confirmation. If the affected feeds changed, review the new list; if the release revision changed, reload release state first. The confirmation retains the observed references, but the actual command independently checks current authority, revision, replacement guidance and idempotency. It can affect publications that changed after the preview.
+
+An empty result means that the relevant active bundles were read and proved not to contain the release. A refusal or database outage means impact is unavailable, not zero. Invalid retained evidence can make the actual withdrawal conservatively retire a whole snapshot. The preview reads both ARD and AI Catalog membership, makes no remote discovery calls, starts no Job and changes no governed state. It produces no audit or notification records.
+
+Preview work is bounded to 64 configured tenant hosts, 72 MiB of aggregate retained snapshot bytes and the existing 100,000 publication-work-unit ceiling. Reads are sequential and use the process's shared construction limiter. PostgreSQL checks the remaining byte budget in the active-row query before transferring a document; the existing 36 MiB per-snapshot ceiling still applies. No truncated result is presented as complete.
+
+If a transition reply is lost, use **Retry same command** with its captured target, body, ETag and idempotency key. A new preview is a separate read, not command recovery. Failed PostgreSQL commands roll back their release change, snapshot withdrawals and transactional evidence together; refreshing impact does not prove that a command committed.
+
+### Unpublish one host
+
 A Publication Administrator can withdraw only the selected host's active snapshot:
 
 ```json

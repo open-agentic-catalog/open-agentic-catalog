@@ -251,6 +251,8 @@ Assignment-revoke drafts require an explicit discard before paging or refresh, a
 
 Access, review, release and publication confirmations show the captured action, exact target references, scope or disposition, relevant changes and reason. Review approval, request changes and rejection are distinct. Names appear where the workflow has already loaded them. Exact references remain available without extra private reads.
 
+Before retirement, supersession or revocation, **Preview or refresh affected feeds** can show the active discovery snapshots affected by the release. This optional read needs release-history access and tenant-wide publication-read permission. Review the observation time and whole-snapshot effect, then prepare confirmation; a changed release revision requires reloading release state. The preview reserves no state and never replaces **Retry same command** after an uncertain write. See [withdrawal preview and replacement publication](publishing.mdx#preview-affected-discovery-feeds).
+
 The confirmed request and any deliberate retry use the same captured values, revision and idempotency key. Cancel sends no command. These summaries do not expose raw private documents, credentials or one-time secrets.
 
 Closing a resource preview, selecting its tag or namespace, or opening its full record asks before discarding unsaved input. Declining leaves the draft and current criteria unchanged. Escape dismisses the top dialog only when cancellation is available. A pending command or an unknown outcome keeps its confirmation open.

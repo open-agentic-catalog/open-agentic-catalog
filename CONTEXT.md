@@ -167,6 +167,8 @@ The ordinary workflow is:
 
 Release states are `published`, `deprecated`, `retired`, `superseded` and `revoked`. Deprecation can retain discovery with guidance; retirement, supersession and revocation withdraw affected public snapshots. None rewrites approved evidence.
 
+An explicit advisory withdrawal preview composes release-namespace `resource.read_history` with tenant-wide `publication.read`. It reports affected active snapshot/host/audience references for retirement, supersession or revocation, using retained ARD and AI Catalog membership. Invalid/unavailable evidence or aggregate work exhaustion refuses the complete preview. It creates no audit/outbox, Job, reservation or mutation precondition; the later command retains its own authorization, revision and atomic evidence/replay checks. Publisher-domain revocation has no pre-command preview.
+
 Visibility is another independent dimension:
 
 | Visibility | Meaning |

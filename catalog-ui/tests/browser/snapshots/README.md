@@ -1,5 +1,7 @@
 # Reviewed visual baselines
 
+Release-withdrawal preview updates only `api-endpoints-light.png` and `api-definitions-light.png` for the added operation and its two response definitions. Reviewed differences contain only those contract totals. Layout and controls are unchanged.
+
 Source-snapshot comparison updates only `api-endpoints-light.png` and `api-definitions-light.png` for 199 operations and 455 definitions. Reviewed diffs contain only those contract totals; layout, controls and dark references remain unchanged.
 
 Reusable draft transfer refreshes only `authoring-narrow.png` and `confirmation-narrow.png`. Reviewed run `run-MFCE4d` shows the intended gaps below Namespace refresh and the AIR builder. Run `run-YgK4vE` shows only the shifted page background at the dialog's transparent top edge. The dialog's content and dimensions stay unchanged. The expanded AIR actions also use the existing wrapping action row. All other expected images retain their bytes.

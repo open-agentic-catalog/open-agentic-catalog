@@ -2860,6 +2860,7 @@ export async function packagedJourneys({
   phase("compose-independent-publication");
   await publicationJourney({
     page,
+    origin,
     visit,
     login,
     button,
@@ -3285,6 +3286,7 @@ async function alternateSourceArtworkJourney({
 // cookies are tested separately at both paths, not with duplicate mutations.
 async function publicationJourney({
   page,
+  origin,
   visit,
   login,
   button,
@@ -3559,6 +3561,39 @@ async function publicationJourney({
   await expect(button("Build candidate snapshot")).toHaveCount(0);
   await button("Open host").click();
   await expect(button("Build candidate snapshot")).toBeEnabled();
+  const activateFeed = async (host, reason) => {
+    await visit(`/publication?host=${encodeURIComponent(host)}`);
+    await command("Build candidate snapshot");
+    await link("Inspect candidate").click();
+    const snapshotId = new URL(page.url()).pathname.split("/").pop();
+    await field("Reason").fill(reason);
+    await command("Activate candidate");
+    await button("Reload snapshot state").click();
+    await expect(
+      page.getByText(
+        "This snapshot is active for its host and audience. Later listing releases are not added automatically.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    return { host, snapshotId };
+  };
+  const readPublication = async (path) => {
+    const reply = await page.evaluate(async (url) => {
+      const response = await fetch(url, {
+        headers: { "X-Catalog-Request": "1" },
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      return { status: response.status, data: await response.json() };
+    }, `${origin}/_catalog${path}`);
+    expect(reply.status).toBe(200);
+    return reply.data;
+  };
+  const activeFeeds = [];
+  for (const host of ["127.0.0.1", "private.catalog.test"])
+    activeFeeds.push(
+      await activateFeed(host, "Owned withdrawal-preview baseline"),
+    );
   await page.goto(releaseURL);
   await expect(
     page.getByText(/this screen does not establish that a snapshot is active/),
@@ -3609,6 +3644,73 @@ async function publicationJourney({
     ),
   ).toBeVisible();
   await expect(link("Public discovery snapshots")).toHaveCount(0);
+  await login("local-publisher");
+  await page.goto(releaseURL);
+  await page
+    .getByRole("combobox", { name: "Disposition", exact: true })
+    .selectOption("retire");
+  await field("Reason").fill("Owned previewed release retirement");
+  const previewResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname.endsWith("/withdrawal-preview"),
+  );
+  await button("Preview or refresh affected feeds").click();
+  const previewReply = await previewResponse;
+  expect(previewReply.status()).toBe(200);
+  const preview = await previewReply.json();
+  expect(preview.transition).toBe("retired");
+  expect(
+    preview.snapshots.map(({ host, snapshotId }) => ({ host, snapshotId })),
+  ).toEqual(activeFeeds);
+  const previewRegion = page.getByRole("region", {
+    name: "Discovery withdrawal preview",
+    exact: true,
+  });
+  for (const feed of activeFeeds)
+    await expect(previewRegion).toContainText(feed.snapshotId);
+  await command("Change release disposition");
+  await expect(page.getByRole("status")).toContainText("Release retired.");
+  for (const feed of activeFeeds) {
+    const active = await readPublication(
+      `/api/v1/publication/snapshots?host=${encodeURIComponent(feed.host)}&state=active&limit=1`,
+    );
+    expect(active.items).toEqual([]);
+  }
+  // Restore discovery of other eligible releases with new publications. Never
+  // roll back to the withdrawn bundles containing the retired release.
+  const retiredReleaseId = new URL(releaseURL).pathname.split("/").pop();
+  for (const feed of activeFeeds) {
+    const replacement = await activateFeed(
+      feed.host,
+      "Restore other eligible discovery after owned release retirement",
+    );
+    expect(replacement.snapshotId).not.toBe(feed.snapshotId);
+    const snapshot = await readPublication(
+      `/api/v1/publication/snapshots/${replacement.snapshotId}?host=${encodeURIComponent(feed.host)}`,
+    );
+    expect(snapshot.state).toBe("active");
+    expect(snapshot.ard.entries.length).toBeGreaterThan(1);
+    expect(snapshot.aiCatalog.entries.length).toBeGreaterThan(0);
+    expect(
+      snapshot.ard.entries.some(
+        (entry) => entry.metadata?.catalogReleaseId === retiredReleaseId,
+      ),
+    ).toBe(false);
+    expect(
+      snapshot.aiCatalog.entries.some(
+        (entry) =>
+          entry.extensions?.["https://ai-catalog.org/extensions/metadata"]
+            ?.catalogReleaseId === retiredReleaseId,
+      ),
+    ).toBe(false);
+  }
+  // Leave the completed publication form before the next identity handoff.
+  await page.goto(releaseURL);
+  await expect(
+    page.getByRole("heading", { name: "Release", exact: true }),
+  ).toBeVisible();
+  console.log(
+    "Packaged withdrawal preview, both-audience retirement and explicit replacement publication passed",
+  );
 }
 
 // One persisted private-feedback handoff complements the memory-browser and

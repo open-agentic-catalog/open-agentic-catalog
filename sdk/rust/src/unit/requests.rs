@@ -6,6 +6,33 @@ const RESOURCE_ID: &str = "00000000-0000-7000-8000-000000000010";
 const VERSION_ID: &str = "00000000-0000-7000-8000-000000000011";
 
 #[tokio::test]
+async fn withdrawal_preview_is_one_explicit_read_with_bound_references() {
+    let transport = Scripted::new(vec![reply(200, br#"{"releaseId":"00000000-0000-7000-8000-000000000010","releaseRevision":3,"transition":"retired","observedAt":"2026-11-15T12:00:00Z","snapshots":[{"snapshotId":"00000000-0000-7000-8000-000000000201","host":"catalog.example.com","audience":"anonymous","generation":2,"etag":"feed-two"}]}"#)]);
+    let response = client(transport.clone())
+        .preview_listing_release_withdrawal(
+            RESOURCE_ID,
+            PreviewListingReleaseWithdrawalTransition::Retired,
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap();
+    assert_eq!(response.release_revision, 3);
+    assert_eq!(response.snapshots[0].host, "catalog.example.com");
+    let requests = transport.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    let request = &requests[0];
+    assert_eq!(request.method(), reqwest::Method::GET);
+    assert_eq!(
+        request.url().path(),
+        format!("/api/v1/listing-releases/{RESOURCE_ID}/withdrawal-preview")
+    );
+    assert_eq!(request.url().query(), Some("transition=retired"));
+    assert!(request.headers().get("Idempotency-Key").is_none());
+    assert!(request.headers().get("If-Match").is_none());
+}
+
+#[tokio::test]
 async fn source_sync_outcome_retains_exact_filters_and_explicit_continuation() {
     const CURSOR: &str = "opaque+/= café";
     let transport = Scripted::new(vec![

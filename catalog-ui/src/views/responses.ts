@@ -1236,6 +1236,37 @@ export function PublicationSnapshotPage(value: unknown): value is {
   );
 }
 
+export function ReleaseWithdrawalPreview(value: unknown): boolean {
+  if (!object(value) || !Array.isArray(value.snapshots)) return false;
+  const snapshots: unknown[] = value.snapshots;
+  return (
+    object(value) &&
+    identifier(value.releaseId) &&
+    number(value.releaseRevision, 1, Infinity, true) &&
+    choice(value.transition, ["retired", "superseded", "revoked"]) &&
+    timestamp(value.observedAt) &&
+    array(
+      value.snapshots,
+      (row) =>
+        object(row) &&
+        identifier(row.snapshotId) &&
+        text(row.host) &&
+        row.host.length > 0 &&
+        row.host.length <= 253 &&
+        choice(row.audience, ["anonymous", "authenticated"]) &&
+        number(row.generation, 1, Infinity, true) &&
+        text(row.etag) &&
+        row.etag.length > 0 &&
+        row.etag.length <= 256,
+    ) &&
+    snapshots.length <= 64 &&
+    new Set(snapshots.map((row) => (object(row) ? row.snapshotId : undefined)))
+      .size === snapshots.length &&
+    new Set(snapshots.map((row) => (object(row) ? row.host : undefined)))
+      .size === snapshots.length
+  );
+}
+
 export function PublicationSnapshotSummary(value: unknown): boolean {
   return (
     object(value) &&

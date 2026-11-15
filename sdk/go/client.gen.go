@@ -3707,6 +3707,45 @@ func (e ReleaseOverviewScope) Valid() bool {
 	}
 }
 
+// Defines values for ReleaseWithdrawalPreviewTransition.
+const (
+	ReleaseWithdrawalPreviewTransitionRetired    ReleaseWithdrawalPreviewTransition = "retired"
+	ReleaseWithdrawalPreviewTransitionRevoked    ReleaseWithdrawalPreviewTransition = "revoked"
+	ReleaseWithdrawalPreviewTransitionSuperseded ReleaseWithdrawalPreviewTransition = "superseded"
+)
+
+// Valid indicates whether the value is a known member of the ReleaseWithdrawalPreviewTransition enum.
+func (e ReleaseWithdrawalPreviewTransition) Valid() bool {
+	switch e {
+	case ReleaseWithdrawalPreviewTransitionRetired:
+		return true
+	case ReleaseWithdrawalPreviewTransitionRevoked:
+		return true
+	case ReleaseWithdrawalPreviewTransitionSuperseded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReleaseWithdrawalSnapshotAudience.
+const (
+	ReleaseWithdrawalSnapshotAudienceAnonymous     ReleaseWithdrawalSnapshotAudience = "anonymous"
+	ReleaseWithdrawalSnapshotAudienceAuthenticated ReleaseWithdrawalSnapshotAudience = "authenticated"
+)
+
+// Valid indicates whether the value is a known member of the ReleaseWithdrawalSnapshotAudience enum.
+func (e ReleaseWithdrawalSnapshotAudience) Valid() bool {
+	switch e {
+	case ReleaseWithdrawalSnapshotAudienceAnonymous:
+		return true
+	case ReleaseWithdrawalSnapshotAudienceAuthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RepresentationRole.
 const (
 	RepresentationRoleDistribution  RepresentationRole = "distribution"
@@ -5147,6 +5186,27 @@ func (e ListJobsParamsState) Valid() bool {
 	case ListJobsParamsStateSucceeded:
 		return true
 	case ListJobsParamsStateWaiting:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PreviewListingReleaseWithdrawalParamsTransition.
+const (
+	PreviewListingReleaseWithdrawalParamsTransitionRetired    PreviewListingReleaseWithdrawalParamsTransition = "retired"
+	PreviewListingReleaseWithdrawalParamsTransitionRevoked    PreviewListingReleaseWithdrawalParamsTransition = "revoked"
+	PreviewListingReleaseWithdrawalParamsTransitionSuperseded PreviewListingReleaseWithdrawalParamsTransition = "superseded"
+)
+
+// Valid indicates whether the value is a known member of the PreviewListingReleaseWithdrawalParamsTransition enum.
+func (e PreviewListingReleaseWithdrawalParamsTransition) Valid() bool {
+	switch e {
+	case PreviewListingReleaseWithdrawalParamsTransitionRetired:
+		return true
+	case PreviewListingReleaseWithdrawalParamsTransitionRevoked:
+		return true
+	case PreviewListingReleaseWithdrawalParamsTransitionSuperseded:
 		return true
 	default:
 		return false
@@ -8957,6 +9017,30 @@ type ReleaseTransition struct {
 	SunsetAt *time.Time `json:"sunsetAt,omitempty"`
 }
 
+// ReleaseWithdrawalPreview defines model for ReleaseWithdrawalPreview.
+type ReleaseWithdrawalPreview struct {
+	ObservedAt      time.Time                          `json:"observedAt"`
+	ReleaseId       UUID                               `json:"releaseId"`
+	ReleaseRevision int64                              `json:"releaseRevision"`
+	Snapshots       []ReleaseWithdrawalSnapshot        `json:"snapshots"`
+	Transition      ReleaseWithdrawalPreviewTransition `json:"transition"`
+}
+
+// ReleaseWithdrawalPreviewTransition defines model for ReleaseWithdrawalPreview.Transition.
+type ReleaseWithdrawalPreviewTransition string
+
+// ReleaseWithdrawalSnapshot defines model for ReleaseWithdrawalSnapshot.
+type ReleaseWithdrawalSnapshot struct {
+	Audience   ReleaseWithdrawalSnapshotAudience `json:"audience"`
+	Etag       string                            `json:"etag"`
+	Generation int64                             `json:"generation"`
+	Host       string                            `json:"host"`
+	SnapshotId UUID                              `json:"snapshotId"`
+}
+
+// ReleaseWithdrawalSnapshotAudience defines model for ReleaseWithdrawalSnapshot.Audience.
+type ReleaseWithdrawalSnapshotAudience string
+
 // RemoveSource defines model for RemoveSource.
 type RemoveSource struct {
 	ChangePreviewDigest string `json:"changePreviewDigest"`
@@ -10927,6 +11011,15 @@ type RetryJobParams struct {
 	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
+
+// PreviewListingReleaseWithdrawalParams defines parameters for PreviewListingReleaseWithdrawal.
+type PreviewListingReleaseWithdrawalParams struct {
+	// Transition The intended release disposition. Exactly one nonempty value is required.
+	Transition PreviewListingReleaseWithdrawalParamsTransition `form:"transition" json:"transition"`
+}
+
+// PreviewListingReleaseWithdrawalParamsTransition defines parameters for PreviewListingReleaseWithdrawal.
+type PreviewListingReleaseWithdrawalParamsTransition string
 
 // DeprecateListingReleaseParams defines parameters for DeprecateListingRelease.
 type DeprecateListingReleaseParams struct {
@@ -18901,6 +18994,13 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/listing-releases/{releaseId} (the `GetListingRelease` operationId).
 	GetListingRelease(ctx context.Context, releaseId ReleaseId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// PreviewListingReleaseWithdrawal Preview discovery snapshots affected by release withdrawal
+	//
+	// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+	//
+	// Corresponds with GET /api/v1/listing-releases/{releaseId}/withdrawal-preview (the `PreviewListingReleaseWithdrawal` operationId).
+	PreviewListingReleaseWithdrawal(ctx context.Context, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// DeprecateListingReleaseWithBody Deprecate a listing release
 	//
 	// Marks an eligible release deprecated with a reason and the current release ETag. Retained release evidence is preserved.
@@ -22498,6 +22598,23 @@ func (c *Client) RetryJob(ctx context.Context, jobId JobId, params *RetryJobPara
 // Corresponds with GET /api/v1/listing-releases/{releaseId} (the `GetListingRelease` operationId).
 func (c *Client) GetListingRelease(ctx context.Context, releaseId ReleaseId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetListingReleaseRequest(c.Server, releaseId)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// PreviewListingReleaseWithdrawal Preview discovery snapshots affected by release withdrawal
+//
+// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+//
+// Corresponds with GET /api/v1/listing-releases/{releaseId}/withdrawal-preview (the `PreviewListingReleaseWithdrawal` operationId).
+func (c *Client) PreviewListingReleaseWithdrawal(ctx context.Context, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewListingReleaseWithdrawalRequest(c.Server, releaseId, params)
 	if err != nil {
 		return nil, safeError(err)
 	}
@@ -30571,6 +30688,63 @@ func NewGetListingReleaseRequest(server string, releaseId ReleaseId) (*http.Requ
 	return req, nil
 }
 
+// NewPreviewListingReleaseWithdrawalRequest constructs an http.Request for the PreviewListingReleaseWithdrawal method
+func NewPreviewListingReleaseWithdrawalRequest(server string, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "releaseId", releaseId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/listing-releases/%s/withdrawal-preview", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "transition", params.Transition, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, safeError(err)
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
 // NewDeprecateListingReleaseRequest calls the generic DeprecateListingRelease builder with application/json body
 func NewDeprecateListingReleaseRequest(server string, releaseId ReleaseId, params *DeprecateListingReleaseParams, body DeprecateListingReleaseJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -38317,6 +38491,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/listing-releases/{releaseId} (the `GetListingRelease` operationId).
 	GetListingReleaseWithResponse(ctx context.Context, releaseId ReleaseId, reqEditors ...RequestEditorFn) (*GetListingReleaseResponse, error)
 
+	// PreviewListingReleaseWithdrawalWithResponse Preview discovery snapshots affected by release withdrawal
+	//
+	// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/listing-releases/{releaseId}/withdrawal-preview (the `PreviewListingReleaseWithdrawal` operationId).
+	PreviewListingReleaseWithdrawalWithResponse(ctx context.Context, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams, reqEditors ...RequestEditorFn) (*PreviewListingReleaseWithdrawalResponse, error)
+
 	// DeprecateListingReleaseWithBodyWithResponse Deprecate a listing release
 	//
 	// Marks an eligible release deprecated with a reason and the current release ETag. Retained release evidence is preserved.
@@ -45319,6 +45502,70 @@ func (r GetListingReleaseResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetListingReleaseResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// PreviewListingReleaseWithdrawalResponse200Headers the declared response headers of an HTTP 200 response for PreviewListingReleaseWithdrawal
+type PreviewListingReleaseWithdrawalResponse200Headers struct {
+	CacheControl *string
+}
+
+// PreviewListingReleaseWithdrawalResponseDefaultHeaders the declared response headers of an HTTP default response for PreviewListingReleaseWithdrawal
+type PreviewListingReleaseWithdrawalResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type PreviewListingReleaseWithdrawalResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ReleaseWithdrawalPreview
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *PreviewListingReleaseWithdrawalResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *PreviewListingReleaseWithdrawalResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PreviewListingReleaseWithdrawalResponse) GetJSON200() *ReleaseWithdrawalPreview {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PreviewListingReleaseWithdrawalResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PreviewListingReleaseWithdrawalResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreviewListingReleaseWithdrawalResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreviewListingReleaseWithdrawalResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreviewListingReleaseWithdrawalResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -55002,6 +55249,21 @@ func (c *ClientWithResponses) GetListingReleaseWithResponse(ctx context.Context,
 	return ParseGetListingReleaseResponse(rsp)
 }
 
+// PreviewListingReleaseWithdrawalWithResponse Preview discovery snapshots affected by release withdrawal
+//
+// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/listing-releases/{releaseId}/withdrawal-preview (the `PreviewListingReleaseWithdrawal` operationId).
+func (c *ClientWithResponses) PreviewListingReleaseWithdrawalWithResponse(ctx context.Context, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams, reqEditors ...RequestEditorFn) (*PreviewListingReleaseWithdrawalResponse, error) {
+	rsp, err := c.PreviewListingReleaseWithdrawal(ctx, releaseId, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParsePreviewListingReleaseWithdrawalResponse(rsp)
+}
+
 // DeprecateListingReleaseWithBodyWithResponse Deprecate a listing release
 //
 // Marks an eligible release deprecated with a reason and the current release ETag. Retained release evidence is preserved.
@@ -64444,6 +64706,77 @@ func ParseGetListingReleaseResponse(rsp *http.Response) (result *GetListingRelea
 		response.Headers200 = &headers
 	case true:
 		var headers GetListingReleaseResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParsePreviewListingReleaseWithdrawalResponse parses an HTTP response from a PreviewListingReleaseWithdrawalWithResponse call
+func ParsePreviewListingReleaseWithdrawalResponse(rsp *http.Response) (result *PreviewListingReleaseWithdrawalResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &PreviewListingReleaseWithdrawalResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ReleaseWithdrawalPreview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers PreviewListingReleaseWithdrawalResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers PreviewListingReleaseWithdrawalResponseDefaultHeaders
 		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {

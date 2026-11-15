@@ -1,6 +1,19 @@
 import { createCatalogClient } from "../../../sdk/typescript/src/index.js";
 import type { components } from "../../../sdk/typescript/src/index.js";
 const client = createCatalogClient({ origin: "https://catalog.example.com" });
+void client.api.GET("/api/v1/listing-releases/{releaseId}/withdrawal-preview", {
+  params: {
+    path: { releaseId: "00000000-0000-7000-8000-000000000101" },
+    query: { transition: "retired" },
+  },
+});
+void client.api.GET("/api/v1/listing-releases/{releaseId}/withdrawal-preview", {
+  params: {
+    path: { releaseId: "00000000-0000-7000-8000-000000000101" },
+    // @ts-expect-error Deprecation is not a withdrawal preview transition.
+    query: { transition: "deprecated" },
+  },
+});
 void client.api.GET("/api/v1/feedback", {
   params: {
     query: {

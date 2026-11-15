@@ -14,6 +14,47 @@ const code = (name) => (error) =>
   error instanceof SDKError && error.code === name;
 const manifest = "/.well-known/ard.json";
 
+test("withdrawal preview is one explicit read and preserves bound snapshot references", async () => {
+  const releaseId = "00000000-0000-7000-8000-000000000101";
+  const wire = {
+    releaseId,
+    releaseRevision: 3,
+    transition: "retired",
+    observedAt: "2026-11-15T12:00:00Z",
+    snapshots: [
+      {
+        snapshotId: "00000000-0000-7000-8000-000000000201",
+        host: "catalog.example.com",
+        audience: "anonymous",
+        generation: 2,
+        etag: "feed-two",
+      },
+    ],
+  };
+  let calls = 0;
+  const client = make(async (request) => {
+    calls++;
+    const url = new URL(request.url);
+    assert.equal(request.method, "GET");
+    assert.equal(
+      url.pathname,
+      `/api/v1/listing-releases/${releaseId}/withdrawal-preview`,
+    );
+    assert.deepEqual(Object.fromEntries(url.searchParams), {
+      transition: "retired",
+    });
+    assert.equal(request.headers.has("Idempotency-Key"), false);
+    assert.equal(request.headers.has("If-Match"), false);
+    return json(wire, { headers: { "Content-Type": "application/json" } });
+  });
+  const preview = await client.api.GET(
+    "/api/v1/listing-releases/{releaseId}/withdrawal-preview",
+    { params: { path: { releaseId }, query: { transition: "retired" } } },
+  );
+  assert.equal(calls, 1);
+  assert.deepEqual(preview.data, wire);
+});
+
 test("source outcomes retain exact filters and explicit one-page continuation", async () => {
   const requests = [];
   const client = make(async (request) => {

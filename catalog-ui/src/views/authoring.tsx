@@ -63,6 +63,7 @@ export function ActionForm({
   resetToken,
   focusAfterReset,
   onPendingChange,
+  liveConfirmationDetails,
   dirty = false,
   requiredMarkers = false,
   children,
@@ -87,6 +88,8 @@ export function ActionForm({
   resetToken?: number;
   focusAfterReset?: readonly string[] | undefined;
   onPendingChange?: (pending: boolean) => void;
+  /** Reactive disclosure may hide private explanation without replacing a prepared command. */
+  liveConfirmationDetails?: ReactNode;
   dirty?: boolean;
   requiredMarkers?: boolean;
   children?: ReactNode;
@@ -293,6 +296,7 @@ export function ActionForm({
       {command && (
         <CommandDialog
           command={command}
+          liveDetails={liveConfirmationDetails}
           allowed={editable && allowed}
           onFailure={onFailure}
           onClose={() => setCommand(undefined)}

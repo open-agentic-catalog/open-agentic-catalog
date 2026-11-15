@@ -146,6 +146,7 @@ const workflows = {
   rejectReviewSubmission: "screen:review-and-releases",
   publishCatalogListing: "screen:review-and-releases",
   getListingRelease: "screen:review-and-releases",
+  previewListingReleaseWithdrawal: "screen:review-and-releases",
   deprecateListingRelease: "screen:review-and-releases",
   retireListingRelease: "screen:review-and-releases",
   supersedeListingRelease: "screen:review-and-releases",

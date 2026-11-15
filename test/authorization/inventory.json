@@ -1304,6 +1304,18 @@
       "currentAuthority": "global reader"
     },
     {
+      "operationId": "previewListingReleaseWithdrawal",
+      "method": "GET",
+      "path": "/api/v1/listing-releases/{releaseId}/withdrawal-preview",
+      "permissions": [
+        "resource.read_history",
+        "publication.read"
+      ],
+      "policy": "publication",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "exact release namespace history reader plus tenant-wide publication reader; advisory read only"
+    },
+    {
       "operationId": "deprecateListingRelease",
       "method": "POST",
       "path": "/api/v1/listing-releases/{releaseId}:deprecate",
@@ -4814,6 +4826,27 @@
       "roleConstants": [],
       "source": "internal/federation/snapshot_comparison.go",
       "policy": "source"
+    },
+    {
+      "calls": [
+        "GetRelease",
+        "requirePermission"
+      ],
+      "method": "PreviewReleaseWithdrawal",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/withdrawal_preview.go",
+      "policy": "publication"
+    },
+    {
+      "calls": [],
+      "method": "PreviewReleaseWithdrawal",
+      "package": "publication",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/publication/withdrawal_preview.go",
+      "policy": "publication"
     }
   ],
   "internalExecution": [

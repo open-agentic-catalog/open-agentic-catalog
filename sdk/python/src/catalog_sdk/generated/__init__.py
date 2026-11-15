@@ -358,6 +358,8 @@ __all__ = [
     "Relationship",
     "ReleaseOverview",
     "ReleaseTransition",
+    "ReleaseWithdrawalPreview",
+    "ReleaseWithdrawalSnapshot",
     "RemoveSource",
     "Representation",
     "RepresentationInput",
@@ -1277,6 +1279,12 @@ from catalog_sdk.generated.models.release_overview import (
 )
 from catalog_sdk.generated.models.release_transition import (
     ReleaseTransition as ReleaseTransition,
+)
+from catalog_sdk.generated.models.release_withdrawal_preview import (
+    ReleaseWithdrawalPreview as ReleaseWithdrawalPreview,
+)
+from catalog_sdk.generated.models.release_withdrawal_snapshot import (
+    ReleaseWithdrawalSnapshot as ReleaseWithdrawalSnapshot,
 )
 from catalog_sdk.generated.models.remove_source import RemoveSource as RemoveSource
 from catalog_sdk.generated.models.representation import Representation as Representation

@@ -3176,6 +3176,37 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/ListingRelease'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/listing-releases/{releaseId}/withdrawal-preview:
+    parameters: [{$ref: '#/components/parameters/ReleaseId'}]
+    get:
+      tags: [Catalog lifecycle]
+      summary: Preview discovery snapshots affected by release withdrawal
+      operationId: previewListingReleaseWithdrawal
+      description: >-
+        Requires resource.read_history for the release's namespace and tenant-wide publication.read.
+        Returns complete observed references to active configured-host snapshots that the selected
+        release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked.
+        Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero.
+        The read starts no Job, sends no notification and changes no release or publication state.
+        This advisory observation does not reserve active pointers, authorize a transition, validate replacement
+        guidance or create a replacement publication. Explicitly refresh before preparing confirmation.
+        The later command independently checks current authority, If-Match, idempotency and transition eligibility.
+        Deprecation does not withdraw discovery and is not supported by this preview.
+      parameters:
+        - name: transition
+          in: query
+          required: true
+          description: The intended release disposition. Exactly one nonempty value is required.
+          schema: {type: string, enum: [retired, superseded, revoked]}
+      responses:
+        '200':
+          description: Complete advisory impact, including an empty array only when all relevant active evidence proves absence.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReleaseWithdrawalPreview'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/listing-releases/{releaseId}:deprecate:
     parameters: [{$ref: '#/components/parameters/ReleaseId'}]
     post:
@@ -9775,6 +9806,29 @@ components:
         revision: {type: integer, format: int64, minimum: 1}
         activatedAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+    ReleaseWithdrawalPreview:
+      type: object
+      additionalProperties: false
+      required: [releaseId, releaseRevision, transition, observedAt, snapshots]
+      properties:
+        releaseId: {$ref: '#/components/schemas/UUID'}
+        releaseRevision: {type: integer, format: int64, minimum: 1}
+        transition: {type: string, enum: [retired, superseded, revoked]}
+        observedAt: {type: string, format: date-time}
+        snapshots:
+          type: array
+          maxItems: 64
+          items: {$ref: '#/components/schemas/ReleaseWithdrawalSnapshot'}
+    ReleaseWithdrawalSnapshot:
+      type: object
+      additionalProperties: false
+      required: [snapshotId, host, audience, generation, etag]
+      properties:
+        snapshotId: {$ref: '#/components/schemas/UUID'}
+        host: {type: string, minLength: 1, maxLength: 253}
+        audience: {type: string, enum: [anonymous, authenticated]}
+        generation: {type: integer, format: int64, minimum: 1}
+        etag: {type: string, minLength: 1, maxLength: 256}
     AdoptionProvenance:
       type: object
       additionalProperties: false

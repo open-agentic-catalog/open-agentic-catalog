@@ -683,6 +683,7 @@
         "http:requestReviewChanges",
         "http:rejectReviewSubmission",
         "http:getListingRelease",
+        "http:previewListingReleaseWithdrawal",
         "http:deprecateListingRelease",
         "http:retireListingRelease",
         "http:supersedeListingRelease",

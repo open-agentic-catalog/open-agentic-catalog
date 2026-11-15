@@ -2106,6 +2106,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listing-releases/{releaseId}/withdrawal-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Listing release identifier. */
+                releaseId: components["parameters"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Preview discovery snapshots affected by release withdrawal
+         * @description Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+         */
+        get: operations["previewListingReleaseWithdrawal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/listing-releases/{releaseId}:deprecate": {
         parameters: {
             query?: never;
@@ -5934,6 +5957,25 @@ export interface components {
             activatedAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        ReleaseWithdrawalPreview: {
+            releaseId: components["schemas"]["UUID"];
+            /** Format: int64 */
+            releaseRevision: number;
+            /** @enum {string} */
+            transition: "retired" | "superseded" | "revoked";
+            /** Format: date-time */
+            observedAt: string;
+            snapshots: components["schemas"]["ReleaseWithdrawalSnapshot"][];
+        };
+        ReleaseWithdrawalSnapshot: {
+            snapshotId: components["schemas"]["UUID"];
+            host: string;
+            /** @enum {string} */
+            audience: "anonymous" | "authenticated";
+            /** Format: int64 */
+            generation: number;
+            etag: string;
         };
         AdoptionProvenance: {
             observationId: components["schemas"]["UUID"];
@@ -11625,6 +11667,34 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["ListingRelease"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    previewListingReleaseWithdrawal: {
+        parameters: {
+            query: {
+                /** @description The intended release disposition. Exactly one nonempty value is required. */
+                transition: "retired" | "superseded" | "revoked";
+            };
+            header?: never;
+            path: {
+                /** @description Listing release identifier. */
+                releaseId: components["parameters"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete advisory impact, including an empty array only when all relevant active evidence proves absence. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseWithdrawalPreview"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };

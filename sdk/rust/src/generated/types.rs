@@ -1810,6 +1810,88 @@ impl AsRef<str> for ResourceOverviewScope {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct ReleaseWithdrawalPreview {
+    #[serde(rename = "observedAt")]
+    pub observed_at: chrono::DateTime<chrono::Utc>,
+    #[serde(rename = "releaseId")]
+    pub release_id: UUID,
+    ///Constraint: minimum=1
+    #[serde(rename = "releaseRevision")]
+    pub release_revision: i64,
+    ///Constraint: maxItems=64
+    pub snapshots: Vec<ReleaseWithdrawalSnapshot>,
+    pub transition: ReleaseWithdrawalPreviewTransition,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleaseWithdrawalSnapshot {
+    pub audience: ReleaseWithdrawalSnapshotAudience,
+    ///Constraint: minLength=1, maxLength=256
+    pub etag: String,
+    ///Constraint: minimum=1
+    pub generation: i64,
+    ///Constraint: minLength=1, maxLength=253
+    pub host: String,
+    #[serde(rename = "snapshotId")]
+    pub snapshot_id: UUID,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum ReleaseWithdrawalSnapshotAudience {
+    #[default]
+    #[serde(rename = "anonymous")]
+    Anonymous,
+    #[serde(rename = "authenticated")]
+    Authenticated,
+}
+impl ReleaseWithdrawalSnapshotAudience {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Anonymous => "anonymous",
+            Self::Authenticated => "authenticated",
+        }
+    }
+}
+impl ::std::fmt::Display for ReleaseWithdrawalSnapshotAudience {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ReleaseWithdrawalSnapshotAudience {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum ReleaseWithdrawalPreviewTransition {
+    #[default]
+    #[serde(rename = "retired")]
+    Retired,
+    #[serde(rename = "superseded")]
+    Superseded,
+    #[serde(rename = "revoked")]
+    Revoked,
+}
+impl ReleaseWithdrawalPreviewTransition {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Retired => "retired",
+            Self::Superseded => "superseded",
+            Self::Revoked => "revoked",
+        }
+    }
+}
+impl ::std::fmt::Display for ReleaseWithdrawalPreviewTransition {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ReleaseWithdrawalPreviewTransition {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReleaseTransition {
     ///Constraint: minLength=1, maxLength=2000, pattern=`.*\S.*`
     pub reason: String,

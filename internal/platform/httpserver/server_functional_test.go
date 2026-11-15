@@ -93,6 +93,17 @@ type testPublicationWithdrawer struct {
 	manager *publication.Manager
 }
 
+func (w *testPublicationWithdrawer) PreviewPublicationRelease(ctx context.Context, tenantID, releaseID string) ([]catalog.ReleaseWithdrawalSnapshot, error) {
+	preview, matched, err := w.manager.PreviewReleaseWithdrawal(ctx, tenantID, releaseID, &publication.WithdrawalPreviewBudget{})
+	if err != nil {
+		return nil, err
+	}
+	if !matched {
+		return []catalog.ReleaseWithdrawalSnapshot{}, nil
+	}
+	return []catalog.ReleaseWithdrawalSnapshot{preview}, nil
+}
+
 func (w *testPublicationWithdrawer) WithdrawPublicationDomain(ctx context.Context, tenantID, domain, action, targetID, cause string) ([]string, error) {
 	changed, err := w.manager.WithdrawDomain(ctx, tenantID, domain, publication.WithdrawalCause{Cause: cause, OriginatingAction: action, OriginatingTargetID: targetID})
 	if err != nil || !changed {
@@ -1149,6 +1160,21 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 	decodeResult(t, thirdCandidateResult, &thirdCandidate)
 	thirdActivate := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/publication/snapshots/"+thirdCandidate.ID+":activate", "publisher", "activate-three", thirdCandidate.ETag, map[string]any{"host": "127.0.0.1", "reason": "Activate the final snapshot"})
 	requireStatus(t, thirdActivate, http.StatusOK)
+	previewPath := "/api/v1/listing-releases/" + publishEnvelope.Release.ID + "/withdrawal-preview"
+	previewReply := requestJSON(t, testServer.URL, http.MethodGet, previewPath+"?transition=revoked", "admin", "", "", nil)
+	requireStatus(t, previewReply, http.StatusOK)
+	var preview catalog.ReleaseWithdrawalPreview
+	decodeResult(t, previewReply, &preview)
+	if preview.ReleaseID != publishEnvelope.Release.ID || preview.ReleaseRevision != publishEnvelope.Release.Revision || preview.Transition != catalog.ReleaseRevoked || len(preview.Snapshots) != 1 || preview.Snapshots[0].SnapshotID != thirdCandidate.ID || previewReply.header.Get("Cache-Control") != "no-store" {
+		t.Fatal("withdrawal preview disagrees with active publication", preview)
+	}
+	stillPublished := requestJSON(t, testServer.URL, http.MethodGet, "/.well-known/ard.json", "", "", "", nil)
+	requireStatus(t, stillPublished, http.StatusOK)
+	for _, query := range []string{"", "?transition=", "?transition=deprecated", "?transition=revoked&transition=retired", "?transition=Revoked", "?transition=revoked&unexpected=true"} {
+		requireStatus(t, requestJSON(t, testServer.URL, http.MethodGet, previewPath+query, "admin", "", "", nil), http.StatusBadRequest)
+	}
+	requireStatus(t, requestJSON(t, testServer.URL, http.MethodGet, previewPath+"?transition=revoked", "contributor", "", "", nil), http.StatusForbidden)
+	requireStatus(t, requestJSON(t, testServer.URL, http.MethodGet, previewPath+"?transition=revoked", "other-admin", "", "", nil), http.StatusNotFound)
 	revoke := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/listing-releases/"+publishEnvelope.Release.ID+":revoke", "admin", "revoke-one", `"rev-`+jsonNumber(publishEnvelope.Release.Revision)+`"`, map[string]any{"reason": "security revocation test"})
 	requireStatus(t, revoke, http.StatusOK)
 	staleManifest := requestJSON(t, testServer.URL, http.MethodGet, "/.well-known/ard.json", "", "", "", nil)
