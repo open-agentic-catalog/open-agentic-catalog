@@ -135,6 +135,22 @@ for (const base of ["root", "subpath"]) {
     expect(namespaceBox).not.toBeNull();
     expect(namespaceBox!.x).toBeCloseTo(box!.x, 0);
     expect(namespaceBox!.width).toBeCloseTo(box!.width, 0);
+    const focus = await protocol.evaluate((element) => {
+      const style = getComputedStyle(element);
+      return {
+        visible: element.matches(":focus-visible"),
+        outset:
+          parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset),
+      };
+    });
+    expect(focus.visible).toBe(true);
+    expect(focus.outset).toBeGreaterThan(0);
+    const footer = await page.locator(".filter-panel-footer").boundingBox();
+    expect(footer).not.toBeNull();
+    expect(
+      box!.y + box!.height + focus.outset,
+      "The protocol input's full focus outline must remain above the filter actions",
+    ).toBeLessThanOrEqual(footer!.y);
     await page.screenshot({
       path: testInfo.outputPath("agent-protocol-mobile.png"),
     });

@@ -442,6 +442,16 @@ exports.webview = async (
         );
       },
       errorCounts: () => errors.counts(),
+      waitForClosed: async () => {
+        const session = target.sessionId,
+          deadline = Date.now() + 10000;
+        while (!detachedSessions.has(session) && Date.now() < deadline)
+          await pause();
+        assert.ok(
+          detachedSessions.has(session),
+          "Disposed webview frame did not close",
+        );
+      },
       assertHealthy: async () => {
         await evaluate("0");
         assert.deepEqual(

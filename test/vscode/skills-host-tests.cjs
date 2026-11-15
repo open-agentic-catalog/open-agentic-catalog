@@ -19,12 +19,18 @@ exports.qualifySkills = async (api, multiRoot = false) => {
     await ui.evaluate(`${expr}.click()`);
   };
   const source = async (label) => {
+    const visible = ".quick-input-widget:not([style*='display: none'])";
+    const input = `document.querySelector(${JSON.stringify(`${visible} input`)})`;
     await ui.until(
-      `document.querySelector('.quick-input-title')?.textContent.includes('immutable package source')`,
+      `document.querySelector(${JSON.stringify(`${visible} .quick-input-title`)})?.textContent.includes('immutable package source') && [...document.querySelectorAll(${JSON.stringify(`${visible} .quick-input-list .monaco-list-row`)})].some(row=>row.textContent.includes(${JSON.stringify(label)}))`,
     );
+    // A retained hidden picker or an editor with focus cannot receive this
+    // source selection. Observe the current choices and focus their input.
+    await ui.evaluate(`(${input}).focus()`);
+    await ui.until(`document.activeElement===(${input})`);
     for (let step = 0; step < 3; step++) {
       const active = await ui.evaluate(
-        `(()=>{const input=document.querySelector('.quick-input-widget input');return document.getElementById(input.getAttribute('aria-activedescendant'))?.textContent??'';})()`,
+        `(()=>{const input=${input};return document.getElementById(input?.getAttribute('aria-activedescendant'))?.textContent??'';})()`,
       );
       if (active.includes(label)) {
         await vscode.commands.executeCommand(
@@ -36,7 +42,7 @@ exports.qualifySkills = async (api, multiRoot = false) => {
         "workbench.action.quickOpenSelectNext",
       );
       await ui.until(
-        `(()=>{const input=document.querySelector('.quick-input-widget input');return document.getElementById(input.getAttribute('aria-activedescendant'))?.textContent !== ${JSON.stringify(active)};})()`,
+        `(()=>{const input=${input};return document.getElementById(input?.getAttribute('aria-activedescendant'))?.textContent !== ${JSON.stringify(active)};})()`,
       );
     }
     throw Error("No active immutable source: " + label);

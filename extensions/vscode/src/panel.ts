@@ -261,6 +261,7 @@ function card(item: Item) {
     ...(item.license ? { license: item.license } : {}),
     ...(item.visibility ? { visibility: item.visibility } : {}),
     ...(item.ratings ? { ratings: item.ratings } : {}),
+    ...(item.toolMatch ? { toolMatch: item.toolMatch } : {}),
     ...(item.sourceCount !== undefined
       ? {
           sourceCount: item.sourceCount,

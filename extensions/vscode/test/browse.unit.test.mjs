@@ -142,6 +142,161 @@ const bytes = Buffer.from(
   '{"large":9007199254740993,"message":"<img src=x onerror=alert(1)>"}',
 );
 const digest = createHash("sha256").update(bytes).digest("hex");
+test("declared discovery filters preserve exact values, paging and local-only scope", async (t) => {
+  const binding = " Private+V1 ";
+  const protocol = query({ agentProtocol: binding }, false);
+  assert.equal(
+    new URL(
+      requestFor(protocol, false, "opaque +/雪").path,
+      "https://catalog.invalid",
+    ).searchParams.get("agentProtocol"),
+    binding,
+  );
+  const selected = query({ text: "pdf tables", includeMcpTools: true }, false);
+  assert.deepEqual(requestFor(selected, false, "opaque").body, {
+    text: "pdf tables",
+    origins: ["local"],
+    limit: 20,
+    includeMcpTools: true,
+    cursor: "opaque",
+  });
+  assert.equal(
+    query({ agentProtocol: "🙂".repeat(256) }, false).agentProtocol,
+    "🙂".repeat(256),
+  );
+  assert.equal(
+    query({ agentProtocol: "\ufeff" }, false).agentProtocol,
+    "\ufeff",
+    "A BOM is an opaque binding, not Go whitespace",
+  );
+  for (const input of [
+    { agentProtocol: " " },
+    { agentProtocol: "\u0085" },
+    { agentProtocol: "x".repeat(257) },
+    { agentProtocol: "JSONRPC", origin: "indexed" },
+    { includeMcpTools: "true" },
+    { includeMcpTools: true },
+    { text: "pdf", includeMcpTools: true, agentProtocol: "JSONRPC" },
+    { text: "pdf", includeMcpTools: true, kind: "agent" },
+    { text: "pdf", includeMcpTools: true, kind: "agent", kinds: [] },
+    { text: "pdf", includeMcpTools: true, origins: ["local", "live"] },
+  ])
+    assert.throws(() => query(input, false));
+  for (const input of [
+    { agentProtocol: "JSONRPC" },
+    { text: "pdf", includeMcpTools: true },
+  ])
+    assert.throws(() => query(input, true), /unsupported_filter/u);
+  assert.equal(
+    query({ includeMcpTools: true }, false, false, true).includeMcpTools,
+    true,
+    "Incomplete drafts are retained without transmission",
+  );
+  const f = setup({
+    handler: (_url, options, reply) => {
+      const body = JSON.parse(options.body);
+      assert.equal(body.query.agentProtocol, binding);
+      assert.equal(body.query.origins, undefined);
+      return reply({
+        facets: {
+          kind: { buckets: [{ value: "agent", count: 1 }], otherCount: 0 },
+        },
+      });
+    },
+  });
+  t.after(() => f.close());
+  await f.start();
+  await f.browser.explore(protocol);
+  assert.equal(f.browser.state.facetQuery.agentProtocol, binding);
+});
+test("private tool matches validate bounded exact evidence before webview projection", () => {
+  const local = summary();
+  local.resource.kind = "mcp_server";
+  const evidence = {
+    representationId: id,
+    contentDigest: `sha256:${"a".repeat(64)}`,
+    matchedToolCount: 1,
+    truncated: false,
+    tools: [
+      {
+        name: "extract_pdf_tables",
+        description: "<script>untrusted()</script>",
+        descriptionTruncated: false,
+      },
+    ],
+  };
+  const row = {
+    id: `local:${id}`,
+    type: "local",
+    identifier: local.resource.canonicalIdentifier,
+    versionPresent: true,
+    version: "1.0.0",
+    kind: "mcp_server",
+    displayName: "Owned",
+    tags: [],
+    score: 40,
+    local,
+    toolMatch: evidence,
+  };
+  assert.deepEqual(searchItem(row).toolMatch, evidence);
+  const bounded = {
+    ...evidence,
+    matchedToolCount: 64,
+    truncated: true,
+    tools: [
+      {
+        name: "\ufeff",
+        description: "PDF tables",
+        descriptionTruncated: false,
+      },
+      {
+        name: "pdf",
+        description: "🙂".repeat(256),
+        descriptionTruncated: true,
+      },
+      { name: "PDF_tables", descriptionTruncated: false },
+    ],
+  };
+  assert.deepEqual(
+    searchItem({ ...row, toolMatch: bounded }).toolMatch,
+    bounded,
+  );
+  assert.equal(
+    searchItem({ ...row, toolMatch: undefined }).toolMatch,
+    undefined,
+  );
+  for (const match of [
+    { ...evidence, matchedToolCount: 0 },
+    { ...evidence, matchedToolCount: 65 },
+    { ...evidence, tools: [] },
+    { ...evidence, contentDigest: "bad" },
+    { ...evidence, representationId: "bad" },
+    { ...evidence, truncated: true },
+    { ...evidence, tools: [{ name: "x", descriptionTruncated: "false" }] },
+    {
+      ...evidence,
+      tools: [
+        {
+          name: "x",
+          description: "x".repeat(257),
+          descriptionTruncated: false,
+        },
+      ],
+    },
+  ])
+    assert.throws(
+      () => searchItem({ ...row, toolMatch: match }),
+      /invalid_response/u,
+    );
+  assert.throws(
+    () => searchItem({ ...row, kind: "agent" }),
+    /invalid_response/u,
+  );
+  assert.throws(
+    () => searchItem({ ...row, type: "live" }),
+    /invalid_response/u,
+  );
+});
 test("denied SDK reads offer access recovery without authentication fallback", async () => {
   for (const mode of ["control", "published"]) {
     const f = setup({

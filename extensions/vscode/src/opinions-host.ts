@@ -260,10 +260,16 @@ export class CatalogOpinions implements vscode.Disposable {
   async list(family: OpinionFamily) {
     const check = this.guard();
     let cursor: string | undefined;
+    let recent = false;
     for (;;) {
-      const page = await this.opinions.page(family, cursor);
+      const page = await this.opinions.page(family, cursor, recent);
       check();
-      const choice = await this.pick(
+      const choice:
+        | (vscode.QuickPickItem & {
+            value: Record<string, unknown> | undefined;
+            view: string | undefined;
+          })
+        | undefined = await this.pick(
         [
           ...page.items.map((value) => ({
             label:
@@ -271,6 +277,12 @@ export class CatalogOpinions implements vscode.Disposable {
                 ? `${value.score} / 5 · ${value.state}`
                 : `${value.category} · ${value.state}`,
             description: String(value.id),
+            ...(recent
+              ? {
+                  detail: `${value.updatedAt}: ${value.response || "Addressed without a written response"}`,
+                }
+              : {}),
+            view: undefined,
             value,
           })),
           ...(page.next
@@ -279,18 +291,45 @@ export class CatalogOpinions implements vscode.Disposable {
                   label: "Next page",
                   description: "25 items per page; private cursor is not saved",
                   value: undefined,
+                  view: undefined,
+                },
+              ]
+            : []),
+          ...(family === "feedback"
+            ? [
+                {
+                  label: recent
+                    ? "Submission order"
+                    : "Recent addressed outcomes",
+                  description: recent
+                    ? "Return to the default order"
+                    : "Current replies, newest update first; not reply history",
+                  value: undefined,
+                  view: recent ? "submission" : "recent",
+                },
+                {
+                  label: "Refresh feedback",
+                  description: "Read current facts from the first page",
+                  value: undefined,
+                  view: "refresh",
                 },
               ]
             : []),
         ],
         {
           title: family === "ratings" ? "My ratings" : "My private feedback",
-          placeHolder:
-            "Reads and withdrawal remain available after resource access is lost",
+          placeHolder: recent
+            ? "Current addressed outcomes, newest update first. Refresh starts again; this is not reply history."
+            : "Reads and withdrawal remain available after resource access is lost",
         },
       );
       check();
       if (!choice) return;
+      if (choice.view !== undefined) {
+        if (choice.view !== "refresh") recent = choice.view === "recent";
+        cursor = undefined;
+        continue;
+      }
       if (!choice.value) {
         cursor = page.next;
         continue;
