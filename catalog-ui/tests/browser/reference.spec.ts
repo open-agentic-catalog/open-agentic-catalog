@@ -32,7 +32,7 @@ test("API reference recovers from unavailable and malformed replies and service 
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Reload", exact: true }).click();
   await expect(
-    page.getByText("198 of 198 operations", { exact: true }),
+    page.getByText("199 of 199 operations", { exact: true }),
   ).toBeVisible();
   const download = page.getByRole("link", {
     name: "Download OpenAPI YAML",
@@ -52,7 +52,7 @@ test("API reference recovers from unavailable and malformed replies and service 
   ).toBeVisible();
   await page.getByRole("button", { name: "Reload", exact: true }).click();
   await expect(
-    page.getByText("198 of 198 operations", { exact: true }),
+    page.getByText("199 of 199 operations", { exact: true }),
   ).toBeVisible();
   await expect(download).toHaveAttribute("href", /^blob:/);
   await expect(download).toHaveAttribute("href", previousDownload!);
@@ -198,11 +198,11 @@ test("reader browses the live API reference and downloads its exact contract und
     page.getByRole("heading", { name: "API reference", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("198 of 198 operations", { exact: true }),
+    page.getByText("199 of 199 operations", { exact: true }),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByText("198 of 198 operations", { exact: true }),
+    page.getByText("199 of 199 operations", { exact: true }),
   ).toBeVisible();
   const connected = object(
     await page.evaluate(async (basePath) => {
@@ -340,7 +340,7 @@ test("reader browses the live API reference and downloads its exact contract und
   expect((await refreshedContract).status()).toBe(200);
   await expect(
     page.getByText(
-      `${expectedOperations.filter((operation) => operation.tags.includes("Groups and members")).length} of 198 operations`,
+      `${expectedOperations.filter((operation) => operation.tags.includes("Groups and members")).length} of 199 operations`,
       { exact: true },
     ),
   ).toBeVisible();
@@ -391,7 +391,7 @@ test("reader browses the live API reference and downloads its exact contract und
     .getByLabel("Search API operations", { exact: true })
     .fill("suspendMembership");
   await expect(
-    page.getByText("1 of 198 operations", { exact: true }),
+    page.getByText("1 of 199 operations", { exact: true }),
   ).toBeVisible();
   const operation = page.locator(".api-operation");
   await operation.locator(":scope > summary").click();
@@ -699,7 +699,7 @@ test("administrator reaches management pages and disabled webhooks without hidde
     .getByRole("link", { name: "Browse API reference", exact: true })
     .click();
   await expect(
-    page.getByText("198 of 198 operations", { exact: true }),
+    page.getByText("199 of 199 operations", { exact: true }),
   ).toBeVisible();
   expect(writes).toEqual([]);
 });

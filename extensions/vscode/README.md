@@ -252,7 +252,9 @@ Select a resource before reading its documents. Detail shows an overview, **Docu
 
 Use **Inspect document** to open a read-only editor tab with a descriptive, sanitized filename. Native JSON and manifests use JSON syntax, Skill Markdown uses Markdown syntax, and package previews use plain text. Inspection does not render untrusted HTML or Markdown. **Export exact bytes** saves a retained document or Plugin component without changes. **Export metadata JSON** saves a JSON projection; it preserves numeric tokens but does not promise original whitespace or signed bytes. The ARD manifest can also be inspected explicitly.
 
-Document reads recheck current access. Switching connections or signing out clears results and redacts open evidence views. A changed verified account also clears private state; sign in again. Exported files remain on your filesystem; protect or delete them as needed. At most 16 evidence tabs can remain open. Closing a tab frees its slot and clears any editor buffer retained for that closed tab.
+To compare two inspected documents, keep both tabs open, right-click the first tab and choose **Select for Compare**, then right-click the second and choose **Compare with Selected**. This uses VS Code's ordinary read-only text diff and makes no additional Catalog request. Turn off **Ignore Trim Whitespace** when spaces matter. Text editors can normalize byte-order marks and line endings; use **Export exact bytes** when byte identity matters. Governed Resource revision history and saved source synchronization comparison remain Catalog UI/API workflows; the extension does not add source administration or private authoring access.
+
+Document reads recheck current access. Switching connections or signing out clears results and redacts open evidence views, including native diff editors. A changed verified account also clears private state; sign in again. Exported files remain on your filesystem; protect or delete them as needed. At most 16 inspected documents can remain open, including documents referenced by diff tabs. Closing the final text or diff tab for a document frees its slot and clears any retained editor buffer.
 
 Sparse external results retain inspection and copy-reference actions. Indexed metadata does not grant access to administrator observation evidence. External document and archive URLs are references only; browsing does not fetch them. **Open link** asks for confirmation and forwards no Catalog token. Only safe HTTPS links can open. Git and OCI declarations remain text when they are not browser links.
 
@@ -650,7 +652,7 @@ The packaged installation and native Skill discovery workflow is qualified on Li
 | `trusted_workspace_required`, `workspace_trust_required` or `filesystem_workspace_required` | Use a trusted VS Code window. Skill and Plugin installation need a supported filesystem folder. |
 | Resource is inspect-only | Read its unavailable-action reason. Complete local package evidence and supported native declarations are required for consumption. |
 | `selection_changed` during local removal or recovery | The confirmed package, row or recovery target list changed. Refresh My tools and review a new confirmation. |
-| `close_evidence_documents` | Close an existing Catalog evidence tab, then inspect again. Closing the tab frees its slot. |
+| `close_evidence_documents` | Close all text and diff tabs that reference one inspected document, then inspect again. |
 | `peer_query_cancelled` | No replay or target request was sent by that declined revalidation. Select the exact resource again when you want to approve a new request. |
 | `installation_busy_or_interrupted` | Let an active operation finish. For an interrupted Skill or Plugin operation, follow its recovery instructions above. |
 | `plugin_disable_required` | Set the exact owned path to `false` in `chat.pluginLocations`. Inspect the native host before another operation. |

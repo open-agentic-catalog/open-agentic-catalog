@@ -1,6 +1,7 @@
 import { controlIcons } from "../shell/Icon";
 // Compare selected immutable evidence without moving candidates or issuing commands.
 import { useState } from "react";
+import { DocumentChanges } from "./DocumentChanges";
 import { result } from "../api/client";
 import { page, object } from "../api/values";
 import { permitsNamespace } from "../api/permissions";
@@ -391,11 +392,12 @@ function DocumentComparison(
         <Field key={side} label={`${side} representation`}>
           <select
             value={side === "Before" ? left : right}
-            onChange={(event) =>
+            onChange={(event) => {
+              setSelected(undefined);
               (side === "Before" ? setLeft : setRight)(
                 Number(event.target.value),
-              )
-            }
+              );
+            }}
           >
             {(side === "Before" ? props.before : props.after).map(
               (item, index) => (
@@ -437,7 +439,9 @@ function SelectedDocuments(
     props.before.id + props.after.id,
     async (signal) => {
       if (!exact) return undefined;
-      const load = async (id: string) => {
+      const load = async (
+        id: string,
+      ): Promise<{ text: string } | { failure: string }> => {
         const reply = await props.client.api.GET(
           "/api/v1/artifacts/{artifactId}/content",
           {
@@ -447,21 +451,58 @@ function SelectedDocuments(
           },
         );
         const bytes = result(reply);
-        await verifyArtifact(bytes, reply.response, id);
+        try {
+          await verifyArtifact(bytes, reply.response, id);
+        } catch {
+          // Reconcile authority before reporting a fixed local verification
+          // failure. Never display a dependency exception or partial document.
+          result(reply);
+          signal.throwIfAborted();
+          return {
+            failure:
+              "Document integrity could not be verified. No document text is shown.",
+          };
+        }
         result(reply);
+        signal.throwIfAborted();
         if (bytes.byteLength > 2 * 1024 * 1024)
-          throw new Error("This document exceeds the comparison text limit.");
-        return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+          return {
+            failure:
+              "This document exceeds the 2 MiB comparison text limit. No document text is shown.",
+          };
+        // Preserve a leading BOM and line endings. Both artifact IDs have been
+        // checked against SHA-256 bytes before the identity result is disclosed.
+        try {
+          return {
+            text: new TextDecoder("utf-8", {
+              fatal: true,
+              ignoreBOM: true,
+            }).decode(bytes),
+          };
+        } catch {
+          return {
+            failure:
+              "A selected document could not be decoded as UTF-8. No document text is shown.",
+          };
+        }
       };
       const before = await load(props.before.artifactId!);
+      if ("failure" in before) return before;
       const after = await load(props.after.artifactId!);
-      return { before, after };
+      if ("failure" in after) return after;
+      return {
+        before: before.text,
+        after: after.text,
+        identical: props.before.artifactId === props.after.artifactId,
+      };
     },
     props.onFailure,
   );
+  const documents = read.data && "before" in read.data ? read.data : undefined;
+  const failure = read.data && "failure" in read.data ? read.data.failure : "";
   return (
     <>
-      <ReadState {...read} />
+      <ReadState {...read} error={read.error || failure || ""} />
       {!exact && (
         <p>
           Lossless document comparison is unavailable for these representations.
@@ -470,19 +511,22 @@ function SelectedDocuments(
           is fetched.
         </p>
       )}
-      {read.data && (
+      {documents && (
         <p>
-          {read.data.before === read.data.after
+          {documents.identical
             ? "Exact retained documents are identical."
             : "Exact retained documents differ, including any whitespace or numeric token changes."}
         </p>
+      )}
+      {documents && (
+        <DocumentChanges before={documents.before} after={documents.after} />
       )}
       <div className="revision-comparison-grid">
         {(["before", "after"] as const).map((side) => (
           <div key={side}>
             <h4>{side === "before" ? "Before document" : "After document"}</h4>
-            {read.data ? (
-              <CodeBlock text={read.data[side]} original rawText />
+            {documents ? (
+              <CodeBlock text={documents[side]} original rawText />
             ) : (
               !exact && (
                 <JSONBlock

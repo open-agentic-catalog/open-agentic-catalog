@@ -1,6 +1,28 @@
 import { createCatalogClient } from "../../../sdk/typescript/src/index.js";
 import type { components } from "../../../sdk/typescript/src/index.js";
 const client = createCatalogClient({ origin: "https://catalog.example.com" });
+void client.api.GET("/api/v1/federation/snapshots/{snapshotId}/comparison", {
+  params: {
+    path: { snapshotId: "before" },
+    query: {
+      otherSnapshotId: "after",
+      view: "all",
+      limit: 25,
+      cursor: "opaque",
+    },
+  },
+});
+void client.api.GET("/api/v1/federation/snapshots/{snapshotId}/comparison", {
+  // @ts-expect-error An explicit after snapshot is required.
+  params: { path: { snapshotId: "before" }, query: { view: "all" } },
+});
+void client.api.GET("/api/v1/federation/snapshots/{snapshotId}/comparison", {
+  params: {
+    path: { snapshotId: "before" },
+    // @ts-expect-error Comparison view is finite.
+    query: { otherSnapshotId: "after", view: "newest" },
+  },
+});
 void client.api.GET("/api/v1/namespaces", {
   params: { query: { slug: "tools", displayName: "Tools", limit: 25 } },
 });

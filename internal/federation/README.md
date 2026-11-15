@@ -10,6 +10,7 @@ Federation inspects administrator-selected sources, retains provenance and index
 | [live_search.go](live_search.go) | Request-local peer paging, shared work limits, source rechecks and final result merging. |
 | [sync_retrieval.go](sync_retrieval.go) | Retrieval descriptors, conditional requests, pagination and retained retrieval evidence. |
 | [observation.go](observation.go) | Observation normalization, provenance binding and integrity validation. |
+| [snapshot_comparison.go](snapshot_comparison.go) | Authorized comparison of exact complete occurrence memberships, with bounded compact pages and explicit duplicate keys. |
 | [control_filters.go](control_filters.go) | Bounded optional license/topic projection for indexed repositories, live Control admission and restore comparison. |
 | [store.go](store.go) | Persistence ports and the in-memory snapshot/search implementation. |
 | [audit.go](audit.go) | Action-specific evidence and observation-change summaries. |

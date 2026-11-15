@@ -80,23 +80,19 @@ exports.qualifyPlugins = async (api) => {
     }
   };
   const native = async (present) => {
-    await vscode.commands.executeCommand("workbench.action.showCommands");
-    await ui.until(
-      "document.querySelector('.quick-input-widget input') !== null",
+    // Open the actual native editor through its registered user command.
+    await vscode.commands.executeCommand(
+      "aiCustomization.openManagementEditor",
     );
-    await ui.evaluate(
-      `(()=>{const input=document.querySelector('.quick-input-widget input');input.value='>Chat: Open Customizations';input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
-    );
-    await ui.key("Enter");
     await ui.until(
-      "document.body.innerText.includes('Customizations') && document.body.innerText.includes('Skills')",
+      "[...document.querySelectorAll('.ai-customization-management-editor .section-label')].some(e=>e.textContent.trim()==='Skills')",
     );
     await ui.evaluate(
       "[...document.querySelectorAll('.ai-customization-management-editor .section-label')].find(e=>e.textContent.trim()==='Skills')?.closest('.monaco-list-row')?.click()",
     );
     try {
       await ui.until(
-        `Boolean(document.querySelector('.ai-customization-management-editor .management-content')?.innerText.includes('owned-plugin-skill')) === ${present}`,
+        `(()=>{const content=document.querySelector('.ai-customization-management-editor .management-content');return !!content && content.innerText.includes('owned-plugin-skill') === ${present};})()`,
       );
     } catch {
       throw Error(

@@ -2063,6 +2063,33 @@ func (e FederationSnapshotState) Valid() bool {
 	}
 }
 
+// Defines values for FederationSnapshotEntryChangeChange.
+const (
+	Absent    FederationSnapshotEntryChangeChange = "absent"
+	Added     FederationSnapshotEntryChangeChange = "added"
+	Changed   FederationSnapshotEntryChangeChange = "changed"
+	Multiple  FederationSnapshotEntryChangeChange = "multiple"
+	Unchanged FederationSnapshotEntryChangeChange = "unchanged"
+)
+
+// Valid indicates whether the value is a known member of the FederationSnapshotEntryChangeChange enum.
+func (e FederationSnapshotEntryChangeChange) Valid() bool {
+	switch e {
+	case Absent:
+		return true
+	case Added:
+		return true
+	case Changed:
+		return true
+	case Multiple:
+		return true
+	case Unchanged:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FederationSourceStatus.
 const (
 	FederationSourceStatusActive  FederationSourceStatus = "active"
@@ -4982,6 +5009,24 @@ func (e ListRoleDefinitionsParamsState) Valid() bool {
 	}
 }
 
+// Defines values for CompareFederationSourceSnapshotsParamsView.
+const (
+	CompareFederationSourceSnapshotsParamsViewAll     CompareFederationSourceSnapshotsParamsView = "all"
+	CompareFederationSourceSnapshotsParamsViewChanges CompareFederationSourceSnapshotsParamsView = "changes"
+)
+
+// Valid indicates whether the value is a known member of the CompareFederationSourceSnapshotsParamsView enum.
+func (e CompareFederationSourceSnapshotsParamsView) Valid() bool {
+	switch e {
+	case CompareFederationSourceSnapshotsParamsViewAll:
+		return true
+	case CompareFederationSourceSnapshotsParamsViewChanges:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListFederationSourcesParamsStatus.
 const (
 	ListFederationSourcesParamsStatusActive ListFederationSourcesParamsStatus = "active"
@@ -7122,6 +7167,57 @@ type FederationSnapshot struct {
 
 // FederationSnapshotState defines model for FederationSnapshot.State.
 type FederationSnapshotState string
+
+// FederationSnapshotComparisonMember defines model for FederationSnapshotComparisonMember.
+type FederationSnapshotComparisonMember struct {
+	Identifier     string `json:"identifier"`
+	IdentityDigest string `json:"identityDigest"`
+
+	// Kind Retained kind or empty when unavailable.
+	Kind          string                `json:"kind"`
+	ObservationId UUID                  `json:"observationId"`
+	Occurrence    ObservationOccurrence `json:"occurrence"`
+	Version       string                `json:"version"`
+
+	// VersionPresent Missing and present-empty versions remain distinct.
+	VersionPresent bool `json:"versionPresent"`
+}
+
+// FederationSnapshotComparisonPage defines model for FederationSnapshotComparisonPage.
+type FederationSnapshotComparisonPage struct {
+	After          FederationSnapshotComparisonSummary `json:"after"`
+	Before         FederationSnapshotComparisonSummary `json:"before"`
+	Items          []FederationSnapshotEntryChange     `json:"items"`
+	NextCursor     *string                             `json:"nextCursor,omitempty"`
+	SourceId       UUID                                `json:"sourceId"`
+	SourceRevision int64                               `json:"sourceRevision"`
+}
+
+// FederationSnapshotComparisonSummary defines model for FederationSnapshotComparisonSummary.
+type FederationSnapshotComparisonSummary struct {
+	Id                  UUID      `json:"id"`
+	MemberCount         int       `json:"memberCount"`
+	StartedAt           time.Time `json:"startedAt"`
+	WithdrawalAuthority bool      `json:"withdrawalAuthority"`
+}
+
+// FederationSnapshotEntryChange Unique keys have at most one member on either side. Changed compares exact-entry, normalization-input, normalized-entry and identity digests; occurrence timing or retrieval changes alone are not content changes. Multiple rows preserve every occurrence on its own side whenever either selected membership repeats a key. No arbitrary correspondence is asserted for those rows. Exact raw bytes are not included.
+type FederationSnapshotEntryChange struct {
+	After       *FederationSnapshotComparisonMember `json:"after,omitempty"`
+	AfterCount  int                                 `json:"afterCount"`
+	Before      *FederationSnapshotComparisonMember `json:"before,omitempty"`
+	BeforeCount int                                 `json:"beforeCount"`
+	Change      FederationSnapshotEntryChangeChange `json:"change"`
+
+	// Position Stable position in the selected filtered comparison.
+	Position int `json:"position"`
+
+	// SourceKey Retained source-local correspondence key; unidentifiable entries use their exact occurrence-based key.
+	SourceKey string `json:"sourceKey"`
+}
+
+// FederationSnapshotEntryChangeChange defines model for FederationSnapshotEntryChange.Change.
+type FederationSnapshotEntryChangeChange string
 
 // FederationSnapshotPage defines model for FederationSnapshotPage.
 type FederationSnapshotPage struct {
@@ -10420,6 +10516,24 @@ type ReindexCatalogParams struct {
 	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
+
+// CompareFederationSourceSnapshotsParams defines parameters for CompareFederationSourceSnapshots.
+type CompareFederationSourceSnapshotsParams struct {
+	// OtherSnapshotId Exact after snapshot. The path snapshot is the before selection; chronological order is not required.
+	OtherSnapshotId UUID `form:"otherSnapshotId" json:"otherSnapshotId"`
+
+	// View Show changes only, or also include unchanged unique entries. Multiple occurrences always remain visible.
+	View *CompareFederationSourceSnapshotsParamsView `form:"view,omitempty" json:"view,omitempty"`
+
+	// Limit Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// CompareFederationSourceSnapshotsParamsView defines parameters for CompareFederationSourceSnapshots.
+type CompareFederationSourceSnapshotsParamsView string
 
 // InspectFederationSourceParams defines parameters for InspectFederationSource.
 type InspectFederationSourceParams struct {
@@ -18115,6 +18229,13 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/federation/snapshots/{snapshotId} (the `GetFederationSourceSnapshot` operationId).
 	GetFederationSourceSnapshot(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// CompareFederationSourceSnapshots Compare retained source synchronization memberships
+	//
+	// Requires current tenant source.read and, when enforced, sources.read OAuth authority. Compares complete occurrence-bound memberships from the same source configuration revision, including after source removal. No upstream requests, Jobs, writes or raw-document reads occur. Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match. Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes are independent of synchronization counters and current observation freshness. Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text. SQL checks membership counts and evidence before selecting at most limit plus one result rows. A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete, failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned. Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+	//
+	// Corresponds with GET /api/v1/federation/snapshots/{snapshotId}/comparison (the `CompareFederationSourceSnapshots` operationId).
+	CompareFederationSourceSnapshots(ctx context.Context, snapshotId SnapshotId, params *CompareFederationSourceSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// InspectFederationSourceWithBody Inspect a federation source
 	//
 	// Inspects an administrator-supplied source endpoint under the bounded outbound fetch policy and returns retained inspection evidence. Inspection does not connect or approve the source.
@@ -21165,6 +21286,23 @@ func (c *Client) ReindexCatalog(ctx context.Context, params *ReindexCatalogParam
 // Corresponds with GET /api/v1/federation/snapshots/{snapshotId} (the `GetFederationSourceSnapshot` operationId).
 func (c *Client) GetFederationSourceSnapshot(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetFederationSourceSnapshotRequest(c.Server, snapshotId)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// CompareFederationSourceSnapshots Compare retained source synchronization memberships
+//
+// Requires current tenant source.read and, when enforced, sources.read OAuth authority. Compares complete occurrence-bound memberships from the same source configuration revision, including after source removal. No upstream requests, Jobs, writes or raw-document reads occur. Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match. Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes are independent of synchronization counters and current observation freshness. Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text. SQL checks membership counts and evidence before selecting at most limit plus one result rows. A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete, failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned. Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+//
+// Corresponds with GET /api/v1/federation/snapshots/{snapshotId}/comparison (the `CompareFederationSourceSnapshots` operationId).
+func (c *Client) CompareFederationSourceSnapshots(ctx context.Context, snapshotId SnapshotId, params *CompareFederationSourceSnapshotsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCompareFederationSourceSnapshotsRequest(c.Server, snapshotId, params)
 	if err != nil {
 		return nil, safeError(err)
 	}
@@ -27908,6 +28046,99 @@ func NewGetFederationSourceSnapshotRequest(server string, snapshotId SnapshotId)
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewCompareFederationSourceSnapshotsRequest constructs an http.Request for the CompareFederationSourceSnapshots method
+func NewCompareFederationSourceSnapshotsRequest(server string, snapshotId SnapshotId, params *CompareFederationSourceSnapshotsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "snapshotId", snapshotId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/federation/snapshots/%s/comparison", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "otherSnapshotId", params.OtherSnapshotId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+			return nil, safeError(err)
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if params.View != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "view", *params.View, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -37338,6 +37569,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/federation/snapshots/{snapshotId} (the `GetFederationSourceSnapshot` operationId).
 	GetFederationSourceSnapshotWithResponse(ctx context.Context, snapshotId SnapshotId, reqEditors ...RequestEditorFn) (*GetFederationSourceSnapshotResponse, error)
 
+	// CompareFederationSourceSnapshotsWithResponse Compare retained source synchronization memberships
+	//
+	// Requires current tenant source.read and, when enforced, sources.read OAuth authority. Compares complete occurrence-bound memberships from the same source configuration revision, including after source removal. No upstream requests, Jobs, writes or raw-document reads occur. Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match. Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes are independent of synchronization counters and current observation freshness. Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text. SQL checks membership counts and evidence before selecting at most limit plus one result rows. A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete, failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned. Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/federation/snapshots/{snapshotId}/comparison (the `CompareFederationSourceSnapshots` operationId).
+	CompareFederationSourceSnapshotsWithResponse(ctx context.Context, snapshotId SnapshotId, params *CompareFederationSourceSnapshotsParams, reqEditors ...RequestEditorFn) (*CompareFederationSourceSnapshotsResponse, error)
+
 	// InspectFederationSourceWithBodyWithResponse Inspect a federation source
 	//
 	// Inspects an administrator-supplied source endpoint under the bounded outbound fetch policy and returns retained inspection evidence. Inspection does not connect or approve the source.
@@ -42449,6 +42689,70 @@ func (r GetFederationSourceSnapshotResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetFederationSourceSnapshotResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// CompareFederationSourceSnapshotsResponse200Headers the declared response headers of an HTTP 200 response for CompareFederationSourceSnapshots
+type CompareFederationSourceSnapshotsResponse200Headers struct {
+	XRequestID *string
+}
+
+// CompareFederationSourceSnapshotsResponseDefaultHeaders the declared response headers of an HTTP default response for CompareFederationSourceSnapshots
+type CompareFederationSourceSnapshotsResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type CompareFederationSourceSnapshotsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FederationSnapshotComparisonPage
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *CompareFederationSourceSnapshotsResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *CompareFederationSourceSnapshotsResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CompareFederationSourceSnapshotsResponse) GetJSON200() *FederationSnapshotComparisonPage {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r CompareFederationSourceSnapshotsResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CompareFederationSourceSnapshotsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CompareFederationSourceSnapshotsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CompareFederationSourceSnapshotsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CompareFederationSourceSnapshotsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -53626,6 +53930,21 @@ func (c *ClientWithResponses) GetFederationSourceSnapshotWithResponse(ctx contex
 	return ParseGetFederationSourceSnapshotResponse(rsp)
 }
 
+// CompareFederationSourceSnapshotsWithResponse Compare retained source synchronization memberships
+//
+// Requires current tenant source.read and, when enforced, sources.read OAuth authority. Compares complete occurrence-bound memberships from the same source configuration revision, including after source removal. No upstream requests, Jobs, writes or raw-document reads occur. Unique source keys are paired; duplicate keys retain separate multiple rows without an arbitrary match. Absent means missing from the selected membership, not proven upstream deletion. Pairwise changes are independent of synchronization counters and current observation freshness. Each input is limited to 10000 occurrences and both inputs to 32 MiB of projected text. SQL checks membership counts and evidence before selecting at most limit plus one result rows. A 400 refuses different source/revision selections or invalid continuation; 412 refuses incomplete, failed or over-budget membership; 503 refuses inconsistent retained evidence. No partial diff is returned. Cursor binds both immutable snapshot IDs, their common revision, view, page size and current authority.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/federation/snapshots/{snapshotId}/comparison (the `CompareFederationSourceSnapshots` operationId).
+func (c *ClientWithResponses) CompareFederationSourceSnapshotsWithResponse(ctx context.Context, snapshotId SnapshotId, params *CompareFederationSourceSnapshotsParams, reqEditors ...RequestEditorFn) (*CompareFederationSourceSnapshotsResponse, error) {
+	rsp, err := c.CompareFederationSourceSnapshots(ctx, snapshotId, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseCompareFederationSourceSnapshotsResponse(rsp)
+}
+
 // InspectFederationSourceWithBodyWithResponse Inspect a federation source
 //
 // Inspects an administrator-supplied source endpoint under the bounded outbound fetch policy and returns retained inspection evidence. Inspection does not connect or approve the source.
@@ -60870,6 +61189,77 @@ func ParseGetFederationSourceSnapshotResponse(rsp *http.Response) (result *GetFe
 		response.Headers200 = &headers
 	case true:
 		var headers GetFederationSourceSnapshotResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseCompareFederationSourceSnapshotsResponse parses an HTTP response from a CompareFederationSourceSnapshotsWithResponse call
+func ParseCompareFederationSourceSnapshotsResponse(rsp *http.Response) (result *CompareFederationSourceSnapshotsResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &CompareFederationSourceSnapshotsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FederationSnapshotComparisonPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers CompareFederationSourceSnapshotsResponse200Headers
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers CompareFederationSourceSnapshotsResponseDefaultHeaders
 		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {

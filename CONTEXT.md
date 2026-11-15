@@ -243,7 +243,7 @@ After an uncertain transport outcome, retry with the same key and inputs. Cancel
 
 Errors use RFC 9457 problem details, stable codes and `X-Request-ID`: input `400`, identity `401`, permission `403`, hidden/missing resource `404`, lifecycle/replay conflict `409`, revision precondition `412`, domain validation `422`, required work/dependency unavailable `503`. Public errors must conceal internal causes and private existence.
 
-`catalogctl remote` uses an explicit API origin and manual bearer credentials or `--login-file`, never runtime SQL authority. `capabilities`, `search`, `record` and `job` are reads; `reindex` is a Tenant Administrator mutation requiring reason/idempotency key. Responses are bounded JSON. `catalogctl auth login` acquires human credentials through public-client PKCE; explicit login-file selection supports bounded serialized refresh. Online import and all export modes also accept explicit login files through the same provider. Manual bearer inputs remain independent. There is no redirect follow, URL execution or automatic all-page traversal. HTTP requires literal loopback; otherwise use HTTPS. The portable discovery Skill uses only capabilities/search/record.
+`catalogctl remote` uses an explicit API origin and manual bearer credentials or `--login-file`, never runtime SQL authority. `capabilities`, `search`, `record`, `job` and `source-compare` are reads; `source-compare` selects two complete saved source snapshots and returns one bounded membership-comparison page. `reindex` is a Tenant Administrator mutation requiring reason/idempotency key. Responses are bounded JSON. `catalogctl auth login` acquires human credentials through public-client PKCE; explicit login-file selection supports bounded serialized refresh. Online import and all export modes also accept explicit login files through the same provider. Manual bearer inputs remain independent. There is no redirect follow, URL execution or automatic all-page traversal. HTTP requires literal loopback; otherwise use HTTPS. The portable discovery Skill uses only capabilities/search/record.
 
 `catalogctl mcp serve` provides six static read-only Control tools over stdio using the official Go MCP SDK v1.8.0. The tools include local Explore facets and current-access pages, with navigation-only permission hints and no subject, realm or membership identifiers. The [MCP guide](documentation/src/content/docs/guides/mcp-server.mdx) owns setup and tool examples.
 
@@ -302,6 +302,8 @@ Hybrid preserves authorization, filters, exact identity and continuation semanti
 Public fresh queries above 1,000 filtered entries fall back before inference. Enabling hybrid requires the separate semantic schema and matching API/worker configuration; installing pgvector or starting a model alone is insufficient.
 
 ## Federation and provenance
+
+Source Administrators can compare two exact complete synchronization memberships of the same source revision through the Control API and optional UI. Comparison reads immutable occurrences, includes reused observations and separate normalization-input/digest differences, and pages compact results without fetching upstream or raw documents. Repeated source keys retain separate occurrence rows rather than an arbitrary correspondence. Failed, incomplete, differently configured, inconsistent and over-budget inputs are refused. Each side supports 10,000 occurrences; projected text across both sides is bounded at 32 MiB. Absence describes selected membership, not proven upstream deletion. Current summary authority and signed continuation remain required after source removal. See [historical comparison](documentation/src/content/docs/operations/federation.mdx#compare-two-saved-synchronizations).
 
 Origin inspection uses the existing well-known and advertised discovery paths. It does not read `/robots.txt`. Optional `Agentmap:` discovery is not implemented.
 
@@ -427,6 +429,8 @@ Keep secrets/private evidence out of source, sample configuration, Helm values, 
 ## The optional browser UI
 
 The React/TypeScript client and static Go host have their own image and one upstream API, with generated contract types and no SQL access. Screens cover discovery, exact references/downloads, four-kind authoring and local JSON/Markdown loading, histories/review/releases, publication, sources/adoption, access, Jobs, webhooks, audit/export and connected API reference.
+
+Version, Listing and review comparisons highlight changes in explicitly selected, checksum-verified retained documents. Previous/Next controls focus changed regions and announce their position. Whitespace, numeric tokens, BOMs and line endings remain distinguishable. Bounded local line/character comparison refuses incomplete output while preserving the original text view. It adds no API or archive fetch; current content permissions and identity clearing still apply.
 
 Development login uses explicit fixtures. Production OIDC uses code/PKCE, exact redirects/origins, state and nonce. Validate the ID token for the UI client and forward the separate Catalog-audience access token; self-context must succeed before login completes. OIDC failure never falls back to development login.
 

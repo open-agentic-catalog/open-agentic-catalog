@@ -445,6 +445,7 @@ func (s *Server) routes(router *http.ServeMux) {
 	router.HandleFunc("GET /api/v1/federation/sources/{sourceId}/snapshots", s.withQueryParameters(s.withUUIDPathParameters(s.handleSourceSnapshots, "sourceId"), "limit", "cursor"))
 	router.HandleFunc("POST /api/v1/federation/sources/{sourceCommand}", s.withQueryParameters(s.dispatchSourceCommand))
 	router.HandleFunc("GET /api/v1/federation/snapshots/{snapshotId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleSourceSnapshotGet, "snapshotId")))
+	router.HandleFunc("GET /api/v1/federation/snapshots/{snapshotId}/comparison", s.withQueryParameters(s.withUUIDPathParameters(s.handleSourceSnapshotComparison, "snapshotId"), "otherSnapshotId", "view", "limit", "cursor"))
 	router.HandleFunc("GET /api/v1/observations", s.withQueryParameters(s.handleObservations, "sourceId", "freshness", "limit", "cursor"))
 	router.HandleFunc("GET /api/v1/observation-groups", s.withQueryParameters(s.handleObservationGroup, "identifier", "version", "versionPresent"))
 	router.HandleFunc("GET /api/v1/observations/{observationId}/raw", s.withQueryParameters(s.withUUIDPathParameters(s.handleObservationRaw, "observationId")))

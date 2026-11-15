@@ -407,7 +407,7 @@ Isolated units use injected HTTP transports for projections, refusals, cancellat
 
 ## Remote CLI checks
 
-The default-off profile's operator journey also invokes the shipped `catalogctl remote` capabilities, Search, record and Job commands from the API container. It checks paginated reads, release identity, cross-tenant rejection and retained cancelled/failed Jobs without database configuration. Focused Go tests cover TLS/private roots, redirects, cancellation, response limits, malformed JSON/problems and safe output. The client does not require a separate Compose service or Make target.
+The default-off profile's operator journey also invokes the shipped `catalogctl remote` capabilities, Search, record, Job and source-comparison commands from the API container. It compares two successful synchronizations already retained by the Job retry scenario, checks default/all comparison views and exact occurrence attribution, and refuses a reader without summary permission and another tenant. These reads preserve the source head and revision. The journey also checks paginated discovery, release identity and retained cancelled/failed Jobs without database configuration. Focused Go tests cover TLS/private roots, redirects, cancellation, response limits, malformed JSON/problems and safe output. The client does not require a separate Compose service or Make target.
 
 ## PostgreSQL writer recovery
 

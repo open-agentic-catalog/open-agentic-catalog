@@ -10,6 +10,8 @@ Optional ANS registration assessments use explicit source-administrator commands
 
 ## Authoritative contracts
 
+Historical source comparison uses `GET /api/v1/federation/snapshots/{snapshotId}/comparison` with an exact `otherSnapshotId`. Both memberships must be complete and share one source configuration revision. The response pages occurrence-bound compact changes without raw documents, source requests or mutations. Current `source.read` permission and the applicable `sources.read` scope are required. Follow [Compare two saved synchronizations](../documentation/src/content/docs/operations/federation.mdx#compare-two-saved-synchronizations) for result meanings, duplicate keys, input bounds and continuation.
+
 | Asset | Purpose |
 | --- | --- |
 | [Control API OpenAPI](openapi/control-v1.yaml) | [OpenAPI 3.1](https://spec.openapis.org/oas/v3.1.0.html) contract for every implemented API-listener HTTP route, operation, parameter, request body, response, authentication rule, and public endpoint. |

@@ -1684,6 +1684,17 @@
       "currentAuthority": "source_admin; live diagnostic requires reason and selected administrator-owned topology"
     },
     {
+      "operationId": "compareFederationSourceSnapshots",
+      "method": "GET",
+      "path": "/api/v1/federation/snapshots/{snapshotId}/comparison",
+      "permissions": [
+        "source.read"
+      ],
+      "policy": "source",
+      "oauthCeiling": "sources.read",
+      "currentAuthority": "current tenant summary authority for both retained complete same-source/revision snapshots; exact raw evidence retains its separate audited read"
+    },
+    {
       "operationId": "listObservations",
       "method": "GET",
       "path": "/api/v1/observations",
@@ -4794,6 +4805,15 @@
       "policy": "ratings",
       "calls": [],
       "roleConstants": []
+    },
+    {
+      "calls": [],
+      "method": "CompareSnapshots",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/snapshot_comparison.go",
+      "policy": "source"
     }
   ],
   "internalExecution": [

@@ -90,6 +90,243 @@ async function select() {
   click("Compare selected revisions");
   await screen.findByLabelText("Compared revisions");
 }
+
+async function retainedFixture(
+  bytes = new TextEncoder().encode("private document"),
+) {
+  const f = fixture("version");
+  const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
+  const id = Array.from(hash, (b) => b.toString(16).padStart(2, "0")).join("");
+  const artifact = {
+    data: bytes.buffer,
+    response: new Response(null, {
+      headers: {
+        "Content-Type": "text/plain",
+        "Content-Digest": `sha-256=:${btoa(String.fromCharCode(...hash))}:`,
+      },
+    }),
+  };
+  const original = f.get.getMockImplementation()!;
+  f.get.mockImplementation(async (path, options) => {
+    if (path === "/api/v1/artifacts/{artifactId}/content") return artifact;
+    const response = (await original(path, options)) as ReturnType<
+      typeof reply
+    >;
+    if (path !== "/api/v1/version-revisions/{revisionId}") return response;
+    const body = response.data as { revision: typeof versionRevision };
+    return {
+      ...response,
+      data: {
+        ...body,
+        revision: {
+          ...body.revision,
+          representations: [
+            {
+              ...representation,
+              artifactId: id,
+              contentDigest: `sha256:${id}`,
+              size: bytes.byteLength,
+            },
+          ],
+        },
+      },
+    };
+  });
+  return { ...f, artifact };
+}
+
+it("does not read content when only revision metadata is permitted", async () => {
+  const f = await retainedFixture();
+  render(
+    <RevisionComparison
+      {...f.props}
+      access={{
+        ...administrator,
+        permissions: ["resource.read", "resource.read_history"],
+        availablePermissions: ["resource.read", "resource.read_history"],
+      }}
+    />,
+  );
+  expect(
+    screen.getByText(
+      /Comparison needs resource.read_history and resource.read_content/,
+    ),
+  ).toBeTruthy();
+  expect(
+    screen.queryByRole("button", { name: "Choose revisions to compare" }),
+  ).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Inspect selected documents" }),
+  ).toBeNull();
+  expect(
+    f.get.mock.calls.some(([path]) => String(path).includes("/artifacts/")),
+  ).toBe(false);
+});
+
+it.each(["digest", "utf8"])(
+  "refuses %s failures before showing documents or change navigation",
+  async (failure) => {
+    const f = await retainedFixture(
+      failure === "utf8" ? new Uint8Array([255]) : undefined,
+    );
+    if (failure === "digest")
+      f.artifact.response.headers.set("Content-Digest", "sha-256=:wrong:");
+    render(<RevisionComparison {...f.props} />);
+    await select();
+    click("Inspect selected documents");
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain(
+      failure === "digest"
+        ? "Document integrity could not be verified."
+        : "A selected document could not be decoded as UTF-8.",
+    );
+    expect(
+      screen.queryByRole("region", { name: "Document changes" }),
+    ).toBeNull();
+    expect(
+      screen.queryByText("Exact retained documents are identical."),
+    ).toBeNull();
+    expect(screen.queryByText("private document")).toBeNull();
+    expect(
+      f.get.mock.calls.filter(([path]) => String(path).includes("/artifacts/")),
+    ).toHaveLength(1);
+  },
+);
+
+it("aborts and discards a pending artifact after access changes", async () => {
+  const f = await retainedFixture();
+  const view = render(<RevisionComparison {...f.props} />);
+  await select();
+  const pending = deferred<typeof f.artifact>();
+  const original = f.get.getMockImplementation()!;
+  let signal: AbortSignal | undefined;
+  f.get.mockImplementation((path, options) => {
+    if (path !== "/api/v1/artifacts/{artifactId}/content")
+      return original(path, options);
+    signal = (options as { signal: AbortSignal }).signal;
+    return pending.promise;
+  });
+  click("Inspect selected documents");
+  await waitFor(() => expect(signal).toBeInstanceOf(AbortSignal));
+  view.rerender(
+    <RevisionComparison
+      {...f.props}
+      access={{ ...administrator, subject: "replacement", ...testAccess([]) }}
+    />,
+  );
+  expect(signal!.aborted).toBe(true);
+  await act(async () => {
+    pending.resolve(f.artifact);
+  });
+  expect(screen.queryByRole("region", { name: "Document changes" })).toBeNull();
+  expect(screen.queryByText("private document")).toBeNull();
+  expect(f.props.onFailure).not.toHaveBeenCalled();
+});
+
+it("discards both documents when the second verification fails and recovers on explicit reload", async () => {
+  const f = await retainedFixture();
+  const original = f.get.getMockImplementation()!;
+  let artifactCalls = 0;
+  f.get.mockImplementation(async (path, options) => {
+    const response = await original(path, options);
+    if (
+      path !== "/api/v1/artifacts/{artifactId}/content" ||
+      ++artifactCalls !== 2
+    )
+      return response;
+    const headers = new Headers(f.artifact.response.headers);
+    headers.set("Content-Digest", "sha-256=:wrong:");
+    return { ...f.artifact, response: new Response(null, { headers }) };
+  });
+  render(<RevisionComparison {...f.props} />);
+  await select();
+  click("Inspect selected documents");
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "Document integrity could not be verified.",
+  );
+  expect(artifactCalls).toBe(2);
+  expect(screen.queryByText("private document")).toBeNull();
+  expect(screen.queryByRole("region", { name: "Document changes" })).toBeNull();
+  f.get.mockImplementation(original);
+  click("Reload");
+  await screen.findByText("Exact retained documents are identical.");
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getAllByRole("group", { name: "Text document" })).toHaveLength(
+    2,
+  );
+});
+
+it("retains transport and authorization error handling without exposing raw dependency text", async () => {
+  const f = await retainedFixture();
+  const original = f.get.getMockImplementation()!;
+  render(<RevisionComparison {...f.props} />);
+  await select();
+  f.get.mockRejectedValueOnce(new Error("private transport detail"));
+  click("Inspect selected documents");
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "This page could not be loaded.",
+  );
+  expect(screen.queryByText(/private transport detail/)).toBeNull();
+  expect(f.props.onFailure).toHaveBeenCalledWith(
+    expect.objectContaining({ message: "private transport detail" }),
+  );
+  f.get.mockResolvedValueOnce({
+    error: { code: "FORBIDDEN" },
+    response: new Response(null, { status: 403 }),
+  });
+  click("Reload");
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "Your current access does not permit this action.",
+  );
+  expect(f.props.onFailure).toHaveBeenCalledWith(
+    expect.objectContaining({ status: 403 }),
+  );
+  f.get.mockImplementation(original);
+  click("Reload");
+  await screen.findByText("Exact retained documents are identical.");
+});
+
+it.each(["Before", "After"])(
+  "clears inspected documents when the %s representation selection changes, without an implicit read",
+  async (side) => {
+    const f = await retainedFixture();
+    const original = f.get.getMockImplementation()!;
+    f.get.mockImplementation(async (path, options) => {
+      const response = (await original(path, options)) as ReturnType<
+        typeof reply
+      >;
+      if (path !== "/api/v1/version-revisions/{revisionId}") return response;
+      const body = response.data as { revision: typeof versionRevision };
+      return {
+        ...response,
+        data: {
+          ...body,
+          revision: {
+            ...body.revision,
+            representations: [
+              ...body.revision.representations,
+              { ...representation, id: "other-document" },
+            ],
+          },
+        },
+      };
+    });
+    render(<RevisionComparison {...f.props} />);
+    await select();
+    click("Inspect selected documents");
+    await screen.findByText("Exact retained documents are identical.");
+    const reads = f.get.mock.calls.length;
+    choose(`${side} representation`, "1");
+    expect(
+      screen.queryByRole("region", { name: "Document changes" }),
+    ).toBeNull();
+    expect(
+      screen.queryByText("Exact retained documents are identical."),
+    ).toBeNull();
+    expect(screen.queryByText("private document")).toBeNull();
+    expect(f.get.mock.calls).toHaveLength(reads);
+  },
+);
 it("compares semantic fields with additions, removals and ordered arrays", () => {
   expect(
     metadataChanges(
@@ -335,7 +572,9 @@ it.each([false, true])(
     ).toHaveLength(0);
     click("Inspect selected documents");
     if (oversized) {
-      await screen.findByRole("alert");
+      expect((await screen.findByRole("alert")).textContent).toContain(
+        "This document exceeds the 2 MiB comparison text limit.",
+      );
       expect(
         screen.queryByText("Exact retained documents are identical."),
       ).toBeNull();
@@ -369,11 +608,28 @@ it.each([
     before: '{"n":1.0,"literal":"<script>read only</script>"}',
     after: '{"n":1e0,"literal":"<script>read only</script>"}',
   },
+  {
+    difference: "leading BOM",
+    before: '\uFEFF{"n":1.0,"literal":"<script>read only</script>"}',
+    after: '{"n":1.0,"literal":"<script>read only</script>"}',
+  },
+  {
+    difference: "CRLF line endings",
+    before: '{\r\n"n":1.0\r\n}',
+    after: '{\n"n":1.0\n}',
+  },
+  {
+    difference: "detailed-work refusal",
+    before: '{"n":1.0,"padding":"' + "x".repeat(65536) + '"}',
+    after: '{"n":1e0,"padding":"' + "x".repeat(65536) + '"}',
+  },
 ])(
   "preserves different exact documents despite equal decoded JSON: $difference",
   async ({ before, after }) => {
     const f = fixture("version");
-    expect(JSON.parse(before)).toEqual(JSON.parse(after));
+    expect(JSON.parse(before.replace(/^\uFEFF/, ""))).toEqual(
+      JSON.parse(after),
+    );
     const stored = await Promise.all(
       [before, after].map(async (text) => {
         const bytes = new TextEncoder().encode(text);
@@ -463,11 +719,14 @@ it.each([
       name: "After document",
     }).parentElement!;
     expect(
-      within(beforePanel).getByLabelText("JSON document").textContent,
+      within(beforePanel).getByRole("group", {
+        name: before.startsWith("\uFEFF") ? "Text document" : "JSON document",
+      }).textContent,
     ).toBe(before);
-    expect(within(afterPanel).getByLabelText("JSON document").textContent).toBe(
-      after,
-    );
+    expect(
+      within(afterPanel).getByRole("group", { name: "JSON document" })
+        .textContent,
+    ).toBe(after);
     expect(contentReads().map(readArguments)).toEqual(
       stored.map((content) => [
         "/api/v1/artifacts/{artifactId}/content",
@@ -478,6 +737,21 @@ it.each([
       ]),
     );
     expect(document.querySelector("script")).toBeNull();
+    if (before.startsWith("\uFEFF")) {
+      expect(
+        screen.getByRole("region", { name: "Change 1: Removed text" })
+          .textContent,
+      ).toContain("[BOM]");
+      expect(
+        screen.queryByText("Exact retained documents are identical."),
+      ).toBeNull();
+    }
+    if (before.length > 65536) {
+      expect(
+        screen.getByText(/Detailed change navigation is unavailable/),
+      ).toBeTruthy();
+      expect(screen.queryByRole("button", { name: "Next change" })).toBeNull();
+    }
     expect(mutate).not.toHaveBeenCalled();
   },
 );

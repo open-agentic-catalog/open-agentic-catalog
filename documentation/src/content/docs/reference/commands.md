@@ -208,6 +208,7 @@ The optional [assistant discovery Skill](../guides/assistant-discovery.md) uses 
 | `catalogctl remote search --text <text>` | One page of local, indexed and eligible live results. |
 | `catalogctl remote record --id <release-uuid>` | Published record including its resource, version, listing, release and evidence. Use `local.release.id` from Search, not its Resource UUID or prefixed Search ID. |
 | `catalogctl remote job --id <job-uuid>` | One retained Job status. No polling, retry or cancellation. |
+| `catalogctl remote source-compare --before-snapshot-id <uuid> --after-snapshot-id <uuid>` | One page of saved source membership changes. Requires current `source.read` permission. |
 | `catalogctl remote reindex --reason <text> --idempotency-key <key>` | Enqueue a tenant-authorized search-index rebuild and return the Job. Add `--snapshot-id <uuid>` for one active public snapshot. Requires enabled semantic search; metadata is unchanged. |
 | `catalogctl remote trust-request --source-id <uuid> --request-file <json> --idempotency-key <key>` | Request an assessment of one exact current source entry. Requires enabled verification and source administration/evidence permissions. |
 | `catalogctl remote trust-result --source-id <uuid> --id <job-uuid>` | Read a completed private assessment, exact evidence and current applicability. Requires Job and source-evidence permission. |
@@ -327,6 +328,20 @@ The identifier and digest above are examples. Replace them with the exact select
 ```
 
 These commands use the existing remote URL, token, CA and timeout inputs. They do not load server configuration or access PostgreSQL. A 202 response means queued work, not successful verification. Result output uses the normal `data`/`meta` envelope. No command polls or retries automatically. See [assessment operations](../operations/federation.mdx#request-an-ans-registration-assessment).
+
+### Compare saved source synchronizations
+
+Select two complete snapshot UUIDs from the same source revision. The command reads saved occurrence membership without contacting the source or changing search results:
+
+```sh
+./bin/catalogctl remote source-compare \
+  --before-snapshot-id "$BEFORE_SNAPSHOT_ID" \
+  --after-snapshot-id "$AFTER_SNAPSHOT_ID" --view changes --limit 25
+```
+
+The default view is `changes`; use `--view all` to include unchanged entries. Each invocation reads one page. Continue explicitly with the returned `data.nextCursor` through `--cursor`, keeping the same pair, view, limit and identity. Cursors are opaque and limited to 2,048 bytes. A refused continuation is an error; the command does not retry or silently restart it.
+
+The response retains one-sided and multiple occurrences, missing versus explicitly empty versions, and snapshot withdrawal-authority flags. Absence does not establish upstream deletion. The comparison does not fetch raw entries; those retain separate evidence permissions. See [saved synchronization comparison](../operations/federation.mdx#compare-two-saved-synchronizations) for eligibility, permissions and interpretation.
 
 ## Use the Catalog from an MCP host
 

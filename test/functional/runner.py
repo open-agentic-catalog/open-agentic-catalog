@@ -43,7 +43,7 @@ STEPS = {
     "recreation-replay": ["smoke-command", "process-topology"],
     "restore-repair": ["migration-and-restore"],
     "role-restart": ["process-topology", "public-discovery"],
-    "operator-workflows": ["idempotency-repair", "source-administration", "operator-diagnostics", "remote-cli"],
+    "operator-workflows": ["idempotency-repair", "source-administration", "operator-diagnostics", "remote-cli", "source-comparison-cli"],
     "extended-core": ["current-access", "authoring-history-reads", "administration-gaps", "private-feedback", "governance-smoke", "governance-transitions", "catalog-search-smoke", "catalog-read-gaps", "publication-smoke", "publication-history", "public-discovery", "source-administration"],
     "credential-transport": ["source-sync-smoke"],
     "oidc-private-trust": ["process-topology"],
@@ -87,7 +87,7 @@ BACKUP_STEPS = {
 }
 PEER_STEPS = {
     "startup-contract": STEPS["startup-contract"],
-    "federation-peers": ["source-sync-smoke", "catalog-search-smoke", "public-discovery", "publication-smoke"],
+    "federation-peers": ["source-sync-smoke", "catalog-search-smoke", "public-discovery", "publication-smoke", "source-comparison-cli"],
 }
 OIDC_CASES = ["provider-startup", "dedicated-mapping", "discovery-isolation", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling"]
 OIDC_PHASES = ["setup", "provision", "provision-replay", "dedicated-startup", "capabilities", "membership", "token-rejection", "discovery", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "identity-report"]

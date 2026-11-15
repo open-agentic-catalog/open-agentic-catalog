@@ -169,6 +169,14 @@ A group previews at most 100 source contributions and explicitly marks truncatio
 
 Adoption requires tenant-level `source.read_evidence` and `resource.create` for the target namespace. The actor selects one exact complete occurrence from a current supported observation without a same-source conflict. The command creates a local draft with immutable provenance; visibility defaults to private. Normal validation, review, and publication still apply.
 
+### Compare historical memberships
+
+Historical comparison selects two complete, enumeration-complete snapshots of one tenant, source and source revision. Current `source.read` authority admits each page, including retained history after configuration removal. The read uses occurrences bound to each snapshot rather than an observation's creation snapshot, current freshness or last-seen projection. No network request, Job, raw-document read or mutation is performed.
+
+The PostgreSQL implementation uses one repeatable-read tenant transaction. Each input selects at most `MaxSynchronizationEntries + 1` occurrences through the existing tenant/snapshot primary key, then uses exact tenant/source/observation lookups for compact fields. Membership-count agreement, occurrence provenance and a combined 32 MiB projected-text budget are checked before the output query. Each snapshot supports 10,000 occurrences. The output SQL pairs only unique source keys and selects at most the page limit plus one before building result JSON. Repeated keys produce separate occurrence rows, avoiding a quadratic join and preserving conflicting evidence without choosing a winner.
+
+Ordering uses the retained source key, side, retrieval digest and entry location with C collation. A signed administration cursor binds both immutable IDs, common source revision, selected view, page size and current authority. The read adds no stored comparison projection, cache, migration or database privilege. Invalid, missing or over-budget membership fails without a partial diff. Pairwise changes do not reproduce synchronization transition counters; absence never becomes an upstream-deletion conclusion.
+
 ### Reconcile complete source snapshots
 
 A complete withdrawal-authoritative snapshot marks absent observations `withdrawn` in the same transaction. An exact reappearance returns the original observation to `current` and adds a complete occurrence. It does not enrich or rewrite original evidence. Current retained formats require complete provenance and reject incomplete pre-release evidence. Incomplete, cancelled, failed, or stale-revision work cannot change prior complete membership. A complete non-authoritative Registry List replaces its current projection and marks unseen prior List evidence `stale`.

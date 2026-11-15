@@ -239,6 +239,7 @@ for (const path of ["root", "subpath"]) {
           json: {
             id: otherId,
             sourceId,
+            sourceRevision: 1,
             state: "complete",
             startedAt: "2026-09-01T00:00:00Z",
             completedAt: "2026-09-01T00:00:01Z",

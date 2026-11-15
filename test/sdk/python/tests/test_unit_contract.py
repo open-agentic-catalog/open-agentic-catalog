@@ -31,6 +31,24 @@ def snake(name):
 
 
 class ContractUnits(unittest.TestCase):
+    def test_observation_occurrence_accepts_only_the_boolean_true_enum(self):
+        uid = "00000000-0000-7000-8000-000000000001"
+        value = {"observationId": uid, "sourceId": uid, "snapshotId": uid,
+                 "sourceRevision": 1, "retrievalDigest": "sha256:" + "a" * 64,
+                 "entryLocation": "/entries/0", "exactEntryDigest": "sha256:" + "b" * 64,
+                 "evidenceComplete": True, "observedAt": "2026-01-01T00:00:00Z"}
+        validator = jsonschema.Draft202012Validator({"$ref": "#/components/schemas/ObservationOccurrence", "components": CONTRACT["components"]})
+        validator.validate(value)
+        for codec in (models.ObservationOccurrence.from_dict, models.ObservationOccurrence.model_validate):
+            self.assertIs(codec(value).evidence_complete, True)
+            for invalid in (False, "true", "false", 1, 0, None):
+                rejected = dict(value, evidenceComplete=invalid)
+                with self.subTest(codec=codec.__name__, invalid=invalid):
+                    with self.assertRaises(jsonschema.ValidationError):
+                        validator.validate(rejected)
+                    with self.assertRaises(ValueError):
+                        codec(rejected)
+
     def test_private_resource_identity_preserves_opaque_and_unicode_values(self):
         """Private response codecs share request bounds without imposing AIR."""
         uid = "00000000-0000-7000-8000-000000000001"

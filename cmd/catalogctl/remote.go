@@ -9,8 +9,10 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -24,7 +26,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/safeerr"
 )
 
-const remoteUsage = `usage: catalogctl remote <capabilities|search|record|job|reindex|trust-request|trust-result> [flags]
+const remoteUsage = `usage: catalogctl remote <capabilities|search|record|job|source-compare|reindex|trust-request|trust-result> [flags]
   --base-url URL     API origin (or CATALOG_REMOTE_BASE_URL)
   --token-file PATH  bearer token file (or CATALOG_REMOTE_TOKEN_FILE)
                     otherwise use CATALOG_REMOTE_TOKEN; no token argument
@@ -34,6 +36,9 @@ const remoteUsage = `usage: catalogctl remote <capabilities|search|record|job|re
   --timeout DURATION whole request deadline, default 30s, maximum 2m
   record/job: --id UUID (record requires the ListingRelease ID)
   record: --max-response-bytes BYTES (default 8388608, maximum 67108864)
+  source-compare: --before-snapshot-id UUID --after-snapshot-id UUID
+                  --view changes|all (default changes) --limit 1-100 (default 25)
+                  --cursor VALUE; reads one page of saved source membership
   search: --text TEXT --kind KIND (repeatable) --tag TAG (repeatable)
           --license VALUE --category VALUE (repeatable)
           --origin local|indexed|live (repeatable) --namespace UUID (local only)
@@ -120,7 +125,7 @@ func parseRemote(arguments []string, getenv func(string) string) (remoteOptions,
 		return options, flag.ErrHelp
 	}
 	action := arguments[0]
-	if action != "capabilities" && action != "search" && action != "record" && action != "job" && action != "reindex" && action != "trust-request" && action != "trust-result" {
+	if action != "capabilities" && action != "search" && action != "record" && action != "job" && action != "source-compare" && action != "reindex" && action != "trust-request" && action != "trust-result" {
 		return options, safeerr.New("remote: unknown command; use catalogctl remote --help")
 	}
 	flags := flag.NewFlagSet("catalogctl remote", flag.ContinueOnError)
@@ -140,6 +145,15 @@ func parseRemote(arguments []string, getenv func(string) string) (remoteOptions,
 		flags.Int64Var(&options.maxResponseBytes, "max-response-bytes", remoteMaxBody, "exact record response byte limit")
 	}
 	var identifier, sourceID, requestFile string
+	var beforeSnapshot, afterSnapshot, comparisonView, comparisonCursor string
+	var comparisonLimit int
+	if action == "source-compare" {
+		flags.StringVar(&beforeSnapshot, "before-snapshot-id", "", "before source snapshot UUID")
+		flags.StringVar(&afterSnapshot, "after-snapshot-id", "", "after source snapshot UUID")
+		flags.StringVar(&comparisonView, "view", "changes", "changes or all entries")
+		flags.IntVar(&comparisonLimit, "limit", 25, "page limit")
+		flags.StringVar(&comparisonCursor, "cursor", "", "opaque continuation")
+	}
 	if action == "trust-request" || action == "trust-result" {
 		flags.StringVar(&sourceID, "source-id", "", "source UUID")
 		if action == "trust-request" {
@@ -213,6 +227,18 @@ func parseRemote(arguments []string, getenv func(string) string) (remoteOptions,
 		return options, safeerr.New("remote: --max-response-bytes must be 1..67108864")
 	}
 	switch action {
+	case "source-compare":
+		if !identity.ValidTenantID(beforeSnapshot) || !identity.ValidTenantID(afterSnapshot) {
+			return options, safeerr.New("remote: source-compare requires before and after source snapshot UUIDs")
+		}
+		if comparisonView != "changes" && comparisonView != "all" || comparisonLimit < 1 || comparisonLimit > 100 || len(comparisonCursor) > 2048 || !utf8.ValidString(comparisonCursor) {
+			return options, safeerr.New("remote: source-compare requires view changes or all, limit 1-100 and a cursor of at most 2048 bytes")
+		}
+		query := url.Values{"otherSnapshotId": {afterSnapshot}, "view": {comparisonView}, "limit": {strconv.Itoa(comparisonLimit)}}
+		if comparisonCursor != "" {
+			query.Set("cursor", comparisonCursor)
+		}
+		options.path = "/api/v1/federation/snapshots/" + beforeSnapshot + "/comparison?" + query.Encode()
 	case "trust-request", "trust-result":
 		if !identity.ValidTenantID(sourceID) {
 			return options, safeerr.New("remote: --source-id must be a UUID")

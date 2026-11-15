@@ -359,3 +359,24 @@ These containers preserve every supplied key, including common fields and nested
 Root `VERSION` supplies the package version; release candidates use PEP 440 (`0.2.0-rc.1` becomes `0.2.0rc1`). Version bumps update package metadata and the maintainer lock. Regenerate and check before distribution. Generated calls send this package version in the default User-Agent. Local package naming does not establish PyPI ownership.
 
 See [Python SDK verification](../../documentation/src/content/docs/contributing/testing.md#python-sdk-verification) for generation, locks, test selections, package builds and generator limitations. The SDK depends on [HTTPX2](https://github.com/pydantic/httpx2), Pydantic, python-dateutil and typing-extensions; its reviewed runtime closure has no certifi or MPL dependency. Generator and test tools stay outside consumer requirements. Return to the [SDK overview](../README.md) to compare languages.
+
+## Compare saved source snapshots
+
+Use a configured `client` and two complete snapshot UUIDs from the same source revision:
+
+```python
+from catalog_sdk.generated.api.federation_api import FederationApi
+
+api = FederationApi(client)
+response = api.compare_federation_source_snapshots_sync_with_http_info(
+    snapshot_id=before_id, other_snapshot_id=after_id,
+    view="changes", limit=25,
+)
+if response.status_code != 200:
+    raise RuntimeError(f"Comparison returned HTTP {response.status_code}")
+page = response.data
+# Read page.items. To continue explicitly, pass cursor=page.next_cursor
+# with the same snapshot pair, view and limit.
+```
+
+Async code uses `await api.compare_federation_source_snapshots_with_http_info(...)`. Set `view="all"` to include unchanged entries. The SDK reads one page and does not restart a refused continuation. See the [comparison semantics and permissions](../../documentation/src/content/docs/operations/federation.mdx#compare-two-saved-synchronizations) before interpreting absence or multiple occurrences.

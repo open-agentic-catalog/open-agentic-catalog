@@ -150,7 +150,7 @@ class PeerTests(unittest.TestCase):
                     "newResources": 4, "newVersions": 4, "contentOnly": 2, "independentlyPublished": 1,
                     "resourceInvocations": 0, "cleanup": "passed"},
                 "peerPagination": {"core": True, "hybrid": True, "liveOnly": True, "cli": True,
-                    "browser": [{"mode": mode, "livePages": 2, "combinedPages": 2, "sameTokenRetry": True, "cleanup": "passed"} for mode in ("core", "hybrid")]},
+                    "browser": [{"mode": mode, "livePages": 2, "combinedPages": 2, "sameTokenRetry": True, "sourceComparison": True, "cleanup": "passed"} for mode in ("core", "hybrid")]},
                 "operationCoverage": {"formatVersion": 1, "denominator": ["searchCatalog"],
                     "rows": [{"step": "federation-peers", "operationId": "searchCatalog", "status": 200, "contract": "passed", "outcome": "positive", "count": 1}],
                     "unobservedCollectors": ["smoke", "remote-cli", "shell-probes", "publication-report-sdk"]}}
@@ -197,6 +197,10 @@ class PeerTests(unittest.TestCase):
         value = copy.deepcopy(positive)
         value["browser"][1]["sameTokenRetry"] = 1
         self.assertFalse(peer_pagination.valid_evidence(value))
+        for invalid in (False, 1, None):
+            value = copy.deepcopy(positive)
+            value["browser"][0]["sourceComparison"] = invalid
+            self.assertFalse(peer_pagination.valid_evidence(value))
 
     def test_client_walk_rejects_lost_repeated_and_oversized_results(self):
         for rows, token in ((["a", "b"], ""), (["a"], "lc1.same"), (["wrong"], ""), ([], "")):

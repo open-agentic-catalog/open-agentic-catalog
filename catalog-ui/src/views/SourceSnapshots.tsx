@@ -7,16 +7,23 @@ import { result } from "../api/client";
 import { permits } from "../api/permissions";
 import type { WorkspaceProps } from "./workspace";
 import { EvidenceDetails } from "./authoring";
-import { Heading, Pager } from "./workspace";
+import { Field, Heading, Pager } from "./workspace";
 import { CurrentRead, useCurrentRead } from "./current-read";
 import { CopyReference } from "./CopyReference";
 import { ExactReference } from "./ExactReference";
 import { DateValue } from "./date-value";
+import { SourceSnapshotComparison } from "./SourceSnapshotComparison";
 
 /** Mounted by the authorized source detail screen. Summaries do not load
  * their retained retrieval evidence; the detail route below owns that read. */
 export function SourceSnapshots(props: WorkspaceProps) {
   const [cursor, setCursor] = useState("");
+  const [before, setBefore] = useState<{
+    id: string;
+    sourceId: string;
+    revision: number;
+  }>();
+  const [after, setAfter] = useState<typeof before>();
   const page = useCurrentRead(
     props.id + cursor,
     async (signal) =>
@@ -42,6 +49,27 @@ export function SourceSnapshots(props: WorkspaceProps) {
         Incomplete or failed snapshots cannot withdraw the last complete source
         view.
       </p>
+      <p>
+        Select two complete snapshots of one source revision to compare saved
+        entries. Selections remain available while paging this history.
+      </p>
+      {before?.sourceId === props.id && (
+        <CopyReference label="Selected before snapshot" value={before.id} />
+      )}
+      {after?.sourceId === props.id && (
+        <CopyReference label="Selected after snapshot" value={after.id} />
+      )}
+      {before?.sourceId === props.id &&
+        after?.sourceId === props.id &&
+        (before.revision === after.revision ? (
+          <a
+            href={`${props.runtime.basePath}/source-snapshots/${before.id}?${new URLSearchParams({ compare: after.id })}#snapshot-comparison`}
+          >
+            Compare selected snapshots
+          </a>
+        ) : (
+          <p role="status">Choose snapshots from the same source revision.</p>
+        ))}
       <ExactReference
         basePath={props.runtime.basePath}
         path="source-snapshots"
@@ -63,6 +91,7 @@ export function SourceSnapshots(props: WorkspaceProps) {
           <Facts
             rows={[
               ["Snapshot state", <SourceSnapshotState state={item.state} />],
+              ["Source revision", item.sourceRevision],
               ["Entries", item.memberCount],
               [
                 "All entries enumerated",
@@ -72,6 +101,42 @@ export function SourceSnapshots(props: WorkspaceProps) {
             ]}
           />
           <CopyReference label="Snapshot ID" value={item.id} />
+          {item.state === "complete" && item.enumerationComplete && (
+            <div className="workspace-toolbar">
+              <Field label="Before">
+                <input
+                  type="radio"
+                  aria-label={`Before ${item.id}`}
+                  name="comparison-before"
+                  checked={
+                    before?.sourceId === props.id && before.id === item.id
+                  }
+                  onChange={() =>
+                    setBefore({
+                      id: item.id,
+                      sourceId: props.id,
+                      revision: item.sourceRevision,
+                    })
+                  }
+                />
+              </Field>
+              <Field label="After">
+                <input
+                  type="radio"
+                  aria-label={`After ${item.id}`}
+                  name="comparison-after"
+                  checked={after?.sourceId === props.id && after.id === item.id}
+                  onChange={() =>
+                    setAfter({
+                      id: item.id,
+                      sourceId: props.id,
+                      revision: item.sourceRevision,
+                    })
+                  }
+                />
+              </Field>
+            </div>
+          )}
         </article>
       ))}
       {page.data && !page.data.items.length && <p>No snapshots.</p>}
@@ -107,16 +172,21 @@ export function SourceSnapshot(props: WorkspaceProps) {
 }
 /** Fetch one retained synchronization snapshot after explicit detail navigation. */
 function SnapshotRead(props: WorkspaceProps) {
+  const snapshotId = props.id.toLowerCase();
   const read = useCurrentRead(
-    props.id,
-    async (signal) =>
-      result(
+    snapshotId,
+    async (signal) => {
+      const snapshot = result(
         await props.client.api.GET(
           "/api/v1/federation/snapshots/{snapshotId}",
-          { params: { path: { snapshotId: props.id } }, signal },
+          { params: { path: { snapshotId } }, signal },
         ),
         checks.FederationSnapshot,
-      ),
+      );
+      if (snapshot.id !== snapshotId)
+        throw new Error("Snapshot selection does not match.");
+      return snapshot;
+    },
     props.onFailure,
   );
   return (
@@ -156,6 +226,7 @@ function SnapshotRead(props: WorkspaceProps) {
                   ),
                 ],
                 ["Entry count", read.data.memberCount],
+                ["Source revision", read.data.sourceRevision],
                 ["Added", read.data.added],
                 ["Updated", read.data.updated],
                 ["Marked withdrawn", read.data.withdrawn],
@@ -193,6 +264,11 @@ function SnapshotRead(props: WorkspaceProps) {
             </a>
           </section>
           <EvidenceDetails title="Snapshot and retrievals" value={read.data} />
+          <SourceSnapshotComparison
+            key={read.data.id}
+            {...props}
+            snapshot={read.data}
+          />
         </>
       )}
     </>

@@ -97,6 +97,36 @@ class Operators:
             else:
                 raise Failure("remote-cross-tenant-read-accepted")
 
+    def source_comparison(self, source_id, before_id):
+        current, _ = self.api.request("GET", "/api/v1/federation/sources/" + source_id)
+        after_id = current["lastCompleteSnapshotId"]
+        assert before_id != after_id, "operator comparison did not retain two synchronizations"
+        path = f"/api/v1/federation/snapshots/{before_id}/comparison?otherSnapshotId={after_id}&limit=100"
+        flags = ("--before-snapshot-id", before_id, "--after-snapshot-id", after_id, "--limit", "100")
+        all_entries, _ = self.api.request("GET", path + "&view=all")
+        actual = self.remote("source-compare", *flags, "--view", "all", token="local-admin")
+        assert actual == all_entries and not actual.get("nextCursor"), "shipped comparison differs from saved API membership"
+        assert actual["sourceId"] == source_id and actual["before"]["id"] == before_id and actual["after"]["id"] == after_id, "comparison changed its selected snapshots"
+        assert actual["items"] and all(row["change"] in ("unchanged", "multiple") for row in actual["items"]), "unchanged upstream acquired historical content changes"
+        for row in actual["items"]:
+            for side, snapshot_id in (("before", before_id), ("after", after_id)):
+                if side in row:
+                    assert row[side]["occurrence"]["snapshotId"] == snapshot_id, "comparison lost exact occurrence attribution"
+        changes, _ = self.api.request("GET", path + "&view=changes")
+        assert self.remote("source-compare", *flags, token="local-admin") == changes, "CLI default view did not select changes"
+        assert all(row["change"] == "multiple" for row in changes["items"]), "changes view invented a content change"
+        for token, status in (("local-reader", 403), ("other-tenant-admin", 404)):
+            Client(self.api.base_url, token).request("GET", path, expected=(status,))
+            try:
+                self.remote("source-compare", *flags, token=token)
+            except Failure as error:
+                if str(error) != "child-failed":
+                    raise
+            else:
+                raise Failure("remote-source-comparison-disclosure-accepted")
+        retained, _ = self.api.request("GET", "/api/v1/federation/sources/" + source_id)
+        assert retained["lastCompleteSnapshotId"] == after_id and retained["revision"] == current["revision"], "comparison changed source authority"
+
     def wait(self, callback, seconds=30):
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
@@ -123,6 +153,8 @@ class Operators:
             "reason": "Owned operator and adoption qualification"}, 201)
         accepted, _ = mutate(self.api, "POST", "/api/v1/federation/sources/" + source["id"] + ":sync", {}, 202, header(headers, "ETag"))
         wait_job(self.api, accepted["job"]["id"], {"succeeded"})
+        first_source, _ = self.api.request("GET", "/api/v1/federation/sources/" + source["id"])
+        first_snapshot_id = first_source["lastCompleteSnapshotId"]
         self.compose("stop", "--timeout", "20", "worker")
         try:
             _, headers = self.api.request("GET", "/api/v1/federation/sources/" + source["id"])
@@ -162,6 +194,7 @@ class Operators:
         retained, _ = self.api.request("GET", "/api/v1/jobs/" + failed["id"])
         assert retained == failed, "successful retry rewrote its terminal parent"
         audit_once(self.api, "job.retried", "job", failed["id"])
+        self.source_comparison(source["id"], first_snapshot_id)
 
     def orphan(self):
         body = {"slug": "repair-" + self.suffix, "displayName": "Owned orphan retry"}

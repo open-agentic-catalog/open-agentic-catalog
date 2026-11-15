@@ -7,6 +7,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { request } from "node:https";
 import { networkObserver } from "./network-observer.mjs";
+import AxeBuilder from "@axe-core/playwright";
 
 const [directory, apiOrigin, fixtureOrigin, caFile] = process.argv.slice(2);
 if (
@@ -55,6 +56,203 @@ async function fault(enabled) {
     call.end(body);
   });
 }
+/** Exercise the real saved-membership API through the host while its peer is unavailable. */
+async function qualifySavedMembership(page) {
+  const saved = scenario.comparison;
+  if (!saved || !Array.isArray(saved.identifiers) || !saved.identifiers.length)
+    throw new Error("Owned retained comparison prerequisite missing");
+  const writes = [];
+  const observe = (call) => {
+    if (
+      new URL(call.url()).pathname.includes("/_catalog/api/") &&
+      call.method() !== "GET"
+    )
+      writes.push(call.method());
+    if (call.url().includes("/raw")) writes.push("raw evidence read");
+  };
+  page.on("request", observe);
+  try {
+    await fault(true);
+    const comparisonReply = (view) =>
+      page.waitForResponse((reply) => {
+        const url = new URL(reply.url());
+        return (
+          url.pathname.endsWith(`/snapshots/${saved.snapshotId}/comparison`) &&
+          url.searchParams.get("view") === view
+        );
+      });
+    const first = comparisonReply("changes");
+    await page.goto(
+      `${origin}/source-snapshots/${saved.snapshotId}?compare=${saved.snapshotId}`,
+    );
+    const reply = await first;
+    expect(reply.status()).toBe(200);
+    expect((await reply.json()).items).toEqual([]);
+    await expect(
+      page.getByText("No entry differences between these snapshots.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    const all = comparisonReply("all");
+    await page.getByLabel("Include unchanged entries", { exact: true }).check();
+    let response = await all;
+    const identifiers = [];
+    for (let budget = 0; budget < 10; budget++) {
+      expect(response.status()).toBe(200);
+      const current = await response.json();
+      expect(current.sourceId).toBe(saved.sourceId);
+      expect(current.sourceRevision).toBe(saved.sourceRevision);
+      expect(current.before.id).toBe(saved.snapshotId);
+      expect(current.after.id).toBe(saved.snapshotId);
+      for (const entry of current.items) {
+        expect(entry.change).toBe("unchanged");
+        expect(entry.before.observationId).toBe(entry.after.observationId);
+        expect(entry.before.occurrence.snapshotId).toBe(saved.snapshotId);
+        expect(entry.after.occurrence.snapshotId).toBe(saved.snapshotId);
+        identifiers.push(entry.after.identifier);
+        await expect(
+          page.getByRole("heading", {
+            name: `Unchanged: ${entry.after.identifier}`,
+            exact: true,
+          }),
+        ).toBeVisible();
+      }
+      if (!current.nextCursor) break;
+      const next = comparisonReply("all");
+      await page
+        .getByRole("group", { name: "Source comparison pages" })
+        .getByRole("button", { name: "Next page", exact: true })
+        .click();
+      response = await next;
+    }
+    expect(identifiers.sort()).toEqual(saved.identifiers);
+    // This pair comes from the earlier real B/C correction, independently
+    // checked against exact retained bytes before later imports and policies.
+    const changed = saved.changed;
+    expect(changed.beforeId).not.toBe(changed.afterId);
+    expect(changed.beforeDigest).not.toBe(changed.afterDigest);
+    await page.goto(`${origin}/sources/${saved.sourceId}`);
+    await page
+      .getByRole("button", { name: "Sync history", exact: true })
+      .click();
+    const history = page.locator("section.workspace-panel").filter({
+      has: page.getByRole("heading", {
+        name: "Synchronization snapshots",
+        exact: true,
+      }),
+    });
+    await history
+      .getByRole("radio", { name: `Before ${changed.beforeId}`, exact: true })
+      .check();
+    await history
+      .getByRole("radio", { name: `After ${changed.afterId}`, exact: true })
+      .check();
+    const selected = history.getByRole("link", {
+      name: "Compare selected snapshots",
+      exact: true,
+    });
+    await expect(selected).toHaveAttribute(
+      "href",
+      `/source-snapshots/${changed.beforeId}?compare=${changed.afterId}#snapshot-comparison`,
+    );
+    const changedReply = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname.endsWith(`/snapshots/${changed.beforeId}/comparison`) &&
+        url.searchParams.get("otherSnapshotId") === changed.afterId
+      );
+    });
+    await selected.click();
+    const actual = await changedReply;
+    expect(actual.status()).toBe(200);
+    const difference = await actual.json();
+    expect(difference.before.id).toBe(changed.beforeId);
+    expect(difference.after.id).toBe(changed.afterId);
+    expect(difference.sourceId).toBe(saved.sourceId);
+    expect(difference.sourceRevision).toBe(changed.sourceRevision);
+    expect(difference.nextCursor).toBeUndefined();
+    expect(difference.items).toHaveLength(1);
+    const row = difference.items[0];
+    expect(row.change).toBe("changed");
+    expect(row.before.identifier).toBe(changed.identifier);
+    expect(row.after.identifier).toBe(changed.identifier);
+    expect(row.before.observationId).toBe(changed.beforeObservationId);
+    expect(row.after.observationId).toBe(changed.afterObservationId);
+    expect(row.before.occurrence.snapshotId).toBe(changed.beforeId);
+    expect(row.after.occurrence.snapshotId).toBe(changed.afterId);
+    expect(row.before.occurrence.exactEntryDigest).toBe(changed.beforeDigest);
+    expect(row.after.occurrence.exactEntryDigest).toBe(changed.afterDigest);
+    const panel = page.locator("#snapshot-comparison");
+    await expect(panel).toBeFocused();
+    await expect(
+      panel.getByRole("heading", {
+        name: "Compare saved entries",
+        exact: true,
+      }),
+    ).toBeInViewport();
+    await expect(
+      panel.getByRole("heading", {
+        name: `Changed: ${changed.identifier}`,
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("link", {
+        name: "Inspect before observation and occurrences",
+      }),
+    ).toHaveAttribute("href", `/observations/${changed.beforeObservationId}`);
+    await expect(
+      panel.getByRole("link", {
+        name: "Inspect after observation and occurrences",
+      }),
+    ).toHaveAttribute("href", `/observations/${changed.afterObservationId}`);
+    await panel.screenshot({
+      path: join(directory, `source-comparison-changed-${scenario.mode}.png`),
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByLabel("Appearance", { exact: true }).click();
+    await page.getByRole("radio", { name: "Dark", exact: true }).check();
+    await page.keyboard.press("Escape");
+    expect(
+      await page.evaluate(
+        () =>
+          globalThis.document.documentElement.scrollWidth <=
+          globalThis.innerWidth,
+      ),
+    ).toBe(true);
+    expect(
+      await new AxeBuilder({ page }).include("#snapshot-comparison").analyze(),
+    ).toMatchObject({ violations: [], incomplete: [] });
+    await panel.screenshot({
+      path: join(
+        directory,
+        `source-comparison-changed-${scenario.mode}-narrow.png`,
+      ),
+    });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.getByLabel("Appearance", { exact: true }).click();
+    await page.getByRole("radio", { name: "System", exact: true }).check();
+    await page.keyboard.press("Escape");
+    expect(writes).toEqual([]);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    await json(`source-comparison-${scenario.mode}.json`, {
+      result: "passed",
+      snapshotId: saved.snapshotId,
+      sourceId: saved.sourceId,
+      sourceRevision: saved.sourceRevision,
+      rows: identifiers.length,
+      peerUnavailable: true,
+      noMutations: true,
+      noRawEvidenceReads: true,
+      distinctSnapshotChange: true,
+      historySelection: true,
+    });
+  } finally {
+    page.off("request", observe);
+    await fault(false);
+  }
+}
+
 const listener = createServer();
 await new Promise((resolve, reject) => {
   listener.once("error", reject);
@@ -140,6 +338,9 @@ try {
   await page.goto(origin + "/catalog");
   await page.getByRole("button", { name: "local-admin", exact: true }).click();
   const cards = page.locator("article.resource-card");
+  await expect(cards.first()).toBeVisible();
+  await qualifySavedMembership(page);
+  await page.goto(origin + "/catalog");
   await expect(cards.first()).toBeVisible();
   await page.getByRole("button", { name: "Filters", exact: true }).click();
   await page
@@ -266,6 +467,7 @@ process.stdout.write(
     livePages: 2,
     combinedPages: 2,
     sameTokenRetry: true,
+    sourceComparison: true,
     cleanup: "passed",
   }),
 );

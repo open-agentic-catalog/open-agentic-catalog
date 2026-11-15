@@ -474,3 +474,25 @@ An audit result applies only to its selected inputs and advisory snapshot. Norma
 The crate uses Apache-2.0. Generated material retains the MIT generator notice. Normal installation records dependency inventories, source checksums, release ages and license metadata. The separate audit enforces license and advisory policy for runtime, build, test and tool dependencies. Downstream distributors must retain notices for their own complete dependency distribution. See the [dependency policy](../../documentation/src/content/docs/reference/dependencies.md#rust-sdk-dependencies).
 
 See the [SDK overview](../README.md#choose-a-language) to compare languages and the [integration guide](../../documentation/src/content/docs/guides/integrating.mdx#use-the-rust-client) for shared workflows.
+
+## Compare saved source snapshots
+
+Use a configured client and two complete snapshot UUIDs from the same source revision:
+
+```rust no_run
+use open_agentic_catalog::{Client, CompareFederationSourceSnapshotsView,
+    FederationSnapshotComparisonPage};
+
+async fn compare_saved(client: &Client, before: &str, after: &str,
+    cursor: Option<&str>)
+    -> Result<FederationSnapshotComparisonPage, Box<dyn std::error::Error>>
+{
+    let response = client.compare_federation_source_snapshots(
+        before, after, Some(CompareFederationSourceSnapshotsView::Changes),
+        Some(25), cursor,
+    ).await?;
+    Ok(response.data.ok_or("Expected a comparison page")?)
+}
+```
+
+Pass `None` for the first cursor. For another explicit page, pass `page.next_cursor.as_deref()` with the same pair, view and limit. Use `CompareFederationSourceSnapshotsView::All` to include unchanged entries. The SDK does not restart a refused continuation. See the [comparison semantics and permissions](../../documentation/src/content/docs/operations/federation.mdx#compare-two-saved-synchronizations) before interpreting absence or multiple occurrences.

@@ -410,6 +410,7 @@ export function FederationSnapshot(value: unknown): boolean {
     object(value) &&
     identifier(value.id) &&
     identifier(value.sourceId) &&
+    number(value.sourceRevision, 1, Infinity, true) &&
     choice(value.state, ["running", "complete", "incomplete", "failed"]) &&
     flag(value.withdrawalAuthority) &&
     flag(value.enumerationComplete) &&
@@ -429,6 +430,94 @@ export function FederationSnapshotPage(value: unknown): boolean {
     array(value.items, FederationSnapshot) &&
     cursor(value.nextCursor)
   );
+}
+
+/** Validate consumed membership fields and their exact pair/occurrence binding. */
+export function FederationSnapshotComparison(value: unknown): boolean {
+  if (
+    !object(value) ||
+    !identifier(value.sourceId) ||
+    !number(value.sourceRevision, 1, Infinity, true) ||
+    !cursor(value.nextCursor)
+  )
+    return false;
+  const summary = (s: unknown) =>
+    object(s) &&
+    identifier(s.id) &&
+    number(s.memberCount, 0, 10000, true) &&
+    timestamp(s.startedAt) &&
+    flag(s.withdrawalAuthority);
+  if (
+    !summary(value.before) ||
+    !summary(value.after) ||
+    !object(value.before) ||
+    !object(value.after) ||
+    !Array.isArray(value.items) ||
+    value.items.length > 100
+  )
+    return false;
+  const beforeID = value.before.id,
+    afterID = value.after.id;
+  const member = (m: unknown, snapshotId: unknown) =>
+    object(m) &&
+    identifier(m.observationId) &&
+    text(m.identifier) &&
+    text(m.version) &&
+    flag(m.versionPresent) &&
+    text(m.kind) &&
+    text(m.identityDigest) &&
+    object(m.occurrence) &&
+    ObservationOccurrence(m.occurrence) &&
+    m.occurrence.observationId === m.observationId &&
+    m.occurrence.sourceId === value.sourceId &&
+    m.occurrence.sourceRevision === value.sourceRevision &&
+    m.occurrence.snapshotId === snapshotId &&
+    text(m.occurrence.exactEntryDigest) &&
+    optional(m.occurrence.normalizedEntryDigest, text) &&
+    optional(m.occurrence.normalizationInputDigest, text);
+  let previous = 0;
+  return value.items.every((item: unknown) => {
+    if (
+      !object(item) ||
+      !number(item.position, previous + 1, 20000, true) ||
+      !text(item.sourceKey) ||
+      !choice(item.change, [
+        "added",
+        "absent",
+        "changed",
+        "unchanged",
+        "multiple",
+      ]) ||
+      !number(item.beforeCount, 0, 10000, true) ||
+      !number(item.afterCount, 0, 10000, true)
+    )
+      return false;
+    previous = item.position as number;
+    if (
+      (item.before !== undefined && !member(item.before, beforeID)) ||
+      (item.after !== undefined && !member(item.after, afterID))
+    )
+      return false;
+    if (item.change === "multiple")
+      return (
+        (item.before === undefined) !== (item.after === undefined) &&
+        ((item.beforeCount as number) > 1 || (item.afterCount as number) > 1)
+      );
+    return item.change === "added"
+      ? item.before === undefined &&
+          item.after !== undefined &&
+          item.beforeCount === 0 &&
+          item.afterCount === 1
+      : item.change === "absent"
+        ? item.before !== undefined &&
+          item.after === undefined &&
+          item.beforeCount === 1 &&
+          item.afterCount === 0
+        : item.before !== undefined &&
+          item.after !== undefined &&
+          item.beforeCount === 1 &&
+          item.afterCount === 1;
+  });
 }
 
 export function FederationSource(value: unknown): boolean {

@@ -21,11 +21,14 @@ Use these recipes after the language guide's client setup. Each example keeps ne
 
 | Task | Go | Python | JavaScript/TypeScript | Rust |
 | --- | --- | --- | --- | --- |
+| Compare two saved source synchronizations | [Snapshot comparison](go/README.md#compare-saved-source-snapshots) | [Snapshot comparison](python/README.md#compare-saved-source-snapshots) | [Snapshot comparison](typescript/README.md#compare-saved-source-snapshots) | [Snapshot comparison](rust/README.md#compare-saved-source-snapshots) |
 | Continue Search with a finite page budget | [Search pages](go/README.md#search-and-open-a-local-result) | [Search pages](python/README.md#search-published-resources) | [Search pages](typescript/README.md#read-a-bounded-sequence-of-pages) | [Search pages](rust/README.md#continue-search-with-a-finite-budget) |
 | Read a selected local release | [Full record](go/README.md#search-and-open-a-local-result) | [Full record](python/README.md#read-a-selected-governed-record) | [Full record](typescript/README.md#read-the-selected-local-release) | [Full record](rust/README.md#open-a-local-resources-complete-record) |
 | Handle errors without logging private bodies | [Error handling](go/README.md#handle-responses-and-errors) | [Error handling](python/README.md#handle-responses-and-errors) | [Error handling](typescript/README.md#responses-and-raw-evidence) | [Error handling](rust/README.md#read-results-and-handle-errors) |
 
 A Search result ID is not a local release UUID. The local-detail recipes use `local.release.id`; indexed and live results retain their external provenance. Discovery does not authorize installation or execution.
+
+Resource definition highlighting belongs to the [Catalog UI](../documentation/src/content/docs/guides/resource-authoring.mdx). SDK consumers can read selected immutable revisions and exact retained documents through existing operations and compare them locally. There is no server-generated document diff. Saved source synchronization comparison is a separate, summary-only API operation; it does not return native document bytes or infer upstream deletion.
 
 Keep the returned cursor when a page budget stops traversal. An empty page can still have a continuation. Use the same query, filters, page size and identity when you resume. Inspect partial-result diagnostics before treating a result set as complete.
 

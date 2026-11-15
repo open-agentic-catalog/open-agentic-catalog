@@ -10,7 +10,7 @@ for (const base of ["root", "subpath"]) {
   }) => {
     await login(page, catalog, "local-reader", "/api-reference");
     await expect(
-      page.getByText("198 of 198 operations", { exact: true }),
+      page.getByText("199 of 199 operations", { exact: true }),
     ).toBeVisible();
     if (base === "root") {
       await page.setViewportSize({ width: 1440, height: 1400 });
@@ -96,13 +96,13 @@ for (const base of ["root", "subpath"]) {
 
     await filter.selectOption("Identity");
     await expect(
-      page.getByText("49 of 198 operations", { exact: true }),
+      page.getByText("49 of 199 operations", { exact: true }),
     ).toBeVisible();
     await expect(section.locator(".api-operation")).toHaveCount(26);
     await method.selectOption("POST");
     await search.fill("private filter stays in this tab");
     await expect(
-      page.getByText("0 of 198 operations", { exact: true }),
+      page.getByText("0 of 199 operations", { exact: true }),
     ).toBeVisible();
     await expect(page.locator(".api-filter-summary")).toContainText(
       'method POST; API area "Identity"',
@@ -125,7 +125,7 @@ for (const base of ["root", "subpath"]) {
     await expect(search).toHaveValue("");
     await expect(operation).toHaveJSProperty("open", true);
     await expect(
-      page.getByText("198 of 198 operations", { exact: true }),
+      page.getByText("199 of 199 operations", { exact: true }),
     ).toBeVisible();
 
     await page.getByLabel("Appearance", { exact: true }).click();
