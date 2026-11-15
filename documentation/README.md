@@ -42,6 +42,8 @@ Root [CONTEXT.md](../CONTEXT.md) consolidates application context for repository
 
 **Use the Catalog > Move drafts between Catalogs** contains the [transfer tutorial](src/content/docs/guides/draft-transfer.mdx). It covers both UI/CLI directions, five downloadable examples, destination permissions, package inputs, new Versions and interrupted imports.
 
+**Build integrations > Use metadata in AgentField** contains the [native consumer guide](src/content/docs/guides/agentfield.mdx). It covers public ARD Search, explicit passive imports, management authentication, persistent readback and native field loss. No model or resource execution is required.
+
 ## Find the authoritative source
 
 | Need | Source |

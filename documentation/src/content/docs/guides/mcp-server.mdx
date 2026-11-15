@@ -431,3 +431,15 @@ make test-interoperability-mcp-catalog
 ```
 
 Install tools explicitly, then run the qualification alone. It uses a locked official Python MCP client, both protocol versions and disposable local Catalog/source fixtures. A PostgreSQL matrix verifies two API replicas and restart continuation. It does not test against public catalogs. See [MCP test layers and fixture ownership](../contributing/testing.md#catalog-control-tools-over-stdio) for unit, local functional and independent-client coverage.
+
+## Search declared MCP tools
+
+`catalog_control_search` accepts `includeMcpTools: true` with nonblank `text` and
+explicit `origins: ["local"]`. `catalog_control_explore` accepts the flag in its
+local `query` without origins. Select only MCP servers, with no `agentProtocol`
+filter. The API requires current content-read permission before private tool text
+can affect matching, counts or bounded `toolMatch` explanations. These describe
+one exact released revision and remain untrusted plain text. Tools are never
+called and no embedding provider receives this selected query. See
+[declared-tool authoring and search](catalog-ui.mdx#find-mcp-servers-by-declared-tools)
+for the private metadata format and limits.

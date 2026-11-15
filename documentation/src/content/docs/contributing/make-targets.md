@@ -91,6 +91,8 @@ Install and test each MCP selection separately:
 
 Independent HF qualification uses `make interoperability-tools-install`, then either `make test-interoperability` for clients or `make test-interoperability-hf` for owned HTTPS peers. Run each target separately. The client target creates an isolated in-memory Catalog. The peer target runs the real API and worker against owned HTTPS peers. Neither requires an HF account or calls a hosted HF catalog. See [independent client testing](../contributing/testing.md#independent-hugging-face-interoperability) for prerequisites, reports and cleanup.
 
+AgentField metadata consumption uses `make agentfield-tools-install`, then `make test-interoperability-agentfield` and `make test-interoperability-agentfield-cleanup`, each separately. The [harness guide](../../../../../test/interoperability/agentfield/README.md) covers native public Search, persistent passive imports, refusals and owned cleanup. No model or runtime invocation is needed.
+
 ## Optional LangGraph example
 
 The [SDK-based discovery assistant](../../../../../examples/langgraph/README.md) is a separate Python client. It searches local governed releases and inspects selected exact records. It does not install or execute resources.
@@ -99,8 +101,10 @@ The [SDK-based discovery assistant](../../../../../examples/langgraph/README.md)
 | --- | --- |
 | `make langgraph-tools-install UV=/path/to/uv-0.13.6` | Install the example's locked optional environment. No model is downloaded or started. |
 | `make langgraph-demo` | Ask the configured local model with explicit SDK origin, bearer credentials and `LANGGRAPH_QUESTION`. |
+| `make langgraph-ard-demo` | Run the separate model-free ARD Search/Explore graph with `LANGGRAPH_ARD_CONFIG` and `LANGGRAPH_ARD_QUERY`. Referral query disclosure requires explicit configuration. |
 | `make test-langgraph-unit` | Run isolated graph/tool units and example source coverage. |
 | `make test-langgraph` | Add real SDK HTTP exchanges with an owned Catalog and scripted model. |
+| `make test-langgraph-ard` | Qualify the separate ARD graph against an owned publication and HTTPS peer, including referral consent, separate credentials/private trust and refusal controls. No LLM is needed. |
 | `make test-langgraph-model LANGGRAPH_MODEL_ORIGIN=http://127.0.0.1:11434` | Qualify tools with an explicitly prepared local model and an owned Catalog. |
 
 Run each target separately. Root Go tests and SDK package checks do not execute the optional framework. See [test boundaries](../contributing/testing.md#optional-langgraph-discovery-example) for prerequisites and interpretation. The example guide owns model setup, limits, credential handling and cleanup.

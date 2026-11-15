@@ -743,6 +743,8 @@ with output.open("x") as receipt:
           "local-contributor",
           "local-reviewer",
           "local-publisher",
+          "local-reader",
+          "local-no-role",
           "other-tenant-admin",
         ].includes(actor)
       )

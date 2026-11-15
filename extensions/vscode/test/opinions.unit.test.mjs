@@ -141,6 +141,70 @@ test("own reads and withdrawal do not inspect resources or require submission au
     );
   }
 });
+test("recent own feedback retains addressed ordering and opaque continuation without Resource reads", async () => {
+  const f = fixture();
+  f.own({
+    id,
+    revision: 1,
+    state: "addressed",
+    category: "problem",
+    response: "",
+    updatedAt: "2026-11-15T12:00:00Z",
+  });
+  assert.equal(
+    (await f.api.page("feedback", "cursor +/雪", true)).items[0].response,
+    "",
+  );
+  assert.deepEqual(
+    Object.fromEntries(
+      new URL(f.calls.at(-1).path, "https://catalog.invalid").searchParams,
+    ),
+    {
+      limit: "25",
+      state: "addressed",
+      order: "updated_desc",
+      cursor: "cursor +/雪",
+    },
+  );
+  await f.api.page("feedback", undefined, true);
+  assert.equal(
+    new URL(f.calls.at(-1).path, "https://catalog.invalid").searchParams.has(
+      "cursor",
+    ),
+    false,
+  );
+  await f.api.page("feedback");
+  assert.equal(f.calls.at(-1).path, "/api/v1/feedback?limit=25");
+  const calls = f.calls.length;
+  await assert.rejects(
+    f.api.page("ratings", undefined, true),
+    /invalid_query/u,
+  );
+  assert.equal(f.calls.length, calls);
+  f.own({
+    id,
+    revision: 1,
+    state: "open",
+    category: "problem",
+    updatedAt: "2026-11-15T12:00:00Z",
+  });
+  await assert.rejects(
+    f.api.page("feedback", undefined, true),
+    /invalid_response/u,
+  );
+  f.own({
+    id,
+    revision: 1,
+    state: "addressed",
+    category: "problem",
+    updatedAt: "invalid",
+  });
+  await assert.rejects(
+    f.api.page("feedback", undefined, true),
+    /invalid_response/u,
+  );
+  assert.ok(f.calls.every((call) => call.path.startsWith("/api/v1/feedback?")));
+});
 test("private feedback keeps immutable context, bounded Unicode and edit ETags", async () => {
   const f = fixture(),
     context = await f.api.feedbackContext(item);

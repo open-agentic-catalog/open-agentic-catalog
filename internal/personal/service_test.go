@@ -12,6 +12,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/audit"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jsondoc"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/id"
 	"github.com/open-agentic-catalog/open-agentic-catalog/test/identityfixture"
@@ -80,12 +81,15 @@ func TestLibraryMemberManagesCriteriaWithoutResourceOrAdminAuthority(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, err := s.Save(ctx, "", 0, searchInput(), false)
+	input := searchInput()
+	input.Search.AgentProtocol = "私有+V1 "
+	input.Search.Origins = []catalog.SearchResultType{catalog.SearchResultLocal}
+	item, err := s.Save(ctx, "", 0, input, false)
 	if err != nil {
 		t.Fatal("library-only save", err)
 	}
 	got, err := s.Get(ctx, item.ID)
-	if err != nil || got.Search == nil || got.Search.Text != "private-query-sentinel" {
+	if err != nil || got.Search == nil || got.Search.Text != "private-query-sentinel" || got.Search.AgentProtocol != "私有+V1 " || len(got.Search.Origins) != 1 || got.Search.Origins[0] != catalog.SearchResultLocal {
 		t.Fatal("library-only read", got, err)
 	}
 	if _, err := s.Save(ctx, item.ID, item.Revision, Input{}, true); err != nil {
@@ -332,6 +336,28 @@ func TestSavedCriteriaOrderWireValidation(t *testing.T) {
 		}
 		if err == nil && input.Search.Query().Order != input.Search.Order {
 			t.Fatal("saved order lost")
+		}
+	}
+}
+
+func TestSavedAgentProtocolWireValidation(t *testing.T) {
+	for _, tc := range []struct {
+		raw   string
+		valid bool
+	}{
+		{`{"agentProtocol":"私有+V1 ","origins":["local"]}`, true},
+		{`{"agentProtocol":"HTTP+JSON"}`, false},
+		{`{"agentProtocol":"HTTP+JSON","origins":["local","live"]}`, false},
+		{`{"agentProtocol":null}`, false},
+		{`{"agentProtocol":" ","origins":["local"]}`, false},
+	} {
+		var criteria Criteria
+		err := jsondoc.Decode([]byte(tc.raw), &criteria)
+		if err == nil {
+			err = catalog.ValidateSavedSearch(criteria.Query())
+		}
+		if (err == nil) != tc.valid {
+			t.Fatal(tc.raw, err)
 		}
 	}
 }

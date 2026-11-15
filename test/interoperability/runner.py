@@ -48,7 +48,8 @@ def tool_identity():
     return hashlib.sha256((REVISION + SOURCE_DIGEST + fingerprint(TOOL_INPUTS)).encode()).hexdigest()
 
 
-def extract_source(raw, destination, expected_digest=None):
+def extract_source(raw, destination, expected_digest=None, *, max_members=3000,
+                   max_member_bytes=4 * 1024 * 1024, max_bytes=20 * 1024 * 1024):
     """Extract bounded regular files only; never trust tar paths, links or permissions."""
     digest = hashlib.sha256()
     files = {}
@@ -56,7 +57,7 @@ def extract_source(raw, destination, expected_digest=None):
     with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as archive:
         prefix = None
         for index, member in enumerate(archive):
-            if index >= 3000 or member.size > 4 * 1024 * 1024:
+            if index >= max_members or member.size > max_member_bytes:
                 raise ValueError("source archive bound exceeded")
             path = PurePosixPath(member.name)
             if path.is_absolute() or ".." in path.parts or not path.parts:
@@ -72,7 +73,7 @@ def extract_source(raw, destination, expected_digest=None):
             if str(relative) in files:
                 raise ValueError("duplicate source archive path")
             total += member.size
-            if total > 20 * 1024 * 1024:
+            if total > max_bytes:
                 raise ValueError("expanded source archive bound exceeded")
             with archive.extractfile(member) as stream:
                 files[str(relative)] = stream.read()

@@ -86,6 +86,45 @@ func prepareImportTestContext(ctx context.Context, t *testing.T, dir string, man
 	return batch.Items[0], nil
 }
 
+func TestImportPreparationKeepsValidationAndBodiesPerCall(t *testing.T) {
+	t.Parallel()
+	dir, manifest := importTestInput(t)
+	first, err := prepareImportTest(t, dir, manifest, 2<<20)
+	if err != nil || !first.Preview.LocallyValid || len(first.Bodies) != 4 {
+		t.Fatal("valid initial preparation", err)
+	}
+	before, err := json.Marshal(first.Bodies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// This enum is enforced by the embedded request schema, not native-content
+	// validation. A prior valid preparation must not bypass that schema.
+	manifest.Resources[0].Listing.Visibility = "invalid-visibility"
+	if _, err := prepareImportTest(t, dir, manifest, 2<<20); err == nil || !strings.Contains(err.Error(), "existing Control API contract") {
+		t.Fatal("invalid request did not reach the request-contract guard", err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if _, err := prepareImportTestContext(ctx, t, dir, manifest, 2<<20); !errors.Is(err, context.Canceled) {
+		t.Fatal("warm contract bypassed caller cancellation", err)
+	}
+	manifest.Resources[0].Listing.Visibility = catalog.VisibilityPublic
+	manifest.Resources[0].CanonicalIdentifier = "custom:independent-second-input"
+	second, err := prepareImportTest(t, dir, manifest, 2<<20)
+	if err != nil || !second.Preview.LocallyValid || len(second.Bodies) != 4 {
+		t.Fatal("prior refusal or cancellation poisoned a later preparation", err)
+	}
+	var resource catalog.CreateResourceInput
+	var listing catalog.CreateListingRevisionInput
+	if json.Unmarshal(second.Bodies[0], &resource) != nil || json.Unmarshal(second.Bodies[3], &listing) != nil || resource.CanonicalIdentifier != "custom:independent-second-input" || listing.Visibility != catalog.VisibilityPublic {
+		t.Fatal("prepared requests reused another call's inputs")
+	}
+	after, err := json.Marshal(first.Bodies)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatal("later calls changed previously prepared request bytes", err)
+	}
+}
+
 func TestImportYAMLStrictControlsAndExactExtensions(t *testing.T) {
 	raw := strings.Replace(importTestYAML, "      visibility: private", `      visibility: private
       extensions:

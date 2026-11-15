@@ -1,0 +1,43 @@
+# Native AgentField configuration; secrets below are disposable fixture inputs.
+agentfield:
+  port: 9010
+  shutdown_timeout: 10s
+  ard:
+    enabled: true
+    publish:
+      enabled: false
+    registry:
+      enabled: false
+      public: false
+    external:
+      search_enabled: true
+      invocation_enabled: false
+      default_search_limit: 10
+      allowed_registries:
+        - https://peer-a.test:8444/ard/v1
+        - https://private-a.test:8444/ard/v1
+        - https://peer-a.test:8444/control-registry
+features:
+  did:
+    enabled: false
+  connector:
+    enabled: false
+  knowledge:
+    enabled: false
+storage:
+  mode: postgres
+  postgres:
+    dsn: postgres://agentfield:owned-native-only@agentfield-postgres:5432/agentfield?sslmode=disable
+  vector:
+    enabled: false
+ui:
+  enabled: true
+  mode: separate
+  dist_path: /empty
+api:
+  auth:
+    api_key: owned-agentfield-management
+telemetry:
+  enabled: false
+logging:
+  level: warn

@@ -149,9 +149,14 @@ func TestGeneratedConsumerWorkflow(t *testing.T) {
 	if overflow || len(publication) != 1 || publication[0].Resource.CanonicalIdentifier != "urn:air:catalog.example.com:compat:agent" {
 		t.Fatal("external publication selection admitted the opaque local release")
 	}
+	r, err = reader.SearchCatalog(ctx, client.SearchCatalogJSONRequestBody{AgentProtocol: ptr("HTTP+JSON"), Origins: ptr([]client.CatalogSearchOrigins{"local"})})
+	unmatchedProtocol := decode[client.CatalogSearchResponse](t, f.result(r, err, 200))
+	if unmatchedProtocol.DurableTotal != 0 || len(unmatchedProtocol.Items) != 0 {
+		t.Fatal("generated Search ignored declared protocol")
+	}
 	var cursor *string
 	for range 2 {
-		r, err = reader.SearchCatalog(ctx, client.SearchCatalogJSONRequestBody{Limit: ptr(1), Cursor: cursor})
+		r, err = reader.SearchCatalog(ctx, client.SearchCatalogJSONRequestBody{AgentProtocol: ptr("JSONRPC"), Origins: ptr([]client.CatalogSearchOrigins{"local"}), Limit: ptr(1), Cursor: cursor})
 		page := decode[client.CatalogSearchResponse](t, f.result(r, err, 200))
 		if len(page.Items) != 1 || page.Items[0].Local == nil || page.Partial {
 			t.Fatalf("unexpected page: %+v", page)

@@ -11,8 +11,10 @@ import (
 )
 
 const (
-	MaxTextRunes = 4000
-	MaxBodyBytes = 64 << 10
+	MaxTextRunes     = 4000
+	MaxBodyBytes     = 64 << 10
+	OrderID          = "id"
+	OrderUpdatedDesc = "updated_desc"
 )
 
 // Record retains immutable context and only the current private text.
@@ -47,10 +49,13 @@ type EditInput struct {
 	Comment  string `json:"comment"`
 }
 
-// ListInput selects a caller-bound, ID-ordered page with a continuation sentinel.
+// ListInput selects a caller-bound current page with a continuation sentinel.
+// Recent pages use descending (UpdatedAt, ID); no historical snapshot is retained.
 type ListInput struct {
 	ResourceID, Category, State, AfterID string
 	MembershipID                         string
+	Order                                string
+	AfterUpdatedAt                       *time.Time
 	Limit                                int
 }
 

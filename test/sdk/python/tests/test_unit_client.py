@@ -15,7 +15,10 @@ from catalog_sdk.generated.api.service_api import ServiceApi
 from catalog_sdk.generated.api.identity_api import IdentityApi
 from catalog_sdk.generated.api.discovery_api import DiscoveryApi
 from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
+from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
 from catalog_sdk.generated.api.personal_workspace_api import PersonalWorkspaceApi
+from catalog_sdk.generated.api.feedback_api import FeedbackApi
+from catalog_sdk.generated.api.federation_api import FederationApi
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
 from catalog_sdk.generated.models.trust_assessment_request import TrustAssessmentRequest
 from catalog_sdk.transport import HTTPBoundary, Response
@@ -199,6 +202,87 @@ class ConfigurationUnits(unittest.TestCase):
 
 
 class TransportUnits(unittest.IsolatedAsyncioTestCase):
+    async def test_withdrawal_preview_is_one_explicit_read_with_bound_references(self):
+        release = "00000000-0000-7000-8000-000000000101"
+        client = Client(Config(origin="https://catalog.example.com", token="selected"))
+        calls = []
+        def handler(request):
+            calls.append(request)
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.path, "/api/v1/listing-releases/" + release + "/withdrawal-preview")
+            self.assertEqual(dict(request.url.params), {"transition": "retired"})
+            self.assertNotIn("Idempotency-Key", request.headers)
+            self.assertNotIn("If-Match", request.headers)
+            wire = {"releaseId": release, "releaseRevision": 3, "transition": "retired", "observedAt": "2026-11-15T12:00:00Z", "snapshots": [{"snapshotId": "00000000-0000-7000-8000-000000000201", "host": "catalog.example.com", "audience": "anonymous", "generation": 2, "etag": "feed-two"}]}
+            return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Stream([json.dumps(wire).encode()]))
+        with injected(client.rest_client, handler):
+            value = await CatalogLifecycleApi(client).preview_listing_release_withdrawal(transition="retired", release_id=UUID(release))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(value.release_revision, 3)
+        self.assertEqual(value.snapshots[0].host, "catalog.example.com")
+        self.assertEqual(value.snapshots[0].audience, "anonymous")
+
+    async def test_source_sync_outcome_retains_exact_filters_and_explicit_cursor(self):
+        client = Client(Config(origin="https://catalog.example.com", token="selected"))
+        calls = []
+        def handler(request):
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.path, "/api/v1/federation/sources")
+            self.assertNotIn("Idempotency-Key", request.headers)
+            calls.append(dict(request.url.params))
+            wire = {"items": [], **({"nextCursor": "opaque+/= café"} if len(calls) == 1 else {})}
+            return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Stream([json.dumps(wire).encode()]))
+        with injected(client.rest_client, handler):
+            api = FederationApi(client)
+            first = await api.list_federation_sources(display_name="Exact Source", sync_state="failed", status="active", limit=1)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(first.next_cursor, "opaque+/= café")
+            last = await api.list_federation_sources(display_name="Exact Source", sync_state="failed", status="active", limit=1, cursor=first.next_cursor)
+            self.assertIsNone(last.next_cursor)
+        expected = {"displayName": "Exact Source", "syncState": "failed", "status": "active", "limit": "1"}
+        self.assertEqual(calls, [expected, dict(expected, cursor="opaque+/= café")])
+
+    async def test_recent_own_feedback_retains_order_state_and_explicit_cursor(self):
+        client = Client(Config(origin="https://catalog.example.com", token="selected"))
+        calls = []
+        def handler(request):
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.path, "/api/v1/feedback")
+            self.assertNotIn("Idempotency-Key", request.headers)
+            calls.append(dict(request.url.params))
+            wire = {"items": [], **({"nextCursor": "opaque+/= café"} if len(calls) == 1 else {})}
+            return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Stream([json.dumps(wire).encode()]))
+        with injected(client.rest_client, handler):
+            api = FeedbackApi(client)
+            first = await api.list_own_feedback(order="updated_desc", state="addressed", limit=1)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(first.next_cursor, "opaque+/= café")
+            last = await api.list_own_feedback(order="updated_desc", state="addressed", limit=1, cursor=first.next_cursor)
+            self.assertIsNone(last.next_cursor)
+        expected = {"order": "updated_desc", "state": "addressed", "limit": "1"}
+        self.assertEqual(calls, [expected, dict(expected, cursor="opaque+/= café")])
+
+    async def test_review_queue_retains_namespace_intersection_and_cursor_without_retry(self):
+        client = Client(Config(origin="https://catalog.example.com", token="selected"))
+        uid = UUID("aaaaaaaa-0000-7000-8000-000000000010")
+        calls = []
+        def handler(request):
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.path, "/api/v1/review-submissions")
+            self.assertNotIn("Idempotency-Key", request.headers)
+            calls.append(dict(request.url.params))
+            wire = {"items": [], **({"nextCursor": "opaque+/= café"} if len(calls) == 1 else {})}
+            return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Stream([json.dumps(wire).encode()]))
+        with injected(client.rest_client, handler):
+            api = CatalogLifecycleApi(client)
+            first = await api.list_review_submissions(namespace_id=uid, listing_id=uid, state="approved", unreleased=True, limit=1)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(first.next_cursor, "opaque+/= café")
+            last = await api.list_review_submissions(namespace_id=uid, listing_id=uid, state="approved", unreleased=True, limit=1, cursor=first.next_cursor)
+            self.assertIsNone(last.next_cursor)
+        expected = {"namespaceId": str(uid), "listingId": str(uid), "state": "approved", "unreleased": "true", "limit": "1"}
+        self.assertEqual(calls, [expected, dict(expected, cursor="opaque+/= café")])
+
     async def test_generated_wire_semantics_use_one_origin_and_preserve_open_metadata(self):
         from catalog_sdk.generated.models.create_listing_revision_extensions import CreateListingRevisionExtensions
         words = ("", "é", "日本語", "😀", "%+&=", "line\nvalue", 'quoted"value', "two words")

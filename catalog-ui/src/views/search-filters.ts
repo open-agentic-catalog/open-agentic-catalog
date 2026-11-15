@@ -53,6 +53,8 @@ export type FilterValues = {
       | "visibility"
       | "origins"
       | "namespaceId"
+      | "agentProtocol"
+      | "includeMcpTools"
   ]?: SearchQuery[K] | undefined;
 };
 
@@ -63,6 +65,8 @@ export function applyFilters(
 ): SearchQuery {
   const {
     cursor: _cursor,
+    agentProtocol: _agentProtocol,
+    includeMcpTools: _includeMcpTools,
     origins: _origins,
     namespaceId: _namespaceId,
     tags: _tags,
@@ -75,15 +79,21 @@ export function applyFilters(
   } = query;
   return {
     ...rest,
-    ...(filters.namespaceId
+    ...(filters.includeMcpTools ? { includeMcpTools: true } : {}),
+    ...(filters.agentProtocol ? { agentProtocol: filters.agentProtocol } : {}),
+    ...(filters.namespaceId || filters.agentProtocol || filters.includeMcpTools
       ? {
-          namespaceId: filters.namespaceId,
+          ...(filters.namespaceId ? { namespaceId: filters.namespaceId } : {}),
           origins: ["local"] as const,
         }
       : filters.origins?.length
         ? { origins: [...filters.origins] }
         : {}),
-    ...(filters.kinds?.length ? { kinds: [...filters.kinds] } : {}),
+    ...(filters.includeMcpTools
+      ? { kinds: ["mcp_server"] as const }
+      : filters.kinds?.length
+        ? { kinds: [...filters.kinds] }
+        : {}),
     ...(filters.tags?.length ? { tags: [...filters.tags] } : {}),
     ...(filters.categories?.length
       ? { categories: [...filters.categories] }

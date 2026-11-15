@@ -505,7 +505,9 @@ exports.qualifyRecovery = async (api) => {
     const button = `[...document.querySelectorAll('.monaco-dialog-box .monaco-button')].find(b=>b.textContent.trim()===${JSON.stringify(label)})`;
     await ui.until(`!!(${button})`);
     await ui.click(button);
-    await ui.until("!document.querySelector('.monaco-dialog-box')");
+    // Accepting one confirmation can immediately open the next one. Require
+    // this decision to close without waiting for all subsequent dialogs to close.
+    await ui.until(`!(${button})`);
   };
   const pick = async (title) => {
     await ui.until(

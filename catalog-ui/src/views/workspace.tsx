@@ -288,12 +288,15 @@ export type Command = {
  * and offer only an exact-key retry, never an automatic replacement request. */
 export function CommandDialog({
   command: initialCommand,
+  liveDetails,
   allowed = true,
   onClose,
   onDone,
   onFailure,
 }: {
   command: Command;
+  /** Permission-sensitive explanation only; never changes the captured request or key. */
+  liveDetails?: ReactNode;
   /** Reactive readiness affects new sends; uncertain exact-command recovery remains available. */
   allowed?: boolean;
   onClose: () => void;
@@ -410,6 +413,7 @@ export function CommandDialog({
         </dl>
       )}
       {command.details}
+      {liveDetails}
       {!allowed && !failure?.uncertain && (
         <p className="notice">
           Access or prerequisites changed. Return to the form to review your

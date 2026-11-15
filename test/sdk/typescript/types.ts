@@ -1,6 +1,49 @@
 import { createCatalogClient } from "../../../sdk/typescript/src/index.js";
 import type { components } from "../../../sdk/typescript/src/index.js";
 const client = createCatalogClient({ origin: "https://catalog.example.com" });
+void client.api.GET("/api/v1/listing-releases/{releaseId}/withdrawal-preview", {
+  params: {
+    path: { releaseId: "00000000-0000-7000-8000-000000000101" },
+    query: { transition: "retired" },
+  },
+});
+void client.api.GET("/api/v1/listing-releases/{releaseId}/withdrawal-preview", {
+  params: {
+    path: { releaseId: "00000000-0000-7000-8000-000000000101" },
+    // @ts-expect-error Deprecation is not a withdrawal preview transition.
+    query: { transition: "deprecated" },
+  },
+});
+void client.api.GET("/api/v1/feedback", {
+  params: {
+    query: {
+      order: "updated_desc",
+      state: "addressed",
+      limit: 20,
+      cursor: "opaque",
+    },
+  },
+});
+void client.api.GET("/api/v1/feedback", {
+  // @ts-expect-error Feedback order is a finite contract value.
+  params: { query: { order: "random" } },
+});
+void client.api.GET("/api/v1/review-submissions", {
+  params: {
+    query: {
+      namespaceId: "aaaaaaaa-0000-7000-8000-000000000010",
+      listingId: "aaaaaaaa-0000-7000-8000-000000000011",
+      state: "approved",
+      unreleased: true,
+      limit: 25,
+      cursor: "opaque",
+    },
+  },
+});
+void client.api.GET("/api/v1/review-submissions", {
+  // @ts-expect-error Namespace selection is one UUID string, not an array.
+  params: { query: { namespaceId: ["one", "two"] } },
+});
 void client.api.GET("/api/v1/federation/snapshots/{snapshotId}/comparison", {
   params: {
     path: { snapshotId: "before" },
@@ -110,3 +153,29 @@ const plugin: components["schemas"]["RepresentationInput"] = {
 void versionedTrust;
 void reference;
 void plugin;
+void client.api.POST("/api/v1/catalog/search", {
+  body: { text: "pdf tables", includeMcpTools: true, origins: ["local"] },
+});
+const declaredMatch: components["schemas"]["MCPToolMatch"] = {
+  representationId: "00000000-0000-7000-8000-000000000001",
+  contentDigest: "sha256:" + "a".repeat(64),
+  matchedToolCount: 1,
+  tools: [{ name: "extract_pdf_tables", descriptionTruncated: false }],
+  truncated: false,
+};
+void declaredMatch;
+
+void client.api.GET("/api/v1/federation/sources", {
+  params: {
+    query: {
+      syncState: "failed",
+      status: "active",
+      displayName: "Exact Source",
+    },
+  },
+});
+
+void client.api.GET("/api/v1/federation/sources", {
+  // @ts-expect-error Only failed and incomplete are supported problem selections.
+  params: { query: { syncState: "complete" } },
+});

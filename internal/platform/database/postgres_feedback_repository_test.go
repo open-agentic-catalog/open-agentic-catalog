@@ -3,6 +3,7 @@ package database
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -123,6 +124,37 @@ func TestFeedbackRepositoryList(t *testing.T) {
 		if catalog.ErrorCodeOf(err) != catalog.CodeInvalidArgument || got != nil || len(tx.queryStatements) != 0 {
 			t.Fatalf("invalid limit %d: %+v, %v", limit, got, err)
 		}
+	}
+}
+
+// Recent selection binds an exact owner and the complete descending tuple.
+func TestFeedbackRepositoryRecentListBindings(t *testing.T) {
+	want := feedbackRepositoryRecord()
+	for _, continued := range []bool{false, true} {
+		t.Run(fmt.Sprint(continued), func(t *testing.T) {
+			pool := &pgxpool.Pool{}
+			store := &PostgresFeedbackStore{repository: &PostgresRepository{pool: pool}}
+			rows := &identityScriptedRows{values: [][]any{feedbackRepositoryValues(want)}}
+			tx := &identityScriptedTx{fakeCommandTx: &fakeCommandTx{}, queryResults: []identityQueryResult{{rows: rows}}}
+			q := feedback.ListInput{Order: feedback.OrderUpdatedDesc, MembershipID: want.MembershipID, ResourceID: want.ResourceID, Category: want.Category, State: "addressed", Limit: 21}
+			var positionID any
+			if continued {
+				q.AfterUpdatedAt, q.AfterID = &want.UpdatedAt, want.ID
+				positionID = want.ID
+			}
+			got, err := store.List(identityRepositoryContext(pool, tx), want.TenantID, q)
+			if err != nil || len(got) != 1 || got[0] != want || !rows.closed {
+				t.Fatal(got, err)
+			}
+			if !reflect.DeepEqual(tx.queryArguments, [][]any{{want.TenantID, want.MembershipID, want.ResourceID, want.Category, "addressed", q.AfterUpdatedAt, positionID, 21}}) {
+				t.Fatal("recent query lost filters or tuple", tx.queryArguments)
+			}
+			for _, predicate := range []string{"tenant_id=$1", "membership_id=$2::uuid", "resources.deleted_at IS NULL", "(updated_at,id)<($6,$7::uuid)", "ORDER BY updated_at DESC,id DESC LIMIT $8"} {
+				if !strings.Contains(tx.queryStatements[0], predicate) {
+					t.Fatal("missing SQL boundary", predicate)
+				}
+			}
+		})
 	}
 }
 

@@ -154,7 +154,7 @@ func scanRevisionSummary(row scanner) (catalog.RevisionSummary, error) {
 }
 
 // ListSubmissions returns a SQL-limited tenant page of review submissions with
-// optional listing and state filters, excluding deleted resources.
+// optional namespace, listing and state filters, excluding deleted resources.
 func (p *PostgresRepository) ListSubmissions(ctx context.Context, tenantID string, request catalog.SubmissionListRequest) ([]catalog.ReviewSubmission, error) {
 	return withTenantCollectionRead(ctx, p.pool, tenantID, func(tx pgx.Tx) ([]catalog.ReviewSubmission, error) {
 		rows, err := tx.Query(ctx, collectionStatement(ctx, `SELECT v.id,v.tenant_id,v.listing_id,v.version_revision_id,v.listing_revision_id,v.evidence_set_id,v.evidence_digest,v.policy_version,v.state,v.submitted_by,v.decisions,v.revision,v.submitted_at,v.decided_at,
@@ -164,7 +164,8 @@ FROM review_submissions v JOIN catalog_listings p ON p.tenant_id=v.tenant_id AND
 LEFT JOIN listing_revisions submitted ON submitted.tenant_id=v.tenant_id AND submitted.listing_id=v.listing_id AND submitted.id=v.listing_revision_id
 WHERE v.tenant_id=$1 AND `+collectionPermissionSQL("resource.read_history", "p.namespace_id")+` AND ($2::uuid IS NULL OR v.listing_id=$2) AND ($3='' OR v.state=$3) AND ($4::uuid IS NULL OR v.id>$4)
 AND (NOT $6::boolean OR `+unreleasedSubmissionSQL("v")+`)
-ORDER BY v.id LIMIT $5`), tenantID, nullableUUID(request.ListingID), request.State, nullableUUID(request.AfterID), request.Limit, request.Unreleased)
+AND ($7::uuid IS NULL OR p.namespace_id=$7)
+ORDER BY v.id LIMIT $5`), tenantID, nullableUUID(request.ListingID), request.State, nullableUUID(request.AfterID), request.Limit, request.Unreleased, nullableUUID(request.NamespaceID))
 		if err != nil {
 			return nil, translateError("list submissions", err)
 		}

@@ -231,9 +231,13 @@ When changing accounts, confirm sign-out if the browser asks to discard retained
 
 ### Review the browser submission
 
-Open **Reviews** to find submissions without constructing a URL. Enter an **Exact Listing ID**, select **Review state**, then choose **Apply review filters**. The filter applies across server pages. Draft edits do not change results until Apply.
+Open **Reviews** to find submissions without constructing a URL. Enter an **Exact namespace ID** or **Exact Listing ID**, select **Review state**, then choose **Apply review filters**. Filters apply across all server pages. Draft edits do not change results until Apply.
 
-**Refresh** reloads the current page for the applied criteria; browser Back restores those criteria. **Clear review filters** selects all authorized Listings and all states. A Listing link opens all states unless its URL selects a state. An unfiltered queue initially selects `submitted`.
+Use the namespace UUID shown on a Namespace or Listing to focus on one team's queue. Leave it empty for all authorized namespaces. Namespace and Listing filters intersect; choosing a Listing from another namespace returns no matches. A namespace filter does not grant access: unavailable, foreign-tenant and unknown namespaces return an empty page. Names and native documents retain their independent permission checks.
+
+API clients use `GET /api/v1/review-submissions?namespaceId=<namespace-uuid>&state=submitted&limit=25`. Namespace UUIDs accept either letter case; an explicit empty or malformed value is rejected. Follow `nextCursor` with the same filters and page size. Changing filters or current permissions invalidates continuation. Select **First page** to recover while retaining applied criteria. The server keeps its ascending submission-ID order; column sorting changes only the loaded page.
+
+**Refresh** reloads the current page for the applied criteria; browser Back restores those criteria. **Clear review filters** selects all authorized namespaces, all Listings and all states. A Listing link opens all states unless its URL selects a state. An unfiltered queue initially selects `submitted`.
 
 Use **Exact Submission ID > Open submission** for a known submission. Submission UUIDs accept either letter case; the lookup uses lowercase. This opens one authorized record without scanning the queue. Names and identifiers appear only when independently available. Unknown and foreign Listing or submission IDs can return an unavailable-record error; this differs from an authorized empty queue.
 
@@ -754,6 +758,22 @@ A Publisher can call `POST /api/v1/listing-releases/{releaseId}:deprecate`, `:re
 | Revoke | A published, deprecated, retired or superseded release can become `revoked`. Revocation is terminal. It clears the current pointer when applicable and withdraws a containing active snapshot. Do not supply replacement or sunset fields. |
 
 Authorized history reads retain the release and its reason after withdrawal. A containing snapshot is retired as a whole; the Catalog does not edit one entry out of immutable bytes. Build a new candidate to restore discovery of other eligible resources. Revoking an approved Publisher domain also withdraws affected active snapshots. See the [lifecycle API](../../../../../api/openapi/control-v1.yaml) for exact request fields.
+
+### Preview affected discovery feeds
+
+On the release screen, select **Retire**, **Supersede** or **Revoke**, then choose **Preview or refresh affected feeds**. The preview lists the active snapshots that contain that release, with their host, audience, generation and exact snapshot reference. Each listed snapshot will be withdrawn as a whole, including its other entries. Generate and activate a replacement separately when those other entries should remain available through that feed.
+
+Detailed impact requires both `resource.read_history` for the release's namespace and tenant-wide `publication.read`. Release-management permission alone does not reveal private host configuration. These read permissions do not grant permission to perform the transition. The equivalent API read is `GET /api/v1/listing-releases/{releaseId}/withdrawal-preview?transition=retired`; `superseded` and `revoked` are the other supported values. Deprecation keeps eligible discovery and has no withdrawal preview. Publisher-domain revocation is outside this preview.
+
+The observation time, release revision and snapshot references describe a completed read, not a reservation. Refresh explicitly before preparing confirmation. If the affected feeds changed, review the new list; if the release revision changed, reload release state first. The confirmation retains the observed references, but the actual command independently checks current authority, revision, replacement guidance and idempotency. It can affect publications that changed after the preview.
+
+An empty result means that the relevant active bundles were read and proved not to contain the release. A refusal or database outage means impact is unavailable, not zero. Invalid retained evidence can make the actual withdrawal conservatively retire a whole snapshot. The preview reads both ARD and AI Catalog membership, makes no remote discovery calls, starts no Job and changes no governed state. It produces no audit or notification records.
+
+Preview work is bounded to 64 configured tenant hosts, 72 MiB of aggregate retained snapshot bytes and the existing 100,000 publication-work-unit ceiling. Reads are sequential and use the process's shared construction limiter. PostgreSQL checks the remaining byte budget in the active-row query before transferring a document; the existing 36 MiB per-snapshot ceiling still applies. No truncated result is presented as complete.
+
+If a transition reply is lost, use **Retry same command** with its captured target, body, ETag and idempotency key. A new preview is a separate read, not command recovery. Failed PostgreSQL commands roll back their release change, snapshot withdrawals and transactional evidence together; refreshing impact does not prove that a command committed.
+
+### Unpublish one host
 
 A Publication Administrator can withdraw only the selected host's active snapshot:
 

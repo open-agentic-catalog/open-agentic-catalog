@@ -19,8 +19,8 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata"
 )
 
-func TestLangGraphSDKExample(t *testing.T) {
-	f := newFixture(t)
+func seedLangGraphResources(t *testing.T, f *fixture, visibility catalog.Visibility) (catalog.Namespace, catalog.Publisher, []string, []map[string]string) {
+	t.Helper()
 	actor := f.actor("admin")
 	ns, err := f.service.CreateNamespace(actor, catalog.CreateNamespaceInput{Slug: "langgraph", DisplayName: "LangGraph fixture"})
 	must(t, err)
@@ -29,6 +29,13 @@ func TestLangGraphSDKExample(t *testing.T) {
 	_, err = f.service.ApprovePublisherPublicationDomain(actor, publisher.ID, "demo.catalog.example.com", "Owned fixture", publisher.Revision)
 	must(t, err)
 	releases := []string{}
+	entries := []map[string]string{}
+	var categories []string
+	var queries []string
+	if visibility == catalog.VisibilityPublic {
+		categories = []string{"developer tools"}
+		queries = []string{"web testing", "developer resources"}
+	}
 	for _, source := range demodata.DefaultPlan("minimal", "").Resources {
 		if source.Resource.State != "published" {
 			continue
@@ -45,7 +52,7 @@ func TestLangGraphSDKExample(t *testing.T) {
 			must(t, err)
 			listing, err := f.service.CreateListing(actor, catalog.CreateListingInput{NamespaceID: ns.ID, ResourceID: resource.ID})
 			must(t, err)
-			listing, _, err = f.service.CreateListingRevision(actor, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, DisplayName: fmt.Sprintf("Web testing %s %02d", source.Resource.Kind, n), Description: "Developer web testing metadata", PublisherID: publisher.ID, Visibility: catalog.VisibilityTenant, License: "Apache-2.0"}, listing.Revision)
+			listing, _, err = f.service.CreateListingRevision(actor, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, DisplayName: fmt.Sprintf("Web testing %s %02d", source.Resource.Kind, n), Description: "Developer web testing metadata", PublisherID: publisher.ID, Visibility: visibility, Categories: categories, RepresentativeQueries: queries, License: "Apache-2.0"}, listing.Revision)
 			must(t, err)
 			submission, err := f.service.Submit(actor, listing.ID)
 			must(t, err)
@@ -56,8 +63,20 @@ func TestLangGraphSDKExample(t *testing.T) {
 			_, release, _, err := f.service.Publish(actor, listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision)
 			must(t, err)
 			releases = append(releases, release.ID)
+			media := revision.Representations[0].MediaType
+			if source.Resource.Kind == catalog.KindSkill {
+				media = `text/markdown; profile="urn:air:agent-skills"`
+			}
+			entries = append(entries, map[string]string{"identifier": identifier, "type": media, "version": "1.0.0"})
 		}
 	}
+	return ns, publisher, releases, entries
+}
+
+func TestLangGraphSDKExample(t *testing.T) {
+	f := newFixture(t)
+	ns, publisher, releases, _ := seedLangGraphResources(t, f, catalog.VisibilityTenant)
+	actor := f.actor("admin")
 	// Separate real Catalog namespaces keep the tiny model cases independent of
 	// the original positive/scripted workflow and avoid changing its page oracle.
 	cases := []map[string]any{}

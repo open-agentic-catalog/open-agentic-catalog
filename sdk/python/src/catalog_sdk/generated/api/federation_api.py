@@ -5639,6 +5639,12 @@ class FederationApi:
                 description="Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid."
             ),
         ] = None,
+        sync_state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid."
+            ),
+        ] = None,
         status: Annotated[
             Optional[StrictStr],
             Field(
@@ -5659,7 +5665,7 @@ class FederationApi:
     ) -> FederationSourcePage:
         """List federation sources
 
-        Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+        Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
         :type limit: int
@@ -5667,6 +5673,8 @@ class FederationApi:
         :type cursor: str
         :param display_name: Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid.
         :type display_name: str
+        :param sync_state: Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid.
+        :type sync_state: str
         :param status: Exact configured state. Omit for all nonremoved states; empty, repeated or removed values are invalid.
         :type status: str
         :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
@@ -5688,6 +5696,7 @@ class FederationApi:
             limit=limit,
             cursor=cursor,
             display_name=display_name,
+            sync_state=sync_state,
             status=status,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -5729,6 +5738,12 @@ class FederationApi:
                 description="Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid."
             ),
         ] = None,
+        sync_state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid."
+            ),
+        ] = None,
         status: Annotated[
             Optional[StrictStr],
             Field(
@@ -5749,7 +5764,7 @@ class FederationApi:
     ) -> ApiResponse[FederationSourcePage]:
         """List federation sources
 
-        Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+        Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
         :type limit: int
@@ -5757,6 +5772,8 @@ class FederationApi:
         :type cursor: str
         :param display_name: Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid.
         :type display_name: str
+        :param sync_state: Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid.
+        :type sync_state: str
         :param status: Exact configured state. Omit for all nonremoved states; empty, repeated or removed values are invalid.
         :type status: str
         :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
@@ -5778,6 +5795,7 @@ class FederationApi:
             limit=limit,
             cursor=cursor,
             display_name=display_name,
+            sync_state=sync_state,
             status=status,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -5819,6 +5837,12 @@ class FederationApi:
                 description="Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid."
             ),
         ] = None,
+        sync_state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid."
+            ),
+        ] = None,
         status: Annotated[
             Optional[StrictStr],
             Field(
@@ -5839,7 +5863,7 @@ class FederationApi:
     ) -> RESTResponseType:
         """List federation sources
 
-        Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+        Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
         :type limit: int
@@ -5847,6 +5871,8 @@ class FederationApi:
         :type cursor: str
         :param display_name: Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid.
         :type display_name: str
+        :param sync_state: Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid.
+        :type sync_state: str
         :param status: Exact configured state. Omit for all nonremoved states; empty, repeated or removed values are invalid.
         :type status: str
         :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
@@ -5868,6 +5894,7 @@ class FederationApi:
             limit=limit,
             cursor=cursor,
             display_name=display_name,
+            sync_state=sync_state,
             status=status,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -5905,6 +5932,12 @@ class FederationApi:
                 description="Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid."
             ),
         ] = None,
+        sync_state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid."
+            ),
+        ] = None,
         status: Annotated[
             Optional[StrictStr],
             Field(
@@ -5933,6 +5966,7 @@ class FederationApi:
                 limit=limit,
                 cursor=cursor,
                 display_name=display_name,
+                sync_state=sync_state,
                 status=status,
                 _request_timeout=_request_timeout,
                 _request_auth=_request_auth,
@@ -5963,6 +5997,12 @@ class FederationApi:
                 description="Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid."
             ),
         ] = None,
+        sync_state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid."
+            ),
+        ] = None,
         status: Annotated[
             Optional[StrictStr],
             Field(
@@ -5991,6 +6031,7 @@ class FederationApi:
                 limit=limit,
                 cursor=cursor,
                 display_name=display_name,
+                sync_state=sync_state,
                 status=status,
                 _request_timeout=_request_timeout,
                 _request_auth=_request_auth,
@@ -6021,6 +6062,12 @@ class FederationApi:
                 description="Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid."
             ),
         ] = None,
+        sync_state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid."
+            ),
+        ] = None,
         status: Annotated[
             Optional[StrictStr],
             Field(
@@ -6049,6 +6096,7 @@ class FederationApi:
                 limit=limit,
                 cursor=cursor,
                 display_name=display_name,
+                sync_state=sync_state,
                 status=status,
                 _request_timeout=_request_timeout,
                 _request_auth=_request_auth,
@@ -6063,6 +6111,7 @@ class FederationApi:
         limit,
         cursor,
         display_name,
+        sync_state,
         status,
         _request_auth,
         _content_type,
@@ -6093,6 +6142,9 @@ class FederationApi:
 
         if display_name is not None:
             _query_params.append(("displayName", display_name))
+
+        if sync_state is not None:
+            _query_params.append(("syncState", sync_state))
 
         if status is not None:
             _query_params.append(("status", status))

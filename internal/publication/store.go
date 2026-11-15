@@ -393,6 +393,32 @@ func (m *MemoryStore) Active(_ context.Context, tenantID string) (Snapshot, erro
 	return cloneSnapshot(m.snapshots[memorySnapshotKey(tenantID, id)]), nil
 }
 
+// ActiveForWithdrawalPreview measures retained memory state before cloning it.
+func (m *MemoryStore) ActiveForWithdrawalPreview(ctx context.Context, tenantID string, maxBytes int) (Snapshot, int, error) {
+	if err := ctx.Err(); err != nil {
+		return Snapshot{}, 0, err
+	}
+	maxBytes = min(maxBytes, MaxPublicationSnapshotBytes)
+	if maxBytes < 1 {
+		return Snapshot{}, 0, catalog.E(catalog.CodeWorkLimitExceeded, "withdrawal preview exhausted its retained-byte budget")
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	id := m.active[tenantID]
+	if id == "" {
+		return Snapshot{}, 0, catalog.E(catalog.CodeNotFound, "no active publication snapshot exists")
+	}
+	snapshot := m.snapshots[memorySnapshotKey(tenantID, id)]
+	raw, err := json.Marshal(snapshot)
+	if err != nil {
+		return Snapshot{}, 0, catalog.E(catalog.CodePublicationNotReady, "retained publication membership is invalid")
+	}
+	if len(raw) > maxBytes {
+		return Snapshot{}, 0, catalog.E(catalog.CodeWorkLimitExceeded, "withdrawal preview exceeds its remaining retained-byte budget")
+	}
+	return cloneSnapshot(snapshot), len(raw), nil
+}
+
 // memorySnapshotKey includes both tenant and immutable snapshot ID in the
 // in-memory index.
 func memorySnapshotKey(tenantID, snapshotID string) string {

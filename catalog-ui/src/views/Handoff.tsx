@@ -432,6 +432,29 @@ export function LocalHandoff({
         onFailure={onFailure}
         permissionState={permissionState}
       />
+      {record.resource.kind === "mcp_server" &&
+        !record.toolDeclarationRedacted &&
+        permissionState &&
+        permitsNamespace(
+          permissionState.access,
+          "resource.read_content",
+          "catalog.read",
+          record.resource.namespaceId,
+        ) &&
+        !record.versionRevision.representations.some(
+          (item) => item.profileId === "open-agentic-catalog-mcp-tools-1",
+        ) && (
+          <p>
+            Declared tools: Not supplied for this revision. This does not mean
+            that the runtime has no tools.
+          </p>
+        )}
+      {record.toolDeclarationRedacted && (
+        <p>
+          Content-read access is required to inspect any private tool
+          declaration for this revision.
+        </p>
+      )}
       {record.versionRevision.representations.map((item) => (
         <RepresentationHandoff
           key={item.id}

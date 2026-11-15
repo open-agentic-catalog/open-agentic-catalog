@@ -1810,6 +1810,88 @@ impl AsRef<str> for ResourceOverviewScope {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct ReleaseWithdrawalPreview {
+    #[serde(rename = "observedAt")]
+    pub observed_at: chrono::DateTime<chrono::Utc>,
+    #[serde(rename = "releaseId")]
+    pub release_id: UUID,
+    ///Constraint: minimum=1
+    #[serde(rename = "releaseRevision")]
+    pub release_revision: i64,
+    ///Constraint: maxItems=64
+    pub snapshots: Vec<ReleaseWithdrawalSnapshot>,
+    pub transition: ReleaseWithdrawalPreviewTransition,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleaseWithdrawalSnapshot {
+    pub audience: ReleaseWithdrawalSnapshotAudience,
+    ///Constraint: minLength=1, maxLength=256
+    pub etag: String,
+    ///Constraint: minimum=1
+    pub generation: i64,
+    ///Constraint: minLength=1, maxLength=253
+    pub host: String,
+    #[serde(rename = "snapshotId")]
+    pub snapshot_id: UUID,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum ReleaseWithdrawalSnapshotAudience {
+    #[default]
+    #[serde(rename = "anonymous")]
+    Anonymous,
+    #[serde(rename = "authenticated")]
+    Authenticated,
+}
+impl ReleaseWithdrawalSnapshotAudience {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Anonymous => "anonymous",
+            Self::Authenticated => "authenticated",
+        }
+    }
+}
+impl ::std::fmt::Display for ReleaseWithdrawalSnapshotAudience {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ReleaseWithdrawalSnapshotAudience {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum ReleaseWithdrawalPreviewTransition {
+    #[default]
+    #[serde(rename = "retired")]
+    Retired,
+    #[serde(rename = "superseded")]
+    Superseded,
+    #[serde(rename = "revoked")]
+    Revoked,
+}
+impl ReleaseWithdrawalPreviewTransition {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Retired => "retired",
+            Self::Superseded => "superseded",
+            Self::Revoked => "revoked",
+        }
+    }
+}
+impl ::std::fmt::Display for ReleaseWithdrawalPreviewTransition {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ReleaseWithdrawalPreviewTransition {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ReleaseTransition {
     ///Constraint: minLength=1, maxLength=2000, pattern=`.*\S.*`
     pub reason: String,
@@ -4415,12 +4497,192 @@ impl AsRef<str> for PersonalInputType {
     }
 }
 ///Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search.
+#[derive(Debug, Clone)]
+pub struct PersonalCriteria {
+    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+    ///Constraint: maxLength=256, pattern=`^[^\x00]*$`
+    pub agent_protocol: Option<String>,
+    ///All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
+    ///Constraint: maxItems=16
+    pub categories: Option<Vec<String>>,
+    ///Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+    pub include_mcp_tools: Option<bool>,
+    ///Constraint: maxItems=4, uniqueItems=true
+    pub kinds: Option<Vec<ResourceKind>>,
+    ///Empty means no license filter. Trimmed, case-sensitive exact match against the immutable local Listing license or bounded external metadata.license string. No SPDX interpretation or match for absent, malformed or oversized declarations. Applies across selected origins.
+    ///Constraint: maxLength=256, pattern=`^$|^[^\x00]*[^\s\x00][^\x00]*$`
+    pub license: Option<String>,
+    ///Local Listing namespace UUID; restricts to local releases. Unknown or other-tenant UUIDs return no matches. Not an AIR or JSON-LD namespace.
+    pub namespace_id: Option<UUID>,
+    pub order: Option<CatalogSearchOrder>,
+    ///Select local, indexed or transient live provenance. Omission preserves existing participation. With namespaceId, omit origins or select local alone. License and category filters apply across selected origins. Local releases shadow matching indexed identities only when local participates. Live-only search can continue a verified bounded live window and reports zero durableTotal.
+    ///Constraint: minItems=1, maxItems=3, uniqueItems=true
+    pub origins: Option<Vec<PersonalCriteriaOriginsItem>>,
+    ///Source-aware selector matched against the Catalog Publisher UUID for local releases and the normalized AIR publisher component for indexed or live entries. Excludes NUL and is limited to 256 UTF-8 bytes.
+    ///Constraint: maxLength=256, pattern=`^[^\x00]*$`
+    pub publisher: Option<String>,
+    ///Constraint: maxItems=32
+    pub tags: Option<Vec<String>>,
+    ///Search text excludes NUL and is limited to 500 UTF-8 bytes.
+    ///Constraint: maxLength=500, pattern=`^[^\x00]*$`
+    pub text: Option<String>,
+    pub visibility: Option<Visibility>,
+    /// The variant this value takes, alongside the fields above.
+    pub variant: PersonalCriteriaAllOfVariant3,
+}
+#[derive(Deserialize, Serialize)]
+struct __PersonalCriteriaBase {
+    #[serde(rename = "agentProtocol", skip_serializing_if = "Option::is_none")]
+    agent_protocol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    categories: Option<Vec<String>>,
+    #[serde(rename = "includeMcpTools", skip_serializing_if = "Option::is_none")]
+    include_mcp_tools: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kinds: Option<Vec<ResourceKind>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    license: Option<String>,
+    #[serde(rename = "namespaceId", skip_serializing_if = "Option::is_none")]
+    namespace_id: Option<UUID>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    order: Option<CatalogSearchOrder>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    origins: Option<Vec<PersonalCriteriaOriginsItem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    publisher: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tags: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    visibility: Option<Visibility>,
+}
+impl serde::Serialize for PersonalCriteria {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let base = __PersonalCriteriaBase {
+            agent_protocol: self.agent_protocol.clone(),
+            categories: self.categories.clone(),
+            include_mcp_tools: self.include_mcp_tools.clone(),
+            kinds: self.kinds.clone(),
+            license: self.license.clone(),
+            namespace_id: self.namespace_id.clone(),
+            order: self.order.clone(),
+            origins: self.origins.clone(),
+            publisher: self.publisher.clone(),
+            tags: self.tags.clone(),
+            text: self.text.clone(),
+            visibility: self.visibility.clone(),
+        };
+        let mut value = serde_json::to_value(base).map_err(serde::ser::Error::custom)?;
+        let variant = serde_json::to_value(&self.variant).map_err(serde::ser::Error::custom)?;
+        let object = value.as_object_mut().ok_or_else(|| {
+            serde::ser::Error::custom("shared union base did not serialize as an object")
+        })?;
+        let variant_object = variant.as_object().ok_or_else(|| {
+            serde::ser::Error::custom("shared union variant did not serialize as an object")
+        })?;
+        for (key, variant_value) in variant_object {
+            if let Some(base_value) = object.get(key)
+                && base_value != variant_value
+            {
+                return Err(serde::ser::Error::custom(format!(
+                    "shared union field `{key}` serialized conflicting values",
+                )));
+            }
+            object.insert(key.clone(), variant_value.clone());
+        }
+        serde::Serialize::serialize(&value, serializer)
+    }
+}
+impl<'de> serde::Deserialize<'de> for PersonalCriteria {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let base = serde_json::from_value::<__PersonalCriteriaBase>(value.clone())
+            .map_err(serde::de::Error::custom)?;
+        let variant = match serde_json::from_value::<PersonalCriteriaAllOfVariant3>(value.clone()) {
+            Ok(variant) => variant,
+            Err(complete_error) => {
+                let mut variant_input = value;
+                if let Some(object) = variant_input.as_object_mut() {
+                    object.remove("agentProtocol");
+                    object.remove("categories");
+                    object.remove("includeMcpTools");
+                    object.remove("kinds");
+                    object.remove("license");
+                    object.remove("namespaceId");
+                    object.remove("order");
+                    object.remove("publisher");
+                    object.remove("tags");
+                    object.remove("text");
+                    object.remove("visibility");
+                }
+                serde_json::from_value::<PersonalCriteriaAllOfVariant3>(variant_input)
+                    .map_err(|projected_error| serde::de::Error::custom(
+                        format!(
+                            "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
+                        ),
+                    ))?
+            }
+        };
+        Ok(Self {
+            agent_protocol: base.agent_protocol,
+            categories: base.categories,
+            include_mcp_tools: base.include_mcp_tools,
+            kinds: base.kinds,
+            license: base.license,
+            namespace_id: base.namespace_id,
+            order: base.order,
+            origins: base.origins,
+            publisher: base.publisher,
+            tags: base.tags,
+            text: base.text,
+            visibility: base.visibility,
+            variant: variant,
+        })
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum PersonalCriteriaOriginsItem {
+    #[default]
+    #[serde(rename = "local")]
+    Local,
+    #[serde(rename = "indexed")]
+    Indexed,
+    #[serde(rename = "live")]
+    Live,
+}
+impl PersonalCriteriaOriginsItem {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Indexed => "indexed",
+            Self::Live => "live",
+        }
+    }
+}
+impl ::std::fmt::Display for PersonalCriteriaOriginsItem {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for PersonalCriteriaOriginsItem {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum PersonalCriteria {
-    UnionTypeInlineVariant(UnionTypeInlineVariant),
-    OriginsBlock(OriginsBlock),
+pub enum PersonalCriteriaAllOfVariant3 {
+    PersonalCriteriaAllOfVariant3InlineVariant(PersonalCriteriaAllOfVariant3InlineVariant),
+    OriginsBlockInline(OriginsBlockInline),
 }
+pub type PersonalCriteriaAllOfVariant3InlineVariant = serde_json::Value;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PermissionChecks {
@@ -4453,6 +4715,34 @@ pub struct OverviewKindCount {
     ///Constraint: minimum=0, maximum=10000
     pub count: i64,
     pub kind: ResourceKind,
+}
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct OriginsBlockInline {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub origins: Option<Vec<OriginsBlockInlineOriginsItem>>,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum OriginsBlockInlineOriginsItem {
+    #[default]
+    #[serde(rename = "local")]
+    Local,
+}
+impl OriginsBlockInlineOriginsItem {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Local => "local",
+        }
+    }
+}
+impl ::std::fmt::Display for OriginsBlockInlineOriginsItem {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for OriginsBlockInlineOriginsItem {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
 }
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct OriginsBlock {
@@ -6940,6 +7230,12 @@ pub struct FederationSource {
     pub last_error: Option<String>,
     #[serde(rename = "lastSyncAt", skip_serializing_if = "Option::is_none")]
     pub last_sync_at: Option<chrono::DateTime<chrono::Utc>>,
+    ///Directory-only scalar projection of the latest completed current-revision indexed attempt. Absent for live-only or unsynchronized configurations. Not configuration, last complete membership or a freshness guarantee.
+    #[serde(
+        rename = "latestCompletedSync",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub latest_completed_sync: Option<SourceSyncAttempt>,
     pub live: LivePolicy,
     pub nesting: NestingPolicy,
     #[serde(rename = "networkProfile", skip_serializing_if = "Option::is_none")]
@@ -6987,6 +7283,46 @@ pub struct FederationSource {
     pub update_mode: FederationSourceUpdateMode,
     #[serde(rename = "updatedAt")]
     pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SourceSyncAttempt {
+    #[serde(rename = "completedAt")]
+    pub completed_at: chrono::DateTime<chrono::Utc>,
+    ///Constraint: minimum=1
+    pub revision: i64,
+    #[serde(rename = "snapshotId")]
+    pub snapshot_id: UUID,
+    pub state: SourceSyncAttemptState,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum SourceSyncAttemptState {
+    #[default]
+    #[serde(rename = "complete")]
+    Complete,
+    #[serde(rename = "incomplete")]
+    Incomplete,
+    #[serde(rename = "failed")]
+    Failed,
+}
+impl SourceSyncAttemptState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Complete => "complete",
+            Self::Incomplete => "incomplete",
+            Self::Failed => "failed",
+        }
+    }
+}
+impl ::std::fmt::Display for SourceSyncAttemptState {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for SourceSyncAttemptState {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum FederationSourceUpdateMode {
@@ -8945,7 +9281,7 @@ pub struct CatalogSearchResponse {
     ///Some eligible metadata cannot be embedded and remains lexical-only.
     #[serde(rename = "partialIndex", skip_serializing_if = "Option::is_none")]
     pub partial_index: Option<bool>,
-    ///Constraint: pattern=`^(core-lexical-v1|sha256:[a-f0-9]{64})$`
+    ///Constraint: pattern=`^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$`
     pub profile: String,
     pub tier: CatalogSearchResponseTier,
 }
@@ -8975,6 +9311,7 @@ pub struct CatalogSearchResult {
     pub score: i64,
     ///Constraint: maxItems=100, uniqueItems=true
     pub tags: Vec<String>,
+    pub tool_match: Option<MCPToolMatch>,
     pub r#type: CatalogSearchResultType,
     ///Constraint: maxLength=128
     pub version: Option<String>,
@@ -9009,6 +9346,8 @@ struct __CatalogSearchResultBase {
     ratings: Option<RatingSummary>,
     score: i64,
     tags: Vec<String>,
+    #[serde(rename = "toolMatch", skip_serializing_if = "Option::is_none")]
+    tool_match: Option<MCPToolMatch>,
     r#type: CatalogSearchResultType,
     #[serde(skip_serializing_if = "Option::is_none")]
     version: Option<String>,
@@ -9036,6 +9375,7 @@ impl serde::Serialize for CatalogSearchResult {
             ratings: self.ratings.clone(),
             score: self.score.clone(),
             tags: self.tags.clone(),
+            tool_match: self.tool_match.clone(),
             r#type: self.r#type.clone(),
             version: self.version.clone(),
             version_present: self.version_present.clone(),
@@ -9086,6 +9426,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearchResult {
                     object.remove("ratings");
                     object.remove("score");
                     object.remove("tags");
+                    object.remove("toolMatch");
                     object.remove("version");
                     object.remove("versionPresent");
                 }
@@ -9113,6 +9454,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearchResult {
             ratings: base.ratings,
             score: base.score,
             tags: base.tags,
+            tool_match: base.tool_match,
             r#type: base.r#type,
             version: base.version,
             version_present: base.version_present,
@@ -9131,6 +9473,32 @@ pub struct RatingSummary {
     ///Constraint: maxLength=4096
     #[serde(skip_serializing_if = "Option::is_none")]
     pub receipt: Option<String>,
+}
+///Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct MCPToolMatch {
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "contentDigest")]
+    pub content_digest: String,
+    ///Constraint: minimum=1, maximum=64
+    #[serde(rename = "matchedToolCount")]
+    pub matched_tool_count: i64,
+    #[serde(rename = "representationId")]
+    pub representation_id: UUID,
+    ///Constraint: minItems=1, maxItems=3
+    pub tools: Vec<MCPToolMatchToolsItem>,
+    pub truncated: bool,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct MCPToolMatchToolsItem {
+    ///Constraint: maxLength=256
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    #[serde(rename = "descriptionTruncated")]
+    pub description_truncated: bool,
+    ///Constraint: minLength=1, maxLength=128
+    pub name: String,
 }
 #[derive(Debug, Clone)]
 pub enum CatalogSearchResultVariant {
@@ -9630,13 +9998,245 @@ impl AsRef<str> for CatalogSearchDiagnosticStatus {
         self.as_str()
     }
 }
+#[derive(Debug, Clone)]
+pub struct CatalogSearch {
+    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+    ///Constraint: maxLength=256, pattern=`^[^\x00]*$`
+    pub agent_protocol: Option<String>,
+    ///All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
+    ///Constraint: maxItems=16
+    pub categories: Option<Vec<String>>,
+    ///Opaque expiring continuation cursor bound to the principal, permissions, normalized query, core SearchProfile, and durable local and indexed generations. Core live continuation replays an unchanged bounded window of at most 50 candidates with a fixed 15-minute expiry. Changed evidence requires restart; temporary replay failure permits retrying the same cursor. Hybrid Search preserves the precise durable ranking before a separate live tail. Live-only Search binds the live window without durable generation or embedding work.
+    ///Constraint: maxLength=4096
+    pub cursor: Option<String>,
+    ///Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+    pub include_mcp_tools: Option<bool>,
+    ///Constraint: maxItems=4, uniqueItems=true
+    pub kinds: Option<Vec<ResourceKind>>,
+    ///Empty means no license filter. Trimmed, case-sensitive exact match against the immutable local Listing license or bounded external metadata.license string. No SPDX interpretation or match for absent, malformed or oversized declarations. Applies across selected origins.
+    ///Constraint: maxLength=256, pattern=`^$|^[^\x00]*[^\s\x00][^\x00]*$`
+    pub license: Option<String>,
+    ///Constraint: minimum=1, maximum=100
+    pub limit: Option<i64>,
+    ///Local Listing namespace UUID; restricts to local releases. Unknown or other-tenant UUIDs return no matches. Not an AIR or JSON-LD namespace.
+    pub namespace_id: Option<UUID>,
+    pub order: Option<CatalogSearchOrder>,
+    ///Select local, indexed or transient live provenance. Omission preserves existing participation. With namespaceId, omit origins or select local alone. License and category filters apply across selected origins. Local releases shadow matching indexed identities only when local participates. Live-only search can continue a verified bounded live window and reports zero durableTotal.
+    ///Constraint: minItems=1, maxItems=3, uniqueItems=true
+    pub origins: Option<Vec<CatalogSearchOriginsItem>>,
+    ///Source-aware selector matched against the Catalog Publisher UUID for local releases and the normalized AIR publisher component for indexed or live entries. Excludes NUL and is limited to 256 UTF-8 bytes.
+    ///Constraint: maxLength=256, pattern=`^[^\x00]*$`
+    pub publisher: Option<String>,
+    ///Constraint: maxItems=32
+    pub tags: Option<Vec<String>>,
+    ///Search text excludes NUL and is limited to 500 UTF-8 bytes.
+    ///Constraint: maxLength=500, pattern=`^[^\x00]*$`
+    pub text: Option<String>,
+    pub visibility: Option<Visibility>,
+    /// The variant this value takes, alongside the fields above.
+    pub variant: CatalogSearchAllOfVariant3,
+}
+#[derive(Deserialize, Serialize)]
+struct __CatalogSearchBase {
+    #[serde(rename = "agentProtocol", skip_serializing_if = "Option::is_none")]
+    agent_protocol: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    categories: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cursor: Option<String>,
+    #[serde(rename = "includeMcpTools", skip_serializing_if = "Option::is_none")]
+    include_mcp_tools: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kinds: Option<Vec<ResourceKind>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    license: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<i64>,
+    #[serde(rename = "namespaceId", skip_serializing_if = "Option::is_none")]
+    namespace_id: Option<UUID>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    order: Option<CatalogSearchOrder>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    origins: Option<Vec<CatalogSearchOriginsItem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    publisher: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tags: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    visibility: Option<Visibility>,
+}
+impl serde::Serialize for CatalogSearch {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let base = __CatalogSearchBase {
+            agent_protocol: self.agent_protocol.clone(),
+            categories: self.categories.clone(),
+            cursor: self.cursor.clone(),
+            include_mcp_tools: self.include_mcp_tools.clone(),
+            kinds: self.kinds.clone(),
+            license: self.license.clone(),
+            limit: self.limit.clone(),
+            namespace_id: self.namespace_id.clone(),
+            order: self.order.clone(),
+            origins: self.origins.clone(),
+            publisher: self.publisher.clone(),
+            tags: self.tags.clone(),
+            text: self.text.clone(),
+            visibility: self.visibility.clone(),
+        };
+        let mut value = serde_json::to_value(base).map_err(serde::ser::Error::custom)?;
+        let variant = serde_json::to_value(&self.variant).map_err(serde::ser::Error::custom)?;
+        let object = value.as_object_mut().ok_or_else(|| {
+            serde::ser::Error::custom("shared union base did not serialize as an object")
+        })?;
+        let variant_object = variant.as_object().ok_or_else(|| {
+            serde::ser::Error::custom("shared union variant did not serialize as an object")
+        })?;
+        for (key, variant_value) in variant_object {
+            if let Some(base_value) = object.get(key)
+                && base_value != variant_value
+            {
+                return Err(serde::ser::Error::custom(format!(
+                    "shared union field `{key}` serialized conflicting values",
+                )));
+            }
+            object.insert(key.clone(), variant_value.clone());
+        }
+        serde::Serialize::serialize(&value, serializer)
+    }
+}
+impl<'de> serde::Deserialize<'de> for CatalogSearch {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let base = serde_json::from_value::<__CatalogSearchBase>(value.clone())
+            .map_err(serde::de::Error::custom)?;
+        let variant = match serde_json::from_value::<CatalogSearchAllOfVariant3>(value.clone()) {
+            Ok(variant) => variant,
+            Err(complete_error) => {
+                let mut variant_input = value;
+                if let Some(object) = variant_input.as_object_mut() {
+                    object.remove("agentProtocol");
+                    object.remove("categories");
+                    object.remove("cursor");
+                    object.remove("includeMcpTools");
+                    object.remove("kinds");
+                    object.remove("license");
+                    object.remove("limit");
+                    object.remove("namespaceId");
+                    object.remove("order");
+                    object.remove("publisher");
+                    object.remove("tags");
+                    object.remove("text");
+                    object.remove("visibility");
+                }
+                serde_json::from_value::<CatalogSearchAllOfVariant3>(variant_input)
+                    .map_err(|projected_error| serde::de::Error::custom(
+                        format!(
+                            "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
+                        ),
+                    ))?
+            }
+        };
+        Ok(Self {
+            agent_protocol: base.agent_protocol,
+            categories: base.categories,
+            cursor: base.cursor,
+            include_mcp_tools: base.include_mcp_tools,
+            kinds: base.kinds,
+            license: base.license,
+            limit: base.limit,
+            namespace_id: base.namespace_id,
+            order: base.order,
+            origins: base.origins,
+            publisher: base.publisher,
+            tags: base.tags,
+            text: base.text,
+            visibility: base.visibility,
+            variant: variant,
+        })
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum CatalogSearchOriginsItem {
+    #[default]
+    #[serde(rename = "local")]
+    Local,
+    #[serde(rename = "indexed")]
+    Indexed,
+    #[serde(rename = "live")]
+    Live,
+}
+impl CatalogSearchOriginsItem {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Local => "local",
+            Self::Indexed => "indexed",
+            Self::Live => "live",
+        }
+    }
+}
+impl ::std::fmt::Display for CatalogSearchOriginsItem {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for CatalogSearchOriginsItem {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+///Explicit column order across local and indexed keyword matches, followed by a separately ordered bounded live window. Omit for relevance (including configured semantic search) or name A-Z when browsing without text. Publisher uses the current local display name or external publisher declaration. Kind uses its wire label. Primary keys use the selected direction; ties use normalized name and stable result ID ascending. Column ordering does not invoke the embedding provider. Changing order requires a new cursor-free search.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum CatalogSearchOrder {
+    #[default]
+    #[serde(rename = "name_asc")]
+    NameAsc,
+    #[serde(rename = "name_desc")]
+    NameDesc,
+    #[serde(rename = "kind_asc")]
+    KindAsc,
+    #[serde(rename = "kind_desc")]
+    KindDesc,
+    #[serde(rename = "publisher_asc")]
+    PublisherAsc,
+    #[serde(rename = "publisher_desc")]
+    PublisherDesc,
+}
+impl CatalogSearchOrder {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::NameAsc => "name_asc",
+            Self::NameDesc => "name_desc",
+            Self::KindAsc => "kind_asc",
+            Self::KindDesc => "kind_desc",
+            Self::PublisherAsc => "publisher_asc",
+            Self::PublisherDesc => "publisher_desc",
+        }
+    }
+}
+impl ::std::fmt::Display for CatalogSearchOrder {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for CatalogSearchOrder {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum CatalogSearch {
-    UnionTypeInlineVariant(UnionTypeInlineVariant),
+pub enum CatalogSearchAllOfVariant3 {
+    CatalogSearchAllOfVariant3InlineVariant(CatalogSearchAllOfVariant3InlineVariant),
     OriginsBlock(OriginsBlock),
 }
-pub type UnionTypeInlineVariant = serde_json::Value;
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum OriginsBlockOriginsItem {
     #[default]
@@ -9660,6 +10260,7 @@ impl AsRef<str> for OriginsBlockOriginsItem {
         self.as_str()
     }
 }
+pub type CatalogSearchAllOfVariant3InlineVariant = serde_json::Value;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogRecordPage {
@@ -9875,6 +10476,12 @@ pub struct CatalogRecord {
     pub relevance_score: Option<i64>,
     pub resource: Resource,
     pub source: CatalogRecordSource,
+    ///Current content permission does not permit private tool declaration disclosure. Set for every MCP record without that permission, whether a declaration exists or not; absence of a displayed attachment cannot establish not supplied.
+    #[serde(
+        rename = "toolDeclarationRedacted",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub tool_declaration_redacted: Option<bool>,
     pub version: ResourceVersion,
     #[serde(rename = "versionRevision")]
     pub version_revision: VersionRevision,
@@ -10987,7 +11594,7 @@ pub struct CatalogExploreResponse {
     pub matched: i64,
     #[serde(rename = "partialIndex", skip_serializing_if = "Option::is_none")]
     pub partial_index: Option<bool>,
-    ///Constraint: pattern=`^(core-lexical-v1|sha256:[a-f0-9]{64})$`
+    ///Constraint: pattern=`^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$`
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -11121,35 +11728,7 @@ impl CatalogExploreBuilder {
         self.value
     }
 }
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-#[serde(deny_unknown_fields)]
-pub struct CatalogExploreQuery {
-    ///All selected categories must match local Listing categories after trimming, lowercasing and deduplication. Missing categories do not match. Explore covers local releases only.
-    ///Constraint: maxItems=16
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub categories: Option<Vec<String>>,
-    ///Constraint: maxItems=4, uniqueItems=true
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub kinds: Option<Vec<ResourceKind>>,
-    ///Empty means no license filter. Trimmed, case-sensitive exact match against the local immutable Listing license declaration. No SPDX interpretation or match for absent declarations. Explore covers local releases only.
-    ///Constraint: maxLength=256, pattern=`^$|^[^\x00]*[^\s\x00][^\x00]*$`
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub license: Option<String>,
-    #[serde(rename = "namespaceId", skip_serializing_if = "Option::is_none")]
-    pub namespace_id: Option<UUID>,
-    ///Catalog Publisher UUID. Explore covers local governed releases only.
-    ///Constraint: maxLength=256
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub publisher: Option<String>,
-    ///Constraint: maxItems=32
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub tags: Option<Vec<String>>,
-    ///Constraint: maxLength=500
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub text: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub visibility: Option<Visibility>,
-}
+pub type CatalogExploreQuery = serde_json::Value;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CatalogExploreFacetsItem {
     pub field: CatalogExploreFacetsItemField,
@@ -15191,45 +15770,6 @@ impl AuditExportRequestBuilder {
     /// Finish building the request model.
     pub fn build(self) -> AuditExportRequest {
         self.value
-    }
-}
-///Explicit column order across local and indexed keyword matches, followed by a separately ordered bounded live window. Omit for relevance (including configured semantic search) or name A-Z when browsing without text. Publisher uses the current local display name or external publisher declaration. Kind uses its wire label. Primary keys use the selected direction; ties use normalized name and stable result ID ascending. Column ordering does not invoke the embedding provider. Changing order requires a new cursor-free search.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
-pub enum CatalogSearchOrder {
-    #[default]
-    #[serde(rename = "name_asc")]
-    NameAsc,
-    #[serde(rename = "name_desc")]
-    NameDesc,
-    #[serde(rename = "kind_asc")]
-    KindAsc,
-    #[serde(rename = "kind_desc")]
-    KindDesc,
-    #[serde(rename = "publisher_asc")]
-    PublisherAsc,
-    #[serde(rename = "publisher_desc")]
-    PublisherDesc,
-}
-impl CatalogSearchOrder {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::NameAsc => "name_asc",
-            Self::NameDesc => "name_desc",
-            Self::KindAsc => "kind_asc",
-            Self::KindDesc => "kind_desc",
-            Self::PublisherAsc => "publisher_asc",
-            Self::PublisherDesc => "publisher_desc",
-        }
-    }
-}
-impl ::std::fmt::Display for CatalogSearchOrder {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-impl AsRef<str> for CatalogSearchOrder {
-    fn as_ref(&self) -> &str {
-        self.as_str()
     }
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]

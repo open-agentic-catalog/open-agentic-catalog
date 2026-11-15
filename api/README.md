@@ -8,6 +8,20 @@ For example, authenticated `GET /api/v1/personal/items?type=search&label=%20Supp
 
 Optional ANS registration assessments use explicit source-administrator commands and durable Jobs. Private result reads require current evidence permission and an audit write before disclosure. Generic Jobs omit assessment evidence. Follow the [assessment procedure](../documentation/src/content/docs/operations/federation.mdx#request-an-ans-registration-assessment); ordinary discovery never starts these checks.
 
+Explicit `includeMcpTools: true` searches local MCP listings and their private released
+tool declarations. It requires nonblank text, local-only origins and current
+content-read authority before tool contributions affect matches or counts. The
+[request example](examples/mcp-tools-search.json) and
+[reader guide](../documentation/src/content/docs/guides/catalog-ui.mdx#find-mcp-servers-by-declared-tools)
+explain bounds, `toolMatch`, revision binding and the private authoring profile.
+Ordinary Search stays unchanged when the option is omitted.
+
+Catalog record reads omit private tool attachments without current content-read
+permission. `toolDeclarationRedacted: true` appears for every MCP record lacking
+that permission, including records with no attachment. This flag describes
+access, not the presence of an inventory. Use the authorized exact revision or
+reusable draft export to inspect retained declarations.
+
 ## Authoritative contracts
 
 Historical source comparison uses `GET /api/v1/federation/snapshots/{snapshotId}/comparison` with an exact `otherSnapshotId`. Both memberships must be complete and share one source configuration revision. The response pages occurrence-bound compact changes without raw documents, source requests or mutations. Current `source.read` permission and the applicable `sources.read` scope are required. Follow [Compare two saved synchronizations](../documentation/src/content/docs/operations/federation.mdx#compare-two-saved-synchronizations) for result meanings, duplicate keys, input bounds and continuation.

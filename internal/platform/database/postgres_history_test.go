@@ -48,7 +48,7 @@ func TestHistoryAdaptersDecodeRowsBindPagesAndCloseResults(t *testing.T) {
 			return p.ListReleases(ctx, paginationTestTenantID, parent, page)
 		}, []any{release.ID, release.TenantID, release.ListingID, release.SubmissionID, release.VersionRevisionID, release.ListingRevisionID, release.State, release.ReplacementReleaseID, release.DispositionReason, release.SunsetAt, release.ActivatedBy, release.Revision, release.ActivatedAt, release.UpdatedAt}, []catalog.ListingRelease{release}},
 		{"submissions", func(p *PostgresRepository, ctx context.Context, page catalog.HistoryPageRequest) (any, error) {
-			return p.ListSubmissions(ctx, paginationTestTenantID, catalog.SubmissionListRequest{HistoryPageRequest: page, ListingID: parent, State: catalog.SubmissionApproved})
+			return p.ListSubmissions(ctx, paginationTestTenantID, catalog.SubmissionListRequest{HistoryPageRequest: page, ListingID: parent, NamespaceID: parent, State: catalog.SubmissionApproved})
 		}, []any{submission.ID, submission.TenantID, submission.ListingID, submission.VersionRevisionID, submission.ListingRevisionID, submission.EvidenceSetID, submission.EvidenceDigest, submission.PolicyVersion, submission.State, submission.SubmittedBy, []byte(`[{"actor":"reviewer","action":"approve","reason":"reviewed","at":"2026-09-01T13:00:00Z"}]`), submission.Revision, submission.SubmittedAt, submission.DecidedAt, "", ""}, []catalog.ReviewSubmission{submission}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -109,7 +109,7 @@ func TestHistoryAdaptersDecodeRowsBindPagesAndCloseResults(t *testing.T) {
 					requireTenantBoundQuery(t, tx.queryStatements, tx.queryArguments)
 					wantArgs := []any{paginationTestTenantID, parent, position, 3}
 					if test.name == "submissions" {
-						wantArgs = []any{paginationTestTenantID, parent, catalog.SubmissionApproved, position, 3, false}
+						wantArgs = []any{paginationTestTenantID, parent, catalog.SubmissionApproved, position, 3, false, parent}
 					}
 					if !reflect.DeepEqual(tx.queryArguments[0], wantArgs) {
 						t.Fatalf("page arguments = %#v, want %#v", tx.queryArguments[0], wantArgs)
@@ -137,7 +137,7 @@ func TestSubmissionHistoryRejectsMalformedDecisionsAndBindsOptionalFilters(t *te
 	if catalog.ErrorCodeOf(err) != catalog.CodeInternal || items != nil || !rows.closed {
 		t.Fatalf("malformed decisions: items=%#v, error=%v, closed=%t", items, err, rows.closed)
 	}
-	want := []any{paginationTestTenantID, nil, catalog.SubmissionState(""), nil, 2, false}
+	want := []any{paginationTestTenantID, nil, catalog.SubmissionState(""), nil, 2, false, nil}
 	if len(tx.queryArguments) != 1 || !reflect.DeepEqual(tx.queryArguments[0], want) {
 		t.Fatalf("optional filters = %#v, want %#v", tx.queryArguments, want)
 	}

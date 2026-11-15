@@ -200,6 +200,77 @@ exports.run = async (api) => {
       ),
       true,
     );
+    await web.evaluate("document.getElementById('advanced').open=true");
+    const declaredClick = async (id) => {
+      await web.evaluate(
+        `document.getElementById(${JSON.stringify(id)}).scrollIntoView({block:'center'})`,
+      );
+      await web.click(`document.getElementById(${JSON.stringify(id)})`);
+    };
+    await web.evaluate(
+      "(()=>{const n=document.getElementById('agentProtocol');n.value='JSONRPC';n.dispatchEvent(new Event('input',{bubbles:true}));})()",
+    );
+    await declaredClick("search-submit");
+    await web.until(
+      "document.querySelectorAll('.cards article').length===1 && !document.getElementById('search-submit').disabled",
+    );
+    assert.equal(api.browsing().query.agentProtocol, "JSONRPC");
+    await web.evaluate(
+      "(()=>{const n=document.getElementById('agentProtocol');n.value='GRPC';n.dispatchEvent(new Event('input',{bubbles:true}));})()",
+    );
+    await declaredClick("search-submit");
+    await web.until(
+      "document.querySelectorAll('.cards article').length===0 && !document.getElementById('search-submit').disabled",
+    );
+    await web.evaluate(
+      "(()=>{for(const [id,value] of [['agentProtocol',''],['text','pdf tables'],['includeMcpTools','true']]){const n=document.getElementById(id);n.value=value;n.dispatchEvent(new Event(id==='includeMcpTools'?'change':'input',{bubbles:true}));}})()",
+    );
+    await declaredClick("search-submit");
+    await web.until(
+      "document.querySelectorAll('.cards article').length===1 && document.querySelector('.declared-tools code')?.textContent==='extract_pdf_tables' && !document.getElementById('search-submit').disabled",
+    );
+    assert.equal(api.browsing().query.includeMcpTools, true);
+    assert.equal(
+      await web.evaluate(
+        "document.querySelectorAll('.declared-tools script').length",
+      ),
+      0,
+    );
+    assert.ok(
+      (
+        await web.evaluate(
+          "document.querySelector('.declared-tools').textContent",
+        )
+      ).includes("<script>owned()</script>"),
+    );
+    await declaredClick("explore");
+    await web.until(
+      "document.getElementById('facets')!==null && !document.getElementById('search-submit').disabled",
+    );
+    assert.equal(api.browsing().facetQuery.includeMcpTools, true);
+    await web.evaluate(
+      "(()=>{const n=document.getElementById('origin');n.value='indexed';n.dispatchEvent(new Event('change',{bubbles:true}));})()",
+    );
+    assert.equal(
+      await web.evaluate(
+        "document.getElementById('search-submit').disabled && document.getElementById('explore').disabled",
+      ),
+      true,
+    );
+    assert.equal(
+      api.browsing().query.origin,
+      "local",
+      "An invalid draft must not submit a new search",
+    );
+    await declaredClick("clear-filters");
+    await declaredClick("search-submit");
+    await web.until(
+      "document.querySelectorAll('.cards article').length===4 && !document.getElementById('search-submit').disabled",
+    );
+    assert.equal(api.browsing().query.includeMcpTools, false);
+    await web.evaluate(
+      "document.getElementById('advanced').open=false;document.scrollingElement.scrollTop=0",
+    );
     await web.evaluate(
       "(()=>{const n=document.getElementById('text');n.value='draft caret';n.dispatchEvent(new Event('input',{bubbles:true}));n.focus();n.setSelectionRange(2,7);})()",
     );

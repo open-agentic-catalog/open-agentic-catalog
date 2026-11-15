@@ -103,7 +103,8 @@ it("imports all fields without commands, exposes raw snapshots and refuses incom
       .value,
   ).toBe(resource.canonicalIdentifier);
   await screen.findByRole("option", { name: /Tools/ });
-  change("Namespace", namespace.id);
+  // Settle namespace-dependent editor effects before capturing its draft.
+  await act(async () => change("Namespace", namespace.id));
   await screen.findByLabelText("Display name");
   expect(
     (screen.getByLabelText("Display name") as HTMLInputElement).value,

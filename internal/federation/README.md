@@ -53,3 +53,11 @@ Core client continuation requests a fixed 50-candidate window and [replay eviden
 Optional `trustVerificationPolicy` selects a startup-loaded ANS authority policy. Assessment commands bind exact current indexed evidence or one bounded direct live query. Private administrator results preserve native media/delivery variants and expose original-byte digest and source revision. Public Search retains its logical-resource deduplication and unchanged ARD contract.
 
 The worker verifies owned leases and source/policy/credential generations before each credential-free evidence request. Result reads distinguish historical checks from current applicability. Assessment creates no source snapshot, adopted resource or public notification. See [assessment operations](../../documentation/src/content/docs/operations/federation.mdx#request-an-ans-registration-assessment).
+
+The Source directory can select failed or incomplete latest completed indexed
+attempts for the current configuration revision, combined with existing exact
+name and operational status filters. Directory and Overview reuse the same
+completed-time/ID selection; running retries do not hide a completed outcome.
+Each selected row projects one attempt reference without reading raw evidence
+or changing retained complete membership. Pages are mutable current views;
+refresh starts again with the same filters. This read starts no upstream work.

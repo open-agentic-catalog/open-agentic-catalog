@@ -490,13 +490,24 @@ async fn workflow(origin: &str) {
                 .to_owned(),
         );
     }
+    let unmatched_protocol = data(
+        reader
+            .search_catalog(typed(
+                json!({"agentProtocol":"HTTP+JSON","origins":["local"]}),
+            ))
+            .await
+            .unwrap(),
+        200,
+    );
+    assert_eq!(unmatched_protocol["durableTotal"], 0);
+    assert!(unmatched_protocol["items"].as_array().unwrap().is_empty());
     let mut cursor: Option<String> = None;
     let mut seen = Vec::new();
     for i in 0..2 {
         let page = data(
             reader
                 .search_catalog(typed(
-                    json!({"limit":1,"tags":["rust-sdk"],"origins":["local"],"cursor":cursor})
+                    json!({"agentProtocol":"JSONRPC","limit":1,"tags":["rust-sdk"],"origins":["local"],"cursor":cursor})
                         .as_object()
                         .unwrap()
                         .iter()

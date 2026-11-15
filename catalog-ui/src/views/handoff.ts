@@ -247,6 +247,25 @@ export function representationGuide(item: Representation): {
           "This MCP Registry document can describe remote connections or packages. Package versions are separate from the server version. Inspect required inputs before configuring a client; no command is generated or executed.",
         facts,
       };
+    case "open-agentic-catalog-mcp-tools-1": {
+      const count = object(item.normalizedFacts).declaredToolCount;
+      if (
+        typeof count === "number" &&
+        Number.isInteger(count) &&
+        count >= 0 &&
+        count <= 64
+      )
+        facts.push({
+          label: "Declared tools",
+          value: count === 0 ? "Empty list (0)" : String(count),
+        });
+      return {
+        title: "Declared MCP tools",
+        guidance:
+          "Private author declaration for this exact revision. An empty list declares no tools; an absent attachment means not supplied. No tools were called or independently verified.",
+        facts,
+      };
+    }
     case "mcp-server-card-v1-experimental-526201b": {
       add("Declared MCP server version", data.version);
       const remote =

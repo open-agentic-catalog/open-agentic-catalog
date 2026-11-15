@@ -62,6 +62,8 @@ export type Catalog = {
       | "local-contributor"
       | "local-reviewer"
       | "local-publisher"
+      | "local-reader"
+      | "local-no-role"
       | "other-tenant-admin",
   ): Promise<{ data: T; etag: string | null; date: string | null }>;
 };

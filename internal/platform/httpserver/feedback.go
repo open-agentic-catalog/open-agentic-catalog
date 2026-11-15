@@ -4,6 +4,7 @@ package httpserver
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/feedback"
@@ -16,7 +17,7 @@ func (s *Server) feedbackRoutes(router *http.ServeMux) {
 		return
 	}
 	router.HandleFunc("GET /api/v1/overview/feedback", s.withQueryParameters(s.handleOverviewFeedback))
-	router.HandleFunc("GET /api/v1/feedback", s.withQueryParameters(s.handleFeedbackList, "resourceId", "category", "state", "cursor", "limit"))
+	router.HandleFunc("GET /api/v1/feedback", s.withQueryParameters(s.handleFeedbackList, "resourceId", "category", "state", "order", "cursor", "limit"))
 	router.HandleFunc("GET /api/v1/feedback/inbox", s.withQueryParameters(s.handleFeedbackList, "resourceId", "category", "state", "cursor", "limit"))
 	router.HandleFunc("POST /api/v1/feedback", s.withQueryParameters(s.handleFeedbackCreate))
 	router.HandleFunc("GET /api/v1/feedback/{feedbackId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleFeedbackGet, "feedbackId")))
@@ -29,28 +30,59 @@ func (s *Server) handleFeedbackList(w http.ResponseWriter, r *http.Request) {
 	inbox := r.URL.Path == "/api/v1/feedback/inbox"
 	filters := map[string]string{"resourceId": r.URL.Query().Get("resourceId"), "category": r.URL.Query().Get("category"), "state": r.URL.Query().Get("state")}
 	purpose := "feedback-own"
+	order := feedback.OrderID
 	if inbox {
 		purpose = "feedback-inbox"
+	} else {
+		if values, present := r.URL.Query()["order"]; present {
+			order = values[0]
+		}
+		if order != feedback.OrderID && order != feedback.OrderUpdatedDesc {
+			s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "feedback order is invalid"))
+			return
+		}
+		filters["order"] = order
 	}
-	p, err := s.parseAdminPage(r, purpose, "", "id", filters)
+	p, err := s.parseAdminPage(r, purpose, "", order, filters)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	input := feedback.ListInput{ResourceID: filters["resourceId"], Category: filters["category"], State: filters["state"], Limit: p.Limit}
+	if !inbox && order == feedback.OrderUpdatedDesc {
+		input.Order = order
+	}
 	if len(p.Position) > 0 {
-		if len(p.Position) != 1 {
+		switch {
+		case order == feedback.OrderUpdatedDesc:
+			if len(p.Position) != 2 {
+				s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "cursor is invalid"))
+				return
+			}
+			updated, parseErr := time.Parse(time.RFC3339Nano, p.Position[0])
+			if parseErr != nil {
+				s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "cursor is invalid"))
+				return
+			}
+			input.AfterUpdatedAt, input.AfterID = &updated, p.Position[1]
+		case len(p.Position) != 1:
 			s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "cursor is invalid"))
 			return
+		default:
+			input.AfterID = p.Position[0]
 		}
-		input.AfterID = p.Position[0]
 	}
 	items, err := s.feedback.List(r.Context(), input, inbox)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	page, err := finishCursorPage(s, p, items, func(item feedback.Record) []string { return []string{item.ID} })
+	page, err := finishCursorPage(s, p, items, func(item feedback.Record) []string {
+		if order == feedback.OrderUpdatedDesc {
+			return []string{item.UpdatedAt.UTC().Format(time.RFC3339Nano), item.ID}
+		}
+		return []string{item.ID}
+	})
 	if err != nil {
 		s.fail(w, r, err)
 		return

@@ -110,6 +110,11 @@ func TestAuthoringHistoriesBoundPagesAndIsolation(t *testing.T) {
 	if _, err := service.ListSubmissions(ctx, SubmissionListRequest{HistoryPageRequest: HistoryPageRequest{Limit: 1}, ListingID: "bad"}); ErrorCodeOf(err) != CodeInvalidArgument {
 		t.Fatalf("listing filter: %v", err)
 	}
+	for _, namespace := range []string{"bad", " ", "00000000-0000-7000-8000-000000000001 "} {
+		if _, err := service.ListSubmissions(ctx, SubmissionListRequest{HistoryPageRequest: HistoryPageRequest{Limit: 1}, NamespaceID: namespace}); ErrorCodeOf(err) != CodeInvalidArgument {
+			t.Fatalf("namespace filter %q: %v", namespace, err)
+		}
+	}
 	filtered, err := service.ListSubmissions(ctx, SubmissionListRequest{HistoryPageRequest: HistoryPageRequest{Limit: 1}, State: SubmissionApproved})
 	if err != nil || len(filtered) != 0 {
 		t.Fatalf("state filter: %#v %v", filtered, err)

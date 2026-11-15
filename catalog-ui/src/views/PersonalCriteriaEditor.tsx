@@ -67,10 +67,16 @@ export function PersonalCriteriaEditor({
                   ))}
                 </select>
               </Field>
-              <KindSelection
-                value={criteria.kinds ?? []}
-                onChange={(kinds) => update({ ...criteria, kinds })}
-              />
+              <fieldset disabled={!!criteria.includeMcpTools}>
+                <KindSelection
+                  value={
+                    criteria.includeMcpTools
+                      ? ["mcp_server"]
+                      : (criteria.kinds ?? [])
+                  }
+                  onChange={(kinds) => update({ ...criteria, kinds })}
+                />
+              </fieldset>
               <ValueList
                 id={`${id}-tags`}
                 label="Saved tags"
@@ -99,6 +105,9 @@ export function PersonalCriteriaEditor({
                     id={`${id}-origins`}
                     type="checkbox"
                     checked={criteria.origins !== undefined}
+                    disabled={
+                      !!criteria.agentProtocol || !!criteria.includeMcpTools
+                    }
                     onChange={(e) => {
                       const next = { ...criteria };
                       if (e.target.checked) next.origins = ["local"];
@@ -114,6 +123,9 @@ export function PersonalCriteriaEditor({
                       <input
                         type="checkbox"
                         checked={criteria.origins!.includes(origin)}
+                        disabled={
+                          !!criteria.agentProtocol || !!criteria.includeMcpTools
+                        }
                         onChange={(e) =>
                           update({
                             ...criteria,
@@ -140,7 +152,7 @@ export function PersonalCriteriaEditor({
                 <p className="muted">
                   Live search can disclose text and filters to approved sources.
                   A Namespace permits unspecified origins or Local Catalog
-                  alone.
+                  alone. A declared Agent protocol requires Local Catalog alone.
                 </p>
               </fieldset>
               <Field
@@ -171,6 +183,44 @@ export function PersonalCriteriaEditor({
                   id={`${id}-license`}
                   value={criteria.license ?? ""}
                   onChange={(e) => optional("license", e.target.value)}
+                />
+              </Field>
+              <label>
+                <input
+                  type="checkbox"
+                  id={`${id}-includeMcpTools`}
+                  checked={!!criteria.includeMcpTools}
+                  disabled={!!criteria.agentProtocol}
+                  onChange={(e) => {
+                    const next = { ...criteria };
+                    if (e.target.checked) {
+                      next.includeMcpTools = true;
+                      next.origins = ["local"];
+                      next.kinds = ["mcp_server"];
+                    } else delete next.includeMcpTools;
+                    update(next);
+                  }}
+                />
+                Include declared MCP tools
+              </label>
+              <Field
+                label="Saved Agent protocol binding"
+                hint="Exact declared A2A binding, up to 256 characters. Requires Local Catalog alone; this does not verify compatibility or authorize calls."
+              >
+                <input
+                  disabled={!!criteria.includeMcpTools}
+                  id={`${id}-agentProtocol`}
+                  value={criteria.agentProtocol ?? ""}
+                  maxLength={512}
+                  onChange={(e) => {
+                    const next = { ...criteria };
+                    if (e.target.value === "") delete next.agentProtocol;
+                    else {
+                      next.agentProtocol = e.target.value;
+                      next.origins = ["local"];
+                    }
+                    update(next);
+                  }}
                 />
               </Field>
               <Field label="Saved visibility">

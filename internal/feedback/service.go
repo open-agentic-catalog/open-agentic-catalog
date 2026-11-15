@@ -185,6 +185,16 @@ func (s *Service) List(ctx context.Context, input ListInput, inbox bool) ([]Reco
 	if err != nil {
 		return nil, err
 	}
+	if inbox && input.Order != "" || input.Order != "" && input.Order != OrderID && input.Order != OrderUpdatedDesc {
+		return nil, catalog.E(catalog.CodeInvalidArgument, "feedback order or position is invalid")
+	}
+	if input.Order == OrderUpdatedDesc {
+		if (input.AfterUpdatedAt == nil) != (input.AfterID == "") || input.AfterUpdatedAt != nil && input.AfterUpdatedAt.IsZero() {
+			return nil, catalog.E(catalog.CodeInvalidArgument, "feedback order or position is invalid")
+		}
+	} else if input.AfterUpdatedAt != nil {
+		return nil, catalog.E(catalog.CodeInvalidArgument, "feedback order or position is invalid")
+	}
 	if input.Limit < 1 || input.Limit > 100 || input.AfterID != "" && !identity.ValidTenantID(input.AfterID) || input.ResourceID != "" && !identity.ValidTenantID(input.ResourceID) || input.Category != "" && !ValidCategory(input.Category) || input.State != "" && !ValidState(input.State) {
 		return nil, catalog.E(catalog.CodeInvalidArgument, "feedback page is invalid")
 	}

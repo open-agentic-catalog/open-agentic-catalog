@@ -40,13 +40,24 @@ type Item = components["schemas"]["Feedback"];
 type Category = components["schemas"]["FeedbackCategory"];
 type State = components["schemas"]["FeedbackState"];
 type Resource = components["schemas"]["Resource"];
-type Criteria = { cursor: string; category: Category | ""; state: State | "" };
-const emptyCriteria: Criteria = { cursor: "", category: "", state: "" };
+type Criteria = {
+  cursor: string;
+  category: Category | "";
+  state: State | "";
+  order: string;
+};
+const emptyCriteria: Criteria = {
+  cursor: "",
+  category: "",
+  state: "",
+  order: "",
+};
 function criteriaFromURL(search: string): Criteria {
   return {
     cursor: "",
     category: administrationParameter(search, "category") as Category | "",
     state: administrationParameter(search, "state") as State | "",
+    order: administrationParameter(search, "order"),
   };
 }
 type Context = {
@@ -61,6 +72,17 @@ const categories: Record<Category, string> = {
   positive: "Positive feedback",
   other: "Other",
 };
+
+/** Summaries show bounded current text, never a fabricated reply or response history. */
+function feedbackPreview(item: Item, recent: boolean) {
+  const addressed = recent && item.state === "addressed";
+  if (addressed && !item.response)
+    return "Addressed without a written response.";
+  const characters = Array.from(
+    addressed ? (item.response ?? "") : (item.comment ?? ""),
+  );
+  return `${addressed ? "Moderator response: " : ""}${characters.slice(0, 180).join("")}${characters.length > 180 ? "…" : ""}`;
+}
 
 /** Defer private reads until the reader deliberately opens the feedback panel. */
 export function FeedbackEntry(
@@ -467,7 +489,11 @@ function FeedbackPanel(
       readAllowed?: boolean;
       initialCriteria?: Criteria;
       onCriteria?: ((criteria: Criteria) => void) | undefined;
-      onFilter?: (filters: { state: string; category: string }) => void;
+      onFilter?: (filters: {
+        state: string;
+        category: string;
+        order: string;
+      }) => void;
     },
 ) {
   const [cursor, setCursor] = useState(props.initialCriteria?.cursor ?? "");
@@ -477,10 +503,12 @@ function FeedbackPanel(
   const [state, setState] = useState<State | "">(
     props.initialCriteria?.state ?? "",
   );
+  const [order, setOrder] = useState(props.initialCriteria?.order ?? "");
+  const recent = order === "updated_desc";
   const { onCriteria } = props;
   useEffect(() => {
-    onCriteria?.({ cursor, category, state });
-  }, [cursor, category, state, onCriteria]);
+    onCriteria?.({ cursor, category, state, order });
+  }, [cursor, category, state, order, onCriteria]);
   const [generation, setGeneration] = useState(0);
   const [submissionGeneration, setSubmissionGeneration] = useState(0);
   const [newSubmission, setNewSubmission] = useState(false);
@@ -502,7 +530,7 @@ function FeedbackPanel(
     JSON.stringify(
       props.caseId
         ? [props.caseId]
-        : [props.resourceId, category, state, cursor, pagePolicy],
+        : [props.resourceId, category, state, order, cursor, pagePolicy],
     ),
     async (signal) =>
       props.readAllowed === false
@@ -535,6 +563,9 @@ function FeedbackPanel(
                         : {}),
                       ...(category ? { category: category } : {}),
                       ...(state ? { state: state } : {}),
+                      ...(order
+                        ? { order: order as "id" | "updated_desc" }
+                        : {}),
                       limit: 20,
                       ...(cursor ? { cursor: cursor } : {}),
                     },
@@ -559,8 +590,15 @@ function FeedbackPanel(
       setPagePolicy(currentPolicy);
       setCursor("");
       if (props.caseId || !cursor) page.refresh();
-    } else if (page.error && cursor) setCursor("");
+    } else if (!props.caseId && (page.error || recent) && cursor) setCursor("");
     else page.refresh();
+  };
+  const selectView = (nextOrder: string, nextState: State | "") => {
+    if (!discardPage()) return;
+    setOrder(nextOrder);
+    setState(nextState);
+    setCursor("");
+    props.onFilter?.({ state: nextState, category, order: nextOrder });
   };
   const write =
     props.access.actorType === "human" &&
@@ -702,6 +740,28 @@ function FeedbackPanel(
           >
             {props.resourceFilters}
           </fieldset>
+          {props.inventory && props.own && (
+            <div
+              className="workspace-toolbar workspace-actions"
+              role="group"
+              aria-label="My feedback views"
+            >
+              <button
+                disabled={page.busy || !!command || props.readAllowed === false}
+                aria-pressed={recent && state === "addressed"}
+                onClick={() => selectView("updated_desc", "addressed")}
+              >
+                Recent addressed outcomes
+              </button>
+              <button
+                disabled={page.busy || !!command || props.readAllowed === false}
+                aria-pressed={!order || order === "id"}
+                onClick={() => selectView("", "")}
+              >
+                Submission order
+              </button>
+            </div>
+          )}
           <div className="workspace-toolbar feedback-toolbar">
             {!props.caseId && (
               <>
@@ -712,7 +772,11 @@ function FeedbackPanel(
                     onChange={(e) => {
                       if (!discardPage()) return;
                       setCategory(e.target.value as Category | "");
-                      props.onFilter?.({ state, category: e.target.value });
+                      props.onFilter?.({
+                        state,
+                        category: e.target.value,
+                        order,
+                      });
                       setCursor("");
                     }}
                   >
@@ -734,7 +798,11 @@ function FeedbackPanel(
                     onChange={(e) => {
                       if (!discardPage()) return;
                       setState(e.target.value as State | "");
-                      props.onFilter?.({ state: e.target.value, category });
+                      props.onFilter?.({
+                        state: e.target.value,
+                        category,
+                        order,
+                      });
                       setCursor("");
                     }}
                   >
@@ -771,8 +839,22 @@ function FeedbackPanel(
             Applied filters:{" "}
             {resourceId ? `resource ${resourceId}` : "all resources"};{" "}
             {category ? categories[category] : "all categories"};{" "}
-            {state ? stateLabel(state) : "all states"}.
+            {state ? stateLabel(state) : "all states"}. Order:{" "}
+            {recent
+              ? "most recently updated first"
+              : order && order !== "id"
+                ? "unsupported"
+                : "submission ID"}
+            .
           </p>
+          {props.inventory && props.own && recent && (
+            <p className="muted">
+              Current outcomes, not reply history. Addressed cases can have no
+              written response and do not confirm a fix. Cases changed while
+              paging may move ahead of this page. Refresh feedback restarts from
+              the newest current outcomes.
+            </p>
+          )}
         </section>
       )}
       {props.caseId && (
@@ -817,15 +899,14 @@ function FeedbackPanel(
                       state={item.state}
                       tone={item.state === "open" ? "info" : "neutral"}
                     />{" "}
-                    · <DateValue value={item.createdAt} />
+                    · {recent ? "Updated " : ""}
+                    <DateValue
+                      value={recent ? item.updatedAt : item.createdAt}
+                    />
                     {props.readAllowed !== false &&
                     item.state !== "withdrawn" &&
                     item.state !== "removed"
-                      ? ` — ${Array.from(item.comment ?? "")
-                          .slice(0, 180)
-                          .join(
-                            "",
-                          )}${Array.from(item.comment ?? "").length > 180 ? "…" : ""}`
+                      ? ` — ${feedbackPreview(item, recent)}`
                       : ""}
                   </summary>
                   <FeedbackItem
@@ -1079,6 +1160,9 @@ function FeedbackItem(
                     {item.response}
                   </p>
                 </>
+              )}
+              {item.state === "addressed" && !item.response && (
+                <p>Addressed without a written response.</p>
               )}
             </>
           )}

@@ -1,5 +1,7 @@
 # Browser journeys
 
+`declared-tools.spec.ts` exercises MCP declaration authoring and explicit local lexical search at root/subpath, including ordinary-search exclusion, escaped tool descriptions, exact released evidence, table/card views, saved criteria with implicit MCP kind and narrow layout. Existing fixtures retain console and failed-request accounting. `test-ui-compose` additionally qualifies this path against its owned PostgreSQL stack and the CLI; no listed MCP endpoint is called.
+
 All Axe results require a disposition for incomplete checks as well as violations. Direct scans reject both lists unless an existing local review supplies an independent check for the exact rule and target. `accessibility.spec.ts` retains the narrow Filters and preview-footer reviews. Its calibration reaches a real Axe incomplete result in a temporary owned DOM fixture, then rejects altered rules, targets, violations and a failed independent check. The fixture is restored before the test exits. Comparison and reference scans retain their existing strict assertions.
 
 Overview checks compare the four kind tiles, membership table and other counts with actual API summaries. Empty sections omit duplicate zero-count charts. Controlled populated Source and Job summaries qualify filter links separately from persistence. Review activity switches between the graph and daily outcomes. Narrow, doubled-text, keyboard and Axe checks preserve access to controls.

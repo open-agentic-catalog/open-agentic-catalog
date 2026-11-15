@@ -75,7 +75,7 @@ export default function Reviews(props: WorkspaceProps) {
   );
 }
 
-/** Page submissions by explicit state and listing filters. */
+/** Page submissions by explicit namespace, state and listing filters. */
 function ReviewQueue(props: WorkspaceProps) {
   const sortHint = useId();
   const [filters, setFilters] = useState(() => reviewFilters(location.search));
@@ -101,6 +101,9 @@ function ReviewQueue(props: WorkspaceProps) {
           params: {
             query: {
               ...(filters.listingId ? { listingId: filters.listingId } : {}),
+              ...(filters.namespaceId !== undefined
+                ? { namespaceId: filters.namespaceId }
+                : {}),
               ...(filters.state
                 ? { state: filters.state as keyof typeof reviewLabels }
                 : {}),
@@ -139,6 +142,10 @@ function ReviewQueue(props: WorkspaceProps) {
   });
   const apply = (selected: ReviewFilters) => {
     const next = { ...selected, listingId: selected.listingId.trim() };
+    if (next.namespaceId !== undefined) {
+      next.namespaceId = next.namespaceId.trim();
+      if (!next.namespaceId) delete next.namespaceId;
+    }
     const url = reviewQueueURL(props.runtime.basePath, next);
     if (location.pathname + location.search !== url)
       history.pushState(null, "", url);
@@ -156,6 +163,19 @@ function ReviewQueue(props: WorkspaceProps) {
           apply(draft);
         }}
       >
+        <Field
+          label="Exact namespace ID"
+          hint="Filter submissions across all pages by the namespace UUID shown on a Listing or namespace. Leave empty for all authorized namespaces."
+        >
+          <input
+            maxLength={36}
+            pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+            value={draft.namespaceId ?? ""}
+            onChange={(event) =>
+              setDraft({ ...draft, namespaceId: event.target.value })
+            }
+          />
+        </Field>
         <Field
           label="Exact Listing ID"
           hint="Filter the authorized queue by one Listing UUID across all pages. Leave empty for all Listings."
@@ -235,6 +255,8 @@ function ReviewQueue(props: WorkspaceProps) {
         </div>
       </form>
       <p className="muted">
+        Applied namespace:{" "}
+        <code>{filters.namespaceId ?? "All authorized namespaces"}</code>.{" "}
         Applied Listing: <code>{filters.listingId || "All Listings"}</code>.
         State:{" "}
         {Object.hasOwn(reviewLabels, filters.state)
@@ -1192,6 +1214,69 @@ function ReleaseActions(
       props.listing.namespaceId,
     );
   const [sunset, setSunset] = useState("");
+  const [commandPending, setCommandPending] = useState(false);
+  const [requestedPreview, setRequestedPreview] = useState("");
+  const [previousImpact, setPreviousImpact] = useState<string>();
+  const previewAllowed =
+    historyAllowed &&
+    !props.stale &&
+    permits(props.access, "publication.read", "catalog.read");
+  const previewSelection = JSON.stringify([
+    props.release.id,
+    props.etag,
+    action,
+    props.access,
+    namespaceAccess,
+  ]);
+  useEffect(() => {
+    setRequestedPreview("");
+    setPreviousImpact(undefined);
+  }, [previewSelection]);
+  const transition =
+    action === "retire"
+      ? "retired"
+      : action === "supersede"
+        ? "superseded"
+        : "revoked";
+  const previewRead = useRead(
+    JSON.stringify([previewSelection, requestedPreview, previewAllowed]),
+    async (signal) => {
+      if (
+        !previewAllowed ||
+        requestedPreview !== previewSelection ||
+        action === "deprecate"
+      )
+        return undefined;
+      return result(
+        await props.client.api.GET(
+          "/api/v1/listing-releases/{releaseId}/withdrawal-preview",
+          {
+            params: {
+              path: { releaseId: props.release.id },
+              query: { transition },
+            },
+            signal,
+          },
+        ),
+        (value) =>
+          checks.ReleaseWithdrawalPreview(value) &&
+          object(value) &&
+          value.releaseId === props.release.id &&
+          value.transition === transition,
+      );
+    },
+    props.onFailure,
+  );
+  const preview =
+    previewAllowed &&
+    requestedPreview === previewSelection &&
+    !previewRead.busy &&
+    !previewRead.error
+      ? previewRead.data
+      : undefined;
+  const previewStale =
+    !!preview && preview.releaseRevision !== props.release.revision;
+  const impact = preview ? JSON.stringify(preview.snapshots) : undefined;
   return (
     <>
       <ReadState {...namespace} />
@@ -1364,6 +1449,43 @@ function ReleaseActions(
       <ActionForm
         key={props.readEpoch}
         title="Change release disposition"
+        onPendingChange={setCommandPending}
+        liveConfirmationDetails={
+          action !== "deprecate" ? (
+            <section aria-label="Observed discovery feeds">
+              <h3>Observed discovery feeds</h3>
+              {preview && !previewStale ? (
+                <>
+                  <p>
+                    Observed {preview.observedAt}; advisory only. Each listed
+                    snapshot is withdrawn as a whole. The command still checks
+                    current state.
+                  </p>
+                  {preview.snapshots.length ? (
+                    <ul>
+                      {preview.snapshots.map((snapshot) => (
+                        <li key={snapshot.snapshotId}>
+                          <code>{snapshot.host}</code> ({snapshot.audience}),
+                          generation {snapshot.generation}; snapshot{" "}
+                          <code>{snapshot.snapshotId}</code>; ETag{" "}
+                          <code>{snapshot.etag}</code>.
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p>No containing active snapshot was observed.</p>
+                  )}
+                </>
+              ) : (
+                <p>
+                  Detailed discovery preview is no longer available or has not
+                  completed. Whole snapshots may be withdrawn. Command recovery
+                  retains its original request and key.
+                </p>
+              )}
+            </section>
+          ) : undefined
+        }
         intent={action === "deprecate" ? "warning" : "danger"}
         icon={action === "deprecate" ? "warning" : "remove"}
         retainDraft={
@@ -1388,9 +1510,11 @@ function ReleaseActions(
           ) ??
           (props.stale
             ? "Reload release state before preparing another disposition."
-            : !props.etag
-              ? "Reload the release to obtain its current revision."
-              : "The selected disposition is unavailable in the last loaded state. Retired and superseded releases can only be revoked. Revoked releases cannot be changed.")
+            : previewStale
+              ? "The release changed since it was loaded. Reload release state before preparing another disposition."
+              : !props.etag
+                ? "Reload the release to obtain its current revision."
+                : "The selected disposition is unavailable in the last loaded state. Retired and superseded releases can only be revoked. Revoked releases cannot be changed.")
         }
         description={
           action === "deprecate"
@@ -1401,6 +1525,8 @@ function ReleaseActions(
         }
         allowed={
           !props.stale &&
+          !previewStale &&
+          !(requestedPreview === previewSelection && previewRead.busy) &&
           !namespace.busy &&
           !namespace.error &&
           !!props.etag &&
@@ -1458,6 +1584,17 @@ function ReleaseActions(
               { label: "Sunset", value: body.sunsetAt ?? "Not supplied" },
               { label: "Revision", value: etag },
               { label: "Reason", value: body.reason },
+              ...(action !== "deprecate"
+                ? [
+                    {
+                      label: "Discovery preview",
+                      value:
+                        preview && !previewStale
+                          ? `Observed ${preview.observedAt}; advisory only, active publications can change.`
+                          : "No completed preview. Whole discovery snapshots may be withdrawn.",
+                    },
+                  ]
+                : []),
             ],
             run: async (key) => {
               const updated = result(
@@ -1487,6 +1624,99 @@ function ReleaseActions(
           };
         }}
       >
+        {action !== "deprecate" && (
+          <section
+            aria-label="Discovery withdrawal preview"
+            className="workspace-panel"
+          >
+            <h3>Preview affected discovery feeds</h3>
+            <p>
+              This read checks active saved ARD and AI Catalog membership. Each
+              affected snapshot is withdrawn as a whole, including its other
+              entries. Generate and activate a replacement separately. The
+              preview reserves nothing; the later command still checks current
+              authority and revision.
+            </p>
+            {previewAllowed ? (
+              <>
+                <button
+                  type="button"
+                  disabled={
+                    commandPending ||
+                    previewRead.busy ||
+                    !releaseTransitionAllowed(props.release.state, action)
+                  }
+                  onClick={() => {
+                    setPreviousImpact(impact);
+                    if (requestedPreview === previewSelection)
+                      previewRead.refresh();
+                    else setRequestedPreview(previewSelection);
+                  }}
+                >
+                  Preview or refresh affected feeds
+                </button>
+                {requestedPreview === previewSelection && (
+                  <ReadState {...previewRead} refresh={previewRead.refresh} />
+                )}
+                {preview && !previewStale && (
+                  <>
+                    <p>
+                      Observed {preview.observedAt}. This is advisory; active
+                      feeds can change after this read.
+                    </p>
+                    {previousImpact !== undefined &&
+                      impact !== previousImpact && (
+                        <p className="notice">
+                          Affected feeds changed. Review the updated list before
+                          preparing a new confirmation.
+                        </p>
+                      )}
+                    {preview.snapshots.length ? (
+                      <ul>
+                        {preview.snapshots.map((snapshot) => (
+                          <li key={snapshot.snapshotId}>
+                            <code>{snapshot.host}</code> ({snapshot.audience}),
+                            generation {snapshot.generation}; snapshot{" "}
+                            <a
+                              href={`${props.runtime.basePath}/publication/${snapshot.snapshotId}?host=${encodeURIComponent(snapshot.host)}`}
+                            >
+                              <code>{snapshot.snapshotId}</code>
+                            </a>
+                            ; ETag <code>{snapshot.etag}</code>.
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p>
+                        No active discovery snapshot contains this release in
+                        the observed configured feeds.
+                      </p>
+                    )}
+                  </>
+                )}
+                {previewStale && (
+                  <p role="alert" className="notice error">
+                    The release changed since it was loaded. Reload release
+                    state before preparing another disposition.
+                  </p>
+                )}
+                {previewRead.error && (
+                  <p>
+                    Impact is unavailable, not zero. Invalid retained membership
+                    can cause conservative withdrawal of an entire snapshot. No
+                    preview changed release or publication state.
+                  </p>
+                )}
+              </>
+            ) : (
+              <p>
+                Detailed impact requires current release-history access and
+                tenant-wide publication-read access. The withdrawal command
+                keeps its own separate permission checks.
+              </p>
+            )}
+          </section>
+        )}
         <Field label="Disposition">
           <select
             required

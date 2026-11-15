@@ -27,6 +27,8 @@ The [LangGraph assistant](../../../../../examples/langgraph/README.md) supplies 
 
 Configure a Reader bearer credential and API origin separately from the model. The tools search local releases and inspect selected local records; they exclude indexed and live results. Enforced OAuth scopes require `catalog.read`. Setup creates an optional Python environment and downloads model weights; discovery does not change Catalog data or execute returned resources.
 
+For standard discovery without private record reads, the separate [ARD graph](../../../../../examples/langgraph/README.md#search-approved-services-with-ard) uses Search and Explore on an active publication. It runs without an LLM by default. Configure the full endpoint URLs and each service's credentials and private CA; querying an advertised peer requires both an exact configured endpoint and explicit query-disclosure permission. Results retain per-service provenance and report incomplete discovery.
+
 ### Generate a Rust inventory report
 
 The [Rust Catalog report](../../../../../examples/rust-catalog-report/README.md) is a standalone SDK consumer. It needs the source checkout, Rust 1.88 or newer, Cargo, a native C toolchain and an explicit Reader token file. Optional private CA input preserves TLS verification; enforced OAuth scopes require `catalog.read`.
@@ -66,6 +68,8 @@ The [Go webhook receiver example](../../../../../examples/webhookreceiver/README
 Custom receivers must implement event validation, durable acceptance and deduplication. Those operations create receiver-owned persistent state. The verifier outline does not provide a standalone server or storage implementation. Follow [webhook operations](../operations/webhooks.mdx) for enablement, rotation, retries and reconciliation.
 
 The `examples/` directory contains these client integrations and tutorial inputs. The `samples/` directory contains governed resource metadata and package inputs for the [sample Catalog](sample-catalog.mdx). The `api/examples/` directory contains reviewed request templates and notification payloads, indexed in [API assets](../../../../../api/README.md). The `test/` directory contains owned qualification fixtures and harnesses; use the [testing guide](../contributing/testing.md) to select their explicit checks.
+
+The [AgentField guide](agentfield.mdx) covers native public discovery and passive imports without enabling calls. Its independent records have documented field loss and manual update responsibilities.
 
 ## Obtain a local SDK package
 

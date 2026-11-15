@@ -10,6 +10,8 @@ Follow [Publish an Agent in the browser](publishing.mdx#publish-an-agent-in-the-
 
 Catalog cards use the same kind colors as the kind selectors. The compact **Namespace** button filters local results to that namespace. **Table** separates Kind from Status and supports sorting by Name, Kind and Publisher. The **Sort by** control provides the same choices in either layout. See [sorting and continuation](search-cookbook.mdx#control-disclosure-order-and-continuation) for ordering, saved searches and live-result limits.
 
+Use **Filters > More filters > Agent protocol binding** to match an exact declared A2A binding on released local Agents. This requires content-read access and selects Local Catalog alone. See [the protocol recipe](search-cookbook.mdx#find-local-agents-by-a-declared-a2a-protocol) for Apply/Clear, saved searches and declaration limits.
+
 ## Read the Content overview
 
 Open **Overview** in the Discover group, or visit `/overview`. The **Content** view shows only panels available through your current permissions. Catalog remains the landing page. Accounts without discovery access retain the My access fallback.
@@ -88,7 +90,13 @@ Source status describes configuration, not peer health. Sync outcomes use the la
 
 The problem list selects at most five failed or incomplete current-revision attempts. It sorts completion time from newest to oldest, then Source ID. Each row retains the last complete sync time when available. An earlier revision is labelled **Previous configuration**. A failed attempt does not replace the last complete membership.
 
-Select a Source status to apply that exact directory filter. The status survives Reload and Back/Forward. Exact-name filter text stays in the current page. Directory history navigation clears that text. Invalid or repeated status criteria produce an error instead of showing every Source.
+Select **Failed** or **Incomplete** under **Sync status** to open the Source directory with that outcome selected. This searches the whole authorized inventory, beyond the five problems shown on Overview. In the directory, combine **Synchronization outcome** with an exact Source name and operational Source status, then choose **Apply source filters**. Editing a control alone does not issue a read. **Clear source filters** restores the nonremoved inventory. Applied status and outcome survive Reload and Back/Forward. Exact-name text stays in memory while paging; Reload and directory history clear it.
+
+Each row identifies its latest completed attempt for the current configuration and links to that snapshot. **Inspect last complete snapshot** is a separate link: a failed or incomplete attempt can coexist with retained usable membership. A running retry does not replace a completed outcome. A later successful completion removes the Source from the problem selection; changing configuration excludes evidence from the previous revision. Live-only Sources do not match indexed synchronization outcomes. Cancellation retains whatever failed snapshot was actually recorded; it does not add a new outcome category.
+
+Pages show current metadata, rather than a frozen inventory. Outcomes may change between pages. **Refresh** returns to the first page with the applied filters. Filtering, paging and Overview links contact no upstream, start no Job and load no raw snapshot documents. Invalid, empty or repeated outcome/status criteria fail instead of widening the selection.
+
+API clients can use `GET /api/v1/federation/sources?syncState=failed&limit=25` or `syncState=incomplete`, combined with `displayName` and `status`. Follow `nextCursor` with the same filters and page size. Each `latestCompletedSync` contains only the snapshot ID, Source revision, recorded state and completion time; it is derived directory metadata, not Source configuration or a freshness guarantee.
 
 The Job table shows one row per kind and one column per state. Each count links to its exact kind and state filters. Terminal counts cover retained Jobs, not lifetime outcomes. Future retries remain waiting. Queued and waiting Jobs become due at `not_before`. Running Jobs become reclaimable at lease expiry. The oldest due time uses these timestamps, not creation time.
 
@@ -242,6 +250,8 @@ Access inventories, Jobs, audit results, webhooks, feedback, source directories,
 Assignment-revoke drafts require an explicit discard before paging or refresh, and no recovery action resends a mutation.
 
 Access, review, release and publication confirmations show the captured action, exact target references, scope or disposition, relevant changes and reason. Review approval, request changes and rejection are distinct. Names appear where the workflow has already loaded them. Exact references remain available without extra private reads.
+
+Before retirement, supersession or revocation, **Preview or refresh affected feeds** can show the active discovery snapshots affected by the release. This optional read needs release-history access and tenant-wide publication-read permission. Review the observation time and whole-snapshot effect, then prepare confirmation; a changed release revision requires reloading release state. The preview reserves no state and never replaces **Retry same command** after an uncertain write. See [withdrawal preview and replacement publication](publishing.mdx#preview-affected-discovery-feeds).
 
 The confirmed request and any deliberate retry use the same captured values, revision and idempotency key. Cancel sends no command. These summaries do not expose raw private documents, credentials or one-time secrets.
 
@@ -611,6 +621,105 @@ Open **Account > My work**. Choose Draft resources and candidates, Awaiting revi
 Ownership uses your Catalog membership and issuer realm, never a display name or an unqualified token subject. Older Version/Listing revision transitions without exact revision attribution are omitted. This page does not reconstruct ownership from `createdBy`. Rows and links require current namespace permissions. Resource identifiers require metadata reads, display names require content reads, and revision/submission queues require history reads. The API does not require `audit.read` or return raw audit records.
 
 Approval does not guarantee current publication eligibility. The publisher must use the existing release command, which rechecks policy and evidence. Authorized reviewers can open the existing review queue; independent review rules still apply.
+
+## Find MCP servers by declared tools
+
+If you know the operation you need rather than a server name, search for it and
+open **Filters > More filters > Include declared MCP tools**. Apply the filter.
+For example, `pdf tables` can find a server whose released declaration contains
+`extract_pdf_tables`, even when its listing says only "Processes documents".
+
+This option searches local MCP servers using words in their listings and private
+tool names/descriptions. All query words must occur within one tool, across its
+name and description. It requires current content-read access as well as listing
+access. Without content access, ordinary listing matches remain available and
+the private declaration contributes nothing to matches, counts or explanations.
+No MCP endpoint or embedding provider is contacted.
+
+Each server appears once. Up to three matching tool names and descriptions appear
+on cards and table rows; longer descriptions are shortened. Multiple tools do not
+increase its score through their count. **Inspect released declaration** opens
+the exact release, with its revision IDs and retained metadata or document
+download. These are author declarations, not verified runtime capabilities.
+
+Catalog record reads omit private tool attachments without current content-read
+permission. `toolDeclarationRedacted: true` appears for every MCP record lacking
+that permission, including records with no attachment. This flag describes
+access, not the presence of an inventory. Disclosing an attachment records the
+normal private revision-read audit first; an audit failure prevents disclosure.
+Use the authorized exact revision or
+reusable draft export to inspect retained declarations.
+
+### Supply a declaration
+
+In the MCP Version editor, keep the primary Server Card or Registry document and
+choose **Add declared tools**. Edit the JSON attachment:
+
+```json
+{
+  "tools": [
+    {
+      "name": "extract_pdf_tables",
+      "description": "Extract tables from a PDF"
+    }
+  ]
+}
+```
+
+The attachment uses role `metadata`, media type
+`application/vnd.open-agentic-catalog.mcp-tools+json` and profile
+`open-agentic-catalog-mcp-tools-1`. Supply local JSON or text content, never a URL
+or package. It is a Catalog-owned private profile, separate from the pinned MCP
+Server Card standard. The same representation can be supplied through the API,
+reusable drafts or SDKs; normal import/export preserves it.
+
+Use at most 64 tools, unique case-sensitive nonblank names up to 128 Unicode
+characters and optional descriptions up to 1024 characters. The whole UTF-8 JSON
+must fit 64 KiB. Inline `data` must also fit after JSON escaping; `content` keeps
+the exact UTF-8 text. Only `name` and `description` are accepted; schemas and additional
+fields are rejected. Removing the attachment means "not supplied"; `{"tools":[]}`
+is an explicitly empty declaration. Neither describes what a running server
+currently offers.
+
+Changes create a new immutable revision and require the usual validation, review
+and release. An unpublished edit does not alter search. Replacement uses the new
+release; deprecation retains discovery and withdrawal removes it. Private tool
+metadata is excluded from public ARD/AI Catalog documents, public artifacts and
+embedding inputs. Saved searches preserve the explicit tool selection.
+
+### Search from a client
+
+Send authenticated `POST /api/v1/catalog/search` with:
+
+```json
+{
+  "text": "pdf tables",
+  "includeMcpTools": true,
+  "origins": ["local"],
+  "kinds": ["mcp_server"],
+  "limit": 20
+}
+```
+
+The text must be nonblank. Select only local origins; omitted kinds mean MCP
+servers in this mode. Other kinds, external origins or `agentProtocol` are
+rejected with `INVALID_ARGUMENT`. Omit `includeMcpTools` for ordinary search.
+`POST /api/v1/catalog/explore` accepts the same selection in its local `query`
+without `origins`. The response reports tier `core`, profile `core-mcp-tools-v1`
+and optional `toolMatch` details tied to an exact representation ID and digest;
+`local` holds its release and revision IDs. Continue with the returned cursor and
+unchanged criteria. A changed mode, release population or current permissions
+requires a fresh search.
+
+For the CLI:
+
+```sh
+catalogctl remote search --text "pdf tables" --origin local --include-mcp-tools
+```
+
+Use the normal explicit API URL and credential options described in CLI help.
+Generated SDKs expose `includeMcpTools` and `toolMatch`; the Catalog's read-only MCP
+Search and Explore tools carry the same bounded metadata without invoking tools.
 
 ## Save resources and searches
 

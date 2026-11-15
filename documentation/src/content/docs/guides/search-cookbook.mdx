@@ -72,6 +72,22 @@ Open the saved item and choose **Open search editor**. Review disclosure and pro
 
 Same-tab return from a local or indexed record retains the applied criteria and pending text, then reads results again. Revoked consent leaves the search staged. Reloading requires a new explicit Search from the stored criteria.
 
+## Find local Agents by a declared A2A protocol
+
+Open **Filters**, expand **More filters** and enter `HTTP+JSON`, `JSONRPC`, `GRPC` or another exact value in **Agent protocol binding**. Applying a binding selects **Local Catalog** alone. Select **Apply filters** to run the search. Remove the **Declared A2A** chip to remove that predicate, or use **Clear filters** and **Apply filters** to clear all filters.
+
+```sh
+catalogctl remote search --origin local --agent-protocol HTTP+JSON --limit 10
+```
+
+The match comes from any `supportedInterfaces[].protocolBinding` in the released primary, validated A2A Agent Card. It is case-sensitive and preserves spaces in custom values; use up to 256 Unicode code points. Supporting cards and unpublished revisions do not change a released match. Agents with no eligible declaration do not match. Private Listings and opaque Resource identifiers can match when you have access; a public discovery snapshot is not required.
+
+You need both `resource.read` and `resource.read_content` in the Listing's Namespace, plus `catalog.read` when OAuth scopes are enforced. These checks apply before results, totals, category suggestions and paging. Saving and reopening a named search retains the exact binding and local-only scope. Ordinary searches without this filter keep their existing metadata-read permissions.
+
+The Control API uses `agentProtocol` on Search, local Browse and Explore. Search and saved criteria require explicit `origins: ["local"]` with a nonempty binding; indexed, live and mixed selections are rejected. Browse and Explore already cover local releases. Public ARD discovery does not accept this filter. Keep the binding and other criteria unchanged when following a cursor.
+
+This reads a declaration, without contacting the Agent or proving endpoint health, protocol-version compatibility or permission to invoke it. Keyword-only deployments need no model. Hybrid Search applies the same filter before ranking and adds no protocol values to embedding inputs; its existing query-text disclosure rules still apply.
+
 ## Combine kinds, categories, a tag and a license
 
 Clear the text query. Open **Filters** and select both **Skills** and **Plugins** checkboxes; the toolbar shortcuts select only one kind. Choose categories `development` and `testing`. Add exact tag `catalog-curated`; under **More filters**, enter `Apache-2.0` in **License declaration**. Keep only **Local Catalog**, then select **Apply filters**.

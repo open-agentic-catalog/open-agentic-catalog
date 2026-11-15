@@ -40,7 +40,7 @@ func TestRemoteSearchContractAndWire(t *testing.T) {
 		path, method, operation string
 	}{
 		{[]string{"capabilities"}, "/api/v1/capabilities", "GET", "getCapabilities"},
-		{[]string{"search", "--text", "café", "--kind", "agent", "--kind", "skill", "--tag", "one", "--tag", "two", "--license", " MIT ", "--category", " TOOLS ", "--category", "café", "--origin", "local", "--namespace", identifier, "--publisher", "publisher", "--visibility", "tenant", "--limit", "2", "--cursor", "opaque"}, "/api/v1/catalog/search", "POST", "searchCatalog"},
+		{[]string{"search", "--agent-protocol", "HTTP+JSON", "--text", "café", "--kind", "agent", "--kind", "skill", "--tag", "one", "--tag", "two", "--license", " MIT ", "--category", " TOOLS ", "--category", "café", "--origin", "local", "--namespace", identifier, "--publisher", "publisher", "--visibility", "tenant", "--limit", "2", "--cursor", "opaque"}, "/api/v1/catalog/search", "POST", "searchCatalog"},
 		{[]string{"record", "--id", identifier}, "/api/v1/catalog/resources/{catalogRecordId}", "GET", "getCatalogRecord"},
 		{[]string{"job", "--id", identifier}, "/api/v1/jobs/{jobId}", "GET", "getJob"},
 	} {
@@ -69,6 +69,9 @@ func TestRemoteSearchContractAndWire(t *testing.T) {
 					if body["license"] != " MIT " || body["namespaceId"] != identifier || !reflect.DeepEqual(body["categories"], []any{" TOOLS ", "café"}) || !reflect.DeepEqual(body["origins"], []any{"local"}) {
 						t.Errorf("declaration/origin filters changed: %#v", body)
 					}
+					if body["agentProtocol"] != "HTTP+JSON" {
+						t.Errorf("exact Agent protocol was not transmitted: %#v", body)
+					}
 				}
 				w.Header().Set("Content-Type", "application/json")
 				w.Header().Set("X-Request-ID", "request-1")
@@ -88,6 +91,37 @@ func TestRemoteSearchContractAndWire(t *testing.T) {
 				t.Fatalf("lossy output: %s", &out)
 			}
 		})
+	}
+}
+
+func TestRemoteDeclaredToolsWireAndEvidence(t *testing.T) {
+	const declarationID = "00000000-0000-7000-8000-000000000099"
+	match := map[string]any{"representationId": declarationID, "contentDigest": "sha256:" + strings.Repeat("a", 64), "matchedToolCount": float64(1), "truncated": false, "tools": []any{map[string]any{"name": "extract_pdf_tables", "description": "Untrusted <script>tool()</script>", "descriptionTruncated": false}}}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Error(err)
+		}
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/catalog/search" || r.Header.Get("Authorization") != "Bearer test-token" || !reflect.DeepEqual(body, map[string]any{"text": "pdf tables", "origins": []any{"local"}, "includeMcpTools": true, "limit": float64(1), "cursor": "opaque +/雪"}) {
+			t.Errorf("declared-tools wire contract: %s %s %#v", r.Method, r.URL.Path, body)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"items": []any{map[string]any{"type": "local", "kind": "mcp_server", "toolMatch": match}}, "partial": false, "durableTotal": 1, "liveCount": 0})
+	}))
+	defer server.Close()
+	var output bytes.Buffer
+	if err := runRemote(t.Context(), []string{"search", "--text", "pdf tables", "--include-mcp-tools", "--origin", "local", "--limit", "1", "--cursor", "opaque +/雪"}, remoteTestEnvironment(server.URL, "test-token"), &output); err != nil {
+		t.Fatal(err)
+	}
+	var response struct {
+		Data struct {
+			Items []struct {
+				ToolMatch map[string]any `json:"toolMatch"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &response); err != nil || len(response.Data.Items) != 1 || !reflect.DeepEqual(response.Data.Items[0].ToolMatch, match) {
+		t.Fatal("CLI changed declared tool evidence", output.String(), err)
 	}
 }
 
@@ -452,6 +486,22 @@ func TestRemoteAgainstCatalog(t *testing.T) {
 	}
 	if _, err := call("local-reader", "capabilities"); err != nil {
 		t.Fatal(err)
+	}
+	for binding, count := range map[string]int{"JSONRPC": 1, "HTTP+JSON": 0} {
+		envelope, err := call("local-reader", "search", "--origin", "local", "--tag", "remote-contract", "--agent-protocol", binding)
+		var selected struct {
+			Items []struct {
+				Kind catalog.Kind `json:"kind"`
+			} `json:"items"`
+		}
+		if err != nil || json.Unmarshal(envelope.Data, &selected) != nil || len(selected.Items) != count {
+			t.Fatal("real Catalog protocol selection", binding, string(envelope.Data), err)
+		}
+		for _, item := range selected.Items {
+			if item.Kind != catalog.KindAgent {
+				t.Fatal("protocol filter admitted another kind", item.Kind)
+			}
+		}
 	}
 	deny("invalid-token", http.StatusUnauthorized, catalog.CodeUnauthenticated, "capabilities")
 	cursor := ""

@@ -61,6 +61,291 @@ const item = {
   updatedAt: stamp,
 };
 
+it("reads recent addressed outcomes with bounded requests and refreshes from page one", async () => {
+  history.replaceState(null, "", "/unit/my-feedback");
+  const w = screenWorkspace();
+  const access = { ...w.props.access, ...testAccess(["feedback_member"]) };
+  w.get.mockResolvedValue(
+    etagReply({
+      items: [item, { ...item, id: "feedback-2", response: undefined }],
+      nextCursor: "next",
+    }),
+  );
+  render(<OwnFeedback {...w.props} access={access} />);
+  await screen.findAllByRole("link", { name: "Open feedback case" });
+  click("Recent addressed outcomes");
+  await waitFor(() =>
+    expect(w.get).toHaveBeenLastCalledWith(
+      "/api/v1/feedback",
+      expect.objectContaining({
+        params: {
+          query: { order: "updated_desc", state: "addressed", limit: 20 },
+        },
+      }),
+    ),
+  );
+  expect(location.search).toBe("?state=addressed&order=updated_desc");
+  expect(screen.getByText(/Moderator response: Current response/)).toBeTruthy();
+  expect(
+    screen.getAllByText(/Addressed without a written response/).length,
+  ).toBeGreaterThan(0);
+  expect(screen.getByText(/Current outcomes, not reply history/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+  await waitFor(() =>
+    expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+      params: {
+        query: { order: "updated_desc", state: "addressed", cursor: "next" },
+      },
+    }),
+  );
+  click("Refresh feedback");
+  await waitFor(() =>
+    expect(w.get).toHaveBeenLastCalledWith(
+      "/api/v1/feedback",
+      expect.objectContaining({
+        params: {
+          query: { order: "updated_desc", state: "addressed", limit: 20 },
+        },
+      }),
+    ),
+  );
+  click("Submission order");
+  await waitFor(() =>
+    expect(w.get).toHaveBeenLastCalledWith(
+      "/api/v1/feedback",
+      expect.objectContaining({ params: { query: { limit: 20 } } }),
+    ),
+  );
+  expect(w.get.mock.calls.every(([path]) => path === "/api/v1/feedback")).toBe(
+    true,
+  );
+  expect(w.post).not.toHaveBeenCalled();
+  expect(w.patch).not.toHaveBeenCalled();
+});
+
+it.each(["", "bad", "updated_desc&order=id"])(
+  "preserves invalid own-feedback order %j for API refusal",
+  async (order) => {
+    history.replaceState(
+      null,
+      "",
+      `/unit/my-feedback?state=addressed&order=${order}`,
+    );
+    const w = screenWorkspace();
+    w.get.mockRejectedValue(new Error("Controlled invalid order"));
+    render(
+      <OwnFeedback
+        {...w.props}
+        access={{ ...w.props.access, ...testAccess(["feedback_member"]) }}
+      />,
+    );
+    await screen.findByRole("alert");
+    expect(w.get.mock.calls[0]?.[1]).toMatchObject({
+      params: {
+        query: { order: !order || order.includes("&") ? "unsupported" : order },
+      },
+    });
+    expect(w.get).toHaveBeenCalledTimes(1);
+  },
+);
+
+it("protects a feedback editor and exact-key recovery while recent-view controls are locked", async () => {
+  history.replaceState(null, "", "/unit/my-feedback");
+  const w = screenWorkspace();
+  w.get.mockResolvedValue(etagReply({ items: [item] }));
+  render(
+    <OwnFeedback
+      {...w.props}
+      access={{ ...w.props.access, ...testAccess(["feedback_member"]) }}
+    />,
+  );
+  await screen.findByText(item.comment, { selector: "p" });
+  openEditor("Edit or withdraw your feedback");
+  change("Feedback comment", "Protected reply follow-up draft");
+  const discard = vi.spyOn(window, "confirm").mockReturnValue(false);
+  const before = w.get.mock.calls.length;
+  click("Recent addressed outcomes");
+  expect(discard).toHaveBeenCalled();
+  expect(w.get).toHaveBeenCalledTimes(before);
+  expect(
+    (screen.getByLabelText("Feedback comment") as HTMLTextAreaElement).value,
+  ).toBe("Protected reply follow-up draft");
+  click("Save feedback changes");
+  await screen.findByRole("dialog");
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Recent addressed outcomes",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  expect(
+    (
+      screen.getByRole("button", {
+        name: "Submission order",
+      }) as HTMLButtonElement
+    ).disabled,
+  ).toBe(true);
+  expect(w.patch).not.toHaveBeenCalled();
+  w.patch
+    .mockRejectedValueOnce(new Error("Controlled lost feedback response"))
+    .mockImplementationOnce(async () => {
+      w.get.mockResolvedValue(
+        etagReply({
+          items: [
+            {
+              ...item,
+              comment: "Protected reply follow-up draft",
+              state: "open",
+              response: "",
+              revision: 3,
+            },
+          ],
+        }),
+      );
+      return etagReply({ id: item.id, revision: 3 });
+    });
+  click("Confirm");
+  const dialog = await screen.findByRole("dialog");
+  await within(dialog).findByText(/The outcome is unknown/);
+  const original = structuredClone(required(w.patch.mock.calls[0]));
+  expect(original).toEqual([
+    "/api/v1/feedback/{feedbackId}",
+    {
+      params: {
+        path: { feedbackId: item.id },
+        header: {
+          "Idempotency-Key": expect.any(String) as unknown,
+          "If-Match": '"rev-2"',
+        },
+      },
+      body: {
+        category: item.category,
+        comment: "Protected reply follow-up draft",
+      },
+    },
+  ]);
+  const uncertainReads = w.get.mock.calls.length;
+  for (const name of ["Recent addressed outcomes", "Submission order"]) {
+    const view = screen.getByRole("button", { name });
+    expect(view).toHaveProperty("disabled", true);
+    fireEvent.click(view);
+  }
+  expect(w.get).toHaveBeenCalledTimes(uncertainReads);
+  expect(w.patch).toHaveBeenCalledTimes(1);
+  expect(location.search).toBe("");
+  expect(
+    within(dialog).getByRole("button", { name: "Back to form" }),
+  ).toHaveProperty("disabled", true);
+  click("Retry same command");
+  await screen.findByText("Protected reply follow-up draft", {
+    selector: "p",
+  });
+  expect(w.patch).toHaveBeenCalledTimes(2);
+  expect(w.patch.mock.calls[1]).toEqual(original);
+  expect(screen.queryByRole("dialog")).toBeNull();
+  expect(w.post).not.toHaveBeenCalled();
+});
+
+it.each([
+  {
+    order: "updated_desc",
+    state: "addressed",
+    response: "😀".repeat(181),
+    preview: `Moderator response: ${"😀".repeat(180)}…`,
+  },
+  {
+    order: "updated_desc",
+    state: "open",
+    response: undefined,
+    preview: `${"😀".repeat(180)}…`,
+  },
+  {
+    order: "",
+    state: "addressed",
+    response: "Current response",
+    preview: `${"😀".repeat(180)}…`,
+  },
+])(
+  "bounds current feedback previews by Unicode characters for $order/$state",
+  async ({ order, state, response, preview }) => {
+    history.replaceState(
+      null,
+      "",
+      `/unit/my-feedback?state=${state}${order ? `&order=${order}` : ""}`,
+    );
+    const w = screenWorkspace();
+    w.get.mockResolvedValue(
+      etagReply({
+        items: [{ ...item, state, response, comment: "😀".repeat(181) }],
+      }),
+    );
+    const view = render(
+      <OwnFeedback
+        {...w.props}
+        access={{ ...w.props.access, ...testAccess(["feedback_member"]) }}
+      />,
+    );
+    await screen.findByRole("link", { name: "Open feedback case" });
+    const summary = required(
+      view.container.querySelector(".case-summary > details > summary") ??
+        undefined,
+    );
+    expect(summary.textContent).toContain(preview);
+    expect(summary.textContent).not.toContain("😀".repeat(181));
+  },
+);
+
+it("rereads an exact case opened from a later recent page", async () => {
+  history.replaceState(
+    null,
+    "",
+    "/unit/my-feedback?state=addressed&order=updated_desc",
+  );
+  const w = screenWorkspace();
+  w.get.mockImplementation(async (path) =>
+    etagReply(
+      path === "/api/v1/feedback/{feedbackId}"
+        ? item
+        : { items: [item], nextCursor: "later" },
+    ),
+  );
+  render(
+    <OwnFeedback
+      {...w.props}
+      access={{ ...w.props.access, ...testAccess(["feedback_member"]) }}
+    />,
+  );
+  await screen.findByRole("link", { name: "Open feedback case" });
+  fireEvent.click(screen.getByRole("button", { name: "Next page" }));
+  await waitFor(() =>
+    expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+      params: { query: { cursor: "later" } },
+    }),
+  );
+  fireEvent.click(
+    await screen.findByRole("link", { name: "Open feedback case" }),
+  );
+  await screen.findByRole("button", { name: "Read current feedback" });
+  await waitFor(() =>
+    expect(
+      w.get.mock.calls.filter(
+        ([path]) => path === "/api/v1/feedback/{feedbackId}",
+      ),
+    ).toHaveLength(1),
+  );
+  click("Read current feedback");
+  await waitFor(() =>
+    expect(
+      w.get.mock.calls.filter(
+        ([path]) => path === "/api/v1/feedback/{feedbackId}",
+      ),
+    ).toHaveLength(2),
+  );
+  expect(w.patch).not.toHaveBeenCalled();
+  expect(w.post).not.toHaveBeenCalled();
+});
+
 /** Open the lazy private panel through its real details disclosure. */
 function openFeedback() {
   fireEvent.click(screen.getByText("Item feedback"));

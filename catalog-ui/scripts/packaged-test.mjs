@@ -1964,6 +1964,45 @@ try {
     await signIn();
     phase += "-catalog";
     await expect(page.locator("article.resource-card")).toHaveCount(3);
+    // The minimal fixture releases cards/order-agent.json (JSONRPC); its
+    // other published kinds and unpublished Agent supply negative controls.
+    for (const [binding, count] of [
+      ["JSONRPC", 1],
+      ["HTTP+JSON", 0],
+    ]) {
+      await page.getByRole("button", { name: /^Filters/ }).click();
+      await page
+        .getByLabel("Agent protocol binding", { exact: true })
+        .fill(binding);
+      const [response] = await Promise.all([
+        page.waitForResponse(
+          (response) =>
+            response.request().method() === "POST" &&
+            new URL(response.url()).pathname ===
+              basePath + "/_catalog/api/v1/catalog/search",
+        ),
+        page
+          .getByRole("button", { name: "Apply filters", exact: true })
+          .click(),
+      ]);
+      expect(response.status()).toBe(200);
+      expect(response.request().postDataJSON()).toMatchObject({
+        agentProtocol: binding,
+        origins: ["local"],
+      });
+      expect((await response.json()).durableTotal).toBe(count);
+      await expect(page.locator("article.resource-card")).toHaveCount(count);
+    }
+    await page
+      .getByRole("button", {
+        name: "Remove declared A2A protocol: HTTP+JSON",
+        exact: true,
+      })
+      .click();
+    await expect(page.locator("article.resource-card")).toHaveCount(3);
+    await page.reload();
+    await expect(page.locator("article.resource-card")).toHaveCount(3);
+    console.log("Packaged declared Agent protocol filtering passed");
     const help = page.getByRole("group", { name: "Help" });
     const documentationLink = help.getByRole("link", {
       name: "Documentation",
@@ -2463,6 +2502,7 @@ try {
           license = "",
           categories = [],
           origins = [],
+          includeMcpTools = false,
         }) =>
           JSON.parse(
             await compose(
@@ -2485,6 +2525,7 @@ try {
               ...(license ? ["--license", license] : []),
               ...categories.flatMap((value) => ["--category", value]),
               ...origins.flatMap((value) => ["--origin", value]),
+              ...(includeMcpTools ? ["--include-mcp-tools"] : []),
             ),
           ).data,
         phase: (value) => {
@@ -3057,8 +3098,8 @@ try {
           origin,
           basePath,
           memberAlias: "local-policy",
-          // The subpath policy journey follows the independently published Agent.
-          expectedCatalogCount: basePath ? 4 : 3,
+          // The publication journey retires its Agent before the subpath policy check.
+          expectedCatalogCount: 3,
           expectFailure: ledger.expectFailure,
           inspectCommandOutcome: async function inspectOwnedCommandOutcome({
             title,

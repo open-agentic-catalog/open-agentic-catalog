@@ -207,6 +207,9 @@ func toolRequest(name string, raw json.RawMessage) (selection, error) {
 		if json.Unmarshal(raw, &fields) != nil || fields["namespaceId"] != nil && q.NamespaceID == "" || fields["visibility"] != nil && q.Visibility == "" {
 			return selected, bad
 		}
+		if (q.AgentProtocol != "" || q.IncludeMCPTools) && len(q.Origins) == 0 {
+			return selected, bad
+		}
 		if len(q.Origins) == 0 {
 			q.Origins = []catalog.SearchResultType{catalog.SearchResultLocal}
 		}
@@ -214,7 +217,7 @@ func toolRequest(name string, raw json.RawMessage) (selection, error) {
 			return selected, bad
 		}
 		selected.limit, selected.origins = q.Limit, q.Origins
-		selected.query = catalog.SearchQuery{Origins: q.Origins, NamespaceID: q.NamespaceID, Text: q.Text, Kinds: q.Kinds, Tags: q.Tags, Categories: q.Categories, License: q.License, Publisher: q.Publisher, Visibility: q.Visibility, Limit: q.Limit, Cursor: q.Cursor}
+		selected.query = catalog.SearchQuery{IncludeMCPTools: q.IncludeMCPTools, AgentProtocol: q.AgentProtocol, Origins: q.Origins, NamespaceID: q.NamespaceID, Text: q.Text, Kinds: q.Kinds, Tags: q.Tags, Categories: q.Categories, License: q.License, Publisher: q.Publisher, Visibility: q.Visibility, Limit: q.Limit, Cursor: q.Cursor}
 		return selected, nil
 	case "catalog_control_explore":
 		explore, err := parseExplore(raw)

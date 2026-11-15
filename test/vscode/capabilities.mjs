@@ -44,6 +44,37 @@ export async function qualifyCapabilities(origin) {
       { get: () => undefined, update: async () => {} },
       "owned-capabilities",
     );
+    assert.equal(
+      (await browser.search({ agentProtocol: "JSONRPC" })).items.length,
+      1,
+    );
+    assert.equal(
+      (await browser.search({ agentProtocol: "jsonrpc" })).items.length,
+      0,
+    );
+    assert.equal(
+      (await browser.search({ text: "pdf tables" })).items.length,
+      0,
+    );
+    const tools = await browser.search({
+      text: "pdf tables",
+      includeMcpTools: true,
+    });
+    assert.equal(tools.items.length, 1);
+    assert.equal(tools.items[0].kind, "mcp_server");
+    assert.equal(tools.items[0].toolMatch.tools[0].name, "extract_pdf_tables");
+    const declared = await browser.select(tools.items[0].key);
+    const declaration = declared.documents.findIndex(
+      (doc) =>
+        doc.mediaType === "application/vnd.open-agentic-catalog.mcp-tools+json",
+    );
+    assert.ok(declaration >= 0);
+    assert.equal(
+      JSON.parse(
+        Buffer.from((await browser.document(declaration)).bytes).toString(),
+      ).tools[0].name,
+      "extract_pdf_tables",
+    );
     const combined = await browser.search({
       origins: ["local", "indexed"],
       kinds: ["agent", "mcp_server"],
@@ -118,6 +149,15 @@ export async function qualifyCapabilities(origin) {
       current.value.response,
       "Administrator response from owned fixture",
     );
+    const recent = await opinions.page("feedback", undefined, true);
+    assert.ok(
+      recent.items.some(
+        (item) =>
+          item.id === submitted.id &&
+          item.response === "Administrator response from owned fixture",
+      ),
+    );
+    assert.ok(recent.items.every((item) => item.state === "addressed"));
     await assert.rejects(
       outsider.get("feedback", submitted.id),
       (error) => error.status === 404,

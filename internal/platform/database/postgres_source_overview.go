@@ -9,15 +9,18 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
 )
 
+// Both directory and Overview select the same current-revision completed
+// attempt. The indexed lateral lookup never loads retained snapshot documents.
+const sourceLatestCompletedJoinSQL = ` LEFT JOIN LATERAL (SELECT id,state,completed_at FROM source_snapshots ss WHERE ss.tenant_id=source.tenant_id AND ss.source_id=source.id AND ss.source_revision=source.revision AND ss.completed_at IS NOT NULL AND source.configuration->>'retrievalMode' IN ('indexed','hybrid') ORDER BY completed_at DESC,id DESC LIMIT 1) latest ON true`
+
 // Read only scalar source/snapshot metadata. Never hydrate observation or native documents.
-var sourceOverviewFromSQL = ` FROM federation_sources fs
- LEFT JOIN LATERAL (SELECT state,completed_at FROM source_snapshots ss WHERE ss.tenant_id=fs.tenant_id AND ss.source_id=fs.id AND ss.source_revision=fs.revision AND ss.completed_at IS NOT NULL ORDER BY completed_at DESC,id DESC LIMIT 1) latest ON true
- LEFT JOIN source_snapshots complete ON complete.tenant_id=fs.tenant_id AND complete.source_id=fs.id AND complete.id=fs.last_complete_snapshot_id AND complete.state='complete'
- WHERE fs.tenant_id=$1 AND fs.status<>'removed' AND ` + collectionPermissionSQL("source.read", "")
+var sourceOverviewFromSQL = ` FROM federation_sources source` + sourceLatestCompletedJoinSQL + `
+ LEFT JOIN source_snapshots complete ON complete.tenant_id=source.tenant_id AND complete.source_id=source.id AND complete.id=source.last_complete_snapshot_id AND complete.state='complete'
+ WHERE source.tenant_id=$1 AND source.status<>'removed' AND ` + collectionPermissionSQL("source.read", "")
 
-var sourceOverviewRowsSQL = `SELECT fs.status,CASE WHEN fs.configuration->>'retrievalMode' NOT IN ('indexed','hybrid') THEN 'not_applicable' ELSE coalesce(latest.state,'not_yet_synced') END,coalesce(complete.source_revision<>fs.revision,false)` + sourceOverviewFromSQL + ` LIMIT $2`
+var sourceOverviewRowsSQL = `SELECT source.status,CASE WHEN source.configuration->>'retrievalMode' NOT IN ('indexed','hybrid') THEN 'not_applicable' ELSE coalesce(latest.state,'not_yet_synced') END,coalesce(complete.source_revision<>source.revision,false)` + sourceOverviewFromSQL + ` LIMIT $2`
 
-var sourceOverviewProblemsSQL = `SELECT fs.id::text,fs.display_name,fs.revision,latest.state,latest.completed_at,complete.source_revision,complete.completed_at` + sourceOverviewFromSQL + ` AND fs.configuration->>'retrievalMode' IN ('indexed','hybrid') AND latest.state IN ('failed','incomplete') ORDER BY latest.completed_at DESC,fs.id LIMIT 5`
+var sourceOverviewProblemsSQL = `SELECT source.id::text,source.display_name,source.revision,latest.state,latest.completed_at,complete.source_revision,complete.completed_at` + sourceOverviewFromSQL + ` AND source.configuration->>'retrievalMode' IN ('indexed','hybrid') AND latest.state IN ('failed','incomplete') ORDER BY latest.completed_at DESC,source.id LIMIT 5`
 
 func (p *PostgresFederationStore) ReadSourceOverview(ctx context.Context, tenant string) (federation.SourceOverviewRows, error) {
 	return withTenantCollectionRead(ctx, p.repository.pool, tenant, func(tx pgx.Tx) (federation.SourceOverviewRows, error) {

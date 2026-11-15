@@ -8,6 +8,7 @@ export const reviewLabels = {
 
 export type ReviewFilters = {
   listingId: string;
+  namespaceId?: string;
   state: string;
   unreleased?: string;
 };
@@ -17,6 +18,14 @@ export function reviewFilters(search: string): ReviewFilters {
   const listingId = query.get("listing") ?? "";
   return {
     listingId,
+    ...(query.has("namespace")
+      ? {
+          namespaceId:
+            query.getAll("namespace").length === 1
+              ? query.get("namespace")!
+              : "unsupported",
+        }
+      : {}),
     ...(query.has("unreleased")
       ? {
           unreleased:
@@ -36,5 +45,7 @@ export function reviewQueueURL(basePath: string, filters: ReviewFilters) {
   if (filters.unreleased !== undefined)
     query.set("unreleased", filters.unreleased);
   if (filters.listingId) query.set("listing", filters.listingId);
+  if (filters.namespaceId !== undefined)
+    query.set("namespace", filters.namespaceId);
   return `${basePath}/reviews?${query}`;
 }

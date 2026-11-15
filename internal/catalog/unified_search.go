@@ -258,7 +258,7 @@ func localCatalogSearchResult(record CatalogSummary) CatalogSearchResult {
 		Version: record.Version.Version, VersionPresent: true, Kind: record.Resource.Kind,
 		DisplayName: record.ListingRevision.DisplayName, Description: record.ListingRevision.Description,
 		Tags: append([]string{}, record.ListingRevision.Tags...), Publisher: record.ListingRevision.PublisherID,
-		Score: record.RelevanceScore, Local: new(record.SearchLocal()), Artwork: record.Artwork,
+		ToolMatch: record.ToolMatch, Score: record.RelevanceScore, Local: new(record.SearchLocal()), Artwork: record.Artwork,
 	}
 }
 

@@ -19,7 +19,8 @@ exports.run = async (extension) => {
         ],
       },
     );
-    let finished = false;
+    let finished = false,
+      view;
     try {
       const asset = panel.webview.asWebviewUri(
         vscode.Uri.joinPath(
@@ -47,14 +48,8 @@ exports.run = async (extension) => {
               : {};
       // A native read proves startup completed. It does not replace the monitor
       // that subscribed before the new frame's scripts were allowed to run.
-      const view = await webview();
-      try {
-        await view.until(
-          "document.body.innerText.includes('Owned calibration')",
-        );
-      } finally {
-        view.close(view.errorCounts());
-      }
+      view = await webview();
+      await view.until("document.body.innerText.includes('Owned calibration')");
       if (Object.keys(expected).length) {
         const deadline = Date.now() + 5000;
         while (
@@ -71,13 +66,38 @@ exports.run = async (extension) => {
             /Unexpected owned renderer errors/u,
           );
         assert.deepEqual(monitor.errorCounts(), expected);
+        if (kind === "exception") {
+          // Runtime.enable replays exceptions from a still-live document.
+          // Prove why requesting panel disposal alone cannot isolate observers.
+          const replay = await webview("observer");
+          await assert.rejects(
+            replay.finish(),
+            /Unexpected owned renderer errors/u,
+          );
+          const counts = replay.errorCounts();
+          assert.deepEqual(Object.keys(counts), ["exception"]);
+          assert.ok(
+            counts.exception >= 1,
+            "The live frame replays its exception",
+          );
+        }
       } else {
         finished = true;
         await monitor.finish();
       }
     } finally {
-      if (!finished) await monitor.finish();
-      panel.dispose();
+      try {
+        if (!finished) await monitor.finish();
+      } finally {
+        panel.dispose();
+        try {
+          // Disposal is asynchronous in the renderer. Do not let the next
+          // observer attach to this frame and replay its intentional errors.
+          await view?.waitForClosed();
+        } finally {
+          view?.close(view.errorCounts());
+        }
+      }
     }
   }
 };

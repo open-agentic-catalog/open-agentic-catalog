@@ -10,6 +10,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"unicode/utf8"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -21,6 +22,12 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jsondoc"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/safeerr"
 )
+
+// The embedded request contract is immutable for the process lifetime. Keep
+// caller contexts and prepared request values out of this shared read-only graph.
+var importRequestContract = sync.OnceValues(func() (*openapi3.T, error) {
+	return openapi3.NewLoader().LoadFromData(api.ControlV1)
+})
 
 type importBatchPlan struct {
 	Preview importBatchPreview  `json:"preview"`
@@ -126,10 +133,7 @@ func prepareImportFile(ctx context.Context, filename string, requestLimit int) (
 	if err = checkImportRelationships(manifest.Resources, identifiers); err != nil {
 		return batch, err
 	}
-	// Parse the service-owned contract once for the entire bounded manifest.
-	loader := openapi3.NewLoader()
-	loader.Context = ctx
-	contract, err := loader.LoadFromData(api.ControlV1)
+	contract, err := importRequestContract()
 	if err != nil {
 		return batch, safeerr.Wrap(err, "cannot load the embedded import request contract")
 	}

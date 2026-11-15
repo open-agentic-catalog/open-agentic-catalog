@@ -241,7 +241,7 @@ func TestPostgresFederationPagesDecodeBoundedRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	sourceRaw := []byte(`{"id":"00000000-0000-7000-8000-000000000090","tenantId":"` + paginationTestTenantID + `","displayName":"Alpha source","type":"ard_manifest","endpoint":"https://source.example.com/ard.json","retrievalMode":"indexed","policyId":"policy","policyRevision":1,"policyDigest":"sha256:` + strings.Repeat("a", 64) + `","profileId":"ard-test","scope":{},"updateMode":"manual_review","live":{},"referrals":{},"nesting":{},"createdBy":"admin","createdAt":"2026-09-02T12:00:00Z","updatedAt":"2026-09-02T12:00:00Z"}`)
-	sourceRows := &identityScriptedRows{values: [][]any{{sourceRaw, sourceRaw, federation.SourceActive, int64(2), "", (*time.Time)(nil), now, true, string(federation.RetrievalIndexed), "policy", int64(1), "sha256:" + strings.Repeat("a", 64), "", []byte(`[]`), []byte(`[]`)}}}
+	sourceRows := &identityScriptedRows{values: [][]any{{(*string)(nil), (*string)(nil), (*time.Time)(nil), sourceRaw, sourceRaw, federation.SourceActive, int64(2), "", (*time.Time)(nil), now, true, string(federation.RetrievalIndexed), "policy", int64(1), "sha256:" + strings.Repeat("a", 64), "", []byte(`[]`), []byte(`[]`)}}}
 	sourceTx := &identityScriptedTx{fakeCommandTx: &fakeCommandTx{}, queryResults: []identityQueryResult{{rows: sourceRows}}}
 	sources, err := store.ListSourcePage(identityRepositoryContext(pool, sourceTx), paginationTestTenantID, federation.SourceListRequest{Limit: 2})
 	if err != nil || len(sources) != 1 || sources[0].DisplayName != "Alpha source" || !sourceRows.closed {

@@ -176,6 +176,7 @@ export function CatalogPresentation(value: unknown): boolean {
 export function CatalogRecord(value: unknown): boolean {
   return (
     object(value) &&
+    optional(value.toolDeclarationRedacted, (redacted) => redacted === true) &&
     optional(value.display, CatalogPresentation) &&
     Resource(value.resource) &&
     ResourceVersion(value.version) &&
@@ -270,6 +271,46 @@ export function CatalogSearchResponse(value: unknown): boolean {
   );
 }
 
+function MCPToolMatch(value: unknown): boolean {
+  if (
+    !object(value) ||
+    typeof value.representationId !== "string" ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      value.representationId,
+    ) ||
+    typeof value.contentDigest !== "string" ||
+    !/^sha256:[a-f0-9]{64}$/.test(value.contentDigest) ||
+    typeof value.matchedToolCount !== "number" ||
+    !number(value.matchedToolCount, 1, 64, true) ||
+    !Array.isArray(value.tools) ||
+    value.tools.length !== Math.min(value.matchedToolCount, 3) ||
+    value.truncated !== value.matchedToolCount > 3
+  )
+    return false;
+  const names = new Set<string>();
+  return value.tools.every((tool: unknown) => {
+    if (
+      !object(tool) ||
+      typeof tool.name !== "string" ||
+      !tool.name.trim() ||
+      [...tool.name].length > 128 ||
+      tool.name.includes("\0") ||
+      names.has(tool.name) ||
+      !flag(tool.descriptionTruncated) ||
+      (tool.description !== undefined &&
+        (typeof tool.description !== "string" ||
+          [...tool.description].length > 256 ||
+          tool.description.includes("\0"))) ||
+      (tool.descriptionTruncated &&
+        (typeof tool.description !== "string" ||
+          [...tool.description].length !== 256))
+    )
+      return false;
+    names.add(tool.name);
+    return true;
+  });
+}
+
 export function CatalogSearchResult(value: unknown): boolean {
   return (
     object(value) &&
@@ -283,6 +324,9 @@ export function CatalogSearchResult(value: unknown): boolean {
     optional(value.description, text) &&
     array(value.tags, text) &&
     optional(value.publisher, text) &&
+    optional(value.toolMatch, MCPToolMatch) &&
+    (value.toolMatch === undefined ||
+      (value.type === "local" && value.kind === "mcp_server")) &&
     optional(value.local, CatalogSearchLocal) &&
     optional(value.indexed, IndexedCatalogSearchEvidence) &&
     optional(value.live, LiveCatalogSearchEvidence) &&
@@ -548,7 +592,17 @@ export function FederationSource(value: unknown): boolean {
     number(value.revision, 1, Infinity, true) &&
     optional(value.lastSyncAt, timestamp) &&
     optional(value.lastCompleteSnapshotId, identifier) &&
-    optional(value.lastError, text)
+    optional(value.lastError, text) &&
+    optional(
+      value.latestCompletedSync,
+      (attempt) =>
+        object(attempt) &&
+        identifier(attempt.snapshotId) &&
+        attempt.revision === value.revision &&
+        choice(value.retrievalMode, ["indexed", "hybrid"]) &&
+        choice(attempt.state, ["complete", "incomplete", "failed"]) &&
+        timestamp(attempt.completedAt),
+    )
   );
 }
 
@@ -1179,6 +1233,37 @@ export function PublicationSnapshotPage(value: unknown): value is {
     object(value) &&
     array(value.items, PublicationSnapshotSummary) &&
     cursor(value.nextCursor)
+  );
+}
+
+export function ReleaseWithdrawalPreview(value: unknown): boolean {
+  if (!object(value) || !Array.isArray(value.snapshots)) return false;
+  const snapshots: unknown[] = value.snapshots;
+  return (
+    object(value) &&
+    identifier(value.releaseId) &&
+    number(value.releaseRevision, 1, Infinity, true) &&
+    choice(value.transition, ["retired", "superseded", "revoked"]) &&
+    timestamp(value.observedAt) &&
+    array(
+      value.snapshots,
+      (row) =>
+        object(row) &&
+        identifier(row.snapshotId) &&
+        text(row.host) &&
+        row.host.length > 0 &&
+        row.host.length <= 253 &&
+        choice(row.audience, ["anonymous", "authenticated"]) &&
+        number(row.generation, 1, Infinity, true) &&
+        text(row.etag) &&
+        row.etag.length > 0 &&
+        row.etag.length <= 256,
+    ) &&
+    snapshots.length <= 64 &&
+    new Set(snapshots.map((row) => (object(row) ? row.snapshotId : undefined)))
+      .size === snapshots.length &&
+    new Set(snapshots.map((row) => (object(row) ? row.host : undefined)))
+      .size === snapshots.length
   );
 }
 

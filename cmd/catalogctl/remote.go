@@ -40,7 +40,8 @@ const remoteUsage = `usage: catalogctl remote <capabilities|search|record|job|so
                   --view changes|all (default changes) --limit 1-100 (default 25)
                   --cursor VALUE; reads one page of saved source membership
   search: --text TEXT --kind KIND (repeatable) --tag TAG (repeatable)
-          --license VALUE --category VALUE (repeatable)
+          --license VALUE --category VALUE (repeatable) --agent-protocol VALUE (local only)
+          --include-mcp-tools (requires text and local-only MCP selection)
           --origin local|indexed|live (repeatable) --namespace UUID (local only)
           --publisher VALUE --visibility private|tenant|public
           --limit 1-100 (default 25) --cursor VALUE
@@ -177,6 +178,8 @@ func parseRemote(arguments []string, getenv func(string) string) (remoteOptions,
 		options.search = query
 		flags.StringVar(&query.Text, "text", "", "search text")
 		flags.StringVar(&query.Publisher, "publisher", "", "publisher")
+		flags.StringVar(&query.AgentProtocol, "agent-protocol", "", "exact declared A2A binding; requires --origin local")
+		flags.BoolVar(&query.IncludeMCPTools, "include-mcp-tools", false, "include private declared tools in local MCP lexical search; requires --text and --origin local")
 		flags.StringVar(&query.License, "license", "", "exact license declaration")
 		flags.StringVar(&query.NamespaceID, "namespace", "", "local namespace UUID")
 		flags.Func("origin", "repeatable provenance origin", func(value string) error {

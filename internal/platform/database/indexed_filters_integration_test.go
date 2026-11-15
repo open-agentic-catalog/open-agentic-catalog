@@ -318,7 +318,7 @@ DELETE FROM catalog_schema_migrations WHERE version=39;`); err != nil {
 		t.Fatal(err)
 	}
 	plan, err := Plan(t.Context(), db.operator)
-	if err != nil || len(plan) != 47 || plan[38].Applied {
+	if err != nil || len(plan) != 51 || plan[38].Applied {
 		t.Fatalf("upgrade plan=%+v %v", plan, err)
 	}
 	applied, reports, err := ApplyAndReconcileRuntimePrivileges(t.Context(), db.operator, db.api.Config().ConnConfig.User, db.worker.Config().ConnConfig.User, true)

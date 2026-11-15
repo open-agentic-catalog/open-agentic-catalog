@@ -57,6 +57,8 @@ LEFT JOIN semantic_vectors vector ON vector.tenant_id=member.tenant_id AND vecto
 		parameters := append([]any{pgx.QueryExecModeExec}, catalogSearchParameters(g.TenantID, request.Query)...)
 		parameters = append(parameters, g.ID, g.Profile, request.Vector, request.Cutoff)
 		parameters = append(parameters, limits...)
+		statement, bound := agentProtocolQuery(statement, parameters[1:], request.Query)
+		parameters = append([]any{pgx.QueryExecModeExec}, bound...)
 		rows, err := tx.Query(ctx, collectionStatement(ctx, statement), parameters...)
 		if err != nil {
 			return catalog.ExploreResponse{}, translateError("query hybrid facets", err)

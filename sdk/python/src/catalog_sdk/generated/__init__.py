@@ -258,6 +258,8 @@ __all__ = [
     "MCPReplyId",
     "MCPRequest",
     "MCPRequestId",
+    "MCPToolMatch",
+    "MCPToolMatchToolsInner",
     "MemberAccessPage",
     "MemberContribution",
     "Membership",
@@ -356,6 +358,8 @@ __all__ = [
     "Relationship",
     "ReleaseOverview",
     "ReleaseTransition",
+    "ReleaseWithdrawalPreview",
+    "ReleaseWithdrawalSnapshot",
     "RemoveSource",
     "Representation",
     "RepresentationInput",
@@ -400,6 +404,7 @@ __all__ = [
     "SourceScope",
     "SourceStateCount",
     "SourceSyncAccepted",
+    "SourceSyncAttempt",
     "SourceSyncProblem",
     "SyncSummary",
     "TenantSettings",
@@ -1025,6 +1030,10 @@ from catalog_sdk.generated.models.mcp_reply import MCPReply as MCPReply
 from catalog_sdk.generated.models.mcp_reply_id import MCPReplyId as MCPReplyId
 from catalog_sdk.generated.models.mcp_request import MCPRequest as MCPRequest
 from catalog_sdk.generated.models.mcp_request_id import MCPRequestId as MCPRequestId
+from catalog_sdk.generated.models.mcp_tool_match import MCPToolMatch as MCPToolMatch
+from catalog_sdk.generated.models.mcp_tool_match_tools_inner import (
+    MCPToolMatchToolsInner as MCPToolMatchToolsInner,
+)
 from catalog_sdk.generated.models.member_access_page import (
     MemberAccessPage as MemberAccessPage,
 )
@@ -1271,6 +1280,12 @@ from catalog_sdk.generated.models.release_overview import (
 from catalog_sdk.generated.models.release_transition import (
     ReleaseTransition as ReleaseTransition,
 )
+from catalog_sdk.generated.models.release_withdrawal_preview import (
+    ReleaseWithdrawalPreview as ReleaseWithdrawalPreview,
+)
+from catalog_sdk.generated.models.release_withdrawal_snapshot import (
+    ReleaseWithdrawalSnapshot as ReleaseWithdrawalSnapshot,
+)
 from catalog_sdk.generated.models.remove_source import RemoveSource as RemoveSource
 from catalog_sdk.generated.models.representation import Representation as Representation
 from catalog_sdk.generated.models.representation_input import (
@@ -1382,6 +1397,9 @@ from catalog_sdk.generated.models.source_state_count import (
 )
 from catalog_sdk.generated.models.source_sync_accepted import (
     SourceSyncAccepted as SourceSyncAccepted,
+)
+from catalog_sdk.generated.models.source_sync_attempt import (
+    SourceSyncAttempt as SourceSyncAttempt,
 )
 from catalog_sdk.generated.models.source_sync_problem import (
     SourceSyncProblem as SourceSyncProblem,

@@ -54,12 +54,13 @@ def write_generator_fixture(base):
             archive.writestr("python/" + name + ".mustache", "from __future__ import annotations\nclass {{classname}}: pass\n")
 
 
-def mock_generation(destination, changed_source=None, occurrence_source="if value not in set(['true']):\n    raise ValueError()\n"):
+def mock_generation(destination, changed_source=None, occurrence_source="if value not in set(['true']):\n    raise ValueError()\n", catalog_source="if value not in set(['true']):\n    raise ValueError()\n"):
     def run(args, **_):
         if args[1] == "generate":
             models = destination / "catalog_sdk/generated/models"
             models.mkdir(parents=True)
             (models / "observation_occurrence.py").write_text(occurrence_source)
+            (models / "catalog_record.py").write_text(catalog_source)
             for name in OPEN_MODELS:
                 source = changed_source if changed_source is not None and name == OPEN_MODELS[-1] else MODEL_SOURCE
                 (models / (name + ".py")).write_text(source)
@@ -232,6 +233,7 @@ class PythonRunnerUnits(unittest.TestCase):
             self.assertNotIn("--skip-validate-spec", args)
             self.assertEqual(run.call_args_list[1].args[0][1], "format")
             self.assertIn("if value is not True:", (destination / "catalog_sdk/generated/models/observation_occurrence.py").read_text())
+            self.assertIn("if value is not True:", (destination / "catalog_sdk/generated/models/catalog_record.py").read_text())
             source = (base / "work/templates/api.mustache").read_text()
             self.assertIn("hide_input_in_errors", source)
             self.assertEqual((base / "work/templates/model_oneof.mustache").read_text().count("from __future__ import annotations"), 1)
@@ -245,15 +247,16 @@ class PythonRunnerUnits(unittest.TestCase):
                 self.assertEqual(source.count("_obj.model_fields_set.intersection_update("), 1)
 
     def test_generation_rejects_boolean_enum_template_drift(self):
-        for source in ("", "if value not in set(['true']):\n" * 2):
-            with self.subTest(source=source), tempfile.TemporaryDirectory() as directory:
-                base = Path(directory)
-                write_generator_fixture(base)
-                destination = base / "generated"
-                with patch.object(runner, "TOOLS", base), patch.object(runner, "run", side_effect=mock_generation(destination, occurrence_source=source)) as run:
-                    with self.assertRaisesRegex(RuntimeError, "ObservationOccurrence boolean enum template"):
-                        runner.generate(destination, base / "work")
-                    self.assertEqual(run.call_count, 1)
+        for field, model in (("occurrence_source", "ObservationOccurrence"), ("catalog_source", "CatalogRecord")):
+            for source in ("", "if value not in set(['true']):\n" * 2):
+                with self.subTest(model=model, source=source), tempfile.TemporaryDirectory() as directory:
+                    base = Path(directory)
+                    write_generator_fixture(base)
+                    destination = base / "generated"
+                    with patch.object(runner, "TOOLS", base), patch.object(runner, "run", side_effect=mock_generation(destination, **{field: source})) as run:
+                        with self.assertRaisesRegex(RuntimeError, model + " boolean enum template"):
+                            runner.generate(destination, base / "work")
+                        self.assertEqual(run.call_count, 1)
 
     def test_generation_rejects_missing_or_duplicate_open_object_markers(self):
         for marker in ("        model_config = ConfigDict(\n", "                exclude_none=True,\n            )",

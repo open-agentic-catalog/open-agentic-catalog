@@ -7,7 +7,7 @@ Use the manual's [integration example chooser](../documentation/src/content/docs
 | Directory | Purpose |
 | --- | --- |
 | [client-skills/](client-skills/README.md) | Portable read-only Catalog discovery instructions for a terminal-capable assistant using the installed CLI. |
-| [langgraph/](langgraph/README.md) | Read-only local-model assistant with two LangGraph tools backed by the Python SDK: Search local releases and inspect selected exact records. |
+| [langgraph/](langgraph/README.md) | Read-only local-model assistant backed by the Python SDK, plus a separate model-free ARD Search/Explore graph with explicit approved-referral controls. |
 | [rust-catalog-report/](rust-catalog-report/README.md) | Standalone Rust SDK CLI that searches authorized local releases, verifies exact records and prints a bounded Markdown inventory. |
 | [publication-report/](publication-report/README.md) | Standalone Go SDK HTTPS receiver with a durable PostgreSQL inbox, current publication-state report and periodic reconciliation. |
 | [typescript-ard-list/](typescript-ard-list/README.md) | Standalone Node client using the TypeScript SDK for published-only ARD List, bounded metadata output and explicit complete or incomplete traversal. |

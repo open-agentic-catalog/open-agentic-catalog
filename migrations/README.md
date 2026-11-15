@@ -43,3 +43,30 @@ Migration `000043_personal_library.sql` adds human-owned saved references and se
 Migration `000044_principal_and_group_guards.sql` adds an exact-target audit index for Resource creation/adoption and review submission attribution, and replaces the group guard to require explicit revocation of active assignments and members before archival. It changes no retained attribution, archived history or runtime grants; manifest v26 remains current. Use the normal drained owner-only migration workflow. Missing or ambiguous origin evidence fails closed; do not infer ownership, reset data or reopen archived groups. See the [persistence chapter](../documentation/src/content/docs/architecture/persistence.md#000044---principal-lookups-and-group-archival-guards).
 
 Migration `000047_publisher_domain_verification.sql` removes obsolete approval storage after preserving its complete union, then adds separate DNS evidence. Undeclared legacy values stop the migration. Existing approvals gain no verified status. Manifest v27 grants exact API columns; workers receive no verification-table access. Restore check set 7 includes the new records. Use the drained, owner-only migration procedure and repair forward after failure. Verification remains disabled by default.
+
+Migration `000048_agent_protocol_projection.sql` materializes exact A2A interface bindings for both inline representations and retained document blobs. It preserves content bytes, digests and sealed evidence. Drain API/worker processes and budget for table rewrites before the schema owner applies it and reconciles manifest v28. API alone gains column reads and execution of the pure derivation function; workers gain neither. No semantic reindex is needed. After failure, keep runtimes stopped, fix the reported cause and retry forward through the normal migration command.
+
+Migration `000049_mcp_tool_declarations.sql` adds stored private MCP tool arrays,
+lexical GIN indexes and one valid tool declaration per immutable revision.
+Drain API/worker and budget for table rewrites before the schema owner applies
+it and reconciles manifest v29. API projection/function access is read-only;
+workers gain neither. Exact declaration bytes and digests stay unchanged.
+Generated columns recompute on insertion and logical restore; index repair uses
+normal PostgreSQL `REINDEX`, not observation repair or a semantic reindex.
+If migration/reconciliation fails, keep runtimes stopped and retry forward after
+correcting the reported cause. Omit `includeMcpTools` to use ordinary discovery;
+do not downgrade the schema or rewrite retained declarations.
+
+Migration `000050_feedback_recent_page.sql` adds the tenant/member/state/update/ID
+index used by recent own-feedback selection. It changes no records, functions
+or runtime grants; manifest v29 is unchanged. Use the normal drained, owner-only
+migration workflow. Index creation locks feedback writes during application;
+budget maintenance time for the retained table size. Repair forward after
+failure; no row conversion, data reset or response-history backfill is needed.
+
+Migration `000051_source_completed_attempt_page.sql` adds the shared current-revision
+completed-attempt index for Source directory filters and Overview. It changes no
+records, functions or runtime grants; manifest v29 remains unchanged. Apply
+through the normal owner-only migration with snapshot writers drained. Index
+creation locks snapshot writes; allow maintenance time for retained history.
+Repair forward after failure without resetting Source membership or history.

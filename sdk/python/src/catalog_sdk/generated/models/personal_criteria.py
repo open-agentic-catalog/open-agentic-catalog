@@ -20,7 +20,14 @@ else:
     import re  # noqa: F401
     import json
 
-    from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+    from pydantic import (
+        BaseModel,
+        ConfigDict,
+        Field,
+        StrictBool,
+        StrictStr,
+        field_validator,
+    )
     from typing import Any, ClassVar, Dict, List, Optional
     from typing_extensions import Annotated
     from uuid import UUID
@@ -41,6 +48,18 @@ else:
         ] = Field(
             default=None,
             description="Select local, indexed or transient live provenance. Omission preserves existing participation. With namespaceId, omit origins or select local alone. License and category filters apply across selected origins. Local releases shadow matching indexed identities only when local participates. Live-only search can continue a verified bounded live window and reports zero durableTotal.",
+        )
+        include_mcp_tools: Optional[StrictBool] = Field(
+            default=None,
+            description="Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.",
+            alias="includeMcpTools",
+        )
+        agent_protocol: Optional[Annotated[str, Field(strict=True, max_length=256)]] = (
+            Field(
+                default=None,
+                description="Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.",
+                alias="agentProtocol",
+            )
         )
         order: Optional[CatalogSearchOrder] = None
         namespace_id: Optional[UUID] = Field(
@@ -80,6 +99,8 @@ else:
         additional_properties: Dict[str, Any] = {}
         __properties: ClassVar[List[str]] = [
             "origins",
+            "includeMcpTools",
+            "agentProtocol",
             "order",
             "namespaceId",
             "text",
@@ -102,6 +123,16 @@ else:
                     raise ValueError(
                         "each list item must be one of ('local', 'indexed', 'live')"
                     )
+            return value
+
+        @field_validator("agent_protocol", mode="before")
+        def agent_protocol_validate_regular_expression(cls, value):
+            """Validates the regular expression"""
+            if value is None:
+                return value
+
+            if isinstance(value, str) and not re.match(r"^[^\x00]*$", value):
+                raise ValueError(r"must validate the regular expression /^[^\x00]*$/")
             return value
 
         @field_validator("text", mode="before")
@@ -199,6 +230,8 @@ else:
             _obj = cls.model_validate(
                 {
                     "origins": obj.get("origins"),
+                    "includeMcpTools": obj.get("includeMcpTools"),
+                    "agentProtocol": obj.get("agentProtocol"),
                     "order": obj.get("order"),
                     "namespaceId": obj.get("namespaceId"),
                     "text": obj.get("text"),

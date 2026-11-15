@@ -1,0 +1,91 @@
+# Invocation-owned native consumer, with a separate disposable native database.
+services:
+  api:
+    networks:
+      default:
+        aliases: [api-a, peer-a.test, private-a.test, federation-fixture]
+    ports: !reset []
+    dns: [127.0.0.1]
+    environment:
+      CATALOG_PUBLIC_BASE_URL: http://127.0.0.1:8080
+      CATALOG_WEBHOOKS_ENABLED: "false"
+      CATALOG_DISCOVERY_HOSTS: &hosts >-
+        [{"host":"peer-a.test","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"catalog.example.com"},
+        {"host":"private-a.test","tenantId":"00000000-0000-7000-8000-000000000001","mode":"authenticated","publisherDomain":"catalog.example.com"}]
+  worker:
+    ports: !reset []
+    dns: [127.0.0.1]
+    environment:
+      CATALOG_PUBLIC_BASE_URL: http://127.0.0.1:8080
+      CATALOG_WEBHOOKS_ENABLED: "false"
+      CATALOG_DISCOVERY_HOSTS: *hosts
+  postgres:
+    ports: !reset []
+  federation-fixture:
+    network_mode: service:api
+    networks: !reset []
+    ports: !reset []
+    dns: !reset []
+    command: [serve, --directory, /fixture, --peer]
+  agentfield-postgres:
+    image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+    pull_policy: never
+    environment:
+      POSTGRES_USER: agentfield
+      POSTGRES_PASSWORD: owned-native-only
+      POSTGRES_DB: agentfield
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U agentfield -d agentfield]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+    volumes:
+      - agentfield-postgres:/var/lib/postgresql
+  agentfield:
+    image: ${CATALOG_AGENTFIELD_IMAGE:?prepare native tools first}
+    pull_policy: never
+    user: ${CATALOG_AGENTFIELD_USER:?owned UID required}
+    network_mode: service:api
+    depends_on:
+      agentfield-postgres:
+        condition: service_healthy
+    command: [server, --config, /inputs/config.yaml]
+    environment:
+      HOME: /state
+      AGENTFIELD_HOME: /state
+      AGENTFIELD_TELEMETRY_ENABLED: "false"
+      SSL_CERT_FILE: ${CATALOG_AGENTFIELD_CA:-/fixture/trust/functional-ca.pem}
+      SSL_CERT_DIR: /empty
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 768m
+    cpus: 2
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid,nodev
+    volumes:
+      - ${CATALOG_AGENTFIELD_STATE:?owned state directory required}:/state
+      - ${CATALOG_AGENTFIELD_CONFIG:?owned configuration directory required}:/inputs:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?owned trust directory required}:/fixture:ro
+  agentfield-observer:
+    image: ${CATALOG_AGENTFIELD_PYTHON:?pinned Python runner required}
+    pull_policy: never
+    user: ${CATALOG_AGENTFIELD_USER:?owned UID required}
+    network_mode: service:api
+    command: [python, -B, /harness/agentfield/observer.py]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+    cpus: 1
+    volumes:
+      - ${CATALOG_AGENTFIELD_HARNESS:?owned harness required}:/harness:ro
+      - ${CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY:?owned trust directory required}:/fixture:ro
+networks:
+  default:
+    internal: true
+volumes:
+  agentfield-postgres:

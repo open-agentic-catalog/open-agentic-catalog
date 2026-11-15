@@ -17,6 +17,9 @@ import (
 // documents, vectors or unrequested trust-evidence lookups. SQL expressions
 // come from a closed field mapping; request values and limits remain bound.
 func catalogFacetStatement(query catalog.SearchQuery, facets []catalog.FacetRequest) (string, []any, error) {
+	if query.IncludeMCPTools {
+		return catalogFacetStatementWithFilter(query, facets, mcpToolsBaseCTE(), mcpToolsFilterSQL(), 11)
+	}
 	return catalogFacetStatementWithFilter(query, facets, catalogSearchBaseCTE, catalogSearchFilterSQL, 11)
 }
 
@@ -87,6 +90,8 @@ func exploreCatalogTx(ctx context.Context, tx pgx.Tx, tenantID string, query cat
 	}
 	parameters := append([]any{pgx.QueryExecModeExec}, catalogSearchParameters(tenantID, query)...)
 	parameters = append(parameters, limits...)
+	sql, bound := agentProtocolQuery(sql, parameters[1:], query)
+	parameters = append([]any{pgx.QueryExecModeExec}, bound...)
 	rows, err := tx.Query(ctx, collectionStatement(ctx, sql), parameters...)
 	if err != nil {
 		return catalog.ExploreResponse{}, translateError("query catalog facets", err)

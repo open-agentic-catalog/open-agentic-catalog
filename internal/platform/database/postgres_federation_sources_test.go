@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
@@ -75,7 +76,7 @@ func TestFederationSourcePageFailures(t *testing.T) {
 	for _, outcome := range []string{"empty", "query", "scan", "decode", "iteration"} {
 		t.Run(outcome, func(t *testing.T) {
 			store, tx, ctx, source := federationAdapterFixture(t)
-			rows := &identityScriptedRows{values: [][]any{federationSourceValues(t, source)}}
+			rows := &identityScriptedRows{values: [][]any{append([]any{(*string)(nil), (*string)(nil), (*time.Time)(nil)}, federationSourceValues(t, source)...)}}
 			result := identityQueryResult{rows: rows}
 			code := catalog.CodeDependencyUnavailable
 			switch outcome {
@@ -87,7 +88,7 @@ func TestFederationSourcePageFailures(t *testing.T) {
 			case "scan":
 				rows.values = [][]any{{}}
 			case "decode":
-				rows.values[0][0] = []byte(`[]`)
+				rows.values[0][3] = []byte(`[]`)
 				code = catalog.CodeInternal
 			case "iteration":
 				rows.err = failure

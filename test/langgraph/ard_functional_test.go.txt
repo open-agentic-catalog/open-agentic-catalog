@@ -1,0 +1,237 @@
+//go:build functional
+
+package clientcompat_test
+
+import (
+	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
+	"io"
+	"log/slog"
+	"math/big"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/httpserver"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/id"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/idempotency"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/publication"
+)
+
+// The existing public-search fixture pattern supplies configured topology only.
+// Actual publication matching, ARD routing, authentication and paging are real.
+type ardReferralSources struct {
+	federation.Store
+	sources []federation.Source
+}
+
+func (store ardReferralSources) ListDiscoveryReferralSources(ctx context.Context, tenantID, host string, audience federation.DiscoveryAudience, policy string, limit int) ([]federation.Source, bool, error) {
+	if tenantID != tenant || host != "127.0.0.1" || audience != federation.AudienceAuthenticated || policy != (noFetch{}).PolicyDigest() || limit < 1 || identity.RequireInternalTarget(ctx, "federation.discover", tenantID, host) != nil {
+		return nil, false, catalog.E(catalog.CodeForbidden, "unexpected fixture topology admission")
+	}
+	return store.sources[:min(limit, len(store.sources))], len(store.sources) > limit, nil
+}
+
+func ardTLSServer(t *testing.T, handler http.Handler, connected func()) (*httptest.Server, string) {
+	t.Helper()
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	must(t, err)
+	template := &x509.Certificate{SerialNumber: big.NewInt(1), NotBefore: time.Now().Add(-time.Hour), NotAfter: time.Now().Add(time.Hour), IPAddresses: []net.IP{net.ParseIP("127.0.0.1")}, IsCA: true, BasicConstraintsValid: true, KeyUsage: x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature, ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth}}
+	der, err := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
+	must(t, err)
+	server := httptest.NewUnstartedServer(handler)
+	if connected != nil {
+		// Observe attempts before TLS verification, not only successful HTTP.
+		server.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+			if state == http.StateNew {
+				connected()
+			}
+		}
+	}
+	server.Config.ErrorLog = slog.NewLogLogger(slog.New(slog.DiscardHandler).Handler(), slog.LevelError)
+	server.TLS = &tls.Config{MinVersion: tls.VersionTLS12, Certificates: []tls.Certificate{{Certificate: [][]byte{der}, PrivateKey: key}}}
+	server.StartTLS()
+	t.Cleanup(server.Close)
+	ca := filepath.Join(t.TempDir(), "ca.pem")
+	must(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0600))
+	return server, ca
+}
+
+func TestLangGraphARDExample(t *testing.T) {
+	f := newFixture(t)
+	_, _, _, entries := seedLangGraphResources(t, f, catalog.VisibilityPublic)
+	var mu sync.Mutex
+	contacts := map[string]int{}
+	bad := func(w http.ResponseWriter, name string) {
+		mu.Lock()
+		contacts[name]++
+		mu.Unlock()
+		w.WriteHeader(http.StatusForbidden)
+	}
+	unapproved, _ := ardTLSServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { bad(w, "forbidden-destination") }), func() {
+		mu.Lock()
+		contacts["forbidden-connection"]++
+		mu.Unlock()
+	})
+	var peerURL string
+	peer, peerCA := ardTLSServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/discovery/search" {
+			bad(w, "peer-unselected-route")
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer peer-reader" {
+			mu.Lock()
+			contacts["peer-refused-credential"]++
+			mu.Unlock()
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.Header.Get("Cookie") != "" {
+			t.Error("peer received retained cookies")
+		}
+		var body map[string]any
+		if err := json.NewDecoder(io.LimitReader(r.Body, 8192)).Decode(&body); err != nil || body["federation"] != "none" {
+			t.Error("peer request lost its explicit single-hop mode", err)
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		mu.Lock()
+		contacts["peer-search"]++
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		query, _ := body["query"].(map[string]any)
+		if query["text"] == "filtered" && !reflect.DeepEqual(query, map[string]any{"text": "filtered", "filter": map[string]any{"type": []any{"text/markdown"}, "http://purl.org/dc/terms/subject": []any{"developer tools"}}}) {
+			t.Error("peer did not receive the exact admitted query and filters")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if query["text"] == "unavailable" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		if query["text"] == "redirect" {
+			w.Header().Set("Location", unapproved.URL+"/search")
+			w.WriteHeader(http.StatusTemporaryRedirect)
+			return
+		}
+		if query["text"] == "oversized" {
+			_, _ = io.WriteString(w, strings.Repeat(" ", 2*1024*1024+1))
+			return
+		}
+		if query["text"] == "drip" {
+			w.WriteHeader(http.StatusOK)
+			for range 50 {
+				_, _ = io.WriteString(w, " ")
+				w.(http.Flusher).Flush()
+				select {
+				case <-r.Context().Done():
+					return
+				case <-time.After(50 * time.Millisecond):
+				}
+			}
+			return
+		}
+		rows := []map[string]any{{"identifier": "urn:air:peer.test:skills:sparse", "source": "https://claimed-source.test/registry", "score": 42, "url": unapproved.URL + "/execute", "trustManifest": map[string]any{"identity": "did:web:unverified.test", "evidence": unapproved.URL + "/proof"}}, {"identifier": "urn:air:peer.test:skills:sparse", "source": "https://claimed-source.test/registry", "score": 41, "version": ""}}
+		response := map[string]any{"results": rows}
+		if query["text"] == "recursive" {
+			response["referrals"] = []map[string]string{{"identifier": "urn:air:unapproved.test:registry:other", "displayName": "Unapproved", "type": "application/ai-registry+json", "url": unapproved.URL + "/search"}}
+		}
+		if body["pageToken"] == nil && (query["text"] == "peer-pages" || query["text"] == "page-failure") {
+			response["results"] = rows[:1]
+			response["pageToken"] = "peer +/&?=雪"
+		} else if query["text"] == "peer-pages" {
+			if body["pageToken"] != "peer +/&?=雪" {
+				t.Error("peer continuation changed")
+			}
+			response["results"] = rows[1:]
+		} else if query["text"] == "page-failure" {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(response)
+	}), nil)
+	peerURL = peer.URL + "/discovery/search"
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusServiceUnavailable) })
+	var handlerMu sync.RWMutex
+	primary, primaryCA := ardTLSServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/ard/v1/search" && r.URL.Path != "/ard/v1/explore" {
+			bad(w, "primary-unselected-route")
+			return
+		}
+		mu.Lock()
+		contacts["primary "+r.URL.Path]++
+		mu.Unlock()
+		if r.Header.Get("Cookie") != "" || strings.Contains(r.Header.Get("Authorization"), "peer-reader") {
+			t.Error("primary received another destination's credential or cookies")
+		}
+		handlerMu.RLock()
+		selected := handler
+		handlerMu.RUnlock()
+		selected.ServeHTTP(w, r)
+	}), nil)
+	key := sha256.Sum256([]byte(t.Name()))
+	store := publication.NewMemoryStore()
+	manager, err := publication.NewManager(publication.Options{Records: f.service, Store: store, Clock: clock.NewFake(f.now), IDs: id.Generator{}, BaseURL: primary.URL, Host: "127.0.0.1", PublisherDomain: "demo.catalog.example.com", ARDProfile: "ard-0.91-aa3e598", AICatalogProfile: "ai-catalog-test", CursorKey: key[:], Audience: publication.AudienceAuthenticated})
+	must(t, err)
+	operatorPolicy, err := identity.NewMemoryStore([]identity.Seed{{TenantID: tenant, Issuer: "urn:ard-graph-fixture", Subject: "operator", ActorType: identity.ActorHuman, RoleTemplates: []string{"publication_admin", "reader"}}})
+	must(t, err)
+	operator, err := operatorPolicy.ResolvePrincipal(t.Context(), identity.Principal{TenantID: tenant, Issuer: "urn:ard-graph-fixture", Subject: "operator"})
+	must(t, err)
+	actor := identity.WithActor(t.Context(), identity.BindPermissionStore(operator, operatorPolicy))
+	candidate, err := manager.BuildCandidate(actor, tenant)
+	must(t, err)
+	active, err := manager.Activate(actor, tenant, candidate.ID, "Owned ARD graph publication")
+	must(t, err)
+	// The publication also advertises its own Registry, independently of the
+	// thirteen governed releases selected by the "web" query below.
+	if len(active.ARD.Entries) != len(entries)+1 || len(entries) != 13 {
+		t.Fatal("nonempty published control", len(active.ARD.Entries), len(entries))
+	}
+	sources := make([]federation.Source, 0, 2)
+	for index, endpoint := range []string{peerURL, unapproved.URL + "/search"} {
+		sources = append(sources, federation.Source{ID: []string{"00000000-0000-7000-8000-000000000201", "00000000-0000-7000-8000-000000000202"}[index], TenantID: tenant, DisplayName: "Configured peer", Type: federation.SourceRegistry, Endpoint: endpoint, RegistrySearchURL: endpoint, Status: federation.SourceActive, ProfileID: "ard-0.91-aa3e598", RetrievalMode: federation.RetrievalLive, UpdateMode: federation.UpdateManual, CreatedBy: "operator", PolicyID: "default", PolicyRevision: 1, PolicyDigest: (noFetch{}).PolicyDigest(), Referrals: federation.ReferralPolicy{Enabled: true, MaxHops: 1}, DiscoveryAssignments: []federation.DiscoveryAssignment{{Host: "127.0.0.1", Audience: federation.AudienceAuthenticated}}, Revision: 1, CreatedAt: f.now, UpdatedAt: f.now})
+	}
+	federationManager, err := federation.NewManager(ardReferralSources{Store: federation.NewMemoryStore(), sources: sources}, noFetch{}, clock.NewFake(f.now), id.Generator{})
+	must(t, err)
+	server, err := httpserver.New(httpserver.Dependencies{Catalog: f.service, Identity: f.identity, Federation: federationManager, Jobs: f.jobs, Authenticator: f.auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: responseLimit, RequestTimeout: time.Second, CursorKey: key[:], Now: func() time.Time { return f.now }, DiscoveryHosts: []httpserver.DiscoveryHost{{Host: "127.0.0.1", TenantID: tenant, PublisherDomain: "demo.catalog.example.com", Mode: httpserver.DiscoveryAuthenticated, Publication: manager}}})
+	must(t, err)
+	handlerMu.Lock()
+	handler = server.Handler()
+	handlerMu.Unlock()
+	expected, err := json.Marshal(map[string]any{"primary": primary.URL, "primaryCA": primaryCA, "peer": peerURL, "peerCA": peerCA, "unapproved": unapproved.URL, "entries": entries})
+	must(t, err)
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
+	defer cancel()
+	command := exec.CommandContext(ctx, os.Getenv("CATALOG_LANGGRAPH_PYTHON"), "-B", os.Getenv("CATALOG_LANGGRAPH_WORKFLOW"), string(expected))
+	command.Env = os.Environ()
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("ARD graph/HTTP qualification failed: %v\n%s", err, output)
+	}
+	t.Log(strings.TrimSpace(string(output)))
+	mu.Lock()
+	defer mu.Unlock()
+	if contacts["forbidden-connection"] != 0 || contacts["forbidden-destination"] != 0 || contacts["primary-unselected-route"] != 0 || contacts["peer-unselected-route"] != 0 || contacts["peer-search"] == 0 || contacts["peer-refused-credential"] == 0 || contacts["primary /ard/v1/search"] == 0 || contacts["primary /ard/v1/explore"] == 0 {
+		t.Fatal("missing allowed/refused native controls or forbidden contact", contacts)
+	}
+	t.Logf("Observed exact ARD routes, separate credentials and zero forbidden destination/entry/trust/private-API contacts: %v", contacts)
+}

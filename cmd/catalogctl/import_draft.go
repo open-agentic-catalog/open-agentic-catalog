@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/open-agentic-catalog/open-agentic-catalog/api"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/artwork"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/draftfile"
@@ -187,9 +185,7 @@ func prepareImportDraft(ctx context.Context, root *os.Root, raw []byte, file dra
 		batch.Items, batch.Preview.Resources = []importPlan{{Preview: preview}}, []importPreview{preview}
 		return batch, nil
 	}
-	loader := openapi3.NewLoader()
-	loader.Context = ctx
-	contract, err := loader.LoadFromData(api.ControlV1)
+	contract, err := importRequestContract()
 	if err != nil {
 		return batch, safeerr.New("import: cannot load the embedded request contract")
 	}

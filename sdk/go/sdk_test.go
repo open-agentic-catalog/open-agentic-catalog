@@ -20,6 +20,124 @@ import (
 
 type doerFunc func(*http.Request) (*http.Response, error)
 
+func TestWithdrawalPreviewIsOneExplicitReadAndDecodesBoundReferences(t *testing.T) {
+	const release = "00000000-0000-7000-8000-000000000101"
+	var identifier ReleaseId
+	if err := identifier.UnmarshalText([]byte(release)); err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	c := unitClient(t, Config{Token: "selected"}, doerFunc(func(request *http.Request) (*http.Response, error) {
+		calls++
+		if request.Method != http.MethodGet || request.URL.Path != "/api/v1/listing-releases/"+release+"/withdrawal-preview" || !reflect.DeepEqual(request.URL.Query(), url.Values{"transition": {"retired"}}) || request.Header.Get("Idempotency-Key") != "" || request.Header.Get("If-Match") != "" {
+			t.Fatal(request.URL)
+		}
+		return response(`{"releaseId":"00000000-0000-7000-8000-000000000101","releaseRevision":3,"transition":"retired","observedAt":"2026-11-15T12:00:00Z","snapshots":[{"snapshotId":"00000000-0000-7000-8000-000000000201","host":"catalog.example.com","audience":"anonymous","generation":2,"etag":"feed-two"}]}`, 200, "application/json"), nil
+	}))
+	preview, err := c.PreviewListingReleaseWithdrawalWithResponse(t.Context(), identifier, &PreviewListingReleaseWithdrawalParams{Transition: PreviewListingReleaseWithdrawalParamsTransitionRetired})
+	if err != nil || preview.JSON200 == nil || preview.JSON200.ReleaseRevision != 3 || len(preview.JSON200.Snapshots) != 1 || preview.JSON200.Snapshots[0].Host != "catalog.example.com" || calls != 1 {
+		t.Fatal(preview, err, calls)
+	}
+}
+
+func TestSourceSyncOutcomeAndContinuationRemainExplicit(t *testing.T) {
+	t.Parallel()
+	outcome, status, limit := ListFederationSourcesParamsSyncStateFailed, ListFederationSourcesParamsStatusActive, 1
+	name := "Exact Source"
+	cursor := "opaque+/= café"
+	calls := 0
+	c := unitClient(t, Config{Token: "selected"}, doerFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		want := url.Values{"syncState": {"failed"}, "status": {"active"}, "displayName": {"Exact Source"}, "limit": {"1"}}
+		if calls == 2 {
+			want.Set("cursor", cursor)
+		}
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/federation/sources" || !reflect.DeepEqual(r.URL.Query(), want) || r.Header.Get("Idempotency-Key") != "" {
+			t.Fatal("source selection changed", r.URL)
+		}
+		if calls == 1 {
+			return response(`{"items":[],"nextCursor":"opaque+/= café"}`, 200, "application/json"), nil
+		}
+		return response(`{"items":[]}`, 200, "application/json"), nil
+	}))
+	params := ListFederationSourcesParams{SyncState: &outcome, Status: &status, DisplayName: &name, Limit: &limit}
+	first, err := c.ListFederationSourcesWithResponse(t.Context(), &params)
+	if err != nil || first.JSON200 == nil || first.JSON200.NextCursor == nil || *first.JSON200.NextCursor != cursor || calls != 1 {
+		t.Fatal(first, err, calls)
+	}
+	params.Cursor = first.JSON200.NextCursor
+	last, err := c.ListFederationSourcesWithResponse(t.Context(), &params)
+	if err != nil || last.JSON200 == nil || last.JSON200.NextCursor != nil || calls != 2 {
+		t.Fatal(last, err, calls)
+	}
+}
+
+func TestRecentOwnFeedbackOrderAndContinuationRemainExplicit(t *testing.T) {
+	t.Parallel()
+	order, state, limit := UpdatedDesc, FeedbackStateAddressed, 1
+	cursor := "opaque+/= café"
+	calls := 0
+	c := unitClient(t, Config{Token: "selected"}, doerFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		want := url.Values{"order": {"updated_desc"}, "state": {"addressed"}, "limit": {"1"}}
+		if calls == 2 {
+			want.Set("cursor", cursor)
+		}
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/feedback" || !reflect.DeepEqual(r.URL.Query(), want) || r.Header.Get("Idempotency-Key") != "" {
+			t.Fatal("feedback selection changed", r.URL)
+		}
+		if calls == 1 {
+			return response(`{"items":[],"nextCursor":"opaque+/= café"}`, 200, "application/json"), nil
+		}
+		return response(`{"items":[]}`, 200, "application/json"), nil
+	}))
+	params := ListOwnFeedbackParams{Order: &order, State: &state, Limit: &limit}
+	first, err := c.ListOwnFeedbackWithResponse(t.Context(), &params)
+	if err != nil || first.JSON200 == nil || first.JSON200.NextCursor == nil || *first.JSON200.NextCursor != cursor || calls != 1 {
+		t.Fatal(first, err, calls)
+	}
+	params.Cursor = first.JSON200.NextCursor
+	last, err := c.ListOwnFeedbackWithResponse(t.Context(), &params)
+	if err != nil || last.JSON200 == nil || last.JSON200.NextCursor != nil || calls != 2 {
+		t.Fatal(last, err, calls)
+	}
+}
+
+func TestReviewQueueNamespaceAndContinuationRemainExplicit(t *testing.T) {
+	t.Parallel()
+	var namespace UUID
+	if err := namespace.UnmarshalText([]byte("aaaaaaaa-0000-7000-8000-000000000010")); err != nil {
+		t.Fatal(err)
+	}
+	state, unreleased, limit := ListReviewSubmissionsParamsStateApproved, true, Limit(1)
+	cursor := "opaque+/= café"
+	calls := 0
+	c := unitClient(t, Config{Token: "selected"}, doerFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		want := url.Values{"namespaceId": {namespace.String()}, "listingId": {namespace.String()}, "state": {"approved"}, "unreleased": {"true"}, "limit": {"1"}}
+		if calls == 2 {
+			want.Set("cursor", cursor)
+		}
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/review-submissions" || !reflect.DeepEqual(r.URL.Query(), want) || r.Header.Get("Idempotency-Key") != "" {
+			t.Fatal("review criteria changed", r.Method, r.URL, r.Header)
+		}
+		if calls == 1 {
+			return response(`{"items":[],"nextCursor":"opaque+/= café"}`, 200, "application/json"), nil
+		}
+		return response(`{"items":[]}`, 200, "application/json"), nil
+	}))
+	params := ListReviewSubmissionsParams{NamespaceId: &namespace, ListingId: &namespace, State: &state, Unreleased: &unreleased, Limit: &limit}
+	first, err := c.ListReviewSubmissionsWithResponse(t.Context(), &params)
+	if err != nil || first.JSON200 == nil || first.JSON200.NextCursor == nil || *first.JSON200.NextCursor != cursor || calls != 1 {
+		t.Fatal("first review page", first, err, calls)
+	}
+	params.Cursor = first.JSON200.NextCursor
+	last, err := c.ListReviewSubmissionsWithResponse(t.Context(), &params)
+	if err != nil || last.JSON200 == nil || last.JSON200.NextCursor != nil || calls != 2 {
+		t.Fatal("last review page", last, err, calls)
+	}
+}
+
 func TestOpenMetadataLiteralKeys(t *testing.T) {
 	const wire = `{"additional_properties":{"must":"stay nested"},"model_extra":null,"values":[null,false,""]}`
 	var expected map[string]json.RawMessage
@@ -759,5 +877,36 @@ func TestGeneratedWireSemantics(t *testing.T) {
 		if calls != 1 {
 			t.Fatal("codec work contacted a destination")
 		}
+	}
+}
+
+func TestDeclaredMCPToolsWireRoundTrip(t *testing.T) {
+	for _, wire := range []string{`{"text":"pdf tables","includeMcpTools":true,"origins":["local"]}`, `{"includeMcpTools":false}`, `{}`} {
+		var value CatalogSearch
+		if err := json.Unmarshal([]byte(wire), &value); err != nil {
+			t.Fatal(err)
+		}
+		raw, err := json.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var want, got map[string]any
+		if err := json.Unmarshal([]byte(wire), &want); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(raw, &got); err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(want, got) {
+			t.Fatal("optional private search selector changed", string(raw))
+		}
+	}
+	const wire = `{"representationId":"00000000-0000-7000-8000-000000000001","contentDigest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","matchedToolCount":1,"tools":[{"name":"extract_pdf_tables","descriptionTruncated":false}],"truncated":false}`
+	var match MCPToolMatch
+	if err := json.Unmarshal([]byte(wire), &match); err != nil {
+		t.Fatal(err)
+	}
+	if match.MatchedToolCount != 1 || len(match.Tools) != 1 || match.Tools[0].Name != "extract_pdf_tables" || match.Truncated {
+		t.Fatal("released tool explanation lost", match)
 	}
 }

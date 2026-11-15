@@ -74,9 +74,11 @@ func (s *PostgresSemanticStore) Search(ctx context.Context, request catalog.Sema
  LEFT JOIN resource_versions version ON version.tenant_id=$1 AND version.id=revision.resource_version_id
  WHERE (matching.identifier,coalesce(version.version,matching.version),matching.release_id<>'' OR matching.version_present)
  IN (SELECT identifier,version,present FROM unnest($23::text[],$24::text[],$25::boolean[]) probe(identifier,version,present)) LIMIT 51`
-			matches, err := readLiveMatches(ctx, tx, collectionStatement(ctx, statement), append([]any{pgx.QueryExecModeExec}, append(parameters, probes...)...))
+			statement, bound := agentProtocolQuery(statement, append(parameters, probes...), request.Query)
+			matches, err := readLiveMatches(ctx, tx, collectionStatement(ctx, statement), append([]any{pgx.QueryExecModeExec}, bound...))
 			return catalog.SemanticSearchPage{Matches: matches}, err
 		}
+		statement, parameters = agentProtocolQuery(statement, parameters, request.Query)
 		rows, err := tx.Query(ctx, collectionStatement(ctx, statement), append([]any{pgx.QueryExecModeExec}, parameters...)...)
 		if err != nil {
 			return catalog.SemanticSearchPage{}, translateError("select hybrid search page", err)

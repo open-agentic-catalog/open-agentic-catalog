@@ -27,6 +27,7 @@ export async function publishFixture(
   index: number,
   documentPadding = "",
   options: {
+    kind?: "agent" | "mcp_server";
     visibility?: "public" | "tenant" | "private";
     representativeQueries?: string[];
     displayName?: string;
@@ -40,7 +41,7 @@ export async function publishFixture(
     "/api/v1/resources",
     {
       namespaceId: catalog.receipt.namespaceId,
-      kind: "agent",
+      kind: options.kind ?? "agent",
       canonicalIdentifier: `urn:air:demo.catalog.example.com:demo:paged-${index}`,
     },
   );
@@ -52,7 +53,10 @@ export async function publishFixture(
       representations: [
         {
           role: "primary",
-          mediaType: "application/a2a-agent-card+json",
+          mediaType:
+            options.kind === "mcp_server"
+              ? "application/mcp-server-card+json"
+              : "application/a2a-agent-card+json",
           data: documentPadding
             ? {
                 ...agentDocument,

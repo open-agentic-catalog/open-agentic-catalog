@@ -93,6 +93,17 @@ type testPublicationWithdrawer struct {
 	manager *publication.Manager
 }
 
+func (w *testPublicationWithdrawer) PreviewPublicationRelease(ctx context.Context, tenantID, releaseID string) ([]catalog.ReleaseWithdrawalSnapshot, error) {
+	preview, matched, err := w.manager.PreviewReleaseWithdrawal(ctx, tenantID, releaseID, &publication.WithdrawalPreviewBudget{})
+	if err != nil {
+		return nil, err
+	}
+	if !matched {
+		return []catalog.ReleaseWithdrawalSnapshot{}, nil
+	}
+	return []catalog.ReleaseWithdrawalSnapshot{preview}, nil
+}
+
 func (w *testPublicationWithdrawer) WithdrawPublicationDomain(ctx context.Context, tenantID, domain, action, targetID, cause string) ([]string, error) {
 	changed, err := w.manager.WithdrawDomain(ctx, tenantID, domain, publication.WithdrawalCause{Cause: cause, OriginatingAction: action, OriginatingTargetID: targetID})
 	if err != nil || !changed {
@@ -693,6 +704,29 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 		Release catalog.ListingRelease `json:"release"`
 	}
 	decodeResult(t, publishResult, &publishEnvelope)
+	t.Run("review queue exact namespace filter", func(t *testing.T) {
+		query := "/api/v1/review-submissions?namespaceId=" + strings.ToUpper(namespace.ID) + "&state=approved&limit=1"
+		reply := requestJSON(t, testServer.URL, http.MethodGet, query, "reviewer", "", "", nil)
+		requireStatus(t, reply, http.StatusOK)
+		var page struct {
+			Items []catalog.ReviewSubmission `json:"items"`
+		}
+		decodeResult(t, reply, &page)
+		if len(page.Items) != 1 || page.Items[0].ID != submission.ID {
+			t.Fatal("exact namespace route lost submitted context", page)
+		}
+		for _, suffix := range []string{"namespaceId=", "namespaceId=not-a-uuid", "namespaceId=" + namespace.ID + "&namespaceId=" + namespace.ID, "NamespaceId=" + namespace.ID} {
+			requireControlProblem(t, requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/review-submissions?"+suffix, "reviewer", "", "", nil), http.StatusBadRequest, catalog.CodeInvalidArgument)
+		}
+		for _, suffix := range []string{"namespaceId=00000000-0000-7000-8000-000000000099", "namespaceId=00000000-0000-7000-8000-000000000099&listingId=" + listing.ID, "namespaceId=" + namespace.ID + "&state=approved&unreleased=true"} {
+			reply = requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/review-submissions?"+suffix, "reviewer", "", "", nil)
+			requireStatus(t, reply, http.StatusOK)
+			decodeResult(t, reply, &page)
+			if page.Items == nil || len(page.Items) != 0 {
+				t.Fatal("namespace/release intersection leaked a submission", page)
+			}
+		}
+	})
 	t.Run("bounded authoring histories and exact submitted evidence", func(t *testing.T) {
 		histories := map[string]string{
 			"/api/v1/resources/" + resource.ID + "/versions":                         versionEnvelope.Version.ID,
@@ -843,6 +877,50 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 		}
 		// Namespace reads already use catalog.read for tenant Readers.
 		requireStatus(t, requestJSON(t, owned.URL, http.MethodGet, "/api/v1/namespaces/"+namespace.ID, "contributor", "", "", nil), http.StatusOK)
+	})
+	t.Run("declared protocol Search Browse and Explore", func(t *testing.T) {
+		for _, binding := range []string{"JSONRPC", "HTTP+JSON", "\ufeff", ""} {
+			want := 0
+			if binding == "JSONRPC" || binding == "" {
+				want = 1
+			}
+			reply := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/search", "admin", "", "", map[string]any{"agentProtocol": binding, "origins": []string{"local"}})
+			requireStatus(t, reply, http.StatusOK)
+			requireControlSchema(t, "CatalogSearchResponse", reply.body)
+			var result catalog.CatalogSearchResponse
+			decodeResult(t, reply, &result)
+			if result.DurableTotal != want || len(result.Items) != want {
+				t.Fatal("wrong protocol population", result)
+			}
+			browse := requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/catalog/resources?agentProtocol="+url.QueryEscape(binding), "admin", "", "", nil)
+			requireStatus(t, browse, http.StatusOK)
+			var records catalog.Page[catalog.CatalogRecord]
+			decodeResult(t, browse, &records)
+			if len(records.Items) != want {
+				t.Fatal("browse ignored protocol", records)
+			}
+			facets := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/explore", "admin", "", "", map[string]any{"query": map[string]any{"agentProtocol": binding}, "facets": []any{map[string]any{"field": "kind"}}})
+			requireStatus(t, facets, http.StatusOK)
+			var explored catalog.ExploreResponse
+			decodeResult(t, facets, &explored)
+			if explored.Matched != want {
+				t.Fatal("facet ignored protocol", explored)
+			}
+		}
+		for _, raw := range []any{map[string]any{"agentProtocol": "JSONRPC"}, map[string]any{"agentProtocol": "JSONRPC", "origins": []string{"indexed"}}, map[string]any{"agentProtocol": "JSONRPC", "origins": []string{"local", "live"}}, map[string]any{"agentProtocol": nil}, map[string]any{"agentProtocol": " ", "origins": []string{"local"}}, map[string]any{"agentProtocol": "\n", "origins": []string{"local"}}} {
+			requireControlProblem(t, requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/search", "admin", "", "", raw), http.StatusBadRequest, catalog.CodeInvalidArgument)
+		}
+		for _, selected := range []any{"", nil, "PUBLIC"} {
+			for _, endpoint := range []string{"search", "explore"} {
+				body := map[string]any{"agentProtocol": "JSONRPC", "visibility": selected}
+				if endpoint == "search" {
+					body["origins"] = []string{"local"}
+				} else {
+					body = map[string]any{"query": body, "facets": []any{map[string]any{"field": "kind"}}}
+				}
+				requireControlProblem(t, requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/"+endpoint, "admin", "", "", body), http.StatusBadRequest, catalog.CodeInvalidArgument)
+			}
+		}
 	})
 	qualifyHTTPPersonalExactReference(t, testServer.URL, "contributor", personal.Reference{Origin: "local", ReleaseID: publishEnvelope.Release.ID, VersionRevisionID: publishEnvelope.Release.VersionRevisionID})
 	t.Run("current-user rating scopes and HTTP commands", func(t *testing.T) {
@@ -1082,6 +1160,21 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 	decodeResult(t, thirdCandidateResult, &thirdCandidate)
 	thirdActivate := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/publication/snapshots/"+thirdCandidate.ID+":activate", "publisher", "activate-three", thirdCandidate.ETag, map[string]any{"host": "127.0.0.1", "reason": "Activate the final snapshot"})
 	requireStatus(t, thirdActivate, http.StatusOK)
+	previewPath := "/api/v1/listing-releases/" + publishEnvelope.Release.ID + "/withdrawal-preview"
+	previewReply := requestJSON(t, testServer.URL, http.MethodGet, previewPath+"?transition=revoked", "admin", "", "", nil)
+	requireStatus(t, previewReply, http.StatusOK)
+	var preview catalog.ReleaseWithdrawalPreview
+	decodeResult(t, previewReply, &preview)
+	if preview.ReleaseID != publishEnvelope.Release.ID || preview.ReleaseRevision != publishEnvelope.Release.Revision || preview.Transition != catalog.ReleaseRevoked || len(preview.Snapshots) != 1 || preview.Snapshots[0].SnapshotID != thirdCandidate.ID || previewReply.header.Get("Cache-Control") != "no-store" {
+		t.Fatal("withdrawal preview disagrees with active publication", preview)
+	}
+	stillPublished := requestJSON(t, testServer.URL, http.MethodGet, "/.well-known/ard.json", "", "", "", nil)
+	requireStatus(t, stillPublished, http.StatusOK)
+	for _, query := range []string{"", "?transition=", "?transition=deprecated", "?transition=revoked&transition=retired", "?transition=Revoked", "?transition=revoked&unexpected=true"} {
+		requireStatus(t, requestJSON(t, testServer.URL, http.MethodGet, previewPath+query, "admin", "", "", nil), http.StatusBadRequest)
+	}
+	requireStatus(t, requestJSON(t, testServer.URL, http.MethodGet, previewPath+"?transition=revoked", "contributor", "", "", nil), http.StatusForbidden)
+	requireStatus(t, requestJSON(t, testServer.URL, http.MethodGet, previewPath+"?transition=revoked", "other-admin", "", "", nil), http.StatusNotFound)
 	revoke := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/listing-releases/"+publishEnvelope.Release.ID+":revoke", "admin", "revoke-one", `"rev-`+jsonNumber(publishEnvelope.Release.Revision)+`"`, map[string]any{"reason": "security revocation test"})
 	requireStatus(t, revoke, http.StatusOK)
 	staleManifest := requestJSON(t, testServer.URL, http.MethodGet, "/.well-known/ard.json", "", "", "", nil)
@@ -1090,6 +1183,7 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 	requireStatus(t, unpublish, http.StatusNotFound)
 	unpublishedManifest := requestJSON(t, testServer.URL, http.MethodGet, "/.well-known/ard.json", "", "", "", nil)
 	requireStatus(t, unpublishedManifest, http.StatusNotFound)
+	t.Run("private declared MCP tools", func(t *testing.T) { testHTTPMCPTools(t, testServer.URL, namespace.ID, publisher.ID, externalFetcher) })
 	t.Run("bounded diagnostics preserve retrieval and denial", func(t *testing.T) { testHTTPDiagnosticAmplification(t, testServer.URL, namespace.ID, publisher.ID) })
 	t.Run("bounded Job metadata preserves retained results", func(t *testing.T) {
 		testHTTPJobMetadata(t, testServer.URL, tenantID, jobStore, serviceClock.Now().Add(time.Hour))
@@ -1356,6 +1450,28 @@ func TestHTTPFederationLifecycleAndEvidence(t *testing.T) {
 	snapshot, err := federationManager.Sync(actorContext, source.ID)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Directory triage is a local metadata read, even after real synchronization.
+	beforeTriageFetches := fetches.calls
+	listed := requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/federation/sources", "source-admin", "", "", nil)
+	requireStatus(t, listed, http.StatusOK)
+	requireControlSchema(t, "FederationSourcePage", listed.body)
+	var directory cursorPage[federation.Source]
+	decodeResult(t, listed, &directory)
+	if len(directory.Items) != 1 || directory.Items[0].LatestCompletedSync == nil || directory.Items[0].LatestCompletedSync.SnapshotID != snapshot.ID || directory.Items[0].LatestCompletedSync.State != federation.SnapshotComplete || directory.Items[0].LatestCompletedSync.Revision != source.Revision {
+		t.Fatalf("current attempt projection lost: %#v", directory)
+	}
+	for _, state := range []string{"failed", "incomplete"} {
+		triage := requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/federation/sources?syncState="+state, "source-admin", "", "", nil)
+		requireStatus(t, triage, http.StatusOK)
+		requireControlSchema(t, "FederationSourcePage", triage.body)
+		decodeResult(t, triage, &directory)
+		if len(directory.Items) != 0 {
+			t.Fatalf("healthy source matched %s: %#v", state, directory)
+		}
+	}
+	if fetches.calls != beforeTriageFetches {
+		t.Fatal("directory triage contacted an upstream")
 	}
 	snapshotsResult := requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/federation/sources/"+source.ID+"/snapshots?limit=10", "source-admin", "", "", nil)
 	requireStatus(t, snapshotsResult, http.StatusOK)
