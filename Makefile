@@ -146,7 +146,7 @@ $(error SDK targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter langgraph-tools-install test-langgraph-unit test-langgraph test-langgraph-model search-relevance-benchmark-check search-relevance-benchmark-install search-relevance-benchmark,$(MAKECMDGOALS)),)
+ifneq ($(filter langgraph-tools-install test-langgraph-unit test-langgraph test-langgraph-ard test-langgraph-model search-relevance-benchmark-check search-relevance-benchmark-install search-relevance-benchmark,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error LangGraph installation and verification targets must run alone)
 endif
@@ -1574,6 +1574,7 @@ LANGGRAPH_MODEL ?= qwen2.5:7b
 LANGGRAPH_NAMESPACE_ID ?=
 LANGGRAPH_ALLOW_LOOPBACK_HTTP ?= 0
 unexport LANGGRAPH_QUESTION LANGGRAPH_MODEL_ORIGIN LANGGRAPH_MODEL LANGGRAPH_NAMESPACE_ID LANGGRAPH_ALLOW_LOOPBACK_HTTP
+unexport LANGGRAPH_ARD_CONFIG LANGGRAPH_ARD_QUERY
 # Treat launcher inputs as literal data, including command-line assignments.
 # value prevents Make expression evaluation; override keeps command-line values
 # from bypassing the simply-expanded, target-scoped export.
@@ -1582,21 +1583,29 @@ langgraph-demo: override export LANGGRAPH_MODEL_ORIGIN := $(value LANGGRAPH_MODE
 langgraph-demo: override export LANGGRAPH_MODEL := $(value LANGGRAPH_MODEL)
 langgraph-demo: override export LANGGRAPH_NAMESPACE_ID := $(value LANGGRAPH_NAMESPACE_ID)
 langgraph-demo: override export LANGGRAPH_ALLOW_LOOPBACK_HTTP := $(value LANGGRAPH_ALLOW_LOOPBACK_HTTP)
+langgraph-ard-demo: override export LANGGRAPH_ARD_CONFIG := $(value LANGGRAPH_ARD_CONFIG)
+langgraph-ard-demo: override export LANGGRAPH_ARD_QUERY := $(value LANGGRAPH_ARD_QUERY)
 test-langgraph-model: override export LANGGRAPH_MODEL_ORIGIN := $(value LANGGRAPH_MODEL_ORIGIN)
 test-langgraph-model: override export LANGGRAPH_MODEL := $(value LANGGRAPH_MODEL)
 
-.PHONY: langgraph-tools-install langgraph-demo test-langgraph-unit test-langgraph test-langgraph-model
+.PHONY: langgraph-tools-install langgraph-demo langgraph-ard-demo test-langgraph-unit test-langgraph test-langgraph-ard test-langgraph-model
 langgraph-tools-install: ## Install the locked optional Python/LangGraph example environment (no models)
 	$(PYTHON) -B test/langgraph/runner.py install --uv "$(UV)" --python "$(DEV_PYTHON)"
 
 langgraph-demo: ## Ask the SDK-based read-only local-model assistant (LANGGRAPH_QUESTION and explicit SDK credentials)
 	examples/langgraph/.venv/bin/python -B examples/langgraph/agent.py
 
+langgraph-ard-demo: ## Run the model-free ARD graph with explicit LANGGRAPH_ARD_CONFIG and LANGGRAPH_ARD_QUERY
+	examples/langgraph/.venv/bin/python -B examples/langgraph/ard_agent.py
+
 test-langgraph-unit: ## Run isolated LangGraph example units and source coverage; no servers or model calls
 	$(PYTHON) -B test/langgraph/runner.py unit
 
 test-langgraph: ## Qualify the actual graph/SDK with an owned Catalog HTTP fixture and scripted model
 	$(PYTHON) -B test/langgraph/runner.py check
+
+test-langgraph-ard: ## Qualify ARD Search/Explore, approved referrals and refusal controls with an owned HTTPS fixture; no model
+	$(PYTHON) -B test/langgraph/runner.py check-ard
 
 test-langgraph-model: ## Add real local-model qualification; requires explicit LANGGRAPH_MODEL_ORIGIN
 	$(PYTHON) -B test/langgraph/runner.py model

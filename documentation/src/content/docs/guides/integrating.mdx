@@ -27,6 +27,8 @@ The [LangGraph assistant](../../../../../examples/langgraph/README.md) supplies 
 
 Configure a Reader bearer credential and API origin separately from the model. The tools search local releases and inspect selected local records; they exclude indexed and live results. Enforced OAuth scopes require `catalog.read`. Setup creates an optional Python environment and downloads model weights; discovery does not change Catalog data or execute returned resources.
 
+For standard discovery without private record reads, the separate [ARD graph](../../../../../examples/langgraph/README.md#search-approved-services-with-ard) uses Search and Explore on an active publication. It runs without an LLM by default. Configure the full endpoint URLs and each service's credentials and private CA; querying an advertised peer requires both an exact configured endpoint and explicit query-disclosure permission. Results retain per-service provenance and report incomplete discovery.
+
 ### Generate a Rust inventory report
 
 The [Rust Catalog report](../../../../../examples/rust-catalog-report/README.md) is a standalone SDK consumer. It needs the source checkout, Rust 1.88 or newer, Cargo, a native C toolchain and an explicit Reader token file. Optional private CA input preserves TLS verification; enforced OAuth scopes require `catalog.read`.

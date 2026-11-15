@@ -44,7 +44,7 @@ def command(args, *, cwd=ROOT, env=None, seconds=420):
     )
 
 
-def functional(model_origin=None, model="qwen2.5:7b"):
+def functional(model_origin=None, model="qwen2.5:7b", *, ard=False):
     # Reuse the same owned real-service fixture as generated SDK qualification.
     source = ROOT / "test/sdk/runner.py"
     spec = importlib.util.spec_from_file_location("catalog_sdk_fixture_tools", source)
@@ -70,7 +70,9 @@ def functional(model_origin=None, model="qwen2.5:7b"):
     )
     env.update(
         CATALOG_LANGGRAPH_PYTHON=str(PYTHON),
-        CATALOG_LANGGRAPH_WORKFLOW=str(HERE / "functional.py"),
+        CATALOG_LANGGRAPH_WORKFLOW=str(
+            HERE / ("ard_functional.py" if ard else "functional.py")
+        ),
     )
     if model_origin:
         env.update(
@@ -107,6 +109,11 @@ def functional(model_origin=None, model="qwen2.5:7b"):
             HERE / "catalog_functional_test.go.txt",
             work / "langgraph_functional_test.go",
         )
+        if ard:
+            shutil.copyfile(
+                HERE / "ard_functional_test.go.txt",
+                work / "langgraph_ard_functional_test.go",
+            )
         command(
             [
                 native_go,
@@ -124,7 +131,9 @@ def functional(model_origin=None, model="qwen2.5:7b"):
                 "test",
                 "-tags=functional",
                 "-race",
-                "-run=^TestLangGraphSDKExample$",
+                "-run=^TestLangGraphARDExample$"
+                if ard
+                else "-run=^TestLangGraphSDKExample$",
                 "-count=1",
                 "-timeout=16m" if model_origin else "-timeout=7m",
                 "-v",
@@ -139,7 +148,9 @@ def functional(model_origin=None, model="qwen2.5:7b"):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["install", "unit", "check", "model"])
+    parser.add_argument(
+        "action", choices=["install", "unit", "check", "check-ard", "model"]
+    )
     parser.add_argument("--uv", default="uv")
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument(
@@ -194,7 +205,7 @@ def main():
     if not PYTHON.is_file():
         raise RuntimeError("Install the example tools explicitly first")
     command([PYTHON, HERE / "inventory.py"])
-    if args.action in ("unit", "check"):
+    if args.action in ("unit", "check", "check-ard"):
         output = ROOT / "output/langgraph"
         output.mkdir(parents=True, exist_ok=True)
         command(
@@ -233,6 +244,8 @@ def main():
         functional(args.model_origin, args.model)
     elif args.action == "check":
         functional()
+    elif args.action == "check-ard":
+        functional(ard=True)
 
 
 if __name__ == "__main__":

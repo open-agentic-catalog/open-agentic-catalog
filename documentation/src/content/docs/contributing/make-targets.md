@@ -99,8 +99,10 @@ The [SDK-based discovery assistant](../../../../../examples/langgraph/README.md)
 | --- | --- |
 | `make langgraph-tools-install UV=/path/to/uv-0.13.6` | Install the example's locked optional environment. No model is downloaded or started. |
 | `make langgraph-demo` | Ask the configured local model with explicit SDK origin, bearer credentials and `LANGGRAPH_QUESTION`. |
+| `make langgraph-ard-demo` | Run the separate model-free ARD Search/Explore graph with `LANGGRAPH_ARD_CONFIG` and `LANGGRAPH_ARD_QUERY`. Referral query disclosure requires explicit configuration. |
 | `make test-langgraph-unit` | Run isolated graph/tool units and example source coverage. |
 | `make test-langgraph` | Add real SDK HTTP exchanges with an owned Catalog and scripted model. |
+| `make test-langgraph-ard` | Qualify the separate ARD graph against an owned publication and HTTPS peer, including referral consent, separate credentials/private trust and refusal controls. No LLM is needed. |
 | `make test-langgraph-model LANGGRAPH_MODEL_ORIGIN=http://127.0.0.1:11434` | Qualify tools with an explicitly prepared local model and an owned Catalog. |
 
 Run each target separately. Root Go tests and SDK package checks do not execute the optional framework. See [test boundaries](../contributing/testing.md#optional-langgraph-discovery-example) for prerequisites and interpretation. The example guide owns model setup, limits, credential handling and cleanup.

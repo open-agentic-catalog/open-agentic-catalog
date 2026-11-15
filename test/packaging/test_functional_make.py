@@ -826,7 +826,7 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
             with self.subTest(target=target):
                 self.assertNotIn("fixture-ruff", self.run_make("-n", target, "RUFF=fixture-ruff"))
     def test_langgraph_tools_and_tests_are_explicit_and_do_not_export_questions_to_other_gates(self):
-        for target in ("langgraph-tools-install", "test-langgraph-unit", "test-langgraph", "test-langgraph-model"):
+        for target in ("langgraph-tools-install", "test-langgraph-unit", "test-langgraph", "test-langgraph-ard", "test-langgraph-model"):
             output = self.run_make("-n", target)
             self.assertIn("test/langgraph/runner.py", output)
             self.assertNotIn("compose-up", output)
@@ -912,6 +912,33 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
                 output = self.run_make("-s", "-f", "Makefile", "-f", "-", target, env=env,
                                        input=target + ":\n\t@python3 -c " + shlex.quote(probe) + "\n")
                 self.assertEqual(json.loads(output), expected)
+
+    def test_ard_graph_launcher_preserves_literal_configuration_and_query(self):
+        names = ["LANGGRAPH_ARD_CONFIG", "LANGGRAPH_ARD_QUERY"]
+        probe = "import json, os; print(json.dumps([os.environ.get(k) for k in " + repr(names) + "]))"
+        for source in ("environment", "command-line"):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as directory:
+                marker = Path(directory) / "unexpected-ard-make-expansion"
+                value = "literal $(shell touch " + str(marker) + ") $(error must-not-expand) `touch no-shell-evaluation`"
+                inputs = dict.fromkeys(names, value)
+                env = dict(os.environ)
+                for name in names:
+                    env.pop(name, None)
+                arguments = []
+                if source == "environment":
+                    env.update(inputs)
+                else:
+                    arguments = [name + "=" + text for name, text in inputs.items()]
+                output = self.run_make("-s", "-f", "Makefile", "-f", "-", "langgraph-ard-demo",
+                                       *arguments, env=env,
+                                       input="langgraph-ard-demo:\n\t@python3 -c " + shlex.quote(probe) + "\n")
+                self.assertFalse(marker.exists())
+                self.assertEqual(json.loads(output), [value, value])
+                output = self.run_make("-s", "-f", "Makefile", "-f", "-", "test-unit",
+                                       *arguments, env=env,
+                                       input="test-unit:\n\t@python3 -c " + shlex.quote(probe) + "\n")
+                self.assertFalse(marker.exists())
+                self.assertEqual(json.loads(output), [None, None])
 
     def test_data_and_conformance_checks_use_their_existing_gate_boundaries(self):
         for target in ('json-check', 'check'):
