@@ -381,7 +381,7 @@ func (s *Server) routes(router *http.ServeMux) {
 	router.HandleFunc("GET /api/v1/resources/{resourceId}/listings", s.withQueryParameters(s.withUUIDPathParameters(s.handleListingsList, "resourceId"), "limit", "cursor"))
 	router.HandleFunc("GET /api/v1/catalog-listings/{listingId}/revisions", s.withQueryParameters(s.withUUIDPathParameters(s.handleListingRevisionsList, "listingId"), "limit", "cursor"))
 	router.HandleFunc("GET /api/v1/catalog-listings/{listingId}/releases", s.withQueryParameters(s.withUUIDPathParameters(s.handleReleasesList, "listingId"), "limit", "cursor"))
-	router.HandleFunc("GET /api/v1/review-submissions", s.withQueryParameters(s.handleSubmissionsList, "limit", "cursor", "listingId", "state", "unreleased"))
+	router.HandleFunc("GET /api/v1/review-submissions", s.withQueryParameters(s.handleSubmissionsList, "limit", "cursor", "listingId", "namespaceId", "state", "unreleased"))
 	router.HandleFunc("GET /api/v1/review-submissions/{submissionId}/evidence", s.withQueryParameters(s.withUUIDPathParameters(s.handleSubmissionEvidenceGet, "submissionId")))
 	router.HandleFunc("POST /api/v1/resources", s.withQueryParameters(s.handleResourcesCreate))
 	router.HandleFunc("GET /api/v1/resources/{resourceId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleResourceGet, "resourceId")))

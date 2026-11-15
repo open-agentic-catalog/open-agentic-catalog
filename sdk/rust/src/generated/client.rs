@@ -12667,11 +12667,12 @@ impl Client {
     }
     /// List review submissions
     ///
-    /// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+    /// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
     ///
     /// `GET /api/v1/review-submissions`
     pub async fn list_review_submissions(
         &self,
+        namespace_id: Option<impl AsRef<str>>,
         unreleased: Option<bool>,
         limit: Option<i64>,
         cursor: Option<impl AsRef<str>>,
@@ -12683,6 +12684,9 @@ impl Client {
         let mut req = self.http_client.get(request_url);
         {
             let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = namespace_id {
+                query_params.push(("namespaceId".to_string(), v.as_ref().to_string()));
+            }
             if let Some(v) = unreleased {
                 query_params.push(("unreleased".to_string(), v.to_string()));
             }

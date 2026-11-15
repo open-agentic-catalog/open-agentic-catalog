@@ -195,7 +195,7 @@ func (m *MemoryRepository) ListReleases(ctx context.Context, tenantID, parent st
 	return clone(items), nil
 }
 
-// ListSubmissions applies tenant, optional listing and state filters before
+// ListSubmissions applies tenant, optional namespace, listing and state filters before
 // returning the bounded ID-ordered page.
 func (m *MemoryRepository) ListSubmissions(ctx context.Context, tenantID string, request SubmissionListRequest) ([]ReviewSubmission, error) {
 	if err := identity.RequireCollectionTenant(ctx, tenantID); err != nil {
@@ -211,7 +211,7 @@ func (m *MemoryRepository) ListSubmissions(ctx context.Context, tenantID string,
 	items := make([]ReviewSubmission, 0)
 	for _, item := range m.submissions {
 		listing, ok := m.listings[item.ListingID]
-		if !ok || listing.TenantID != tenantID {
+		if !ok || listing.TenantID != tenantID || request.NamespaceID != "" && listing.NamespaceID != request.NamespaceID {
 			continue
 		}
 		allowed, err := identity.CollectionAllows(ctx, "resource.read_history", listing.NamespaceID)

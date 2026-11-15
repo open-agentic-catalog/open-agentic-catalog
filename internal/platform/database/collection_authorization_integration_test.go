@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +74,59 @@ func TestPostgresScopedCollectionsAndPolicyContinuation(t *testing.T) {
 	_, hiddenRelease, _, err := service.Publish(author, hiddenListing.ID, catalog.PublishInput{SubmissionID: submission.ID}, hiddenListing.Revision)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// A tenant-wide reader's first page precedes this later namespace. Filter
+	// before LIMIT rather than filtering an already selected unfiltered page.
+	unfiltered, err := service.ListSubmissions(author, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1}})
+	if err != nil || len(unfiltered) != 2 || unfiltered[0].ID == submission.ID {
+		t.Fatal("target must be beyond unfiltered first page", unfiltered, err)
+	}
+	for _, namespace := range []string{hiddenNamespace.ID, strings.ToUpper(hiddenNamespace.ID)} {
+		selected, e := service.ListSubmissions(author, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1}, NamespaceID: namespace, State: catalog.SubmissionApproved})
+		if e != nil || len(selected) != 1 || selected[0].ID != submission.ID {
+			t.Fatal("namespace filter failed before SQL LIMIT", selected, e)
+		}
+	}
+	if rows, e := service.ListSubmissions(author, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1}, NamespaceID: visibleNamespace, ListingID: hiddenListing.ID}); e != nil || len(rows) != 0 {
+		t.Fatal("namespace and Listing must intersect", rows, e)
+	}
+	// Retain a real foreign submission: an unknown UUID alone cannot qualify
+	// tenant isolation when the caller selects an existing foreign namespace.
+	foreignAuthor := semanticDisclosureActor(t, db, housekeepingTenantB)
+	foreignNamespace, err := service.CreateNamespace(foreignAuthor, catalog.CreateNamespaceInput{Slug: "foreign", DisplayName: "Foreign"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignPublisher, err := service.CreatePublisher(foreignAuthor, catalog.CreatePublisherInput{DisplayName: "Foreign", Domains: []string{"catalog.example.com"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignResource, err := service.CreateResource(foreignAuthor, catalog.CreateResourceInput{NamespaceID: foreignNamespace.ID, CanonicalIdentifier: "urn:air:catalog.example.com:foreign:review", Kind: catalog.KindSkill})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, foreignRevision, _, err := service.CreateVersion(foreignAuthor, foreignResource.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: []catalog.RepresentationInput{{Role: catalog.RepresentationPrimary, MediaType: adapter.MediaSkillMarkdown, Content: "---\nname: foreign-fixture\ndescription: Foreign review fixture.\n---\n# Instructions\nRead metadata only.\n"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignListing, err := service.CreateListing(foreignAuthor, catalog.CreateListingInput{NamespaceID: foreignNamespace.ID, ResourceID: foreignResource.ID})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignListing, _, err = service.CreateListingRevision(foreignAuthor, foreignListing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: foreignRevision.ID, DisplayName: "Foreign submission", Description: "Foreign review fixture", PublisherID: foreignPublisher.ID, Visibility: catalog.VisibilityTenant}, foreignListing.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignSubmission, err := service.Submit(foreignAuthor, foreignListing.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreignRequest := catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1}, NamespaceID: foreignNamespace.ID}
+	if rows, e := service.ListSubmissions(foreignAuthor, foreignRequest); e != nil || len(rows) != 1 || rows[0].ID != foreignSubmission.ID {
+		t.Fatal("foreign owner must see its submission", rows, e)
+	}
+	if rows, e := service.ListSubmissions(author, foreignRequest); e != nil || len(rows) != 0 {
+		t.Fatal("tenant-wide authority disclosed a foreign namespace", rows, e)
 	}
 	identityStore, err := NewPostgresIdentityStore(repo)
 	if err != nil {
@@ -220,6 +274,15 @@ func TestPostgresScopedCollectionsAndPolicyContinuation(t *testing.T) {
 		t.Fatal(err)
 	}
 	historyContext := identity.WithActor(t.Context(), historyActor)
+	historyRows, err := service.ListSubmissions(historyContext, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 2}, NamespaceID: visibleNamespace})
+	if err != nil || len(historyRows) != 3 {
+		t.Fatal("filtered history-only population", historyRows, err)
+	}
+	for _, row := range historyRows {
+		if row.CanonicalIdentifier != "" || row.SubmittedDisplayName != "" {
+			t.Fatal("namespace filter disclosed restricted context", row)
+		}
+	}
 	reviewCounts, err := service.ReviewOverview(historyContext)
 	if err != nil || reviewCounts.Decisions.Value != 3 || reviewCounts.ApprovedUnreleased.Value != 0 {
 		var earliest, latest *time.Time
@@ -303,6 +366,20 @@ func TestPostgresScopedCollectionsAndPolicyContinuation(t *testing.T) {
 			for _, r := range reviews {
 				if r.ListingID == hiddenListing.ID {
 					t.Fatal("hidden review", r)
+				}
+			}
+			selected, e := service.ListSubmissions(ctx, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1}, NamespaceID: visibleNamespace})
+			if e != nil || len(selected) != 2 {
+				t.Fatal("filtered sentinel", selected, e)
+			}
+			reviewLast, e := service.ListSubmissions(ctx, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1, AfterID: selected[0].ID}, NamespaceID: visibleNamespace})
+			if e != nil || len(reviewLast) != 2 || reviewLast[0].ID != selected[1].ID {
+				t.Fatal("filtered continuation", reviewLast, e)
+			}
+			for _, namespace := range []string{hiddenNamespace.ID, foreignNamespace.ID, "00000000-0000-7000-8000-000000000099"} {
+				rows, e := service.ListSubmissions(ctx, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1}, NamespaceID: namespace})
+				if e != nil || len(rows) != 0 {
+					t.Fatal("hidden namespace disclosed", rows, e)
 				}
 			}
 			if _, err := service.GetCatalogRecord(ctx, hiddenRelease.ID); catalog.ErrorCodeOf(err) != catalog.CodeForbidden {
@@ -463,6 +540,12 @@ func TestPostgresScopedCollectionsAndPolicyContinuation(t *testing.T) {
 	}
 	if _, err := repo.SearchCatalog(stale, housekeepingTenantA, catalog.CatalogSearchRepositoryRequest{Limit: 2}); catalog.ErrorCodeOf(err) != catalog.CodeInvalidArgument {
 		t.Fatal("SQL accepted stale policy snapshot", err)
+	}
+	if _, err := repo.ListSubmissions(stale, housekeepingTenantA, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 2}, NamespaceID: visibleNamespace}); catalog.ErrorCodeOf(err) != catalog.CodeInvalidArgument {
+		t.Fatal("review selection accepted stale authorization", err)
+	}
+	if rows, e := service.ListSubmissions(grouped, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1}, NamespaceID: visibleNamespace}); e != nil || len(rows) != 0 {
+		t.Fatal("revoked filtered history", rows, e)
 	}
 	if _, err := service.Search(grouped, catalog.SearchQuery{Limit: 2, Cursor: cursor}); catalog.ErrorCodeOf(err) != catalog.CodeInvalidArgument {
 		t.Fatal("revoked continuation", err)

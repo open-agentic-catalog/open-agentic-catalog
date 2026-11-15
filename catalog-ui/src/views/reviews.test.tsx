@@ -29,6 +29,97 @@ import {
 } from "../../tests/unit/screens";
 screenLifecycle("/unit/reviews");
 
+it("applies exact namespace only on request, preserves it through paging and navigation, and clears it explicitly", async () => {
+  const namespaceId = "aaaaaaaa-0000-7000-8000-000000000010";
+  const w = screenWorkspace();
+  w.get.mockResolvedValue(etagReply({ items: [], nextCursor: "next-private" }));
+  render(<Reviews {...w.props} />);
+  await screen.findByText("No matching review submissions.");
+  change("Exact namespace ID", namespaceId);
+  expect(w.get).toHaveBeenCalledTimes(1);
+  click("Apply review filters");
+  await waitFor(() =>
+    expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+      params: { query: { namespaceId, state: "submitted", limit: 25 } },
+    }),
+  );
+  expect(location.search).toContain(`namespace=${namespaceId}`);
+  click("Next page");
+  await waitFor(() =>
+    expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+      params: {
+        query: {
+          namespaceId,
+          state: "submitted",
+          limit: 25,
+          cursor: "next-private",
+        },
+      },
+    }),
+  );
+  change("Exact namespace ID", "aaaaaaaa-0000-7000-8000-000000000011");
+  click("Refresh");
+  await waitFor(() =>
+    expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+      params: { query: { namespaceId, cursor: "next-private" } },
+    }),
+  );
+  click("Clear review filters");
+  await waitFor(() =>
+    expect(w.get).toHaveBeenLastCalledWith(
+      "/api/v1/review-submissions",
+      expect.objectContaining({ params: { query: { limit: 25 } } }),
+    ),
+  );
+  expect(location.search).toBe("?state=");
+  history.pushState(
+    null,
+    "",
+    `/unit/reviews?namespace=${namespaceId}&state=approved&unreleased=true`,
+  );
+  fireEvent(window, new PopStateEvent("popstate"));
+  await waitFor(() =>
+    expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+      params: { query: { namespaceId, state: "approved", unreleased: "true" } },
+    }),
+  );
+  expect(
+    (
+      screen.getByRole("textbox", {
+        name: "Exact namespace ID",
+      }) as HTMLInputElement
+    ).value,
+  ).toBe(namespaceId);
+  change("Exact namespace ID", "");
+  click("Apply review filters");
+  await waitFor(() =>
+    expect(w.get).toHaveBeenLastCalledWith(
+      "/api/v1/review-submissions",
+      expect.objectContaining({
+        params: { query: { state: "approved", unreleased: "true", limit: 25 } },
+      }),
+    ),
+  );
+  expect(w.post).not.toHaveBeenCalled();
+});
+
+it.each(["", "bad", "aaaaaaaa-0000-7000-8000-000000000010&namespace=other"])(
+  "does not silently drop invalid namespace URL %j",
+  async (value) => {
+    history.replaceState(null, "", `/unit/reviews?namespace=${value}`);
+    const w = screenWorkspace();
+    w.get.mockRejectedValue(new APIError(400, "INVALID_ARGUMENT"));
+    render(<Reviews {...w.props} />);
+    await screen.findByRole("alert");
+    expect(w.get.mock.calls[0]?.[1]).toMatchObject({
+      params: {
+        query: { namespaceId: value.includes("&") ? "unsupported" : value },
+      },
+    });
+    expect(w.post).not.toHaveBeenCalled();
+  },
+);
+
 it.each(["true", "false", "other"])(
   "retains the exact unreleased criterion %s through queue reads and Back/Forward",
   async (unreleased) => {
@@ -355,9 +446,19 @@ it.each([
   },
 );
 
-it.each(["first", "continuation"])(
-  "recovers a failed %s review page without retaining an unusable cursor",
-  async (phase) => {
+it.each([
+  { phase: "first", namespaceId: undefined },
+  { phase: "continuation", namespaceId: undefined },
+  { phase: "first", namespaceId: "aaaaaaaa-0000-7000-8000-000000000010" },
+  {
+    phase: "continuation",
+    namespaceId: "aaaaaaaa-0000-7000-8000-000000000010",
+  },
+])(
+  "recovers a failed $phase review page with namespace $namespaceId without retaining an unusable cursor",
+  async ({ phase, namespaceId }) => {
+    if (namespaceId)
+      history.replaceState(null, "", `/unit/reviews?namespace=${namespaceId}`);
     const w = screenWorkspace();
     if (phase === "continuation")
       w.get.mockResolvedValueOnce(
@@ -375,7 +476,13 @@ it.each(["first", "continuation"])(
     expect(w.get).toHaveBeenLastCalledWith(
       "/api/v1/review-submissions",
       expect.objectContaining({
-        params: { query: { state: "submitted", limit: 25 } },
+        params: {
+          query: {
+            state: "submitted",
+            limit: 25,
+            ...(namespaceId ? { namespaceId } : {}),
+          },
+        },
       }),
     );
     expect(w.get.mock.calls.at(-1)?.[1]).not.toHaveProperty(

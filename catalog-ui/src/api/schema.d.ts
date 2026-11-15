@@ -1602,7 +1602,7 @@ export interface paths {
         };
         /**
          * List review submissions
-         * @description Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+         * @description Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
          */
         get: operations["listReviewSubmissions"];
         put?: never;
@@ -11051,6 +11051,8 @@ export interface operations {
     listReviewSubmissions: {
         parameters: {
             query?: {
+                /** @description Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters. */
+                namespaceId?: components["schemas"]["UUID"];
                 /** @description True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter. */
                 unreleased?: boolean;
                 /** @description Maximum items in one page. Follow nextCursor with the same page size and filters to continue. */

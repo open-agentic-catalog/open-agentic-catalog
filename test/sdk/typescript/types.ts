@@ -1,6 +1,22 @@
 import { createCatalogClient } from "../../../sdk/typescript/src/index.js";
 import type { components } from "../../../sdk/typescript/src/index.js";
 const client = createCatalogClient({ origin: "https://catalog.example.com" });
+void client.api.GET("/api/v1/review-submissions", {
+  params: {
+    query: {
+      namespaceId: "aaaaaaaa-0000-7000-8000-000000000010",
+      listingId: "aaaaaaaa-0000-7000-8000-000000000011",
+      state: "approved",
+      unreleased: true,
+      limit: 25,
+      cursor: "opaque",
+    },
+  },
+});
+void client.api.GET("/api/v1/review-submissions", {
+  // @ts-expect-error Namespace selection is one UUID string, not an array.
+  params: { query: { namespaceId: ["one", "two"] } },
+});
 void client.api.GET("/api/v1/federation/snapshots/{snapshotId}/comparison", {
   params: {
     path: { snapshotId: "before" },

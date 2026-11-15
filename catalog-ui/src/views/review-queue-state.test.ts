@@ -50,3 +50,32 @@ it("does not silently widen duplicate unreleased criteria", () => {
       .unreleased,
   ).toBe("unsupported");
 });
+
+it("round-trips only the applied exact namespace, preserving invalid URLs for refusal", () => {
+  const namespaceId = "aaaaaaaa-0000-7000-8000-000000000010";
+  expect(reviewFilters(`?namespace=${namespaceId}&state=approved`)).toEqual({
+    listingId: "",
+    state: "approved",
+    namespaceId,
+  });
+  expect(
+    reviewQueueURL("/unit", {
+      listingId: "listing-a",
+      state: "approved",
+      namespaceId,
+      unreleased: "true",
+    }),
+  ).toBe(
+    `/unit/reviews?state=approved&unreleased=true&listing=listing-a&namespace=${namespaceId}`,
+  );
+  for (const value of ["", "bad", "unsupported"]) {
+    expect(reviewFilters(`?namespace=${value}`).namespaceId).toBe(value);
+  }
+  expect(
+    reviewFilters(`?namespace=${namespaceId}&namespace=${namespaceId}`)
+      .namespaceId,
+  ).toBe("unsupported");
+  expect(reviewFilters(`?namespace=${namespaceId}&cursor=private`).state).toBe(
+    "submitted",
+  );
+});

@@ -231,9 +231,13 @@ When changing accounts, confirm sign-out if the browser asks to discard retained
 
 ### Review the browser submission
 
-Open **Reviews** to find submissions without constructing a URL. Enter an **Exact Listing ID**, select **Review state**, then choose **Apply review filters**. The filter applies across server pages. Draft edits do not change results until Apply.
+Open **Reviews** to find submissions without constructing a URL. Enter an **Exact namespace ID** or **Exact Listing ID**, select **Review state**, then choose **Apply review filters**. Filters apply across all server pages. Draft edits do not change results until Apply.
 
-**Refresh** reloads the current page for the applied criteria; browser Back restores those criteria. **Clear review filters** selects all authorized Listings and all states. A Listing link opens all states unless its URL selects a state. An unfiltered queue initially selects `submitted`.
+Use the namespace UUID shown on a Namespace or Listing to focus on one team's queue. Leave it empty for all authorized namespaces. Namespace and Listing filters intersect; choosing a Listing from another namespace returns no matches. A namespace filter does not grant access: unavailable, foreign-tenant and unknown namespaces return an empty page. Names and native documents retain their independent permission checks.
+
+API clients use `GET /api/v1/review-submissions?namespaceId=<namespace-uuid>&state=submitted&limit=25`. Namespace UUIDs accept either letter case; an explicit empty or malformed value is rejected. Follow `nextCursor` with the same filters and page size. Changing filters or current permissions invalidates continuation. Select **First page** to recover while retaining applied criteria. The server keeps its ascending submission-ID order; column sorting changes only the loaded page.
+
+**Refresh** reloads the current page for the applied criteria; browser Back restores those criteria. **Clear review filters** selects all authorized namespaces, all Listings and all states. A Listing link opens all states unless its URL selects a state. An unfiltered queue initially selects `submitted`.
 
 Use **Exact Submission ID > Open submission** for a known submission. Submission UUIDs accept either letter case; the lookup uses lowercase. This opens one authorized record without scanning the queue. Names and identifiers appear only when independently available. Unknown and foreign Listing or submission IDs can return an unavailable-record error; this differs from an authorized empty queue.
 

@@ -15,6 +15,7 @@ from catalog_sdk.generated.api.service_api import ServiceApi
 from catalog_sdk.generated.api.identity_api import IdentityApi
 from catalog_sdk.generated.api.discovery_api import DiscoveryApi
 from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
+from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
 from catalog_sdk.generated.api.personal_workspace_api import PersonalWorkspaceApi
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
 from catalog_sdk.generated.models.trust_assessment_request import TrustAssessmentRequest
@@ -199,6 +200,27 @@ class ConfigurationUnits(unittest.TestCase):
 
 
 class TransportUnits(unittest.IsolatedAsyncioTestCase):
+    async def test_review_queue_retains_namespace_intersection_and_cursor_without_retry(self):
+        client = Client(Config(origin="https://catalog.example.com", token="selected"))
+        uid = UUID("aaaaaaaa-0000-7000-8000-000000000010")
+        calls = []
+        def handler(request):
+            self.assertEqual(request.method, "GET")
+            self.assertEqual(request.url.path, "/api/v1/review-submissions")
+            self.assertNotIn("Idempotency-Key", request.headers)
+            calls.append(dict(request.url.params))
+            wire = {"items": [], **({"nextCursor": "opaque+/= café"} if len(calls) == 1 else {})}
+            return httpx.Response(200, headers={"Content-Type": "application/json"}, stream=Stream([json.dumps(wire).encode()]))
+        with injected(client.rest_client, handler):
+            api = CatalogLifecycleApi(client)
+            first = await api.list_review_submissions(namespace_id=uid, listing_id=uid, state="approved", unreleased=True, limit=1)
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(first.next_cursor, "opaque+/= café")
+            last = await api.list_review_submissions(namespace_id=uid, listing_id=uid, state="approved", unreleased=True, limit=1, cursor=first.next_cursor)
+            self.assertIsNone(last.next_cursor)
+        expected = {"namespaceId": str(uid), "listingId": str(uid), "state": "approved", "unreleased": "true", "limit": "1"}
+        self.assertEqual(calls, [expected, dict(expected, cursor="opaque+/= café")])
+
     async def test_generated_wire_semantics_use_one_origin_and_preserve_open_metadata(self):
         from catalog_sdk.generated.models.create_listing_revision_extensions import CreateListingRevisionExtensions
         words = ("", "é", "日本語", "😀", "%+&=", "line\nvalue", 'quoted"value', "two words")

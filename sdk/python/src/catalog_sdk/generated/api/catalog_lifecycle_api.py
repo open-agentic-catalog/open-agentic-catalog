@@ -9838,6 +9838,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     async def list_review_submissions(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -9878,8 +9884,10 @@ class CatalogLifecycleApi:
     ) -> ListReviewSubmissions200Response:
         """List review submissions
 
-        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 
+        :param namespace_id: Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters.
+        :type namespace_id: UUID
         :param unreleased: True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter.
         :type unreleased: bool
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
@@ -9906,6 +9914,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
 
         _param = self._list_review_submissions_serialize(
+            namespace_id=namespace_id,
             unreleased=unreleased,
             limit=limit,
             cursor=cursor,
@@ -9933,6 +9942,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     async def list_review_submissions_with_http_info(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -9973,8 +9988,10 @@ class CatalogLifecycleApi:
     ) -> ApiResponse[ListReviewSubmissions200Response]:
         """List review submissions
 
-        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 
+        :param namespace_id: Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters.
+        :type namespace_id: UUID
         :param unreleased: True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter.
         :type unreleased: bool
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
@@ -10001,6 +10018,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
 
         _param = self._list_review_submissions_serialize(
+            namespace_id=namespace_id,
             unreleased=unreleased,
             limit=limit,
             cursor=cursor,
@@ -10028,6 +10046,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     async def list_review_submissions_without_preload_content(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -10068,8 +10092,10 @@ class CatalogLifecycleApi:
     ) -> RESTResponseType:
         """List review submissions
 
-        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 
+        :param namespace_id: Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters.
+        :type namespace_id: UUID
         :param unreleased: True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter.
         :type unreleased: bool
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
@@ -10096,6 +10122,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
 
         _param = self._list_review_submissions_serialize(
+            namespace_id=namespace_id,
             unreleased=unreleased,
             limit=limit,
             cursor=cursor,
@@ -10119,6 +10146,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     def list_review_submissions_sync(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -10164,6 +10197,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
         return run_sync(
             self.list_review_submissions(
+                namespace_id=namespace_id,
                 unreleased=unreleased,
                 limit=limit,
                 cursor=cursor,
@@ -10180,6 +10214,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     def list_review_submissions_sync_with_http_info(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -10225,6 +10265,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
         return run_sync(
             self.list_review_submissions_with_http_info(
+                namespace_id=namespace_id,
                 unreleased=unreleased,
                 limit=limit,
                 cursor=cursor,
@@ -10241,6 +10282,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     def list_review_submissions_sync_without_preload_content(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -10286,6 +10333,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
         return run_sync(
             self.list_review_submissions_without_preload_content(
+                namespace_id=namespace_id,
                 unreleased=unreleased,
                 limit=limit,
                 cursor=cursor,
@@ -10301,6 +10349,7 @@ class CatalogLifecycleApi:
 
     def _list_review_submissions_serialize(
         self,
+        namespace_id,
         unreleased,
         limit,
         cursor,
@@ -10327,6 +10376,9 @@ class CatalogLifecycleApi:
 
         # process the path parameters
         # process the query parameters
+        if namespace_id is not None:
+            _query_params.append(("namespaceId", namespace_id))
+
         if unreleased is not None:
             _query_params.append(("unreleased", unreleased))
 

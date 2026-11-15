@@ -693,6 +693,29 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 		Release catalog.ListingRelease `json:"release"`
 	}
 	decodeResult(t, publishResult, &publishEnvelope)
+	t.Run("review queue exact namespace filter", func(t *testing.T) {
+		query := "/api/v1/review-submissions?namespaceId=" + strings.ToUpper(namespace.ID) + "&state=approved&limit=1"
+		reply := requestJSON(t, testServer.URL, http.MethodGet, query, "reviewer", "", "", nil)
+		requireStatus(t, reply, http.StatusOK)
+		var page struct {
+			Items []catalog.ReviewSubmission `json:"items"`
+		}
+		decodeResult(t, reply, &page)
+		if len(page.Items) != 1 || page.Items[0].ID != submission.ID {
+			t.Fatal("exact namespace route lost submitted context", page)
+		}
+		for _, suffix := range []string{"namespaceId=", "namespaceId=not-a-uuid", "namespaceId=" + namespace.ID + "&namespaceId=" + namespace.ID, "NamespaceId=" + namespace.ID} {
+			requireControlProblem(t, requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/review-submissions?"+suffix, "reviewer", "", "", nil), http.StatusBadRequest, catalog.CodeInvalidArgument)
+		}
+		for _, suffix := range []string{"namespaceId=00000000-0000-7000-8000-000000000099", "namespaceId=00000000-0000-7000-8000-000000000099&listingId=" + listing.ID, "namespaceId=" + namespace.ID + "&state=approved&unreleased=true"} {
+			reply = requestJSON(t, testServer.URL, http.MethodGet, "/api/v1/review-submissions?"+suffix, "reviewer", "", "", nil)
+			requireStatus(t, reply, http.StatusOK)
+			decodeResult(t, reply, &page)
+			if page.Items == nil || len(page.Items) != 0 {
+				t.Fatal("namespace/release intersection leaked a submission", page)
+			}
+		}
+	})
 	t.Run("bounded authoring histories and exact submitted evidence", func(t *testing.T) {
 		histories := map[string]string{
 			"/api/v1/resources/" + resource.ID + "/versions":                         versionEnvelope.Version.ID,

@@ -75,7 +75,7 @@ export default function Reviews(props: WorkspaceProps) {
   );
 }
 
-/** Page submissions by explicit state and listing filters. */
+/** Page submissions by explicit namespace, state and listing filters. */
 function ReviewQueue(props: WorkspaceProps) {
   const sortHint = useId();
   const [filters, setFilters] = useState(() => reviewFilters(location.search));
@@ -101,6 +101,9 @@ function ReviewQueue(props: WorkspaceProps) {
           params: {
             query: {
               ...(filters.listingId ? { listingId: filters.listingId } : {}),
+              ...(filters.namespaceId !== undefined
+                ? { namespaceId: filters.namespaceId }
+                : {}),
               ...(filters.state
                 ? { state: filters.state as keyof typeof reviewLabels }
                 : {}),
@@ -139,6 +142,10 @@ function ReviewQueue(props: WorkspaceProps) {
   });
   const apply = (selected: ReviewFilters) => {
     const next = { ...selected, listingId: selected.listingId.trim() };
+    if (next.namespaceId !== undefined) {
+      next.namespaceId = next.namespaceId.trim();
+      if (!next.namespaceId) delete next.namespaceId;
+    }
     const url = reviewQueueURL(props.runtime.basePath, next);
     if (location.pathname + location.search !== url)
       history.pushState(null, "", url);
@@ -156,6 +163,19 @@ function ReviewQueue(props: WorkspaceProps) {
           apply(draft);
         }}
       >
+        <Field
+          label="Exact namespace ID"
+          hint="Filter submissions across all pages by the namespace UUID shown on a Listing or namespace. Leave empty for all authorized namespaces."
+        >
+          <input
+            maxLength={36}
+            pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+            value={draft.namespaceId ?? ""}
+            onChange={(event) =>
+              setDraft({ ...draft, namespaceId: event.target.value })
+            }
+          />
+        </Field>
         <Field
           label="Exact Listing ID"
           hint="Filter the authorized queue by one Listing UUID across all pages. Leave empty for all Listings."
@@ -235,6 +255,8 @@ function ReviewQueue(props: WorkspaceProps) {
         </div>
       </form>
       <p className="muted">
+        Applied namespace:{" "}
+        <code>{filters.namespaceId ?? "All authorized namespaces"}</code>.{" "}
         Applied Listing: <code>{filters.listingId || "All Listings"}</code>.
         State:{" "}
         {Object.hasOwn(reviewLabels, filters.state)

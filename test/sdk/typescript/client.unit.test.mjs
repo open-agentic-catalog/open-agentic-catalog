@@ -14,6 +14,49 @@ const code = (name) => (error) =>
   error instanceof SDKError && error.code === name;
 const manifest = "/.well-known/ard.json";
 
+test("review queue retains namespace intersection and opaque continuation without implicit reads", async () => {
+  const namespaceId = "aaaaaaaa-0000-7000-8000-000000000010";
+  const requests = [];
+  const client = make(async (request) => {
+    requests.push(new URL(request.url));
+    assert.equal(request.method, "GET");
+    assert.equal(request.headers.has("Idempotency-Key"), false);
+    return json(
+      {
+        items: [],
+        ...(requests.length === 1 ? { nextCursor: "opaque+/= café" } : {}),
+      },
+      { headers: { "Content-Type": "application/json" } },
+    );
+  });
+  const query = {
+    namespaceId,
+    listingId: namespaceId,
+    state: "approved",
+    unreleased: true,
+    limit: 1,
+  };
+  const first = await client.api.GET("/api/v1/review-submissions", {
+    params: { query },
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(first.data.nextCursor, "opaque+/= café");
+  await client.api.GET("/api/v1/review-submissions", {
+    params: { query: { ...query, cursor: first.data.nextCursor } },
+  });
+  const expected = {
+    namespaceId,
+    listingId: namespaceId,
+    state: "approved",
+    unreleased: "true",
+    limit: "1",
+  };
+  assert.deepEqual(
+    requests.map((url) => Object.fromEntries(url.searchParams)),
+    [expected, { ...expected, cursor: "opaque+/= café" }],
+  );
+});
+
 test("finite conditional version and delivery envelopes preserve their actual wire meaning", async () => {
   const uid = "00000000-0000-7000-8000-000000000001";
   for (let seed = 0; seed < 16; seed++) {
