@@ -26,6 +26,7 @@ type Item = {
 /** One disposable service invocation; admin helpers prepare prerequisites, not UI assertions. */
 export type Catalog = {
   origin: string;
+  apiOrigin: string;
   basePath: string;
   receipt: { namespaceId: string; publisherId: string; items: Item[] };
   archive?: {

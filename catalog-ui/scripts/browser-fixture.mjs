@@ -811,6 +811,7 @@ with output.open("x") as receipt:
     };
     return {
       origin,
+      apiOrigin,
       basePath,
       receipt,
       close,
