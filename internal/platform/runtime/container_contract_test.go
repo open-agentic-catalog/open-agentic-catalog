@@ -406,7 +406,7 @@ func TestComposeUsesHardenedCanonicalContainerBuild(t *testing.T) {
 		"CATALOG_DATABASE_DRIVER: postgres",
 		"condition: service_completed_successfully",
 		"read_only: true",
-		"/tmp:size=64m,noexec,nosuid,nodev",
+		"/tmp:size=64m,noexec,nosuid,nodev,mode=1777",
 		"cap_drop:\n      - ALL",
 		"no-new-privileges:true",
 		"./config/postgres.json:/config/config.json:ro",
@@ -422,6 +422,9 @@ func TestComposeUsesHardenedCanonicalContainerBuild(t *testing.T) {
 		"CATALOG_COMPOSE_FEDERATION_TRUST_DIRECTORY:-./config/federation-trust.example",
 		"subnet: ${CATALOG_COMPOSE_SUBNET:-172.30.255.0/24}",
 	})
+	if strings.Count(content, "/tmp:size=64m,noexec,nosuid,nodev,mode=1777") != 2 {
+		t.Error("API and worker require explicit sticky writable tmpfs for their non-root identities")
+	}
 	if count := strings.Count(content, "\n    build:\n"); count != 1 {
 		t.Errorf("Compose must build the shared application image exactly once, found %d build definitions", count)
 	}

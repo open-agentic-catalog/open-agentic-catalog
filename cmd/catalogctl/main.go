@@ -93,13 +93,13 @@ func run() (err error) {
 // runArgs selects an explicit operator workflow without constructing runtime authority for help or version output.
 func runArgs(arguments []string) error {
 	if len(arguments) < 1 {
-		return safeerr.New("usage: catalogctl <auth|remote|discovery|mcp|import|export|audit|trust|config|migrate|identity|repair|restore|profiles|diagnostics|probe|bootstrap|smoke|seed-demo|version> [arguments]")
+		return safeerr.New("usage: catalogctl <auth|remote|discovery|personal|mcp|import|export|audit|trust|config|migrate|identity|repair|restore|profiles|diagnostics|probe|bootstrap|smoke|seed-demo|version> [arguments]")
 	}
 	switch arguments[0] {
 	case "auth":
 		return safeerr.At("remote", authCommand(arguments[1:]))
 	case "help", "-h", "--help":
-		_, err := fmt.Fprintln(os.Stdout, "usage: catalogctl <auth|remote|discovery|mcp|import|export|audit|trust|config|migrate|identity|repair|restore|profiles|diagnostics|probe|bootstrap|smoke|seed-demo|version> [arguments]")
+		_, err := fmt.Fprintln(os.Stdout, "usage: catalogctl <auth|remote|discovery|personal|mcp|import|export|audit|trust|config|migrate|identity|repair|restore|profiles|diagnostics|probe|bootstrap|smoke|seed-demo|version> [arguments]")
 		return err
 	case "version", "--version":
 		return printJSON(buildinfo.New(version, commit, sourceState))
@@ -107,6 +107,8 @@ func runArgs(arguments []string) error {
 		return safeerr.At("remote", remote(arguments[1:]))
 	case "discovery":
 		return safeerr.At("remote", discovery(arguments[1:]))
+	case "personal":
+		return safeerr.At("remote", personalCommand(arguments[1:]))
 	case "mcp":
 		return safeerr.At("mcp", mcpCommand(arguments[1:]))
 	case "import":

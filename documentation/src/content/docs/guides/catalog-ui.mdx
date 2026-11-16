@@ -773,6 +773,12 @@ If your access changes while a saved-item editor is open, your entered draft sta
 
 With OAuth scope enforcement, reads need `catalog.read`; saves, updates and removals need `personal.write`. Ask the issuer administrator to enable the scope and configure the UI client to request it. Sign out and sign in again after changing scopes. Saved items survive reload and sign-in; the next identity cannot reuse the previous person's private results. The Catalog retains required audit and command evidence, but emits no public event for private preferences.
 
+### Back up and restore your library
+
+Use [`catalogctl personal`](../reference/commands.md#back-up-and-restore-your-private-library) to export a private file, preview selected items offline and restore them with confirmation. Restore uses the same API origin and tenant. The UI continues to manage individual items under **Account > Saved items and searches**. Choose **Refresh saved items** after a restore to read the new entries.
+
+The backup retains labels, search criteria and exact resource references. Current permissions and quotas apply to every restored item. Follow the CLI guide's [recovery instructions](../reference/commands.md#resolve-a-definite-refusal) when a save is refused after earlier items succeed.
+
 ## Resource ratings
 
 Open **Ratings for this version** from a Catalog preview or detail. **My ratings** lists your opinions; authorized moderators use **Rating moderation**. The [ratings guide](ratings.mdx) explains version/source identity, consent, withdrawal and peer claims.

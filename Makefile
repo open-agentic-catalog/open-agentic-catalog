@@ -1017,6 +1017,7 @@ test-shuffle: ## Repeat ten times; run CLI separately with its measured 25-minut
 
 test-fuzz: ## Fuzz security-sensitive identifiers, parsers, and URLs for FUZZ_TIME each
 	$(GO) test ./cmd/catalogctl -run '^$$' -fuzz FuzzImportManifest -fuzztime=$(FUZZ_TIME)
+	$(GO) test ./cmd/catalogctl -run '^$$' -fuzz FuzzPersonalLibraryFile -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/draftfile -run '^$$' -fuzz FuzzDecode -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/artwork -run '^$$' -fuzz FuzzDecodeArtworkInput -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/artwork -run '^$$' -fuzz FuzzExtractArtworkJSONLiteral -fuzztime=$(FUZZ_TIME)
@@ -1920,7 +1921,7 @@ docker-build: container-build ## Compatibility alias for container-build
 
 container-run: ## Run IMAGE locally with the hardened, in-memory development profile
 	@test -f "$(CATALOG_CONTAINER_CONFIG_FILE)" || { printf 'CATALOG_CONTAINER_CONFIG_FILE must identify a regular file, got %s\n' "$(CATALOG_CONTAINER_CONFIG_FILE)" >&2; exit 2; }
-	$(CONTAINER_ENGINE) run --rm --pull=never --init --read-only --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --stop-timeout 15 -p 127.0.0.1:8080:8080 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m --mount "type=bind,src=$(abspath $(CATALOG_CONTAINER_CONFIG_FILE)),dst=/config/config.json,readonly" -e CATALOG_HTTP_ADDRESS=0.0.0.0:8080 "$(IMAGE)" all --config /config/config.json
+	$(CONTAINER_ENGINE) run --rm --pull=never --init --read-only --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --stop-timeout 15 -p 127.0.0.1:8080:8080 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 --mount "type=bind,src=$(abspath $(CATALOG_CONTAINER_CONFIG_FILE)),dst=/config/config.json,readonly" -e CATALOG_HTTP_ADDRESS=0.0.0.0:8080 "$(IMAGE)" all --config /config/config.json
 
 container-scan: ## Inspect and scan the exact local IMAGE/platform; retain private evidence and fail on High/Critical findings
 	$(PYTHON) test/packaging/image.py scan
