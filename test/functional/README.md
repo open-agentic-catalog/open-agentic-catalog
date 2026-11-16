@@ -1,5 +1,7 @@
 # Packaged functional harness
 
+The existing operator journey runs the shipped `catalogctl discovery manifest` and `list` commands against the owned PostgreSQL publication. It checks manifest bytes/ETag, filtered empty results and explicit continuation alongside authenticated remote reads. Ambient bearer and unusable configuration inputs verify credential independence. Separate [CLI HTTPS/process tests](../../cmd/catalogctl/discovery_functional_test.go) qualify trust, deadline/cancellation, strict output, host refusal, generation replacement, draft exclusion and withdrawal.
+
 Install the pinned [ARD conformance Python prerequisite](../../documentation/src/content/docs/contributing/testing.md#schema-validation-and-ard-conformance) in the selected Make `PYTHON` environment before packaged workflows. The shared prerequisite fails before the internal workflow starts; the default profile's manifest, publisher and registry calls use the guarded official CLI.
 
 The default-off ARD phase creates one independently reviewed weather MCP with its own publisher domain. It does not modify the shared smoke samples. A temporary immutable snapshot makes the checker's fixed query match that MCP. The phase checks the exact public identifier/type and requires all three Registry routes to return HTTP 200. Native Search must report exactly one result; manifest/publisher validation must cover every snapshot entry. All three native runs require successful exits and zero warnings.
