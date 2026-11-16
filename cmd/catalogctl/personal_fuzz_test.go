@@ -2,8 +2,8 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
-	"reflect"
 	"testing"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/personal"
@@ -15,6 +15,7 @@ func FuzzPersonalLibraryFile(f *testing.F) {
 		f.Fatal(err)
 	}
 	f.Add(raw)
+	f.Add([]byte(`{"format":"oac-personal-library-v1","origin":"https://catalog.example.test","tenantId":"00000000-0000-7000-8000-000000000001","consistency":"observed-pages","items":[{"type":"search","label":"Empty optional filters","search":{"text":"","kinds":[],"tags":[],"categories":[]}}]}`))
 	f.Add([]byte(`{"format":"oac-personal-library-v1","origin":"https://catalog.example.test","tenantId":"00000000-0000-7000-8000-000000000001","consistency":"observed-pages","items":[{"type":"search","label":"Empty filters","search":{"text":"","origins":[],"kinds":[],"tags":[],"categories":[]}}]}`))
 	f.Add([]byte(`{"format":"oac-personal-library-v1","items":null}`))
 	f.Add([]byte(`{"format":"one","format":"two"}`))
@@ -36,7 +37,12 @@ func FuzzPersonalLibraryFile(f *testing.F) {
 			t.Fatal(err)
 		}
 		again, err := decodePersonalFile(encoded)
-		if err != nil || !reflect.DeepEqual(file, again) {
+		if err != nil {
+			t.Fatal("serialized valid file was refused", err)
+		}
+		// Optional empty filters are omitted by save requests; their exact wire input must remain stable.
+		reencoded, err := json.Marshal(again)
+		if err != nil || !bytes.Equal(encoded, reencoded) {
 			t.Fatal("accepted intent changed on serialization", err)
 		}
 	})

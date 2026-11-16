@@ -35,6 +35,56 @@ func personalTestBytes(t *testing.T, value any) []byte {
 	return raw
 }
 
+// TestPersonalFileOptionalEmptySearchFilters preserves omitted-filter meaning and rejects empty origins.
+func TestPersonalFileOptionalEmptySearchFilters(t *testing.T) {
+	for _, field := range []string{"kinds", "tags", "categories", "origins"} {
+		t.Run(field, func(t *testing.T) {
+			want := personalTestFile()
+			criteria := want.Items[0].Search
+			criteria.Origins = append(criteria.Origins, "local")
+			criteria.Kinds = append(criteria.Kinds, "agent")
+			criteria.Categories = []string{"tools"}
+			switch field {
+			case "kinds":
+				criteria.Kinds = nil
+			case "tags":
+				criteria.Tags = nil
+			case "categories":
+				criteria.Categories = nil
+			case "origins":
+				criteria.Origins = nil
+			}
+			omitted := personalTestBytes(t, want)
+			control, err := decodePersonalFile(omitted)
+			if err != nil || !reflect.DeepEqual(control, want) {
+				t.Fatal("omitted-filter control changed private intent", err)
+			}
+			raw := bytes.Replace(omitted, []byte(`"search":{`), []byte(`"search":{"`+field+`":[],`), 1)
+			if bytes.Equal(raw, omitted) {
+				t.Fatal("fixture did not supply the explicit empty filter")
+			}
+			got, err := decodePersonalFile(raw)
+			if field == "origins" {
+				if err == nil {
+					t.Fatal("explicit empty origins accepted as omitted origins")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal("valid empty optional filter refused", err)
+			}
+			encoded := personalTestBytes(t, got)
+			if !bytes.Equal(encoded, omitted) {
+				t.Fatal("empty optional filter changed the exact save input")
+			}
+			again, err := decodePersonalFile(encoded)
+			if err != nil || !reflect.DeepEqual(again, want) {
+				t.Fatal("optional-filter serialization changed labels, criteria or references", err)
+			}
+		})
+	}
+}
+
 func TestPersonalFileStrictContract(t *testing.T) {
 	file := personalTestFile()
 	raw := personalTestBytes(t, file)
