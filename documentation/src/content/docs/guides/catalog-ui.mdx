@@ -12,6 +12,20 @@ Catalog cards use the same kind colors as the kind selectors. The compact **Name
 
 Use **Filters > More filters > Agent protocol binding** to match an exact declared A2A binding on released local Agents. This requires content-read access and selects Local Catalog alone. See [the protocol recipe](search-cookbook.mdx#find-local-agents-by-a-declared-a2a-protocol) for Apply/Clear, saved searches and declaration limits.
 
+## Browse a public directory
+
+If your operator enables public browsing, open `/discover` under the UI's configured base path. For example, a UI at `/catalog-ui` serves `/catalog-ui/discover`. You do not need an account. The sign-in screen also links to **Browse public discovery** when enabled.
+
+Use **Browse directory** to read published entries. Select **Entries per page**, then submit the selection. **Next page** continues that selection; unsent edits do not change it. An empty page can still offer **Next page**. Manifest entry counts include Registry metadata and come from a separate read, not the page's generation.
+
+For a text query, read the disclosure and select **Allow search text to reach the configured embedding provider** before **Search**. The view always disables peer federation. A deployment can still send Search text to its configured embedding provider. Browsing needs neither query text nor a model.
+
+Expand **Inspect returned metadata** to read an entry's identifier, version, media type, declared location, tags and capabilities. Search source metadata is shown when returned; it is not requested as another destination. Registry and unfamiliar media types remain metadata. Missing versions and explicitly empty versions are shown separately. The browser does not request declared documents, artwork, packages or runtime URLs.
+
+A replaced publication can invalidate continuation. The view clears the old page and asks you to **Refresh publication**. Refresh starts from the current first page; it never combines generations or falls back to private records. Withdrawal or lost anonymous admission makes the directory unavailable. An already displayed page does not establish current release availability.
+
+**Sign in** opens the separate private workspace. Public browsing uses the same anonymous feed even when you have a private session. Authoring, administration, saved items and private searches keep their existing sign-in requirements. Operators must [enable and configure public browsing](../reference/ui-host-configuration.md#optional-public-discovery) explicitly.
+
 ## Read the Content overview
 
 Open **Overview** in the Discover group, or visit `/overview`. The **Content** view shows only panels available through your current permissions. Catalog remains the landing page. Accounts without discovery access retain the My access fallback.

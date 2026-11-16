@@ -84,6 +84,7 @@ export const test = base.extend<{
   artwork: boolean;
   curated: boolean;
   publicationAudiences: boolean;
+  publicDiscovery: boolean;
   maintainedIdentities: boolean;
   serviceActivity: boolean;
   network: ReturnType<typeof networkObserver>;
@@ -95,6 +96,7 @@ export const test = base.extend<{
   artwork: [false, { option: true }],
   curated: [false, { option: true }],
   publicationAudiences: [false, { option: true }],
+  publicDiscovery: [false, { option: true }],
   maintainedIdentities: [false, { option: true }],
   serviceActivity: [false, { option: true }],
   sourceCoverage: [
@@ -175,6 +177,7 @@ export const test = base.extend<{
       artwork,
       curated,
       publicationAudiences,
+      publicDiscovery,
       maintainedIdentities,
       serviceActivity,
     },
@@ -193,6 +196,7 @@ export const test = base.extend<{
         artwork,
         curated,
         publicationAudiences,
+        publicDiscovery,
         maintainedIdentities,
         serviceActivity,
         ...(process.env.CATALOG_UI_PERFORMANCE

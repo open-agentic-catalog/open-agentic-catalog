@@ -7,6 +7,7 @@ export type Runtime = {
   basePath: string;
   authMode: "development" | "oidc";
   documentationUrl: string;
+  publicDiscoveryEnabled?: boolean;
 };
 export type Session = { access: Access; expiresAt: number };
 export type SessionReply = Session | { access: null; expiresAt: 0 };
@@ -254,7 +255,9 @@ export function decodeRuntime(value: unknown): Runtime {
     value.basePath === "/docs" ||
     value.basePath.startsWith("/docs/") ||
     (value.authMode !== "development" && value.authMode !== "oidc") ||
-    typeof value.documentationUrl !== "string"
+    typeof value.documentationUrl !== "string" ||
+    (value.publicDiscoveryEnabled !== undefined &&
+      typeof value.publicDiscoveryEnabled !== "boolean")
   )
     invalid();
   if (
@@ -266,6 +269,9 @@ export function decodeRuntime(value: unknown): Runtime {
     basePath: value.basePath,
     authMode: value.authMode,
     documentationUrl: value.documentationUrl,
+    ...(value.publicDiscoveryEnabled === undefined
+      ? {}
+      : { publicDiscoveryEnabled: value.publicDiscoveryEnabled }),
   };
 }
 

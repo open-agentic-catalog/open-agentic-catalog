@@ -951,6 +951,10 @@ These variables configure Make, Compose, or validation workflows and are not rea
 
 Disposable performance targets do not honor `CATALOG_COMPOSE_SUBNET` or caller policy paths. They reserve invocation-owned `/28` networks from the test-only `172.31.0.0/16` space, generate the exact matching non-secret fixture policy and retain reserved subnets in their report. This is a harness isolation boundary, not a new service setting; see the [performance guide](../guides/performance-and-monitoring.md#disposable-tests).
 
+## UI public discovery
+
+Public discovery is disabled by default. The host JSON flag is `publicDiscoveryEnabled`; Helm uses `ui.config.publicDiscoveryEnabled`. Maintained local launchers accept `CATALOG_UI_PUBLIC_DISCOVERY=on` or `off`. The fixed API hostname must separately admit an active anonymous publication. Follow [public discovery setup](ui-host-configuration.md#optional-public-discovery).
+
 ## UI documentation
 
 The optional UI image includes the public manual at `/docs/`. Empty `documentationUrl` selects this bundle. An explicit credential-free HTTPS URL overrides the navigation destination; it must contain no query or fragment. The host does not fetch that URL or use its availability for readiness. Missing source bundles are allowed; malformed present bundles fail startup.

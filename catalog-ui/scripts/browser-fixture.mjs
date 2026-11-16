@@ -352,11 +352,14 @@ export async function startCatalog(
     artwork = false,
     curated = false,
     publicationAudiences = false,
+    publicDiscovery = false,
     maintainedIdentities = false,
     serviceActivity = false,
     performanceScale,
   } = {},
 ) {
+  if (typeof publicDiscovery !== "boolean")
+    throw new Error("Invalid public discovery fixture option");
   if (typeof serviceActivity !== "boolean")
     throw new Error("Invalid service activity fixture option");
   if (typeof publisherVerification !== "boolean")
@@ -706,6 +709,7 @@ with output.open("x") as receipt:
       authMode: "development",
       developmentUsersFile,
       documentationUrl: `https://fixture.invalid/${basename(directory)}`,
+      publicDiscoveryEnabled: publicDiscovery,
     });
     const ui = startProcess(
       join(buildDirectory, "catalog-ui"),

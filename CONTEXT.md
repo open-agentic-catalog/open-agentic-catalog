@@ -455,6 +455,8 @@ Keep secrets/private evidence out of source, sample configuration, Helm values, 
 
 ## The optional browser UI
 
+The UI also provides a separately enabled anonymous reader at `/discover` beneath its base path. `publicDiscoveryEnabled` defaults to false. The page uses credential-free bootstrap and three fixed manifest/List/Search forwarding routes on the existing API origin. That hostname must have an active anonymous publication; the flag does not create one. Search forces federation `none` and requires consent for possible embedding-provider use. Metadata inspection is in-page and makes no declared-URL requests. Continuation refusal clears old results and requires explicit refresh. Private Control workflows retain their session requirements. See [public discovery configuration](documentation/src/content/docs/reference/ui-host-configuration.md#optional-public-discovery).
+
 The React/TypeScript client and static Go host have their own image and one upstream API, with generated contract types and no SQL access. Screens cover discovery, exact references/downloads, four-kind authoring and local JSON/Markdown loading, histories/review/releases, publication, sources/adoption, access, Jobs, webhooks, audit/export and connected API reference.
 
 Version, Listing and review comparisons highlight changes in explicitly selected, checksum-verified retained documents. Previous/Next controls focus changed regions and announce their position. Whitespace, numeric tokens, BOMs and line endings remain distinguishable. Bounded local line/character comparison refuses incomplete output while preserving the original text view. It adds no API or archive fetch; current content permissions and identity clearing still apply.

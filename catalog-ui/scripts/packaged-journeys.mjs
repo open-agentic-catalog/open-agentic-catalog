@@ -836,6 +836,7 @@ export async function packagedJourneys({
   expect(hostInventory.status()).toBe(200);
   expect((await hostInventory.json()).items).toEqual([
     expect.objectContaining({ host: "127.0.0.1", mode: "anonymous" }),
+    expect.objectContaining({ host: "api", mode: "anonymous" }),
     expect.objectContaining({
       host: "private.catalog.test",
       mode: "authenticated",
@@ -849,6 +850,7 @@ export async function packagedJourneys({
     configuredSourceHost.locator("option:not([value='']):not([disabled])"),
   ).toHaveText([
     "127.0.0.1 (anonymous)",
+    "api (anonymous)",
     "private.catalog.test (authenticated)",
   ]);
   await configuredSourceHost.selectOption("127.0.0.1");
@@ -3552,6 +3554,7 @@ async function publicationJourney({
   // The functional Compose overlay supplies both audiences, overriding api.json.
   await expect(configured).toHaveText([
     "127.0.0.1 — anonymous",
+    "api — anonymous",
     "private.catalog.test — authenticated",
   ]);
   const configuredHost = "127.0.0.1";

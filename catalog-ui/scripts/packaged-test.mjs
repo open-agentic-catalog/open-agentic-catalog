@@ -1,3 +1,4 @@
+import { publicDiscoveryJourney } from "./public-discovery-journey.mjs";
 import { loadCandidates } from "./candidate-inputs.mjs";
 import { developmentUsers } from "./development-users.mjs";
 // Small owned image/browser gate. No existing stack URL, retained database,
@@ -664,6 +665,12 @@ try {
   config.discovery = {
     hosts: [
       {
+        host: "api",
+        tenantId: tenant,
+        mode: "anonymous",
+        publisherDomain: "catalog.example.com",
+      },
+      {
         host: "127.0.0.1",
         tenantId: tenant,
         mode: "anonymous",
@@ -848,7 +855,33 @@ try {
           ],
           sysctls: { "net.ipv4.ip_unprivileged_port_start": "0" },
         },
-        worker: { volumes: [`${directory}/api.json:/config/config.json:ro`] },
+        api: {
+          environment: {
+            CATALOG_DISCOVERY_HOSTS: JSON.stringify([
+              ...config.discovery.hosts,
+              {
+                host: "private.catalog.test",
+                tenantId: tenant,
+                mode: "authenticated",
+                publisherDomain: "catalog.example.com",
+              },
+            ]),
+          },
+        },
+        worker: {
+          volumes: [`${directory}/api.json:/config/config.json:ro`],
+          environment: {
+            CATALOG_DISCOVERY_HOSTS: JSON.stringify([
+              ...config.discovery.hosts,
+              {
+                host: "private.catalog.test",
+                tenantId: tenant,
+                mode: "authenticated",
+                publisherDomain: "catalog.example.com",
+              },
+            ]),
+          },
+        },
       },
     });
     baseCompose.push("-f", join(directory, "publisher-dns.json"));
@@ -1297,6 +1330,7 @@ try {
       responseBytes: 16777216,
       timeoutSeconds: 30,
       authMode: mode === "oidc" ? "oidc" : "development",
+      publicDiscoveryEnabled: !mcp,
       ...(mode === "oidc"
         ? {
             issuer,
@@ -1964,6 +1998,100 @@ try {
     await signIn();
     phase += "-catalog";
     await expect(page.locator("article.resource-card")).toHaveCount(3);
+    if (!mcp) {
+      phase += "-public-discovery";
+      const publicationSetupCookie = (
+        await context.cookies(origin + basePath + "/")
+      )
+        .map((cookie) => `${cookie.name}=${cookie.value}`)
+        .join("; ");
+      await publicDiscoveryJourney({
+        page,
+        origin: origin + basePath,
+        network: ledger,
+        command: async (method, path, body, etag) => {
+          const headers = {
+            "Content-Type": "application/json",
+            "Idempotency-Key": crypto.randomUUID(),
+            ...(etag ? { "If-Match": etag } : {}),
+          };
+          if (mode === "compose") {
+            const response = await fetch(`http://127.0.0.1:${apiPort}${path}`, {
+              method,
+              headers: { ...headers, Authorization: "Bearer local-admin" },
+              body: JSON.stringify(body),
+              signal: AbortSignal.timeout(15000),
+              redirect: "error",
+            });
+            if (!response.ok)
+              throw new Error(
+                `Public publication setup failed (${method}, ${response.status})`,
+              );
+            return {
+              data: await response.json(),
+              etag: response.headers.get("etag"),
+            };
+          }
+          // Chromium's SPKI pin does not configure Node/Playwright API TLS.
+          // This separate setup call verifies the exact owned UI certificate.
+          return await new Promise((done, fail) => {
+            const req = tlsRequest(
+              origin + basePath + "/_catalog" + path,
+              {
+                method,
+                ca: cert,
+                timeout: 15000,
+                headers: {
+                  ...headers,
+                  "X-Catalog-Request": "1",
+                  Origin: origin,
+                  Cookie: publicationSetupCookie,
+                },
+              },
+              (res) => {
+                let bytes = 0;
+                const chunks = [];
+                res.on("data", (chunk) => {
+                  bytes += chunk.length;
+                  if (bytes > 4 * 1024 * 1024)
+                    req.destroy(new Error("Public setup response limit"));
+                  else chunks.push(chunk);
+                });
+                res.on("error", () =>
+                  fail(new Error("Public setup response unavailable")),
+                );
+                res.on("end", () => {
+                  if (res.statusCode < 200 || res.statusCode >= 300) {
+                    fail(
+                      new Error(
+                        `Public publication setup failed (${method}, ${res.statusCode})`,
+                      ),
+                    );
+                    return;
+                  }
+                  try {
+                    done({
+                      data: JSON.parse(Buffer.concat(chunks).toString("utf8")),
+                      etag: res.headers.etag ?? null,
+                    });
+                  } catch {
+                    fail(new Error("Invalid public setup response"));
+                  }
+                });
+              },
+            );
+            req.on("error", () =>
+              fail(new Error("Public setup HTTPS request failed")),
+            );
+            req.on("timeout", () =>
+              req.destroy(new Error("Public setup HTTPS timeout")),
+            );
+            req.end(JSON.stringify(body));
+          });
+        },
+      });
+      await expect(page.locator("article.resource-card")).toHaveCount(3);
+    }
     // The minimal fixture releases cards/order-agent.json (JSONRPC); its
     // other published kinds and unpublished Agent supply negative controls.
     for (const [binding, count] of [
@@ -3643,7 +3771,7 @@ try {
       knownPublishedPorts.get("ui-browser"),
     );
   const site = String(error?.stack).match(
-    /(?:packaged-(?:journeys|test)|authorization(?:-qualification)?-journey|mcp-journey|cli-oidc-journey|ratings-oidc-journey|publisher-verification-journey|manual-layout)\.mjs:\d+:\d+/,
+    /(?:packaged-(?:journeys|test)|authorization(?:-qualification)?-journey|mcp-journey|cli-oidc-journey|ratings-oidc-journey|publisher-verification-journey|public-discovery-journey|manual-layout)\.mjs:\d+:\d+/,
   )?.[0];
   if (site) console.error(`Failing packaged assertion: ${site}`);
   if (

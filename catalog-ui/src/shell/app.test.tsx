@@ -1544,3 +1544,17 @@ it("updates fixed indexing navigation and title on same-document fragment change
   expect(document.title).toBe("Service information | Open Agentic Catalog");
   expect(document.title).not.toContain("private-title");
 });
+
+it.each([false, true])(
+  "offers public discovery only when explicitly enabled: %s",
+  async (enabled) => {
+    history.replaceState(null, "", "/unit/about");
+    render(<App runtime={{ ...runtime, publicDiscoveryEnabled: enabled }} />);
+    await screen.findByRole("heading", { name: "About" });
+    const link = screen.queryByRole("link", {
+      name: "Browse public discovery",
+    });
+    if (enabled) expect(link?.getAttribute("href")).toBe("/unit/discover");
+    else expect(link).toBeNull();
+  },
+);

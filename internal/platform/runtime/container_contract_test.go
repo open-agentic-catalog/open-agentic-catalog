@@ -756,6 +756,7 @@ func TestEnvironmentTemplateContract(t *testing.T) {
 		"CATALOG_UI_LOG_LEVEL":                             false, "CATALOG_UI_LOG_FORMAT": false,
 		"CATALOG_UI_PORT":                    false,
 		"CATALOG_UI_DOCUMENTATION_URL":       false,
+		"CATALOG_UI_PUBLIC_DISCOVERY":        false,
 		"UI_DOCUMENTATION_DIRECTORY":         false,
 		"TRACE_VIEWER_UI_PORT":               false,
 		"TRACE_VIEWER_OTLP_PORT":             false,

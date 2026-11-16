@@ -27,12 +27,13 @@ export async function publishFixture(
   index: number,
   documentPadding = "",
   options: {
-    kind?: "agent" | "mcp_server";
+    kind?: "agent" | "mcp_server" | "skill";
     visibility?: "public" | "tenant" | "private";
     representativeQueries?: string[];
     displayName?: string;
     description?: string;
     nativeDocument?: Record<string, unknown>;
+    nativeContent?: string;
     additionalRepresentations?: Record<string, unknown>[];
   } = {},
 ) {
@@ -54,21 +55,27 @@ export async function publishFixture(
         {
           role: "primary",
           mediaType:
-            options.kind === "mcp_server"
-              ? "application/mcp-server-card+json"
-              : "application/a2a-agent-card+json",
-          data: documentPadding
-            ? {
-                ...agentDocument,
-                skills: array(agentDocument.skills)
-                  .map(object)
-                  .map((skill: Record<string, unknown>, i: number) =>
-                    i === 0
-                      ? { ...skill, description: documentPadding }
-                      : skill,
-                  ),
-              }
-            : (options.nativeDocument ?? agentDocument),
+            options.kind === "skill"
+              ? "application/agent-skills+md"
+              : options.kind === "mcp_server"
+                ? "application/mcp-server-card+json"
+                : "application/a2a-agent-card+json",
+          ...(options.kind === "skill"
+            ? { content: options.nativeContent }
+            : {
+                data: documentPadding
+                  ? {
+                      ...agentDocument,
+                      skills: array(agentDocument.skills)
+                        .map(object)
+                        .map((skill: Record<string, unknown>, i: number) =>
+                          i === 0
+                            ? { ...skill, description: documentPadding }
+                            : skill,
+                        ),
+                    }
+                  : (options.nativeDocument ?? agentDocument),
+              }),
         },
         ...(options.additionalRepresentations ?? []),
       ],

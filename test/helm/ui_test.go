@@ -100,6 +100,7 @@ func TestUIDocumentationIngressAndOverride(t *testing.T) {
 
 func TestUIRejectsIncompleteAndUnsafeSettings(t *testing.T) {
 	for name, settings := range map[string][]string{
+		"public discovery type":  {"--set-string", "ui.config.publicDiscoveryEnabled=true"},
 		"no inputs":              {"--set", "ui.enabled=true"},
 		"missing session Secret": {"--set", "ui.existingSecret="},
 		"HTTP production":        {"--set", "ui.config.origin=http://browse.example.com"},
@@ -260,5 +261,33 @@ func TestUIIngressAnnotationLifecycle(t *testing.T) {
 				t.Fatalf("reserved Ingress annotation admitted: %v: %s", err, output)
 			}
 		})
+	}
+}
+
+// Public browsing is an independent default-off UI setting, not backend admission.
+func TestUIPublicDiscovery(t *testing.T) {
+	for _, enabled := range []string{"false", "true"} {
+		objects := renderChart(t, "--values", filepath.Join(chartPath(t), "ci/ui-values.yaml"), "--set", "ui.config.publicDiscoveryEnabled="+enabled)
+		var config map[string]any
+		if err := json.Unmarshal([]byte(stringAt(t, oneObject(t, objects, "ConfigMap", "ui"), "data", "config.json")), &config); err != nil {
+			t.Fatal(err)
+		}
+		if config["publicDiscoveryEnabled"] != (enabled == "true") {
+			t.Fatal("public discovery flag lost")
+		}
+		for _, component := range []string{"api", "worker"} {
+			baseline := oneObject(t, renderChart(t, "--values", filepath.Join(chartPath(t), "ci/ui-values.yaml")), "Deployment", component)
+			if !reflect.DeepEqual(baseline, oneObject(t, objects, "Deployment", component)) {
+				t.Fatal("public UI changed backend deployment")
+			}
+		}
+	}
+	objects := renderChart(t, "--values", filepath.Join(chartPath(t), "ci/ui-values.yaml"))
+	var config map[string]any
+	if err := json.Unmarshal([]byte(stringAt(t, oneObject(t, objects, "ConfigMap", "ui"), "data", "config.json")), &config); err != nil {
+		t.Fatal(err)
+	}
+	if config["publicDiscoveryEnabled"] != false {
+		t.Fatal("public discovery default enabled")
 	}
 }

@@ -624,6 +624,18 @@ if Path("fail-" + stage).exists():
                 env=environment, input=target + ':\n\t@printf "%s|%s\\n" "$$CATALOG_UI_DOCUMENTATION_URL" "$$UI_DOCUMENTATION_DIRECTORY"\n')
             self.assertEqual("https://docs.example.test/manual/|" + ("/owned/manual" if target == "ui-dev" else ""), output.strip())
 
+    def test_public_discovery_launcher_exports(self):
+        environment = {key: value for key, value in os.environ.items() if key != "CATALOG_UI_PUBLIC_DISCOVERY"}
+        for target in ("ui-dev", "compose-up"):
+            for arguments, expected in (([], "off"), (["CATALOG_UI_PUBLIC_DISCOVERY=on"], "on")):
+                output = self.run_make("-s", "-f", "Makefile", "-f", "-", "-o", "ui-build", target, *arguments,
+                    env=environment, input=target + ':\n\t@printf "%s\\n" "$$CATALOG_UI_PUBLIC_DISCOVERY"\n')
+                self.assertEqual(expected, output.strip(), target)
+            output = self.run_make("-s", "-f", "Makefile", "-f", "-", "-o", "ui-build", target, "CATALOG_UI_PUBLIC_DISCOVERY=off",
+                env={**environment, "CATALOG_UI_PUBLIC_DISCOVERY": "on"},
+                input=target + ':\n\t@printf "%s\\n" "$$CATALOG_UI_PUBLIC_DISCOVERY"\n')
+            self.assertEqual("off", output.strip(), target)
+
     def test_ui_packaging_targets_select_ui_image_without_building(self):
         for target, action in [("ui-container-inspect", "inspect"), ("ui-sbom", "sbom"), ("ui-container-scan", "scan")]:
             output = self.run_make("-n", target, "UI_IMAGE=ui:selected", "IMAGE=backend:unrelated")

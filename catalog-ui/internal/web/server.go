@@ -204,7 +204,28 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		if documentationURL == "" && s.documentation != nil {
 			documentationURL = "/docs/"
 		}
-		writeJSON(w, 200, map[string]string{"basePath": s.config.BasePath, "authMode": s.config.AuthMode, "documentationUrl": documentationURL})
+		runtime := map[string]any{"basePath": s.config.BasePath, "authMode": s.config.AuthMode, "documentationUrl": documentationURL}
+		if s.config.PublicDiscoveryEnabled {
+			runtime["publicDiscoveryEnabled"] = true
+		}
+		writeJSON(w, 200, runtime)
+		return
+	}
+	if strings.HasPrefix(relative, "/_discovery/") {
+		if !s.config.PublicDiscoveryEnabled {
+			problem(w, 404, "not_found")
+			return
+		}
+		if !s.sameOrigin(r) {
+			problem(w, 403, "same_origin_required")
+			return
+		}
+		if !s.admit(w) {
+			return
+		}
+		defer func() { <-s.admission }()
+		r.Body = http.MaxBytesReader(w, r.Body, s.config.RequestBytes)
+		s.publicDiscovery(w, r, relative)
 		return
 	}
 	if relative == "/auth/callback" && r.Method == http.MethodGet && s.login != nil {
@@ -303,7 +324,7 @@ func (s *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Only client navigation may receive the SPA; API and asset typos stay errors.
-	if !clientNavigation(relative) {
+	if !clientNavigation(relative) && !(relative == "/discover" && s.config.PublicDiscoveryEnabled) {
 		problem(w, 404, "not_found")
 		return
 	}

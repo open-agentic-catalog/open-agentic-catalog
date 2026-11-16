@@ -7,6 +7,12 @@ import { FileTree } from "@astrojs/starlight/components";
 
 The optional Catalog UI is a separate browser client and Go web host. The API remains authoritative for tenancy, roles and domain transitions. [ADR-0018](decisions/0018-optional-catalog-browser-client.md) records the architecture choice and alternatives; the [user guide](../guides/catalog-ui.mdx) explains the implemented screens, and the [testing guide](../contributing/testing.md#optional-browser-client) explains browser verification.
 
+## Public discovery
+
+The default-off public reader at `/discover` has a separate bootstrap from the private workspace. It reads the public runtime configuration without credentials and uses only three fixed `/_discovery/` operations. The host forwards these to manifest, ARD List and ARD Search on its existing API origin, without reading a session or copying credentials. The API's host and anonymous-audience admission remains authoritative.
+
+Search always selects federation `none`. Explicit visitor consent covers possible configured embedding-provider disclosure. Returned metadata stays inert, including entry and artwork locations. Invalid continuation clears the old page and requires explicit refresh. The reader neither combines generations nor resolves private details. See [host configuration](../reference/ui-host-configuration.md#optional-public-discovery) for deployment and bounds.
+
 ## Interaction design
 
 The lazy Overview page reads seven independent Content summaries. Its Operations tab adds bounded Source, Job, endpoint and production delivery summaries. Existing capability reads supply index status and webhook availability. Notification counters retain their existing contract. It renders only the selected tab. Source-only access does not require `catalog.read`. Catalog, federation and publication repositories select authorized metadata before fixed limits. Reviews use retained timestamps for age bands, daily activity and elapsed decision medians. Publication metadata covers the configured host set in one bounded read. The browser does not assemble totals from paginated records. Each panel retains its own observation time and read error. Permission changes clear private summaries. Resource tiles use the existing kind palette and exact counts. Operational distributions use accessible lists and decorative bars. Content, Operations and Administration use manual refresh without a browser cache or chart dependency. See [the Content overview](../guides/catalog-ui.mdx#read-the-content-overview) for count definitions and limits.

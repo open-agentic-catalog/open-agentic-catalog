@@ -1,8 +1,9 @@
 import { controlIcons } from "./Icon";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { decodeRuntime, type Runtime } from "../api/session";
 import { App } from "./App";
 import { ErrorBoundary } from "./ErrorBoundary";
+const PublicDiscovery = lazy(() => import("../views/PublicDiscovery"));
 
 /** No authenticated client exists until the host settings have been validated. */
 export function Bootstrap({ url }: { url: URL }) {
@@ -14,7 +15,7 @@ export function Bootstrap({ url }: { url: URL }) {
     const controller = new AbortController();
     void fetch(url, {
       cache: "no-store",
-      credentials: "same-origin",
+      credentials: "omit",
       redirect: "error",
       signal: controller.signal,
     })
@@ -39,7 +40,25 @@ export function Bootstrap({ url }: { url: URL }) {
   }, [state, attempt]);
   return typeof state === "object" ? (
     <ErrorBoundary>
-      <App runtime={state} />
+      {location.pathname === `${state.basePath}/discover` ? (
+        state.publicDiscoveryEnabled ? (
+          <Suspense
+            fallback={
+              <main id="main">
+                <p role="status">Loading public discovery...</p>
+              </main>
+            }
+          >
+            <PublicDiscovery runtime={state} />
+          </Suspense>
+        ) : (
+          <main id="main">
+            <h1>Public discovery is not enabled</h1>
+          </main>
+        )
+      ) : (
+        <App runtime={state} />
+      )}
     </ErrorBoundary>
   ) : (
     <main id="main" className="bootstrap">

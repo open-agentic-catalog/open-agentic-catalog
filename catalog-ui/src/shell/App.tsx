@@ -1138,6 +1138,9 @@ function PublicLinks({ runtime }: { runtime: Runtime }) {
   const documentation = documentationLink(runtime.documentationUrl);
   return (
     <nav className="public-links" aria-label="Public Help">
+      {runtime.publicDiscoveryEnabled && (
+        <a href={`${runtime.basePath}/discover`}>Browse public discovery</a>
+      )}
       <a href={`${runtime.basePath}/catalog`}>Sign in</a>
       <a href={`${runtime.basePath}/getting-started`}>Getting started</a>
       <a href={`${runtime.basePath}/about`}>About</a>
