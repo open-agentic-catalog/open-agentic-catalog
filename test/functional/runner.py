@@ -43,7 +43,7 @@ STEPS = {
     "recreation-replay": ["smoke-command", "process-topology"],
     "restore-repair": ["migration-and-restore"],
     "role-restart": ["process-topology", "public-discovery"],
-    "operator-workflows": ["idempotency-repair", "source-administration", "operator-diagnostics", "remote-cli", "source-comparison-cli"],
+    "operator-workflows": ["idempotency-repair", "source-administration", "operator-diagnostics", "remote-cli", "source-comparison-cli", "personal-library-backup"],
     "extended-core": ["current-access", "authoring-history-reads", "administration-gaps", "private-feedback", "governance-smoke", "governance-transitions", "catalog-search-smoke", "catalog-read-gaps", "publication-smoke", "publication-history", "public-discovery", "source-administration"],
     "credential-transport": ["source-sync-smoke"],
     "oidc-private-trust": ["process-topology"],

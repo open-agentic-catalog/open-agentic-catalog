@@ -681,7 +681,7 @@ class RunnerTests(unittest.TestCase):
                 self.assertNotIn("private-secret", str(error.exception))
         with mock.patch.object(runner, "read_document", return_value=good):
             families = runner.inventory()
-            self.assertEqual(len(families), 52)
+            self.assertEqual(len(families), 53)
             for identifier, count in (("publisher-domain-verification", 5), ("catalog-content-overview", 14), ("service-activity", 1)):
                 family = next(item for item in families if item["id"] == identifier)
                 self.assertEqual(family["surfaceCount"], count)
@@ -721,6 +721,11 @@ class RunnerTests(unittest.TestCase):
             remote = next(family for family in families if family["id"] == "remote-cli")
             self.assertEqual(remote["surfaceCount"], 6)
             self.assertEqual(remote["steps"], ["operator-workflows"])
+            personal = next(family for family in families if family["id"] == "personal-library-backup")
+            self.assertEqual(personal["surfaceCount"], 4)
+            self.assertEqual(personal["inventoryStatus"], "covered")
+            self.assertEqual(personal["disposition"], "compose")
+            self.assertEqual(personal["steps"], ["operator-workflows"])
             comparison = next(family for family in families if family["id"] == "source-comparison-cli")
             self.assertEqual(comparison["surfaceCount"], 1)
             self.assertEqual(comparison["steps"], ["operator-workflows"])

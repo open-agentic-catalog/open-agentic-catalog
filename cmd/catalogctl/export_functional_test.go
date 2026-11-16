@@ -638,7 +638,7 @@ func TestExportLocalTLSFaultsAndDeadline(t *testing.T) {
 			err = runExport(t.Context(), args, remoteTestEnvironment("", "fixture-token"), output)
 			switch fault {
 			case "output collision":
-				if err == nil || stdout.Len() != 0 || !strings.Contains(err.Error(), "cannot save private files") {
+				if err == nil || stdout.Len() != 0 || !strings.Contains(err.Error(), "cannot create the private output directory") {
 					t.Fatal("concurrent output creation was accepted or lost", err)
 				}
 				entries, readErr := os.ReadDir(directory)

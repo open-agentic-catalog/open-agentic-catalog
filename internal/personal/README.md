@@ -1,5 +1,7 @@
 # Private human library
 
+The [personal CLI](../../cmd/catalogctl/personal.go) exports observed owner pages and restores selected same-origin/tenant intent through these existing HTTP save operations. Its private file codec and local progress belong to the client; this package retains normal authority, quota, target admission and audit ownership. See [backup and restore](../../documentation/src/content/docs/reference/commands.md#back-up-and-restore-your-private-library).
+
 This package owns saved labels, exact resource references and validated Catalog search criteria. PostgreSQL owns durable records. The memory store implements the same owner and transition boundary for local development and tests.
 
 The current human's tenant, membership and realm determine ownership. Callers cannot select another owner, including administrators. `library.own` is independent of resource permissions. The HTTP layer adds `catalog.read` or `personal.write` scope ceilings, idempotency and revision preconditions.

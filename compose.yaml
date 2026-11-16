@@ -176,7 +176,7 @@ services:
     read_only: true
     init: true
     tmpfs:
-      - /tmp:size=64m,noexec,nosuid,nodev
+      - /tmp:size=64m,noexec,nosuid,nodev,mode=1777
     cap_drop:
       - ALL
     security_opt:
@@ -224,7 +224,7 @@ services:
     read_only: true
     init: true
     tmpfs:
-      - /tmp:size=64m,noexec,nosuid,nodev
+      - /tmp:size=64m,noexec,nosuid,nodev,mode=1777
     cap_drop:
       - ALL
     security_opt:

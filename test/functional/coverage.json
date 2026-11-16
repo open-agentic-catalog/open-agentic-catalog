@@ -315,6 +315,33 @@
       "gaps": []
     },
     {
+      "id": "personal-library-backup",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:personal export",
+        "catalogctl:personal preview",
+        "catalogctl:personal apply",
+        "catalogctl:personal resume"
+      ],
+      "evidence": [
+        {"path": "cmd/catalogctl/personal_test.go", "symbol": "TestPersonalFileStrictContract"},
+        {"path": "cmd/catalogctl/personal_test.go", "symbol": "TestPersonalOfflinePreviewSelectionAndDestination"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalObservedEnumerationAndBounds"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalSaveDurabilityAndConservativeRecovery"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalSaveRejectsUnverifiableAcknowledgements"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalSaveRequiresDurableIntentBeforeSending"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalProgressValidatesAttemptedStates"},
+        {"path": "cmd/catalogctl/personal_functional_test.go", "symbol": "TestPersonalCLIRealAPIAndLostAcknowledgement"},
+        {"path": "test/functional/operators.py"}
+      ],
+      "reason": "The existing packaged operator journey restores selected private searches and exact release references through the shipped CLI and PostgreSQL. Native process controls qualify actual response loss on first and later selected saves, retained acknowledgements and skips, same-origin tenant refusal, and membership suspension/reactivation between saves. Units qualify strict local input, finite enumeration, durable intent before sending and unverified acknowledgement/progress refusal.",
+      "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per item.",
+      "rejection": "Refuse malformed/oversized files, changed origins/tenants/principals/intent, unsafe private state, unavailable targets and quota exhaustion without overwriting existing items or disclosing another owner.",
+      "recovery": "Keep acknowledged saves and original request/key/first-attempt bindings. Explicit resume skips acknowledged work, replays safe uncertain commands only within the conservative window, and refuses expired, future or missing chronology without mutation.",
+      "gaps": []
+    },
+    {
       "id": "remote-cli",
       "disposition": "compose",
       "status": "covered",

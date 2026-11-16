@@ -76,6 +76,8 @@ Save the database CA certificate as `db-ca.pem` alongside the configuration. The
 
 Keep secret files readable only by their intended owner. These local examples run containers with your non-root UID/GID so private host files remain readable. The image normally uses UID/GID `65532:65532`; production deployments can retain that identity and arrange equivalent scoped file permissions. Do not make secrets world-readable. SELinux or user-namespace mappings can require additional host mount setup.
 
+Use a bounded `/tmp` tmpfs with explicit `mode=1777` and retain `noexec,nosuid,nodev`. Docker can [reset implicit tmpfs permissions after restart](https://docs.docker.com/engine/storage/tmpfs/#limitations-of-tmpfs-mounts), preventing non-root writes. Backups and CLI restore progress need separate persistent private storage; tmpfs contents disappear when the container stops.
+
 ## Send settings to Docker
 
 :::note[Docker and Make use different file syntax]
@@ -148,7 +150,7 @@ catalog_owner() {
   docker run --rm --pull=never --init --read-only \
     --user "$CATALOG_UID:$CATALOG_GID" --network "$CATALOG_NETWORK" \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 \
-    --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+    --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
     --env-file "$CATALOG_INPUTS/runtime.env" \
     -e CATALOG_DATABASE_DSN_FILE=/run/secrets/database.dsn \
     --mount "type=bind,src=$CATALOG_INPUTS/config.json,dst=/config/config.json,readonly" \
@@ -175,7 +177,7 @@ catalog_api() {
   docker run --pull=never --init --read-only \
     --user "$CATALOG_UID:$CATALOG_GID" --network "$CATALOG_NETWORK" \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 \
-    --stop-timeout 40 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+    --stop-timeout 40 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
     --env-file "$CATALOG_INPUTS/runtime.env" \
     -e CATALOG_DATABASE_DSN_FILE=/run/secrets/database.dsn \
     --mount "type=bind,src=$CATALOG_INPUTS/config.json,dst=/config/config.json,readonly" \
@@ -193,7 +195,7 @@ catalog_worker() {
   docker run --pull=never --init --read-only \
     --user "$CATALOG_UID:$CATALOG_GID" --network "$CATALOG_NETWORK" \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 \
-    --stop-timeout 40 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+    --stop-timeout 40 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
     --env-file "$CATALOG_INPUTS/runtime.env" \
     -e CATALOG_DATABASE_DSN_FILE=/run/secrets/database.dsn \
     --mount "type=bind,src=$CATALOG_INPUTS/config.json,dst=/config/config.json,readonly" \

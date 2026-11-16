@@ -59,7 +59,7 @@ CATALOG_IMAGE=open-agentic-catalog:docker-local
 make container-build CONTAINER_PLATFORM=linux/amd64 IMAGE="$CATALOG_IMAGE" CATALOG_ENV_FILE=/dev/null
 docker run --rm --name catalog-docker-memory --pull=never --init --read-only \
   --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 \
-  --stop-timeout 40 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m \
+  --stop-timeout 40 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 \
   -p 127.0.0.1:18081:8080 \
   --mount "type=bind,src=$PWD/config/local.json,dst=/config/config.json,readonly" \
   -e CATALOG_HTTP_ADDRESS=0.0.0.0:8080 \
