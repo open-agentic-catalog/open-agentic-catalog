@@ -292,7 +292,7 @@ func TestPersonalSaveRejectsUnverifiableAcknowledgements(t *testing.T) {
 			receipt.Steps[0].importStep = importStep{
 				State: "acknowledged", Key: receipt.Steps[0].Key, Method: http.MethodPost,
 				Path: personalSavePath, BodyDigest: importDigest(personalTestBytes(t, file.Items[0])),
-				FirstAttempt: time.Unix(1, 0), RequestID: "earlier-request",
+				FirstAttempt: time.Unix(1, 0).UTC(), RequestID: "earlier-request",
 				Ack: importAcknowledgement{ID: importTestPrincipal.RealmID, ETag: `"rev-1"`},
 			}
 			earlier := receipt.Steps[0]
