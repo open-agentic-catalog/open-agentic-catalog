@@ -21,6 +21,7 @@ vi.mock("./shell/App", () => ({
 }));
 afterEach(() => {
   cleanup();
+  history.replaceState({}, "", "/");
   vi.unstubAllGlobals();
   vi.clearAllMocks();
   document.body.replaceChildren();
@@ -46,7 +47,7 @@ it.each([
   });
   expect(fetch).toHaveBeenCalledWith(expect.any(URL), {
     cache: "no-store",
-    credentials: "same-origin",
+    credentials: "omit",
     redirect: "error",
     signal: expect.any(AbortSignal) as unknown,
   });
@@ -169,3 +170,52 @@ it.each(["success", "failure"])(
     );
   },
 );
+
+it.each(["", "/nested"])(
+  "boots the public route at %s without the private application",
+  async (basePath) => {
+    history.replaceState({}, "", `${basePath}/discover`);
+    const fetch = vi
+      .fn()
+      .mockImplementation(async (url: URL | string, _options?: RequestInit) => {
+        const path = String(url);
+        if (path.endsWith("runtime.json"))
+          return Response.json({
+            basePath,
+            authMode: "oidc",
+            documentationUrl: "",
+            publicDiscoveryEnabled: true,
+          });
+        if (path.endsWith("manifest")) return Response.json({ entries: [] });
+        if (path.includes("/_discovery/agents?"))
+          return Response.json({ items: [] });
+        throw new Error("Private bootstrap attempted");
+      });
+    vi.stubGlobal("fetch", fetch);
+    mount(
+      <Bootstrap url={new URL(`http://localhost${basePath}/runtime.json`)} />,
+    );
+    await screen.findByText("No entries were returned on this page.");
+    expect(screen.queryByText(/App at/)).toBeNull();
+    expect(fetch).toHaveBeenCalledTimes(3);
+    for (const call of fetch.mock.calls)
+      expect((call[1] as RequestInit | undefined)?.credentials).toBe("omit");
+  },
+);
+it("never mounts the private app at a disabled public route", async () => {
+  history.replaceState({}, "", "/discover");
+  const fetch = vi.fn().mockResolvedValue(
+    Response.json({
+      basePath: "",
+      authMode: "development",
+      documentationUrl: "",
+    }),
+  );
+  vi.stubGlobal("fetch", fetch);
+  mount(<Bootstrap url={new URL("http://localhost/runtime.json")} />);
+  await screen.findByRole("heading", {
+    name: "Public discovery is not enabled",
+  });
+  expect(screen.queryByText(/App at/)).toBeNull();
+  expect(fetch).toHaveBeenCalledOnce();
+});

@@ -96,6 +96,14 @@ class MonitoringSafety(unittest.TestCase):
                 users = json.loads((inputs / "users.json").read_text())
                 self.assertEqual([{"alias": "test-reader", "label": "Reader", "token": "test-reader"}], users)
                 original = (inputs / "keys.json").read_bytes()
+                self.assertFalse(json.loads((inputs / "config.json").read_text())["publicDiscoveryEnabled"])
+                launcher.ui_inputs("catalog", {**env, "CATALOG_UI_PUBLIC_DISCOVERY": "on"}, True)
+                self.assertTrue(json.loads((inputs / "config.json").read_text())["publicDiscoveryEnabled"])
+                self.assertEqual(original, (inputs / "keys.json").read_bytes())
+                with self.assertRaisesRegex(launcher.Failure, "invalid-ui-public-discovery"):
+                    launcher.ui_inputs("catalog", {**env, "CATALOG_UI_PUBLIC_DISCOVERY": "true"}, True)
+                launcher.ui_inputs("catalog", env, True)
+                self.assertFalse(json.loads((inputs / "config.json").read_text())["publicDiscoveryEnabled"])
                 self.assertEqual("", json.loads((inputs / "config.json").read_text())["documentationUrl"])
                 launcher.ui_inputs("catalog", {**env, "CATALOG_UI_DOCUMENTATION_URL": "https://docs.example.test/manual/"}, True)
                 self.assertEqual("https://docs.example.test/manual/", json.loads((inputs / "config.json").read_text())["documentationUrl"])
@@ -126,7 +134,7 @@ class MonitoringSafety(unittest.TestCase):
                 with self.assertRaisesRegex(launcher.Failure, "unsafe-ui-input"):
                     launcher.ui_inputs("catalog", env, True)
     def test_ui_selection_validates_before_tools_and_off_requires_no_inputs(self):
-        for env in [{"LOCAL_UI": "yes"}, {"LOCAL_UI": "on", "CATALOG_UI_PORT": "0"},
+        for env in [{"LOCAL_UI": "yes"}, {"LOCAL_UI": "on", "CATALOG_UI_PUBLIC_DISCOVERY": "true"}, {"LOCAL_UI": "on", "CATALOG_UI_PORT": "0"},
                     {"LOCAL_UI": "on", "CATALOG_AUTH_MODE": "oidc"}]:
             with patch.dict(os.environ, env, clear=True), patch.object(launcher, "command") as command:
                 with self.assertRaises(launcher.Failure):

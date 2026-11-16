@@ -12,6 +12,7 @@ export function startCatalog(
     artwork?: boolean;
     curated?: boolean;
     publicationAudiences?: boolean;
+    publicDiscovery?: boolean;
     maintainedIdentities?: boolean;
     serviceActivity?: boolean;
     performanceScale?: string;

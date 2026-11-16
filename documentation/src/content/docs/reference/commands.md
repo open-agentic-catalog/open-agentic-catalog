@@ -15,6 +15,7 @@ Provide credentials through a protected environment or secret mount. Do not put 
 | Backend processes | `catalogd api`, `worker`, `all` | Runtime configuration; [process commands](#process-commands). `all` requires memory-backed development. |
 | Browser host | `catalog-ui --config PATH`, `--probe` | Independent UI JSON or fixed loopback probe; [UI host](#optional-ui-host). |
 | Human API login | `catalogctl auth login`, `status`, `logout` | Explicit local credential file; [human CLI login](#human-cli-login). |
+| Anonymous publications | `catalogctl discovery manifest`, `list` | Explicit anonymous feed origin, without credentials; [publication reads](#read-an-anonymous-publication). |
 | Selected API clients | `catalogctl remote capabilities`, `search`, `record`, `job`, `reindex`, `trust-request`, `trust-result` | Explicit API origin and credentials; [remote commands](#remote-catalog-reads). Reindex and trust-request mutate. |
 | MCP host connection | `catalogctl mcp serve` | Explicit API bearer input; [MCP host](#use-the-catalog-from-an-mcp-host). Stdio only; tools read metadata. |
 | Draft import | `catalogctl import preview`, `apply`, `resume` | Offline preview, explicit destination and private recovery; [reusable JSON](#import-a-reusable-draft-json-file) or [native manifests](#offline-native-import-preview). |
@@ -88,6 +89,7 @@ Inspect usage before running an unfamiliar command:
 ./bin/catalogd api --help
 ./bin/catalogctl --help
 ./bin/catalogctl remote --help
+./bin/catalogctl discovery --help
 ./bin/catalogctl import preview --help
 ./bin/catalogctl config validate --help
 ```
@@ -344,6 +346,38 @@ Select two complete snapshot UUIDs from the same source revision. The command re
 The default view is `changes`; use `--view all` to include unchanged entries. Each invocation reads one page. Continue explicitly with the returned `data.nextCursor` through `--cursor`, keeping the same pair, view, limit and identity. Cursors are opaque and limited to 2,048 bytes. A refused continuation is an error; the command does not retry or silently restart it.
 
 The response retains one-sided and multiple occurrences, missing versus explicitly empty versions, and snapshot withdrawal-authority flags. Absence does not establish upstream deletion. The comparison does not fetch raw entries; those retain separate evidence permissions. See [saved synchronization comparison](../operations/federation.mdx#compare-two-saved-synchronizations) for eligibility, permissions and interpretation.
+
+## Read an anonymous publication
+
+Use `catalogctl discovery` to inspect one active anonymous publication without sign-in or a UI. Ask the operator for its API origin, including any nondefault port. Omit paths, a trailing slash, query, fragment and embedded credentials. Its hostname selects the publication; the browser UI URL can differ. See [discovery host configuration](configuration.mdx#discovery-host-configuration).
+
+```sh
+./bin/catalogctl discovery manifest --base-url https://catalog.example.com
+./bin/catalogctl discovery list --base-url https://catalog.example.com \
+  --page-size 20 --order-by 'displayName DESC'
+```
+
+Each invocation sends one GET: manifest uses `/.well-known/ard.json`; List uses `/ard/v1/agents`. Stdout contains JSON with `data`, `meta.requestId` and optional `meta.etag`. Unknown metadata and absent versus explicitly empty versions are preserved. Unicode and terminal controls are JSON-escaped without changing decoded values. Declared locations stay inert; the command fetches no entries, artwork, packages or private records.
+
+List accepts `--page-size` from 1 to 100, default 20. `--filter` passes an existing [ARD List expression](../guides/integrating.mdx#list-snapshot-entries-without-a-search), up to 2,048 bytes, for server validation. `--order-by` accepts `displayName` or `updatedAt`, optionally followed by `DESC`. For example:
+
+```sh
+./bin/catalogctl discovery list --base-url https://catalog.example.com \
+  --filter "type = 'application/ai-registry+json'" --page-size 20
+```
+
+A successful page does not imply complete traversal. Read `data.pageToken` and pass its exact decoded value through `--page-token`. Keep the same origin, filter, ordering and page size. An empty page can still have a token. Tokens are opaque and limited to 4,096 bytes; the command never follows them automatically or stores pages.
+
+```sh
+./bin/catalogctl discovery list --base-url https://catalog.example.com \
+  --page-size 20 --order-by 'displayName DESC' --page-token "$PAGE_TOKEN"
+```
+
+HTTPS is required except for literal loopback IPs such as `http://127.0.0.1:8080`. Add `--ca-file /path/to/catalog-ca.pem` for private trust. This regular file must not exceed 1 MiB; certificate and hostname verification remain enabled. `--timeout` covers the whole request, including its body: default 30 seconds, maximum two minutes. Headers are limited to 32 KiB and bodies to 8 MiB. Malformed, truncated or oversized replies fail without success output. Redirects and environment proxies are disabled.
+
+`--base-url` is required. These commands read no environment defaults, bearer files, login caches, runtime configuration or database credentials. Explicit authentication flags such as `--token-file` and `--login-file` fail before file or network access. Authenticated feeds, Search and Explore are outside this command. Existing `remote`, import and export retain their credential requirements. The UI public-discovery switch does not enable or disable these API routes.
+
+HTTP failures produce bounded JSON on stderr and a nonzero exit. Known ARD codes and request IDs are retained; server messages are omitted. For HTTP 401/403, check the host's audience. For HTTP 404, check the hostname and active publication. After a refused continuation, check the cause and start from the first page explicitly. The command does not restart, retry or fall back to private reads.
 
 ## Use the Catalog from an MCP host
 

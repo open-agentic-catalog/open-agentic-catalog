@@ -1,10 +1,13 @@
 # Catalog client and operator commands
 
+`catalogctl discovery manifest|list` reads one active anonymous publication from an explicit `--base-url`, without credentials or runtime configuration. It preserves inert metadata and exact List continuation. See [usage and limits](../../documentation/src/content/docs/reference/commands.md#read-an-anonymous-publication). Isolated [command/transport units](discovery_test.go) and [HTTPS/process/publication tests](discovery_functional_test.go) cover credential omission, private CA trust, refusal, cancellation, paging and withdrawal. The existing packaged operator journey also exercises the shipped binary against PostgreSQL.
+
 This command combines explicit remote API reads with focused local operator workflows. Select the command's documented authority and target before running it: migration, repair, provisioning, smoke and seeding can change state.
 
 | Files | Responsibility |
 | --- | --- |
 | [main.go](main.go) | Command dispatch, configuration/profile reports, diagnostics, migration and focused operator workflows. |
+| [discovery.go](discovery.go) | Anonymous manifest/List reads, explicit origin and paging, bounded metadata and safe diagnostics. |
 | [remote.go](remote.go), [remote_transport.go](remote_transport.go) | Remote reads and explicit reindex commands, flags, bounded response envelopes, fixed-origin transport and safe diagnostics. |
 | [export.go](export.go), [export_record.go](export_record.go), [export_draft.go](export_draft.go), [export_mcp.go](export_mcp.go), [export_transport.go](export_transport.go), [export_files.go](export_files.go) | Exact release/revision selection, native, reusable draft or remote MCP client configuration downloads, lossless native text and private files with explicit digest scopes. |
 | [import.go](import.go), [import_prepare.go](import_prepare.go), [import_apply.go](import_apply.go) | Offline native preparation and authorized draft apply/resume with private recovery receipts. |
@@ -13,7 +16,7 @@ This command combines explicit remote API reads with focused local operator work
 | [smoke.go](smoke.go) | Disposable API lifecycle and discovery exercises with shared request/payload helpers. |
 | [seed_demo.go](seed_demo.go) | YAML-driven curated samples, explicit legacy fixture selections, bounded API loading and verified local receipts. |
 
-Remote commands receive their own API origin, token and trust inputs; they do not compose the runtime or use SQL. Database operator actions remain in the [database package](../../internal/platform/database/README.md). Command entry points supply authority and output handling without implementing domain transitions themselves.
+`catalogctl remote` receives its own API origin, token and trust inputs; it does not compose the runtime or use SQL. Database operator actions remain in the [database package](../../internal/platform/database/README.md). Command entry points supply authority and output handling without implementing domain transitions themselves.
 
 `remote source-compare` reads one page of membership for two explicitly selected saved source snapshots. It preserves opaque cursors and API response data without fetching evidence, restarting refused continuations or comparing native document bytes. Isolated argument tests and local HTTP contract tests sit beside `remote.go`. The packaged operator journey checks the shipped command against two retained imports, including reader and cross-tenant refusal. The two-Catalog peer fixture also compares its output with the real API response for changed entries.
 

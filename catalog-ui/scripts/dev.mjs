@@ -16,6 +16,9 @@ const { values } = parseArgs({
   },
 });
 const upstream = new URL(values["api-url"]);
+const publicDiscovery = process.env.CATALOG_UI_PUBLIC_DISCOVERY ?? "off";
+if (!["on", "off"].includes(publicDiscovery))
+  throw new Error("CATALOG_UI_PUBLIC_DISCOVERY must be on or off");
 if (
   !["127.0.0.1", "[::1]"].includes(upstream.hostname) ||
   upstream.protocol !== "http:" ||
@@ -67,6 +70,7 @@ try {
       basePath: values["base-path"],
       assets,
       documentationUrl: process.env.CATALOG_UI_DOCUMENTATION_URL ?? "",
+      publicDiscoveryEnabled: publicDiscovery === "on",
       upstream: upstream.origin,
       cookieName: `catalog-ui-dev-${values.port}`,
       keysFile,

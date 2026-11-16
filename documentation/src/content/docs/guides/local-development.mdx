@@ -82,6 +82,8 @@ make compose-up LOCAL_UI=on
 
 Omit `LOCAL_UI=on` for an API-only run. Open `http://127.0.0.1:4180/catalog` when the UI is enabled. Plain `compose-up` does not load samples.
 
+Public browsing is independently disabled. To enable it, follow [public discovery setup](../reference/ui-host-configuration.md#optional-public-discovery), including the exact anonymous API binding and active publication. `CATALOG_UI_PUBLIC_DISCOVERY=on` alone does not publish data.
+
 The target rebuilds and recreates the services while retaining the named PostgreSQL volume under the selected `COMPOSE_PROJECT`. The database retains metadata, identity, bounded documents, package inspection evidence and federation source revisions. A one-shot schema-owner process provisions configured development identities after migration and before the API and worker start.
 
 Compose publishes the API on loopback port 8080 and PostgreSQL on loopback port 55432 by default. The worker listener is not published. It checks both long-running roles internally. Use the same selected `COMPOSE_PROJECT` for status and logs:

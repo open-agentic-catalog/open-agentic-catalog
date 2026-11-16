@@ -93,7 +93,7 @@ make ui-install
 make ui-dev
 ```
 
-Open `http://127.0.0.1:4180`. The [UI guide](documentation/src/content/docs/guides/catalog-ui.mdx) covers authoring, review, publication and administration workflows.
+Open `http://127.0.0.1:4180`. The [UI guide](documentation/src/content/docs/guides/catalog-ui.mdx) covers authoring, review, publication and administration workflows. Optional [public browsing](documentation/src/content/docs/reference/ui-host-configuration.md#optional-public-discovery) is separately enabled and disabled by default.
 
 ## Containers and Kubernetes
 

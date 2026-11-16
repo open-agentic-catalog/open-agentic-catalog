@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shlex
 import time
+import urllib.parse
 
 from core import mutate
 from federation import Client, key, wait_job
@@ -62,6 +63,7 @@ class Operators:
         return result["data"]
 
     def remote_reads(self, job):
+        self.anonymous_reads()
         self.remote("capabilities")
         page = self.remote("search", "--limit", "1", "--tag", "functional-" + self.suffix)
         assert not page["partial"] and len(page["items"]) == 1 and page.get("nextCursor"), "remote Search page incomplete"
@@ -96,6 +98,33 @@ class Operators:
                     raise
             else:
                 raise Failure("remote-cross-tenant-read-accepted")
+
+    def anonymous_reads(self):
+        public = Client(self.env["CATALOG_FUNCTIONAL_BASE_URL"], "")
+
+        def read(action, *args):
+            result = decode(self.compose("exec", "-T", "--env", "CATALOG_REMOTE_TOKEN=ignored-ambient-secret",
+                                        "--env", "CATALOG_REMOTE_TOKEN_FILE=/does-not-exist",
+                                        "--env", "CATALOG_CONFIG=/does-not-exist", "--env", "CATALOG_DATABASE_DSN_FILE=/does-not-exist",
+                                        "api", "/usr/local/bin/catalogctl", "discovery", action,
+                                        "--base-url", "http://127.0.0.1:8080", *args, capture=True))
+            assert result["meta"]["requestId"] and "data" in result, "anonymous envelope incomplete"
+            return result
+
+        manifest, headers = public.request("GET", "/.well-known/ard.json")
+        result = read("manifest")
+        assert result["data"] == manifest and result["meta"]["etag"] == header(headers, "ETag"), "anonymous manifest differs from active publication"
+        selection = {"pageSize": 1, "orderBy": "displayName DESC"}
+        first, _ = public.request("GET", "/ard/v1/agents?" + urllib.parse.urlencode(selection))
+        page = read("list", "--page-size", "1", "--order-by", "displayName DESC")["data"]
+        assert page["items"] == first["items"] and page["total"] == first["total"] and len(page["items"]) == 1 and page.get("pageToken"), "anonymous first page lost continuation"
+        selection["pageToken"] = page["pageToken"]
+        later, _ = public.request("GET", "/ard/v1/agents?" + urllib.parse.urlencode(selection))
+        actual = read("list", "--page-size", "1", "--order-by", "displayName DESC", "--page-token", page["pageToken"])["data"]
+        assert actual["items"] == later["items"] and actual["total"] == later["total"] and bool(actual.get("pageToken")) == bool(later.get("pageToken")), "anonymous continuation changed page membership"
+        assert actual["items"][0]["identifier"] != page["items"][0]["identifier"], "anonymous continuation repeated the first page"
+        empty = read("list", "--filter", "displayName = 'no-such-owned-publication-entry'", "--page-size", "1")["data"]
+        assert empty == {"items": [], "total": 0}, "anonymous empty selection was not a successful page"
 
     def source_comparison(self, source_id, before_id):
         current, _ = self.api.request("GET", "/api/v1/federation/sources/" + source_id)

@@ -719,7 +719,7 @@ class RunnerTests(unittest.TestCase):
             authorization = next(family for family in families if family["id"] == "authorization-administration")
             self.assertEqual(authorization["disposition"], "lower-level-only")
             remote = next(family for family in families if family["id"] == "remote-cli")
-            self.assertEqual(remote["surfaceCount"], 4)
+            self.assertEqual(remote["surfaceCount"], 6)
             self.assertEqual(remote["steps"], ["operator-workflows"])
             comparison = next(family for family in families if family["id"] == "source-comparison-cli")
             self.assertEqual(comparison["surfaceCount"], 1)

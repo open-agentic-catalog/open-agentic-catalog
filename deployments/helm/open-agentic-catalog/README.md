@@ -343,6 +343,8 @@ Create `catalog-ui-inputs` in the release namespace before enabling the UI. It m
 
 All UI replicas mount the same inputs.
 
+Public browsing is separately optional. Set `ui.config.publicDiscoveryEnabled: true` only after configuring an anonymous backend discovery host for the API Service hostname and activating its publication. `ui.config.upstream` selects that host; the external UI hostname and forwarded headers cannot change it. Supply the complete intended host array through `configEnv.CATALOG_DISCOVERY_HOSTS`. Do not assume the default loopback binding selects a Kubernetes Service. See [public reader setup](../../../documentation/src/content/docs/reference/ui-host-configuration.md#optional-public-discovery). The switch changes only the UI ConfigMap and rollout, not backend admission or readiness.
+
 The identity provider must allow the exact redirect `<origin><basePath>/auth/callback`, and its access token must target the Catalog API audience; its ID token targets `ui.config.clientId`. Register additional API scopes under `ui.config.scopes` when required. For feedback with API scope enforcement, request `catalog.read` and `feedback.write`; administrator triage also needs `tenant.admin`. Saved items and named searches need `catalog.read` for reads and `personal.write` for saves, updates and removals. These scopes must be allowed by the issuer and never grant Catalog roles. `openid` is added automatically; offline refresh is not supported.
 
 Apply the values through the [coordinated install or upgrade procedure](#install-or-upgrade). Include the required backend configuration and database Secrets. `ui.config.upstream` defaults to this release's API Service; set an explicit fixed origin only when the API is elsewhere. An image digest takes precedence over a tag. Empty image tags use the chart appVersion, with build metadata normalized as in the backend image. Node selection, tolerations, affinity and image-pull Secrets use the chart's existing settings; UI replicas, resources and Pod annotations are separate under `ui`.
@@ -351,6 +353,7 @@ Apply the values through the [coordinated install or upgrade procedure](#install
 | --- | --- |
 | `ui.config.origin` | Exact browser origin. Production requires HTTPS. The reverse proxy must preserve Host and Origin. |
 | `ui.config.basePath` | Empty or a path such as `/catalog`, without a trailing slash. `/docs` and its descendants are reserved for the packaged manual. Do not strip the base path at ingress. |
+| `ui.config.publicDiscoveryEnabled` | Default `false`. Enables public `/discover` under the UI base path. Requires an active anonymous publication bound to the hostname in the fixed API upstream. |
 | `ui.config.documentationUrl` | Empty selects the bundled manual at `/docs/`. Optional credential-free HTTPS override, without query or fragment. Changes roll UI Pods; external availability does not affect readiness. |
 | `ui.apiCAConfigMap`, `ui.issuerCAConfigMap` | Optional separate existing ConfigMaps, each with `ca.pem`, scoped to the named transport. |
 | `ui.ingress.enabled` | Render a standard TLS Ingress. Also set `host`, `tlsSecretName` and optional `className`/`annotations`. The host must match the configured HTTPS origin. Helm hook and retention annotations are reserved. Path-rewrite annotations are unsupported. |

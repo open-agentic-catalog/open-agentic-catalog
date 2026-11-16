@@ -91,6 +91,8 @@ ui:
     responseBytes: 16777216
     timeoutSeconds: 60
     authMode: oidc
+    # Public browser on the same API authority; does not create a publication.
+    publicDiscoveryEnabled: false
     issuer: ""
     clientId: ""
     scopes: []

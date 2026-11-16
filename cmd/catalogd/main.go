@@ -288,7 +288,10 @@ func serveHTTP(server *http.Server) error {
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}
-	return err
+	if errors.Is(err, syscall.EADDRINUSE) {
+		return safeerr.At("listener.address-in-use", err)
+	}
+	return safeerr.At("listener", err)
 }
 
 // superviseDependency retries only explicitly classified dependency outages.

@@ -182,6 +182,12 @@ func (s *Server) routeFamily(p string) string {
 	if strings.HasPrefix(p, "/_catalog/") {
 		return "catalog"
 	}
+	if strings.HasPrefix(p, "/_discovery/") {
+		return "discovery"
+	}
+	if p == "/discover" && s.config.PublicDiscoveryEnabled {
+		return "navigation"
+	}
 	if strings.HasPrefix(p, "/assets/") {
 		return "assets"
 	}
