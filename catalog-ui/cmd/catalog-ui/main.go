@@ -116,6 +116,9 @@ func serve(ctx context.Context, server uiListener, drain func()) error {
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
+		if errors.Is(err, syscall.EADDRINUSE) {
+			return safeerr.At("listener.address-in-use", safeerr.New("UI listener failed"))
+		}
 		return safeerr.New("UI listener failed")
 	case <-ctx.Done():
 		drain()

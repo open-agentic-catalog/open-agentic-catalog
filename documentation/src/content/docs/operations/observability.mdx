@@ -656,6 +656,8 @@ Application logs are not sent through the trace exporter or copied into span eve
 
 ### Current safety and interpretation limits
 
+An occupied API, worker or UI listener reports the fixed stage `listener.address-in-use` without its address or operating-system error text. Other API/worker listener failures use `listener`. The service exits; the deployment or operator must resolve the port conflict before restarting it.
+
 Terminal reporters do not print unreviewed dependency errors or recovered panic values. Configuration and usage failures retain reviewed guidance. Unknown causes use a fixed message while internal `errors.Is`/`errors.As` classification remains available. Flag errors cannot print supplied values through the standard flag package, and help omits potentially private environment-derived defaults. Malformed PostgreSQL connection strings, including unterminated quoted passwords and invalid URI/options, are covered by compiled-command regressions. Keep logs access-controlled because even safe operational metadata can be private.
 
 API, worker operations and UI listeners explicitly sanitize standard HTTP fallback diagnostics. The API keeps its existing safe problem response, request correlation, command abort and late-response handling. Other host requests abort the connection on panic. An already committed response is not completed with a misleading second error body.

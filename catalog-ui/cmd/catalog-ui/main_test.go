@@ -14,11 +14,13 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/catalog-ui/internal/web"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/safeerr"
 )
 
 type listenerFixture struct {
@@ -144,13 +146,15 @@ func TestRunHostListenerHandoff(t *testing.T) {
 // TestServeListenerCompletion preserves clean close and sanitizes unexpected listener failures.
 func TestServeListenerCompletion(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		err  error
-		want string
+		name  string
+		err   error
+		want  string
+		stage string
 	}{
 		{name: "closed", err: http.ErrServerClosed},
 		{name: "wrapped closed", err: fmt.Errorf("listener: %w", http.ErrServerClosed)},
 		{name: "failure", err: errors.New("private-listener-diagnostic"), want: "UI listener failed"},
+		{name: "occupied", err: fmt.Errorf("private-listener-diagnostic: %w", syscall.EADDRINUSE), want: "UI listener failed", stage: "listener.address-in-use"},
 		{name: "unexpected nil", want: "UI listener failed"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -163,6 +167,9 @@ func TestServeListenerCompletion(t *testing.T) {
 			err := serve(t.Context(), listener, func() { calls++ })
 			if (tc.want == "" && err != nil) || (tc.want != "" && (err == nil || err.Error() != tc.want)) || calls != 0 {
 				t.Fatalf("result=%v, unexpected shutdown/drain/close calls=%d", err, calls)
+			}
+			if tc.stage != "" && safeerr.Stage(err) != tc.stage {
+				t.Fatalf("listener stage=%q want=%q", safeerr.Stage(err), tc.stage)
 			}
 		})
 	}

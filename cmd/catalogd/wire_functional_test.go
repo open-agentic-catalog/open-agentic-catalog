@@ -10,11 +10,26 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/safeerr"
 )
+
+// TestOccupiedListenerKeepsItsCauseAndSafeStage uses a real bind refusal.
+func TestOccupiedListenerKeepsItsCauseAndSafeStage(t *testing.T) {
+	holder, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = holder.Close() }()
+	err = serveHTTP(&http.Server{Addr: holder.Addr().String(), ReadHeaderTimeout: time.Second})
+	if !errors.Is(err, syscall.EADDRINUSE) || safeerr.Stage(err) != "listener.address-in-use" {
+		t.Fatalf("occupied listener: stage=%q cause retained=%v", safeerr.Stage(err), errors.Is(err, syscall.EADDRINUSE))
+	}
+}
 
 func TestConfiguredListenersBoundWireHeadersAndRecover(t *testing.T) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })

@@ -87,31 +87,45 @@ export function startupFailureDiagnostic(text) {
       return;
   } else {
     const terminal =
-      /^time=\S{1,64} level=ERROR msg=(?:"(?:[^"\\]|\\.)*"|[^\s"]+) service=catalog-ui role=(?:ui|unknown) environment=(?:development|production|unknown) version=[A-Za-z0-9._+-]{1,128} event=process\.failed component=process command=catalog-ui stage=(configuration|host_initialization|listener) error_code=(INTERNAL|INTERNAL_PANIC) error_type=\*?[A-Za-z0-9_.]{1,128}$/.exec(
+      /^time=\S{1,64} level=ERROR msg=(?:"(?:[^"\\]|\\.)*"|[^\s"]+) service=(catalog-ui|open-agentic-catalog) role=(ui|all|api|worker|unknown) environment=(?:development|production|unknown) version=[A-Za-z0-9._+-]{1,128} event=process\.failed component=process command=(catalog-ui|catalogd) stage=([a-z._-]+) error_code=(INTERNAL|INTERNAL_PANIC) error_type=\*?[A-Za-z0-9_.]{1,128}$/.exec(
         line,
       );
     if (terminal)
       failure = {
         level: "ERROR",
-        service: "catalog-ui",
-        role: "ui",
+        service: terminal[1],
+        role: terminal[2],
         event: "process.failed",
         component: "process",
-        command: "catalog-ui",
-        stage: terminal[1],
-        error_code: terminal[2],
+        command: terminal[3],
+        stage: terminal[4],
+        error_code: terminal[5],
       };
   }
   if (
     failure?.level === "ERROR" &&
-    failure.service === "catalog-ui" &&
-    ["ui", "unknown"].includes(failure.role) &&
+    ((failure.service === "catalog-ui" &&
+      failure.command === "catalog-ui" &&
+      ["ui", "unknown"].includes(failure.role) &&
+      [
+        "configuration",
+        "host_initialization",
+        "listener",
+        "listener.address-in-use",
+        "panic",
+      ].includes(failure.stage)) ||
+      (failure.service === "open-agentic-catalog" &&
+        failure.command === "catalogd" &&
+        ["all", "api", "worker", "unknown"].includes(failure.role) &&
+        [
+          "startup",
+          "command",
+          "listener",
+          "listener.address-in-use",
+          "panic",
+        ].includes(failure.stage))) &&
     failure.event === "process.failed" &&
     failure.component === "process" &&
-    failure.command === "catalog-ui" &&
-    ["configuration", "host_initialization", "listener"].includes(
-      failure.stage,
-    ) &&
     ["INTERNAL", "INTERNAL_PANIC"].includes(failure.error_code)
   )
     return { operationStage: failure.stage, errorCode: failure.error_code };
@@ -246,8 +260,8 @@ export async function stopProcess(process) {
 }
 
 // Use dynamic/private ports: the host's ephemeral range can include ports
-// blocked by browser/Node fetch. Reserve three together. A later bind race fails startup; it
-// must never trigger reuse of another process or cleanup of its listener.
+// blocked by browser/Node fetch. Reserve three together. A later bind race can
+// only replace our unseeded fixture; it never reuses or stops another listener.
 export async function localPorts(choosePort = () => randomInt(49152, 65536)) {
   const servers = [];
   try {
@@ -277,6 +291,23 @@ export async function localPorts(choosePort = () => randomInt(49152, 65536)) {
   }
 }
 
+/** Mark only a confirmed owned bind collision, without retaining process text. */
+function startupExit(process, description) {
+  const diagnostic = JSON.parse(process.diagnostics());
+  const error = new Error(`${description}: ${JSON.stringify(diagnostic)}`);
+  if (
+    diagnostic.exitCode === 1 &&
+    diagnostic.signal === null &&
+    diagnostic.spawnError === "none" &&
+    diagnostic.truncated === false &&
+    diagnostic.stderr === "classified" &&
+    diagnostic.operationStage === "listener.address-in-use" &&
+    diagnostic.errorCode === "INTERNAL"
+  )
+    error.code = "FIXTURE_ADDRESS_IN_USE";
+  return error;
+}
+
 /** Poll bounded health reads while checking that the owned listener remains alive. */
 export async function ready(origin, process, policy) {
   let lastResult = "no response";
@@ -292,8 +323,9 @@ export async function ready(origin, process, policy) {
       process.child.signalCode !== null
     ) {
       await process.done;
-      throw new Error(
-        `Owned browser fixture exited before readiness: ${process.diagnostics()}`,
+      throw startupExit(
+        process,
+        "Owned browser fixture exited before readiness",
       );
     }
     try {
@@ -320,9 +352,7 @@ export async function ready(origin, process, policy) {
         )
           return;
         await process.done;
-        throw new Error(
-          `Owned listener failed to bind: ${process.diagnostics()}`,
-        );
+        throw startupExit(process, "Owned listener failed to bind");
       }
     } catch (error) {
       // Record only a fixed transport category, never response bodies or logs.
@@ -339,8 +369,20 @@ export async function ready(origin, process, policy) {
   );
 }
 
-/** Create and verify an isolated service/UI pair; return cleanup and fixture-only API helpers. */
-export async function startCatalog(
+/** Replace only an unseeded owned fixture after a confirmed bind race, at most three times. */
+export async function startCatalog(buildDirectory, root, basePath, options) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await startCatalogAttempt(buildDirectory, root, basePath, options);
+    } catch (error) {
+      if (error?.code !== "FIXTURE_ADDRESS_IN_USE" || attempt === 2)
+        throw error;
+    }
+  }
+}
+
+/** Verify both owned listeners before seeding; dispose every failed attempt before returning. */
+async function startCatalogAttempt(
   buildDirectory,
   root,
   basePath,
@@ -654,35 +696,6 @@ with output.open("x") as receipt:
       throw new Error(
         "Browser fixture API ownership check failed; refusing to seed",
       );
-    const receiptPath = join(directory, "demo.json");
-    const seed = startProcess(
-      join(buildDirectory, "catalogctl"),
-      [
-        "seed-demo",
-        "--sample-set",
-        curated ? "curated" : artwork ? "artwork" : "minimal",
-        ...(curated ? ["--data-file", join(root, "samples/catalog.yaml")] : []),
-        ...(artwork || curated
-          ? [
-              "--archive-origin",
-              new URL(archive.url).origin,
-              "--archive-trust-file",
-              artworkTrustBundle,
-            ]
-          : []),
-        "--base-url",
-        apiOrigin,
-        "--state-file",
-        receiptPath,
-        "--timeout",
-        `${(policy?.seed ?? 30000) / 1000}s`,
-      ],
-      { cwd: root },
-    );
-    processes.push(seed);
-    if ((await seed.done) !== 0)
-      throw new Error(`Owned demo seed failed: ${seed.diagnostics()}`);
-    const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
     const keysFile = await json("keys.json", [
       {
         hash: randomBytes(64).toString("hex"),
@@ -728,6 +741,36 @@ with output.open("x") as receipt:
         `https://fixture.invalid/${basename(directory)}`
     )
       throw new Error("Browser fixture UI ownership check failed");
+    // Both listeners belong to this attempt before demo-data seeding.
+    const receiptPath = join(directory, "demo.json");
+    const seed = startProcess(
+      join(buildDirectory, "catalogctl"),
+      [
+        "seed-demo",
+        "--sample-set",
+        curated ? "curated" : artwork ? "artwork" : "minimal",
+        ...(curated ? ["--data-file", join(root, "samples/catalog.yaml")] : []),
+        ...(artwork || curated
+          ? [
+              "--archive-origin",
+              new URL(archive.url).origin,
+              "--archive-trust-file",
+              artworkTrustBundle,
+            ]
+          : []),
+        "--base-url",
+        apiOrigin,
+        "--state-file",
+        receiptPath,
+        "--timeout",
+        `${(policy?.seed ?? 30000) / 1000}s`,
+      ],
+      { cwd: root },
+    );
+    processes.push(seed);
+    if ((await seed.done) !== 0)
+      throw new Error(`Owned demo seed failed: ${seed.diagnostics()}`);
+    const receipt = JSON.parse(await readFile(receiptPath, "utf8"));
     // Prerequisite setup stays outside the browser, but always targets this
     // verified owned API. Actions under test still use visible UI controls.
     const admin = async (method, path, body, etag, actor = "local-admin") => {

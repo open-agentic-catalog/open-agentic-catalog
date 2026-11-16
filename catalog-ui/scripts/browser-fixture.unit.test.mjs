@@ -10,6 +10,7 @@ import {
   runtimeEnvironment,
   startCatalog,
   startupFailureDiagnostic,
+  ready,
 } from "./browser-fixture.mjs";
 
 test("demo startup stages accept only complete fixed messages", () => {
@@ -147,6 +148,99 @@ test("Go UI startup diagnostics project only reviewed stage/code pairs from both
     "[]\n",
   ])
     assert.equal(startupFailureDiagnostic(line), undefined);
+});
+
+test("backend startup diagnostics retain fixed stages without private causes", () => {
+  for (const role of ["all", "api", "worker", "unknown"])
+    for (const stage of [
+      "startup",
+      "command",
+      "listener",
+      "listener.address-in-use",
+      "panic",
+    ]) {
+      const record = {
+        time: "2026-01-01T00:00:00Z",
+        level: "ERROR",
+        msg: "PRIVATE_SENTINEL",
+        service: "open-agentic-catalog",
+        role,
+        environment: "development",
+        version: "fixture",
+        event: "process.failed",
+        component: "process",
+        command: "catalogd",
+        stage,
+        error_code: stage === "panic" ? "INTERNAL_PANIC" : "INTERNAL",
+        error_type: "diagnostics.formattedError",
+      };
+      assert.deepEqual(
+        startupFailureDiagnostic(JSON.stringify(record) + "\n"),
+        {
+          operationStage: stage,
+          errorCode: record.error_code,
+        },
+      );
+      for (const change of [
+        { role: "PRIVATE_SENTINEL" },
+        { service: "catalog-ui" },
+        { command: "catalogctl" },
+        { stage: "PRIVATE_SENTINEL" },
+        { detail: "PRIVATE_SENTINEL" },
+      ])
+        assert.equal(
+          startupFailureDiagnostic(
+            JSON.stringify({ ...record, ...change }) + "\n",
+          ),
+          undefined,
+        );
+    }
+});
+
+test("only a complete confirmed owned bind refusal can replace a startup attempt", async (t) => {
+  const fetch = t.mock.method(globalThis, "fetch", () => {
+    throw new Error("An exited fixture must make no readiness request");
+  });
+  const diagnostic = {
+    exitCode: 1,
+    signal: null,
+    spawnError: "none",
+    stderr: "classified",
+    truncated: false,
+    operationStage: "listener.address-in-use",
+    errorCode: "INTERNAL",
+  };
+  for (const change of [
+    null,
+    { operationStage: "startup" },
+    { errorCode: "INTERNAL_PANIC" },
+    { stderr: "address-in-use" },
+    { exitCode: 2 },
+    { signal: "SIGTERM" },
+    { spawnError: "EACCES" },
+    { truncated: true },
+  ]) {
+    const projection = { ...diagnostic, ...change };
+    await assert.rejects(
+      ready("http://uncontacted.invalid", {
+        child: {
+          pid: 1,
+          exitCode: projection.exitCode,
+          signalCode: projection.signal,
+        },
+        done: Promise.resolve(projection.exitCode),
+        diagnostics: () => JSON.stringify(projection),
+      }),
+      (error) => {
+        assert.equal(
+          error.code,
+          change === null ? "FIXTURE_ADDRESS_IN_USE" : undefined,
+        );
+        return true;
+      },
+    );
+  }
+  assert.equal(fetch.mock.callCount(), 0);
 });
 
 test("runtime fixtures cannot inherit a configured database, identity or target", () => {
