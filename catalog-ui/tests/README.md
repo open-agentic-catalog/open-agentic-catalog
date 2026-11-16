@@ -447,7 +447,7 @@ Image notices ship in the Containerfile. Inspection and SPDX targets read the se
 
 Overview qualification checks each tab's fixed summary requests, keyboard refresh, narrow layouts, enlarged text and forced-color bars at root and subpath. Empty sections omit zero-count charts. Jobs use one state table. Review controls switch between the graph and daily outcomes without new reads. The controlled review fixture verifies SVG fill and outline colors, native text axes and narrow layouts. Its manual capture shows the complete Content tab without changing retained data. Real response, permission and timestamp checks remain separate from synthetic visual fixtures.
 
-Use accessible roles/names, observable completion and persisted readback. Retries are disabled. Repeat new or repaired journeys with `npm run test:browser -- --grep 'journey name' --repeat-each=2`, then run the full gate. Exact response listeners must be attached before triggering refresh/commands; wait for the corresponding render before entering more input.
+Use accessible roles/names, observable completion and persisted readback. Retries are disabled. Repeat new or repaired journeys with `npm run test:browser -- --grep 'journey name' --repeat-each=2`, then run the full gate. Exact response listeners must be attached before triggering refresh/commands; wait for the corresponding render before entering more input or reloading.
 
 [network-readiness.mjs](../scripts/network-readiness.mjs) waits for two seconds of stable host interface addresses within a fifteen-second monotonic budget before packaged browser startup and after deliberate topology changes. It does not disable browser network detection or retry failed mutations. Helpers use injected clocks for their own tests.
 
