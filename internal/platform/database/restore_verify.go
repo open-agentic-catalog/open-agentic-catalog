@@ -25,7 +25,7 @@ import (
 
 const (
 	RestoreVerificationFormatVersion   = 1
-	RestoreVerificationCheckSetVersion = 7
+	RestoreVerificationCheckSetVersion = 8
 	DefaultRestoreVerificationLimit    = 100
 	MaxRestoreVerificationLimit        = 1000
 	MaxRestoreVerificationCursorBytes  = 4096
@@ -113,6 +113,8 @@ type expectedRestoreTrigger struct {
 }
 
 var expectedRestoreTriggers = map[string]expectedRestoreTrigger{
+	"shared_collections_guard":            {"shared_collections", "guard_shared_collection", []string{"before insert or update"}},
+	"shared_collection_members_guard":     {"shared_collection_members", "guard_shared_collection_member", []string{"before insert or update"}},
 	"publisher_domain_verification_guard": {"publisher_domain_verifications", "guard_publisher_domain_verification", []string{"before insert or delete or update"}},
 	"publishers_verification_domains":     {"publishers", "clear_removed_publisher_domains", []string{"after update"}},
 	"personal_items_guard":                {"personal_items", "guard_personal_item", []string{"before insert or update"}},

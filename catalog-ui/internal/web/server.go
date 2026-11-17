@@ -351,7 +351,7 @@ func clientNavigation(relative string) bool {
 		return len(parts) == 1 || caseIdentifier.MatchString(parts[1])
 	case "overview", "my-work", "about", "getting-started", "troubleshooting", "settings", "indexed-record":
 		return len(parts) == 1
-	case "saved-items", "trust-assessments", "access-roles", "access-groups", "access-assignments", "namespaces", "publishers", "jobs", "resources", "versions", "version-revisions", "listings", "listing-revisions", "reviews", "releases", "members", "publication", "audit", "explore", "webhooks", "sources", "inspections", "source-snapshots", "observations", "observation-group", "federation-search":
+	case "collections", "saved-items", "trust-assessments", "access-roles", "access-groups", "access-assignments", "namespaces", "publishers", "jobs", "resources", "versions", "version-revisions", "listings", "listing-revisions", "reviews", "releases", "members", "publication", "audit", "explore", "webhooks", "sources", "inspections", "source-snapshots", "observations", "observation-group", "federation-search":
 		return len(parts) == 1 || parts[1] != ""
 	default:
 		return false

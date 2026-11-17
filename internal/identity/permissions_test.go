@@ -29,7 +29,7 @@ func TestPermissionRegistryMatchesAcceptedOracleAndReturnsDetachedData(t *testin
 		t.Fatal(err)
 	}
 	descriptors := Permissions()
-	if len(descriptors) != 50 || len(descriptors) != len(oracle.Permissions) {
+	if len(descriptors) != 52 || len(descriptors) != len(oracle.Permissions) {
 		t.Fatal("registry changed without reviewed oracle")
 	}
 	seen := map[Permission]bool{}

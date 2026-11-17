@@ -21,6 +21,7 @@ import (
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/artwork"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/collections"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/draftfile"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/feedback"
@@ -51,6 +52,7 @@ type Dependencies struct {
 	AuthIssuer           string
 	TenantSettings       *tenantsettings.Service
 	PersonalStore        personal.Store
+	CollectionStore      collections.Store
 	RatingsStore         ratings.Store
 	Artwork              *artwork.Service
 	MediaPolicyDigest    string
@@ -125,6 +127,7 @@ type Server struct {
 	federation           *federation.Manager
 	jobs                 *jobs.Service
 	personal             *personal.Service
+	collections          *collections.Service
 	feedback             *feedback.Service
 	webhooks             *webhook.Service
 	capabilities         CapabilitySnapshot
@@ -207,6 +210,12 @@ func New(dependencies Dependencies) (*Server, error) {
 		discovery[host] = binding
 	}
 	server := &Server{tenantSettings: dependencies.TenantSettings, artwork: dependencies.Artwork, mediaPolicyDigest: dependencies.MediaPolicyDigest, process: dependencies.Process, role: dependencies.Role, feedback: dependencies.Feedback, catalog: dependencies.Catalog, catalogSearch: catalogSearch, identity: dependencies.Identity, federation: dependencies.Federation, jobs: dependencies.Jobs, webhooks: dependencies.Webhooks, capabilities: capabilities, authenticator: dependencies.Authenticator, publicationOverview: dependencies.PublicationOverview, discovery: discovery, maxBodyBytes: dependencies.MaxBodyBytes, requestTimeout: dependencies.RequestTimeout, serviceVersion: dependencies.ServiceVersion, commit: dependencies.Commit, sourceState: buildinfo.State(dependencies.SourceState), ardProfile: dependencies.ARDProfile, aiCatalogProfile: dependencies.AICatalogProfile, profileBundleDigest: dependencies.ProfileBundleDigest, profileArtifactCount: dependencies.ProfileArtifactCount, enforceOAuthScopes: dependencies.EnforceOAuthScopes, readiness: dependencies.Readiness, logger: dependencies.Logger, cursorKey: append([]byte(nil), dependencies.CursorKey...), now: dependencies.Now, observability: dependencies.Observability}
+	if dependencies.CollectionStore != nil {
+		server.collections, err = collections.New(dependencies.CollectionStore, ratingClock{now: dependencies.Now}, id.Generator{})
+		if err != nil {
+			return nil, err
+		}
+	}
 	if dependencies.PersonalStore != nil {
 		server.personal, err = personal.New(dependencies.PersonalStore, personalAuthority{local: dependencies.Catalog, federation: dependencies.Federation}, ratingClock{now: dependencies.Now}, id.Generator{})
 		if err != nil {
@@ -316,6 +325,7 @@ func (s *Server) routes(router *http.ServeMux) {
 		router.Handle("/mcp", s.mcp)
 		router.Handle(mcpMetadataPath, s.mcp)
 	}
+	s.collectionRoutes(router)
 	s.personalRoutes(router)
 	s.feedbackRoutes(router)
 	s.ratingsRoutes(router)

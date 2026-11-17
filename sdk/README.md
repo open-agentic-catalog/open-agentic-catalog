@@ -32,6 +32,8 @@ Resource definition highlighting belongs to the [Catalog UI](../documentation/sr
 
 Keep the returned cursor when a page budget stops traversal. An empty page can still have a continuation. Use the same query, filters, page size and identity when you resume. Inspect partial-result diagnostics before treating a result set as complete.
 
+All four generated clients support [shared collections](../documentation/src/content/docs/guides/integrating.mdx#curate-shared-local-collections): create, list, read, update and delete metadata, plus add, list and remove members. Keep command keys for exact retries and use the current parent ETag for each new mutation. Member reads follow current eligible releases and apply the caller's target permissions. Use the Catalog UI or an SDK for these workflows; catalogctl and the VS Code extension do not currently provide collection commands or views.
+
 ## Connect safely
 
 Connect to the Catalog API origin, not the optional UI host. Your application supplies its access token. The SDKs do not use the UI's login cookie or acquire credentials automatically. The examples use placeholder origins, tokens and IDs; replace them with your selected Catalog inputs.

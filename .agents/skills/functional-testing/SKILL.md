@@ -21,6 +21,14 @@ Trace how failures cross the actual boundary: partial commits, retries, cancella
 
 Own loopback listeners, temporary directories, processes and disposable environments. Use bounded readiness checks and deadlines, capture useful redacted diagnostics, and clean only invocation-owned resources on success and failure. Never reset retained development data or point a mutating smoke test at a shared service without the required authorization. Functional-test scope does not authorize unrelated hosted services, peer implementations or publication. Run packaged browser gates serially without concurrent Compose/Minikube network changes.
 
+## Investigate intermittent failures
+
+Use bounded repetition of an affected intermittent functional or browser case through the existing runner, with automatic test retries disabled. Choose repetition according to the observed failure rate and available execution budget. Preserve failed attempts, then run the applicable complete suite after a repair. Do not routinely repeat every suite.
+
+Distinguish application failures from failures in test observation. A browser tool failing to retrieve a response body does not by itself establish an incorrect response or blank page. Inspect the actual exchange, rendered state, console errors and failed requests before classifying the problem.
+
+Repairs to response capture or synchronization must preserve the real application exchange and original behavioral assertions. Do not substitute synthetic success responses or remove negative controls to stabilize a test.
+
 ## Run the owning gate
 
 | Scope | Existing gate |

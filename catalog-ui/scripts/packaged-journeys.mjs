@@ -2859,6 +2859,17 @@ export async function packagedJourneys({
   expect(counters.deliveryLossCount).toBe(1);
   await expect(field("Signing secret")).toHaveCount(0);
   expect(await page.evaluate(() => Object.keys(sessionStorage))).toEqual([]);
+  phase("compose-shared-collections");
+  await sharedCollectionsJourney({
+    page,
+    origin,
+    visit,
+    login,
+    button,
+    field,
+    link,
+    command,
+  });
   phase("compose-independent-publication");
   await publicationJourney({
     page,
@@ -4245,4 +4256,69 @@ async function declaredMCPToolsJourney({
   console.log(
     "Packaged declared-tool Search, exact revision readback and CLI passed",
   );
+}
+
+// Join the real packaged UI/API and PostgreSQL through ordinary user controls.
+async function sharedCollectionsJourney({
+  page,
+  origin,
+  visit,
+  login,
+  button,
+  field,
+  link,
+  command,
+}) {
+  await login("local-contributor");
+  const record = await page.evaluate(async (endpoint) => {
+    const reply = await fetch(endpoint, {
+      headers: { "X-Catalog-Request": "1" },
+    });
+    if (!reply.ok) throw new Error("Collection fixture Catalog read failed");
+    return (await reply.json()).items[0];
+  }, origin + "/_catalog/api/v1/catalog/resources?limit=1");
+  expect(record?.release?.id).toMatch(/^[0-9a-f-]{36}$/);
+  await visit("/collections/new");
+  await page
+    .getByRole("combobox", { name: "Owner namespace", exact: true })
+    .selectOption(record.listing.namespaceId);
+  const name = "Packaged shared collection";
+  await field("Name").fill(name);
+  await field("Description").fill("Current entries selected by this team.");
+  await command("Review collection");
+  await link("Open collection").click();
+  await expect(page.getByRole("heading", { name, exact: true })).toBeVisible();
+  const collectionURL = page.url();
+  await visit("/catalog/" + record.release.id);
+  await button("Add to collection").click();
+  await page
+    .getByRole("combobox", { name: "Destination collection", exact: true })
+    .selectOption(new URL(collectionURL).pathname.split("/").at(-1));
+  await command("Review addition");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Entry added to collection." }),
+  ).toBeVisible();
+  await page.goto(collectionURL);
+  await expect(link(record.listingRevision.displayName)).toBeVisible();
+  await expect(page.locator(".resource-card")).toHaveCount(1);
+  await login("local-reader");
+  await page.goto(collectionURL);
+  await expect(link(record.listingRevision.displayName)).toBeVisible();
+  await expect(button("Remove from collection")).toHaveCount(0);
+  await expect(button("Delete collection")).toHaveCount(0);
+  await login("local-contributor");
+  await page.goto(collectionURL);
+  await command("Remove from collection");
+  await expect(page.locator(".resource-card")).toHaveCount(0);
+  await command("Delete collection");
+  await expect(page.getByRole("status")).toHaveText(
+    "Collection deleted. Source entries remain unchanged.",
+  );
+  await visit("/catalog/" + record.release.id);
+  await expect(
+    page.getByRole("heading", {
+      name: record.listingRevision.displayName,
+      exact: true,
+    }),
+  ).toBeVisible();
 }

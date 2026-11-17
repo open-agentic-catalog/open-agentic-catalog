@@ -580,6 +580,11 @@ pub enum ActivatePublicationSnapshotApiError {
 pub enum AddAccessGroupMemberApiError {
     Default(Problem),
 }
+///Typed error responses for `addCollectionMember`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum AddCollectionMemberApiError {
+    Default(Problem),
+}
 ///Typed error responses for `addressFeedback`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum AddressFeedbackApiError {
@@ -672,6 +677,11 @@ pub enum CreateAccessGroupApiError {
 pub enum CreateCatalogListingApiError {
     Default(Problem),
 }
+///Typed error responses for `createCollection`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum CreateCollectionApiError {
+    Default(Problem),
+}
 ///Typed error responses for `createFeedback`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum CreateFeedbackApiError {
@@ -720,6 +730,11 @@ pub enum CreateVersionRevisionApiError {
 ///Typed error responses for `createWebhook`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum CreateWebhookApiError {
+    Default(Problem),
+}
+///Typed error responses for `deleteCollection`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum DeleteCollectionApiError {
     Default(Problem),
 }
 ///Typed error responses for `deletePersonalItem`. One variant per declared non-2xx response.
@@ -823,6 +838,11 @@ pub enum GetCatalogMcpoAuthMetadataApiError {
 ///Typed error responses for `getCatalogRecord`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum GetCatalogRecordApiError {
+    Default(Problem),
+}
+///Typed error responses for `getCollection`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum GetCollectionApiError {
     Default(Problem),
 }
 ///Typed error responses for `getCurrentAccess`. One variant per declared non-2xx response.
@@ -1125,6 +1145,16 @@ pub enum ListArtworkOverrideHistoryApiError {
 pub enum ListAuditEventsApiError {
     Default(Problem),
 }
+///Typed error responses for `listCollectionMembers`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum ListCollectionMembersApiError {
+    Default(Problem),
+}
+///Typed error responses for `listCollections`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum ListCollectionsApiError {
+    Default(Problem),
+}
 ///Typed error responses for `listCurrentAccess`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ListCurrentAccessApiError {
@@ -1369,6 +1399,11 @@ pub enum ReindexCatalogApiError {
 pub enum RejectReviewSubmissionApiError {
     Default(Problem),
 }
+///Typed error responses for `removeCollectionMember`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum RemoveCollectionMemberApiError {
+    Default(Problem),
+}
 ///Typed error responses for `removeFederationSource`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum RemoveFederationSourceApiError {
@@ -1539,6 +1574,11 @@ pub enum UnpublishCatalogApiError {
 ///Typed error responses for `updateAccessGroup`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum UpdateAccessGroupApiError {
+    Default(Problem),
+}
+///Typed error responses for `updateCollection`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum UpdateCollectionApiError {
     Default(Problem),
 }
 ///Typed error responses for `updateFederationSource`. One variant per declared non-2xx response.
@@ -1734,6 +1774,89 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(AddAccessGroupMemberApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Add a current local Listing reference
+    ///
+    /// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+    ///
+    /// `POST /api/v1/collections/{collectionId}/members`
+    pub async fn add_collection_member(
+        &self,
+        collection_id: impl AsRef<str>,
+        idempotency_key: impl AsRef<str>,
+        if_match: impl AsRef<str>,
+        request: AddCollectionMember,
+    ) -> Result<Response<CollectionReceipt>, ApiOpError<AddCollectionMemberApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/collections/{}/members",
+                __pct_encode_path_segment(collection_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.post(request_url);
+        req = req
+            .body(serde_json::to_vec(&request).map_err(HttpError::serialization_error)?)
+            .header("content-type", "application/json");
+        req = req.header("Idempotency-Key", idempotency_key.as_ref());
+        req = req.header("If-Match", if_match.as_ref());
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 201u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "201",
+                )),
+            }))
+        } else {
+            let typed: Option<AddCollectionMemberApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(AddCollectionMemberApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {
@@ -3229,6 +3352,79 @@ impl Client {
             }))
         }
     }
+    /// Create a namespace-owned collection
+    ///
+    /// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+    ///
+    /// `POST /api/v1/collections`
+    pub async fn create_collection(
+        &self,
+        idempotency_key: impl AsRef<str>,
+        request: CreateCollection,
+    ) -> Result<Response<CollectionReceipt>, ApiOpError<CreateCollectionApiError>> {
+        let request_url = format!("{}{}", self.base_url, "/api/v1/collections");
+        let mut req = self.http_client.post(request_url);
+        req = req
+            .body(serde_json::to_vec(&request).map_err(HttpError::serialization_error)?)
+            .header("content-type", "application/json");
+        req = req.header("Idempotency-Key", idempotency_key.as_ref());
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 201u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "201",
+                )),
+            }))
+        } else {
+            let typed: Option<CreateCollectionApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CreateCollectionApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
     /// Submit private item feedback
     ///
     /// Requires active human membership with feedback.own and feedback.write scope when enforced, plus resource.read in the selected namespace for a new submission. Derives submitter identity and exact release context. All four local kinds qualify; indexed/live observations do not. Text is limited to 4000 Unicode characters and bodies to 64 KiB. Eight concurrent writes per API process are admitted; busy attempts return 503 and can be retried. This is not a shared quota.
@@ -3969,6 +4165,85 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(CreateWebhookApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Delete a collection and its memberships
+    ///
+    /// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+    ///
+    /// `DELETE /api/v1/collections/{collectionId}`
+    pub async fn delete_collection(
+        &self,
+        collection_id: impl AsRef<str>,
+        idempotency_key: impl AsRef<str>,
+        if_match: impl AsRef<str>,
+    ) -> Result<Response<CollectionReceipt>, ApiOpError<DeleteCollectionApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/collections/{}",
+                __pct_encode_path_segment(collection_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.delete(request_url);
+        req = req.header("Idempotency-Key", idempotency_key.as_ref());
+        req = req.header("If-Match", if_match.as_ref());
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<DeleteCollectionApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(DeleteCollectionApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {
@@ -5720,6 +5995,81 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(GetCatalogRecordApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Read shared collection metadata
+    ///
+    /// Requires a current human or service membership and collection.read in the owner namespace. Authored names/descriptions remain shared even when a mentioned target becomes unreadable. Revisions/timestamps can reveal curation activity. OAuth ceiling when enforced: catalog.read.
+    ///
+    /// `GET /api/v1/collections/{collectionId}`
+    pub async fn get_collection(
+        &self,
+        collection_id: impl AsRef<str>,
+    ) -> Result<Response<SharedCollection>, ApiOpError<GetCollectionApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/collections/{}",
+                __pct_encode_path_segment(collection_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.get(request_url);
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<GetCollectionApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(GetCollectionApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {
@@ -10740,6 +11090,180 @@ impl Client {
             }))
         }
     }
+    /// Browse currently readable collection members
+    ///
+    /// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+    ///
+    /// `GET /api/v1/collections/{collectionId}/members`
+    pub async fn list_collection_members(
+        &self,
+        collection_id: impl AsRef<str>,
+        limit: Option<i64>,
+        cursor: Option<impl AsRef<str>>,
+    ) -> Result<Response<CollectionMemberPage>, ApiOpError<ListCollectionMembersApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/collections/{}/members",
+                __pct_encode_path_segment(collection_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = limit {
+                query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = cursor {
+                query_params.push(("cursor".to_string(), v.as_ref().to_string()));
+            }
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<ListCollectionMembersApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(ListCollectionMembersApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// List readable shared collections
+    ///
+    /// Requires a current human or service membership and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.read.
+    ///
+    /// `GET /api/v1/collections`
+    pub async fn list_collections(
+        &self,
+        namespace_id: Option<impl AsRef<str>>,
+        limit: Option<i64>,
+        cursor: Option<impl AsRef<str>>,
+    ) -> Result<Response<SharedCollectionPage>, ApiOpError<ListCollectionsApiError>> {
+        let request_url = format!("{}{}", self.base_url, "/api/v1/collections");
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = namespace_id {
+                query_params.push(("namespaceId".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = limit {
+                query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = cursor {
+                query_params.push(("cursor".to_string(), v.as_ref().to_string()));
+            }
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<ListCollectionsApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(ListCollectionsApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
     /// List current effective assignment paths
     ///
     /// Requires a current active membership. Reports only the caller's current Catalog assignment paths. OAuth ceilings and operation eligibility remain separate. Group captions describe only eligible paths in the caller's identity realm and grant no group-directory access. Names are current presentation, not immutable attribution or additional authority. The signed cursor binds the actor, authorization revision and page limit. Restart pagination after authority changes.
@@ -14993,6 +15517,87 @@ impl Client {
             }))
         }
     }
+    /// Remove an exact known Listing membership
+    ///
+    /// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. No target read is required. Successful removal confirms only the selected known membership. Inaccessible targets are not listed for management. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+    ///
+    /// `DELETE /api/v1/collections/{collectionId}/members/{listingId}`
+    pub async fn remove_collection_member(
+        &self,
+        collection_id: impl AsRef<str>,
+        listing_id: impl AsRef<str>,
+        idempotency_key: impl AsRef<str>,
+        if_match: impl AsRef<str>,
+    ) -> Result<Response<CollectionReceipt>, ApiOpError<RemoveCollectionMemberApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/collections/{}/members/{}",
+                __pct_encode_path_segment(collection_id.as_ref()),
+                __pct_encode_path_segment(listing_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.delete(request_url);
+        req = req.header("Idempotency-Key", idempotency_key.as_ref());
+        req = req.header("If-Match", if_match.as_ref());
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<RemoveCollectionMemberApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(RemoveCollectionMemberApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
     /// Remove a federation source
     ///
     /// Remove a source using the current ETag, an audit reason and the digest of a matching removal preview. Observations remain historical evidence; this does not delete adopted local resources.
@@ -17734,6 +18339,89 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(UpdateAccessGroupApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Edit collection metadata
+    ///
+    /// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+    ///
+    /// `PATCH /api/v1/collections/{collectionId}`
+    pub async fn update_collection(
+        &self,
+        collection_id: impl AsRef<str>,
+        idempotency_key: impl AsRef<str>,
+        if_match: impl AsRef<str>,
+        request: UpdateCollection,
+    ) -> Result<Response<CollectionReceipt>, ApiOpError<UpdateCollectionApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/collections/{}",
+                __pct_encode_path_segment(collection_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.patch(request_url);
+        req = req
+            .body(serde_json::to_vec(&request).map_err(HttpError::serialization_error)?)
+            .header("content-type", "application/json");
+        req = req.header("Idempotency-Key", idempotency_key.as_ref());
+        req = req.header("If-Match", if_match.as_ref());
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<UpdateCollectionApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(UpdateCollectionApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {

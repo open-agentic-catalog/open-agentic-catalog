@@ -176,7 +176,7 @@ it("keeps every destination once in task order and reserves personal routes for 
     group.entries.map((entry) => entry.path),
   );
   expect(destinations).toEqual([
-    ["catalog", "overview", "explore"],
+    ["catalog", "overview", "collections", "explore"],
     ["resources", "reviews", "publication", "namespaces", "publishers"],
     [
       "service",
@@ -199,7 +199,7 @@ it("keeps every destination once in task order and reserves personal routes for 
     ["getting-started", "about", "troubleshooting", "api-reference"],
     ["access", "my-work", "saved-items", "my-ratings", "my-feedback"],
   ]);
-  expect(new Set(destinations.flat()).size).toBe(31);
+  expect(new Set(destinations.flat()).size).toBe(32);
   for (const path of [
     "access",
     "my-work",

@@ -110,13 +110,13 @@ func TestCustomPermissionSetValidation(t *testing.T) {
 			maximum = append(maximum, descriptor.Key)
 		}
 	}
-	if len(maximum) != 49 {
+	if len(maximum) != 51 {
 		t.Fatalf("delegable registry changed: %d", len(maximum))
 	}
 	if got, err := ValidateCustomPermissions(maximum); err != nil || len(got) != len(maximum) {
 		t.Fatalf("maximum custom permissions = %v, %v", got, err)
 	}
-	if _, err := ValidateCustomPermissions(append(maximum, "access.manage")); ErrorCodeOf(err) != CodeInvalidArgument || !strings.Contains(err.Error(), "1-49") {
+	if _, err := ValidateCustomPermissions(append(maximum, "access.manage")); ErrorCodeOf(err) != CodeInvalidArgument || !strings.Contains(err.Error(), "1-51") {
 		t.Fatalf("over-capacity diagnostic: %v", err)
 	}
 	v := []Permission{"resource.edit", "resource.read_content", "resource.read", "resource.read_history"}

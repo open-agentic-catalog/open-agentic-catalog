@@ -368,10 +368,16 @@ Restore verification checks the indexed license/category projection against reta
 
 ## Private saved items
 
-Back up `personal_items` with the Catalog database. Restore check set 7 verifies bounded item shapes, human membership/realm ownership, revision chronology and the per-owner quota. It reports fixed findings and item IDs without labels or query text. Stale target access and source generations do not invalidate a saved preference. Restore verification never repairs or substitutes its target.
+Back up `personal_items` with the Catalog database. Restore check set 8 verifies bounded item shapes, human membership/realm ownership, revision chronology and the per-owner quota. It reports fixed findings and item IDs without labels or query text. Stale target access and source generations do not invalidate a saved preference. Restore verification never repairs or substitutes its target.
 
 Apply the [current migrations and exact grants](database-roles.mdx) through the schema-owner maintenance workflow before restarting runtimes. Saved-item removal deletes that selected row; ordinary audit, idempotency and backup retention remain separate. An older backup can restore previously removed preferences. This feature does not establish compliance retention or backup erasure guarantees.
 
 ### Restore Publisher verification evidence
 
-Include `publisher_domain_verifications` in the full database backup. Restore check set 7 checks exact Publisher/domain binding and challenge, proof and check timestamps. Reports contain record IDs and fixed findings. They do not contain challenge values or DNS responses. Restoration does not query DNS or renew proof. Use the normal drained, schema-owner migration procedure before verification.
+Include `publisher_domain_verifications` in the full database backup. Restore check set 8 checks exact Publisher/domain binding and challenge, proof and check timestamps. Reports contain record IDs and fixed findings. They do not contain challenge values or DNS responses. Restoration does not query DNS or renew proof. Use the normal drained, schema-owner migration procedure before verification.
+
+## Shared collections after restore
+
+Back up `shared_collections` and `shared_collection_members` with the Catalog database. Restore check set 8 verifies owner namespaces, normalized text, revision chronology, same-tenant references and the 200/100/1,000 member, namespace and tenant limits. Findings identify collections without their authored text or target identities. Apply the matching owner-only migrations and exact API/worker grants before restarting runtimes.
+
+An unavailable target is valid retained membership. Verification does not require current release eligibility or reader access, make network requests or remove hidden references. Fresh authorized member reads determine what is visible after recovery. Deleting a collection later removes only its references, while ordinary audit and command receipts retain their normal history.

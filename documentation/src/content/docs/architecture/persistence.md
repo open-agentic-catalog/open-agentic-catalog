@@ -42,7 +42,7 @@ Unified Catalog Search uses one tenant-scoped, read-only PostgreSQL [repeatable-
 
 The stored `representations.agent_protocol_bindings` and `document_blobs.agent_protocol_bindings` arrays derive literal interface bindings from retained A2A bytes. Discovery joins these only through the released primary validated representation and current content authority. These are rebuildable derived data, not a replacement for immutable evidence.
 
-Migrations 000001-000051 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v29. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
+Migrations 000001-000052 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v30. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
 
 ### 000001 - Catalog foundation
 
@@ -383,3 +383,11 @@ then projects one scalar attempt reference beside the current Source. It never
 loads snapshot documents for this selection. No records, Source configuration
 revisions or runtime privileges change. Drain snapshot writers for index
 creation, use the schema owner and repair forward after a failed application.
+
+### 000052 - Shared local Listing collections
+
+Migration 000052 adds namespace-owned `shared_collections` and same-tenant `shared_collection_members`. Membership uses a composite tenant/collection/Listing key. Current metadata is read from the target release; no release pin or target document is copied. Forced RLS, parent constraints and immutable owner/revision guards protect the new state. Runtime privilege manifest v30 grants exact API columns and bounded deletion; the worker has no access.
+
+Collection creation and deletion acquire the existing scoped transaction advisory lock by tenant before quota decisions. Member edits lock their collection row. Bounded queries enforce 100 collections per namespace, 1,000 per tenant and 200 members per collection. Authorization admission precedes quota/object locks. Each mutation, audit record and retained command response commits atomically. Curation emits no public event or outbox work.
+
+Drain API and worker processes, apply the new migration with the schema owner and reconcile both exact manifests before restarting matching binaries. The migration adds the two finite collection permissions and updates the selected built-in templates for both retained and new tenants. Custom roles retain their exact permission sets. Restore check set 8 validates collection ownership, text, quotas and references without treating unreadable or currently ineligible targets as corruption. If application or grant reconciliation fails, keep runtimes stopped, correct the cause and retry forward. There is no data reset, compatibility backfill or automatic SQL rollback.

@@ -325,15 +325,41 @@
         "catalogctl:personal resume"
       ],
       "evidence": [
-        {"path": "cmd/catalogctl/personal_test.go", "symbol": "TestPersonalFileStrictContract"},
-        {"path": "cmd/catalogctl/personal_test.go", "symbol": "TestPersonalOfflinePreviewSelectionAndDestination"},
-        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalObservedEnumerationAndBounds"},
-        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalSaveDurabilityAndConservativeRecovery"},
-        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalSaveRejectsUnverifiableAcknowledgements"},
-        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalSaveRequiresDurableIntentBeforeSending"},
-        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalProgressValidatesAttemptedStates"},
-        {"path": "cmd/catalogctl/personal_functional_test.go", "symbol": "TestPersonalCLIRealAPIAndLostAcknowledgement"},
-        {"path": "test/functional/operators.py"}
+        {
+          "path": "cmd/catalogctl/personal_test.go",
+          "symbol": "TestPersonalFileStrictContract"
+        },
+        {
+          "path": "cmd/catalogctl/personal_test.go",
+          "symbol": "TestPersonalOfflinePreviewSelectionAndDestination"
+        },
+        {
+          "path": "cmd/catalogctl/personal_remote_test.go",
+          "symbol": "TestPersonalObservedEnumerationAndBounds"
+        },
+        {
+          "path": "cmd/catalogctl/personal_remote_test.go",
+          "symbol": "TestPersonalSaveDurabilityAndConservativeRecovery"
+        },
+        {
+          "path": "cmd/catalogctl/personal_remote_test.go",
+          "symbol": "TestPersonalSaveRejectsUnverifiableAcknowledgements"
+        },
+        {
+          "path": "cmd/catalogctl/personal_remote_test.go",
+          "symbol": "TestPersonalSaveRequiresDurableIntentBeforeSending"
+        },
+        {
+          "path": "cmd/catalogctl/personal_remote_test.go",
+          "symbol": "TestPersonalProgressValidatesAttemptedStates"
+        },
+        {
+          "path": "cmd/catalogctl/personal_functional_test.go",
+          "symbol": "TestPersonalCLIRealAPIAndLostAcknowledgement"
+        },
+        {
+          "path": "test/functional/operators.py"
+        }
       ],
       "reason": "The existing packaged operator journey restores selected private searches and exact release references through the shipped CLI and PostgreSQL. Native process controls qualify actual response loss on first and later selected saves, retained acknowledgements and skips, same-origin tenant refusal, and membership suspension/reactivation between saves. Units qualify strict local input, finite enumeration, durable intent before sending and unverified acknowledgement/progress refusal.",
       "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per item.",
@@ -2073,6 +2099,36 @@
       "success": "Read current authorized Resources, Listing releases, directories and distinct indexed records without hydrated documents or external calls.",
       "rejection": "Refuse missing authentication, denied tenant permissions, missing OAuth scopes and unknown query parameters. Preserve failed reads and projection repair refusals.",
       "recovery": "Refresh after grant revocation; keep independent panels usable after one read fails. Show limited counts without an incomplete distribution or an invented identity lower bound.",
+      "gaps": []
+    },
+    {
+      "id": "shared-catalog-collections",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:listCollections",
+        "http:createCollection",
+        "http:getCollection",
+        "http:updateCollection",
+        "http:deleteCollection",
+        "http:listCollectionMembers",
+        "http:addCollectionMember",
+        "http:removeCollectionMember"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/curated_functional_test.go",
+          "symbol": "TestHTTPSharedCollectionContractsAndReplay"
+        },
+        {
+          "path": "internal/platform/httpserver/curated_functional_test.go",
+          "symbol": "TestHTTPSharedCollectionMemberLifecycleAndCursor"
+        }
+      ],
+      "reason": "Namespace-owned curation composes owner and target scopes without changing source governance.",
+      "success": "Create, list, read, edit and delete collections; add, page and remove current local members.",
+      "rejection": "Reader mutation, tenant crossing, strict bodies, stale revisions and invalid member continuations refuse.",
+      "recovery": "Exact create/delete/member-removal retries replay retained receipts without repeating mutations.",
       "gaps": []
     }
   ]

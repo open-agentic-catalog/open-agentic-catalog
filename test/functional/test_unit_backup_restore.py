@@ -282,7 +282,7 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(chain(reader), (2, {warning["code"]}))
         self.assertEqual(reader.call_args_list, [mock.call(""), mock.call("next")])
     def test_current_check_set_is_required_on_every_page(self):
-        for version in (6, 8):
+        for version in (7, 9):
             for position in (0, 1):
                 pages = [page(), page(traversal="complete", continuation="")]
                 pages[position]["checkSetVersion"] = version

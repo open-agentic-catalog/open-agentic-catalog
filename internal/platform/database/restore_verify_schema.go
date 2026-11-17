@@ -383,9 +383,9 @@ SELECT table_record.relname,constraint_record.conname,constraint_record.contype,
 	}
 
 	digest := sha256.Sum256([]byte(inventory.String()))
-	// Qualified on PostgreSQL 18 through migration 000049, including exact
-	// Publisher proof timestamps and NOT NULL derived Agent/tool projections.
-	if hex.EncodeToString(digest[:]) != "140271721abbe76c5b9a5f9fd713acc4fcaf220ef56a4d66fd6e32faf23c876a" {
+	// PostgreSQL 18 through migration 000052: shared collection/member parents,
+	// finite text/revision constraints and the extended permission vocabulary.
+	if hex.EncodeToString(digest[:]) != "8917cd51b9f0d39d6f2352cf98f072b64981e91c62526cea4045335e35abfab8" {
 		return fmt.Errorf("catalog constraint inventory or definition drifted (observed digest %x)", digest)
 	}
 	return nil
@@ -488,8 +488,9 @@ SELECT trigger_record.tgname,table_record.relname,function_record.proname,
 		}
 	}
 	digest := sha256.Sum256([]byte(inventory.String()))
-	// PostgreSQL 18 through migration 000048, including Publisher domain verification. Guard bodies are checked separately against their latest embedded definitions.
-	if hex.EncodeToString(digest[:]) != "240b8f4025779509852576425dde45056d9ce397be5cfb4dc9e12391a0ec2b46" {
+	// PostgreSQL 18 through migration 000052, including collection identity and
+	// member quota guards. Bodies are checked against latest embedded definitions.
+	if hex.EncodeToString(digest[:]) != "ea65f290b4d5a4253faff8f2b74b34c65bf757f4d7e183b97aed1c4f270f5cae" {
 		return fmt.Errorf("catalog trigger inventory or definition drifted (observed digest %x)", digest)
 	}
 	return nil

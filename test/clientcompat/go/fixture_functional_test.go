@@ -21,6 +21,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/api"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/adapter"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/collections"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/feedback"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
@@ -100,7 +101,7 @@ func newFixtureWithFetcher(t *testing.T, external catalog.ExternalRepresentation
 	must(t, err)
 	feedbackService, err := feedback.NewService(feedback.NewMemoryStore(repo, repo), repo, c, id.Generator{})
 	must(t, err)
-	h, err := httpserver.New(httpserver.Dependencies{RatingsStore: ratings.NewMemoryStore(repo), Feedback: feedbackService, Catalog: service, Identity: ids, Federation: federationService, Jobs: jobService, Authenticator: auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: responseLimit, RequestTimeout: time.Second, CursorKey: key[:], Now: c.Now})
+	h, err := httpserver.New(httpserver.Dependencies{CollectionStore: collections.NewMemoryStore(repo), RatingsStore: ratings.NewMemoryStore(repo), Feedback: feedbackService, Catalog: service, Identity: ids, Federation: federationService, Jobs: jobService, Authenticator: auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: responseLimit, RequestTimeout: time.Second, CursorKey: key[:], Now: c.Now})
 	must(t, err)
 	server := httptest.NewServer(h.Handler())
 	t.Cleanup(server.Close)

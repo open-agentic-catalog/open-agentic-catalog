@@ -25,6 +25,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/artwork"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/audit"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/collections"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/feedback"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/housekeeping"
@@ -231,6 +232,7 @@ func buildWithTracing(ctx context.Context, options BuildOptions, startTracing fu
 	var atomicIdempotencyStore idempotency.AtomicStore
 	var webhookStore webhook.Store
 	var personalStore personal.Store
+	var collectionStore collections.Store
 	var feedbackStore feedback.Store
 	var settingsStore tenantsettings.Store
 	var memorySettings *tenantsettings.MemoryStore
@@ -245,6 +247,7 @@ func buildWithTracing(ctx context.Context, options BuildOptions, startTracing fu
 		memoryRepository := catalog.NewMemoryRepository()
 		repository = memoryRepository
 		personalStore = personal.NewMemoryStore(repository)
+		collectionStore = collections.NewMemoryStore(memoryRepository)
 		feedbackStore = feedback.NewMemoryStore(repository, repository)
 		ratingStore = ratings.NewMemoryStore(repository)
 		memorySettings = tenantsettings.NewMemoryStore(repository)
@@ -295,6 +298,10 @@ func buildWithTracing(ctx context.Context, options BuildOptions, startTracing fu
 			return nil, err
 		}
 		ratingStore, err = database.NewPostgresRatingsStore(postgresRepository)
+		if err != nil {
+			return nil, err
+		}
+		collectionStore, err = database.NewPostgresCollectionStore(postgresRepository)
 		if err != nil {
 			return nil, err
 		}
@@ -643,7 +650,7 @@ func buildWithTracing(ctx context.Context, options BuildOptions, startTracing fu
 		if settingsErr != nil {
 			return nil, settingsErr
 		}
-		httpService, err = httpserver.New(httpserver.Dependencies{PublicationOverview: publicationSummaries, PersonalStore: personalStore, TenantSettings: settingsService, MCP: configuration.MCP, PublicBaseURL: configuration.HTTP.PublicBaseURL, AuthIssuer: configuration.Auth.Issuer, RatingsStore: ratingStore, Artwork: artworkService, MediaPolicyDigest: mediaPolicyDigest(configuration), Feedback: feedbackService, Catalog: catalogService, Identity: identityService, Federation: federationManager, Jobs: jobService, Webhooks: webhookService, Authenticator: authenticator, Idempotency: idempotencyStore, AtomicIdempotency: atomicIdempotencyStore, Logger: logger, DiscoveryHosts: discoveryHosts, MaxBodyBytes: configuration.HTTP.MaxBodyBytes, RequestTimeout: configuration.HTTP.RequestTimeout.Duration, ServiceVersion: options.Version, Process: processInfo, Role: string(options.Role), Commit: options.Commit, SourceState: options.SourceState, ARDProfile: configuration.Publication.ARDProfile, AICatalogProfile: configuration.Publication.AICatalogProfile, ProfileBundleDigest: profileReport.BundleDigest, ProfileArtifactCount: profileReport.ArtifactCount, CORSOrigins: configuration.HTTP.CORSOrigins, Readiness: repository.Ping, EnforceOAuthScopes: configuration.Auth.EnforceScopes, Capabilities: httpserver.CapabilitySnapshot{ServiceActivity: capabilityState(configuration.HTTP.ServiceActivityEnabled), SemanticSearch: capabilityState(configuration.SemanticSearch.Enabled), CredentialResolution: capabilityState(configuration.CredentialResolution.Enabled), ManagedMedia: httpserver.CapabilityUnavailable, SoftwareAssessment: httpserver.CapabilityUnavailable, Webhooks: capabilityState(configuration.Webhooks.Enabled)}, CursorKey: cursorKey, Observability: metrics, Tracing: tracePort})
+		httpService, err = httpserver.New(httpserver.Dependencies{CollectionStore: collectionStore, PublicationOverview: publicationSummaries, PersonalStore: personalStore, TenantSettings: settingsService, MCP: configuration.MCP, PublicBaseURL: configuration.HTTP.PublicBaseURL, AuthIssuer: configuration.Auth.Issuer, RatingsStore: ratingStore, Artwork: artworkService, MediaPolicyDigest: mediaPolicyDigest(configuration), Feedback: feedbackService, Catalog: catalogService, Identity: identityService, Federation: federationManager, Jobs: jobService, Webhooks: webhookService, Authenticator: authenticator, Idempotency: idempotencyStore, AtomicIdempotency: atomicIdempotencyStore, Logger: logger, DiscoveryHosts: discoveryHosts, MaxBodyBytes: configuration.HTTP.MaxBodyBytes, RequestTimeout: configuration.HTTP.RequestTimeout.Duration, ServiceVersion: options.Version, Process: processInfo, Role: string(options.Role), Commit: options.Commit, SourceState: options.SourceState, ARDProfile: configuration.Publication.ARDProfile, AICatalogProfile: configuration.Publication.AICatalogProfile, ProfileBundleDigest: profileReport.BundleDigest, ProfileArtifactCount: profileReport.ArtifactCount, CORSOrigins: configuration.HTTP.CORSOrigins, Readiness: repository.Ping, EnforceOAuthScopes: configuration.Auth.EnforceScopes, Capabilities: httpserver.CapabilitySnapshot{ServiceActivity: capabilityState(configuration.HTTP.ServiceActivityEnabled), SemanticSearch: capabilityState(configuration.SemanticSearch.Enabled), CredentialResolution: capabilityState(configuration.CredentialResolution.Enabled), ManagedMedia: httpserver.CapabilityUnavailable, SoftwareAssessment: httpserver.CapabilityUnavailable, Webhooks: capabilityState(configuration.Webhooks.Enabled)}, CursorKey: cursorKey, Observability: metrics, Tracing: tracePort})
 		if err != nil {
 			return nil, err
 		}

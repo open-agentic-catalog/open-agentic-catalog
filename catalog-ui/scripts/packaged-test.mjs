@@ -2237,9 +2237,18 @@ try {
       "Overview",
       "Listing categories",
       "Validation and assessments",
+      ...(mode === "oidc" ? ["Shared collections"] : []),
       "Use this resource",
       "Technical details and evidence",
     ]);
+    if (mode === "oidc")
+      await expect(
+        preview.getByRole("button", { name: "Add to collection", exact: true }),
+      ).toBeVisible();
+    else
+      await expect(
+        preview.getByRole("button", { name: "Add to collection", exact: true }),
+      ).toHaveCount(0);
     const assessment = preview.getByRole("region", {
       name: "Resource assessment",
     });
@@ -2266,6 +2275,7 @@ try {
     ).toHaveText([
       "Overview",
       "Validation and assessments",
+      ...(mode === "oidc" ? ["Shared collections"] : []),
       "Use this resource",
       "Technical details and evidence",
     ]);
@@ -2877,6 +2887,41 @@ try {
       // Test the deployed scope ceiling once, not a role x scope x path matrix.
       if (basePath) {
         phase = "oidc-scope-ceiling";
+        // First prove this administrator can create a collection while the
+        // optional OAuth ceiling is off. Keep its exact parent for both denied
+        // operations after enabling the ceiling with the same human identity.
+        await context.clearCookies();
+        await page.goto(origin + basePath + "/catalog");
+        await signIn();
+        await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
+        const collectionControl = await page.evaluate(
+          async ({ prefix, namespaceId }) => {
+            const reply = await fetch(prefix + "/_catalog/api/v1/collections", {
+              method: "POST",
+              headers: {
+                "X-Catalog-Request": "1",
+                "Content-Type": "application/json",
+                "Idempotency-Key": crypto.randomUUID(),
+              },
+              body: JSON.stringify({
+                namespaceId,
+                name: "Owned OIDC collection",
+              }),
+            });
+            const value = await reply.json();
+            return {
+              status: reply.status,
+              id: value.id,
+              etag: reply.headers.get("ETag"),
+            };
+          },
+          { prefix: basePath, namespaceId: savedNamespaceRead.id },
+        );
+        expect(collectionControl).toEqual({
+          status: 201,
+          id: expect.stringMatching(/^[0-9a-f-]{36}$/),
+          etag: '"rev-1"',
+        });
         await collector.finish();
         await browser.close();
         config.auth.enforceScopes = true;
@@ -2895,6 +2940,36 @@ try {
             .getByRole("navigation", { name: "Workspace", exact: true })
             .getByRole("link", { name: "Catalog", exact: true }),
         ).toHaveCount(0);
+        await expect(
+          page
+            .getByRole("navigation", { name: "Workspace", exact: true })
+            .getByRole("link", { name: "Shared collections", exact: true }),
+        ).toHaveCount(0);
+        const collectionPath =
+          "/_catalog/api/v1/collections/" + collectionControl.id;
+        ledger.expectFailure("GET", collectionPath, 403);
+        ledger.expectFailure("DELETE", collectionPath, 403);
+        const collectionRefusals = await page.evaluate(
+          async ({ prefix, path, etag }) => {
+            const headers = { "X-Catalog-Request": "1" };
+            const read = await fetch(prefix + path, { headers });
+            const remove = await fetch(prefix + path, {
+              method: "DELETE",
+              headers: {
+                ...headers,
+                "If-Match": etag,
+                "Idempotency-Key": crypto.randomUUID(),
+              },
+            });
+            return { read: read.status, remove: remove.status };
+          },
+          {
+            prefix: basePath,
+            path: collectionPath,
+            etag: collectionControl.etag,
+          },
+        );
+        expect(collectionRefusals).toEqual({ read: 403, remove: 403 });
         await page.goto(origin + basePath + "/access");
         await expect(
           page.getByRole("definition").filter({ hasText: subject }),

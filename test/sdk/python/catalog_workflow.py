@@ -9,6 +9,10 @@ from uuid import UUID
 from urllib.parse import urlencode
 
 from catalog_sdk import Client, Config, SDKError
+from catalog_sdk.generated.api.shared_collections_api import SharedCollectionsApi
+from catalog_sdk.generated.models.create_collection import CreateCollection
+from catalog_sdk.generated.models.add_collection_member import AddCollectionMember
+from catalog_sdk.generated.models.update_collection import UpdateCollection
 from catalog_sdk.generated.api.identity_api import IdentityApi
 from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
 from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
@@ -174,6 +178,42 @@ async def qualify_published_discovery(origin, admin, namespace_id, resource, ver
             publish_listing=PublishListing(submissionId=submitted.data.id),
         )
         assert published.status_code == 201, published.status_code
+        if i == 0:
+            collections = SharedCollectionsApi(admin)
+            created = await collections.create_collection_with_http_info("python-collection", CreateCollection(namespaceId=namespace_id, name="Python SDK collection", description="Original note"))
+            assert created.status_code == 201 and created.data.revision == 1
+            added = await collections.add_collection_member_with_http_info(created.data.id, "python-member", created.headers["ETag"], AddCollectionMember(listingId=listing.data.id))
+            assert added.status_code == 201 and added.data.revision == 2
+            replayed = await collections.add_collection_member_with_http_info(created.data.id, "python-member", created.headers["ETag"], AddCollectionMember(listingId=listing.data.id))
+            assert replayed.headers["Idempotency-Replayed"] == "true" and replayed.data == added.data
+            async with Client(Config(origin=origin, allow_loopback_http=True, token="reader")) as collection_reader:
+                reads = SharedCollectionsApi(collection_reader)
+                directory = await reads.list_collections_with_http_info(namespace_id=namespace_id, limit=100)
+                assert directory.status_code == 200 and [item.id for item in directory.data.items] == [created.data.id] and not directory.data.next_cursor
+                metadata = await reads.get_collection_with_http_info(created.data.id)
+                assert metadata.status_code == 200 and metadata.data.name == "Python SDK collection" and metadata.data.description == "Original note" and metadata.data.revision == 2
+                page = await reads.list_collection_members_with_http_info(created.data.id, limit=1)
+                assert page.status_code == 200 and len(page.data.items) == 1 and not page.data.next_cursor
+                assert page.data.items[0].listing.id == listing.data.id and page.data.items[0].release.id == published.data.release.id
+                assert page.headers["Cache-Control"] == "no-store" and "ETag" not in page.headers
+                updated = await collections.update_collection_with_http_info(created.data.id, "python-update-collection", metadata.headers["ETag"], UpdateCollection(name="Updated Python collection", description=""))
+                assert updated.status_code == 200 and updated.data.revision == 3
+                stale = await collections.update_collection_with_http_info(created.data.id, "python-stale-collection", metadata.headers["ETag"], UpdateCollection(name="Stale"))
+                assert stale.status_code == 412 and stale.data.code == "PRECONDITION_FAILED"
+                denied = await reads.delete_collection_with_http_info(created.data.id, "python-reader-delete-collection", updated.headers["ETag"])
+                assert denied.status_code == 403 and denied.data.code == "FORBIDDEN"
+                readback = await reads.get_collection_with_http_info(created.data.id)
+                assert readback.status_code == 200 and readback.data.name == "Updated Python collection" and readback.data.description == "" and readback.data.revision == 3
+                removed = await collections.remove_collection_member_with_http_info(created.data.id, listing.data.id, "python-remove-member", updated.headers["ETag"])
+                assert removed.status_code == 200 and removed.data.revision == 4
+                empty = await reads.list_collection_members_with_http_info(created.data.id)
+                assert empty.status_code == 200 and not empty.data.items and not empty.data.next_cursor
+                deleted = await collections.delete_collection_with_http_info(created.data.id, "python-delete-collection", removed.headers["ETag"])
+                assert deleted.status_code == 200 and deleted.data.revision == 5
+                absent = await reads.get_collection_with_http_info(created.data.id)
+                assert absent.status_code == 404 and absent.data.code == "NOT_FOUND"
+                preserved = await CatalogDiscoveryApi(collection_reader).get_catalog_record_with_http_info(published.data.release.id)
+                assert preserved.status_code == 200 and preserved.data.release.id == published.data.release.id
         releases.add(str(published.data.release.id))
         identities[str(published.data.release.id)] = (identifier, visibility)
     reader = Client(Config(origin=origin, allow_loopback_http=True, token="reader"))

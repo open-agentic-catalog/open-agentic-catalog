@@ -263,3 +263,100 @@ func TestManagedSDKCommittedMutationRecovery(t *testing.T) {
 		t.Fatal("refused or replayed requests changed state or added attempts", attempts.Load())
 	}
 }
+
+func TestManagedSDKSharedCollections(t *testing.T) {
+	_, corpus := newReviewedCorpus(t)
+	ctx := t.Context()
+	admin, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "admin"})
+	must(t, err)
+	defer admin.Close()
+	reader, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "reader"})
+	must(t, err)
+	defer reader.Close()
+	releaseID := decode[sdk.CatalogRecordId](t, []byte(strconv.Quote(corpus.Cases[0].ReleaseID)))
+	record, err := admin.GetCatalogRecordWithResponse(ctx, releaseID)
+	must(t, err)
+	if record.JSON200 == nil {
+		t.Fatal("missing published fixture", record.StatusCode())
+	}
+	created, err := admin.CreateCollectionWithResponse(ctx, &sdk.CreateCollectionParams{IdempotencyKey: "go-collection"}, sdk.CreateCollectionJSONRequestBody{NamespaceId: record.JSON200.Resource.NamespaceId, Name: "Go SDK collection", Description: ptr("Original note")})
+	must(t, err)
+	if created.StatusCode() != 201 || created.JSON201 == nil {
+		t.Fatal("create collection", created.StatusCode())
+	}
+	params := &sdk.AddCollectionMemberParams{IdempotencyKey: "go-member", IfMatch: created.HTTPResponse.Header.Get("ETag")}
+	body := sdk.AddCollectionMemberJSONRequestBody{ListingId: record.JSON200.Listing.Id}
+	added, err := admin.AddCollectionMemberWithResponse(ctx, created.JSON201.Id, params, body)
+	must(t, err)
+	if added.StatusCode() != 201 || added.JSON201 == nil || added.JSON201.Revision != 2 {
+		t.Fatal("add member", added.StatusCode())
+	}
+	replayed, err := admin.AddCollectionMemberWithResponse(ctx, created.JSON201.Id, params, body)
+	must(t, err)
+	if replayed.HTTPResponse.Header.Get("Idempotency-Replayed") != "true" || !bytes.Equal(replayed.Body, added.Body) {
+		t.Fatal("member replay changed")
+	}
+	page, err := reader.ListCollectionMembersWithResponse(ctx, created.JSON201.Id, &sdk.ListCollectionMembersParams{Limit: ptr(1)})
+	must(t, err)
+	if page.JSON200 == nil || len(page.JSON200.Items) != 1 || page.JSON200.NextCursor != nil || page.JSON200.Items[0].Listing.Id != body.ListingId || page.JSON200.Items[0].Release.Id != record.JSON200.Release.Id {
+		t.Fatal("member summary identities", page.StatusCode())
+	}
+	if page.HTTPResponse.Header.Get("Cache-Control") != "no-store" || page.HTTPResponse.Header.Get("ETag") != "" {
+		t.Fatal("member cache policy")
+	}
+	directory, err := reader.ListCollectionsWithResponse(ctx, &sdk.ListCollectionsParams{NamespaceId: ptr(record.JSON200.Resource.NamespaceId), Limit: ptr(100)})
+	must(t, err)
+	if directory.JSON200 == nil || len(directory.JSON200.Items) != 1 || directory.JSON200.Items[0].Id != created.JSON201.Id || directory.JSON200.NextCursor != nil {
+		t.Fatal("collection directory", directory.StatusCode())
+	}
+	metadata, err := reader.GetCollectionWithResponse(ctx, created.JSON201.Id)
+	must(t, err)
+	if metadata.JSON200 == nil || metadata.JSON200.Name != "Go SDK collection" || metadata.JSON200.Description != "Original note" || metadata.JSON200.Revision != 2 {
+		t.Fatal("collection metadata", metadata.StatusCode())
+	}
+	updated, err := admin.UpdateCollectionWithResponse(ctx, created.JSON201.Id, &sdk.UpdateCollectionParams{IdempotencyKey: "go-update-collection", IfMatch: metadata.HTTPResponse.Header.Get("ETag")}, sdk.UpdateCollectionJSONRequestBody{Name: ptr("Updated Go collection"), Description: ptr("")})
+	must(t, err)
+	if updated.JSON200 == nil || updated.JSON200.Revision != 3 {
+		t.Fatal("collection update", updated.StatusCode())
+	}
+	stale, err := admin.UpdateCollectionWithResponse(ctx, created.JSON201.Id, &sdk.UpdateCollectionParams{IdempotencyKey: "go-stale-collection", IfMatch: metadata.HTTPResponse.Header.Get("ETag")}, sdk.UpdateCollectionJSONRequestBody{Name: ptr("Stale")})
+	must(t, err)
+	if stale.StatusCode() != 412 {
+		t.Fatal("stale collection update", stale.StatusCode())
+	}
+	denied, err := reader.DeleteCollectionWithResponse(ctx, created.JSON201.Id, &sdk.DeleteCollectionParams{IdempotencyKey: "go-reader-delete-collection", IfMatch: updated.HTTPResponse.Header.Get("ETag")})
+	must(t, err)
+	if denied.StatusCode() != 403 {
+		t.Fatal("reader deleted collection", denied.StatusCode())
+	}
+	readback, err := reader.GetCollectionWithResponse(ctx, created.JSON201.Id)
+	must(t, err)
+	if readback.JSON200 == nil || readback.JSON200.Name != "Updated Go collection" || readback.JSON200.Description != "" || readback.JSON200.Revision != 3 {
+		t.Fatal("collection update/refusal readback", readback.StatusCode())
+	}
+	removed, err := admin.RemoveCollectionMemberWithResponse(ctx, created.JSON201.Id, body.ListingId, &sdk.RemoveCollectionMemberParams{IdempotencyKey: "go-remove-member", IfMatch: updated.HTTPResponse.Header.Get("ETag")})
+	must(t, err)
+	if removed.JSON200 == nil || removed.JSON200.Revision != 4 {
+		t.Fatal("remove member", removed.StatusCode())
+	}
+	empty, err := reader.ListCollectionMembersWithResponse(ctx, created.JSON201.Id, nil)
+	must(t, err)
+	if empty.JSON200 == nil || len(empty.JSON200.Items) != 0 || empty.JSON200.NextCursor != nil {
+		t.Fatal("removed member remained visible", empty.StatusCode())
+	}
+	deleted, err := admin.DeleteCollectionWithResponse(ctx, created.JSON201.Id, &sdk.DeleteCollectionParams{IdempotencyKey: "go-delete-collection", IfMatch: removed.HTTPResponse.Header.Get("ETag")})
+	must(t, err)
+	if deleted.JSON200 == nil || deleted.JSON200.Revision != 5 {
+		t.Fatal("delete collection", deleted.StatusCode())
+	}
+	absent, err := reader.GetCollectionWithResponse(ctx, created.JSON201.Id)
+	must(t, err)
+	if absent.StatusCode() != 404 {
+		t.Fatal("deleted collection retained", absent.StatusCode())
+	}
+	preserved, err := reader.GetCatalogRecordWithResponse(ctx, releaseID)
+	must(t, err)
+	if preserved.JSON200 == nil || preserved.JSON200.Release.Id != record.JSON200.Release.Id {
+		t.Fatal("curation changed source release", preserved.StatusCode())
+	}
+}

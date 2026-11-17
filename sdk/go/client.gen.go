@@ -2860,6 +2860,8 @@ const (
 	PermissionKeyAccessManage           PermissionKey = "access.manage"
 	PermissionKeyAuditExport            PermissionKey = "audit.export"
 	PermissionKeyAuditRead              PermissionKey = "audit.read"
+	PermissionKeyCollectionManage       PermissionKey = "collection.manage"
+	PermissionKeyCollectionRead         PermissionKey = "collection.read"
 	PermissionKeyDiscoveryRead          PermissionKey = "discovery.read"
 	PermissionKeyFederationDiscover     PermissionKey = "federation.discover"
 	PermissionKeyFeedbackModerate       PermissionKey = "feedback.moderate"
@@ -2917,6 +2919,10 @@ func (e PermissionKey) Valid() bool {
 	case PermissionKeyAuditExport:
 		return true
 	case PermissionKeyAuditRead:
+		return true
+	case PermissionKeyCollectionManage:
+		return true
+	case PermissionKeyCollectionRead:
 		return true
 	case PermissionKeyDiscoveryRead:
 		return true
@@ -5876,6 +5882,11 @@ type ActivityStatusCountStatusClass string
 // ActorType defines model for ActorType.
 type ActorType string
 
+// AddCollectionMember defines model for AddCollectionMember.
+type AddCollectionMember struct {
+	ListingId UUID `json:"listingId"`
+}
+
 // AdministrationOverview defines model for AdministrationOverview.
 type AdministrationOverview struct {
 	// ActiveAssignments Exact count when limited is false. Otherwise value is 10000, a proven lower bound.
@@ -7035,6 +7046,18 @@ type CatalogVersionSummary struct {
 	Version string `json:"version"`
 }
 
+// CollectionMemberPage defines model for CollectionMemberPage.
+type CollectionMemberPage struct {
+	Items      []CatalogSummary `json:"items"`
+	NextCursor *string          `json:"nextCursor,omitempty"`
+}
+
+// CollectionReceipt defines model for CollectionReceipt.
+type CollectionReceipt struct {
+	Id       UUID  `json:"id"`
+	Revision int64 `json:"revision"`
+}
+
 // ConnectSource defines model for ConnectSource.
 type ConnectSource struct {
 	// ArtworkEnabled Explicit opt-in to source-provided artwork and native icons; image origin policy still applies.
@@ -7062,6 +7085,16 @@ type ConnectSource struct {
 
 // ConnectSourceUpdateMode defines model for ConnectSource.UpdateMode.
 type ConnectSourceUpdateMode string
+
+// CreateCollection defines model for CreateCollection.
+type CreateCollection struct {
+	// Description After outer whitespace trimming, at most 2000 Unicode code points of plain text. Only CR, LF and tab control characters are allowed.
+	Description *string `json:"description,omitempty"`
+
+	// Name After outer whitespace trimming, 1-160 Unicode code points on one line without control or Unicode line/paragraph separators. Duplicate names are permitted.
+	Name        string `json:"name"`
+	NamespaceId UUID   `json:"namespaceId"`
+}
 
 // CreateListing defines model for CreateListing.
 type CreateListing struct {
@@ -9476,6 +9509,27 @@ type SetArtworkOverride struct {
 	Target      ArtworkTarget                   `json:"target"`
 }
 
+// SharedCollection defines model for SharedCollection.
+type SharedCollection struct {
+	CreatedAt time.Time `json:"createdAt"`
+
+	// Description Plain text with outer whitespace trimmed. Only CR, LF and tab control characters are allowed.
+	Description string `json:"description"`
+	Id          UUID   `json:"id"`
+
+	// Name Outer whitespace is trimmed; one line without control or Unicode line/paragraph separators. Duplicate names are permitted.
+	Name        string    `json:"name"`
+	NamespaceId UUID      `json:"namespaceId"`
+	Revision    int64     `json:"revision"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// SharedCollectionPage defines model for SharedCollectionPage.
+type SharedCollectionPage struct {
+	Items      []SharedCollection `json:"items"`
+	NextCursor *string            `json:"nextCursor,omitempty"`
+}
+
 // SkillHandoff Exact external handoff metadata. The Catalog does not clone Git, pull OCI, install the package, or assert that the declared remote currently exists.
 type SkillHandoff struct {
 	Git   *GitHandoffReference `json:"git,omitempty"`
@@ -9814,6 +9868,15 @@ type TrustSummaryState string
 
 // UUID defines model for UUID.
 type UUID = openapi_types.UUID
+
+// UpdateCollection defines model for UpdateCollection.
+type UpdateCollection struct {
+	// Description After outer whitespace trimming, at most 2000 Unicode code points of plain text. Only CR, LF and tab control characters are allowed.
+	Description *string `json:"description,omitempty"`
+
+	// Name After outer whitespace trimming, 1-160 Unicode code points on one line without control or Unicode line/paragraph separators. Duplicate names are permitted.
+	Name *string `json:"name,omitempty"`
+}
 
 // UpdateSource defines model for UpdateSource.
 type UpdateSource struct {
@@ -10728,6 +10791,65 @@ type ReindexCatalogJSONBody struct {
 type ReindexCatalogParams struct {
 	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ListCollectionsParams defines parameters for ListCollections.
+type ListCollectionsParams struct {
+	NamespaceId *UUID `form:"namespaceId,omitempty" json:"namespaceId,omitempty"`
+	Limit       *int  `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// CreateCollectionParams defines parameters for CreateCollection.
+type CreateCollectionParams struct {
+	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// DeleteCollectionParams defines parameters for DeleteCollection.
+type DeleteCollectionParams struct {
+	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+
+	// IfMatch Exact revision ETag from the current target record; a stale or missing value prevents the command from changing it.
+	IfMatch IfMatch `json:"If-Match"`
+}
+
+// UpdateCollectionParams defines parameters for UpdateCollection.
+type UpdateCollectionParams struct {
+	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+
+	// IfMatch Exact revision ETag from the current target record; a stale or missing value prevents the command from changing it.
+	IfMatch IfMatch `json:"If-Match"`
+}
+
+// ListCollectionMembersParams defines parameters for ListCollectionMembers.
+type ListCollectionMembersParams struct {
+	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// AddCollectionMemberParams defines parameters for AddCollectionMember.
+type AddCollectionMemberParams struct {
+	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+
+	// IfMatch Exact revision ETag from the current target record; a stale or missing value prevents the command from changing it.
+	IfMatch IfMatch `json:"If-Match"`
+}
+
+// RemoveCollectionMemberParams defines parameters for RemoveCollectionMember.
+type RemoveCollectionMemberParams struct {
+	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+
+	// IfMatch Exact revision ETag from the current target record; a stale or missing value prevents the command from changing it.
+	IfMatch IfMatch `json:"If-Match"`
 }
 
 // CompareFederationSourceSnapshotsParams defines parameters for CompareFederationSourceSnapshots.
@@ -11824,6 +11946,15 @@ type SearchCatalogJSONRequestBody = CatalogSearch
 
 // ReindexCatalogJSONRequestBody defines body for ReindexCatalog for application/json ContentType.
 type ReindexCatalogJSONRequestBody ReindexCatalogJSONBody
+
+// CreateCollectionJSONRequestBody defines body for CreateCollection for application/json ContentType.
+type CreateCollectionJSONRequestBody = CreateCollection
+
+// UpdateCollectionJSONRequestBody defines body for UpdateCollection for application/json ContentType.
+type UpdateCollectionJSONRequestBody = UpdateCollection
+
+// AddCollectionMemberJSONRequestBody defines body for AddCollectionMember for application/json ContentType.
+type AddCollectionMemberJSONRequestBody = AddCollectionMember
 
 // InspectFederationSourceJSONRequestBody defines body for InspectFederationSource for application/json ContentType.
 type InspectFederationSourceJSONRequestBody = InspectSource
@@ -18529,6 +18660,95 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/catalog:reindex (the `ReindexCatalog` operationId).
 	ReindexCatalog(ctx context.Context, params *ReindexCatalogParams, body ReindexCatalogJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListCollections List readable shared collections
+	//
+	// Requires a current human or service membership and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.read.
+	//
+	// Corresponds with GET /api/v1/collections (the `ListCollections` operationId).
+	ListCollections(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateCollectionWithBody Create a namespace-owned collection
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/collections (the `CreateCollection` operationId).
+	CreateCollectionWithBody(ctx context.Context, params *CreateCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CreateCollection Create a namespace-owned collection
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/collections (the `CreateCollection` operationId).
+	CreateCollection(ctx context.Context, params *CreateCollectionParams, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// DeleteCollection Delete a collection and its memberships
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Corresponds with DELETE /api/v1/collections/{collectionId} (the `DeleteCollection` operationId).
+	DeleteCollection(ctx context.Context, collectionId UUID, params *DeleteCollectionParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetCollection Read shared collection metadata
+	//
+	// Requires a current human or service membership and collection.read in the owner namespace. Authored names/descriptions remain shared even when a mentioned target becomes unreadable. Revisions/timestamps can reveal curation activity. OAuth ceiling when enforced: catalog.read.
+	//
+	// Corresponds with GET /api/v1/collections/{collectionId} (the `GetCollection` operationId).
+	GetCollection(ctx context.Context, collectionId UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateCollectionWithBody Edit collection metadata
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
+	UpdateCollectionWithBody(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateCollection Edit collection metadata
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
+	UpdateCollection(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListCollectionMembers Browse currently readable collection members
+	//
+	// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+	//
+	// Corresponds with GET /api/v1/collections/{collectionId}/members (the `ListCollectionMembers` operationId).
+	ListCollectionMembers(ctx context.Context, collectionId UUID, params *ListCollectionMembersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AddCollectionMemberWithBody Add a current local Listing reference
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/collections/{collectionId}/members (the `AddCollectionMember` operationId).
+	AddCollectionMemberWithBody(ctx context.Context, collectionId UUID, params *AddCollectionMemberParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AddCollectionMember Add a current local Listing reference
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/collections/{collectionId}/members (the `AddCollectionMember` operationId).
+	AddCollectionMember(ctx context.Context, collectionId UUID, params *AddCollectionMemberParams, body AddCollectionMemberJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RemoveCollectionMember Remove an exact known Listing membership
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. No target read is required. Successful removal confirms only the selected known membership. Inaccessible targets are not listed for management. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Corresponds with DELETE /api/v1/collections/{collectionId}/members/{listingId} (the `RemoveCollectionMember` operationId).
+	RemoveCollectionMember(ctx context.Context, collectionId UUID, listingId UUID, params *RemoveCollectionMemberParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetFederationSourceSnapshot Get a federation source snapshot
 	//
 	// Returns an authorized retained source snapshot and its retrieval evidence. Partial snapshots do not acquire complete-snapshot withdrawal authority.
@@ -21583,6 +21803,205 @@ func (c *Client) ReindexCatalogWithBody(ctx context.Context, params *ReindexCata
 // Corresponds with POST /api/v1/catalog:reindex (the `ReindexCatalog` operationId).
 func (c *Client) ReindexCatalog(ctx context.Context, params *ReindexCatalogParams, body ReindexCatalogJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewReindexCatalogRequest(c.Server, params, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// ListCollections List readable shared collections
+//
+// Requires a current human or service membership and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.read.
+//
+// Corresponds with GET /api/v1/collections (the `ListCollections` operationId).
+func (c *Client) ListCollections(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListCollectionsRequest(c.Server, params)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// CreateCollectionWithBody Create a namespace-owned collection
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/collections (the `CreateCollection` operationId).
+func (c *Client) CreateCollectionWithBody(ctx context.Context, params *CreateCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateCollectionRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// CreateCollection Create a namespace-owned collection
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/collections (the `CreateCollection` operationId).
+func (c *Client) CreateCollection(ctx context.Context, params *CreateCollectionParams, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCreateCollectionRequest(c.Server, params, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// DeleteCollection Delete a collection and its memberships
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Corresponds with DELETE /api/v1/collections/{collectionId} (the `DeleteCollection` operationId).
+func (c *Client) DeleteCollection(ctx context.Context, collectionId UUID, params *DeleteCollectionParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewDeleteCollectionRequest(c.Server, collectionId, params)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// GetCollection Read shared collection metadata
+//
+// Requires a current human or service membership and collection.read in the owner namespace. Authored names/descriptions remain shared even when a mentioned target becomes unreadable. Revisions/timestamps can reveal curation activity. OAuth ceiling when enforced: catalog.read.
+//
+// Corresponds with GET /api/v1/collections/{collectionId} (the `GetCollection` operationId).
+func (c *Client) GetCollection(ctx context.Context, collectionId UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetCollectionRequest(c.Server, collectionId)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateCollectionWithBody Edit collection metadata
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
+func (c *Client) UpdateCollectionWithBody(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateCollectionRequestWithBody(c.Server, collectionId, params, contentType, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateCollection Edit collection metadata
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
+func (c *Client) UpdateCollection(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateCollectionRequest(c.Server, collectionId, params, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// ListCollectionMembers Browse currently readable collection members
+//
+// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+//
+// Corresponds with GET /api/v1/collections/{collectionId}/members (the `ListCollectionMembers` operationId).
+func (c *Client) ListCollectionMembers(ctx context.Context, collectionId UUID, params *ListCollectionMembersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListCollectionMembersRequest(c.Server, collectionId, params)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// AddCollectionMemberWithBody Add a current local Listing reference
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/collections/{collectionId}/members (the `AddCollectionMember` operationId).
+func (c *Client) AddCollectionMemberWithBody(ctx context.Context, collectionId UUID, params *AddCollectionMemberParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddCollectionMemberRequestWithBody(c.Server, collectionId, params, contentType, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// AddCollectionMember Add a current local Listing reference
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/collections/{collectionId}/members (the `AddCollectionMember` operationId).
+func (c *Client) AddCollectionMember(ctx context.Context, collectionId UUID, params *AddCollectionMemberParams, body AddCollectionMemberJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAddCollectionMemberRequest(c.Server, collectionId, params, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// RemoveCollectionMember Remove an exact known Listing membership
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. No target read is required. Successful removal confirms only the selected known membership. Inaccessible targets are not listed for management. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Corresponds with DELETE /api/v1/collections/{collectionId}/members/{listingId} (the `RemoveCollectionMember` operationId).
+func (c *Client) RemoveCollectionMember(ctx context.Context, collectionId UUID, listingId UUID, params *RemoveCollectionMemberParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRemoveCollectionMemberRequest(c.Server, collectionId, listingId, params)
 	if err != nil {
 		return nil, safeError(err)
 	}
@@ -28359,6 +28778,501 @@ func NewReindexCatalogRequestWithBody(server string, params *ReindexCatalogParam
 		}
 
 		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewListCollectionsRequest constructs an http.Request for the ListCollections method
+func NewListCollectionsRequest(server string, params *ListCollectionsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/collections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.NamespaceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespaceId", *params.NamespaceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewCreateCollectionRequest calls the generic CreateCollection builder with application/json body
+func NewCreateCollectionRequest(server string, params *CreateCollectionParams, body CreateCollectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCreateCollectionRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCreateCollectionRequestWithBody constructs an http.Request for the CreateCollection method, with any body, and a specified content type
+func NewCreateCollectionRequestWithBody(server string, params *CreateCollectionParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/collections")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewDeleteCollectionRequest constructs an http.Request for the DeleteCollection method
+func NewDeleteCollectionRequest(server string, collectionId UUID, params *DeleteCollectionParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "collectionId", collectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/collections/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("If-Match", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewGetCollectionRequest constructs an http.Request for the GetCollection method
+func NewGetCollectionRequest(server string, collectionId UUID) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "collectionId", collectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/collections/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewUpdateCollectionRequest calls the generic UpdateCollection builder with application/json body
+func NewUpdateCollectionRequest(server string, collectionId UUID, params *UpdateCollectionParams, body UpdateCollectionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateCollectionRequestWithBody(server, collectionId, params, "application/json", bodyReader)
+}
+
+// NewUpdateCollectionRequestWithBody constructs an http.Request for the UpdateCollection method, with any body, and a specified content type
+func NewUpdateCollectionRequestWithBody(server string, collectionId UUID, params *UpdateCollectionParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "collectionId", collectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/collections/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("If-Match", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewListCollectionMembersRequest constructs an http.Request for the ListCollectionMembers method
+func NewListCollectionMembersRequest(server string, collectionId UUID, params *ListCollectionMembersParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "collectionId", collectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/collections/%s/members", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewAddCollectionMemberRequest calls the generic AddCollectionMember builder with application/json body
+func NewAddCollectionMemberRequest(server string, collectionId UUID, params *AddCollectionMemberParams, body AddCollectionMemberJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAddCollectionMemberRequestWithBody(server, collectionId, params, "application/json", bodyReader)
+}
+
+// NewAddCollectionMemberRequestWithBody constructs an http.Request for the AddCollectionMember method, with any body, and a specified content type
+func NewAddCollectionMemberRequestWithBody(server string, collectionId UUID, params *AddCollectionMemberParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "collectionId", collectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/collections/%s/members", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("If-Match", headerParam1)
+
+	}
+
+	return req, nil
+}
+
+// NewRemoveCollectionMemberRequest constructs an http.Request for the RemoveCollectionMember method
+func NewRemoveCollectionMemberRequest(server string, collectionId UUID, listingId UUID, params *RemoveCollectionMemberParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "collectionId", collectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "listingId", listingId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/collections/%s/members/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+		var headerParam1 string
+
+		headerParam1, err = runtime.StyleParamWithOptions("simple", false, "If-Match", params.IfMatch, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("If-Match", headerParam1)
 
 	}
 
@@ -37996,6 +38910,105 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/catalog:reindex (the `ReindexCatalog` operationId).
 	ReindexCatalogWithResponse(ctx context.Context, params *ReindexCatalogParams, body ReindexCatalogJSONRequestBody, reqEditors ...RequestEditorFn) (*ReindexCatalogResponse, error)
 
+	// ListCollectionsWithResponse List readable shared collections
+	//
+	// Requires a current human or service membership and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.read.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/collections (the `ListCollections` operationId).
+	ListCollectionsWithResponse(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*ListCollectionsResponse, error)
+
+	// CreateCollectionWithBodyWithResponse Create a namespace-owned collection
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/collections (the `CreateCollection` operationId).
+	CreateCollectionWithBodyWithResponse(ctx context.Context, params *CreateCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error)
+
+	// CreateCollectionWithResponse Create a namespace-owned collection
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/collections (the `CreateCollection` operationId).
+	CreateCollectionWithResponse(ctx context.Context, params *CreateCollectionParams, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error)
+
+	// DeleteCollectionWithResponse Delete a collection and its memberships
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/collections/{collectionId} (the `DeleteCollection` operationId).
+	DeleteCollectionWithResponse(ctx context.Context, collectionId UUID, params *DeleteCollectionParams, reqEditors ...RequestEditorFn) (*DeleteCollectionResponse, error)
+
+	// GetCollectionWithResponse Read shared collection metadata
+	//
+	// Requires a current human or service membership and collection.read in the owner namespace. Authored names/descriptions remain shared even when a mentioned target becomes unreadable. Revisions/timestamps can reveal curation activity. OAuth ceiling when enforced: catalog.read.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/collections/{collectionId} (the `GetCollection` operationId).
+	GetCollectionWithResponse(ctx context.Context, collectionId UUID, reqEditors ...RequestEditorFn) (*GetCollectionResponse, error)
+
+	// UpdateCollectionWithBodyWithResponse Edit collection metadata
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
+	UpdateCollectionWithBodyWithResponse(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
+
+	// UpdateCollectionWithResponse Edit collection metadata
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
+	UpdateCollectionWithResponse(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
+
+	// ListCollectionMembersWithResponse Browse currently readable collection members
+	//
+	// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/collections/{collectionId}/members (the `ListCollectionMembers` operationId).
+	ListCollectionMembersWithResponse(ctx context.Context, collectionId UUID, params *ListCollectionMembersParams, reqEditors ...RequestEditorFn) (*ListCollectionMembersResponse, error)
+
+	// AddCollectionMemberWithBodyWithResponse Add a current local Listing reference
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/collections/{collectionId}/members (the `AddCollectionMember` operationId).
+	AddCollectionMemberWithBodyWithResponse(ctx context.Context, collectionId UUID, params *AddCollectionMemberParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddCollectionMemberResponse, error)
+
+	// AddCollectionMemberWithResponse Add a current local Listing reference
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/collections/{collectionId}/members (the `AddCollectionMember` operationId).
+	AddCollectionMemberWithResponse(ctx context.Context, collectionId UUID, params *AddCollectionMemberParams, body AddCollectionMemberJSONRequestBody, reqEditors ...RequestEditorFn) (*AddCollectionMemberResponse, error)
+
+	// RemoveCollectionMemberWithResponse Remove an exact known Listing membership
+	//
+	// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. No target read is required. Successful removal confirms only the selected known membership. Inaccessible targets are not listed for management. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /api/v1/collections/{collectionId}/members/{listingId} (the `RemoveCollectionMember` operationId).
+	RemoveCollectionMemberWithResponse(ctx context.Context, collectionId UUID, listingId UUID, params *RemoveCollectionMemberParams, reqEditors ...RequestEditorFn) (*RemoveCollectionMemberResponse, error)
+
 	// GetFederationSourceSnapshotWithResponse Get a federation source snapshot
 	//
 	// Returns an authorized retained source snapshot and its retrieval evidence. Partial snapshots do not acquire complete-snapshot withdrawal authority.
@@ -43070,6 +44083,529 @@ func (r ReindexCatalogResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ReindexCatalogResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListCollectionsResponse200Headers the declared response headers of an HTTP 200 response for ListCollections
+type ListCollectionsResponse200Headers struct {
+	CacheControl *string
+}
+
+// ListCollectionsResponseDefaultHeaders the declared response headers of an HTTP default response for ListCollections
+type ListCollectionsResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type ListCollectionsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SharedCollectionPage
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListCollectionsResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *ListCollectionsResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListCollectionsResponse) GetJSON200() *SharedCollectionPage {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListCollectionsResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListCollectionsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListCollectionsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListCollectionsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListCollectionsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// CreateCollectionResponse201Headers the declared response headers of an HTTP 201 response for CreateCollection
+type CreateCollectionResponse201Headers struct {
+	CacheControl        *string
+	ETag                *string
+	IdempotencyReplayed *string
+}
+
+// CreateCollectionResponseDefaultHeaders the declared response headers of an HTTP default response for CreateCollection
+type CreateCollectionResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type CreateCollectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *CollectionReceipt
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers201 the parsed response headers for an HTTP 201 response
+	Headers201 *CreateCollectionResponse201Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *CreateCollectionResponseDefaultHeaders
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r CreateCollectionResponse) GetJSON201() *CollectionReceipt {
+	return r.JSON201
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r CreateCollectionResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CreateCollectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CreateCollectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CreateCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CreateCollectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// DeleteCollectionResponse200Headers the declared response headers of an HTTP 200 response for DeleteCollection
+type DeleteCollectionResponse200Headers struct {
+	CacheControl        *string
+	ETag                *string
+	IdempotencyReplayed *string
+}
+
+// DeleteCollectionResponseDefaultHeaders the declared response headers of an HTTP default response for DeleteCollection
+type DeleteCollectionResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type DeleteCollectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *CollectionReceipt
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *DeleteCollectionResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *DeleteCollectionResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r DeleteCollectionResponse) GetJSON200() *CollectionReceipt {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r DeleteCollectionResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r DeleteCollectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r DeleteCollectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r DeleteCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r DeleteCollectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetCollectionResponse200Headers the declared response headers of an HTTP 200 response for GetCollection
+type GetCollectionResponse200Headers struct {
+	CacheControl *string
+	ETag         *string
+}
+
+// GetCollectionResponseDefaultHeaders the declared response headers of an HTTP default response for GetCollection
+type GetCollectionResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type GetCollectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *SharedCollection
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *GetCollectionResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *GetCollectionResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetCollectionResponse) GetJSON200() *SharedCollection {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetCollectionResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetCollectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetCollectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetCollectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// UpdateCollectionResponse200Headers the declared response headers of an HTTP 200 response for UpdateCollection
+type UpdateCollectionResponse200Headers struct {
+	CacheControl        *string
+	ETag                *string
+	IdempotencyReplayed *string
+}
+
+// UpdateCollectionResponseDefaultHeaders the declared response headers of an HTTP default response for UpdateCollection
+type UpdateCollectionResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type UpdateCollectionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *CollectionReceipt
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *UpdateCollectionResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *UpdateCollectionResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateCollectionResponse) GetJSON200() *CollectionReceipt {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r UpdateCollectionResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateCollectionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateCollectionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateCollectionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateCollectionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListCollectionMembersResponse200Headers the declared response headers of an HTTP 200 response for ListCollectionMembers
+type ListCollectionMembersResponse200Headers struct {
+	CacheControl *string
+}
+
+// ListCollectionMembersResponseDefaultHeaders the declared response headers of an HTTP default response for ListCollectionMembers
+type ListCollectionMembersResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type ListCollectionMembersResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *CollectionMemberPage
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListCollectionMembersResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *ListCollectionMembersResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListCollectionMembersResponse) GetJSON200() *CollectionMemberPage {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListCollectionMembersResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListCollectionMembersResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListCollectionMembersResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListCollectionMembersResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListCollectionMembersResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// AddCollectionMemberResponse201Headers the declared response headers of an HTTP 201 response for AddCollectionMember
+type AddCollectionMemberResponse201Headers struct {
+	CacheControl        *string
+	ETag                *string
+	IdempotencyReplayed *string
+}
+
+// AddCollectionMemberResponseDefaultHeaders the declared response headers of an HTTP default response for AddCollectionMember
+type AddCollectionMemberResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type AddCollectionMemberResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *CollectionReceipt
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers201 the parsed response headers for an HTTP 201 response
+	Headers201 *AddCollectionMemberResponse201Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *AddCollectionMemberResponseDefaultHeaders
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r AddCollectionMemberResponse) GetJSON201() *CollectionReceipt {
+	return r.JSON201
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r AddCollectionMemberResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AddCollectionMemberResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AddCollectionMemberResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AddCollectionMemberResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AddCollectionMemberResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// RemoveCollectionMemberResponse200Headers the declared response headers of an HTTP 200 response for RemoveCollectionMember
+type RemoveCollectionMemberResponse200Headers struct {
+	CacheControl        *string
+	ETag                *string
+	IdempotencyReplayed *string
+}
+
+// RemoveCollectionMemberResponseDefaultHeaders the declared response headers of an HTTP default response for RemoveCollectionMember
+type RemoveCollectionMemberResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type RemoveCollectionMemberResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *CollectionReceipt
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *RemoveCollectionMemberResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *RemoveCollectionMemberResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RemoveCollectionMemberResponse) GetJSON200() *CollectionReceipt {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r RemoveCollectionMemberResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RemoveCollectionMemberResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RemoveCollectionMemberResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RemoveCollectionMemberResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RemoveCollectionMemberResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -54424,6 +55960,171 @@ func (c *ClientWithResponses) ReindexCatalogWithResponse(ctx context.Context, pa
 	return ParseReindexCatalogResponse(rsp)
 }
 
+// ListCollectionsWithResponse List readable shared collections
+//
+// Requires a current human or service membership and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.read.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/collections (the `ListCollections` operationId).
+func (c *ClientWithResponses) ListCollectionsWithResponse(ctx context.Context, params *ListCollectionsParams, reqEditors ...RequestEditorFn) (*ListCollectionsResponse, error) {
+	rsp, err := c.ListCollections(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseListCollectionsResponse(rsp)
+}
+
+// CreateCollectionWithBodyWithResponse Create a namespace-owned collection
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/collections (the `CreateCollection` operationId).
+func (c *ClientWithResponses) CreateCollectionWithBodyWithResponse(ctx context.Context, params *CreateCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error) {
+	rsp, err := c.CreateCollectionWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseCreateCollectionResponse(rsp)
+}
+
+// CreateCollectionWithResponse Create a namespace-owned collection
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/collections (the `CreateCollection` operationId).
+func (c *ClientWithResponses) CreateCollectionWithResponse(ctx context.Context, params *CreateCollectionParams, body CreateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateCollectionResponse, error) {
+	rsp, err := c.CreateCollection(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseCreateCollectionResponse(rsp)
+}
+
+// DeleteCollectionWithResponse Delete a collection and its memberships
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/collections/{collectionId} (the `DeleteCollection` operationId).
+func (c *ClientWithResponses) DeleteCollectionWithResponse(ctx context.Context, collectionId UUID, params *DeleteCollectionParams, reqEditors ...RequestEditorFn) (*DeleteCollectionResponse, error) {
+	rsp, err := c.DeleteCollection(ctx, collectionId, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseDeleteCollectionResponse(rsp)
+}
+
+// GetCollectionWithResponse Read shared collection metadata
+//
+// Requires a current human or service membership and collection.read in the owner namespace. Authored names/descriptions remain shared even when a mentioned target becomes unreadable. Revisions/timestamps can reveal curation activity. OAuth ceiling when enforced: catalog.read.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/collections/{collectionId} (the `GetCollection` operationId).
+func (c *ClientWithResponses) GetCollectionWithResponse(ctx context.Context, collectionId UUID, reqEditors ...RequestEditorFn) (*GetCollectionResponse, error) {
+	rsp, err := c.GetCollection(ctx, collectionId, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseGetCollectionResponse(rsp)
+}
+
+// UpdateCollectionWithBodyWithResponse Edit collection metadata
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
+func (c *ClientWithResponses) UpdateCollectionWithBodyWithResponse(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error) {
+	rsp, err := c.UpdateCollectionWithBody(ctx, collectionId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseUpdateCollectionResponse(rsp)
+}
+
+// UpdateCollectionWithResponse Edit collection metadata
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
+func (c *ClientWithResponses) UpdateCollectionWithResponse(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error) {
+	rsp, err := c.UpdateCollection(ctx, collectionId, params, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseUpdateCollectionResponse(rsp)
+}
+
+// ListCollectionMembersWithResponse Browse currently readable collection members
+//
+// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/collections/{collectionId}/members (the `ListCollectionMembers` operationId).
+func (c *ClientWithResponses) ListCollectionMembersWithResponse(ctx context.Context, collectionId UUID, params *ListCollectionMembersParams, reqEditors ...RequestEditorFn) (*ListCollectionMembersResponse, error) {
+	rsp, err := c.ListCollectionMembers(ctx, collectionId, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseListCollectionMembersResponse(rsp)
+}
+
+// AddCollectionMemberWithBodyWithResponse Add a current local Listing reference
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/collections/{collectionId}/members (the `AddCollectionMember` operationId).
+func (c *ClientWithResponses) AddCollectionMemberWithBodyWithResponse(ctx context.Context, collectionId UUID, params *AddCollectionMemberParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AddCollectionMemberResponse, error) {
+	rsp, err := c.AddCollectionMemberWithBody(ctx, collectionId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseAddCollectionMemberResponse(rsp)
+}
+
+// AddCollectionMemberWithResponse Add a current local Listing reference
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/collections/{collectionId}/members (the `AddCollectionMember` operationId).
+func (c *ClientWithResponses) AddCollectionMemberWithResponse(ctx context.Context, collectionId UUID, params *AddCollectionMemberParams, body AddCollectionMemberJSONRequestBody, reqEditors ...RequestEditorFn) (*AddCollectionMemberResponse, error) {
+	rsp, err := c.AddCollectionMember(ctx, collectionId, params, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseAddCollectionMemberResponse(rsp)
+}
+
+// RemoveCollectionMemberWithResponse Remove an exact known Listing membership
+//
+// Requires a current human or service membership and collection.manage and collection.read in the owner namespace. No target read is required. Successful removal confirms only the selected known membership. Inaccessible targets are not listed for management. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /api/v1/collections/{collectionId}/members/{listingId} (the `RemoveCollectionMember` operationId).
+func (c *ClientWithResponses) RemoveCollectionMemberWithResponse(ctx context.Context, collectionId UUID, listingId UUID, params *RemoveCollectionMemberParams, reqEditors ...RequestEditorFn) (*RemoveCollectionMemberResponse, error) {
+	rsp, err := c.RemoveCollectionMember(ctx, collectionId, listingId, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseRemoveCollectionMemberResponse(rsp)
+}
+
 // GetFederationSourceSnapshotWithResponse Get a federation source snapshot
 //
 // Returns an authorized retained source snapshot and its retrieval evidence. Partial snapshots do not acquire complete-snapshot withdrawal authority.
@@ -61642,6 +63343,651 @@ func ParseReindexCatalogResponse(rsp *http.Response) (result *ReindexCatalogResp
 		response.Headers202 = &headers
 	case true:
 		var headers ReindexCatalogResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListCollectionsResponse parses an HTTP response from a ListCollectionsWithResponse call
+func ParseListCollectionsResponse(rsp *http.Response) (result *ListCollectionsResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &ListCollectionsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SharedCollectionPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListCollectionsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers ListCollectionsResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseCreateCollectionResponse parses an HTTP response from a CreateCollectionWithResponse call
+func ParseCreateCollectionResponse(rsp *http.Response) (result *CreateCollectionResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &CreateCollectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest CollectionReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 201:
+		var headers CreateCollectionResponse201Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.ETag = &value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		response.Headers201 = &headers
+	case true:
+		var headers CreateCollectionResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseDeleteCollectionResponse parses an HTTP response from a DeleteCollectionWithResponse call
+func ParseDeleteCollectionResponse(rsp *http.Response) (result *DeleteCollectionResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &DeleteCollectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CollectionReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers DeleteCollectionResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.ETag = &value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers DeleteCollectionResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetCollectionResponse parses an HTTP response from a GetCollectionWithResponse call
+func ParseGetCollectionResponse(rsp *http.Response) (result *GetCollectionResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &GetCollectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest SharedCollection
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers GetCollectionResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.ETag = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers GetCollectionResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseUpdateCollectionResponse parses an HTTP response from a UpdateCollectionWithResponse call
+func ParseUpdateCollectionResponse(rsp *http.Response) (result *UpdateCollectionResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &UpdateCollectionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CollectionReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers UpdateCollectionResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.ETag = &value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers UpdateCollectionResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListCollectionMembersResponse parses an HTTP response from a ListCollectionMembersWithResponse call
+func ParseListCollectionMembersResponse(rsp *http.Response) (result *ListCollectionMembersResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &ListCollectionMembersResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CollectionMemberPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListCollectionMembersResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers ListCollectionMembersResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseAddCollectionMemberResponse parses an HTTP response from a AddCollectionMemberWithResponse call
+func ParseAddCollectionMemberResponse(rsp *http.Response) (result *AddCollectionMemberResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &AddCollectionMemberResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest CollectionReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 201:
+		var headers AddCollectionMemberResponse201Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.ETag = &value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		response.Headers201 = &headers
+	case true:
+		var headers AddCollectionMemberResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseRemoveCollectionMemberResponse parses an HTTP response from a RemoveCollectionMemberWithResponse call
+func ParseRemoveCollectionMemberResponse(rsp *http.Response) (result *RemoveCollectionMemberResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &RemoveCollectionMemberResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest CollectionReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers RemoveCollectionMemberResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.ETag = &value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers RemoveCollectionMemberResponseDefaultHeaders
 		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {

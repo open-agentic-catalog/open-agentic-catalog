@@ -272,6 +272,170 @@ for (let index = 0; index < 2; index++) {
     },
   );
   assert.equal(published.response.status, 201);
+  if (index === 0) {
+    const created = await admin.api.POST("/api/v1/collections", {
+      params: { header: { "Idempotency-Key": "ts-collection" } },
+      body: {
+        namespaceId: id,
+        name: "TypeScript SDK collection",
+        description: "Original note",
+      },
+    });
+    assert.equal(created.response.status, 201);
+    const member = {
+      params: {
+        path: { collectionId: created.data.id },
+        header: {
+          "Idempotency-Key": "ts-member",
+          "If-Match": created.response.headers.get("ETag"),
+        },
+      },
+      body: { listingId: listing.data.id },
+    };
+    const added = await admin.api.POST(
+      "/api/v1/collections/{collectionId}/members",
+      member,
+    );
+    assert.equal(added.response.status, 201);
+    assert.equal(added.data.revision, 2);
+    const replayed = await admin.api.POST(
+      "/api/v1/collections/{collectionId}/members",
+      member,
+    );
+    assert.equal(replayed.response.headers.get("Idempotency-Replayed"), "true");
+    assert.deepEqual(replayed.data, added.data);
+    const page = await reader.api.GET(
+      "/api/v1/collections/{collectionId}/members",
+      {
+        params: {
+          path: { collectionId: created.data.id },
+          query: { limit: 1 },
+        },
+      },
+    );
+    assert.equal(page.response.status, 200);
+    assert.equal(page.data.items.length, 1);
+    assert.equal(page.data.items[0].listing.id, listing.data.id);
+    assert.equal(page.data.items[0].release.id, published.data.release.id);
+    assert.equal(page.data.nextCursor, undefined);
+    assert.equal(page.response.headers.get("Cache-Control"), "no-store");
+    assert.equal(page.response.headers.get("ETag"), null);
+    const path = { collectionId: created.data.id };
+    const directory = await reader.api.GET("/api/v1/collections", {
+      params: { query: { namespaceId: id, limit: 100 } },
+    });
+    assert.equal(directory.response.status, 200);
+    assert.deepEqual(
+      directory.data.items.map((item) => item.id),
+      [created.data.id],
+    );
+    assert.equal(directory.data.nextCursor, undefined);
+    const metadata = await reader.api.GET(
+      "/api/v1/collections/{collectionId}",
+      { params: { path } },
+    );
+    assert.equal(metadata.response.status, 200);
+    assert.equal(metadata.data.name, "TypeScript SDK collection");
+    assert.equal(metadata.data.description, "Original note");
+    assert.equal(metadata.data.revision, 2);
+    const updated = await admin.api.PATCH(
+      "/api/v1/collections/{collectionId}",
+      {
+        params: {
+          path,
+          header: {
+            "Idempotency-Key": "ts-update-collection",
+            "If-Match": metadata.response.headers.get("ETag"),
+          },
+        },
+        body: { name: "Updated TypeScript collection", description: "" },
+      },
+    );
+    assert.equal(updated.response.status, 200);
+    assert.equal(updated.data.revision, 3);
+    const stale = await admin.api.PATCH("/api/v1/collections/{collectionId}", {
+      params: {
+        path,
+        header: {
+          "Idempotency-Key": "ts-stale-collection",
+          "If-Match": metadata.response.headers.get("ETag"),
+        },
+      },
+      body: { name: "Stale" },
+    });
+    assert.equal(stale.response.status, 412);
+    assert.equal(stale.error.code, "PRECONDITION_FAILED");
+    const denied = await reader.api.DELETE(
+      "/api/v1/collections/{collectionId}",
+      {
+        params: {
+          path,
+          header: {
+            "Idempotency-Key": "ts-reader-delete-collection",
+            "If-Match": updated.response.headers.get("ETag"),
+          },
+        },
+      },
+    );
+    assert.equal(denied.response.status, 403);
+    assert.equal(denied.error.code, "FORBIDDEN");
+    const readback = await reader.api.GET(
+      "/api/v1/collections/{collectionId}",
+      { params: { path } },
+    );
+    assert.equal(readback.response.status, 200);
+    assert.equal(readback.data.name, "Updated TypeScript collection");
+    assert.equal(readback.data.description, "");
+    assert.equal(readback.data.revision, 3);
+    const removed = await admin.api.DELETE(
+      "/api/v1/collections/{collectionId}/members/{listingId}",
+      {
+        params: {
+          path: { ...path, listingId: listing.data.id },
+          header: {
+            "Idempotency-Key": "ts-remove-member",
+            "If-Match": updated.response.headers.get("ETag"),
+          },
+        },
+      },
+    );
+    assert.equal(removed.response.status, 200);
+    assert.equal(removed.data.revision, 4);
+    const empty = await reader.api.GET(
+      "/api/v1/collections/{collectionId}/members",
+      { params: { path } },
+    );
+    assert.equal(empty.response.status, 200);
+    assert.deepEqual(empty.data.items, []);
+    assert.equal(empty.data.nextCursor, undefined);
+    const deleted = await admin.api.DELETE(
+      "/api/v1/collections/{collectionId}",
+      {
+        params: {
+          path: { collectionId: created.data.id },
+          header: {
+            "Idempotency-Key": "ts-delete-collection",
+            "If-Match": removed.response.headers.get("ETag"),
+          },
+        },
+      },
+    );
+    assert.equal(deleted.response.status, 200);
+    assert.equal(deleted.data.revision, 5);
+    const absent = await reader.api.GET("/api/v1/collections/{collectionId}", {
+      params: { path },
+    });
+    assert.equal(absent.response.status, 404);
+    assert.equal(absent.error.code, "NOT_FOUND");
+    const preserved = await reader.api.GET(
+      "/api/v1/catalog/resources/{catalogRecordId}",
+      {
+        params: { path: { catalogRecordId: published.data.release.id } },
+      },
+    );
+    assert.equal(preserved.response.status, 200);
+    assert.equal(preserved.data.release.id, published.data.release.id);
+  }
   releases.set(published.data.release.id, {
     resource,
     displayName,

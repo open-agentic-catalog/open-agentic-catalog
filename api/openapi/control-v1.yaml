@@ -20,6 +20,8 @@ servers:
 security:
   - bearerAuth: []
 tags:
+  - name: Shared collections
+    description: Authenticated namespace-owned curation of current local Listings.
   - name: Catalog overview
     description: Private bounded counts for currently authorized Catalog workflows.
   - name: Personal workspace
@@ -57,6 +59,310 @@ tags:
   - name: Discovery
     description: Exact-host anonymous or authenticated ARD and AI Catalog discovery backed by an active immutable audience snapshot.
 paths:
+  /api/v1/collections:
+    get:
+      tags:
+        - Shared collections
+      operationId: listCollections
+      summary: List readable shared collections
+      description: 'Requires a current human or service membership and collection.read in the owner namespace. OAuth
+        ceiling when enforced: catalog.read.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: namespaceId
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedCollectionPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags:
+        - Shared collections
+      operationId: createCollection
+      summary: Create a namespace-owned collection
+      description: 'Requires a current human or service membership and collection.manage and collection.read in the
+        owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit
+        inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write.
+        Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      responses:
+        '201':
+          description: Success
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionReceipt'
+        default:
+          $ref: '#/components/responses/Problem'
+      requestBody:
+        required: true
+        description: Maximum 32 KiB and the configured server body ceiling.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCollection'
+  /api/v1/collections/{collectionId}:
+    get:
+      tags:
+        - Shared collections
+      operationId: getCollection
+      summary: Read shared collection metadata
+      description: 'Requires a current human or service membership and collection.read in the owner namespace. Authored
+        names/descriptions remain shared even when a mentioned target becomes unreadable. Revisions/timestamps can
+        reveal curation activity. OAuth ceiling when enforced: catalog.read.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SharedCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags:
+        - Shared collections
+      operationId: updateCollection
+      summary: Edit collection metadata
+      description: 'Requires a current human or service membership and collection.manage and collection.read in the
+        owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance
+        the parent revision; replay rechecks original current authority.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionReceipt'
+        default:
+          $ref: '#/components/responses/Problem'
+      requestBody:
+        required: true
+        description: Maximum 32 KiB and the configured server body ceiling.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateCollection'
+    delete:
+      tags:
+        - Shared collections
+      operationId: deleteCollection
+      summary: Delete a collection and its memberships
+      description: 'Requires a current human or service membership and collection.manage and collection.read in the
+        owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance
+        the parent revision; replay rechecks original current authority.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionReceipt'
+        default:
+          $ref: '#/components/responses/Problem'
+  /api/v1/collections/{collectionId}/members:
+    get:
+      tags:
+        - Shared collections
+      operationId: listCollectionMembers
+      summary: Browse currently readable collection members
+      description: 'Requires a current human or service membership and collection.read in the owner namespace. Also
+        requires resource.read in each target canonical namespace; membership grants no target authority. Selects
+        only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current
+        policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store;
+        a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionMemberPage'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags:
+        - Shared collections
+      operationId: addCollectionMember
+      summary: Add a current local Listing reference
+      description: 'Requires a current human or service membership and collection.manage and collection.read in the
+        owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target
+        authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns
+        a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced:
+        catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original
+        current authority.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '201':
+          description: Success
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionReceipt'
+        default:
+          $ref: '#/components/responses/Problem'
+      requestBody:
+        required: true
+        description: Maximum 1 KiB and the configured server body ceiling.
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCollectionMember'
+  /api/v1/collections/{collectionId}/members/{listingId}:
+    delete:
+      tags:
+        - Shared collections
+      operationId: removeCollectionMember
+      summary: Remove an exact known Listing membership
+      description: 'Requires a current human or service membership and collection.manage and collection.read in the
+        owner namespace. No target read is required. Successful removal confirms only the selected known membership.
+        Inaccessible targets are not listed for management. OAuth ceiling when enforced: catalog.write. Private mutations
+        are audit-only and advance the parent revision; replay rechecks original current authority.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: collectionId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: listingId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '200':
+          description: Success
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollectionReceipt'
+        default:
+          $ref: '#/components/responses/Problem'
   /api/v1/me/work:
     get:
       tags:
@@ -1107,7 +1413,7 @@ paths:
             application/json:
               schema:
                 type: array
-                maxItems: 50
+                maxItems: 52
                 items:
                   $ref: '#/components/schemas/PermissionDescriptor'
         default:
@@ -5525,6 +5831,125 @@ components:
         application/ai-catalog+json:
           schema: {$ref: '#/components/schemas/AICatalog'}
   schemas:
+    SharedCollection:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - namespaceId
+        - name
+        - description
+        - revision
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        namespaceId:
+          $ref: '#/components/schemas/UUID'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 160
+          description: Outer whitespace is trimmed; one line without control or Unicode line/paragraph separators. Duplicate
+            names are permitted.
+        description:
+          type: string
+          maxLength: 2000
+          description: Plain text with outer whitespace trimmed. Only CR, LF and tab control characters are allowed.
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CreateCollection:
+      type: object
+      additionalProperties: false
+      required:
+        - namespaceId
+        - name
+      properties:
+        namespaceId:
+          $ref: '#/components/schemas/UUID'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 32768
+          description: After outer whitespace trimming, 1-160 Unicode code points on one line without control or Unicode line/paragraph separators. Duplicate
+            names are permitted.
+        description:
+          type: string
+          maxLength: 32768
+          description: After outer whitespace trimming, at most 2000 Unicode code points of plain text. Only CR, LF and tab control characters are allowed.
+    UpdateCollection:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 32768
+          description: After outer whitespace trimming, 1-160 Unicode code points on one line without control or Unicode line/paragraph separators. Duplicate
+            names are permitted.
+        description:
+          type: string
+          maxLength: 32768
+          description: After outer whitespace trimming, at most 2000 Unicode code points of plain text. Only CR, LF and tab control characters are allowed.
+    AddCollectionMember:
+      type: object
+      additionalProperties: false
+      required:
+        - listingId
+      properties:
+        listingId:
+          $ref: '#/components/schemas/UUID'
+    CollectionReceipt:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - revision
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
+    SharedCollectionPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/SharedCollection'
+        nextCursor:
+          type: string
+          maxLength: 2048
+    CollectionMemberPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/CatalogSummary'
+        nextCursor:
+          type: string
+          maxLength: 2048
     CatalogDraftFile:
       type: object
       additionalProperties: false
@@ -7753,6 +8178,8 @@ components:
     PermissionKey:
       type: string
       enum:
+        - collection.read
+        - collection.manage
         - settings.read
         - settings.manage
         - resource.read
@@ -7916,7 +8343,7 @@ components:
           minimum: 1
         permissions:
           type: array
-          maxItems: 50
+          maxItems: 52
           uniqueItems: true
           items:
             $ref: '#/components/schemas/PermissionKey'
@@ -7946,7 +8373,7 @@ components:
         permissions:
           type: array
           minItems: 1
-          maxItems: 49
+          maxItems: 51
           uniqueItems: true
           items:
             $ref: '#/components/schemas/PermissionKey'
@@ -8346,11 +8773,11 @@ components:
         membershipId: {$ref: '#/components/schemas/UUID'}
         realmId: {$ref: '#/components/schemas/UUID'}
         actorType: {type: string, enum: [human, service]}
-        permissions: {type: array, maxItems: 50, uniqueItems: true, items: {$ref: '#/components/schemas/PermissionKey'}}
+        permissions: {type: array, maxItems: 52, uniqueItems: true, items: {$ref: '#/components/schemas/PermissionKey'}}
         authorizationRevision: {type: integer, minimum: 1}
         availablePermissions:
           type: array
-          maxItems: 50
+          maxItems: 52
           uniqueItems: true
           description: Effective actions available in at least one scope. A navigation hint, never permission for an arbitrary namespace.
           items: {$ref: '#/components/schemas/PermissionKey'}
@@ -8385,7 +8812,7 @@ components:
       required: [namespaceId, permissions]
       properties:
         namespaceId: {$ref: '#/components/schemas/UUID'}
-        permissions: {type: array, maxItems: 50, uniqueItems: true, items: {$ref: '#/components/schemas/PermissionKey'}}
+        permissions: {type: array, maxItems: 52, uniqueItems: true, items: {$ref: '#/components/schemas/PermissionKey'}}
     WebhookReconciliation:
       type: object
       additionalProperties: false
@@ -8654,6 +9081,11 @@ components:
                 - authorization.role.updated
                 - catalog_listing.created
                 - catalog_listing.revised
+                - collection.created
+                - collection.deleted
+                - collection.member_added
+                - collection.member_removed
+                - collection.updated
                 - evidence.catalog_document.read
                 - evidence.raw_observation.read
                 - evidence.source_inspection.read

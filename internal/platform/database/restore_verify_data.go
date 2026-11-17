@@ -50,6 +50,7 @@ func restoreVerificationStages() []restoreStage {
 		{"memberships", scanRestoreMemberships},
 		{"feedback", scanRestoreFeedback},
 		{"personal-library", scanRestorePersonal},
+		{"shared-collections", scanRestoreCollections},
 		{"ratings", scanRestoreRatings},
 		{"documents", scanRestoreDocuments},
 		{"version-revisions", scanRestoreVersionRevisions},

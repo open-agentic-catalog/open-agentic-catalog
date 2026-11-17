@@ -33,6 +33,22 @@
   },
   {
     "consumption": "buffered",
+    "method": "add_collection_member",
+    "operation_id": "addCollectionMember",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1collections~1{collectionId}~1members/post",
+    "source_method": "POST",
+    "source_operation_id": "addCollectionMember",
+    "source_path": "/api/v1/collections/{collectionId}/members",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "address_feedback",
     "operation_id": "addressFeedback",
     "response_excluded_statuses": [],
@@ -315,6 +331,22 @@
   },
   {
     "consumption": "buffered",
+    "method": "create_collection",
+    "operation_id": "createCollection",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1collections/post",
+    "source_method": "POST",
+    "source_operation_id": "createCollection",
+    "source_path": "/api/v1/collections",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "create_feedback",
     "operation_id": "createFeedback",
     "response_excluded_statuses": [],
@@ -471,6 +503,22 @@
     "source_method": "POST",
     "source_operation_id": "createWebhook",
     "source_path": "/api/v1/webhooks",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "delete_collection",
+    "operation_id": "deleteCollection",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1collections~1{collectionId}/delete",
+    "source_method": "DELETE",
+    "source_operation_id": "deleteCollection",
+    "source_path": "/api/v1/collections/{collectionId}",
     "webhook": false
   },
   {
@@ -807,6 +855,22 @@
     "source_method": "GET",
     "source_operation_id": "getCatalogRecord",
     "source_path": "/api/v1/catalog/resources/{catalogRecordId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_collection",
+    "operation_id": "getCollection",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1collections~1{collectionId}/get",
+    "source_method": "GET",
+    "source_operation_id": "getCollection",
+    "source_path": "/api/v1/collections/{collectionId}",
     "webhook": false
   },
   {
@@ -1852,6 +1916,38 @@
   },
   {
     "consumption": "buffered",
+    "method": "list_collection_members",
+    "operation_id": "listCollectionMembers",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1collections~1{collectionId}~1members/get",
+    "source_method": "GET",
+    "source_operation_id": "listCollectionMembers",
+    "source_path": "/api/v1/collections/{collectionId}/members",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "list_collections",
+    "operation_id": "listCollections",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1collections/get",
+    "source_method": "GET",
+    "source_operation_id": "listCollections",
+    "source_path": "/api/v1/collections",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "list_current_access",
     "operation_id": "listCurrentAccess",
     "response_excluded_statuses": [],
@@ -2624,6 +2720,22 @@
   },
   {
     "consumption": "buffered",
+    "method": "remove_collection_member",
+    "operation_id": "removeCollectionMember",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1collections~1{collectionId}~1members~1{listingId}/delete",
+    "source_method": "DELETE",
+    "source_operation_id": "removeCollectionMember",
+    "source_path": "/api/v1/collections/{collectionId}/members/{listingId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "remove_federation_source",
     "operation_id": "removeFederationSource",
     "response_excluded_statuses": [],
@@ -3159,6 +3271,22 @@
     "source_method": "PATCH",
     "source_operation_id": "updateAccessGroup",
     "source_path": "/api/v1/access/groups/{groupId}",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "update_collection",
+    "operation_id": "updateCollection",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1collections~1{collectionId}/patch",
+    "source_method": "PATCH",
+    "source_operation_id": "updateCollection",
+    "source_path": "/api/v1/collections/{collectionId}",
     "webhook": false
   },
   {

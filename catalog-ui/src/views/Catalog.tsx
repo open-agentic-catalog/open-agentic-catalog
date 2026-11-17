@@ -1,3 +1,4 @@
+import { AddToCollection } from "./AddToCollection";
 import { DeclaredToolMatch } from "./DeclaredToolMatch";
 import { DraftDownload } from "./DraftDownload";
 import { Facts } from "./Facts";
@@ -2362,6 +2363,17 @@ function RecordContent({
         compact={compact}
         headingId={compact ? undefined : "record-assessments"}
       />
+      {access && (
+        <AddToCollection
+          key={record.listing.id}
+          compact={compact}
+          client={client}
+          access={access}
+          basePath={basePath}
+          onFailure={onFailure}
+          listingId={record.listing.id}
+        />
+      )}
       {access && (
         <SaveResource
           client={client}

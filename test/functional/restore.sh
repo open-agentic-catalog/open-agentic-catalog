@@ -66,7 +66,7 @@ verify_restore() {
 import json,sys
 d=json.load(sys.stdin)
 required={"formatVersion","checkSetVersion","recoveryPoint","tenantId","schemaVersion","privilegeManifestVersion","traversal","integrity","processed","decodedBytes","findings","assuranceBoundary"}
-if not required.issubset(d) or d["formatVersion"] != 1 or d["checkSetVersion"] != 7 or d["processed"] > 7 or d["decodedBytes"] > 83886080:
+if not required.issubset(d) or d["formatVersion"] != 1 or d["checkSetVersion"] != 8 or d["processed"] > 7 or d["decodedBytes"] > 83886080:
     raise SystemExit("invalid bounded restore verification report")
 if d["traversal"] not in ("continued","complete") or d["integrity"] not in ("valid","invalid"):
     raise SystemExit("invalid restore verification conclusion")

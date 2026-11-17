@@ -47,11 +47,11 @@ else:
         membership_id: UUID = Field(alias="membershipId")
         realm_id: UUID = Field(alias="realmId")
         actor_type: StrictStr = Field(alias="actorType")
-        permissions: Annotated[List[PermissionKey], Field(max_length=50)]
+        permissions: Annotated[List[PermissionKey], Field(max_length=52)]
         authorization_revision: Annotated[int, Field(strict=True, ge=1)] = Field(
             alias="authorizationRevision"
         )
-        available_permissions: Annotated[List[PermissionKey], Field(max_length=50)] = (
+        available_permissions: Annotated[List[PermissionKey], Field(max_length=52)] = (
             Field(
                 description="Effective actions available in at least one scope. A navigation hint, never permission for an arbitrary namespace.",
                 alias="availablePermissions",

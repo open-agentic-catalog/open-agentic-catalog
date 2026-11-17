@@ -70,3 +70,5 @@ records, functions or runtime grants; manifest v29 remains unchanged. Apply
 through the normal owner-only migration with snapshot writers drained. Index
 creation locks snapshot writes; allow maintenance time for retained history.
 Repair forward after failure without resetting Source membership or history.
+
+Migration `000052_shared_collections.sql` adds namespace-owned shared collections and same-tenant Listing references, with forced RLS and ownership/revision/member guards. Manifest v30 grants API-only access. It extends the finite scoped permission vocabulary and selected retained/new built-ins; custom roles are unchanged. Drain runtimes, apply as schema owner, reconcile grants and restart matching binaries. Restore check set 8 includes collection integrity. Failure requires forward repair with runtimes stopped; no retained-data reset or automatic rollback is provided.

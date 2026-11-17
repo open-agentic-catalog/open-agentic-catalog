@@ -787,13 +787,19 @@ test(
   },
 );
 
-test("identity accepts the complete 50-action inventory and rejects excess hints", () => {
-  const permissions = Array.from({ length: 50 }, (_, i) => `permission-${i}`);
-  assert.equal(
-    identity({ ...me, permissions, availablePermissions: permissions })
-      .permissions.length,
-    50,
-  );
+test("identity accepts all 52 permission hints including collections and rejects excess", () => {
+  const permissions = [
+    ...Array.from({ length: 50 }, (_, i) => `permission-${i}`),
+    "collection.read",
+    "collection.manage",
+  ];
+  const decoded = identity({
+    ...me,
+    permissions,
+    availablePermissions: permissions,
+  });
+  assert.deepEqual(decoded.permissions, permissions);
+  assert.deepEqual(decoded.availablePermissions, permissions);
   for (const field of ["permissions", "availablePermissions"])
     assert.throws(
       () => identity({ ...me, [field]: [...permissions, "excess"] }),

@@ -10,7 +10,7 @@ def evidence():
             "pluginRetained": True, "personalItemsRetained": True, "ratingsRetained": True, "archiveStopped": True}
 
 def page(**changes):
-    value = {"formatVersion": 1, "checkSetVersion": 7, "recoveryPoint": "fixture-point", "tenantId": backup.TENANT,
+    value = {"formatVersion": 1, "checkSetVersion": 8, "recoveryPoint": "fixture-point", "tenantId": backup.TENANT,
              "schemaVersion": 27, "privilegeManifestVersion": 12, "traversal": "continued", "integrity": "valid",
              "processed": 7, "decodedBytes": 100, "findings": [], "assuranceBoundary": "fixture", "continuation": "next"}
     value.update(changes)

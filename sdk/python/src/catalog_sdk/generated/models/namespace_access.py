@@ -35,7 +35,7 @@ else:
         """  # noqa: E501
 
         namespace_id: UUID = Field(alias="namespaceId")
-        permissions: Annotated[List[PermissionKey], Field(max_length=50)]
+        permissions: Annotated[List[PermissionKey], Field(max_length=52)]
         __properties: ClassVar[List[str]] = ["namespaceId", "permissions"]
 
         model_config = ConfigDict(

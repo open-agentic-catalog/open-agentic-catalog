@@ -3,6 +3,7 @@ package database
 import (
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestCollectionPolicyBindingAndFailClosedErrors(t *testing.T) {
 	for _, mode := range []string{"success", "inactive", "stale", "query", "wrong count", "bind", "wrong tenant", "owner"} {
 		t.Run(mode, func(t *testing.T) {
 			allowed := make([]bool, len(collectionPermissions))
-			allowed[1] = true
+			allowed[slices.Index(collectionPermissions, identity.Permission("resource.read"))] = true
 			selectedRevision, active := revision, true
 			tenant := actor.TenantID
 			selected := ctx

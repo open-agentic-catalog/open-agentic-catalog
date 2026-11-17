@@ -2,6 +2,7 @@
 import type { Access } from "../../src/api/client";
 const bundles: Record<string, Access["permissions"]> = {
   reader: [
+    "collection.read",
     "library.own",
     "ratings.own",
     "resource.read",
@@ -15,6 +16,8 @@ const bundles: Record<string, Access["permissions"]> = {
     "feedback.own",
   ],
   contributor: [
+    "collection.read",
+    "collection.manage",
     "library.own",
     "ratings.own",
     "resource.read",
@@ -31,6 +34,7 @@ const bundles: Record<string, Access["permissions"]> = {
     "feedback.own",
   ],
   reviewer: [
+    "collection.read",
     "ratings.own",
     "resource.read",
     "resource.read_history",
@@ -40,6 +44,7 @@ const bundles: Record<string, Access["permissions"]> = {
     "feedback.own",
   ],
   publisher: [
+    "collection.read",
     "library.own",
     "ratings.own",
     "resource.read",
@@ -99,6 +104,8 @@ const bundles: Record<string, Access["permissions"]> = {
   feedback_member: ["feedback.own"],
   library_member: ["library.own"],
   tenant_admin: [
+    "collection.read",
+    "collection.manage",
     "library.own",
     "settings.read",
     "settings.manage",

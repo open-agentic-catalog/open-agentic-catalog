@@ -483,6 +483,154 @@ async fn workflow(origin: &str) {
             201,
         )
         .await;
+        if i == 0 {
+            let created = admin
+                .create_collection(
+                    "rust-collection",
+                    typed(json!({"namespaceId":ns,"name":"Rust SDK collection","description":"Original note"})),
+                )
+                .await
+                .unwrap();
+            assert_eq!(created.status, 201);
+            let collection_id = created.data.as_ref().unwrap().id.to_string();
+            let etag = created.headers["etag"].to_str().unwrap();
+            let added = admin
+                .add_collection_member(
+                    &collection_id,
+                    "rust-member",
+                    etag,
+                    typed(json!({"listingId":listing_id})),
+                )
+                .await
+                .unwrap();
+            assert_eq!(added.status, 201);
+            assert_eq!(added.data.as_ref().unwrap().revision, 2);
+            let replayed = admin
+                .add_collection_member(
+                    &collection_id,
+                    "rust-member",
+                    etag,
+                    typed(json!({"listingId":listing_id})),
+                )
+                .await
+                .unwrap();
+            assert_eq!(replayed.headers["idempotency-replayed"], "true");
+            assert_eq!(added.raw_body, replayed.raw_body);
+            let page = reader
+                .list_collection_members(&collection_id, Some(1), None::<&str>)
+                .await
+                .unwrap();
+            assert_eq!(page.status, 200);
+            assert_eq!(page.headers["cache-control"], "no-store");
+            assert!(!page.headers.contains_key("etag"));
+            let page = page.data.unwrap();
+            assert!(page.next_cursor.is_none());
+            assert_eq!(page.items.len(), 1);
+            assert_eq!(page.items[0].listing.id.to_string(), listing_id);
+            assert_eq!(
+                page.items[0].release.id.to_string(),
+                published.json::<Value>().unwrap()["release"]["id"]
+                    .as_str()
+                    .unwrap()
+            );
+            let directory = reader
+                .list_collections(Some(ns), Some(100), None::<&str>)
+                .await
+                .unwrap();
+            assert_eq!(directory.status, 200);
+            let directory = directory.data.unwrap();
+            assert_eq!(directory.items.len(), 1);
+            assert_eq!(directory.items[0].id.to_string(), collection_id);
+            assert!(directory.next_cursor.is_none());
+            let metadata = reader.get_collection(&collection_id).await.unwrap();
+            assert_eq!(metadata.status, 200);
+            let value = metadata.data.as_ref().unwrap();
+            assert_eq!(value.name, "Rust SDK collection");
+            assert_eq!(value.description, "Original note");
+            assert_eq!(value.revision, 2);
+            let updated = admin
+                .update_collection(
+                    &collection_id,
+                    "rust-update-collection",
+                    metadata.headers["etag"].to_str().unwrap(),
+                    typed(json!({"name":"Updated Rust collection","description":""})),
+                )
+                .await
+                .unwrap();
+            assert_eq!(updated.status, 200);
+            assert_eq!(updated.data.as_ref().unwrap().revision, 3);
+            match admin
+                .update_collection(
+                    &collection_id,
+                    "rust-stale-collection",
+                    metadata.headers["etag"].to_str().unwrap(),
+                    typed(json!({"name":"Stale"})),
+                )
+                .await
+                .unwrap_err()
+            {
+                ApiOpError::Api(error) => assert_eq!(error.status, 412),
+                error => panic!("Unexpected stale collection outcome: {error:?}"),
+            }
+            match reader
+                .delete_collection(
+                    &collection_id,
+                    "rust-reader-delete-collection",
+                    updated.headers["etag"].to_str().unwrap(),
+                )
+                .await
+                .unwrap_err()
+            {
+                ApiOpError::Api(error) => assert_eq!(error.status, 403),
+                error => panic!("Unexpected reader deletion outcome: {error:?}"),
+            }
+            let readback = reader.get_collection(&collection_id).await.unwrap();
+            assert_eq!(readback.status, 200);
+            let readback = readback.data.unwrap();
+            assert_eq!(readback.name, "Updated Rust collection");
+            assert_eq!(readback.description, "");
+            assert_eq!(readback.revision, 3);
+            let removed = admin
+                .remove_collection_member(
+                    &collection_id,
+                    &listing_id,
+                    "rust-remove-member",
+                    updated.headers["etag"].to_str().unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(removed.status, 200);
+            assert_eq!(removed.data.as_ref().unwrap().revision, 4);
+            let empty = reader
+                .list_collection_members(&collection_id, Some(100), None::<&str>)
+                .await
+                .unwrap();
+            assert_eq!(empty.status, 200);
+            let empty = empty.data.unwrap();
+            assert!(empty.items.is_empty());
+            assert!(empty.next_cursor.is_none());
+            let deleted = admin
+                .delete_collection(
+                    &collection_id,
+                    "rust-delete-collection",
+                    removed.headers["etag"].to_str().unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(deleted.status, 200);
+            assert_eq!(deleted.data.unwrap().revision, 5);
+            match reader.get_collection(&collection_id).await.unwrap_err() {
+                ApiOpError::Api(error) => assert_eq!(error.status, 404),
+                error => panic!("Unexpected deleted collection outcome: {error:?}"),
+            }
+            let release_id = published.json::<Value>().unwrap()["release"]["id"]
+                .as_str()
+                .unwrap()
+                .to_owned();
+            let preserved = reader.get_catalog_record(&release_id).await.unwrap();
+            assert_eq!(preserved.status, 200);
+            assert_eq!(preserved.data.unwrap().release.id.to_string(), release_id);
+        }
         releases.push(
             published.json::<Value>().unwrap()["release"]["id"]
                 .as_str()
