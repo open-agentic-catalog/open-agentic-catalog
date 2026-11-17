@@ -65,6 +65,7 @@ from catalog_sdk.generated.models.activity_method_count import ActivityMethodCou
 from catalog_sdk.generated.models.activity_search_outcome import ActivitySearchOutcome
 from catalog_sdk.generated.models.activity_status_count import ActivityStatusCount
 from catalog_sdk.generated.models.actor_type import ActorType
+from catalog_sdk.generated.models.add_collection_member import AddCollectionMember
 from catalog_sdk.generated.models.administration_overview import AdministrationOverview
 from catalog_sdk.generated.models.adopt_observation import AdoptObservation
 from catalog_sdk.generated.models.adoption_provenance import AdoptionProvenance
@@ -229,7 +230,10 @@ from catalog_sdk.generated.models.catalog_search_result_peer_ratings import (
 )
 from catalog_sdk.generated.models.catalog_summary import CatalogSummary
 from catalog_sdk.generated.models.catalog_version_summary import CatalogVersionSummary
+from catalog_sdk.generated.models.collection_member_page import CollectionMemberPage
+from catalog_sdk.generated.models.collection_receipt import CollectionReceipt
 from catalog_sdk.generated.models.connect_source import ConnectSource
+from catalog_sdk.generated.models.create_collection import CreateCollection
 from catalog_sdk.generated.models.create_listing import CreateListing
 from catalog_sdk.generated.models.create_listing_revision import CreateListingRevision
 from catalog_sdk.generated.models.create_listing_revision_extensions import (
@@ -560,6 +564,8 @@ from catalog_sdk.generated.models.set_artwork_override import SetArtworkOverride
 from catalog_sdk.generated.models.set_tenant_settings_request import (
     SetTenantSettingsRequest,
 )
+from catalog_sdk.generated.models.shared_collection import SharedCollection
+from catalog_sdk.generated.models.shared_collection_page import SharedCollectionPage
 from catalog_sdk.generated.models.skill_handoff import SkillHandoff
 from catalog_sdk.generated.models.skill_package_assessments import (
     SkillPackageAssessments,
@@ -604,6 +610,7 @@ from catalog_sdk.generated.models.trust_cryptographic_result import (
 )
 from catalog_sdk.generated.models.trust_evidence_bundle import TrustEvidenceBundle
 from catalog_sdk.generated.models.trust_summary import TrustSummary
+from catalog_sdk.generated.models.update_collection import UpdateCollection
 from catalog_sdk.generated.models.update_source import UpdateSource
 from catalog_sdk.generated.models.version_evidence_envelope import (
     VersionEvidenceEnvelope,

@@ -19,7 +19,7 @@ func TestAuthorizationAdministrationHTTPContractsAndReplay(t *testing.T) {
 	requireStatus(t, descriptors, 200)
 	var permissions []identity.PermissionDescriptor
 	decodeResult(t, descriptors, &permissions)
-	if len(permissions) != 50 {
+	if len(permissions) != 52 {
 		t.Fatal("finite catalog")
 	}
 	var maximum []identity.Permission
@@ -39,7 +39,7 @@ func TestAuthorizationAdministrationHTTPContractsAndReplay(t *testing.T) {
 	requireControlSchema(t, "RoleDefinition", maximumRole.body)
 	var retained identity.RoleDefinition
 	decodeResult(t, maximumRole, &retained)
-	if len(retained.Permissions) != len(maximum) || len(maximum) != 49 {
+	if len(retained.Permissions) != len(maximum) || len(maximum) != 51 {
 		t.Fatal("maximum role lost permissions", retained)
 	}
 	// At the valid cardinality, protected authority still cannot be delegated.

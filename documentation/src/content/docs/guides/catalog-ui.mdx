@@ -782,3 +782,13 @@ The backup retains labels, search criteria and exact resource references. Curren
 ## Resource ratings
 
 Open **Ratings for this version** from a Catalog preview or detail. **My ratings** lists your opinions; authorized moderators use **Rating moderation**. The [ratings guide](ratings.mdx) explains version/source identity, consent, withdrawal and peer claims.
+
+## Shared collections
+
+Open **Discover > Shared collections** to browse the collections your current permissions allow. Select **Create collection**, choose its owner namespace and enter a name and description. On a local Catalog record, select **Add to collection** and choose a destination. Review the captured destination and Listing IDs before confirming. The destination picker pages readable collections and checks management in the selected owner namespace; exact IDs remain available when directory access is limited.
+
+Collection detail shows current readable entries and their source ownership. Refresh to see a later eligible release. Removing a reference does not change the source. Collection managers can edit shared text, remove visible entries or delete the collection, including retained references they cannot currently read. An empty view does not establish that no hidden references exist.
+
+Administrators can use [custom roles and namespace assignments](access-management.mdx#create-a-custom-role-with-explicit-read-companions) for narrower access. A collection-only reader can see shared text without seeing its targets. An owner-namespace management grant still requires separate read access before adding a target from another namespace. Reload after an access change to update the visible controls and entries.
+
+**Refresh current entries** updates member results without discarding an unfinished text edit. Use **Reload collection** to read the latest metadata and parent revision; it asks before discarding an unsaved edit. Stale revisions require that fresh metadata read before another edit. A stale member cursor requires starting from the first page. If a command outcome is uncertain, use the offered exact-command retry or reconcile the result before preparing another command. See [the limits and disclosure rules](./concepts.md#curate-a-shared-collection) before sharing collection text.

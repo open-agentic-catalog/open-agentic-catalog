@@ -105,6 +105,11 @@ const (
 )
 
 var actionRules = map[string]actionRule{
+	"collection.created":           {targetType: "collection", targetUUID: true, facts: map[string]factRule{"revision": requiredFact(factInteger), "namespaceId": requiredFact(factUUID)}},
+	"collection.updated":           {targetType: "collection", targetUUID: true, facts: map[string]factRule{"revision": requiredFact(factInteger), "namespaceId": requiredFact(factUUID)}},
+	"collection.deleted":           {targetType: "collection", targetUUID: true, facts: map[string]factRule{"revision": requiredFact(factInteger), "namespaceId": requiredFact(factUUID)}},
+	"collection.member_added":      {targetType: "collection", targetUUID: true, facts: map[string]factRule{"revision": requiredFact(factInteger), "namespaceId": requiredFact(factUUID), "listingId": requiredFact(factUUID)}},
+	"collection.member_removed":    {targetType: "collection", targetUUID: true, facts: map[string]factRule{"revision": requiredFact(factInteger), "namespaceId": requiredFact(factUUID), "listingId": requiredFact(factUUID)}},
 	"personal.item.created":        {targetType: "personal_item", targetUUID: true, facts: map[string]factRule{"revision": requiredFact(factInteger)}},
 	"personal.item.updated":        {targetType: "personal_item", targetUUID: true, facts: map[string]factRule{"revision": requiredFact(factInteger)}},
 	"personal.item.removed":        {targetType: "personal_item", targetUUID: true, facts: map[string]factRule{"revision": requiredFact(factInteger)}},

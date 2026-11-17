@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"encoding/json"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/artwork"
 	"strings"
 	"testing"
 	"time"
@@ -41,6 +42,13 @@ func TestCatalogSummaryAllowlistAndMaximumPageBytes(t *testing.T) {
 		Release:         ListingRelease{ID: uuid, VersionRevisionID: uuid, ListingRevisionID: uuid, State: ReleasePublished, ActivatedAt: at},
 		Evidence:        EvidenceSet{ID: uuid, Digest: "sha256:" + strings.Repeat("b", 64), State: EvidenceComplete, Trust: TrustSummary{State: TrustNotAssessed, Reason: "private trust reason"}, LegalRights: LegalRightsSummary{State: LegalRightsNotAssessed}, Findings: []Finding{{Message: "private finding"}}},
 	}
+	// Include a legal descriptor near the hard encoded limit. Escaped URL/text
+	// characters count against the descriptor budget before entering the page.
+	descriptor := artwork.Descriptor{SchemaVersion: artwork.SchemaVersion, Icon: &artwork.Asset{AssetInput: artwork.AssetInput{URL: "https://images.example/icon.png?" + strings.Repeat("&", 2000), Alt: strings.Repeat("<", 256), Caption: strings.Repeat("<", 64), Rights: &artwork.Rights{Basis: "licensed", Attribution: strings.Repeat("<", 1024), Reference: "https://rights.example/license?" + strings.Repeat("&", 2000)}}, Digest: "sha256:" + strings.Repeat("a", 64), MediaType: "image/png", Size: 100, Width: 1, Height: 1, RightsAssessment: artwork.NotAssessed}}
+	if err := artwork.ValidateDescriptor(descriptor, artwork.HardLimits()); err != nil {
+		t.Fatal("maximum descriptor fixture", err)
+	}
+	full.ListingRevision.Extensions[artwork.IRI] = descriptor
 	summary := full.Summary()
 	if summary.ListingRevision.License != full.ListingRevision.License {
 		t.Fatal("summary lost the exact license needed for local filtering")
@@ -58,7 +66,7 @@ func TestCatalogSummaryAllowlistAndMaximumPageBytes(t *testing.T) {
 	if err := json.Unmarshal(raw, &object); err != nil {
 		t.Fatal(err)
 	}
-	if len(object) != 10 {
+	if len(object) != 11 {
 		t.Fatalf("unexpected summary member count: %d", len(object))
 	}
 	page := Page[CatalogSummary]{Items: make([]CatalogSummary, 100), Total: 101, NextCursor: strings.Repeat("c", MaxCatalogCursorBytes)}
@@ -67,7 +75,10 @@ func TestCatalogSummaryAllowlistAndMaximumPageBytes(t *testing.T) {
 		page.Items[i] = summary
 		search.Items[i] = localCatalogSearchResult(summary)
 	}
-	for name, value := range map[string]any{"browse": page, "search": search} {
+	for name, value := range map[string]any{"browse": page, "search": search, "shared members": struct {
+		Items      []CatalogSummary `json:"items"`
+		NextCursor string           `json:"nextCursor"`
+	}{page.Items, strings.Repeat("c", 2048)}} {
 		// Include the HTTP data/meta wrapper and maximum request identifier.
 		encoded, err := json.Marshal(map[string]any{"data": value, "meta": map[string]string{"requestId": strings.Repeat("r", 128)}})
 		if err != nil || len(encoded) > 8<<20 {

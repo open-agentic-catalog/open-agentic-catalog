@@ -4,6 +4,102 @@
  */
 
 export interface paths {
+    "/api/v1/collections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List readable shared collections
+         * @description Requires a current human or service membership and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.read.
+         */
+        get: operations["listCollections"];
+        put?: never;
+        /**
+         * Create a namespace-owned collection
+         * @description Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Fixed limits are 100 collections per namespace and 1000 per tenant. Capacity refusals permit inference of occupied capacity. Owner namespace cannot change. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+         */
+        post: operations["createCollection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collectionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read shared collection metadata
+         * @description Requires a current human or service membership and collection.read in the owner namespace. Authored names/descriptions remain shared even when a mentioned target becomes unreadable. Revisions/timestamps can reveal curation activity. OAuth ceiling when enforced: catalog.read.
+         */
+        get: operations["getCollection"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete a collection and its memberships
+         * @description Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+         */
+        delete: operations["deleteCollection"];
+        options?: never;
+        head?: never;
+        /**
+         * Edit collection metadata
+         * @description Requires a current human or service membership and collection.manage and collection.read in the owner namespace. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+         */
+        patch: operations["updateCollection"];
+        trace?: never;
+    };
+    "/api/v1/collections/{collectionId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Browse currently readable collection members
+         * @description Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+         */
+        get: operations["listCollectionMembers"];
+        put?: never;
+        /**
+         * Add a current local Listing reference
+         * @description Requires a current human or service membership and collection.manage and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Accepts one eligible local Listing; duplicate membership or the 200-reference retained limit returns a conflict. Membership follows later eligible releases without another edit. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+         */
+        post: operations["addCollectionMember"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/collections/{collectionId}/members/{listingId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove an exact known Listing membership
+         * @description Requires a current human or service membership and collection.manage and collection.read in the owner namespace. No target read is required. Successful removal confirms only the selected known membership. Inaccessible targets are not listed for management. OAuth ceiling when enforced: catalog.write. Private mutations are audit-only and advance the parent revision; replay rechecks original current authority.
+         */
+        delete: operations["removeCollectionMember"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/me/work": {
         parameters: {
             query?: never;
@@ -3673,6 +3769,49 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        SharedCollection: {
+            id: components["schemas"]["UUID"];
+            namespaceId: components["schemas"]["UUID"];
+            /** @description Outer whitespace is trimmed; one line without control or Unicode line/paragraph separators. Duplicate names are permitted. */
+            name: string;
+            /** @description Plain text with outer whitespace trimmed. Only CR, LF and tab control characters are allowed. */
+            description: string;
+            /** Format: int64 */
+            revision: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateCollection: {
+            namespaceId: components["schemas"]["UUID"];
+            /** @description After outer whitespace trimming, 1-160 Unicode code points on one line without control or Unicode line/paragraph separators. Duplicate names are permitted. */
+            name: string;
+            /** @description After outer whitespace trimming, at most 2000 Unicode code points of plain text. Only CR, LF and tab control characters are allowed. */
+            description?: string;
+        };
+        UpdateCollection: {
+            /** @description After outer whitespace trimming, 1-160 Unicode code points on one line without control or Unicode line/paragraph separators. Duplicate names are permitted. */
+            name?: string;
+            /** @description After outer whitespace trimming, at most 2000 Unicode code points of plain text. Only CR, LF and tab control characters are allowed. */
+            description?: string;
+        };
+        AddCollectionMember: {
+            listingId: components["schemas"]["UUID"];
+        };
+        CollectionReceipt: {
+            id: components["schemas"]["UUID"];
+            /** Format: int64 */
+            revision: number;
+        };
+        SharedCollectionPage: {
+            items: components["schemas"]["SharedCollection"][];
+            nextCursor?: string;
+        };
+        CollectionMemberPage: {
+            items: components["schemas"]["CatalogSummary"][];
+            nextCursor?: string;
+        };
         /** @description Reusable authoring input for one Resource and one Version. File validity does not establish command readiness, approval or publication. Native text can contain incomplete documents. Destination IDs, credentials, receipts and governance evidence are not part of this format. Control integers use integer literals, without decimals or exponents. The encoded file limit is 64 MiB; client and deployment limits can be lower. */
         CatalogDraftFile: {
             /** @enum {string} */
@@ -4475,7 +4614,7 @@ export interface components {
             index?: number;
         } & unknown);
         /** @enum {string} */
-        PermissionKey: "settings.read" | "settings.manage" | "resource.read" | "resource.read_history" | "resource.read_content" | "resource.create" | "resource.edit" | "resource.delete_draft" | "resource.validate" | "review.submit" | "review.decide" | "release.publish" | "release.transition" | "namespace.read" | "namespace.manage" | "namespace.create" | "publisher.read" | "publisher.create" | "publisher.manage" | "publisher.approve_domain" | "federation.discover" | "source.read" | "source.inspect" | "source.manage" | "source.sync" | "source.read_evidence" | "publication.read" | "publication.generate" | "publication.activate" | "publication.rollback" | "publication.unpublish" | "discovery.read" | "job.read" | "job.cancel" | "job.retry" | "audit.read" | "audit.export" | "webhook.read" | "webhook.manage" | "webhook.test" | "webhook.rotate" | "webhook.read_evidence" | "ratings.own" | "ratings.moderate" | "ratings.sharing.manage" | "feedback.own" | "library.own" | "feedback.moderate" | "operations.reindex" | "access.manage";
+        PermissionKey: "collection.read" | "collection.manage" | "settings.read" | "settings.manage" | "resource.read" | "resource.read_history" | "resource.read_content" | "resource.create" | "resource.edit" | "resource.delete_draft" | "resource.validate" | "review.submit" | "review.decide" | "release.publish" | "release.transition" | "namespace.read" | "namespace.manage" | "namespace.create" | "publisher.read" | "publisher.create" | "publisher.manage" | "publisher.approve_domain" | "federation.discover" | "source.read" | "source.inspect" | "source.manage" | "source.sync" | "source.read_evidence" | "publication.read" | "publication.generate" | "publication.activate" | "publication.rollback" | "publication.unpublish" | "discovery.read" | "job.read" | "job.cancel" | "job.retry" | "audit.read" | "audit.export" | "webhook.read" | "webhook.manage" | "webhook.test" | "webhook.rotate" | "webhook.read_evidence" | "ratings.own" | "ratings.moderate" | "ratings.sharing.manage" | "feedback.own" | "library.own" | "feedback.moderate" | "operations.reindex" | "access.manage";
         PermissionDescriptor: {
             key: components["schemas"]["PermissionKey"];
             namespaceScoped: boolean;
@@ -4887,7 +5026,7 @@ export interface components {
         } & {
             actor: unknown;
             /** @enum {unknown} */
-            action: "audit.events_read" | "audit.exported" | "authorization.assignment.granted" | "authorization.assignment.revoked" | "authorization.group.archived" | "authorization.group.created" | "authorization.group.reactivated" | "authorization.group.suspended" | "authorization.group.updated" | "authorization.group_member.added" | "authorization.group_member.revoked" | "authorization.role.archived" | "authorization.role.created" | "authorization.role.updated" | "catalog_listing.created" | "catalog_listing.revised" | "evidence.catalog_document.read" | "evidence.raw_observation.read" | "evidence.source_inspection.read" | "evidence.version_revision.read" | "federation.live_search.diagnostic" | "feedback.address" | "feedback.created" | "feedback.edit" | "feedback.remove" | "feedback.reopen" | "feedback.withdraw" | "idempotency.reservation_released" | "identity.membership.offboarded" | "identity.membership.reactivated" | "identity.membership.suspended" | "identity.membership_provisioned" | "identity.realm.reactivated" | "identity.realm.suspended" | "identity.role_assignment.granted" | "identity.role_assignment.revoked" | "job.cancellation_requested" | "job.retried" | "listing_release.deprecated" | "listing_release.published" | "listing_release.retired" | "listing_release.revoked" | "listing_release.superseded" | "namespace.created" | "namespace.updated" | "observation.adopted" | "personal.item.created" | "personal.item.removed" | "personal.item.updated" | "publication.activated" | "publication.candidate.created" | "publication.rolled_back" | "publication.unpublished" | "publisher.created" | "publisher.domain_challenge_issued" | "publisher.domain_verification_checked" | "publisher.domain_verification_cleared" | "publisher.publication_domain_approved" | "publisher.publication_domain_revoked" | "publisher.updated" | "rating.permit" | "rating.remove" | "rating.sharing" | "rating.submit" | "rating.withdraw" | "repair.search_projection.rebuilt" | "repair.webhook_secrets.reencrypted" | "resource.created" | "resource.deleted" | "resource_version.created" | "resource_version.revised" | "review_submission.approve" | "review_submission.reject" | "review_submission.request_changes" | "review_submission.submitted" | "semantic.reindex.requested" | "source.artwork.revised" | "source.change_preview.created" | "source.connected" | "source.inspected" | "source.paused" | "source.removed" | "source.resumed" | "source.revision.activated" | "source.sync.completed" | "source.sync.failed" | "source.sync.requested" | "source.tested" | "source.trust.completed" | "source.trust.read" | "source.trust.requested" | "tenant.settings.changed" | "version_revision.validated" | "webhook.created" | "webhook.deliveries_read" | "webhook.delivery_attempted" | "webhook.disabled" | "webhook.secret_rotated" | "webhook.updated";
+            action: "audit.events_read" | "audit.exported" | "authorization.assignment.granted" | "authorization.assignment.revoked" | "authorization.group.archived" | "authorization.group.created" | "authorization.group.reactivated" | "authorization.group.suspended" | "authorization.group.updated" | "authorization.group_member.added" | "authorization.group_member.revoked" | "authorization.role.archived" | "authorization.role.created" | "authorization.role.updated" | "catalog_listing.created" | "catalog_listing.revised" | "collection.created" | "collection.deleted" | "collection.member_added" | "collection.member_removed" | "collection.updated" | "evidence.catalog_document.read" | "evidence.raw_observation.read" | "evidence.source_inspection.read" | "evidence.version_revision.read" | "federation.live_search.diagnostic" | "feedback.address" | "feedback.created" | "feedback.edit" | "feedback.remove" | "feedback.reopen" | "feedback.withdraw" | "idempotency.reservation_released" | "identity.membership.offboarded" | "identity.membership.reactivated" | "identity.membership.suspended" | "identity.membership_provisioned" | "identity.realm.reactivated" | "identity.realm.suspended" | "identity.role_assignment.granted" | "identity.role_assignment.revoked" | "job.cancellation_requested" | "job.retried" | "listing_release.deprecated" | "listing_release.published" | "listing_release.retired" | "listing_release.revoked" | "listing_release.superseded" | "namespace.created" | "namespace.updated" | "observation.adopted" | "personal.item.created" | "personal.item.removed" | "personal.item.updated" | "publication.activated" | "publication.candidate.created" | "publication.rolled_back" | "publication.unpublished" | "publisher.created" | "publisher.domain_challenge_issued" | "publisher.domain_verification_checked" | "publisher.domain_verification_cleared" | "publisher.publication_domain_approved" | "publisher.publication_domain_revoked" | "publisher.updated" | "rating.permit" | "rating.remove" | "rating.sharing" | "rating.submit" | "rating.withdraw" | "repair.search_projection.rebuilt" | "repair.webhook_secrets.reencrypted" | "resource.created" | "resource.deleted" | "resource_version.created" | "resource_version.revised" | "review_submission.approve" | "review_submission.reject" | "review_submission.request_changes" | "review_submission.submitted" | "semantic.reindex.requested" | "source.artwork.revised" | "source.change_preview.created" | "source.connected" | "source.inspected" | "source.paused" | "source.removed" | "source.resumed" | "source.revision.activated" | "source.sync.completed" | "source.sync.failed" | "source.sync.requested" | "source.tested" | "source.trust.completed" | "source.trust.read" | "source.trust.requested" | "tenant.settings.changed" | "version_revision.validated" | "webhook.created" | "webhook.deliveries_read" | "webhook.delivery_attempted" | "webhook.disabled" | "webhook.secret_rotated" | "webhook.updated";
             targetType: unknown;
             targetId: unknown;
             reason?: unknown;
@@ -8475,6 +8614,253 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listCollections: {
+        parameters: {
+            query?: {
+                namespaceId?: components["schemas"]["UUID"];
+                limit?: number;
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedCollectionPage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    createCollection: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Maximum 32 KiB and the configured server body ceiling. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCollection"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionReceipt"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    getCollection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collectionId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedCollection"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    deleteCollection: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Exact revision ETag from the current target record; a stale or missing value prevents the command from changing it. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                collectionId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionReceipt"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    updateCollection: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Exact revision ETag from the current target record; a stale or missing value prevents the command from changing it. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                collectionId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        /** @description Maximum 32 KiB and the configured server body ceiling. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCollection"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionReceipt"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listCollectionMembers: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                collectionId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionMemberPage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    addCollectionMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Exact revision ETag from the current target record; a stale or missing value prevents the command from changing it. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                collectionId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        /** @description Maximum 1 KiB and the configured server body ceiling. */
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddCollectionMember"];
+            };
+        };
+        responses: {
+            /** @description Success */
+            201: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionReceipt"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    removeCollectionMember: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+                /** @description Exact revision ETag from the current target record; a stale or missing value prevents the command from changing it. */
+                "If-Match": components["parameters"]["IfMatch"];
+            };
+            path: {
+                collectionId: components["schemas"]["UUID"];
+                listingId: components["schemas"]["UUID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CollectionReceipt"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     listPersonalWork: {
         parameters: {
             query?: {

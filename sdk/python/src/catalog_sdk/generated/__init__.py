@@ -34,6 +34,7 @@ __all__ = [
     "RatingsApi",
     "RolesApi",
     "ServiceApi",
+    "SharedCollectionsApi",
     "WebhooksApi",
     "ApiResponse",
     "ApiClient",
@@ -82,6 +83,7 @@ __all__ = [
     "ActivitySearchOutcome",
     "ActivityStatusCount",
     "ActorType",
+    "AddCollectionMember",
     "AdministrationOverview",
     "AdoptObservation",
     "AdoptionProvenance",
@@ -178,7 +180,10 @@ __all__ = [
     "CatalogSearchResultPeerRatings",
     "CatalogSummary",
     "CatalogVersionSummary",
+    "CollectionMemberPage",
+    "CollectionReceipt",
     "ConnectSource",
+    "CreateCollection",
     "CreateListing",
     "CreateListingRevision",
     "CreateListingRevisionExtensions",
@@ -393,6 +398,8 @@ __all__ = [
     "ServiceVersion",
     "SetArtworkOverride",
     "SetTenantSettingsRequest",
+    "SharedCollection",
+    "SharedCollectionPage",
     "SkillHandoff",
     "SkillPackageAssessments",
     "SkillPackageFile",
@@ -419,6 +426,7 @@ __all__ = [
     "TrustCryptographicResult",
     "TrustEvidenceBundle",
     "TrustSummary",
+    "UpdateCollection",
     "UpdateSource",
     "VersionEvidenceEnvelope",
     "VersionRevision",
@@ -468,6 +476,9 @@ from catalog_sdk.generated.api.publication_api import PublicationApi as Publicat
 from catalog_sdk.generated.api.ratings_api import RatingsApi as RatingsApi
 from catalog_sdk.generated.api.roles_api import RolesApi as RolesApi
 from catalog_sdk.generated.api.service_api import ServiceApi as ServiceApi
+from catalog_sdk.generated.api.shared_collections_api import (
+    SharedCollectionsApi as SharedCollectionsApi,
+)
 from catalog_sdk.generated.api.webhooks_api import WebhooksApi as WebhooksApi
 
 # import ApiClient
@@ -576,6 +587,9 @@ from catalog_sdk.generated.models.activity_status_count import (
     ActivityStatusCount as ActivityStatusCount,
 )
 from catalog_sdk.generated.models.actor_type import ActorType as ActorType
+from catalog_sdk.generated.models.add_collection_member import (
+    AddCollectionMember as AddCollectionMember,
+)
 from catalog_sdk.generated.models.administration_overview import (
     AdministrationOverview as AdministrationOverview,
 )
@@ -840,7 +854,16 @@ from catalog_sdk.generated.models.catalog_summary import (
 from catalog_sdk.generated.models.catalog_version_summary import (
     CatalogVersionSummary as CatalogVersionSummary,
 )
+from catalog_sdk.generated.models.collection_member_page import (
+    CollectionMemberPage as CollectionMemberPage,
+)
+from catalog_sdk.generated.models.collection_receipt import (
+    CollectionReceipt as CollectionReceipt,
+)
 from catalog_sdk.generated.models.connect_source import ConnectSource as ConnectSource
+from catalog_sdk.generated.models.create_collection import (
+    CreateCollection as CreateCollection,
+)
 from catalog_sdk.generated.models.create_listing import CreateListing as CreateListing
 from catalog_sdk.generated.models.create_listing_revision import (
     CreateListingRevision as CreateListingRevision,
@@ -1369,6 +1392,12 @@ from catalog_sdk.generated.models.set_artwork_override import (
 from catalog_sdk.generated.models.set_tenant_settings_request import (
     SetTenantSettingsRequest as SetTenantSettingsRequest,
 )
+from catalog_sdk.generated.models.shared_collection import (
+    SharedCollection as SharedCollection,
+)
+from catalog_sdk.generated.models.shared_collection_page import (
+    SharedCollectionPage as SharedCollectionPage,
+)
 from catalog_sdk.generated.models.skill_handoff import SkillHandoff as SkillHandoff
 from catalog_sdk.generated.models.skill_package_assessments import (
     SkillPackageAssessments as SkillPackageAssessments,
@@ -1437,6 +1466,9 @@ from catalog_sdk.generated.models.trust_evidence_bundle import (
     TrustEvidenceBundle as TrustEvidenceBundle,
 )
 from catalog_sdk.generated.models.trust_summary import TrustSummary as TrustSummary
+from catalog_sdk.generated.models.update_collection import (
+    UpdateCollection as UpdateCollection,
+)
 from catalog_sdk.generated.models.update_source import UpdateSource as UpdateSource
 from catalog_sdk.generated.models.version_evidence_envelope import (
     VersionEvidenceEnvelope as VersionEvidenceEnvelope,

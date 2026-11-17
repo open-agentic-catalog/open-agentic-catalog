@@ -64,6 +64,16 @@ export function navigationGroups(access: Access): {
             permits(access, "federation.discover", "catalog.read"),
         },
         {
+          label: "Shared collections",
+          path: "collections",
+          icon: "book",
+          allowed: availablePermission(
+            access,
+            "collection.read",
+            "catalog.read",
+          ),
+        },
+        {
           label: "Explore local catalog",
           path: "explore",
           icon: "filters",
@@ -342,6 +352,7 @@ export function pageContext(
         "access-roles": "Role",
         "access-groups": "Group",
         namespaces: "Namespace",
+        collections: "Collection",
         publishers: "Publisher",
         jobs: "Job",
         "trust-assessments": "ANS assessment",

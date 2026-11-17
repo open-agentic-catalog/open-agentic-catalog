@@ -415,7 +415,7 @@ def administration(api, other, public, base, seed, run_id):
         "subject": "local-reader", "actorType": "human", "role": "contributor", "namespaceId": body["namespaceId"], "reason": "Owned scoped grant"}, 201)
     access_path = "/api/v1/me?namespaceId=" + body["namespaceId"]
     access, _ = reader.request("GET", access_path)
-    assert access["membershipId"] == assignment["membershipId"] and len(access["namespaceGrants"]) == 1 and access["namespaceGrants"][0]["namespaceId"] == body["namespaceId"] and set(access["namespaceGrants"][0]["permissions"]) == set(me["permissions"]) | {"namespace.read", "resource.read", "resource.read_history", "resource.read_content", "resource.create", "resource.edit", "resource.delete_draft", "resource.validate", "review.submit"}, "self access omitted scoped grant"
+    assert access["membershipId"] == assignment["membershipId"] and len(access["namespaceGrants"]) == 1 and access["namespaceGrants"][0]["namespaceId"] == body["namespaceId"] and set(access["namespaceGrants"][0]["permissions"]) == set(me["permissions"]) | {"collection.manage", "namespace.read", "resource.read", "resource.read_history", "resource.read_content", "resource.create", "resource.edit", "resource.delete_draft", "resource.validate", "review.submit"}, "self access omitted scoped grant"
     create_headers = {"Idempotency-Key": key("scoped-create")}
     resource, resource_headers = reader.request("POST", "/api/v1/resources", body, (201,), create_headers)
     replay, replay_headers = reader.request("POST", "/api/v1/resources", body, (201,), create_headers)

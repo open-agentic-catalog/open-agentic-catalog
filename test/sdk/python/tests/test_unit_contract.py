@@ -151,7 +151,7 @@ class ContractUnits(unittest.TestCase):
     def test_full_custom_role_capacity_matches_the_delegable_contract(self):
         cls = models.RoleDefinitionInput
         permissions = [p for p in CONTRACT["components"]["schemas"]["PermissionKey"]["enum"] if p != "access.manage"]
-        self.assertEqual(len(permissions), 49)
+        self.assertEqual(len(permissions), 51)
         value = {"name": "All delegable actions", "permissions": permissions, "reason": "Explicit finite role"}
         self.assertEqual(cls.from_dict(value).to_dict()["permissions"], permissions)
         with self.assertRaises(ValueError):

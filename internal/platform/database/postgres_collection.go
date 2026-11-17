@@ -13,6 +13,7 @@ import (
 )
 
 var collectionPermissions = []identity.Permission{
+	"collection.read", "collection.manage",
 	"namespace.read", "resource.read", "resource.read_history", "resource.read_content",
 	"federation.discover", "job.read", "source.read", "source.read_evidence", "publication.read", "operations.reindex",
 	"webhook.read", "webhook.read_evidence",

@@ -30,6 +30,8 @@ const MaxPermissionChecks = 64
 const MaxDevelopmentRoleTemplates = 14
 
 var permissionRegistry = []PermissionDescriptor{
+	{Key: "collection.read", NamespaceScoped: true, Delegable: true, Requires: []Permission{}},
+	{Key: "collection.manage", NamespaceScoped: true, Delegable: true, Requires: []Permission{"collection.read"}},
 	{Key: "library.own", Delegable: true, Requires: []Permission{}},
 	{Key: "settings.read", Delegable: true, Requires: []Permission{}},
 	{Key: "settings.manage", Delegable: true, Requires: []Permission{"settings.read"}},
@@ -82,10 +84,10 @@ var permissionRegistry = []PermissionDescriptor{
 	{Key: "access.manage", NamespaceScoped: false, Delegable: false, Requires: []Permission{}},
 }
 var builtinPermissions = map[string][]Permission{
-	"reader":            {"ratings.own", "resource.read", "resource.read_history", "resource.read_content", "namespace.read"},
-	"contributor":       {"ratings.own", "resource.read", "resource.read_history", "resource.read_content", "namespace.read", "resource.create", "resource.edit", "resource.delete_draft", "resource.validate", "review.submit"},
-	"reviewer":          {"ratings.own", "resource.read", "resource.read_history", "resource.read_content", "namespace.read", "review.decide"},
-	"publisher":         {"ratings.own", "resource.read", "resource.read_history", "resource.read_content", "namespace.read", "release.publish", "release.transition"},
+	"reader":            {"collection.read", "ratings.own", "resource.read", "resource.read_history", "resource.read_content", "namespace.read"},
+	"contributor":       {"collection.read", "collection.manage", "ratings.own", "resource.read", "resource.read_history", "resource.read_content", "namespace.read", "resource.create", "resource.edit", "resource.delete_draft", "resource.validate", "review.submit"},
+	"reviewer":          {"collection.read", "ratings.own", "resource.read", "resource.read_history", "resource.read_content", "namespace.read", "review.decide"},
+	"publisher":         {"collection.read", "ratings.own", "resource.read", "resource.read_history", "resource.read_content", "namespace.read", "release.publish", "release.transition"},
 	"discovery_reader":  {"library.own", "ratings.own", "federation.discover", "discovery.read", "publisher.read", "job.read"},
 	"publisher_creator": {"publisher.read", "publisher.create"},
 	"publication_admin": {"publication.read", "publication.generate", "publication.activate", "publication.rollback", "publication.unpublish", "job.read", "job.cancel", "job.retry"},
@@ -94,7 +96,7 @@ var builtinPermissions = map[string][]Permission{
 	"webhook_admin":     {"webhook.read", "webhook.manage", "webhook.test", "webhook.rotate", "webhook.read_evidence"},
 	"library_member":    {"library.own"},
 	"feedback_member":   {"feedback.own"},
-	"tenant_admin":      {"library.own", "settings.read", "settings.manage", "ratings.moderate", "ratings.sharing.manage", "ratings.own", "resource.read", "resource.read_history", "resource.read_content", "resource.create", "resource.edit", "resource.delete_draft", "resource.validate", "review.submit", "review.decide", "release.publish", "release.transition", "namespace.read", "namespace.manage", "namespace.create", "publisher.read", "publisher.create", "publisher.manage", "publisher.approve_domain", "federation.discover", "source.read", "source.inspect", "source.manage", "source.sync", "source.read_evidence", "publication.read", "publication.generate", "publication.activate", "publication.rollback", "publication.unpublish", "discovery.read", "job.read", "job.cancel", "job.retry", "audit.read", "audit.export", "webhook.read", "webhook.manage", "webhook.test", "webhook.rotate", "webhook.read_evidence", "feedback.own", "feedback.moderate", "operations.reindex", "access.manage"},
+	"tenant_admin":      {"collection.read", "collection.manage", "library.own", "settings.read", "settings.manage", "ratings.moderate", "ratings.sharing.manage", "ratings.own", "resource.read", "resource.read_history", "resource.read_content", "resource.create", "resource.edit", "resource.delete_draft", "resource.validate", "review.submit", "review.decide", "release.publish", "release.transition", "namespace.read", "namespace.manage", "namespace.create", "publisher.read", "publisher.create", "publisher.manage", "publisher.approve_domain", "federation.discover", "source.read", "source.inspect", "source.manage", "source.sync", "source.read_evidence", "publication.read", "publication.generate", "publication.activate", "publication.rollback", "publication.unpublish", "discovery.read", "job.read", "job.cancel", "job.retry", "audit.read", "audit.export", "webhook.read", "webhook.manage", "webhook.test", "webhook.rotate", "webhook.read_evidence", "feedback.own", "feedback.moderate", "operations.reindex", "access.manage"},
 	"service_client":    {},
 }
 

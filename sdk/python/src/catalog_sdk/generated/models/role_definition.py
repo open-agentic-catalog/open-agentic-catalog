@@ -50,7 +50,7 @@ else:
         description: Annotated[str, Field(strict=True, max_length=2000)]
         state: StrictStr
         revision: Annotated[int, Field(strict=True, ge=1)]
-        permissions: Annotated[List[PermissionKey], Field(max_length=50)]
+        permissions: Annotated[List[PermissionKey], Field(max_length=52)]
         namespace_capable: StrictBool = Field(alias="namespaceCapable")
         created_at: datetime = Field(alias="createdAt")
         updated_at: datetime = Field(alias="updatedAt")

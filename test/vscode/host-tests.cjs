@@ -59,6 +59,19 @@ exports.run = async () => {
     const connection = configuration.get("connections")[0];
     await api.select(connection.id);
     await assert.rejects(api.test(), /sign_in_required/u);
+    // New finite permissions must remain consumable through the installed
+    // host and bundled SDK, including the full administrator projection.
+    await api.authenticate("admin");
+    const administrator = (await api.test()).identity;
+    assert.equal(administrator.subject, "admin");
+    assert.equal(administrator.permissions.length, 52);
+    assert.equal(administrator.availablePermissions.length, 52);
+    for (const permission of ["collection.read", "collection.manage"]) {
+      assert.ok(administrator.permissions.includes(permission));
+      assert.ok(administrator.availablePermissions.includes(permission));
+    }
+    assert.equal((await api.browse({ limit: 2 })).items.length, 2);
+    await api.signOut();
     await api.authenticate("reader");
     // Reuse one native SecretStorage key. Do not wait, retry a failed operation,
     // or suppress storage notifications between deletion and replacement.
@@ -72,6 +85,10 @@ exports.run = async () => {
     }
     let state = await api.test();
     assert.equal(state.identity.subject, "reader");
+    assert.ok(state.identity.availablePermissions.includes("collection.read"));
+    assert.ok(
+      !state.identity.availablePermissions.includes("collection.manage"),
+    );
     assert.equal(state.mode, "control");
     assert.ok(state.resourceKinds.includes("plugin"));
     const firstTenant = state.identity.tenantId;
@@ -307,6 +324,8 @@ exports.run = async () => {
     state = await api.test();
     assert.ok(state.identity.availablePermissions.includes("resource.read"));
     assert.ok(!state.identity.permissions.includes("resource.read"));
+    assert.ok(state.identity.availablePermissions.includes("collection.read"));
+    assert.ok(!state.identity.permissions.includes("collection.read"));
     page = await api.browse();
     assert.equal(page.items.length, 4);
     const namespace = page.items[0].namespaceId;

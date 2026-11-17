@@ -38,6 +38,7 @@ var domainPackageDirectories = []string{
 	"internal/jsondoc",
 	"internal/overview",
 	"internal/personal",
+	"internal/collections",
 	"internal/publication",
 	"internal/ratings",
 	"internal/safeerr",
@@ -256,7 +257,7 @@ func TestArchitectureDomainOwnership(t *testing.T) {
 	// Literal controls are independent of the list consumed by the analyzer:
 	// removing a protected root must break its own denial control.
 	for _, root := range []string{
-		"adapter", "artwork", "audit", "catalog", "draftfile", "events",
+		"adapter", "artwork", "audit", "catalog", "collections", "draftfile", "events",
 		"federation", "feedback", "housekeeping", "identity", "jobs", "jsondoc",
 		"overview", "personal", "publication", "ratings", "safeerr", "standards",
 		"tenantsettings", "webhook",

@@ -17,7 +17,7 @@ def verify_chain(read_page, tenant, recovery_point, schema, manifest, error_type
         page = read_page(cursor)
         if (not isinstance(page, dict) or not required.issubset(page) or set(page) - required - {"continuation"}
                 or any(type(page[key]) is not int for key in ("formatVersion", "checkSetVersion", "schemaVersion", "privilegeManifestVersion"))
-                or page["formatVersion"] != 1 or page["checkSetVersion"] != 7
+                or page["formatVersion"] != 1 or page["checkSetVersion"] != 8
                 or page["tenantId"] != tenant or page["recoveryPoint"] != recovery_point
                 or page["schemaVersion"] != schema or page["privilegeManifestVersion"] != manifest
                 or page["integrity"] != "valid" or page["traversal"] not in ("continued", "complete")

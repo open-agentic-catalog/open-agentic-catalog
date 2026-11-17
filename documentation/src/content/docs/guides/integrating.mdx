@@ -843,3 +843,36 @@ The selected client has these limits:
 - Its formatted Search text omits per-result `source` metadata. The test checks that metadata in the actual HTTP response.
 
 Configured trust and declared signatures do not establish Catalog approval. The test checks those labels without fetching attestations or following referrals. The recorded Pi 1.5.0 dependency scan has no reported vulnerabilities. Tests retain the documented network and resource limits. Positive installation, real model behavior and a human terminal interface remain untested.
+
+## Curate shared local collections
+
+Use `GET/POST /api/v1/collections` and `GET/PATCH/DELETE /api/v1/collections/{collectionId}` for namespace-owned metadata. Creation accepts `namespaceId`, `name` and optional `description`. PATCH accepts only name/description; omission preserves a value, an empty description clears it and explicit null is invalid. Duplicate names are allowed. Metadata requests permit at most 32 KiB, also subject to the deployment's configured body ceiling.
+
+Use `GET/POST /api/v1/collections/{collectionId}/members` and `DELETE /api/v1/collections/{collectionId}/members/{listingId}` for references. Add takes one local `listingId` in a body of at most 1 KiB. Delete commands are bodyless. Mutations require Idempotency-Key; changes to an existing collection require its current If-Match. Every accepted edit/add/remove advances the parent revision. Receipts return only the collection ID and resulting revision/ETag.
+
+A manager in namespace A can add an eligible Listing from B when independently permitted to read B. Member reads return existing Catalog summaries for the current published/deprecated release, not documents or execution authority. All four SDKs expose the new generated operations. This slice adds no catalogctl, Catalog MCP or VS Code collection workflow.
+
+Directory reads support an exact namespaceId filter. Both directories and member lists use bounded items/nextCursor pages, default 20 and maximum 100. Member continuations bind current policy, collection revision and target release generation; restart a refused continuation. Member pages are no-store and do not support a metadata-revision-only 304. See [shared collection limits](./concepts.md#curate-a-shared-collection) for retained hidden members and the disclosure tradeoffs.
+
+For example, create a collection in a namespace you manage:
+
+```http
+POST /api/v1/collections
+Idempotency-Key: team-tools-create
+Content-Type: application/json
+
+{"namespaceId":"00000000-0000-7000-8000-000000000001","name":"Team tools"}
+```
+
+Use the returned collection ID and ETag when adding a Listing. The Listing can belong to another namespace where you have `resource.read`:
+
+```http
+POST /api/v1/collections/{collectionId}/members
+Idempotency-Key: team-tools-add-listing
+If-Match: "rev-1"
+Content-Type: application/json
+
+{"listingId":"00000000-0000-7000-8000-000000000002"}
+```
+
+Both calls require your normal Bearer authentication. Substitute real namespace and Listing IDs. Keep each command key for an exact retry; later commands use a new key and the updated ETag. Names and descriptions are bounded after trimming outer whitespace, while the request body has its separate byte ceiling.

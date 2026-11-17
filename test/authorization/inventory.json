@@ -313,10 +313,23 @@
       "scope": "tenant",
       "delegable": true,
       "requires": []
+    },
+    "collection.read": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": []
+    },
+    "collection.manage": {
+      "scope": "namespace",
+      "delegable": true,
+      "requires": [
+        "collection.read"
+      ]
     }
   },
   "builtins": {
     "reader": [
+      "collection.read",
       "ratings.own",
       "resource.read",
       "resource.read_history",
@@ -324,6 +337,8 @@
       "namespace.read"
     ],
     "contributor": [
+      "collection.read",
+      "collection.manage",
       "ratings.own",
       "resource.read",
       "resource.read_history",
@@ -336,6 +351,7 @@
       "review.submit"
     ],
     "reviewer": [
+      "collection.read",
       "ratings.own",
       "resource.read",
       "resource.read_history",
@@ -344,6 +360,7 @@
       "review.decide"
     ],
     "publisher": [
+      "collection.read",
       "ratings.own",
       "resource.read",
       "resource.read_history",
@@ -400,6 +417,8 @@
       "feedback.own"
     ],
     "tenant_admin": [
+      "collection.read",
+      "collection.manage",
       "library.own",
       "settings.read",
       "settings.manage",
@@ -594,6 +613,12 @@
       "actors": "active human membership",
       "disclosure": "owner only; current independent target permissions",
       "eligibility": "exact membership/realm attribution and bounded selection"
+    },
+    "shared_collection": {
+      "scopeSource": "collection owner namespace; add/browse also require current target namespace metadata read",
+      "actors": "current human or service membership",
+      "disclosure": "shared authored collection metadata and currently readable eligible local summaries; minimal command receipts",
+      "eligibility": "current published/deprecated Listing releases; retained references convey no target authority"
     }
   },
   "operations": [
@@ -2829,6 +2854,115 @@
       "policy": "ratings",
       "oauthCeiling": "tenant.admin",
       "currentAuthority": "current scoped permission selection"
+    },
+    {
+      "operationId": "listCollections",
+      "method": "GET",
+      "path": "/api/v1/collections",
+      "policy": "shared_collection",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current owner and target checks; retained original scopes for replay; policy and release-generation fences on member pages",
+      "permissions": [
+        "collection.read"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "createCollection",
+      "method": "POST",
+      "path": "/api/v1/collections",
+      "policy": "shared_collection",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "current owner and target checks; retained original scopes for replay; policy and release-generation fences on member pages",
+      "permissions": [
+        "collection.read",
+        "collection.manage"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "getCollection",
+      "method": "GET",
+      "path": "/api/v1/collections/{collectionId}",
+      "policy": "shared_collection",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current owner and target checks; retained original scopes for replay; policy and release-generation fences on member pages",
+      "permissions": [
+        "collection.read"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "updateCollection",
+      "method": "PATCH",
+      "path": "/api/v1/collections/{collectionId}",
+      "policy": "shared_collection",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "current owner and target checks; retained original scopes for replay; policy and release-generation fences on member pages",
+      "permissions": [
+        "collection.read",
+        "collection.manage"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "deleteCollection",
+      "method": "DELETE",
+      "path": "/api/v1/collections/{collectionId}",
+      "policy": "shared_collection",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "current owner and target checks; retained original scopes for replay; policy and release-generation fences on member pages",
+      "permissions": [
+        "collection.read",
+        "collection.manage"
+      ],
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "listCollectionMembers",
+      "method": "GET",
+      "path": "/api/v1/collections/{collectionId}/members",
+      "policy": "shared_collection",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "current owner and target checks; retained original scopes for replay; policy and release-generation fences on member pages",
+      "permissions": [
+        "collection.read"
+      ],
+      "conditionalPermissions": {
+        "target": [
+          "resource.read"
+        ]
+      }
+    },
+    {
+      "operationId": "addCollectionMember",
+      "method": "POST",
+      "path": "/api/v1/collections/{collectionId}/members",
+      "policy": "shared_collection",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "current owner and target checks; retained original scopes for replay; policy and release-generation fences on member pages",
+      "permissions": [
+        "collection.read",
+        "collection.manage"
+      ],
+      "conditionalPermissions": {
+        "target": [
+          "resource.read"
+        ]
+      }
+    },
+    {
+      "operationId": "removeCollectionMember",
+      "method": "DELETE",
+      "path": "/api/v1/collections/{collectionId}/members/{listingId}",
+      "policy": "shared_collection",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "current owner and target checks; retained original scopes for replay; policy and release-generation fences on member pages",
+      "permissions": [
+        "collection.read",
+        "collection.manage"
+      ],
+      "conditionalPermissions": {}
     }
   ],
   "domainCallers": [
@@ -4847,6 +4981,66 @@
       "roleConstants": [],
       "source": "internal/publication/withdrawal_preview.go",
       "policy": "publication"
+    },
+    {
+      "package": "collections",
+      "receiver": "Service",
+      "method": "Get",
+      "source": "internal/collections/collections.go",
+      "policy": "shared_collection",
+      "calls": [
+        "RequirePermission",
+        "WithCollectionContext"
+      ],
+      "roleConstants": []
+    },
+    {
+      "package": "collections",
+      "receiver": "Service",
+      "method": "List",
+      "source": "internal/collections/collections.go",
+      "policy": "shared_collection",
+      "calls": [
+        "RequirePermission",
+        "WithCollectionContext"
+      ],
+      "roleConstants": []
+    },
+    {
+      "package": "collections",
+      "receiver": "Service",
+      "method": "Members",
+      "source": "internal/collections/collections.go",
+      "policy": "shared_collection",
+      "calls": [
+        "RequirePermission",
+        "WithCollectionContext"
+      ],
+      "roleConstants": []
+    },
+    {
+      "package": "collections",
+      "receiver": "Service",
+      "method": "Create",
+      "source": "internal/collections/collections.go",
+      "policy": "shared_collection",
+      "calls": [
+        "RequirePermission",
+        "WithCollectionContext"
+      ],
+      "roleConstants": []
+    },
+    {
+      "package": "collections",
+      "receiver": "Service",
+      "method": "Change",
+      "source": "internal/collections/collections.go",
+      "policy": "shared_collection",
+      "calls": [
+        "RequirePermission",
+        "WithCollectionContext"
+      ],
+      "roleConstants": []
     }
   ],
   "internalExecution": [

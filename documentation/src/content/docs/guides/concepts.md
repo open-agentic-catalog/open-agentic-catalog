@@ -75,7 +75,7 @@ A Plugin release pins the inspected package content. Prepare the complete packag
 
 **Catalog** shows the current published or deprecated release for each eligible local Listing. A saved resource reference records an exact release and revision. A replacement release, release retirement or access loss can make that reference unavailable. It does not grant access to release history.
 
-Shared curated collections and curated subsets for individual discovery hosts are unavailable. Namespace filters and private named searches do not change public snapshots. Follow [discovery publication](publishing.mdx#release-and-publish-the-browser-agent) for the separate host and snapshot workflow.
+Shared collections organize existing local Listings across namespaces within a tenant. A collection follows each Listing's current published or deprecated release. Curated subsets for individual discovery hosts remain unavailable. Namespace filters and private named searches do not change public snapshots. Follow [discovery publication](publishing.mdx#release-and-publish-the-browser-agent) for the separate host and snapshot workflow.
 
 ## Local governance and federation are distinct
 
@@ -84,6 +84,26 @@ Follow [federation source operations](../operations/federation.mdx) to connect, 
 A source can participate in administrator-selected indexed, live or referral discovery. Its provenance and partial-failure information remain visible; an incomplete synchronization must not withdraw the last complete snapshot. Clients cannot supply arbitrary federation destinations or choose the server's topology.
 
 An external observation remains external until an authorized adoption creates a locally governed draft with provenance. That draft still goes through local validation, review and release. See the [source onboarding walkthrough](local-development.mdx#connect-a-federated-source) and [standards reference](../reference/standards.mdx).
+
+## Curate a shared collection
+
+Use **Shared collections** to create a named selection in an owner namespace. Open a readable local Catalog record and select **Add to collection**. Select a destination collection, then review and confirm the addition. Other readers see only its currently eligible entries that their own permissions allow.
+
+Collections support Agents, MCP Servers, Skills and Plugins. Membership references the Listing, so its next eligible release appears on a fresh read. Draft changes remain invisible. Unavailable references stay retained and can reappear after access or eligibility returns. Collection removal never edits or withdraws the source entry.
+
+Collection names and descriptions are shared plain text. Do not put information there that collection readers should not receive. Authored text is not automatically redacted when access to a mentioned entry changes. Collection revisions and update times can reveal curation activity.
+
+A collection permits 200 retained references, including hidden or unavailable entries. Each namespace permits 100 collections and each tenant permits 1,000. The name permits 160 Unicode code points and the description 2,000. Pages default to 20 entries and permit at most 100. Capacity refusals can reveal occupied capacity, but member pages provide no hidden counts or placeholders.
+
+A manager can remove an exact known membership after target access is lost. Successful removal confirms that reference was present; it returns no target metadata. Managers can also delete the collection and all its references. The ordinary browser does not provide an inventory of hidden targets.
+
+Collections are available in the authenticated Catalog without a deployment feature flag. Access depends on current scoped role assignments. An account without collection permissions cannot read or manage them.
+
+Reading requires `collection.read` in the owner namespace. Management requires `collection.manage` and collection read there. Adding and browsing a target separately require `resource.read` in its canonical namespace. Contributors can manage collections in their assigned scope; reader, reviewer and publisher templates can read them. Tenant Administrators receive both permissions. Custom roles select the finite actions explicitly. Both human and service memberships can use the API.
+
+For a restricted account, [create a custom role](access-management.mdx#create-a-custom-role-with-explicit-read-companions) with `collection.read` and assign it in the collection's owner namespace. Add `collection.manage` when that account should curate entries. Grant `resource.read` separately in each target namespace. Changing or revoking a grant takes effect on the next authorized read; it does not delete retained collections or references.
+
+Collections are authenticated metadata views. They do not grant source access, change public discovery feeds, install a resource or create a callable virtual MCP server. Personal bookmarks remain separate: they belong to a human and retain an exact release reference. Shared collections have namespace ownership and follow current releases.
 
 ## Evidence and notifications have different purposes
 

@@ -73,8 +73,8 @@ export function identity(value: unknown): Identity {
     subject: text(me.subject),
     realmId: uuid(me.realmId),
     membershipId: uuid(me.membershipId),
-    permissions: strings(me.permissions, 50),
-    availablePermissions: strings(me.availablePermissions, 50),
+    permissions: strings(me.permissions, 52),
+    availablePermissions: strings(me.availablePermissions, 52),
   };
 }
 export class Session {

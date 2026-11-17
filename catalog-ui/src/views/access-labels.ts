@@ -122,6 +122,8 @@ export function readOnlyTask(access: Access, path: string) {
 }
 // Labels describe the existing finite actions; keys remain visible and authoritative.
 export const permissionLabels: Record<Role["permissions"][number], string> = {
+  "collection.read": "Read shared collections",
+  "collection.manage": "Manage shared collections",
   "library.own": "Manage own saved items and searches",
   "settings.read": "Read tenant settings",
   "settings.manage": "Change tenant settings",

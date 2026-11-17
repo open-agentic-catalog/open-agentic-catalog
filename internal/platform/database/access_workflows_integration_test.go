@@ -89,7 +89,7 @@ func TestPostgresScopedReaderLibraryAndDisjointGroup(t *testing.T) {
 			t.Fatal("current SQL paths do not match independent surviving grants", ids, wantIDs)
 		}
 	}
-	readerPermissions := []identity.Permission{"library.own", "namespace.read", "ratings.own", "resource.read", "resource.read_content", "resource.read_history"}
+	readerPermissions := []identity.Permission{"collection.read", "library.own", "namespace.read", "ratings.own", "resource.read", "resource.read_content", "resource.read_history"}
 	metadataPermissions := []identity.Permission{"library.own", "resource.read"}
 	want := identity.SelfAccessProjection{Permissions: []identity.Permission{"library.own"}, AvailablePermissions: readerPermissions, NamespaceGrants: []identity.NamespacePermissionAccess{{NamespaceID: authorizationCoreNamespace, Permissions: readerPermissions}, {NamespaceID: namespaceB, Permissions: metadataPermissions}}}
 	assertDecisions([]bool{true, true, true, false, true, false, false})

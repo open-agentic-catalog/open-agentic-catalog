@@ -177,7 +177,7 @@ func TestSelfAccessRejectsSignedInvalidNamespacePositions(t *testing.T) {
 				return
 			}
 			var got selfResponse
-			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &got) != nil || !reflect.DeepEqual(got.NamespaceGrants, []identity.NamespacePermissionAccess{{NamespaceID: selected, Permissions: []identity.Permission{"namespace.read", "ratings.own", "resource.read", "resource.read_content", "resource.read_history", "review.decide"}}}) || got.NextCursor != "" || got.Subject != actor.Subject {
+			if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &got) != nil || !reflect.DeepEqual(got.NamespaceGrants, []identity.NamespacePermissionAccess{{NamespaceID: selected, Permissions: []identity.Permission{"collection.read", "namespace.read", "ratings.own", "resource.read", "resource.read_content", "resource.read_history", "review.decide"}}}) || got.NextCursor != "" || got.Subject != actor.Subject {
 				t.Fatalf("valid self continuation=%+v status=%d", got, w.Code)
 			}
 		})

@@ -145,7 +145,7 @@ func TestRestoreSchemaFindingsDistinguishTraversalFromQualification(t *testing.T
 			rows := slices.Clone(f.tx.queryResults)
 			report := RestoreVerificationReport{}
 			got, err := verifyRestoreSchema(t.Context(), f.tx, restoreSchemaOptions(), &report)
-			if err != nil || got != usable || report.SchemaVersion != 51 || !slices.Equal(restoreFindingCodes(report), codes) {
+			if err != nil || got != usable || report.SchemaVersion != 52 || !slices.Equal(restoreFindingCodes(report), codes) {
 				t.Fatalf("usable=%v report=%+v error=%v", got, report, err)
 			}
 			for _, finding := range report.Findings {
@@ -155,7 +155,7 @@ func TestRestoreSchemaFindingsDistinguishTraversalFromQualification(t *testing.T
 				domain, recordID := "schema", ""
 				switch finding.Code {
 				case "RESTORE_MIGRATION_PENDING":
-					recordID = "51"
+					recordID = "52"
 				case "RESTORE_TENANT_MISSING", "RESTORE_AUTHORIZATION_STATE_MISSING":
 					domain, recordID = "tenant", restoreTestTenant
 				case "RESTORE_RUNTIME_ROLE_ATTRIBUTES_INVALID":

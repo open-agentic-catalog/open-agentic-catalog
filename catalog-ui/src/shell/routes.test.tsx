@@ -91,6 +91,19 @@ type Route = {
 };
 const routes: Route[] = [
   {
+    route: "collections",
+    heading: "Shared collections",
+    endpoint: "/api/v1/collections",
+    query: { limit: 20 },
+  },
+  {
+    route: "collections/collection-bookmark",
+    heading: "Shared collections",
+    endpoint: "/api/v1/collections/{collectionId}",
+    path: { collectionId: "collection-bookmark" },
+    additionalReads: ["/api/v1/collections/{collectionId}/members"],
+  },
+  {
     route: "overview?view=content",
     heading: "Overview",
     endpoint: "/api/v1/overview/resources",

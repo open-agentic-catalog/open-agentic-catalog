@@ -20,7 +20,7 @@ import (
 // read-only, feedback remains API-only and vectors cannot be rewritten. Outbox
 // causal context stays worker-readable; notification-counter writes remain
 // confined to fixed owner-authorized triggers, never runtime DML or EXECUTE.
-const runtimePrivilegeManifestVersion = 29
+const runtimePrivilegeManifestVersion = 30
 
 // RuntimePrivilegeManifestVersion identifies the exact role grant contract
 // embedded in this binary for bounded operator diagnostics.
@@ -110,6 +110,8 @@ var catalogTableNames = []string{
 	"role_assignments",
 	"role_definitions",
 	"role_permissions",
+	"shared_collection_members",
+	"shared_collections",
 	"skill_file_inventory",
 	"source_artwork_heads",
 	"source_artwork_revisions",
@@ -136,6 +138,8 @@ var catalogTableNames = []string{
 // inventory deliberately before reconciliation can grant access to the new
 // column; PostgreSQL otherwise leaves it unavailable to both runtime roles.
 var catalogTableColumns = map[string][]string{
+	"shared_collections":             {"tenant_id", "id", "namespace_id", "name", "description", "revision", "created_at", "updated_at"},
+	"shared_collection_members":      {"tenant_id", "collection_id", "listing_id"},
 	"personal_items":                 {"tenant_id", "membership_id", "realm_id", "id", "input", "revision", "created_at", "updated_at"},
 	"tenant_settings":                {"tenant_id", "revision", "automatic_source_sync_enabled", "automatic_source_sync_interval_ns", "updated_at", "new_job_max_attempts"},
 	"rating_targets":                 {"tenant_id", "target_key", "target", "resource_id", "version_revision_id", "source_id", "vote_count", "score_sum", "shared_count", "shared_sum"},
@@ -245,6 +249,8 @@ var catalogFunctionNames = []string{
 	"guard_resource_version_lifecycle()",
 	"guard_review_submission_lifecycle()",
 	"guard_role_assignment_lifecycle()",
+	"guard_shared_collection()",
+	"guard_shared_collection_member()",
 	"guard_source_artwork_head()",
 	"guard_source_change_preview_history()",
 	"guard_source_inspection_history()",
@@ -407,6 +413,8 @@ func apiPrivilegeManifest() runtimePrivilegeManifest {
 
 	verification := tablePrivilege{selectColumns: append([]string(nil), catalogTableColumns["publisher_domain_verifications"]...), insertColumns: append([]string(nil), catalogTableColumns["publisher_domain_verifications"]...), updateColumns: columnsExcept(catalogTableColumns["publisher_domain_verifications"], "id", "tenant_id", "publisher_id", "domain", "created_at"), deleteRows: true}
 	manifest.tables["publisher_domain_verifications"] = verification
+	manifest.tables["shared_collections"] = tablePrivilege{selectColumns: catalogTableColumns["shared_collections"], insertColumns: catalogTableColumns["shared_collections"], updateColumns: []string{"name", "description", "revision", "updated_at"}, deleteRows: true}
+	manifest.tables["shared_collection_members"] = tablePrivilege{selectColumns: catalogTableColumns["shared_collection_members"], insertColumns: catalogTableColumns["shared_collection_members"], deleteRows: true}
 	return addSemanticPrivileges(manifest, false)
 }
 

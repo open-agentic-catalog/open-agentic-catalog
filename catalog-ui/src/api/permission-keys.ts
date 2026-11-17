@@ -2,6 +2,8 @@ import type { components } from "./schema";
 
 // The finite API vocabulary validates self-context hints before rendering.
 export const permissionKeys = [
+  "collection.read",
+  "collection.manage",
   "library.own",
   "settings.read",
   "settings.manage",

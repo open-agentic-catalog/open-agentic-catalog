@@ -131,7 +131,7 @@ func TestRuntimePrivilegeManifestsStayNarrowAndInternallyConsistent(t *testing.T
 		t.Fatal("worker has private library authority")
 	}
 	for table, privilege := range api.tables {
-		if table != "idempotency_keys" && table != "role_permissions" && table != "personal_items" && table != "publisher_domain_verifications" && privilege.deleteRows {
+		if table != "idempotency_keys" && table != "role_permissions" && table != "personal_items" && table != "shared_collections" && table != "shared_collection_members" && table != "publisher_domain_verifications" && privilege.deleteRows {
 			t.Fatalf("API role has unexpected DELETE on %s", table)
 		}
 	}

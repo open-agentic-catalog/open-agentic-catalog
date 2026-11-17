@@ -37,7 +37,7 @@ else:
         description: Optional[Annotated[str, Field(strict=True, max_length=2000)]] = (
             None
         )
-        permissions: Annotated[List[PermissionKey], Field(min_length=1, max_length=49)]
+        permissions: Annotated[List[PermissionKey], Field(min_length=1, max_length=51)]
         reason: Annotated[str, Field(min_length=1, strict=True, max_length=2000)]
         __properties: ClassVar[List[str]] = [
             "name",

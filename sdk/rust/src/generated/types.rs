@@ -1098,6 +1098,34 @@ impl AsRef<str> for SourceOverviewScope {
     }
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SharedCollectionPage {
+    ///Constraint: maxItems=100
+    pub items: Vec<SharedCollection>,
+    ///Constraint: maxLength=2048
+    #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct SharedCollection {
+    #[serde(rename = "createdAt")]
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    ///Plain text with outer whitespace trimmed. Only CR, LF and tab control characters are allowed.
+    ///Constraint: maxLength=2000
+    pub description: String,
+    pub id: UUID,
+    ///Outer whitespace is trimmed; one line without control or Unicode line/paragraph separators. Duplicate names are permitted.
+    ///Constraint: minLength=1, maxLength=160
+    pub name: String,
+    #[serde(rename = "namespaceId")]
+    pub namespace_id: UUID,
+    ///Constraint: minimum=1
+    pub revision: i64,
+    #[serde(rename = "updatedAt")]
+    pub updated_at: chrono::DateTime<chrono::Utc>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SetTenantSettingsRequest {
     pub overrides: TenantSettingsOverrides,
     ///Constraint: minLength=1, maxLength=2000, pattern=`.*\S.*`
@@ -1552,7 +1580,7 @@ pub struct RoleDefinitionInput {
     pub description: Option<String>,
     ///Constraint: minLength=1, maxLength=120
     pub name: String,
-    ///Constraint: minItems=1, maxItems=49, uniqueItems=true
+    ///Constraint: minItems=1, maxItems=51, uniqueItems=true
     pub permissions: Vec<PermissionKey>,
     ///Constraint: minLength=1, maxLength=2000
     pub reason: String,
@@ -7795,7 +7823,7 @@ pub struct RoleDefinition {
     pub name: String,
     #[serde(rename = "namespaceCapable")]
     pub namespace_capable: bool,
-    ///Constraint: maxItems=50, uniqueItems=true
+    ///Constraint: maxItems=52, uniqueItems=true
     pub permissions: Vec<PermissionKey>,
     ///Constraint: minimum=1
     pub revision: i64,
@@ -7939,7 +7967,7 @@ pub struct CurrentAccess {
     #[serde(rename = "authorizationRevision")]
     pub authorization_revision: i64,
     ///Effective actions available in at least one scope. A navigation hint, never permission for an arbitrary namespace.
-    ///Constraint: maxItems=50, uniqueItems=true
+    ///Constraint: maxItems=52, uniqueItems=true
     #[serde(rename = "availablePermissions")]
     pub available_permissions: Vec<PermissionKey>,
     #[serde(rename = "membershipId")]
@@ -7950,7 +7978,7 @@ pub struct CurrentAccess {
     ///Constraint: maxLength=2048
     #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
-    ///Constraint: maxItems=50, uniqueItems=true
+    ///Constraint: maxItems=52, uniqueItems=true
     pub permissions: Vec<PermissionKey>,
     #[serde(rename = "realmId")]
     pub realm_id: UUID,
@@ -7968,12 +7996,16 @@ pub struct CurrentAccess {
 pub struct NamespaceAccess {
     #[serde(rename = "namespaceId")]
     pub namespace_id: UUID,
-    ///Constraint: maxItems=50, uniqueItems=true
+    ///Constraint: maxItems=52, uniqueItems=true
     pub permissions: Vec<PermissionKey>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum PermissionKey {
     #[default]
+    #[serde(rename = "collection.read")]
+    CollectionRead,
+    #[serde(rename = "collection.manage")]
+    CollectionManage,
     #[serde(rename = "settings.read")]
     SettingsRead,
     #[serde(rename = "settings.manage")]
@@ -8078,6 +8110,8 @@ pub enum PermissionKey {
 impl PermissionKey {
     pub fn as_str(&self) -> &'static str {
         match self {
+            Self::CollectionRead => "collection.read",
+            Self::CollectionManage => "collection.manage",
             Self::SettingsRead => "settings.read",
             Self::SettingsManage => "settings.manage",
             Self::ResourceRead => "resource.read",
@@ -8892,6 +8926,57 @@ pub struct CreateListing {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct CreateCollection {
+    ///After outer whitespace trimming, at most 2000 Unicode code points of plain text. Only CR, LF and tab control characters are allowed.
+    ///Constraint: maxLength=32768
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    ///After outer whitespace trimming, 1-160 Unicode code points on one line without control or Unicode line/paragraph separators. Duplicate names are permitted.
+    ///Constraint: minLength=1, maxLength=32768
+    pub name: String,
+    #[serde(rename = "namespaceId")]
+    pub namespace_id: UUID,
+}
+impl CreateCollection {
+    /// Construct this request with every required wire field.
+    pub fn new(name: String, namespace_id: UUID) -> Self {
+        Self {
+            name,
+            namespace_id,
+            description: None,
+        }
+    }
+    /// Start a dependency-free builder with every required wire field.
+    pub fn builder(name: String, namespace_id: UUID) -> CreateCollectionBuilder {
+        CreateCollectionBuilder::new(name, namespace_id)
+    }
+}
+/// Dependency-free builder for this request.
+#[derive(Debug, Clone)]
+#[must_use]
+pub struct CreateCollectionBuilder {
+    value: CreateCollection,
+}
+impl CreateCollectionBuilder {
+    /// Start a builder with every required wire field.
+    pub fn new(name: String, namespace_id: UUID) -> Self {
+        Self {
+            value: CreateCollection::new(name, namespace_id),
+        }
+    }
+    #[doc = concat!("Set the optional `", "description", "` request field.")]
+    #[must_use]
+    pub fn description(mut self, description: String) -> Self {
+        self.value.description = Some(description);
+        self
+    }
+    /// Finish building the request model.
+    pub fn build(self) -> CreateCollection {
+        self.value
+    }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConnectSource {
     ///Explicit opt-in to source-provided artwork and native icons; image origin policy still applies.
     #[serde(rename = "artworkEnabled", skip_serializing_if = "Option::is_none")]
@@ -9252,6 +9337,22 @@ impl AsRef<str> for ConnectSourceUpdateMode {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CollectionReceipt {
+    pub id: UUID,
+    ///Constraint: minimum=1
+    pub revision: i64,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct CollectionMemberPage {
+    ///Constraint: maxItems=100
+    pub items: Vec<CatalogSummary>,
+    ///Constraint: maxLength=2048
+    #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -13034,6 +13135,16 @@ pub enum AuditEventAction {
     CatalogListingCreated,
     #[serde(rename = "catalog_listing.revised")]
     CatalogListingRevised,
+    #[serde(rename = "collection.created")]
+    CollectionCreated,
+    #[serde(rename = "collection.deleted")]
+    CollectionDeleted,
+    #[serde(rename = "collection.member_added")]
+    CollectionMemberAdded,
+    #[serde(rename = "collection.member_removed")]
+    CollectionMemberRemoved,
+    #[serde(rename = "collection.updated")]
+    CollectionUpdated,
     #[serde(rename = "evidence.catalog_document.read")]
     EvidenceCatalogDocumentRead,
     #[serde(rename = "evidence.raw_observation.read")]
@@ -13220,6 +13331,11 @@ impl AuditEventAction {
             Self::AuthorizationRoleUpdated => "authorization.role.updated",
             Self::CatalogListingCreated => "catalog_listing.created",
             Self::CatalogListingRevised => "catalog_listing.revised",
+            Self::CollectionCreated => "collection.created",
+            Self::CollectionDeleted => "collection.deleted",
+            Self::CollectionMemberAdded => "collection.member_added",
+            Self::CollectionMemberRemoved => "collection.member_removed",
+            Self::CollectionUpdated => "collection.updated",
             Self::EvidenceCatalogDocumentRead => "evidence.catalog_document.read",
             Self::EvidenceRawObservationRead => "evidence.raw_observation.read",
             Self::EvidenceSourceInspectionRead => "evidence.source_inspection.read",
@@ -14617,6 +14733,12 @@ impl AsRef<str> for AdministrationOverviewScope {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AddCollectionMember {
+    #[serde(rename = "listingId")]
+    pub listing_id: UUID,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -16050,6 +16172,18 @@ pub enum TrustAssessmentRequest {
 }
 pub type TrustAssessmentRequestVariant = serde_json::Value;
 pub type TrustAssessmentRequestVariant2 = serde_json::Value;
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct UpdateCollection {
+    ///After outer whitespace trimming, at most 2000 Unicode code points of plain text. Only CR, LF and tab control characters are allowed.
+    ///Constraint: maxLength=32768
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    ///After outer whitespace trimming, 1-160 Unicode code points on one line without control or Unicode line/paragraph separators. Duplicate names are permitted.
+    ///Constraint: minLength=1, maxLength=32768
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
 pub struct ValidateVersionRevisionRequest {}
 pub type WebhookEventSelectorVariant2 = String;

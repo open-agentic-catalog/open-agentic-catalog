@@ -45,7 +45,7 @@ func TestPostgresCurrentSelfAccessUsesScopedLivePolicy(t *testing.T) {
 		return got
 	}
 	got := read(alice, "")
-	want := []identity.Permission{"namespace.read", "ratings.own", "resource.create", "resource.read", "resource.read_content", "resource.read_history"}
+	want := []identity.Permission{"collection.read", "namespace.read", "ratings.own", "resource.create", "resource.read", "resource.read_content", "resource.read_history"}
 	if len(alice.Roles) != 0 || alice.Namespaces != nil || len(got.Permissions) != 0 || !slices.Equal(got.AvailablePermissions, want) || !reflect.DeepEqual(got.NamespaceGrants, []identity.NamespacePermissionAccess{{NamespaceID: authorizationCoreNamespace, Permissions: want}}) {
 		t.Fatalf("scoped compact self projection=%+v", got)
 	}

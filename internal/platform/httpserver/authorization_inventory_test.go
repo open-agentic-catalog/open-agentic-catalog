@@ -165,7 +165,7 @@ func TestAuthorizationEvolutionDomainInventory(t *testing.T) {
 		}
 	}
 	observed := map[string]bool{}
-	for _, pkg := range []string{"catalog", "identity", "federation", "publication", "jobs", "webhook", "feedback", "ratings", "personal"} {
+	for _, pkg := range []string{"catalog", "identity", "federation", "publication", "jobs", "webhook", "feedback", "ratings", "personal", "collections"} {
 		files, err := filepath.Glob("../../" + pkg + "/*.go")
 		if err != nil {
 			t.Fatal(err)

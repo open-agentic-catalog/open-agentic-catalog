@@ -196,7 +196,7 @@ func TestScopedReaderLibraryAndDisjointGroupRemainIndependent(t *testing.T) {
 			t.Fatal("current paths do not match independent surviving grants", ids, wantIDs)
 		}
 	}
-	readerPermissions := []Permission{"library.own", "namespace.read", "ratings.own", "resource.read", "resource.read_content", "resource.read_history"}
+	readerPermissions := []Permission{"collection.read", "library.own", "namespace.read", "ratings.own", "resource.read", "resource.read_content", "resource.read_history"}
 	metadataPermissions := []Permission{"library.own", "resource.read"}
 	want := SelfAccessProjection{Permissions: []Permission{"library.own"}, AvailablePermissions: readerPermissions, NamespaceGrants: []NamespacePermissionAccess{{NamespaceID: administrationNamespace, Permissions: readerPermissions}, {NamespaceID: administrationOtherNamespace, Permissions: metadataPermissions}}}
 	assertDecisions([]bool{true, true, true, false, true, false, false})

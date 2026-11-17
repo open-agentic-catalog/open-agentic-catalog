@@ -17,7 +17,7 @@ API client workflows use an explicit origin and credentials without composing th
 
 ### Domain packages own lifecycle rules
 
-`catalog`, `identity`, `ratings`, `feedback`, `personal`, `federation`, `publication`, `tenantsettings`, `jobs`, and `webhook` own canonical types, state transitions, safe errors, and the narrow ports their behavior requires. `personal` owns private saved-reference/search commands and bounded owner-only stores; it grants no authority over a saved target. Catalog owns the separately derived My work projection.
+`catalog`, `identity`, `ratings`, `feedback`, `personal`, `collections`, `federation`, `publication`, `tenantsettings`, `jobs`, and `webhook` own canonical types, state transitions, safe errors, and the narrow ports their behavior requires. `personal` owns private saved-reference/search commands and bounded owner-only stores; it grants no authority over a saved target. Catalog owns the separately derived My work projection.
 
 ### Translate protocols into use cases
 
@@ -83,6 +83,7 @@ Clocks, UUID generation, fetchers, senders, and domain-owned stores can be injec
 | `internal/artwork` | Strict artwork descriptors, bounded raster validation and transient delivery through a narrow fetch port. | Network policy, managed storage or hosting authority. |
 | `internal/events` | The implemented public event vocabulary, closed notification references, CloudEvents projection, and embedded-schema validation. | Audit policy, webhook transport, or domain state. |
 | `internal/feedback` | Private human submissions, administrator responses, immutable item context and safe text clearing. | Publication, relevance ranking or public comments. |
+| `internal/collections` | Namespace-owned shared local Listing references, current member selection and audited curation. | Source ownership, publication, invocation or per-collection ACLs. |
 | `internal/personal` | Private saved references and searches with bounded owner-only stores. | Permissions over saved targets, automatic resolution or resource execution. |
 | `internal/ratings` | Human version-specific opinions, consent, aggregates, moderation and optional publisher summaries. | Trust, safety or installation authority. |
 | `internal/safeerr` | Reviewed code-owned diagnostic messages, fixed stages and fatal owned-panic classification. | Logging, infrastructure dependencies or declaring dependency text safe. |

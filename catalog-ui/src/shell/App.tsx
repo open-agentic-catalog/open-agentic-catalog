@@ -36,6 +36,7 @@ const MyWork = lazy(() =>
 );
 const DiscoveryWorkspace = lazy(() => import("../views/DiscoveryWorkspace"));
 const Access = lazy(() => import("../views/Access"));
+const Collections = lazy(() => import("../views/Collections"));
 const Namespaces = lazy(() => import("../views/Namespaces"));
 const Publishers = lazy(() => import("../views/Publishers"));
 const Jobs = lazy(() => import("../views/Jobs"));
@@ -1005,6 +1006,19 @@ export function App({ runtime }: { runtime: Runtime }) {
                       />
                     </Suspense>
                   </EditorAdmission>
+                ) : view === "collections" ? (
+                  <Suspense
+                    fallback={<p role="status">Loading collections...</p>}
+                  >
+                    <Collections
+                      key={identityKey + id}
+                      client={client}
+                      runtime={runtime}
+                      access={session.access}
+                      id={id}
+                      onFailure={failure}
+                    />
+                  </Suspense>
                 ) : view === "namespaces" ? (
                   <Suspense
                     fallback={<p role="status">Loading namespaces...</p>}

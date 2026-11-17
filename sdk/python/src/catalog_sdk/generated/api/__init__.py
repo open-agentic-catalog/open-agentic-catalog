@@ -18,4 +18,5 @@ from catalog_sdk.generated.api.publication_api import PublicationApi
 from catalog_sdk.generated.api.ratings_api import RatingsApi
 from catalog_sdk.generated.api.roles_api import RolesApi
 from catalog_sdk.generated.api.service_api import ServiceApi
+from catalog_sdk.generated.api.shared_collections_api import SharedCollectionsApi
 from catalog_sdk.generated.api.webhooks_api import WebhooksApi

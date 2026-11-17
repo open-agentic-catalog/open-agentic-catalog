@@ -355,7 +355,7 @@ func TestAuthorizationReadHandlerProjections(t *testing.T) {
 	w := httptest.NewRecorder()
 	s.handlePermissionCatalog(w, httptest.NewRequestWithContext(t.Context(), "GET", "/api/v1/access/permissions", nil))
 	var descriptors []identity.PermissionDescriptor
-	if err := json.Unmarshal(w.Body.Bytes(), &descriptors); err != nil || len(descriptors) != 50 {
+	if err := json.Unmarshal(w.Body.Bytes(), &descriptors); err != nil || len(descriptors) != 52 {
 		t.Fatal("permission catalog projection", err)
 	}
 	for _, d := range descriptors {

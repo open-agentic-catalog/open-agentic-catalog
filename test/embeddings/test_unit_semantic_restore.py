@@ -24,7 +24,7 @@ class RestorePreparationTests(unittest.TestCase):
         run.assert_not_called()
 
     def test_shared_page_acceptance_rejects_integrity_and_missing_termination(self):
-        page = {"formatVersion": 1, "checkSetVersion": 7, "recoveryPoint": "point", "tenantId": "tenant",
+        page = {"formatVersion": 1, "checkSetVersion": 8, "recoveryPoint": "point", "tenantId": "tenant",
                 "schemaVersion": 27, "privilegeManifestVersion": 12, "traversal": "continued", "integrity": "valid",
                 "processed": 7, "decodedBytes": 100, "findings": [], "assuranceBoundary": "test", "continuation": "next"}
         terminal = {**page, "traversal": "complete", "continuation": ""}

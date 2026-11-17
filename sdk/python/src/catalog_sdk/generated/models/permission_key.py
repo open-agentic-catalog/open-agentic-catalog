@@ -25,6 +25,8 @@ class PermissionKey(str, Enum):
     """
     allowed enum values
     """
+    COLLECTION_DOT_READ = "collection.read"
+    COLLECTION_DOT_MANAGE = "collection.manage"
     SETTINGS_DOT_READ = "settings.read"
     SETTINGS_DOT_MANAGE = "settings.manage"
     RESOURCE_DOT_READ = "resource.read"

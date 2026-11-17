@@ -16,6 +16,7 @@ import (
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/adapter"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/collections"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/feedback"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
@@ -229,7 +230,7 @@ func newConfiguredHTTPServerWithClock(t *testing.T, serviceClock *clock.Fake, co
 	if err != nil {
 		t.Fatal(err)
 	}
-	dependencies := Dependencies{PublicationOverview: publication.MemoryHostSummaries{"catalog.example.com": publicationStore}, PersonalStore: personal.NewMemoryStore(repository), RatingsStore: ratings.NewMemoryStore(repository), Feedback: feedbackService, Catalog: catalogService, Identity: identityService, Federation: federationManager, Jobs: jobService, Webhooks: webhookService, Authenticator: authenticator, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), DiscoveryHosts: []DiscoveryHost{anonymousDiscoveryHost(publicationManager)}, MaxBodyBytes: 1 << 20, RequestTimeout: time.Second, ServiceVersion: "test", Commit: "test", ARDProfile: "ard-test", AICatalogProfile: "ai-test", CursorKey: cursorKey[:], Now: serviceClock.Now}
+	dependencies := Dependencies{CollectionStore: collections.NewMemoryStore(repository), PublicationOverview: publication.MemoryHostSummaries{"catalog.example.com": publicationStore}, PersonalStore: personal.NewMemoryStore(repository), RatingsStore: ratings.NewMemoryStore(repository), Feedback: feedbackService, Catalog: catalogService, Identity: identityService, Federation: federationManager, Jobs: jobService, Webhooks: webhookService, Authenticator: authenticator, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), DiscoveryHosts: []DiscoveryHost{anonymousDiscoveryHost(publicationManager)}, MaxBodyBytes: 1 << 20, RequestTimeout: time.Second, ServiceVersion: "test", Commit: "test", ARDProfile: "ard-test", AICatalogProfile: "ai-test", CursorKey: cursorKey[:], Now: serviceClock.Now}
 	if configure != nil {
 		configure(&dependencies)
 	}

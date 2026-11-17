@@ -281,9 +281,9 @@ func qualifyArtworkOverlayPostgres(t *testing.T, manager *federation.Manager, st
 	if err = upgrade.QueryRow(rawCtx, `SELECT current_schema()`).Scan(&schema); err != nil {
 		t.Fatal(err)
 	}
-	// The qualified current-schema inventory includes migration 000049's
-	// two NOT NULL derived tool columns; only the artwork constraint is old.
-	if err = verifyRestoreConstraints(rawCtx, upgrade, schema); err == nil || !strings.Contains(err.Error(), "observed digest e14be08b575fdfb1bf60c3e865840e023b8d73637c06f1273d0a859ed6cbbf10") {
+	// The current-schema inventory includes shared collections (000052);
+	// only the artwork constraint is replaced with its former definition.
+	if err = verifyRestoreConstraints(rawCtx, upgrade, schema); err == nil || !strings.Contains(err.Error(), "observed digest edf2bcc330909ec6f2ff3ac5daa29c432990e8d69ba582855349cd44f11f330a") {
 		t.Fatalf("former artwork constraint did not reproduce its qualified current-schema inventory: %v", err)
 	}
 	migration, err := migrations.Files.ReadFile("000040_unicode_version_limits.sql")

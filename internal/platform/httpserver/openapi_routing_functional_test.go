@@ -15,6 +15,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	serviceapi "github.com/open-agentic-catalog/open-agentic-catalog/api"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/collections"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/feedback"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/personal"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
@@ -99,7 +100,7 @@ func TestEveryDocumentedOperationIsRouted(t *testing.T) {
 	if err := document.Validate(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	routeDefinitions := &Server{capabilities: CapabilitySnapshot{ServiceActivity: CapabilityEnabled}, personal: &personal.Service{}, mcp: &mcpHTTP{}, webhooks: &webhook.Service{}, feedback: &feedback.Service{}, ratings: &ratings.Service{}}
+	routeDefinitions := &Server{collections: &collections.Service{}, capabilities: CapabilitySnapshot{ServiceActivity: CapabilityEnabled}, personal: &personal.Service{}, mcp: &mcpHTTP{}, webhooks: &webhook.Service{}, feedback: &feedback.Service{}, ratings: &ratings.Service{}}
 	router := http.NewServeMux()
 	routeDefinitions.routes(router)
 	server := newContractHTTPServer(t)
