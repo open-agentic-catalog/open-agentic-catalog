@@ -98,38 +98,68 @@ test.describe("public UI and native CLI together", () => {
       await page
         .getByRole("combobox", { name: "Entries per page", exact: true })
         .selectOption("5");
-      const firstResponse = page.waitForResponse((response) =>
-        response.url().includes("/_discovery/agents?pageSize=5"),
-      );
+      // Retain the real upstream bytes before passing them unchanged to the
+      // browser. Chromium can discard a streamed fetch body before CDP reads it.
+      const pages: Record<string, unknown>[] = [];
+      const directoryPage = (url: URL) =>
+        url.origin === catalog.origin &&
+        url.pathname === catalog.basePath + "/_discovery/agents";
+      const capturePage = async (route: import("@playwright/test").Route) => {
+        expect(route.request().method()).toBe("GET");
+        const response = await route.fetch({ maxRedirects: 0, maxRetries: 0 });
+        expect(response.status()).toBe(200);
+        const body = await response.body();
+        pages.push(object(JSON.parse(body.toString("utf8"))));
+        await route.fulfill({ response, body });
+      };
+      await page.route(directoryPage, capturePage);
       await page
         .getByRole("button", { name: "Browse directory", exact: true })
         .click();
-      const first = object(await (await firstResponse).json());
       await expect(page.locator("article.public-entry")).toHaveCount(5);
+      expect(pages).toHaveLength(1);
+      const first = object(pages[0]);
       const nativeFirst = await cli(catalog, "list", ["--page-size", "5"]);
       expect(nativeFirst.items).toEqual(first.items);
       expect(nativeFirst.total).toBe(first.total);
-
-      const secondResponse = page.waitForResponse(
-        (response) =>
-          response.url().includes("/_discovery/agents?") &&
-          new URL(response.url()).searchParams.has("pageToken"),
+      expect(
+        array(first.items).map((entry) => text(object(entry).displayName)),
+      ).toEqual(
+        await page.locator("article.public-entry h2").allTextContents(),
       );
+
+      const nextPage = page.waitForRequest((request) => {
+        const url = new URL(request.url());
+        return (
+          directoryPage(url) &&
+          url.searchParams.get("pageSize") === "5" &&
+          url.searchParams.get("pageToken") === text(first.pageToken)
+        );
+      });
       await page
         .getByRole("button", { name: "Next page", exact: true })
         .click();
-      const second = object(await (await secondResponse).json());
+      await nextPage;
       const nativeSecond = await cli(catalog, "list", [
         "--page-size",
         "5",
         "--page-token",
         text(first.pageToken),
       ]);
+      // The count alone cannot distinguish two consecutive five-entry pages.
+      await expect(page.locator("article.public-entry h2")).toHaveText(
+        array(nativeSecond.items).map((entry) =>
+          text(object(entry).displayName),
+        ),
+      );
+      expect(pages).toHaveLength(2);
+      const second = object(pages[1]);
       expect(nativeSecond.items).toEqual(second.items);
       expect(nativeSecond.total).toBe(second.total);
       expect(array(second.items)).toHaveLength(5);
       expect(text(second.pageToken).length).toBeGreaterThan(0);
 
+      await page.unroute(directoryPage, capturePage);
       await activate(catalog);
       await cli(
         catalog,

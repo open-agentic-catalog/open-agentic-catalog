@@ -1,11 +1,294 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect, login, confirmCommand, signOut } from "./fixtures";
-import { agentDocument } from "./published-fixture";
+import { agentDocument, publishFixture } from "./published-fixture";
 import { doubleText } from "./text-layout";
 import type { components } from "../../src/api/schema";
 import { required } from "../required";
 
 test.use({ curated: true });
+
+for (const location of ["root", "subpath"]) {
+  test(`${location}: retry a committed collection addition after its response is lost`, async ({
+    page,
+    catalog,
+    network,
+  }) => {
+    const records = await catalog.admin<{
+      items: components["schemas"]["CatalogSummary"][];
+    }>("GET", "/api/v1/catalog/resources?limit=100");
+    const target = required(
+      records.data.items.find((item) => item.resource.kind === "agent"),
+    );
+    const created = await catalog.admin<{ id: string }>(
+      "POST",
+      "/api/v1/collections",
+      {
+        namespaceId: catalog.receipt.namespaceId,
+        name: "Recover one addition",
+      },
+    );
+    expect(created.etag).toBe('"rev-1"');
+    const path = `/api/v1/collections/${created.data.id}`;
+    const memberPath = `${path}/members`;
+    await login(
+      page,
+      catalog,
+      "local-contributor",
+      `/catalog/${target.release.id}`,
+    );
+    await page
+      .getByRole("button", { name: "Add to collection", exact: true })
+      .click();
+    await page
+      .getByRole("combobox", { name: "Destination collection", exact: true })
+      .selectOption(created.data.id);
+    const attempts: {
+      key: string | undefined;
+      body: string | null;
+      tag: string | undefined;
+      reply: string;
+      requestId: string | undefined;
+    }[] = [];
+    network.expectFailure("POST", `/_catalog${memberPath}`, 0);
+    const capture = async (route: import("@playwright/test").Route) => {
+      expect(route.request().method()).toBe("POST");
+      // Complete the real API mutation before losing only its acknowledgement.
+      const response = await route.fetch({ maxRedirects: 0, maxRetries: 0 });
+      expect(response.status()).toBe(201);
+      attempts.push({
+        key: route.request().headers()["idempotency-key"],
+        body: route.request().postData(),
+        tag: route.request().headers()["if-match"],
+        reply: (await response.body()).toString("utf8"),
+        requestId: response.headers()["x-request-id"],
+      });
+      if (attempts.length === 1) await route.abort("failed");
+      else {
+        expect(response.headers()["idempotency-replayed"]).toBe("true");
+        await route.fulfill({ response });
+      }
+    };
+    await page.route(
+      `${catalog.origin}${catalog.basePath}/_catalog${memberPath}`,
+      capture,
+    );
+    await page
+      .getByRole("button", { name: "Review addition", exact: true })
+      .click();
+    await page
+      .getByRole("dialog")
+      .getByRole("button", { name: "Confirm", exact: true })
+      .click();
+    const retry = page.getByRole("button", {
+      name: "Retry same command",
+      exact: true,
+    });
+    await expect(retry).toBeEnabled();
+    expect(attempts).toHaveLength(1);
+    expect(required(attempts[0]).key).toBeTruthy();
+    expect(required(attempts[0]).requestId).toBeTruthy();
+    expect(JSON.parse(required(attempts[0]).reply)).toEqual({
+      id: created.data.id,
+      revision: 2,
+    });
+    expect(attempts[0]).toMatchObject({
+      tag: created.etag,
+      body: JSON.stringify({ listingId: target.listing.id }),
+    });
+    const committed = await catalog.admin<{ revision: number }>("GET", path);
+    expect(committed.data.revision).toBe(2);
+    const retained = await catalog.admin<{
+      items: components["schemas"]["CatalogSummary"][];
+    }>("GET", memberPath);
+    expect(retained.data.items.map((item) => item.listing.id)).toEqual([
+      target.listing.id,
+    ]);
+    const auditPath =
+      "/api/v1/audit-events?" +
+      new URLSearchParams({
+        action: "collection.member_added",
+        targetType: "collection",
+        targetId: created.data.id,
+        limit: "100",
+      });
+    const original = await catalog.admin<{
+      items: { id: string; requestId: string }[];
+    }>("GET", auditPath);
+    expect(original.data.items).toHaveLength(1);
+    expect(required(original.data.items[0]).id).toBeTruthy();
+    expect(required(original.data.items[0]).requestId).toBe(
+      required(attempts[0]).requestId,
+    );
+    await retry.click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      page
+        .getByRole("status")
+        .filter({ hasText: "Entry added to collection." }),
+    ).toBeVisible();
+    expect(attempts).toHaveLength(2);
+    expect(attempts[1]).toMatchObject({
+      key: required(attempts[0]).key,
+      body: required(attempts[0]).body,
+      tag: required(attempts[0]).tag,
+      reply: required(attempts[0]).reply,
+    });
+    await page.unroute(
+      `${catalog.origin}${catalog.basePath}/_catalog${memberPath}`,
+      capture,
+    );
+    const after = await catalog.admin<{ revision: number }>("GET", path);
+    expect(after.data.revision).toBe(2);
+    const audit = await catalog.admin<{ items: { id: string }[] }>(
+      "GET",
+      auditPath,
+    );
+    expect(audit.data.items.map((event) => event.id)).toEqual(
+      original.data.items.map((event) => event.id),
+    );
+    await page.goto(
+      `${catalog.origin}${catalog.basePath}/collections/${created.data.id}`,
+    );
+    await expect(page.locator(".resource-card")).toHaveCount(1);
+    await expect(
+      page.getByRole("link", {
+        name: target.listingRevision.displayName,
+        exact: true,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `${catalog.basePath}/catalog/${target.release.id}`,
+    );
+  });
+
+  test(`${location}: collection paging recovers after a release changes without discarding metadata edits`, async ({
+    page,
+    catalog,
+    network,
+  }) => {
+    for (let index = 0; index < 21; index++)
+      await publishFixture(catalog, index);
+    const inventory = await catalog.admin<{
+      items: components["schemas"]["CatalogSummary"][];
+    }>("GET", "/api/v1/catalog/resources?limit=100");
+    const selected = inventory.data.items
+      .filter((item) =>
+        item.resource.canonicalIdentifier.startsWith(
+          "urn:air:demo.catalog.example.com:demo:paged-",
+        ),
+      )
+      .sort((left, right) => left.listing.id.localeCompare(right.listing.id));
+    expect(selected).toHaveLength(21);
+    const created = await catalog.admin<{ id: string }>(
+      "POST",
+      "/api/v1/collections",
+      { namespaceId: catalog.receipt.namespaceId, name: "Paged collection" },
+    );
+    const path = `/api/v1/collections/${created.data.id}`;
+    let tag = created.etag;
+    for (const item of selected) {
+      const added = await catalog.admin(
+        "POST",
+        `${path}/members`,
+        { listingId: item.listing.id },
+        tag,
+      );
+      tag = added.etag;
+    }
+    await login(
+      page,
+      catalog,
+      "local-contributor",
+      `/collections/${created.data.id}`,
+    );
+    const name = page.getByRole("textbox", { name: "Name", exact: true });
+    const cards = page.locator(".resource-card");
+    const links = cards.getByRole("link");
+    await expect(cards).toHaveCount(20);
+    expect(
+      await links.evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute("href")),
+      ),
+    ).toEqual(
+      selected
+        .slice(0, 20)
+        .map((item) => `${catalog.basePath}/catalog/${item.release.id}`),
+    );
+    await name.fill("Keep this unsent metadata edit");
+    const writes: string[] = [];
+    page.on("request", (request) => {
+      if (
+        request.method() === "PATCH" &&
+        new URL(request.url()).pathname ===
+          `${catalog.basePath}/_catalog${path}`
+      )
+        writes.push(request.postData() ?? "");
+    });
+    await page.getByRole("button", { name: "Next page", exact: true }).click();
+    await expect(cards).toHaveCount(1);
+    await expect(links).toHaveAttribute(
+      "href",
+      `${catalog.basePath}/catalog/${required(selected[20]).release.id}`,
+    );
+    await expect(name).toHaveValue("Keep this unsent metadata edit");
+    await page.getByRole("button", { name: "First page", exact: true }).click();
+    await expect(cards).toHaveCount(20);
+    const retired = required(selected[0]);
+    const release = await catalog.admin(
+      "GET",
+      `/api/v1/listing-releases/${retired.release.id}`,
+    );
+    await catalog.admin(
+      "POST",
+      `/api/v1/listing-releases/${retired.release.id}:retire`,
+      { reason: "Qualify collection continuation after source retirement" },
+      release.etag,
+    );
+    const unchanged = await catalog.admin<{ name: string; revision: number }>(
+      "GET",
+      path,
+    );
+    expect(unchanged.data).toMatchObject({
+      name: "Paged collection",
+      revision: 22,
+    });
+    expect(unchanged.etag).toBe(tag);
+    network.expectFailure("GET", `/_catalog${path}/members`, 400);
+    await page.getByRole("button", { name: "Next page", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Start from first page", exact: true }),
+    ).toBeVisible();
+    await expect(cards).toHaveCount(0);
+    await expect(name).toHaveValue("Keep this unsent metadata edit");
+    await page
+      .getByRole("button", { name: "Start from first page", exact: true })
+      .click();
+    await expect(cards).toHaveCount(20);
+    expect(
+      await links.evaluateAll((nodes) =>
+        nodes.map((node) => node.getAttribute("href")),
+      ),
+    ).toEqual(
+      selected
+        .slice(1)
+        .map((item) => `${catalog.basePath}/catalog/${item.release.id}`),
+    );
+    await expect(
+      page.getByRole("button", { name: "Next page", exact: true }),
+    ).toHaveCount(0);
+    await expect(name).toHaveValue("Keep this unsent metadata edit");
+    expect(writes).toEqual([]);
+    const current = await catalog.admin<{ name: string; revision: number }>(
+      "GET",
+      path,
+    );
+    expect(current.data).toMatchObject({
+      name: "Paged collection",
+      revision: 22,
+    });
+  });
+}
+
 for (const location of ["root", "subpath"]) {
   test(`${location}: shared collections curate all kinds and follow current releases without granting management`, async ({
     page,

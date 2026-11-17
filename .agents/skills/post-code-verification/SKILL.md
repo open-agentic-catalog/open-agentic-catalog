@@ -1,6 +1,6 @@
 ---
 name: post-code-verification
-description: Review and verify completed Open Agentic Catalog changes with the existing lint, unit, functional, coverage and dead-code gates. Use after implementation or when asked to check, test, lint or review the work before handoff. Select checks from the changed boundary and preserve explicit unit-only limits.
+description: Review and verify completed Open Agentic Catalog changes with the existing lint, unit, functional, coverage and dead-code gates. Use after implementation, for requested verification, or to assess verification completeness before PR submission. Select checks from the changed boundary and preserve explicit unit-only limits.
 ---
 
 # Post-code verification
@@ -25,7 +25,7 @@ For normal post-code verification, select the applicable rows and boundary-speci
 
 | Changed scope | Verification |
 | --- | --- |
-| Go, including the UI host | Format changed Go files and run focused affected tests with their correct build tags. Run `make test-unit` separately, or `make coverage-unit` when unit coverage is needed, then `make check verify`. Add the affected real-boundary gates below. |
+| Go, including the UI host | Format changed Go files and run focused affected tests with their correct build tags. Use `make coverage-unit` separately for final root application unit verification, then `make check verify`. During iteration, `make test-unit` remains available. Add the affected real-boundary gates below. |
 | UI client, authentication host or Node tooling | Run `make test-ui`, which includes `ui-check`, `ui-test`, an isolated build and browser journeys. During iteration, use the focused checks or `make ui-test-unit` as appropriate. A UI Go host change follows both this row and the Go row. |
 | Python or other Node tooling | Run the existing native units and relevant functional harness from the owning README, plus `make check` and applicable npm checks. Process/Make/CLI fixtures stay functional; a Go wrapper does not make a Python suite isolated. |
 | Documentation, trackers or skills | Run `make check`, which includes `docs-check`. Add `make docs-site-check` for reader-site content or tooling changes. Skills and tracker prose alone do not require application/browser regression runs. |
@@ -35,6 +35,18 @@ For API, SQL/migration/RLS, parser/security, standards, images or deployment cha
 Appearance or frontend dependency changes need `ui-visual`. Dependency changes also need local `ui-deps-check` and the affected packaging gates in UI dependency maintenance (`documentation/src/content/docs/reference/dependencies.md#ui-dependency-maintenance`). `ui-deps-audit` submits dependency metadata to its registry; external registry audits are maintainer-only. Leave them unrun and report that limit.
 
 Select cluster, model, interoperability or performance fixtures only for a relevant changed boundary or requested scope, preserving their documented prerequisites and explicit-scope requirements. A related code change alone does not authorize arbitrary external peer execution or hosted calls.
+
+## Before PR submission
+
+Compare the complete proposed change with the repository verification rules and applicable CI checks. Include committed changes, staged and unstaged edits, and new non-ignored files. The existing `test/ci/admission.py select` command examines committed differences only; it does not account for uncommitted work.
+
+For final verification of root application Go source or test changes, use `make coverage-unit` as the complete isolated-unit gate. Passing `test-unit` or broad local coverage does not establish the separate unit coverage floor. Avoid repeating this selection when a fresh, applicable successful measurement already exists or `coverage-full` will execute it. Nested SDKs retain their owning gates.
+
+Select additional maintained gates by the changed boundary. Preserve explicit user limits, including unit-only requests. Use CI selection to identify omissions, without automatically running every deployment, platform or optional campaign.
+
+Before reporting readiness, briefly identify checks passed, failed, reused, skipped or unrun, with relevant reasons. Results must apply to the submitted inputs. Rerun affected checks after subsequent changes; documentation-only edits do not automatically invalidate unchanged executable tests.
+
+When diagnosing tool or timing failures, verify the actual executable and effective environment used by the failing child process. Inspect Make overrides before claiming a setting took effect. Serialize competing heavy suites where appropriate; choose concurrency for the environment rather than hardcoding one machine's settings.
 
 ## Avoid duplicate and misleading checks
 

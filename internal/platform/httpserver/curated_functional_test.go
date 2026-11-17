@@ -36,6 +36,11 @@ func TestHTTPSharedCollectionContractsAndReplay(t *testing.T) {
 	if !bytes.Equal(replay.body, created.body) || replay.header.Get("Idempotency-Replayed") != "true" {
 		t.Fatal("create did not replay exactly")
 	}
+	changedCreate := requestJSON(t, server.URL, "POST", "/api/v1/collections", "contributor", "collection-create", "", map[string]any{"namespaceId": ns.ID, "name": "Changed request", "description": "Curated text"})
+	requireControlProblem(t, changedCreate, 409, catalog.CodeIdempotencyKeyReused)
+	if changedCreate.header.Get("ETag") != "" || changedCreate.header.Get("Idempotency-Replayed") != "" {
+		t.Fatal("changed create disclosed the retained receipt")
+	}
 	got := requestJSON(t, server.URL, "GET", path, "reader", "", "", nil)
 	requireStatus(t, got, 200)
 	requireControlSchema(t, "SharedCollection", got.body)
@@ -83,6 +88,23 @@ func TestHTTPSharedCollectionContractsAndReplay(t *testing.T) {
 	requireStatus(t, requestJSON(t, server.URL, "DELETE", path, "contributor", "no-etag", "", nil), 412)
 	updated := requestJSON(t, server.URL, "PATCH", path, "contributor", "collection-edit", got.header.Get("ETag"), map[string]any{"description": ""})
 	requireStatus(t, updated, 200)
+	updatedReplay := requestJSON(t, server.URL, "PATCH", path, "contributor", "collection-edit", got.header.Get("ETag"), map[string]any{"description": ""})
+	requireStatus(t, updatedReplay, 200)
+	if !bytes.Equal(updatedReplay.body, updated.body) || updatedReplay.header.Get("ETag") != updated.header.Get("ETag") || updatedReplay.header.Get("Idempotency-Replayed") != "true" {
+		t.Fatal("edit replay changed the retained body, validator or replay marker")
+	}
+	changedEdit := requestJSON(t, server.URL, "PATCH", path, "contributor", "collection-edit", got.header.Get("ETag"), map[string]any{"description": "Changed request"})
+	requireControlProblem(t, changedEdit, 409, catalog.CodeIdempotencyKeyReused)
+	if changedEdit.header.Get("ETag") != "" || changedEdit.header.Get("Idempotency-Replayed") != "" {
+		t.Fatal("changed edit disclosed the retained receipt")
+	}
+	retained := requestJSON(t, server.URL, "GET", path, "reader", "", "", nil)
+	requireStatus(t, retained, 200)
+	var retainedCollection collections.Collection
+	decodeResult(t, retained, &retainedCollection)
+	if retainedCollection.Revision != 2 || retainedCollection.Name != "Shared tools" || retainedCollection.Description != "" {
+		t.Fatal("replays or rejected changed commands mutated collection metadata", retainedCollection)
+	}
 	requireStatus(t, requestJSON(t, server.URL, "PATCH", path, "contributor", "collection-stale", got.header.Get("ETag"), map[string]any{"name": "Stale"}), 412)
 	members := requestJSON(t, server.URL, "GET", path+"/members", "reader", "", "", nil)
 	requireStatus(t, members, 200)
@@ -99,6 +121,23 @@ func TestHTTPSharedCollectionContractsAndReplay(t *testing.T) {
 		t.Fatal("deleted parent prevented replay")
 	}
 	requireStatus(t, requestJSON(t, server.URL, "POST", "/api/v1/collections", "contributor", "collection-create", "", createBody), 201)
+	requireStatus(t, requestJSON(t, server.URL, "GET", path, "reader", "", "", nil), 404)
+	auditReply := requestJSON(t, server.URL, "GET", "/api/v1/audit-events?targetType=collection&targetId="+receipt.ID+"&limit=100", "admin", "", "", nil)
+	requireStatus(t, auditReply, 200)
+	requireControlSchema(t, "AuditEventPage", auditReply.body)
+	var events struct {
+		Items []struct {
+			Action string `json:"action"`
+		} `json:"items"`
+	}
+	decodeResult(t, auditReply, &events)
+	counts := map[string]int{}
+	for _, event := range events.Items {
+		counts[event.Action]++
+	}
+	if len(events.Items) != 3 || counts["collection.created"] != 1 || counts["collection.updated"] != 1 || counts["collection.deleted"] != 1 {
+		t.Fatal("retries duplicated collection writes or audit evidence", counts)
+	}
 }
 
 func TestHTTPSharedCollectionMemberLifecycleAndCursor(t *testing.T) {

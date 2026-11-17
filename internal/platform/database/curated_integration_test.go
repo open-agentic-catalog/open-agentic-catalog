@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -537,12 +538,55 @@ func TestPostgresSharedCollectionMemberQuotaAndAuditRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal("known ineligible member removal", err)
 	}
-	// Fail after both the child insert and parent revision update have executed.
+	// Capture retained rows as well as eligible projections: most references are
+	// deliberately ineligible and would be invisible to a member-page check.
+	state := func(t *testing.T) (int, []string, int) {
+		t.Helper()
+		var parents, audits int
+		var members []string
+		err := db.operator.QueryRow(t.Context(), `SELECT
+ (SELECT count(*) FROM shared_collections WHERE tenant_id=$1),
+ (SELECT coalesce(array_agg(listing_id::text ORDER BY listing_id),ARRAY[]::text[]) FROM shared_collection_members WHERE tenant_id=$1 AND collection_id=$2),
+ (SELECT count(*) FROM audit_events WHERE tenant_id=$1 AND action LIKE 'collection.%')`, housekeepingTenantA, packed.ID).Scan(&parents, &members, &audits)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return parents, members, audits
+	}
+	beforeParents, beforeMembers, beforeAudits := state(t)
+	// Fail at audit insertion, after each mutation's domain SQL has executed.
 	if _, err := db.operator.Exec(t.Context(), `CREATE FUNCTION fail_collection_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action LIKE 'collection.%' THEN RAISE EXCEPTION 'injected audit failure'; END IF; RETURN NEW; END $$; REVOKE ALL ON FUNCTION fail_collection_audit() FROM PUBLIC; CREATE TRIGGER fail_collection_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION fail_collection_audit()`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.Change(admin, packed.ID, packed.Revision, collections.Add, collections.Patch{}, extra); err == nil {
-		t.Fatal("audit failure did not fail command")
+	for _, operation := range []collections.Operation{collections.Create, collections.Update, collections.Add, collections.Remove, collections.Delete} {
+		t.Run(string(operation), func(t *testing.T) {
+			var commandErr error
+			switch operation {
+			case collections.Create:
+				_, commandErr = service.Create(admin, collections.Input{NamespaceID: ns, Name: "Uncommitted collection"})
+			case collections.Update:
+				name, description := "Uncommitted name", "Uncommitted description"
+				_, commandErr = service.Change(admin, packed.ID, packed.Revision, operation, collections.Patch{Name: &name, Description: &description}, "")
+			case collections.Add:
+				_, commandErr = service.Change(admin, packed.ID, packed.Revision, operation, collections.Patch{}, extra)
+			case collections.Remove:
+				_, commandErr = service.Change(admin, packed.ID, packed.Revision, operation, collections.Patch{}, ids[1])
+			case collections.Delete:
+				_, commandErr = service.Change(admin, packed.ID, packed.Revision, operation, collections.Patch{}, "")
+			}
+			var failure *pgconn.PgError
+			if catalog.ErrorCodeOf(commandErr) != catalog.CodeDependencyUnavailable || !errors.As(commandErr, &failure) || failure.Message != "injected audit failure" {
+				t.Fatalf("command did not reach the intended SQL audit failure: %v", commandErr)
+			}
+			after, err := service.Get(admin, packed.ID)
+			if err != nil || after != packed {
+				t.Fatal("audit failure changed parent metadata or revision", after, err)
+			}
+			parents, members, audits := state(t)
+			if parents != beforeParents || audits != beforeAudits || !reflect.DeepEqual(members, beforeMembers) {
+				t.Fatalf("audit failure retained partial rows: parents=%d/%d members=%v audits=%d/%d", parents, beforeParents, members, audits, beforeAudits)
+			}
+		})
 	}
 	if _, err := db.operator.Exec(t.Context(), `DROP TRIGGER fail_collection_audit ON audit_events; DROP FUNCTION fail_collection_audit()`); err != nil {
 		t.Fatal(err)

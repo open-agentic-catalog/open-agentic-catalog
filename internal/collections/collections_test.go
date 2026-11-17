@@ -29,6 +29,7 @@ type localFixture struct {
 	records    map[string]catalog.CatalogSummary
 	evidence   []audit.Record
 	fail       bool
+	entryErr   error
 	generation string
 }
 
@@ -46,6 +47,9 @@ func (f *localFixture) AppendAuditEvent(_ context.Context, e audit.Record) error
 	return nil
 }
 func (f *localFixture) CollectionEntries(ctx context.Context, ten string, ids []string) ([]catalog.CatalogSummary, string, error) {
+	if f.entryErr != nil {
+		return nil, "", f.entryErr
+	}
 	out := []catalog.CatalogSummary{}
 	for _, id := range ids {
 		record, ok := f.records[id]
@@ -501,6 +505,47 @@ func TestRepositoryPortsRejectAnotherPrincipal(t *testing.T) {
 	}
 }
 
+func TestTargetReadFailurePreservesCollectionAndMembership(t *testing.T) {
+	s, _, source, ctx := fixture(t)
+	c := create(t, s, ctx)
+	first := seed(source, 600, owner, catalog.KindAgent)
+	second := seed(source, 601, owner, catalog.KindMCPServer)
+	var err error
+	c, err = s.Change(ctx, c.ID, c.Revision, Add, Patch{}, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A completed read establishes the control before losing the dependency.
+	page, err := s.Members(ctx, c.ID, MemberRequest{Limit: 10})
+	if err != nil || len(page.Items) != 1 || page.Items[0].Listing.ID != first {
+		t.Fatalf("control page=%+v err=%v", page, err)
+	}
+	sentinel := catalog.E(catalog.CodeDependencyUnavailable, "target read unavailable")
+	source.entryErr = sentinel
+	page, err = s.Members(ctx, c.ID, MemberRequest{Limit: 10})
+	if !errors.Is(err, sentinel) || len(page.Items) != 0 {
+		t.Fatalf("failed read disclosed a partial page: %+v, %v", page, err)
+	}
+	if got, err := s.Change(ctx, c.ID, c.Revision, Add, Patch{}, second); !errors.Is(err, sentinel) || got != (Collection{}) {
+		t.Fatalf("target failure returned a successful mutation: %+v, %v", got, err)
+	}
+	got, err := s.Get(ctx, c.ID)
+	if err != nil || got != c || len(source.evidence) != 2 {
+		t.Fatalf("target failure changed collection or audit: %+v, evidence=%d, %v", got, len(source.evidence), err)
+	}
+	source.entryErr = nil
+	page, err = s.Members(ctx, c.ID, MemberRequest{Limit: 10})
+	if err != nil || len(page.Items) != 1 || page.Items[0].Listing.ID != first {
+		t.Fatalf("recovery lost or added a reference: %+v, %v", page, err)
+	}
+	if _, err := s.Change(ctx, c.ID, c.Revision, Add, Patch{}, unitID(999)); catalog.ErrorCodeOf(err) != catalog.CodeNotFound {
+		t.Fatalf("ineligible target=%v", err)
+	}
+	if len(source.evidence) != 2 {
+		t.Fatal("ineligible target emitted evidence")
+	}
+}
+
 func TestAggregateAndAuditBindingsRejectPartialWrites(t *testing.T) {
 	s, store, source, ctx := fixture(t)
 	c := create(t, s, ctx)
@@ -556,5 +601,71 @@ func TestAggregateAndAuditBindingsRejectPartialWrites(t *testing.T) {
 	got, err := store.Save(ctx, a, candidate, c.Revision, Update, "", evidence(candidate))
 	if err != nil || got != candidate || len(source.evidence) != 2 {
 		t.Fatal("valid control failed", got, err)
+	}
+}
+
+func TestExactCollectionReadsHideOtherOwnerScopes(t *testing.T) {
+	s, _, source, admin := fixture(t)
+	c := create(t, s, admin)
+	reader := actor(t, identity.ActorHuman, nil, map[string][]identity.Role{target: {identity.RoleReader}})
+	for _, key := range []string{c.ID, unitID(999)} {
+		if got, err := s.Get(reader, key); catalog.ErrorCodeOf(err) != catalog.CodeNotFound || got != (Collection{}) {
+			t.Fatalf("exact read disclosed an unavailable collection: %+v, %v", got, err)
+		}
+		if got, err := s.Members(reader, key, MemberRequest{Limit: 1}); catalog.ErrorCodeOf(err) != catalog.CodeNotFound || len(got.Items) != 0 || got.Collection != (Collection{}) {
+			t.Fatalf("member read disclosed an unavailable collection: %+v, %v", got, err)
+		}
+		if got, err := s.Change(reader, key, c.Revision, Delete, Patch{}, ""); catalog.ErrorCodeOf(err) != catalog.CodeNotFound || got != (Collection{}) {
+			t.Fatalf("mutation disclosed an unavailable collection: %+v, %v", got, err)
+		}
+	}
+	// Reading one owner scope must not authorize creation there.
+	ownerReader := actor(t, identity.ActorHuman, nil, map[string][]identity.Role{owner: {identity.RoleReader}})
+	if got, err := s.Get(ownerReader, c.ID); err != nil || got != c {
+		t.Fatalf("in-scope read control failed: %+v, %v", got, err)
+	}
+	if _, err := s.Create(ownerReader, Input{NamespaceID: owner, Name: "Denied creation"}); catalog.ErrorCodeOf(err) != catalog.CodeForbidden {
+		t.Fatalf("reader created a collection: %v", err)
+	}
+	if got, err := s.Get(admin, c.ID); err != nil || got != c || len(source.evidence) != 1 {
+		t.Fatalf("denied calls changed metadata or audit: %+v, audit=%d, %v", got, len(source.evidence), err)
+	}
+}
+
+func TestValidateSaveKeepsMemberChangesSeparateFromMetadata(t *testing.T) {
+	for _, op := range []Operation{Add, Remove} {
+		t.Run(string(op), func(t *testing.T) {
+			s, _, _, ctx := fixture(t)
+			old := create(t, s, ctx)
+			a, err := Actor(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			next := old
+			next.Revision++
+			next.UpdatedAt = next.UpdatedAt.Add(time.Second)
+			listing := unitID(600)
+			e, err := audit.NewRecord(unitID(601), a.TenantID, audit.Principal{ID: a.MembershipID, Type: audit.PrincipalCatalogMembership, ActorType: string(a.ActorType), RealmID: a.RealmID}, "collection."+string(op), "collection", next.ID, "", audit.Execution{}, map[string]any{"revision": next.Revision, "namespaceId": next.NamespaceID, "listingId": listing}, next.UpdatedAt)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := ValidateSave(a, old, next, old.Revision, op, listing, e); err != nil {
+				t.Fatal("valid membership transition control", err)
+			}
+			for _, field := range []string{"name", "description"} {
+				changed := next
+				if field == "name" {
+					changed.Name = "Changed metadata"
+				} else {
+					changed.Description = "Changed metadata"
+				}
+				if err := ValidateSave(a, old, changed, old.Revision, op, listing, e); catalog.ErrorCodeOf(err) != catalog.CodeConflict {
+					t.Fatalf("member command changed %s: %v", field, err)
+				}
+			}
+			if err := ValidateSave(a, old, next, old.Revision, op, "", e); catalog.ErrorCodeOf(err) != catalog.CodeInvalidArgument {
+				t.Fatalf("member command accepted no target: %v", err)
+			}
+		})
 	}
 }
