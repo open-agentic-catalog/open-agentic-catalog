@@ -64,7 +64,7 @@ export default defineConfig({
         { label: 'Catalog MCP server', slug: 'guides/mcp-server', attrs: { 'data-nav-icon': 'link' } },
         { label: 'Connect with ContextForge', slug: 'guides/contextforge', attrs: { 'data-nav-icon': 'link' } },
         { label: 'Use metadata in AgentField', slug: 'guides/agentfield', attrs: { 'data-nav-icon': 'link' } },
-        { label: 'Scan MCP tool definitions', slug: 'guides/mcp-scanner', attrs: { 'data-nav-icon': 'link' } },
+        { label: 'Webhook scanning example', slug: 'guides/mcp-scanner', attrs: { 'data-nav-icon': 'link' } },
         { label: 'Integrate a Catalog client', slug: 'guides/integrating', attrs: { 'data-nav-icon': 'link' } },
         { label: 'Discover resources with an assistant', slug: 'guides/assistant-discovery', attrs: { 'data-nav-icon': 'link' } },
         { label: 'Standards and interoperability', slug: 'reference/standards', attrs: { 'data-nav-icon': 'open-book' } },

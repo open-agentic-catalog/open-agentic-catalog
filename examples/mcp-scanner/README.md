@@ -1,10 +1,10 @@
 # Scan saved MCP tool definitions
 
-Run Cisco MCP Scanner's YARA analyzer against a saved `tools/list` result. The scanner checks tool descriptions and serialized parameter metadata.
+This example uses the third-party Cisco MCP Scanner's YARA analyzer against a saved `tools/list` result. The scanner checks tool descriptions and serialized parameter metadata.
 
 This optional example runs outside the Catalog. The saved-capture command does not contact an MCP server. It does not call tools or change Catalog records. It does not scan source code, container vulnerabilities or runtime behavior. A scan does not establish trust or approve a release.
 
-The optional [signed-webhook receiver](receiver/README.md) collects definitions from explicitly mapped local HTTPS endpoints. Its focused SDK, TLS, PostgreSQL and process checks use a scanner executable double. The [Compose guide](../../documentation/src/content/docs/guides/mcp-scanner.mdx) describes the separate native YARA campaign. Native qualification still requires the installed scanner.
+The optional [signed-webhook receiver](receiver/README.md) collects definitions from explicitly mapped local HTTPS endpoints. Its focused SDK, TLS, PostgreSQL and process checks use a scanner executable double. The [manual](../../documentation/src/content/docs/guides/mcp-scanner.mdx) explains receiver setup and the separate Compose campaign with actual native YARA.
 
 ## Prerequisites
 
@@ -17,7 +17,7 @@ The image uses Python 3.13.17, MCP Scanner 4.8.7 and yara-python 4.5.4. Its [has
 
 MCP Scanner has no YARA-only installation extra. Its installed dependencies include LLM libraries. This example selects only YARA and supplies no provider credentials. It disables `.env` loading and container networking.
 
-The repository's dependency policy applies to setup. Version 4.8.7 needs a recorded age exception before November 3, 2026, at 17:30:42 UTC. Setup refuses an unapproved early installation.
+The repository's [dependency policy](../../documentation/src/content/docs/reference/dependencies.md) applies to setup. The installer checks the selected release's age and refuses an unapproved early installation.
 
 ## Install the scanner
 
