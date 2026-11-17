@@ -21,7 +21,7 @@ func qualifyBrowse(t *testing.T, f *fixture, namespace uuid.UUID, ids []uuid.UUI
 	t.Helper()
 	ctx := context.Background()
 	c := f.client("reader")
-	params := &client.BrowseCatalogParams{Limit: ptr(1), NamespaceId: &namespace, Kind: ptr(client.ResourceKind("agent")), Visibility: ptr(client.Visibility("tenant"))}
+	params := &client.BrowseCatalogParams{Limit: ptr(1), NamespaceId: &namespace, AgentProtocol: ptr("JSONRPC"), Kind: ptr(client.ResourceKind("agent")), Visibility: ptr(client.Visibility("tenant"))}
 	var firstCursor string
 	seen := map[uuid.UUID]bool{}
 	for i := range 2 {

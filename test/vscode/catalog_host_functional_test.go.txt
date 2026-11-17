@@ -129,6 +129,7 @@ func vscodeSeedLabels(t *testing.T, mcpURL, a2aURL, sentinel string, skill catal
 			data, marshalErr := json.Marshal(map[string]any{"name": "com.example/owned-stdio", "description": "Owned offline npm fixture", "version": "1.0.0", "packages": []any{map[string]any{"registryType": "npm", "identifier": "catalog-owned-mcp", "version": "1.0.0", "transport": map[string]any{"type": "stdio"}, "environmentVariables": []any{map[string]any{"name": "OWNED_MCP_SENTINEL", "value": sentinel}, map[string]any{"name": "OWNED_MCP_TOKEN", "isSecret": true, "isRequired": true}}}}})
 			must(t, marshalErr)
 			inputs = append(inputs, catalog.RepresentationInput{Role: catalog.RepresentationMetadata, MediaType: adapter.MediaMCPRegistry, Data: data})
+			inputs = append(inputs, catalog.RepresentationInput{Role: catalog.RepresentationMetadata, MediaType: catalog.MCPToolsMediaType, Data: json.RawMessage(`{"tools":[{"name":"extract_pdf_tables","description":"PDF table extraction. <script>owned()</script>"}]}`)})
 		}
 		_, revision, evidence, err := f.service.CreateVersion(actor, resource.ID, catalog.CreateVersionInput{Version: "1.0.0", Representations: inputs})
 		must(t, err)

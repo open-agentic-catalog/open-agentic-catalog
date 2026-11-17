@@ -38,6 +38,7 @@ else:
     from catalog_sdk.generated.models.referral_policy import ReferralPolicy
     from catalog_sdk.generated.models.retrieval_mode import RetrievalMode
     from catalog_sdk.generated.models.source_scope import SourceScope
+    from catalog_sdk.generated.models.source_sync_attempt import SourceSyncAttempt
     from typing import Optional, Set
     from typing_extensions import Self
     from pydantic_core import to_jsonable_python
@@ -47,6 +48,11 @@ else:
         FederationSource
         """  # noqa: E501
 
+        latest_completed_sync: Optional[SourceSyncAttempt] = Field(
+            default=None,
+            description="Directory-only scalar projection of the latest completed current-revision indexed attempt. Absent for live-only or unsynchronized configurations. Not configuration, last complete membership or a freshness guarantee.",
+            alias="latestCompletedSync",
+        )
         trust_verification_policy: Optional[
             Annotated[str, Field(strict=True, max_length=63)]
         ] = Field(
@@ -122,6 +128,7 @@ else:
         created_at: datetime = Field(alias="createdAt")
         updated_at: datetime = Field(alias="updatedAt")
         __properties: ClassVar[List[str]] = [
+            "latestCompletedSync",
             "trustVerificationPolicy",
             "artworkEnabled",
             "presentationGeneration",
@@ -293,14 +300,22 @@ else:
             * `None` is only added to the output dict for nullable fields that
               were set at model initialization. Other fields with value `None`
               are ignored.
+            * OpenAPI `readOnly` fields are excluded.
             """
-            excluded_fields: Set[str] = set([])
+            excluded_fields: Set[str] = set(
+                [
+                    "latest_completed_sync",
+                ]
+            )
 
             _dict = self.model_dump(
                 by_alias=True,
                 exclude=excluded_fields,
                 exclude_none=True,
             )
+            # override the default output from pydantic by calling `to_dict()` of latest_completed_sync
+            if self.latest_completed_sync:
+                _dict["latestCompletedSync"] = self.latest_completed_sync.to_dict()
             # override the default output from pydantic by calling `to_dict()` of scope
             if self.scope:
                 _dict["scope"] = self.scope.to_dict()
@@ -341,6 +356,11 @@ else:
 
             _obj = cls.model_validate(
                 {
+                    "latestCompletedSync": SourceSyncAttempt.from_dict(
+                        obj["latestCompletedSync"]
+                    )
+                    if obj.get("latestCompletedSync") is not None
+                    else None,
                     "trustVerificationPolicy": obj.get("trustVerificationPolicy"),
                     "artworkEnabled": obj.get("artworkEnabled"),
                     "presentationGeneration": obj.get("presentationGeneration"),

@@ -649,7 +649,10 @@ func (s *Server) handleCatalogBrowse(writer http.ResponseWriter, request *http.R
 		s.fail(writer, request, catalog.E(catalog.CodeInvalidArgument, "provided namespace, kind and visibility filters must be supported values"))
 		return
 	}
-	query := catalog.SearchQuery{NamespaceID: parameters.Get("namespaceId"), Limit: limit, Cursor: parameters.Get("cursor"), Visibility: catalog.Visibility(parameters.Get("visibility"))}
+	query := catalog.SearchQuery{AgentProtocol: parameters.Get("agentProtocol"), NamespaceID: parameters.Get("namespaceId"), Limit: limit, Cursor: parameters.Get("cursor"), Visibility: catalog.Visibility(parameters.Get("visibility"))}
+	if query.AgentProtocol != "" {
+		query.Origins = []catalog.SearchResultType{catalog.SearchResultLocal}
+	}
 	if kind := parameters.Get("kind"); kind != "" {
 		query.Kinds = []catalog.Kind{catalog.Kind(kind)}
 	}
@@ -695,18 +698,20 @@ func (s *Server) handleCatalogExplore(writer http.ResponseWriter, request *http.
 }
 
 type catalogSearchRequest struct {
-	Order       *catalog.SearchOrder       `json:"order,omitempty"`
-	Origins     []catalog.SearchResultType `json:"origins,omitempty"`
-	NamespaceID *string                    `json:"namespaceId,omitempty"`
-	Text        string                     `json:"text"`
-	Kinds       []catalog.Kind             `json:"kinds,omitempty"`
-	Categories  []string                   `json:"categories,omitempty"`
-	License     string                     `json:"license,omitempty"`
-	Tags        []string                   `json:"tags,omitempty"`
-	Publisher   string                     `json:"publisher,omitempty"`
-	Visibility  catalog.Visibility         `json:"visibility,omitempty"`
-	Limit       *int                       `json:"limit,omitempty"`
-	Cursor      string                     `json:"cursor,omitempty"`
+	IncludeMCPTools bool                       `json:"includeMcpTools,omitempty"`
+	AgentProtocol   string                     `json:"agentProtocol,omitempty"`
+	Order           *catalog.SearchOrder       `json:"order,omitempty"`
+	Origins         []catalog.SearchResultType `json:"origins,omitempty"`
+	NamespaceID     *string                    `json:"namespaceId,omitempty"`
+	Text            string                     `json:"text"`
+	Kinds           []catalog.Kind             `json:"kinds,omitempty"`
+	Categories      []string                   `json:"categories,omitempty"`
+	License         string                     `json:"license,omitempty"`
+	Tags            []string                   `json:"tags,omitempty"`
+	Publisher       string                     `json:"publisher,omitempty"`
+	Visibility      *catalog.Visibility        `json:"visibility,omitempty"`
+	Limit           *int                       `json:"limit,omitempty"`
+	Cursor          string                     `json:"cursor,omitempty"`
 }
 
 // searchQuery preserves omitted limits while rejecting explicit limits outside the Catalog page bound.
@@ -722,6 +727,10 @@ func (input catalogSearchRequest) searchQuery() (catalog.SearchQuery, error) {
 	if err != nil {
 		return catalog.SearchQuery{}, err
 	}
+	visibility, err := catalogVisibilityFilter(input.Visibility)
+	if err != nil {
+		return catalog.SearchQuery{}, err
+	}
 	limit := 0
 	if input.Limit != nil {
 		if *input.Limit < 1 || *input.Limit > catalog.MaxCatalogPageSize {
@@ -729,7 +738,7 @@ func (input catalogSearchRequest) searchQuery() (catalog.SearchQuery, error) {
 		}
 		limit = *input.Limit
 	}
-	return catalog.SearchQuery{Order: order, Origins: input.Origins, NamespaceID: namespaceID, Text: input.Text, Kinds: input.Kinds, Tags: input.Tags, Categories: input.Categories, License: input.License, Publisher: input.Publisher, Visibility: input.Visibility, Limit: limit, Cursor: input.Cursor}, nil
+	return catalog.SearchQuery{IncludeMCPTools: input.IncludeMCPTools, AgentProtocol: input.AgentProtocol, Order: order, Origins: input.Origins, NamespaceID: namespaceID, Text: input.Text, Kinds: input.Kinds, Tags: input.Tags, Categories: input.Categories, License: input.License, Publisher: input.Publisher, Visibility: visibility, Limit: limit, Cursor: input.Cursor}, nil
 }
 
 type catalogExploreRequest struct {
@@ -738,14 +747,16 @@ type catalogExploreRequest struct {
 }
 
 type catalogExploreQuery struct {
-	NamespaceID *string            `json:"namespaceId,omitempty"`
-	Text        string             `json:"text"`
-	Kinds       []catalog.Kind     `json:"kinds,omitempty"`
-	Categories  []string           `json:"categories,omitempty"`
-	License     string             `json:"license,omitempty"`
-	Tags        []string           `json:"tags,omitempty"`
-	Publisher   string             `json:"publisher,omitempty"`
-	Visibility  catalog.Visibility `json:"visibility,omitempty"`
+	IncludeMCPTools bool                `json:"includeMcpTools,omitempty"`
+	AgentProtocol   string              `json:"agentProtocol,omitempty"`
+	NamespaceID     *string             `json:"namespaceId,omitempty"`
+	Text            string              `json:"text"`
+	Kinds           []catalog.Kind      `json:"kinds,omitempty"`
+	Categories      []string            `json:"categories,omitempty"`
+	License         string              `json:"license,omitempty"`
+	Tags            []string            `json:"tags,omitempty"`
+	Publisher       string              `json:"publisher,omitempty"`
+	Visibility      *catalog.Visibility `json:"visibility,omitempty"`
 }
 
 type catalogFacetRequest struct {
@@ -760,8 +771,12 @@ func (input catalogExploreRequest) exploreRequest() (catalog.ExploreRequest, err
 	if err != nil {
 		return catalog.ExploreRequest{}, err
 	}
+	visibility, err := catalogVisibilityFilter(input.Query.Visibility)
+	if err != nil {
+		return catalog.ExploreRequest{}, err
+	}
 	request := catalog.ExploreRequest{
-		Query:  catalog.SearchQuery{NamespaceID: namespaceID, Text: input.Query.Text, Kinds: input.Query.Kinds, Tags: input.Query.Tags, Categories: input.Query.Categories, License: input.Query.License, Publisher: input.Query.Publisher, Visibility: input.Query.Visibility},
+		Query:  catalog.SearchQuery{IncludeMCPTools: input.Query.IncludeMCPTools, AgentProtocol: input.Query.AgentProtocol, NamespaceID: namespaceID, Text: input.Query.Text, Kinds: input.Query.Kinds, Tags: input.Query.Tags, Categories: input.Query.Categories, License: input.Query.License, Publisher: input.Query.Publisher, Visibility: visibility},
 		Facets: make([]catalog.FacetRequest, 0, len(input.Facets)),
 	}
 	for _, facet := range input.Facets {
@@ -991,6 +1006,17 @@ func catalogNamespaceFilter(value *string) (string, error) {
 	}
 	if !identity.ValidTenantID(*value) {
 		return "", catalog.E(catalog.CodeInvalidArgument, "namespaceId must be a UUID")
+	}
+	return *value, nil
+}
+
+// catalogVisibilityFilter preserves omission while requiring an explicit enum value.
+func catalogVisibilityFilter(value *catalog.Visibility) (catalog.Visibility, error) {
+	if value == nil {
+		return "", nil
+	}
+	if !value.Valid() {
+		return "", catalog.E(catalog.CodeInvalidArgument, "visibility must be private, tenant or public")
 	}
 	return *value, nil
 }

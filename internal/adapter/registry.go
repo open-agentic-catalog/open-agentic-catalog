@@ -159,6 +159,16 @@ func validateAgent(mediaType string, input catalog.RepresentationInput, limits c
 // profiles and validates declared remote references.
 func validateMCP(mediaType string, input catalog.RepresentationInput, limits catalog.DiagnosticLimits) catalog.ValidationResult {
 	switch mediaType {
+	case catalog.MCPToolsMediaType:
+		raw := input.Data
+		if input.Content != "" {
+			raw = json.RawMessage(input.Content)
+		}
+		value, err := catalog.ParseMCPTools(raw)
+		if err != nil || input.Role != catalog.RepresentationMetadata || input.URL != "" || input.ProfileID != "" && input.ProfileID != catalog.MCPToolsProfile {
+			return invalid(catalog.MCPToolsProfile, "MCP_TOOLS_INVALID", "Supply one bounded private metadata declaration with unique tool names; remote delivery is unsupported.")
+		}
+		return catalog.ValidationResult{ProfileID: catalog.MCPToolsProfile, NormalizedFacts: map[string]any{"declaredToolCount": len(value.Tools)}}
 	case MediaMCPServerCard:
 		object, initialFindings := decodeObject(input.Data)
 		report := catalog.NewFindingCollector(limits)

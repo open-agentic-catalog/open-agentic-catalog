@@ -11,19 +11,24 @@ exports.run = async (api) => {
     );
   note("start fresh capability window");
   const ui = await require("./webview.cjs").webview(true);
+  const visible = ".quick-input-widget:not([style*='display: none'])";
+  const field = `document.querySelector(${JSON.stringify(`${visible} input`)})`;
   const title = (text) =>
-    `document.querySelector('.quick-input-widget')?.offsetParent!==null && document.querySelector('.quick-input-title')?.textContent.includes(${JSON.stringify(text)})`;
+    `document.querySelector(${JSON.stringify(visible)})?.offsetParent!=null && document.querySelector(${JSON.stringify(`${visible} .quick-input-title`)})?.textContent.includes(${JSON.stringify(text)})`;
   const input = async (text, value) => {
     await ui.until(title(text));
     await ui.evaluate(
-      `(()=>{const input=document.querySelector('.quick-input-widget input');input.value=${JSON.stringify(value)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
+      `(()=>{const input=${field};input.focus();input.value=${JSON.stringify(value)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
     );
+    await ui.until(`document.activeElement===(${field})`);
     await ui.key("Enter");
   };
   const focus = async (many = false) => {
-    await ui.click("document.querySelector('.quick-input-widget input')");
+    // Focusing is not a click action. A coordinate sampled while the picker
+    // moves can hit the underlying editor and dismiss the pending question.
+    await ui.evaluate(`(${field}).focus()`);
     await ui.until(
-      `document.activeElement===document.querySelector('.quick-input-widget input') && ${many ? "document.querySelectorAll('.quick-input-list .monaco-list-row').length>0" : "!!document.querySelector('.quick-input-list .monaco-list-row.focused')"}`,
+      `document.activeElement===(${field}) && ${many ? `document.querySelectorAll(${JSON.stringify(`${visible} .quick-input-list .monaco-list-row`)}).length>0` : `!!document.querySelector(${JSON.stringify(`${visible} .quick-input-list .monaco-list-row.focused`)})`}`,
     );
   };
   const first = async (text, many = false) => {
@@ -34,14 +39,14 @@ exports.run = async (api) => {
   const pick = async (text, label) => {
     await ui.until(title(text));
     await ui.evaluate(
-      `(()=>{const input=document.querySelector('.quick-input-widget input');input.value=${JSON.stringify(label)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
+      `(()=>{const input=${field};input.value=${JSON.stringify(label)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`,
     );
     await ui.until(
-      `[...document.querySelectorAll('.quick-input-list .monaco-list-row')].some(row=>row.textContent.includes(${JSON.stringify(label)}))`,
+      `[...document.querySelectorAll(${JSON.stringify(`${visible} .quick-input-list .monaco-list-row`)})].some(row=>row.textContent.includes(${JSON.stringify(label)}))`,
     );
     await focus();
     await ui.until(
-      `document.querySelector('.quick-input-list .monaco-list-row.focused')?.textContent.includes(${JSON.stringify(label)})`,
+      `document.querySelector(${JSON.stringify(`${visible} .quick-input-list .monaco-list-row.focused`)})?.textContent.includes(${JSON.stringify(label)})`,
     );
     await ui.key("Enter");
   };
@@ -52,7 +57,7 @@ exports.run = async (api) => {
   };
   const toggle = async (text, label) => {
     await ui.until(title(text));
-    const checkbox = `[...document.querySelectorAll('.quick-input-list .monaco-list-row')].find(row=>row.textContent.trim()===${JSON.stringify(label)})?.querySelector('[role=checkbox],input[type=checkbox]')`;
+    const checkbox = `[...document.querySelectorAll(${JSON.stringify(`${visible} .quick-input-list .monaco-list-row`)})].find(row=>row.textContent.trim()===${JSON.stringify(label)})?.querySelector('[role=checkbox],input[type=checkbox]')`;
     await ui.until(`!!(${checkbox})`);
     await ui.click(checkbox);
     await ui.until(
@@ -71,6 +76,37 @@ exports.run = async (api) => {
     await api.select("qualification");
     await api.authenticate("reader");
     const page = await api.browse({ kind: "agent" });
+    const detail = await api.detail(page.items[0].key);
+    await vscode.commands.executeCommand("openAgenticCatalog.open");
+    const rendered = await require("./webview.cjs").webview();
+    const prompt = vscode.window.createQuickPick();
+    try {
+      await rendered.until(
+        `document.getElementById('detail-heading')?.textContent===${JSON.stringify(detail.item.name)} && !document.getElementById('search-submit').disabled`,
+      );
+      prompt.title = "Owned background read focus";
+      prompt.items = [{ label: "Keep editing this native question" }];
+      prompt.show();
+      await ui.until(
+        `${title(prompt.title)} && document.activeElement===(${field})`,
+      );
+      assert.equal(await rendered.evaluate("document.hasFocus()"), false);
+      await api.browse({ kind: "agent" });
+      await rendered.until(
+        "!document.getElementById('detail-heading') && !document.getElementById('search-submit').disabled",
+      );
+      assert.equal(
+        await ui.evaluate(
+          `${title(prompt.title)} && document.activeElement===(${field})`,
+        ),
+        true,
+        "A background Catalog redraw must preserve the native question and its focus",
+      );
+      note("background Catalog redraw preserves the native question");
+    } finally {
+      prompt.dispose();
+      rendered.close();
+    }
     await api.detail(page.items[0].key);
     assert.deepEqual(
       api.mcpSelections(),
@@ -176,6 +212,52 @@ exports.run = async (api) => {
       ),
       "Native own-feedback command displays the retained private record",
     );
+    const caseDocument = vscode.workspace.textDocuments.find(
+      (document) =>
+        document.uri.scheme === "oac-evidence" &&
+        document.getText().includes("Native editor private feedback"),
+    );
+    const feedbackCase = JSON.parse(caseDocument.getText());
+    const origin = vscode.workspace
+      .getConfiguration("openAgenticCatalog")
+      .get("connections")
+      .find((connection) => connection.id === "qualification").origin;
+    const target = `${origin}/api/v1/feedback/${feedbackCase.id}`;
+    const originalCase = await fetch(target, {
+      headers: { Authorization: "Bearer admin" },
+    });
+    assert.equal(originalCase.status, 200);
+    await originalCase.arrayBuffer();
+    const addressed = await fetch(`${target}:address`, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer admin",
+        "Content-Type": "application/json",
+        "If-Match": originalCase.headers.get("etag"),
+        "Idempotency-Key": "native-recent-feedback",
+      },
+      body: JSON.stringify({
+        response: "Native recent reply to the exact feedback case",
+      }),
+    });
+    assert.equal(addressed.status, 200);
+    await addressed.arrayBuffer();
+    operation = vscode.commands.executeCommand("openAgenticCatalog.myFeedback");
+    await pick("My private feedback", "Recent addressed outcomes");
+    const recentReady = `${title("My private feedback")} && (${field})?.value==='' && [...document.querySelectorAll(${JSON.stringify(`${visible} .quick-input-list .monaco-list-row`)})].some(row=>row.textContent.includes('Submission order'))`;
+    await ui.until(recentReady);
+    await pick("My private feedback", "Refresh feedback");
+    await ui.until(recentReady);
+    await pick("My private feedback", "problem");
+    await pick("Manage my private feedback", "Read current item");
+    await operation;
+    retained = JSON.parse(vscode.window.activeTextEditor.document.getText());
+    assert.equal(retained.id, feedbackCase.id);
+    assert.equal(
+      retained.response,
+      "Native recent reply to the exact feedback case",
+    );
+    assert.equal(retained.state, "addressed");
     operation = vscode.commands.executeCommand("openAgenticCatalog.myFeedback");
     await pick("My private feedback", "problem");
     await pick("Manage my private feedback", "Edit");

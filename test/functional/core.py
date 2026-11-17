@@ -308,6 +308,12 @@ def archive_publication(api, resource, version, blocked):
     published = replacement
     release_path = "/api/v1/listing-releases/" + published["release"]["id"]
     _, headers = api.request("GET", release_path)
+    preview, _ = api.request("GET", release_path + "/withdrawal-preview?transition=retired")
+    assert preview["releaseId"] == published["release"]["id"] and preview["releaseRevision"] == published["release"]["revision"] and preview["transition"] == "retired", "withdrawal preview lost its exact release binding"
+    assert isinstance(preview["snapshots"], list), "withdrawal preview omitted completed impact"
+    reader.request("GET", release_path + "/withdrawal-preview?transition=retired", expected=(403,))
+    for query in ("", "?transition=", "?transition=deprecated", "?transition=retired&transition=revoked"):
+        api.request("GET", release_path + "/withdrawal-preview" + query, expected=(400,))
     retired, _ = mutate(api, "POST", release_path + ":retire", {"reason": "Finish owned archive trial"}, etag=header(headers, "ETag"))
     assert retired["state"] == "retired", "archive release not retired"
     api.request("GET", "/api/v1/catalog/resources/" + retired["id"], expected=(404,))

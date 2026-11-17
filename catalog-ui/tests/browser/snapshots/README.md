@@ -1,5 +1,7 @@
 # Reviewed visual baselines
 
+Release-withdrawal preview updates only `api-endpoints-light.png` and `api-definitions-light.png` for the added operation and its two response definitions. Reviewed differences contain only those contract totals. Layout and controls are unchanged.
+
 Source-snapshot comparison updates only `api-endpoints-light.png` and `api-definitions-light.png` for 199 operations and 455 definitions. Reviewed diffs contain only those contract totals; layout, controls and dark references remain unchanged.
 
 Reusable draft transfer refreshes only `authoring-narrow.png` and `confirmation-narrow.png`. Reviewed run `run-MFCE4d` shows the intended gaps below Namespace refresh and the AIR builder. Run `run-YgK4vE` shows only the shifted page background at the dialog's transparent top edge. The dialog's content and dimensions stay unchanged. The expanded AIR actions also use the existing wrapping action row. All other expected images retain their bytes.
@@ -22,7 +24,7 @@ The suite compares forty-six expected images across twenty-one tests. The table 
 | `api-authentication-dark-narrow.png`      | Expanded membership authentication with its HTTP Bearer declaration and local scheme link, dark, 390 x 1000.            |
 | `api-definitions-light.png`               | Complete-index search, kind/page controls and selected ResourceKind schema at 1440 x 1400, light.                       |
 | `api-schema-dark-narrow.png`              | Declared ResourceKind type and enumeration, dark, 390 x 1000.                                                           |
-| `review-filters-light.png`                | Exact Listing and state filters with explicit Apply, Clear and Refresh, light desktop.                                  |
+| `review-filters-light.png`                | Namespace, Listing, state and unreleased filters with manual actions, light desktop.                                    |
 | `review-opener-dark-narrow.png`           | Exact Submission opener and permission-independent guidance at 390 x 844, dark.                                         |
 | `native-preparation-light.png`            | Collapsed Agent starting point with a separate documentation link, light desktop.                                       |
 | `native-preparation-dark-narrow.png`      | Keyboard-expanded native input, version and validation guidance with a separate link at 390 x 844, dark.                |

@@ -220,6 +220,25 @@ if "port" in sys.argv:
             self.assertIn("Interoperability targets must run alone", mixed.stderr)
             self.assertNotIn("Demo evaluated", mixed.stderr)
 
+    def test_agentfield_acquisition_and_native_tests_are_separate_and_env_free(self):
+        with tempfile.TemporaryDirectory() as directory:
+            env_file = Path(directory) / "workflow.env"
+            env_file.write_text("$(error AgentField evaluated inherited workflow settings)\n")
+            for target, script in (("agentfield-tools-install", "agentfield_tools.py"),
+                                   ("test-interoperability-agentfield", "agentfield_runner.py"),
+                                   ("test-interoperability-agentfield-cleanup", "agentfield_runner.py --cleanup-controls")):
+                with self.subTest(target=target):
+                    result = self.run_make("-n", target, "CATALOG_ENV_FILE=" + str(env_file))
+                    self.assertIn("test/interoperability/" + script, result)
+                    if target != "agentfield-tools-install":
+                        self.assertNotIn("agentfield_tools.py", result)
+                        self.assertNotIn("docker pull", result)
+                    mixed = subprocess.run(["make", "-n", target, "check", "CATALOG_ENV_FILE=" + str(env_file)],
+                                           cwd=ROOT, capture_output=True, text=True, timeout=30, check=False)
+                    self.assertNotEqual(mixed.returncode, 0)
+                    self.assertIn("Interoperability targets must run alone", mixed.stderr)
+                    self.assertNotIn("AgentField evaluated", mixed.stderr)
+
     def test_demo_up_orders_stages_and_stops_before_next_on_failure(self):
         # Actual recursive Make with inert fixture recipes: no Docker/API calls.
         source = (ROOT / "Makefile").read_text()
@@ -605,6 +624,18 @@ if Path("fail-" + stage).exists():
                 env=environment, input=target + ':\n\t@printf "%s|%s\\n" "$$CATALOG_UI_DOCUMENTATION_URL" "$$UI_DOCUMENTATION_DIRECTORY"\n')
             self.assertEqual("https://docs.example.test/manual/|" + ("/owned/manual" if target == "ui-dev" else ""), output.strip())
 
+    def test_public_discovery_launcher_exports(self):
+        environment = {key: value for key, value in os.environ.items() if key != "CATALOG_UI_PUBLIC_DISCOVERY"}
+        for target in ("ui-dev", "compose-up"):
+            for arguments, expected in (([], "off"), (["CATALOG_UI_PUBLIC_DISCOVERY=on"], "on")):
+                output = self.run_make("-s", "-f", "Makefile", "-f", "-", "-o", "ui-build", target, *arguments,
+                    env=environment, input=target + ':\n\t@printf "%s\\n" "$$CATALOG_UI_PUBLIC_DISCOVERY"\n')
+                self.assertEqual(expected, output.strip(), target)
+            output = self.run_make("-s", "-f", "Makefile", "-f", "-", "-o", "ui-build", target, "CATALOG_UI_PUBLIC_DISCOVERY=off",
+                env={**environment, "CATALOG_UI_PUBLIC_DISCOVERY": "on"},
+                input=target + ':\n\t@printf "%s\\n" "$$CATALOG_UI_PUBLIC_DISCOVERY"\n')
+            self.assertEqual("off", output.strip(), target)
+
     def test_ui_packaging_targets_select_ui_image_without_building(self):
         for target, action in [("ui-container-inspect", "inspect"), ("ui-sbom", "sbom"), ("ui-container-scan", "scan")]:
             output = self.run_make("-n", target, "UI_IMAGE=ui:selected", "IMAGE=backend:unrelated")
@@ -826,7 +857,7 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
             with self.subTest(target=target):
                 self.assertNotIn("fixture-ruff", self.run_make("-n", target, "RUFF=fixture-ruff"))
     def test_langgraph_tools_and_tests_are_explicit_and_do_not_export_questions_to_other_gates(self):
-        for target in ("langgraph-tools-install", "test-langgraph-unit", "test-langgraph", "test-langgraph-model"):
+        for target in ("langgraph-tools-install", "test-langgraph-unit", "test-langgraph", "test-langgraph-ard", "test-langgraph-model"):
             output = self.run_make("-n", target)
             self.assertIn("test/langgraph/runner.py", output)
             self.assertNotIn("compose-up", output)
@@ -912,6 +943,33 @@ sys.exit(41 if json.dumps(call) == os.environ.get("FAIL_CALL") else 0)
                 output = self.run_make("-s", "-f", "Makefile", "-f", "-", target, env=env,
                                        input=target + ":\n\t@python3 -c " + shlex.quote(probe) + "\n")
                 self.assertEqual(json.loads(output), expected)
+
+    def test_ard_graph_launcher_preserves_literal_configuration_and_query(self):
+        names = ["LANGGRAPH_ARD_CONFIG", "LANGGRAPH_ARD_QUERY"]
+        probe = "import json, os; print(json.dumps([os.environ.get(k) for k in " + repr(names) + "]))"
+        for source in ("environment", "command-line"):
+            with self.subTest(source=source), tempfile.TemporaryDirectory() as directory:
+                marker = Path(directory) / "unexpected-ard-make-expansion"
+                value = "literal $(shell touch " + str(marker) + ") $(error must-not-expand) `touch no-shell-evaluation`"
+                inputs = dict.fromkeys(names, value)
+                env = dict(os.environ)
+                for name in names:
+                    env.pop(name, None)
+                arguments = []
+                if source == "environment":
+                    env.update(inputs)
+                else:
+                    arguments = [name + "=" + text for name, text in inputs.items()]
+                output = self.run_make("-s", "-f", "Makefile", "-f", "-", "langgraph-ard-demo",
+                                       *arguments, env=env,
+                                       input="langgraph-ard-demo:\n\t@python3 -c " + shlex.quote(probe) + "\n")
+                self.assertFalse(marker.exists())
+                self.assertEqual(json.loads(output), [value, value])
+                output = self.run_make("-s", "-f", "Makefile", "-f", "-", "test-unit",
+                                       *arguments, env=env,
+                                       input="test-unit:\n\t@python3 -c " + shlex.quote(probe) + "\n")
+                self.assertFalse(marker.exists())
+                self.assertEqual(json.loads(output), [None, None])
 
     def test_data_and_conformance_checks_use_their_existing_gate_boundaries(self):
         for target in ('json-check', 'check'):

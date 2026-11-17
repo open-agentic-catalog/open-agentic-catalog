@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shlex
 import time
+import urllib.parse
 
 from core import mutate
 from federation import Client, key, wait_job
@@ -62,6 +63,7 @@ class Operators:
         return result["data"]
 
     def remote_reads(self, job):
+        self.anonymous_reads()
         self.remote("capabilities")
         page = self.remote("search", "--limit", "1", "--tag", "functional-" + self.suffix)
         assert not page["partial"] and len(page["items"]) == 1 and page.get("nextCursor"), "remote Search page incomplete"
@@ -75,6 +77,7 @@ class Operators:
         assert "representations" not in item["local"]["versionRevision"] and "findings" not in item["local"]["evidence"]
         for field in ("displayName", "description", "tags"):
             assert record["listingRevision"][field] == item[field], "remote record display differs from Search"
+        self.personal_library(record)
         assert record["listingRevision"]["publisherId"] == item["publisher"]
         later = self.remote("search", "--limit", "1", "--tag", "functional-" + self.suffix, "--cursor", page["nextCursor"])
         assert later["items"] and later["items"][0]["id"] != item["id"], "remote cursor duplicated first page"
@@ -96,6 +99,85 @@ class Operators:
                     raise
             else:
                 raise Failure("remote-cross-tenant-read-accepted")
+
+    def personal_library(self, record):
+        """Restore selected private intent with the shipped binary and real PostgreSQL admission."""
+        reader = Client(self.env["CATALOG_FUNCTIONAL_BASE_URL"], "local-reader")
+        items = [
+            {"type": "search", "label": " Private saved query " + self.suffix,
+             "search": {"text": " exact café ", "origins": ["local"], "tags": ["one,two", " spaced ", "one,two"]}},
+            {"type": "resource", "label": "Private exact release " + self.suffix,
+             "reference": {"origin": "local", "releaseId": record["release"]["id"],
+                           "versionRevisionId": record["versionRevision"]["id"]}},
+        ]
+        original = []
+        for item in items:
+            saved, headers = mutate(reader, "POST", "/api/v1/personal/items", item, 201)
+            original.append((saved["id"], header(headers, "ETag")))
+
+        def invoke(action, *args, token="local-reader"):
+            return decode(self.compose("exec", "-T", "--env", "CATALOG_REMOTE_TOKEN=" + token,
+                                       "--env", "CATALOG_DATABASE_DSN_FILE=/does-not-exist",
+                                       "api", "/usr/local/bin/catalogctl", "personal", action,
+                                       "--base-url", "http://127.0.0.1:8080", *args, capture=True))
+
+        # The fixture container and its /tmp tmpfs are unique to this supervisor.
+        # Existing paths are refused; normal container cleanup removes these private files.
+        backup = "/tmp/personal-backup-" + self.suffix
+        state = "/tmp/personal-progress-" + self.suffix + "/state.json"
+        invoke("export", "--output-dir", backup)
+        preview = invoke("preview", "--file", backup + "/library.json", "--tenant-id", TENANT)
+        assert preview["consistency"] == "observed-pages", "personal export claimed snapshot consistency"
+        assert all(row["action"] == "skip" for row in preview["items"]), "preview implicitly selected creates"
+        indexes = []
+        for expected in items:
+            matched = [row for row in preview["items"] if row["item"] == expected]
+            assert len(matched) == 1, "personal export lost exact intent"
+            indexes.append(matched[0]["index"])
+        for identifier, etag in original:
+            mutate(reader, "DELETE", "/api/v1/personal/items/" + identifier, None, 200, etag)
+        selection = tuple(value for index in indexes for value in ("--create", str(index)))
+        args = ("--file", backup + "/library.json", "--state-file", state, "--confirm", *selection)
+        restored = invoke("apply", *args)
+        assert restored["status"] == "complete", "personal restore incomplete"
+        selected = [restored["items"][index - 1] for index in indexes]
+        assert all(row["state"] == "acknowledged" for row in selected), "personal creates were not acknowledged"
+        repeated = invoke("resume", *args)
+        assert repeated == restored, "completed personal resume changed acknowledged work"
+        for expected, row in zip(items, selected, strict=True):
+            path = "/api/v1/personal/items/" + row["id"]
+            actual, headers = reader.request("GET", path)
+            assert all(actual.get(key) == value for key, value in expected.items()), "personal restore changed stored intent"
+            assert actual["revision"] == 1 and row["id"] not in {value[0] for value in original}, "personal restore reused old identity"
+            audit_once(self.api, "personal.item.created", "personal_item", row["id"])
+            mutate(reader, "DELETE", path, None, 200, header(headers, "ETag"))
+
+    def anonymous_reads(self):
+        public = Client(self.env["CATALOG_FUNCTIONAL_BASE_URL"], "")
+
+        def read(action, *args):
+            result = decode(self.compose("exec", "-T", "--env", "CATALOG_REMOTE_TOKEN=ignored-ambient-secret",
+                                        "--env", "CATALOG_REMOTE_TOKEN_FILE=/does-not-exist",
+                                        "--env", "CATALOG_CONFIG=/does-not-exist", "--env", "CATALOG_DATABASE_DSN_FILE=/does-not-exist",
+                                        "api", "/usr/local/bin/catalogctl", "discovery", action,
+                                        "--base-url", "http://127.0.0.1:8080", *args, capture=True))
+            assert result["meta"]["requestId"] and "data" in result, "anonymous envelope incomplete"
+            return result
+
+        manifest, headers = public.request("GET", "/.well-known/ard.json")
+        result = read("manifest")
+        assert result["data"] == manifest and result["meta"]["etag"] == header(headers, "ETag"), "anonymous manifest differs from active publication"
+        selection = {"pageSize": 1, "orderBy": "displayName DESC"}
+        first, _ = public.request("GET", "/ard/v1/agents?" + urllib.parse.urlencode(selection))
+        page = read("list", "--page-size", "1", "--order-by", "displayName DESC")["data"]
+        assert page["items"] == first["items"] and page["total"] == first["total"] and len(page["items"]) == 1 and page.get("pageToken"), "anonymous first page lost continuation"
+        selection["pageToken"] = page["pageToken"]
+        later, _ = public.request("GET", "/ard/v1/agents?" + urllib.parse.urlencode(selection))
+        actual = read("list", "--page-size", "1", "--order-by", "displayName DESC", "--page-token", page["pageToken"])["data"]
+        assert actual["items"] == later["items"] and actual["total"] == later["total"] and bool(actual.get("pageToken")) == bool(later.get("pageToken")), "anonymous continuation changed page membership"
+        assert actual["items"][0]["identifier"] != page["items"][0]["identifier"], "anonymous continuation repeated the first page"
+        empty = read("list", "--filter", "displayName = 'no-such-owned-publication-entry'", "--page-size", "1")["data"]
+        assert empty == {"items": [], "total": 0}, "anonymous empty selection was not a successful page"
 
     def source_comparison(self, source_id, before_id):
         current, _ = self.api.request("GET", "/api/v1/federation/sources/" + source_id)

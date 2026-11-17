@@ -14,6 +14,178 @@ const code = (name) => (error) =>
   error instanceof SDKError && error.code === name;
 const manifest = "/.well-known/ard.json";
 
+test("withdrawal preview is one explicit read and preserves bound snapshot references", async () => {
+  const releaseId = "00000000-0000-7000-8000-000000000101";
+  const wire = {
+    releaseId,
+    releaseRevision: 3,
+    transition: "retired",
+    observedAt: "2026-11-15T12:00:00Z",
+    snapshots: [
+      {
+        snapshotId: "00000000-0000-7000-8000-000000000201",
+        host: "catalog.example.com",
+        audience: "anonymous",
+        generation: 2,
+        etag: "feed-two",
+      },
+    ],
+  };
+  let calls = 0;
+  const client = make(async (request) => {
+    calls++;
+    const url = new URL(request.url);
+    assert.equal(request.method, "GET");
+    assert.equal(
+      url.pathname,
+      `/api/v1/listing-releases/${releaseId}/withdrawal-preview`,
+    );
+    assert.deepEqual(Object.fromEntries(url.searchParams), {
+      transition: "retired",
+    });
+    assert.equal(request.headers.has("Idempotency-Key"), false);
+    assert.equal(request.headers.has("If-Match"), false);
+    return json(wire, { headers: { "Content-Type": "application/json" } });
+  });
+  const preview = await client.api.GET(
+    "/api/v1/listing-releases/{releaseId}/withdrawal-preview",
+    { params: { path: { releaseId }, query: { transition: "retired" } } },
+  );
+  assert.equal(calls, 1);
+  assert.deepEqual(preview.data, wire);
+});
+
+test("source outcomes retain exact filters and explicit one-page continuation", async () => {
+  const requests = [];
+  const client = make(async (request) => {
+    assert.equal(request.method, "GET");
+    assert.equal(request.headers.has("Idempotency-Key"), false);
+    requests.push(new URL(request.url));
+    return json(
+      {
+        items: [],
+        ...(requests.length === 1 ? { nextCursor: "opaque+/= café" } : {}),
+      },
+      { headers: { "Content-Type": "application/json" } },
+    );
+  });
+  const query = {
+    displayName: "Exact Source",
+    syncState: "failed",
+    status: "active",
+    limit: 1,
+  };
+  const first = await client.api.GET("/api/v1/federation/sources", {
+    params: { query },
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(first.data.nextCursor, "opaque+/= café");
+  const last = await client.api.GET("/api/v1/federation/sources", {
+    params: { query: { ...query, cursor: first.data.nextCursor } },
+  });
+  assert.equal(last.data.nextCursor, undefined);
+  const expected = {
+    displayName: "Exact Source",
+    syncState: "failed",
+    status: "active",
+    limit: "1",
+  };
+  assert.deepEqual(
+    requests.map((url) => ({
+      path: url.pathname,
+      query: Object.fromEntries(url.searchParams),
+    })),
+    [
+      { path: "/api/v1/federation/sources", query: expected },
+      {
+        path: "/api/v1/federation/sources",
+        query: { ...expected, cursor: "opaque+/= café" },
+      },
+    ],
+  );
+});
+
+test("recent own feedback retains update order and explicit one-page continuation", async () => {
+  const requests = [];
+  const client = make(async (request) => {
+    assert.equal(request.method, "GET");
+    assert.equal(request.headers.has("Idempotency-Key"), false);
+    requests.push(new URL(request.url));
+    return json(
+      {
+        items: [],
+        ...(requests.length === 1 ? { nextCursor: "opaque+/= café" } : {}),
+      },
+      { headers: { "Content-Type": "application/json" } },
+    );
+  });
+  const query = { order: "updated_desc", state: "addressed", limit: 1 };
+  const first = await client.api.GET("/api/v1/feedback", { params: { query } });
+  assert.equal(requests.length, 1);
+  assert.equal(first.data.nextCursor, "opaque+/= café");
+  const last = await client.api.GET("/api/v1/feedback", {
+    params: { query: { ...query, cursor: first.data.nextCursor } },
+  });
+  assert.equal(last.data.nextCursor, undefined);
+  const expected = { order: "updated_desc", state: "addressed", limit: "1" };
+  assert.deepEqual(
+    requests.map((url) => ({
+      path: url.pathname,
+      query: Object.fromEntries(url.searchParams),
+    })),
+    [
+      { path: "/api/v1/feedback", query: expected },
+      {
+        path: "/api/v1/feedback",
+        query: { ...expected, cursor: "opaque+/= café" },
+      },
+    ],
+  );
+});
+
+test("review queue retains namespace intersection and opaque continuation without implicit reads", async () => {
+  const namespaceId = "aaaaaaaa-0000-7000-8000-000000000010";
+  const requests = [];
+  const client = make(async (request) => {
+    requests.push(new URL(request.url));
+    assert.equal(request.method, "GET");
+    assert.equal(request.headers.has("Idempotency-Key"), false);
+    return json(
+      {
+        items: [],
+        ...(requests.length === 1 ? { nextCursor: "opaque+/= café" } : {}),
+      },
+      { headers: { "Content-Type": "application/json" } },
+    );
+  });
+  const query = {
+    namespaceId,
+    listingId: namespaceId,
+    state: "approved",
+    unreleased: true,
+    limit: 1,
+  };
+  const first = await client.api.GET("/api/v1/review-submissions", {
+    params: { query },
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(first.data.nextCursor, "opaque+/= café");
+  await client.api.GET("/api/v1/review-submissions", {
+    params: { query: { ...query, cursor: first.data.nextCursor } },
+  });
+  const expected = {
+    namespaceId,
+    listingId: namespaceId,
+    state: "approved",
+    unreleased: "true",
+    limit: "1",
+  };
+  assert.deepEqual(
+    requests.map((url) => Object.fromEntries(url.searchParams)),
+    [expected, { ...expected, cursor: "opaque+/= café" }],
+  );
+});
+
 test("finite conditional version and delivery envelopes preserve their actual wire meaning", async () => {
   const uid = "00000000-0000-7000-8000-000000000001";
   for (let seed = 0; seed < 16; seed++) {
@@ -1113,4 +1285,30 @@ test("body transport failures preserve safe HTTP metadata", async () => {
       e.requestID === "body-id" &&
       !String(e).includes("SECRET_STREAM"),
   );
+});
+
+test("declared MCP tool selection and bounded explanation survive the fixed API exchange", async () => {
+  const toolMatch = {
+    representationId: "00000000-0000-7000-8000-000000000001",
+    contentDigest: "sha256:" + "a".repeat(64),
+    matchedToolCount: 1,
+    tools: [{ name: "extract_pdf_tables", descriptionTruncated: false }],
+    truncated: false,
+  };
+  for (const body of [
+    { text: "pdf tables", includeMcpTools: true, origins: ["local"] },
+    { includeMcpTools: false },
+    {},
+  ]) {
+    let calls = 0;
+    const client = make(async (request) => {
+      calls++;
+      assert.equal(request.url, origin + "/api/v1/catalog/search");
+      assert.deepEqual(await request.json(), body);
+      return json({ items: [{ toolMatch }] });
+    });
+    const reply = await client.api.POST("/api/v1/catalog/search", { body });
+    assert.equal(calls, 1);
+    assert.deepEqual(reply.data.items[0].toolMatch, toolMatch);
+  }
 });

@@ -40,6 +40,8 @@ export interface Query {
   publisher: string;
   license: string;
   category: string;
+  agentProtocol: string;
+  includeMcpTools: boolean;
   visibility: string;
   federation: "none" | "auto";
   limit: number;
@@ -53,6 +55,8 @@ export const emptyQuery: Query = {
   publisher: "",
   license: "",
   category: "",
+  agentProtocol: "",
+  includeMcpTools: false,
   visibility: "",
   federation: "none",
   limit: 20,
@@ -81,6 +85,17 @@ export interface Item {
   listingRevisionId?: string;
   references: Reference[];
   ratings?: string;
+  toolMatch?: {
+    representationId: string;
+    contentDigest: string;
+    matchedToolCount: number;
+    truncated: boolean;
+    tools: {
+      name: string;
+      description?: string;
+      descriptionTruncated: boolean;
+    }[];
+  };
   artwork?: Record<string, unknown>;
   artworkTarget?: Record<string, unknown>;
   raw?: Record<string, unknown>;
@@ -375,6 +390,41 @@ export function searchItem(value: unknown): Item {
     throw new ClientError("invalid_response");
   number(v.score, 100);
   const item: Item = { ...common, origin: origin as Origin };
+  if (v.toolMatch !== undefined) {
+    if (origin !== "local" || item.kind !== "mcp_server")
+      throw new ClientError("invalid_response");
+    const match = record(v.toolMatch),
+      digest = literal(match.contentDigest, 71),
+      count = number(match.matchedToolCount, 64),
+      tools = list(match.tools, 3).map((value) => {
+        const tool = record(value),
+          name = metadataText(tool.name, 128);
+        if (/^\p{White_Space}*$/u.test(name))
+          throw new ClientError("invalid_response");
+        return {
+          name,
+          descriptionTruncated: boolean(tool.descriptionTruncated),
+          ...(tool.description === undefined
+            ? {}
+            : { description: metadataText(tool.description, 256, true) }),
+        };
+      });
+    if (
+      !/^sha256:[a-f0-9]{64}$/u.test(digest) ||
+      !tools.length ||
+      count < tools.length ||
+      new Set(tools.map((tool) => tool.name)).size !== tools.length ||
+      boolean(match.truncated) !== count > tools.length
+    )
+      throw new ClientError("invalid_response");
+    item.toolMatch = {
+      representationId: uuid(match.representationId),
+      contentDigest: digest,
+      matchedToolCount: count,
+      tools,
+      truncated: match.truncated as boolean,
+    };
+  }
   if (origin === "local") {
     const local = record(v.local),
       resource = record(local.resource),
@@ -511,6 +561,7 @@ export function query(
     publisher: 256,
     license: 256,
     category: 80,
+    agentProtocol: 256,
     visibility: 16,
     federation: 4,
   }))
@@ -526,6 +577,10 @@ export function query(
     !["local", "indexed", "live"].includes(q.origin) ||
     !["", "private", "tenant", "public"].includes(q.visibility) ||
     !["none", "auto"].includes(q.federation) ||
+    typeof q.includeMcpTools !== "boolean" ||
+    (!draft &&
+      q.agentProtocol !== "" &&
+      /^\p{White_Space}*$/u.test(q.agentProtocol)) ||
     !Number.isSafeInteger(q.limit) ||
     q.limit < 1 ||
     q.limit > 100
@@ -535,11 +590,27 @@ export function query(
   if (
     !draft &&
     published &&
-    (q.namespace || q.visibility || q.origin !== "local")
+    (q.namespace ||
+      q.visibility ||
+      q.origin !== "local" ||
+      q.agentProtocol ||
+      q.includeMcpTools)
   )
     throw new ClientError("unsupported_filter");
   if (!draft && !published && q.namespace && !localOnly(q))
     throw new ClientError("namespace_is_local");
+  if (!draft && (q.agentProtocol || q.includeMcpTools) && !localOnly(q))
+    throw new ClientError("unsupported_filter");
+  if (
+    !draft &&
+    q.includeMcpTools &&
+    (/^\p{White_Space}*$/u.test(q.text) ||
+      q.agentProtocol ||
+      (q.kinds?.length ? q.kinds : q.kind ? [q.kind] : []).some(
+        (kind) => kind !== "mcp_server",
+      ))
+  )
+    throw new ClientError("invalid_query");
   if (
     published &&
     !explore &&
@@ -666,6 +737,7 @@ export function requestFor(
     const p = new URLSearchParams({ limit: String(q.limit) });
     for (const [key, value] of Object.entries({
       namespaceId: q.namespace,
+      agentProtocol: q.agentProtocol,
       kind: q.kind,
       visibility: q.visibility,
       cursor: next,
@@ -687,6 +759,8 @@ function controlQuery(q: Query, next?: string): Record<string, unknown> {
       ? { tags: q.tags?.length ? q.tags : [q.tag] }
       : {}),
     ...(q.namespace ? { namespaceId: q.namespace } : {}),
+    ...(q.agentProtocol ? { agentProtocol: q.agentProtocol } : {}),
+    ...(q.includeMcpTools ? { includeMcpTools: true } : {}),
     ...(q.publisher ? { publisher: q.publisher } : {}),
     ...(q.license ? { license: q.license } : {}),
     ...(q.categories?.length || q.category

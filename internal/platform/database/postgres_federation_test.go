@@ -84,11 +84,12 @@ func TestMarshalFederationSourceConfigurationOmitsMutableSyncState(t *testing.T)
 		LastCompleteSnapshotID: "00000000-0000-7000-8000-000000000002",
 		LastSyncAt:             &now,
 		LastError:              "safe diagnostic",
+		LatestCompletedSync:    &federation.SourceSyncAttempt{SnapshotID: "derived-only", Revision: 1, State: federation.SnapshotFailed, CompletedAt: now},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, field := range []string{"lastCompleteSnapshotId", "lastSyncAt", "lastError"} {
+	for _, field := range []string{"lastCompleteSnapshotId", "lastSyncAt", "lastError", "latestCompletedSync"} {
 		if strings.Contains(string(raw), `"`+field+`"`) {
 			t.Fatalf("immutable source configuration retained %q: %s", field, raw)
 		}

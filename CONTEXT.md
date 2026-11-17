@@ -167,6 +167,8 @@ The ordinary workflow is:
 
 Release states are `published`, `deprecated`, `retired`, `superseded` and `revoked`. Deprecation can retain discovery with guidance; retirement, supersession and revocation withdraw affected public snapshots. None rewrites approved evidence.
 
+An explicit advisory withdrawal preview composes release-namespace `resource.read_history` with tenant-wide `publication.read`. It reports affected active snapshot/host/audience references for retirement, supersession or revocation, using retained ARD and AI Catalog membership. Invalid/unavailable evidence or aggregate work exhaustion refuses the complete preview. It creates no audit/outbox, Job, reservation or mutation precondition; the later command retains its own authorization, revision and atomic evidence/replay checks. Publisher-domain revocation has no pre-command preview.
+
 Visibility is another independent dimension:
 
 | Visibility | Meaning |
@@ -245,6 +247,10 @@ Errors use RFC 9457 problem details, stable codes and `X-Request-ID`: input `400
 
 `catalogctl remote` uses an explicit API origin and manual bearer credentials or `--login-file`, never runtime SQL authority. `capabilities`, `search`, `record`, `job` and `source-compare` are reads; `source-compare` selects two complete saved source snapshots and returns one bounded membership-comparison page. `reindex` is a Tenant Administrator mutation requiring reason/idempotency key. Responses are bounded JSON. `catalogctl auth login` acquires human credentials through public-client PKCE; explicit login-file selection supports bounded serialized refresh. Online import and all export modes also accept explicit login files through the same provider. Manual bearer inputs remain independent. There is no redirect follow, URL execution or automatic all-page traversal. HTTP requires literal loopback; otherwise use HTTPS. The portable discovery Skill uses only capabilities/search/record.
 
+`catalogctl personal export|preview|apply|resume` backs up private human bookmarks and saved searches. Its versioned file binds the exact API origin and tenant, includes at most 200 supported inputs in 4 MiB, and describes observed pages rather than a frozen snapshot. Export bounds enumeration at two 100-item pages and makes no target requests. Offline preview selects explicit create/skip choices; confirmed restore uses normal per-item saves under current owner authority, target admission and quotas. A locked private progress file binds exact input bytes, selection, principal, request bodies and original keys/times. Resume skips acknowledged saves and refuses unsafe uncertain replay after the conservative 23h59m window or with missing/future chronology. UI management remains individual; no bulk endpoint, server-side progress store, cross-Catalog mapping or account migration is implemented. See [private library backup](documentation/src/content/docs/reference/commands.md#back-up-and-restore-your-private-library).
+
+`catalogctl discovery manifest|list` reads one anonymous publication response from an explicit `--base-url`, without runtime configuration or credentials. It reuses verified origin/TLS mechanics while preserving Control's bearer requirement. List retains exact filters, ordering, page size and opaque continuation; it never traverses automatically. Bounded JSON preserves inert metadata and safe request/ETag values. Host admission, withdrawal and generation refusal remain backend-owned. See [anonymous publication commands](documentation/src/content/docs/reference/commands.md#read-an-anonymous-publication).
+
 `catalogctl mcp serve` provides six static read-only Control tools over stdio using the official Go MCP SDK v1.8.0. The tools include local Explore facets and current-access pages, with navigation-only permission hints and no subject, realm or membership identifiers. The [MCP guide](documentation/src/content/docs/guides/mcp-server.mdx) owns setup and tool examples.
 
 API origin, token file and private CA are operator inputs, never model arguments. Search defaults to local releases; indexed/live selection retains current federation permissions and explicit live query disclosure. One complete page preserves order, counts, diagnostics and cursor. Detail projections expose identities and references without native instructions or automatic downloads.
@@ -286,6 +292,27 @@ Publisher domains sort the complete bounded list. ARD and AI Catalog entries sor
 Explore's Browse refresh belongs to its filter action row, with space before results.
 
 Core search needs no inference: browse, exact identifiers, lexical terms, kind/publisher/tag/visibility filters and local facets work independently. PostgreSQL scopes, matches, counts, sorts and selects keyset pages before hydration. A small page can still require expensive matching/count work.
+
+Control Search, Browse and Explore support exact `agentProtocol` selection from any interface of a released primary validated A2A Agent Card. Search and saved criteria require explicit local-only origins; current resource/content-read authority applies before matches, totals, facets and pages. The UI, CLI, Control MCP and generated SDKs retain the literal binding. Migration 000048 materializes a rebuildable binding array on retained inline representations and document blobs without rewriting source evidence; no new model input, Agent call, public ARD filter or runtime compatibility claim is added.
+
+Control Search and local Explore also accept explicit `includeMcpTools` selection
+for current local MCP releases. One private `open-agentic-catalog-mcp-tools-1`
+metadata attachment per exact VersionRevision retains at most 64 unique tool
+names and optional descriptions in 64 KiB. Current listing/content permissions
+precede tool matching, totals, snippets and paging. Listing matches remain
+available without private-content influence. Profile `core-mcp-tools-v1` uses the
+best single-tool lexical score, bounded top-three explanations, and no tool-count
+boost or provider call. Migration 000049 derives stored tool arrays and lexical
+indexes from immutable inline/blob evidence; manifest 29 grants API-only reads.
+The UI, reusable drafts, CLI, Control MCP, saved criteria and generated SDKs carry
+the selection. Private declarations never enter public feeds/artifacts or
+embedding inputs and do not verify runtime capabilities.
+
+Catalog record reads omit private tool attachments without current content-read
+permission. `toolDeclarationRedacted: true` appears for every MCP record lacking
+that permission, including records with no attachment. This flag describes
+access, not the presence of an inventory. Use the authorized exact revision or
+reusable draft export to inspect retained declarations.
 
 Catalog Search supports Name, Kind and Publisher ordering in both directions across local and indexed keyword matches, followed by a separately ordered bounded live window. Omitted order keeps relevance, including optional semantic matching, or name order without text. Sort changes restart paging; saved searches retain the order. Current local Publisher display names determine Publisher order, with generation invalidation after Publisher changes. Administration summaries wrap full opaque acting identities without expanding narrow pages.
 
@@ -334,6 +361,8 @@ Profiles are immutable vendored inputs bound by `schemas/checksums.txt`, retaine
 The [IETF ARD draft-00 assessment](documentation/records/ietf-ard-draft-00-assessment.md) records a track decision. The individual drafts are not selected runtime profiles and no IETF draft conformance is claimed. The current discovery contract and unverified publisher-declaration boundary remain unchanged.
 
 The optional [configured ARD registry campaign](test/interoperability/ard-registry/README.md) uses unchanged peer `0ba2b4b` with real PostgreSQL publication. It checks exact one-way List/Search metadata and retained manifest origin through Listing update, member retirement, malformed/outage retention, intact snapshot restart and recovery, with separate native TLS refusal and owned cleanup controls. The peer collapses versions by identifier and emits an incompatible null terminal List token; reverse indexed replication remains unqualified. No model or resource execution is involved.
+
+The optional AgentField consumer campaign uses unchanged commit `118b90ba42af9bc9f9366d645c9d0d38cd5f245a` for anonymous published ARD Search and explicit passive import through native authenticated JSON APIs. Separate owned PostgreSQL stores verify restart persistence. The selected workflow keeps invocation disabled and bindings absent; draft/withdrawal, private-CA, destination, availability and private-authentication controls preserve actual outcomes. Native Search replaces source and drops continuation/referrals; imports omit version/tags/capabilities, do not derive a publisher from `urn:air`, and key identity only by identifier. Copies do not synchronize automatically. See [AgentField qualification](test/interoperability/agentfield/README.md) and the [consumer guide](documentation/src/content/docs/guides/agentfield.mdx).
 
 The [Wellknown indexed-import assessment](documentation/records/wellknown-indexed-import-assessment.md) records a hosted inventory beyond the existing synchronization bounds. Complete import remains unqualified. A successful initial List read does not establish source admission, complete enumeration or native artifact validity.
 
@@ -410,6 +439,8 @@ Security Reviewers filter exact actor/action/request/target and half-open time r
 
 Private feedback supports human submissions, own/admin reads, exact item context, one current admin response and revision-fenced edit/address/reopen/withdraw/remove transitions. Text clearing preserves required retained context. Feedback never changes publication/ranking/discovery or supplies public comments, ratings or notifications.
 
+My feedback offers recent addressed outcomes through optional own-list `order=updated_desc`, descending update time with descending ID ties. Selection remains caller-bound and SQL-limited before hydration; the default and moderator inbox retain ascending ID order. Current mutable pages can miss cases moved ahead of the cursor until an explicit first-page refresh. The UI previews only current replies, explains addressed cases without text, preserves protected drafts and exact-case navigation, and adds no unread state or polling. A conventional owner/state/update index supports the recent selection; runtime privileges are unchanged.
+
 Restore into an isolated database with writers/egress stopped. `catalogctl restore verify` checks one tenant in bounded no-network pages: ledger, roles/RLS/guards and cross-domain integrity. Complete every page for every independently inventoried tenant; inspect findings, not only exit status.
 
 Compare trusted evidence before authorized repair; fix reported derived projections and reverify. Interrupted-command repair requires the original execution ended, old writers fenced and an eligible unchanged plan digest; a free lock is insufficient. Never alter ledgers, invent provenance, rewrite snapshots or reset data to pass verification. Deployment operators own backup/PITR, HA and recovery objectives.
@@ -427,6 +458,8 @@ Keep secrets/private evidence out of source, sample configuration, Helm values, 
 [SECURITY.md](SECURITY.md) defines private vulnerability reporting. The maintainer handles GitHub setup and all external publication or data uploads.
 
 ## The optional browser UI
+
+The UI also provides a separately enabled anonymous reader at `/discover` beneath its base path. `publicDiscoveryEnabled` defaults to false. The page uses credential-free bootstrap and three fixed manifest/List/Search forwarding routes on the existing API origin. That hostname must have an active anonymous publication; the flag does not create one. Search forces federation `none` and requires consent for possible embedding-provider use. Metadata inspection is in-page and makes no declared-URL requests. Continuation refusal clears old results and requires explicit refresh. Private Control workflows retain their session requirements. See [public discovery configuration](documentation/src/content/docs/reference/ui-host-configuration.md#optional-public-discovery).
 
 The React/TypeScript client and static Go host have their own image and one upstream API, with generated contract types and no SQL access. Screens cover discovery, exact references/downloads, four-kind authoring and local JSON/Markdown loading, histories/review/releases, publication, sources/adoption, access, Jobs, webhooks, audit/export and connected API reference.
 
@@ -450,9 +483,9 @@ Explore Browse, Resources, Reviews, Namespaces, Publishers, Members and Publicat
 
 Overview dashboard implements Content, Operations and Administration views at `/overview`. Independent API reads count authorized Resources, current releases, directories and distinct indexed identities. Fixed selection limits, explicit limited results, observation times and current scoped authorization apply before aggregation. Four compact kind tiles show exact counts. Review charts switch to daily outcomes. Jobs and membership states each use one table; links apply public kind/origin presets without storing private criteria.
 
-Catalog remains the landing page and first discovery link. Review workload, pending-age bands, 30-day activity, decision medians and configured publication metadata are implemented. Approved review queues support the exact unreleased filter.
+Catalog remains the landing page and first discovery link. Review workload, pending-age bands, 30-day activity, decision medians and configured publication metadata are implemented. Review queues support an exact namespace UUID filter alongside Listing, state and approved-but-unreleased filters. PostgreSQL applies namespace and current history authority before paging; unavailable namespaces return an empty page. All criteria bind signed continuation and applied browser URLs. The UI accepts exact IDs without enumerating namespaces; metadata/content permissions and ascending submission-ID order remain independent.
 
-Operations adds authorized Source status and sync evidence, Job state counts and due time, plus existing index status. Source-only scope can open this tab without `catalog.read`. Enabled webhook summaries show endpoint states, retained production delivery states and up to five latest retained failures. Notification counters reuse the existing reconciliation read.
+Operations adds authorized Source status and sync evidence, Job state counts and due time, plus existing index status. Failed/incomplete sync categories open the bounded Source directory, with combined exact-name, operational-status and latest completed current-revision outcome filters. Rows project one matching completed attempt and keep retained complete membership separate; explicit refresh restarts current-view paging without upstream calls or new Jobs. Source-only scope can open this tab without `catalog.read`. Enabled webhook summaries show endpoint states, retained production delivery states and up to five latest retained failures. Notification counters reuse the existing reconciliation read.
 
 Administration adds protected membership, active definition and retained assignment counts, plus open-feedback categories and retained rating states. Groups use the current realm; membership totals cover the tenant. Matching state/type/category links preserve URL history without private text.
 
@@ -862,6 +895,8 @@ Development archives admit only the fixed demo tenant and prepared exact paths/d
 
 The [Rust report](examples/rust-catalog-report/README.md), [LangGraph assistant](examples/langgraph/README.md) and [VS Code client](extensions/vscode/README.md) are independent consumers. Their tools and runtime dependencies stay outside application images. The extension supports explicit native MCP use, verified Skill/Plugin management and bounded A2A text conversations with separate target consent and credentials. Browsing alone executes nothing. Each client guide describes supported workflows and qualification limits.
 
+The VS Code Control view supports exact local A2A protocol filtering and opt-in lexical search over private MCP tool declarations, including bounded match evidence. Both retain current content-read admission; Published ARD and external origins remain excluded. My private feedback offers recent addressed outcomes, explicit first-page refresh and a return to submission order, without polling or reply-history guarantees. Use the Control API or web UI for review, Source management and withdrawal.
+
 VS Code copied references reject duplicate keys through the shared bounded decoder before exact identity admission. Package credential writes use the existing execution-host lock and index generation checks. Contention and stale indexes fail without a write; uncertain storage failures require explicit offline Forget All recovery with other windows closed. Separate remote hosts do not share that filesystem coordination.
 
 `samples/catalog.yaml` and its bounded relative native assets supply the development inventory and standalone CLI inputs. Shared validation freezes those bytes before preview, archive preparation or governed loading. `demo-archives-prepare` retains immutable digest-addressed ZIP objects and an atomic exact allowlist. Development consumers receive only public trust and allowlist inputs; prepared paths cannot change or disappear. The [sample guide](samples/README.md) owns profiles, receipts, recovery and archive setup.
@@ -905,6 +940,8 @@ Private `/api/v1/tenant-settings` and Administration > Settings expose three opt
 ## Optional LangGraph client example
 
 The [LangGraph guide](examples/langgraph/README.md) publishes under Build integrations. Its independent Python environment uses the SDK, two read-only tools and an operator-owned local Ollama model. Credentials and namespace stay outside model arguments; Search is local-only and recommendations bind exact records. The example adds no resource execution, installation, mutation, persistent checkpoint or hosted tracing. Framework packages and model weights remain outside application images and SDK runtime requirements. Isolated, scripted HTTP and actual-model checks have separate Make gates and do not establish universal model quality or Go coverage.
+
+The separate ARD entry point uses standard Search/Explore, exact type/topic filters and bounded continuation against a configured publication. Its default LangGraph run is scripted and requires no model. Search defaults to `none`; one client-followed referral requires an exact configured endpoint and explicit query-disclosure policy, with separate credentials/trust and no recursive hop. Results retain configured-responder and reported-source provenance, sparse values and incomplete outcomes without resource contact or verified trust. `make test-langgraph-ard` owns the scripted real-HTTPS qualification; the original SDK workflow and model gate retain their existing meaning.
 
 The optional [discovery-quality campaign](documentation/src/content/docs/guides/discovery-quality.mdx) compares real local Control Search and this graph through separate Make targets. Isolated helper tests require no environment. Runtime/model qualification and measured recommendations remain distinct from historical offline relevance experiments and ordinary application correctness.
 

@@ -27,11 +27,13 @@ export async function publishFixture(
   index: number,
   documentPadding = "",
   options: {
+    kind?: "agent" | "mcp_server" | "skill";
     visibility?: "public" | "tenant" | "private";
     representativeQueries?: string[];
     displayName?: string;
     description?: string;
     nativeDocument?: Record<string, unknown>;
+    nativeContent?: string;
     additionalRepresentations?: Record<string, unknown>[];
   } = {},
 ) {
@@ -40,7 +42,7 @@ export async function publishFixture(
     "/api/v1/resources",
     {
       namespaceId: catalog.receipt.namespaceId,
-      kind: "agent",
+      kind: options.kind ?? "agent",
       canonicalIdentifier: `urn:air:demo.catalog.example.com:demo:paged-${index}`,
     },
   );
@@ -52,19 +54,28 @@ export async function publishFixture(
       representations: [
         {
           role: "primary",
-          mediaType: "application/a2a-agent-card+json",
-          data: documentPadding
-            ? {
-                ...agentDocument,
-                skills: array(agentDocument.skills)
-                  .map(object)
-                  .map((skill: Record<string, unknown>, i: number) =>
-                    i === 0
-                      ? { ...skill, description: documentPadding }
-                      : skill,
-                  ),
-              }
-            : (options.nativeDocument ?? agentDocument),
+          mediaType:
+            options.kind === "skill"
+              ? "application/agent-skills+md"
+              : options.kind === "mcp_server"
+                ? "application/mcp-server-card+json"
+                : "application/a2a-agent-card+json",
+          ...(options.kind === "skill"
+            ? { content: options.nativeContent }
+            : {
+                data: documentPadding
+                  ? {
+                      ...agentDocument,
+                      skills: array(agentDocument.skills)
+                        .map(object)
+                        .map((skill: Record<string, unknown>, i: number) =>
+                          i === 0
+                            ? { ...skill, description: documentPadding }
+                            : skill,
+                        ),
+                    }
+                  : (options.nativeDocument ?? agentDocument),
+              }),
         },
         ...(options.additionalRepresentations ?? []),
       ],

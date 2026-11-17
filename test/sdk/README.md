@@ -1,8 +1,10 @@
 # SDK generation and verification
 
+Review queue units in all four SDKs verify exact namespace, Listing, state and unreleased query parameters, Unicode/reserved-character cursors and explicit one-page continuation. They use injected transports without listeners or network access. The Catalog's SQL and browser suites qualify actual queue selection; SDK tests do not implement filters locally.
+
 Saved source snapshot comparison has focused generated-operation checks in all four languages. Go, Python and TypeScript use owned HTTP fixtures; Rust uses the isolated scripted transport. These assert exact snapshot selection, opaque cursor serialization, one-page behavior, successful terminal continuation, one-sided membership, missing versus empty versions and refusal without an automatic restart. The partial page accounts for an undisplayed before-side member, which the terminal page returns without a cursor. They supplement the real two-Catalog API/CLI/browser workflow; they do not implement comparison in the SDKs.
 
-Python generation corrects the pinned generator's string-valued rendering of `ObservationOccurrence.evidenceComplete` to the contract's boolean singleton. Contract units accept only boolean `true`, reject false/string/number/null alternatives, and the comparison HTTP fixture exercises the generated nested decoder. Keep this correction in the maintained generator step rather than editing generated source.
+Python generation corrects the pinned generator's string-valued rendering of `ObservationOccurrence.evidenceComplete` and `CatalogRecord.toolDeclarationRedacted` to the contract's boolean singleton. Native contract units qualify each generated decoder against valid complete responses and reject false/string/number alternatives. The comparison HTTP fixture also exercises the nested occurrence decoder. Keep these corrections in the maintained generator step rather than editing generated source.
 
 Each SDK retains its own LICENSE and NOTICE. Local Python, npm and Rust package builds compare those files with the corresponding SDK source. A missing or changed notice fails packaging. The Go SDK source archive includes its own license and notice files. Dependencies installed separately by package managers are not bundled into these SDK archives. The VSIX separately includes notices for SDK code and libraries that its build bundles.
 

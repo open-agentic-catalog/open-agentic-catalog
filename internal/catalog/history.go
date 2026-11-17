@@ -5,6 +5,7 @@ package catalog
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
@@ -19,9 +20,10 @@ type HistoryPageRequest struct {
 
 type SubmissionListRequest struct {
 	HistoryPageRequest
-	ListingID  string
-	State      SubmissionState
-	Unreleased bool
+	ListingID   string
+	NamespaceID string
+	State       SubmissionState
+	Unreleased  bool
 }
 
 // RevisionSummary omits representation bodies and private validation evidence.
@@ -111,13 +113,17 @@ func (s *Service) ListListingRevisions(ctx context.Context, listingID string, re
 	return s.repo.ListListingRevisions(ctx, listing.TenantID, listingID, request)
 }
 
-// ListSubmissions validates optional listing and state filters before reading
+// ListSubmissions validates optional namespace, listing and state filters before reading
 // the actor's tenant review queue.
 func (s *Service) ListSubmissions(ctx context.Context, request SubmissionListRequest) ([]ReviewSubmission, error) {
 	ctx, actor, err := collectionContext(ctx)
 	if err != nil {
 		return nil, err
 	}
+	if request.NamespaceID != "" && !identity.ValidTenantID(request.NamespaceID) {
+		return nil, E(CodeInvalidArgument, "namespaceId must be a UUID")
+	}
+	request.NamespaceID = strings.ToLower(request.NamespaceID)
 	if request.ListingID != "" {
 		if !identity.ValidTenantID(request.ListingID) {
 			return nil, E(CodeInvalidArgument, "listingId must be a UUID")

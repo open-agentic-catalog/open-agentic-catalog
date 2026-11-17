@@ -333,6 +333,11 @@
             "documentationUrl": {
               "type": "string",
               "pattern": "^(|https://[^?#@]+)$"
+            },
+            "publicDiscoveryEnabled": {
+              "type": "boolean",
+              "default": false,
+              "description": "Enable the session-independent public browser for the fixed API authority. Does not change backend host/audience admission or create a publication."
             }
           },
           "required": [

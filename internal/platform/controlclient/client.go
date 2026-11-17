@@ -62,7 +62,7 @@ func (failure APIError) Error() string {
 	return string(encoded)
 }
 
-// A session snapshots credentials once for an entire explicit CLI operation.
+// A session binds one explicit CLI operation, with credentials when required.
 // It never follows redirects, uses environment proxies or accepts response URLs.
 type Session struct {
 	Client        *http.Client
@@ -89,9 +89,35 @@ func New(ctx context.Context, options Options) (*Session, error) {
 	if !ValidToken(token) {
 		return nil, safeerr.New("remote: supply a nonempty bearer token of at most 16 KiB through CATALOG_REMOTE_TOKEN or a token file")
 	}
+	client, err := newHTTPClient(options.CAFile, options.Timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &Session{Client: client, Origin: origin, Token: token}, nil
+}
+
+// NewAnonymous creates an origin-bound transport without accepting or resolving
+// credentials. Authenticated Control construction still requires a bearer token.
+func NewAnonymous(ctx context.Context, baseURL, caFile string, timeout time.Duration) (*Session, error) {
+	if ctx.Err() != nil {
+		return nil, safeerr.New("discovery: request cancelled or deadline exceeded")
+	}
+	origin, err := Origin(baseURL)
+	if err != nil {
+		return nil, err
+	}
+	client, err := newHTTPClient(caFile, timeout)
+	if err != nil {
+		return nil, err
+	}
+	return &Session{Client: client, Origin: origin}, nil
+}
+
+// newHTTPClient shares only fixed-origin transport mechanics, never credentials.
+func newHTTPClient(caFile string, timeout time.Duration) (*http.Client, error) {
 	tlsConfig := &tls.Config{MinVersion: tls.VersionTLS12}
-	if options.CAFile != "" {
-		pem, err := ReadFile(options.CAFile, MaxCA)
+	if caFile != "" {
+		pem, err := ReadFile(caFile, MaxCA)
 		if err != nil {
 			return nil, safeerr.New("remote: CA file must be a readable regular file of at most 1 MiB")
 		}
@@ -105,15 +131,29 @@ func New(ctx context.Context, options Options) (*Session, error) {
 		tlsConfig.RootCAs = roots
 	}
 	transport := &http.Transport{
-		DialContext:     (&net.Dialer{Timeout: options.Timeout}).DialContext,
-		TLSClientConfig: tlsConfig, TLSHandshakeTimeout: options.Timeout,
-		ResponseHeaderTimeout: options.Timeout, MaxResponseHeaderBytes: MaxHeaders,
+		DialContext:     (&net.Dialer{Timeout: timeout}).DialContext,
+		TLSClientConfig: tlsConfig, TLSHandshakeTimeout: timeout,
+		ResponseHeaderTimeout: timeout, MaxResponseHeaderBytes: MaxHeaders,
 		DisableKeepAlives: true, DisableCompression: true,
 	}
-	client := &http.Client{Transport: transport, Timeout: options.Timeout,
+	client := &http.Client{Transport: transport, Timeout: timeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse },
 	}
-	return &Session{Client: client, Origin: origin, Token: token}, nil
+	return client, nil
+}
+
+// NewAnonymousRequest constructs only credential-free manifest and List reads.
+func NewAnonymousRequest(ctx context.Context, origin, path string) (*http.Request, error) {
+	if path != "/.well-known/ard.json" && path != "/ard/v1/agents" && !strings.HasPrefix(path, "/ard/v1/agents?") {
+		return nil, safeerr.New("discovery: unsupported publication route")
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, origin+path, nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Accept", "application/json")
+	request.Header.Set("Cache-Control", "no-cache")
+	return request, nil
 }
 
 // NewRequest is the common construction boundary for selected API reads
@@ -281,7 +321,9 @@ func ReadFile(path string, limit int64) ([]byte, error) {
 
 // Diagnostic redacts the current token and truncates diagnostic text by rune count.
 func Diagnostic(value, token string, limit int) string {
-	value = strings.ReplaceAll(value, token, "[redacted]")
+	if token != "" {
+		value = strings.ReplaceAll(value, token, "[redacted]")
+	}
 	runes := []rune(value)
 	if len(runes) > limit {
 		return string(runes[:limit]) + "..."
@@ -304,21 +346,29 @@ type Request struct {
 }
 
 type Search struct {
-	Origins     []catalog.SearchResultType `json:"origins,omitempty"`
-	NamespaceID string                     `json:"namespaceId,omitempty"`
-	License     string                     `json:"license,omitempty"`
-	Categories  []string                   `json:"categories,omitempty"`
-	Text        string                     `json:"text,omitempty"`
-	Kinds       []catalog.Kind             `json:"kinds,omitempty"`
-	Tags        []string                   `json:"tags,omitempty"`
-	Publisher   string                     `json:"publisher,omitempty"`
-	Visibility  catalog.Visibility         `json:"visibility,omitempty"`
-	Limit       int                        `json:"limit"`
-	Cursor      string                     `json:"cursor,omitempty"`
+	IncludeMCPTools bool                       `json:"includeMcpTools,omitempty"`
+	AgentProtocol   string                     `json:"agentProtocol,omitempty"`
+	Origins         []catalog.SearchResultType `json:"origins,omitempty"`
+	NamespaceID     string                     `json:"namespaceId,omitempty"`
+	License         string                     `json:"license,omitempty"`
+	Categories      []string                   `json:"categories,omitempty"`
+	Text            string                     `json:"text,omitempty"`
+	Kinds           []catalog.Kind             `json:"kinds,omitempty"`
+	Tags            []string                   `json:"tags,omitempty"`
+	Publisher       string                     `json:"publisher,omitempty"`
+	Visibility      catalog.Visibility         `json:"visibility,omitempty"`
+	Limit           int                        `json:"limit"`
+	Cursor          string                     `json:"cursor,omitempty"`
 }
 
 // Validate enforces server-compatible bounds while preserving cursor/filter values.
 func (query Search) Validate() error {
+	if query.IncludeMCPTools && (strings.TrimSpace(query.Text) == "" || query.AgentProtocol != "" || len(query.Origins) != 1 || query.Origins[0] != catalog.SearchResultLocal || len(query.Kinds) > 1 || len(query.Kinds) == 1 && query.Kinds[0] != catalog.KindMCPServer) {
+		return safeerr.New("remote: includeMcpTools requires text, local-only origins and MCP server kinds")
+	}
+	if !utf8.ValidString(query.AgentProtocol) || utf8.RuneCountInString(query.AgentProtocol) > 256 || strings.ContainsRune(query.AgentProtocol, 0) || query.AgentProtocol != "" && (strings.TrimSpace(query.AgentProtocol) == "" || len(query.Origins) != 1 || query.Origins[0] != catalog.SearchResultLocal) {
+		return safeerr.New("remote: agentProtocol requires an exact declaration of at most 256 characters and explicit local-only origins")
+	}
 	// Text, publisher and cursor retain their server byte ceilings; tags count
 	// Unicode code points. Validate without rewriting transmitted inputs.
 	bounded := func(value string, limit int) bool {

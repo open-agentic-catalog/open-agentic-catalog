@@ -8,6 +8,7 @@ import {
   writeFile,
   readFile,
   chmod,
+  rename,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,132 @@ import {
   startCatalog,
   ready,
 } from "./browser-fixture.mjs";
+
+/** Inject real bind failures into compiled listeners, counting launches and seeding independently. */
+async function verifyStartupPortRaces(directory, root) {
+  const stateFile = join(directory, "startup-state.json");
+  const names = ["catalogd", "catalog-ui", "catalogctl"];
+  const moved = [];
+  try {
+    for (const name of names) {
+      const executable = join(directory, name);
+      const real = executable + "-real";
+      await rename(executable, real);
+      moved.push(name);
+      await writeFile(
+        executable,
+        `#!/usr/bin/env node
+const fs = require('node:fs');
+const net = require('node:net');
+const { spawn } = require('node:child_process');
+const name = ${JSON.stringify(name)}, real = ${JSON.stringify(real)}, stateFile = ${JSON.stringify(stateFile)};
+const args = process.argv.slice(2);
+const state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+state[name]++;
+const fault = state.target === name && (state.mode === 'always' || state[name] === 1);
+fs.writeFileSync(stateFile, JSON.stringify(state));
+let holder;
+function launch() {
+  const child = spawn(real, args, { stdio: 'inherit' });
+  process.on('SIGTERM', () => child.kill('SIGTERM'));
+  child.once('error', () => process.exit(19));
+  child.once('close', (code) => {
+    const exit = () => {
+      if (fault && name === 'catalogctl' && code === 0) {
+        process.stderr.write('Owned seed response lost.\\n');
+        process.exit(1);
+      }
+      process.exit(code ?? 20);
+    };
+    if (holder) holder.close(exit); else exit();
+  });
+}
+if (fault && name !== 'catalogctl') {
+  const filename = args[args.indexOf('--config') + 1];
+  const config = JSON.parse(fs.readFileSync(filename, 'utf8'));
+  if (state.mode === 'configuration') {
+    config.environment = 'PRIVATE_SENTINEL';
+    fs.writeFileSync(filename, JSON.stringify(config));
+    launch();
+  } else {
+    const address = name === 'catalogd'
+      ? state.listener === 'operations' ? config.worker.operationsAddress : config.http.address
+      : config.listen;
+    holder = net.createServer(socket => socket.destroy());
+    holder.on('error', () => process.exit(21));
+    holder.listen(Number(address.split(':').pop()), '127.0.0.1', launch);
+  }
+} else launch();
+`,
+        { mode: 0o700 },
+      );
+    }
+    for (const [target, mode, launches, seeds, listener = "api"] of [
+      ["catalogd", "once", 2, 1],
+      ["catalog-ui", "once", 2, 1],
+      ["catalogd", "once", 2, 1, "operations"],
+      ["catalogd", "always", 3, 0],
+      ["catalog-ui", "always", 3, 0],
+      ["catalogd", "always", 3, 0, "operations"],
+      ["catalogd", "configuration", 1, 0],
+      ["catalog-ui", "configuration", 1, 0],
+      ["catalogctl", "once", 1, 1],
+    ]) {
+      await writeFile(
+        stateFile,
+        JSON.stringify({
+          target,
+          mode,
+          listener,
+          catalogd: 0,
+          "catalog-ui": 0,
+          catalogctl: 0,
+        }),
+      );
+      let catalog;
+      try {
+        if (mode === "once" && target !== "catalogctl") {
+          catalog = await startCatalog(directory, root, "");
+          assert.equal(catalog.receipt.items.length, 5);
+        } else {
+          await assert.rejects(startCatalog(directory, root, ""), (error) => {
+            assert.equal(error.message.includes("PRIVATE_SENTINEL"), false);
+            assert.match(
+              error.message,
+              target === "catalogctl"
+                ? /Owned demo seed failed/
+                : /exited before readiness/,
+            );
+            return true;
+          });
+        }
+      } finally {
+        if (catalog) await catalog.close();
+      }
+      const state = JSON.parse(await readFile(stateFile, "utf8"));
+      assert.equal(
+        state[target],
+        launches,
+        `${listener}/${target}/${mode} launch bound`,
+      );
+      assert.equal(
+        state.catalogctl,
+        seeds,
+        `${listener}/${target}/${mode} must not repeat seeding`,
+      );
+      assert.equal(
+        (await readdir(directory)).some((name) => name.startsWith("case-")),
+        false,
+      );
+    }
+  } finally {
+    for (const name of moved) {
+      await rm(join(directory, name), { force: true });
+      await rename(join(directory, name + "-real"), join(directory, name));
+    }
+    await rm(stateFile, { force: true });
+  }
+}
 
 test("fixture ports are distinct literal-loopback dynamic/private allocations", async () => {
   const ports = await localPorts();
@@ -321,7 +448,7 @@ test(
         await writeFile(filename, JSON.stringify(configuration), {
           mode: 0o600,
         });
-        await failed(filename, "listener", origin);
+        await failed(filename, "listener.address-in-use", origin);
         assert.equal(occupied.listening, true);
         assert.equal(connections, 0);
         await new Promise((resolve) => occupied.close(resolve));
@@ -436,6 +563,7 @@ test(
       await catalog.close();
       for (const state of Object.values(catalog.diagnostics()))
         assert.ok(state.exitCode !== null || state.signal !== null);
+      await verifyStartupPortRaces(directory, root);
       catalog = await startCatalog(directory, root, "", { demoArchives: true });
       assert.equal(catalog.receipt.items.length, 5);
       assert.equal(

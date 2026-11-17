@@ -128,7 +128,7 @@ $(error Cleanup targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills ard-registry-tools-install test-interoperability-ard-registry test-interoperability-ard-registry-cleanup agentfinder-tools-install test-interoperability-agentfinder test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
+ifneq ($(filter agentfield-tools-install test-interoperability-agentfield test-interoperability-agentfield-cleanup adk-tools-install test-interoperability-adk test-interoperability-adk-cleanup test-interoperability-pi-ard pi-ard-tools-install test-interoperability-pi-ard-prepare ard-explorer-tools-install test-interoperability-ard-explorer-startup test-interoperability-ard-explorer plugin-tools-install test-interoperability-plugins skill-tools-install test-interoperability-skills ard-registry-tools-install test-interoperability-ard-registry test-interoperability-ard-registry-cleanup agentfinder-tools-install test-interoperability-agentfinder test-demo-catalog test-demo-runtimes demo-runtimes-test a2a-tools-install test-interoperability-a2a mcp-tools-install mcp-catalog-tools-install contextforge-tools-install test-interoperability-contextforge test-interoperability-mcp test-interoperability-mcp-catalog interoperability-tools-install test-interoperability test-interoperability-hf test-interoperability-agntcy agntcy-tools-install test-minikube-agntcy gateway-tools-install test-interoperability-gateway ans-tools-install test-interoperability-ans capture-ans-trust-fixtures test-trust-verification,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error Interoperability targets must run alone)
 endif
@@ -146,7 +146,7 @@ $(error SDK targets must run alone)
 endif
 override CATALOG_ENV_FILE := /dev/null
 endif
-ifneq ($(filter langgraph-tools-install test-langgraph-unit test-langgraph test-langgraph-model search-relevance-benchmark-check search-relevance-benchmark-install search-relevance-benchmark,$(MAKECMDGOALS)),)
+ifneq ($(filter langgraph-tools-install test-langgraph-unit test-langgraph test-langgraph-ard test-langgraph-model search-relevance-benchmark-check search-relevance-benchmark-install search-relevance-benchmark,$(MAKECMDGOALS)),)
 ifneq ($(words $(MAKECMDGOALS)),1)
 $(error LangGraph installation and verification targets must run alone)
 endif
@@ -207,7 +207,7 @@ endif
 # Make syntax and command-line > file > environment precedence.
 DEMO_UP_INPUT_VARS := CATALOG_ENV_FILE COMPOSE_PROJECT IMAGE UI_IMAGE GO PYTHON CURL COMPOSE CONTAINER_ENGINE \
 	CATALOG_COMPOSE_HTTP_PORT CATALOG_COMPOSE_POSTGRES_PORT CATALOG_COMPOSE_SUBNET \
-	CATALOG_UI_PORT CATALOG_UI_LOG_LEVEL CATALOG_UI_LOG_FORMAT CATALOG_UI_DOCUMENTATION_URL \
+	CATALOG_UI_PORT CATALOG_UI_LOG_LEVEL CATALOG_UI_LOG_FORMAT CATALOG_UI_DOCUMENTATION_URL CATALOG_UI_PUBLIC_DISCOVERY \
 	LOCAL_UI LOCAL_MONITORING LOCAL_EMBEDDINGS LOCAL_WEBHOOKS LOCAL_DEMO_ARCHIVES LOCAL_DEMO_RUNTIMES \
 	EMBEDDING_PROFILE DEMO_RUNTIME_DIR DEMO_A2A_PORT DEMO_MCP_PORT \
 	CATALOG_MONITORING_PROMETHEUS_PORT CATALOG_MONITORING_GRAFANA_PORT \
@@ -389,6 +389,8 @@ CATALOG_UI_PORT ?= 4180
 CATALOG_UI_LOG_LEVEL ?= info
 CATALOG_UI_LOG_FORMAT ?= text
 CATALOG_UI_DOCUMENTATION_URL ?=
+CATALOG_UI_PUBLIC_DISCOVERY ?= off
+ui-dev compose-up: export CATALOG_UI_PUBLIC_DISCOVERY := $(CATALOG_UI_PUBLIC_DISCOVERY)
 UI_DOCUMENTATION_DIRECTORY ?=
 ui-dev compose-up: export CATALOG_UI_DOCUMENTATION_URL := $(CATALOG_UI_DOCUMENTATION_URL)
 ui-dev: export UI_DOCUMENTATION_DIRECTORY := $(UI_DOCUMENTATION_DIRECTORY)
@@ -1015,6 +1017,7 @@ test-shuffle: ## Repeat ten times; run CLI separately with its measured 25-minut
 
 test-fuzz: ## Fuzz security-sensitive identifiers, parsers, and URLs for FUZZ_TIME each
 	$(GO) test ./cmd/catalogctl -run '^$$' -fuzz FuzzImportManifest -fuzztime=$(FUZZ_TIME)
+	$(GO) test ./cmd/catalogctl -run '^$$' -fuzz FuzzPersonalLibraryFile -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/draftfile -run '^$$' -fuzz FuzzDecode -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/artwork -run '^$$' -fuzz FuzzDecodeArtworkInput -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/artwork -run '^$$' -fuzz FuzzExtractArtworkJSONLiteral -fuzztime=$(FUZZ_TIME)
@@ -1026,6 +1029,7 @@ test-fuzz: ## Fuzz security-sensitive identifiers, parsers, and URLs for FUZZ_TI
 	$(GO) test ./internal/audit -run '^$$' -fuzz FuzzVerifyExport -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/catalog -run '^$$' -fuzz FuzzParseAIRIdentifier -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/catalog -run '^$$' -fuzz FuzzCatalogSearchCursor -fuzztime=$(FUZZ_TIME)
+	$(GO) test ./internal/catalog -run '^$$' -fuzz FuzzMCPToolDeclaration -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/catalog -run '^$$' -fuzz FuzzTraceContext -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/identity -run '^$$' -fuzz FuzzMembershipCursor -fuzztime=$(FUZZ_TIME)
 	$(GO) test ./internal/platform/httpserver -run '^$$' -fuzz FuzzMCPFiniteAdmission -fuzztime=$(FUZZ_TIME)
@@ -1204,7 +1208,7 @@ coverage-postgres-dsn-profile: ## Write PostgreSQL coverage against an explicit 
 		trap 'trap "" 1 2 15; exit 129' 1; \
 		trap 'trap "" 1 2 15; exit 130' 2; \
 		trap 'trap "" 1 2 15; exit 143' 15; \
-		$(GO) test -race -tags=integration ./internal/platform/database/... -shuffle=on -count=1 -covermode=atomic -coverpkg=$(MODULE_PATH)/internal/platform/database -coverprofile="$$profile"; \
+		$(GO) test -race -tags=integration ./internal/platform/database/... -shuffle=on -count=1 -timeout=20m -covermode=atomic -coverpkg=$(MODULE_PATH)/internal/platform/database -coverprofile="$$profile"; \
 		mv "$$profile" coverage/postgres.out; \
 		profile=""; \
 		trap - 0 1 2 15
@@ -1265,7 +1269,7 @@ test-integration: ## Run PostgreSQL and RLS tests using disposable Compose
 
 test-integration-dsn: ## Run PostgreSQL and RLS tests against an explicit disposable DSN
 	@test -n "$${CATALOG_TEST_DATABASE_DSN:-}" || { printf '%s\n' 'CATALOG_TEST_DATABASE_DSN is required.' >&2; exit 2; }
-	$(GO) test -race -tags=integration ./internal/platform/database/... -shuffle=on -count=1
+	$(GO) test -race -tags=integration ./internal/platform/database/... -shuffle=on -count=1 -timeout=20m
 
 .PHONY: webhook-report-build webhook-report-check test-webhook-report test-webhook-report-dsn
 webhook-report-build webhook-report-check test-webhook-report test-webhook-report-dsn: export GOWORK := off
@@ -1447,6 +1451,16 @@ test-interoperability-ard-registry: ## Qualify Catalog publication, native crawl
 test-interoperability-ard-registry-cleanup: ## Verify native registry metadata-failure and real SIGTERM cleanup
 	$(PYTHON) -B test/interoperability/ard_registry_runner.py --cleanup-controls
 
+.PHONY: agentfield-tools-install test-interoperability-agentfield test-interoperability-agentfield-cleanup
+agentfield-tools-install: ## Acquire the pinned native AgentField consumer and its original Go module closure
+	$(PYTHON) -B test/interoperability/agentfield_tools.py
+
+test-interoperability-agentfield: ## Qualify native public ARD Search and passive persisted imports without calls or models
+	$(PYTHON) -B test/interoperability/agentfield_runner.py
+
+test-interoperability-agentfield-cleanup: ## Verify AgentField metadata-failure, real SIGTERM and report preservation controls
+	$(PYTHON) -B test/interoperability/agentfield_runner.py --cleanup-controls
+
 .PHONY: agentfinder-tools-install test-interoperability-agentfinder
 agentfinder-tools-install: ## Verify bundled Agent Finder inputs and acquire the pinned Python runner image
 	$(PYTHON) -B test/interoperability/agentfinder_tools.py install
@@ -1573,6 +1587,7 @@ LANGGRAPH_MODEL ?= qwen2.5:7b
 LANGGRAPH_NAMESPACE_ID ?=
 LANGGRAPH_ALLOW_LOOPBACK_HTTP ?= 0
 unexport LANGGRAPH_QUESTION LANGGRAPH_MODEL_ORIGIN LANGGRAPH_MODEL LANGGRAPH_NAMESPACE_ID LANGGRAPH_ALLOW_LOOPBACK_HTTP
+unexport LANGGRAPH_ARD_CONFIG LANGGRAPH_ARD_QUERY
 # Treat launcher inputs as literal data, including command-line assignments.
 # value prevents Make expression evaluation; override keeps command-line values
 # from bypassing the simply-expanded, target-scoped export.
@@ -1581,21 +1596,29 @@ langgraph-demo: override export LANGGRAPH_MODEL_ORIGIN := $(value LANGGRAPH_MODE
 langgraph-demo: override export LANGGRAPH_MODEL := $(value LANGGRAPH_MODEL)
 langgraph-demo: override export LANGGRAPH_NAMESPACE_ID := $(value LANGGRAPH_NAMESPACE_ID)
 langgraph-demo: override export LANGGRAPH_ALLOW_LOOPBACK_HTTP := $(value LANGGRAPH_ALLOW_LOOPBACK_HTTP)
+langgraph-ard-demo: override export LANGGRAPH_ARD_CONFIG := $(value LANGGRAPH_ARD_CONFIG)
+langgraph-ard-demo: override export LANGGRAPH_ARD_QUERY := $(value LANGGRAPH_ARD_QUERY)
 test-langgraph-model: override export LANGGRAPH_MODEL_ORIGIN := $(value LANGGRAPH_MODEL_ORIGIN)
 test-langgraph-model: override export LANGGRAPH_MODEL := $(value LANGGRAPH_MODEL)
 
-.PHONY: langgraph-tools-install langgraph-demo test-langgraph-unit test-langgraph test-langgraph-model
+.PHONY: langgraph-tools-install langgraph-demo langgraph-ard-demo test-langgraph-unit test-langgraph test-langgraph-ard test-langgraph-model
 langgraph-tools-install: ## Install the locked optional Python/LangGraph example environment (no models)
 	$(PYTHON) -B test/langgraph/runner.py install --uv "$(UV)" --python "$(DEV_PYTHON)"
 
 langgraph-demo: ## Ask the SDK-based read-only local-model assistant (LANGGRAPH_QUESTION and explicit SDK credentials)
 	examples/langgraph/.venv/bin/python -B examples/langgraph/agent.py
 
+langgraph-ard-demo: ## Run the model-free ARD graph with explicit LANGGRAPH_ARD_CONFIG and LANGGRAPH_ARD_QUERY
+	examples/langgraph/.venv/bin/python -B examples/langgraph/ard_agent.py
+
 test-langgraph-unit: ## Run isolated LangGraph example units and source coverage; no servers or model calls
 	$(PYTHON) -B test/langgraph/runner.py unit
 
 test-langgraph: ## Qualify the actual graph/SDK with an owned Catalog HTTP fixture and scripted model
 	$(PYTHON) -B test/langgraph/runner.py check
+
+test-langgraph-ard: ## Qualify ARD Search/Explore, approved referrals and refusal controls with an owned HTTPS fixture; no model
+	$(PYTHON) -B test/langgraph/runner.py check-ard
 
 test-langgraph-model: ## Add real local-model qualification; requires explicit LANGGRAPH_MODEL_ORIGIN
 	$(PYTHON) -B test/langgraph/runner.py model
@@ -1876,7 +1899,7 @@ container-sync-check: ## Verify compatibility files match the canonical containe
 	@cmp -s .containerignore .dockerignore || { printf '%s\n' '.containerignore and .dockerignore differ.' >&2; exit 1; }
 
 container-check: container-sync-check ## Verify compatibility files and lint every Containerfile
-	$(HADOLINT) "$(CONTAINERFILE)" "$(FUNCTIONAL_CONTAINERFILE)" catalog-ui/Containerfile test/ci/Containerfile.act test/interoperability/Containerfile test/embeddings/Containerfile test/interoperability/mcp/Containerfile test/interoperability/a2a/Containerfile test/interoperability/adk/Containerfile test/interoperability/skills/Containerfile test/interoperability/plugins/Containerfile test/interoperability/agntcy/router/Containerfile test/interoperability/gateway/Containerfile.auth test/interoperability/ans/Containerfile test/interoperability/ard-registry/Containerfile test/mcp-scanner/Containerfile
+	$(HADOLINT) "$(CONTAINERFILE)" "$(FUNCTIONAL_CONTAINERFILE)" catalog-ui/Containerfile test/ci/Containerfile.act test/interoperability/Containerfile test/embeddings/Containerfile test/interoperability/mcp/Containerfile test/interoperability/a2a/Containerfile test/interoperability/adk/Containerfile test/interoperability/skills/Containerfile test/interoperability/plugins/Containerfile test/interoperability/agntcy/router/Containerfile test/interoperability/gateway/Containerfile.auth test/interoperability/ans/Containerfile test/interoperability/ard-registry/Containerfile test/interoperability/agentfield/Containerfile test/mcp-scanner/Containerfile
 
 container-build: container-sync-check ## Build the minimal OCI runtime image with Docker or Podman
 	@case "$(CONTAINER_PLATFORM)" in linux/amd64|linux/arm64) ;; *) printf 'CONTAINER_PLATFORM must be linux/amd64 or linux/arm64, got %s\n' "$(CONTAINER_PLATFORM)" >&2; exit 2 ;; esac
@@ -1898,7 +1921,7 @@ docker-build: container-build ## Compatibility alias for container-build
 
 container-run: ## Run IMAGE locally with the hardened, in-memory development profile
 	@test -f "$(CATALOG_CONTAINER_CONFIG_FILE)" || { printf 'CATALOG_CONTAINER_CONFIG_FILE must identify a regular file, got %s\n' "$(CATALOG_CONTAINER_CONFIG_FILE)" >&2; exit 2; }
-	$(CONTAINER_ENGINE) run --rm --pull=never --init --read-only --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --stop-timeout 15 -p 127.0.0.1:8080:8080 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m --mount "type=bind,src=$(abspath $(CATALOG_CONTAINER_CONFIG_FILE)),dst=/config/config.json,readonly" -e CATALOG_HTTP_ADDRESS=0.0.0.0:8080 "$(IMAGE)" all --config /config/config.json
+	$(CONTAINER_ENGINE) run --rm --pull=never --init --read-only --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 256 --stop-timeout 15 -p 127.0.0.1:8080:8080 --tmpfs /tmp:rw,noexec,nosuid,nodev,size=64m,mode=1777 --mount "type=bind,src=$(abspath $(CATALOG_CONTAINER_CONFIG_FILE)),dst=/config/config.json,readonly" -e CATALOG_HTTP_ADDRESS=0.0.0.0:8080 "$(IMAGE)" all --config /config/config.json
 
 container-scan: ## Inspect and scan the exact local IMAGE/platform; retain private evidence and fail on High/Critical findings
 	$(PYTHON) test/packaging/image.py scan
@@ -1936,6 +1959,7 @@ compose-check: ## Validate every maintained Compose model without starting conta
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -p open-agentic-catalog-functional-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/interoperability/agentfinder/compose.yaml -p open-agentic-catalog-agentfinder-check config --quiet
 	@CATALOG_ARD_REGISTRY_IMAGE=open-agentic-catalog:compose-check-peer CATALOG_ARD_REGISTRY_USER=1001:1001 CATALOG_ARD_REGISTRY_STATE="$(CURDIR)/test/functional" IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/interoperability/ard-registry/compose.yaml -p open-agentic-catalog-ard-registry-check config --quiet
+	@CATALOG_AGENTFIELD_IMAGE=open-agentic-catalog:compose-check-peer CATALOG_AGENTFIELD_USER=1001:1001 CATALOG_AGENTFIELD_STATE="$(CURDIR)/test/functional" CATALOG_AGENTFIELD_CONFIG="$(CURDIR)/test/interoperability/agentfield" CATALOG_AGENTFIELD_PYTHON=python:compose-check CATALOG_AGENTFIELD_HARNESS="$(CURDIR)/test/interoperability" IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/interoperability/agentfield/compose.yaml -p open-agentic-catalog-agentfield-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/oidc-trust.compose.yaml -p open-agentic-catalog-functional-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/compose.credentials.yaml -p open-agentic-catalog-functional-check config --quiet
 	@IMAGE=open-agentic-catalog:compose-check CATALOG_COMPOSE_HTTP_PORT=18080 CATALOG_COMPOSE_POSTGRES_PORT=0 CATALOG_COMPOSE_FIXTURE_PORT=18443 CATALOG_COMPOSE_SUBNET=172.31.255.240/28 CATALOG_FUNCTIONAL_FIXTURE_IMAGE=open-agentic-catalog:compose-check-fixture CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY="$(CURDIR)/test/functional" CATALOG_FUNCTIONAL_OIDC_PORT=18444 CATALOG_FUNCTIONAL_OIDC_HOSTS='[]' $(COMPOSE) --env-file /dev/null -f compose.yaml -f test/functional/compose.yaml -f test/functional/compose.oidc.yaml -p open-agentic-catalog-functional-check config --quiet

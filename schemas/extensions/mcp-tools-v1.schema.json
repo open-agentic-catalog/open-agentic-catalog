@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/open-agentic-catalog/open-agentic-catalog/schemas/mcp-tools/v1",
+  "title": "Private declared MCP tools",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tools"],
+  "properties": {
+    "tools": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[^\\x00]*$"},
+          "description": {"type": "string", "maxLength": 1024, "pattern": "^[^\\x00]*$"}
+        }
+      }
+    }
+  },
+  "description": "Service-owned private metadata, not an MCP Server Card extension. UTF-8 JSON is limited to 65536 bytes, names are nonblank and unique with case-sensitive identity. Exactly one metadata representation per MCP VersionRevision; no remote delivery."
+}

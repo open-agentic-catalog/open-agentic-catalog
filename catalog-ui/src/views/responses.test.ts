@@ -2763,3 +2763,117 @@ it("bounds newly consumed Listing categories without trimming or UTF-16 length m
     ).toBe(false);
   }
 });
+
+it("validates bounded MCP tool explanations only on local MCP results", () => {
+  const match = {
+    representationId: "00000000-0000-7000-8000-000000000001",
+    contentDigest: "sha256:" + "a".repeat(64),
+    matchedToolCount: 1,
+    truncated: false,
+    tools: [{ name: "extract_pdf_tables", descriptionTruncated: false }],
+  };
+  const item = {
+    ...sampleCatalogSearchResult,
+    kind: "mcp_server",
+    toolMatch: match,
+  };
+  expect(checks.CatalogSearchResult(item)).toBe(true);
+  for (const toolMatch of [
+    null,
+    {},
+    { ...match, representationId: "invalid" },
+    { ...match, contentDigest: "bad" },
+    { ...match, matchedToolCount: 0 },
+    { ...match, matchedToolCount: 65 },
+    { ...match, tools: [] },
+    { ...match, truncated: true },
+    { ...match, tools: [{ name: " ", descriptionTruncated: false }] },
+    { ...match, tools: [{ name: "x", descriptionTruncated: true }] },
+    {
+      ...match,
+      tools: [
+        {
+          name: "x",
+          description: "x".repeat(257),
+          descriptionTruncated: false,
+        },
+      ],
+    },
+    { ...match, tools: [{ name: "x\0", descriptionTruncated: false }] },
+  ])
+    expect(checks.CatalogSearchResult({ ...item, toolMatch })).toBe(false);
+  expect(checks.CatalogSearchResult({ ...item, kind: "agent" })).toBe(false);
+  expect(
+    checks.CatalogSearchResult({
+      ...item,
+      toolMatch: {
+        ...match,
+        tools: [
+          {
+            name: "x",
+            description: "λ".repeat(256),
+            descriptionTruncated: true,
+          },
+        ],
+      },
+    }),
+  ).toBe(true);
+});
+
+it("keeps private tool redaction explicit rather than treating withheld content as absent", () => {
+  expect(
+    checks.CatalogRecord({
+      ...sampleCatalogRecord,
+      toolDeclarationRedacted: true,
+    }),
+  ).toBe(true);
+  expect(
+    checks.CatalogRecord({
+      ...sampleCatalogRecord,
+      toolDeclarationRedacted: false,
+    }),
+  ).toBe(false);
+  expect(
+    checks.CatalogRecord({
+      ...sampleCatalogRecord,
+      toolDeclarationRedacted: null,
+    }),
+  ).toBe(false);
+});
+
+it("validates every consumed current completed-attempt field before source navigation", () => {
+  const attempt = {
+    snapshotId: "snapshot",
+    revision: 1,
+    state: "failed",
+    completedAt: "2026-11-01T12:00:00Z",
+  };
+  expect(
+    checks.FederationSource({
+      ...sampleFederationSource,
+      latestCompletedSync: attempt,
+    }),
+  ).toBe(true);
+  for (const mismatch of [
+    null,
+    {},
+    { ...attempt, snapshotId: "" },
+    { ...attempt, revision: 2 },
+    { ...attempt, state: "running" },
+    { ...attempt, completedAt: "invalid" },
+  ]) {
+    expect(
+      checks.FederationSource({
+        ...sampleFederationSource,
+        latestCompletedSync: mismatch,
+      }),
+    ).toBe(false);
+  }
+  expect(
+    checks.FederationSource({
+      ...sampleFederationSource,
+      retrievalMode: "live",
+      latestCompletedSync: attempt,
+    }),
+  ).toBe(false);
+});

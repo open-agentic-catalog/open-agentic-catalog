@@ -18,6 +18,7 @@ The Catalog UI with sample data. Read the [online manual](https://open-agentic-c
 - Build API clients with the [Go, Python, TypeScript and Rust SDKs](sdk/README.md), or try the optional [local LangGraph discovery assistant](examples/langgraph/README.md).
 - Manage tenant and namespace access, with audit records for changes.
 - Save resources and searches, submit version-specific ratings and send private feedback through the [Catalog UI](documentation/src/content/docs/guides/catalog-ui.mdx).
+- Back up and restore your private bookmarks and saved searches with [catalogctl](documentation/src/content/docs/reference/commands.md#back-up-and-restore-your-private-library).
 - Observe the service with built-in Prometheus metrics; optionally enable OpenTelemetry tracing and signed webhooks.
 
 See [concepts and lifecycle](documentation/src/content/docs/guides/concepts.md) and [supported standards and formats](documentation/src/content/docs/reference/standards.mdx) for details.
@@ -93,7 +94,7 @@ make ui-install
 make ui-dev
 ```
 
-Open `http://127.0.0.1:4180`. The [UI guide](documentation/src/content/docs/guides/catalog-ui.mdx) covers authoring, review, publication and administration workflows.
+Open `http://127.0.0.1:4180`. The [UI guide](documentation/src/content/docs/guides/catalog-ui.mdx) covers authoring, review, publication and administration workflows. Optional [public browsing](documentation/src/content/docs/reference/ui-host-configuration.md#optional-public-discovery) is separately enabled and disabled by default.
 
 ## Containers and Kubernetes
 

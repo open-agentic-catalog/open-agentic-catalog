@@ -1924,11 +1924,20 @@ paths:
       tags: [Feedback]
       summary: List your own feedback
       operationId: listOwnFeedback
-      description: Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+      description: >-
+        Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order,
+        filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending;
+        combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history.
+        A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection.
+        Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
       parameters:
         - {name: resourceId, in: query, schema: {$ref: '#/components/schemas/UUID'}}
         - {name: category, in: query, schema: {$ref: '#/components/schemas/FeedbackCategory'}}
         - {name: state, in: query, schema: {$ref: '#/components/schemas/FeedbackState'}}
+        - name: order
+          in: query
+          description: Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh.
+          schema: {type: string, enum: [id, updated_desc], default: id}
         - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
         - {name: cursor, in: query, schema: {type: string, maxLength: 2048}}
       responses:
@@ -2765,13 +2774,20 @@ paths:
       tags: [Catalog lifecycle]
       summary: List review submissions
       description: >-
-        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results
+        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results
         use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are
         independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an
         otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release,
-        including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+        including retired or revoked releases. False or omission adds no release filter. All filters bind continuation.
+        namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces.
+        A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
       operationId: listReviewSubmissions
       parameters:
+        - name: namespaceId
+          in: query
+          description: >-
+            Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters.
+          schema: {$ref: '#/components/schemas/UUID'}
         - name: unreleased
           in: query
           description: True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter.
@@ -3160,6 +3176,37 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/ListingRelease'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/listing-releases/{releaseId}/withdrawal-preview:
+    parameters: [{$ref: '#/components/parameters/ReleaseId'}]
+    get:
+      tags: [Catalog lifecycle]
+      summary: Preview discovery snapshots affected by release withdrawal
+      operationId: previewListingReleaseWithdrawal
+      description: >-
+        Requires resource.read_history for the release's namespace and tenant-wide publication.read.
+        Returns complete observed references to active configured-host snapshots that the selected
+        release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked.
+        Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero.
+        The read starts no Job, sends no notification and changes no release or publication state.
+        This advisory observation does not reserve active pointers, authorize a transition, validate replacement
+        guidance or create a replacement publication. Explicitly refresh before preparing confirmation.
+        The later command independently checks current authority, If-Match, idempotency and transition eligibility.
+        Deprecation does not withdraw discovery and is not supported by this preview.
+      parameters:
+        - name: transition
+          in: query
+          required: true
+          description: The intended release disposition. Exactly one nonempty value is required.
+          schema: {type: string, enum: [retired, superseded, revoked]}
+      responses:
+        '200':
+          description: Complete advisory impact, including an empty array only when all relevant active evidence proves absence.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReleaseWithdrawalPreview'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/listing-releases/{releaseId}:deprecate:
     parameters: [{$ref: '#/components/parameters/ReleaseId'}]
     post:
@@ -3230,6 +3277,18 @@ paths:
       operationId: browseCatalog
       description: Returns a bounded page of governed catalog records visible to the caller. Local drafts are not made discoverable through this endpoint.
       parameters:
+        - name: agentProtocol
+          in: query
+          allowEmptyValue: true
+          description: Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied.
+          schema:
+            type: string
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+            if:
+              minLength: 1
+            then:
+              pattern: "^[^\\x00]*[^\\x00\\x09-\\x0D \u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000][^\\x00]*$"
         - name: namespaceId
           in: query
           description: Restrict to the local Listing namespace UUID without disclosing whether an unmatched namespace exists.
@@ -3253,7 +3312,13 @@ paths:
       tags: [Catalog discovery]
       summary: Get a governed Catalog record
       operationId: getCatalogRecord
-      description: Returns one governed catalog record visible to the caller, including its resource and release metadata.
+      description: >-
+        Returns one governed catalog record visible to the caller. Private declared MCP tool
+        attachments require current resource.read_content in the canonical Namespace. Without
+        it, these attachments are omitted and toolDeclarationRedacted is true for every MCP
+        record, regardless of whether a declaration exists. Authorized attachment disclosure
+        requires the normal version-revision private-read audit before returning content.
+        Other record metadata is unchanged.
       responses:
         '200': {$ref: '#/components/responses/CatalogRecord'}
         default: {$ref: '#/components/responses/Problem'}
@@ -3750,10 +3815,14 @@ paths:
       operationId: listFederationSources
       description: >-
         Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID.
-        Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs.
+        Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs.
         Continuation binds filters, ordering, page size, tenant and current authority.
         Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission.
-        No peer is contacted and credential values are never returned.
+        syncState selects failed or incomplete latest completed indexed attempts for the current Source revision.
+        A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match.
+        Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents.
+        Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches.
+        No peer is contacted, Job started or raw evidence read; credential values are never returned.
       parameters:
         - {$ref: '#/components/parameters/Limit'}
         - {$ref: '#/components/parameters/Cursor'}
@@ -3761,6 +3830,10 @@ paths:
           in: query
           description: Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid.
           schema: {type: string, minLength: 1, maxLength: 160, pattern: '^[^\x00]*$'}
+        - name: syncState
+          in: query
+          description: Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid.
+          schema: {type: string, enum: [failed, incomplete]}
         - name: status
           in: query
           description: Exact configured state. Omit for all nonremoved states; empty, repeated or removed values are invalid.
@@ -6390,6 +6463,24 @@ components:
       type: object
       additionalProperties: false
       allOf:
+        - if:
+            required: [includeMcpTools]
+            properties: {includeMcpTools: {const: true}}
+          then:
+            required: [text, origins]
+            properties:
+              text: {type: string, minLength: 1}
+              kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+              agentProtocol: {maxLength: 0}
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
+        - if:
+            required: [agentProtocol]
+            properties:
+              agentProtocol: {minLength: 1}
+          then:
+            required: [origins]
+            properties:
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
         - anyOf:
             - not:
                 required:
@@ -6402,6 +6493,29 @@ components:
                     enum:
                       - local
       properties:
+        includeMcpTools:
+          type: boolean
+          description: >-
+            Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared
+            tool names/descriptions. Requires nonblank text and local-only origins (Explore is
+            intrinsically local). Current content-read permission gates tool contributions before
+            counts, ranking and paging. Each tool must match all terms; the server score is the
+            best listing or tool score, never the sum of tools. No embedding or endpoint call.
+        agentProtocol:
+          type: string
+          maxLength: 256
+          pattern: '^[^\x00]*$'
+          if:
+            minLength: 1
+          then:
+            pattern: "^[^\\x00]*[^\\x00\\x09-\\x0D \u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000][^\\x00]*$"
+          description: >-
+            Exact, case-sensitive protocolBinding declared by any interface in the released validated
+            primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require
+            explicit origins [local]; Browse and Explore are intrinsically local. Requires current
+            resource.read_content as well as resource.read before matching, totals, facets and paging.
+            Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved.
+            No endpoint request is added and a declaration does not establish protocol compatibility.
         order:
           $ref: '#/components/schemas/CatalogSearchOrder'
         origins:
@@ -9692,6 +9806,29 @@ components:
         revision: {type: integer, format: int64, minimum: 1}
         activatedAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+    ReleaseWithdrawalPreview:
+      type: object
+      additionalProperties: false
+      required: [releaseId, releaseRevision, transition, observedAt, snapshots]
+      properties:
+        releaseId: {$ref: '#/components/schemas/UUID'}
+        releaseRevision: {type: integer, format: int64, minimum: 1}
+        transition: {type: string, enum: [retired, superseded, revoked]}
+        observedAt: {type: string, format: date-time}
+        snapshots:
+          type: array
+          maxItems: 64
+          items: {$ref: '#/components/schemas/ReleaseWithdrawalSnapshot'}
+    ReleaseWithdrawalSnapshot:
+      type: object
+      additionalProperties: false
+      required: [snapshotId, host, audience, generation, etag]
+      properties:
+        snapshotId: {$ref: '#/components/schemas/UUID'}
+        host: {type: string, minLength: 1, maxLength: 253}
+        audience: {type: string, enum: [anonymous, authenticated]}
+        generation: {type: integer, format: int64, minimum: 1}
+        etag: {type: string, minLength: 1, maxLength: 256}
     AdoptionProvenance:
       type: object
       additionalProperties: false
@@ -9724,6 +9861,13 @@ components:
       additionalProperties: false
       required: [resource, version, versionRevision, listing, listingRevision, release, evidence, source]
       properties:
+        toolDeclarationRedacted:
+          type: boolean
+          const: true
+          description: >-
+            Current content permission does not permit private tool declaration disclosure.
+            Set for every MCP record without that permission, whether a declaration exists or not;
+            absence of a displayed attachment cannot establish not supplied.
         display: {$ref: '#/components/schemas/CatalogPresentation'}
         resource: {$ref: '#/components/schemas/Resource'}
         version: {$ref: '#/components/schemas/ResourceVersion'}
@@ -10032,11 +10176,34 @@ components:
           type: object
           additionalProperties: true
           description: Exact bounded ARD Search result entry returned by the approved live source. It is transient metadata, not locally governed content.
+    MCPToolMatch:
+      type: object
+      additionalProperties: false
+      required: [representationId, contentDigest, matchedToolCount, tools, truncated]
+      description: Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions.
+      properties:
+        representationId: {$ref: '#/components/schemas/UUID'}
+        contentDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
+        matchedToolCount: {type: integer, minimum: 1, maximum: 64}
+        truncated: {type: boolean}
+        tools:
+          type: array
+          minItems: 1
+          maxItems: 3
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, descriptionTruncated]
+            properties:
+              name: {type: string, minLength: 1, maxLength: 128}
+              description: {type: string, maxLength: 256}
+              descriptionTruncated: {type: boolean}
     CatalogSearchResult:
       type: object
       additionalProperties: false
       required: [id, type, identifier, versionPresent, kind, displayName, tags, score]
       properties:
+        toolMatch: {$ref: '#/components/schemas/MCPToolMatch'}
         peerRatings:
           type: object
           additionalProperties: false
@@ -10069,6 +10236,12 @@ components:
         local: {$ref: '#/components/schemas/CatalogSearchLocal'}
         indexed: {$ref: '#/components/schemas/IndexedCatalogSearchEvidence'}
         live: {$ref: '#/components/schemas/LiveCatalogSearchEvidence'}
+      allOf:
+        - if: {required: [toolMatch]}
+          then:
+            properties:
+              type: {const: local}
+              kind: {const: mcp_server}
       oneOf:
         - required: [local]
           properties: {type: {const: local}}
@@ -10102,7 +10275,7 @@ components:
         nextCursor: {type: string, maxLength: 4096}
         durableTotal: {type: integer, minimum: 0, description: Number of matching local and indexed result projections. Transient live results are excluded.}
         liveCount: {type: integer, minimum: 0, maximum: 50, description: Number of transient live results included in this response page.}
-        profile: {type: string, pattern: '^(core-lexical-v1|sha256:[a-f0-9]{64})$'}
+        profile: {type: string, pattern: '^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$'}
         generation: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
         tier: {type: string, enum: [core, hybrid]}
         fallbackReason: {type: string, enum: [indexing, provider_unavailable, index_changed, work_limit], description: Safe reason this fresh query used lexical fallback. Continuations never silently change retrieval tier.}
@@ -10325,11 +10498,52 @@ components:
       type: object
       additionalProperties: false
       allOf:
+        - if:
+            required: [includeMcpTools]
+            properties: {includeMcpTools: {const: true}}
+          then:
+            required: [text, origins]
+            properties:
+              text: {type: string, minLength: 1}
+              kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+              agentProtocol: {maxLength: 0}
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
+        - if:
+            required: [agentProtocol]
+            properties:
+              agentProtocol: {minLength: 1}
+          then:
+            required: [origins]
+            properties:
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
         - anyOf:
             - not: {required: [namespaceId]}
             - properties:
                 origins: {type: array, items: {type: string, enum: [local]}}
       properties:
+        includeMcpTools:
+          type: boolean
+          description: >-
+            Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared
+            tool names/descriptions. Requires nonblank text and local-only origins (Explore is
+            intrinsically local). Current content-read permission gates tool contributions before
+            counts, ranking and paging. Each tool must match all terms; the server score is the
+            best listing or tool score, never the sum of tools. No embedding or endpoint call.
+        agentProtocol:
+          type: string
+          maxLength: 256
+          pattern: '^[^\x00]*$'
+          if:
+            minLength: 1
+          then:
+            pattern: "^[^\\x00]*[^\\x00\\x09-\\x0D \u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000][^\\x00]*$"
+          description: >-
+            Exact, case-sensitive protocolBinding declared by any interface in the released validated
+            primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require
+            explicit origins [local]; Browse and Explore are intrinsically local. Requires current
+            resource.read_content as well as resource.read before matching, totals, facets and paging.
+            Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved.
+            No endpoint request is added and a declaration does not establish protocol compatibility.
         order:
           $ref: '#/components/schemas/CatalogSearchOrder'
         origins:
@@ -10402,7 +10616,40 @@ components:
     CatalogExploreQuery:
       type: object
       additionalProperties: false
+      allOf:
+        - if:
+            required: [includeMcpTools]
+            properties: {includeMcpTools: {const: true}}
+          then:
+            required: [text]
+            properties:
+              text: {type: string, minLength: 1}
+              kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+              agentProtocol: {maxLength: 0}
       properties:
+        includeMcpTools:
+          type: boolean
+          description: >-
+            Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared
+            tool names/descriptions. Requires nonblank text and local-only origins (Explore is
+            intrinsically local). Current content-read permission gates tool contributions before
+            counts, ranking and paging. Each tool must match all terms; the server score is the
+            best listing or tool score, never the sum of tools. No embedding or endpoint call.
+        agentProtocol:
+          type: string
+          maxLength: 256
+          pattern: '^[^\x00]*$'
+          if:
+            minLength: 1
+          then:
+            pattern: "^[^\\x00]*[^\\x00\\x09-\\x0D \u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000][^\\x00]*$"
+          description: >-
+            Exact, case-sensitive protocolBinding declared by any interface in the released validated
+            primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require
+            explicit origins [local]; Browse and Explore are intrinsically local. Requires current
+            resource.read_content as well as resource.read before matching, totals, facets and paging.
+            Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved.
+            No endpoint request is added and a declaration does not establish protocol compatibility.
         namespaceId: {$ref: '#/components/schemas/UUID'}
         text: {type: string, maxLength: 500}
         kinds: {type: array, maxItems: 4, uniqueItems: true, items: {$ref: '#/components/schemas/ResourceKind'}}
@@ -10442,7 +10689,7 @@ components:
       required: [matched, facets]
       properties:
         tier: {type: string, enum: [core, hybrid]}
-        profile: {type: string, pattern: '^(core-lexical-v1|sha256:[a-f0-9]{64})$'}
+        profile: {type: string, pattern: '^(core-lexical-v1|core-mcp-tools-v1|sha256:[a-f0-9]{64})$'}
         fallbackReason: {type: string, enum: [indexing, provider_unavailable, index_changed, work_limit]}
         partialIndex: {type: boolean}
         matched: {type: integer, minimum: 0}
@@ -10577,6 +10824,10 @@ components:
       additionalProperties: false
       required: [id, tenantId, displayName, type, endpoint, status, profileId, retrievalMode, scope, updateMode, live, referrals, nesting, policyId, policyRevision, policyDigest, revision, createdBy, createdAt, updatedAt]
       properties:
+        latestCompletedSync:
+          allOf: [{$ref: '#/components/schemas/SourceSyncAttempt'}]
+          readOnly: true
+          description: Directory-only scalar projection of the latest completed current-revision indexed attempt. Absent for live-only or unsynchronized configurations. Not configuration, last complete membership or a freshness guarantee.
         trustVerificationPolicy: {type: string, maxLength: 63, pattern: "^(?:|[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)$", description: Named operator ANS policy; empty clears selection. Inert when verification is disabled.}
         artworkEnabled: {type: boolean, description: Explicit opt-in to source-provided artwork and native icons; image origin policy still applies.}
         presentationGeneration: {type: integer, format: int64, minimum: 1, description: Source presentation authority generation; replacement authority starts a new generation.}
@@ -10613,6 +10864,15 @@ components:
         createdBy: {type: string, minLength: 1}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+    SourceSyncAttempt:
+      type: object
+      additionalProperties: false
+      required: [snapshotId, revision, state, completedAt]
+      properties:
+        snapshotId: {$ref: '#/components/schemas/UUID'}
+        revision: {type: integer, format: int64, minimum: 1}
+        state: {type: string, enum: [complete, incomplete, failed]}
+        completedAt: {type: string, format: date-time}
     FederationSourcePage:
       type: object
       additionalProperties: false

@@ -1517,6 +1517,21 @@ func (e CatalogRecordSource) Valid() bool {
 	}
 }
 
+// Defines values for CatalogRecordToolDeclarationRedacted.
+const (
+	CatalogRecordToolDeclarationRedactedTrue CatalogRecordToolDeclarationRedacted = true
+)
+
+// Valid indicates whether the value is a known member of the CatalogRecordToolDeclarationRedacted enum.
+func (e CatalogRecordToolDeclarationRedacted) Valid() bool {
+	switch e {
+	case CatalogRecordToolDeclarationRedactedTrue:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CatalogRecordPageFallbackReason.
 const (
 	CatalogRecordPageFallbackReasonIndexChanged        CatalogRecordPageFallbackReason = "index_changed"
@@ -3692,6 +3707,45 @@ func (e ReleaseOverviewScope) Valid() bool {
 	}
 }
 
+// Defines values for ReleaseWithdrawalPreviewTransition.
+const (
+	ReleaseWithdrawalPreviewTransitionRetired    ReleaseWithdrawalPreviewTransition = "retired"
+	ReleaseWithdrawalPreviewTransitionRevoked    ReleaseWithdrawalPreviewTransition = "revoked"
+	ReleaseWithdrawalPreviewTransitionSuperseded ReleaseWithdrawalPreviewTransition = "superseded"
+)
+
+// Valid indicates whether the value is a known member of the ReleaseWithdrawalPreviewTransition enum.
+func (e ReleaseWithdrawalPreviewTransition) Valid() bool {
+	switch e {
+	case ReleaseWithdrawalPreviewTransitionRetired:
+		return true
+	case ReleaseWithdrawalPreviewTransitionRevoked:
+		return true
+	case ReleaseWithdrawalPreviewTransitionSuperseded:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ReleaseWithdrawalSnapshotAudience.
+const (
+	ReleaseWithdrawalSnapshotAudienceAnonymous     ReleaseWithdrawalSnapshotAudience = "anonymous"
+	ReleaseWithdrawalSnapshotAudienceAuthenticated ReleaseWithdrawalSnapshotAudience = "authenticated"
+)
+
+// Valid indicates whether the value is a known member of the ReleaseWithdrawalSnapshotAudience enum.
+func (e ReleaseWithdrawalSnapshotAudience) Valid() bool {
+	switch e {
+	case ReleaseWithdrawalSnapshotAudienceAnonymous:
+		return true
+	case ReleaseWithdrawalSnapshotAudienceAuthenticated:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RepresentationRole.
 const (
 	RepresentationRoleDistribution  RepresentationRole = "distribution"
@@ -4304,6 +4358,27 @@ func (e SourceStateCountState) Valid() bool {
 	case SourceStateCountStateNotYetSynced:
 		return true
 	case SourceStateCountStatePaused:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SourceSyncAttemptState.
+const (
+	SourceSyncAttemptStateComplete   SourceSyncAttemptState = "complete"
+	SourceSyncAttemptStateFailed     SourceSyncAttemptState = "failed"
+	SourceSyncAttemptStateIncomplete SourceSyncAttemptState = "incomplete"
+)
+
+// Valid indicates whether the value is a known member of the SourceSyncAttemptState enum.
+func (e SourceSyncAttemptState) Valid() bool {
+	switch e {
+	case SourceSyncAttemptStateComplete:
+		return true
+	case SourceSyncAttemptStateFailed:
+		return true
+	case SourceSyncAttemptStateIncomplete:
 		return true
 	default:
 		return false
@@ -5027,6 +5102,24 @@ func (e CompareFederationSourceSnapshotsParamsView) Valid() bool {
 	}
 }
 
+// Defines values for ListFederationSourcesParamsSyncState.
+const (
+	ListFederationSourcesParamsSyncStateFailed     ListFederationSourcesParamsSyncState = "failed"
+	ListFederationSourcesParamsSyncStateIncomplete ListFederationSourcesParamsSyncState = "incomplete"
+)
+
+// Valid indicates whether the value is a known member of the ListFederationSourcesParamsSyncState enum.
+func (e ListFederationSourcesParamsSyncState) Valid() bool {
+	switch e {
+	case ListFederationSourcesParamsSyncStateFailed:
+		return true
+	case ListFederationSourcesParamsSyncStateIncomplete:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListFederationSourcesParamsStatus.
 const (
 	ListFederationSourcesParamsStatusActive ListFederationSourcesParamsStatus = "active"
@@ -5042,6 +5135,24 @@ func (e ListFederationSourcesParamsStatus) Valid() bool {
 	case ListFederationSourcesParamsStatusError:
 		return true
 	case ListFederationSourcesParamsStatusPaused:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListOwnFeedbackParamsOrder.
+const (
+	Id          ListOwnFeedbackParamsOrder = "id"
+	UpdatedDesc ListOwnFeedbackParamsOrder = "updated_desc"
+)
+
+// Valid indicates whether the value is a known member of the ListOwnFeedbackParamsOrder enum.
+func (e ListOwnFeedbackParamsOrder) Valid() bool {
+	switch e {
+	case Id:
+		return true
+	case UpdatedDesc:
 		return true
 	default:
 		return false
@@ -5075,6 +5186,27 @@ func (e ListJobsParamsState) Valid() bool {
 	case ListJobsParamsStateSucceeded:
 		return true
 	case ListJobsParamsStateWaiting:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PreviewListingReleaseWithdrawalParamsTransition.
+const (
+	PreviewListingReleaseWithdrawalParamsTransitionRetired    PreviewListingReleaseWithdrawalParamsTransition = "retired"
+	PreviewListingReleaseWithdrawalParamsTransitionRevoked    PreviewListingReleaseWithdrawalParamsTransition = "revoked"
+	PreviewListingReleaseWithdrawalParamsTransitionSuperseded PreviewListingReleaseWithdrawalParamsTransition = "superseded"
+)
+
+// Valid indicates whether the value is a known member of the PreviewListingReleaseWithdrawalParamsTransition enum.
+func (e PreviewListingReleaseWithdrawalParamsTransition) Valid() bool {
+	switch e {
+	case PreviewListingReleaseWithdrawalParamsTransitionRetired:
+		return true
+	case PreviewListingReleaseWithdrawalParamsTransitionRevoked:
+		return true
+	case PreviewListingReleaseWithdrawalParamsTransitionSuperseded:
 		return true
 	default:
 		return false
@@ -6548,9 +6680,15 @@ type CatalogExploreFacetsField string
 
 // CatalogExploreQuery defines model for CatalogExploreQuery.
 type CatalogExploreQuery struct {
+	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+	AgentProtocol *string `json:"agentProtocol,omitempty"`
+
 	// Categories All selected categories must match local Listing categories after trimming, lowercasing and deduplication. Missing categories do not match. Explore covers local releases only.
-	Categories *[]string       `json:"categories,omitempty"`
-	Kinds      *[]ResourceKind `json:"kinds,omitempty"`
+	Categories *[]string `json:"categories,omitempty"`
+
+	// IncludeMcpTools Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+	IncludeMcpTools *bool           `json:"includeMcpTools,omitempty"`
+	Kinds           *[]ResourceKind `json:"kinds,omitempty"`
 
 	// License Empty means no license filter. Trimmed, case-sensitive exact match against the local immutable Listing license declaration. No SPDX interpretation or match for absent declarations. Explore covers local releases only.
 	License     *string `json:"license,omitempty"`
@@ -6636,12 +6774,18 @@ type CatalogRecord struct {
 	RelevanceScore  *int                `json:"relevanceScore,omitempty"`
 	Resource        Resource            `json:"resource"`
 	Source          CatalogRecordSource `json:"source"`
-	Version         ResourceVersion     `json:"version"`
-	VersionRevision VersionRevision     `json:"versionRevision"`
+
+	// ToolDeclarationRedacted Current content permission does not permit private tool declaration disclosure. Set for every MCP record without that permission, whether a declaration exists or not; absence of a displayed attachment cannot establish not supplied.
+	ToolDeclarationRedacted *CatalogRecordToolDeclarationRedacted `json:"toolDeclarationRedacted,omitempty"`
+	Version                 ResourceVersion                       `json:"version"`
+	VersionRevision         VersionRevision                       `json:"versionRevision"`
 }
 
 // CatalogRecordSource defines model for CatalogRecord.Source.
 type CatalogRecordSource string
+
+// CatalogRecordToolDeclarationRedacted Current content permission does not permit private tool declaration disclosure. Set for every MCP record without that permission, whether a declaration exists or not; absence of a displayed attachment cannot establish not supplied.
+type CatalogRecordToolDeclarationRedacted bool
 
 // CatalogRecordPage defines model for CatalogRecordPage.
 type CatalogRecordPage struct {
@@ -6695,12 +6839,18 @@ type CatalogRole string
 
 // CatalogSearch defines model for CatalogSearch.
 type CatalogSearch struct {
+	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+	AgentProtocol *string `json:"agentProtocol,omitempty"`
+
 	// Categories All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
 	Categories *[]string `json:"categories,omitempty"`
 
 	// Cursor Opaque expiring continuation cursor bound to the principal, permissions, normalized query, core SearchProfile, and durable local and indexed generations. Core live continuation replays an unchanged bounded window of at most 50 candidates with a fixed 15-minute expiry. Changed evidence requires restart; temporary replay failure permits retrying the same cursor. Hybrid Search preserves the precise durable ranking before a separate live tail. Live-only Search binds the live window without durable generation or embedding work.
-	Cursor *string         `json:"cursor,omitempty"`
-	Kinds  *[]ResourceKind `json:"kinds,omitempty"`
+	Cursor *string `json:"cursor,omitempty"`
+
+	// IncludeMcpTools Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+	IncludeMcpTools *bool           `json:"includeMcpTools,omitempty"`
+	Kinds           *[]ResourceKind `json:"kinds,omitempty"`
 
 	// License Empty means no license filter. Trimmed, case-sensitive exact match against the immutable local Listing license or bounded external metadata.license string. No SPDX interpretation or match for absent, malformed or oversized declarations. Applies across selected origins.
 	License *string `json:"license,omitempty"`
@@ -6827,10 +6977,13 @@ type CatalogSearchResult struct {
 	} `json:"peerRatings,omitempty"`
 
 	// Publisher Catalog Publisher UUID for a local result or normalized AIR publisher component for an indexed or live result.
-	Publisher      *string                 `json:"publisher,omitempty"`
-	Ratings        *RatingSummary          `json:"ratings,omitempty"`
-	Score          int                     `json:"score"`
-	Tags           []string                `json:"tags"`
+	Publisher *string        `json:"publisher,omitempty"`
+	Ratings   *RatingSummary `json:"ratings,omitempty"`
+	Score     int            `json:"score"`
+	Tags      []string       `json:"tags"`
+
+	// ToolMatch Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions.
+	ToolMatch      *MCPToolMatch           `json:"toolMatch,omitempty"`
 	Type           CatalogSearchResultType `json:"type"`
 	Version        *string                 `json:"version,omitempty"`
 	VersionPresent bool                    `json:"versionPresent"`
@@ -7242,12 +7395,15 @@ type FederationSource struct {
 	LastCompleteSnapshotId *UUID                       `json:"lastCompleteSnapshotId,omitempty"`
 	LastError              *string                     `json:"lastError,omitempty"`
 	LastSyncAt             *time.Time                  `json:"lastSyncAt,omitempty"`
-	Live                   LivePolicy                  `json:"live"`
-	Nesting                NestingPolicy               `json:"nesting"`
-	NetworkProfile         *NetworkProfileReference    `json:"networkProfile,omitempty"`
-	PolicyDigest           string                      `json:"policyDigest"`
-	PolicyId               string                      `json:"policyId"`
-	PolicyRevision         int64                       `json:"policyRevision"`
+
+	// LatestCompletedSync Directory-only scalar projection of the latest completed current-revision indexed attempt. Absent for live-only or unsynchronized configurations. Not configuration, last complete membership or a freshness guarantee.
+	LatestCompletedSync *SourceSyncAttempt       `json:"latestCompletedSync,omitempty"`
+	Live                LivePolicy               `json:"live"`
+	Nesting             NestingPolicy            `json:"nesting"`
+	NetworkProfile      *NetworkProfileReference `json:"networkProfile,omitempty"`
+	PolicyDigest        string                   `json:"policyDigest"`
+	PolicyId            string                   `json:"policyId"`
+	PolicyRevision      int64                    `json:"policyRevision"`
 
 	// PresentationGeneration Source presentation authority generation; replacement authority starts a new generation.
 	PresentationGeneration *int64         `json:"presentationGeneration,omitempty"`
@@ -7836,6 +7992,19 @@ type MCPRequest_Id struct {
 // MCPRequestJsonrpc defines model for MCPRequest.Jsonrpc.
 type MCPRequestJsonrpc string
 
+// MCPToolMatch Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions.
+type MCPToolMatch struct {
+	ContentDigest    string `json:"contentDigest"`
+	MatchedToolCount int    `json:"matchedToolCount"`
+	RepresentationId UUID   `json:"representationId"`
+	Tools            []struct {
+		Description          *string `json:"description,omitempty"`
+		DescriptionTruncated bool    `json:"descriptionTruncated"`
+		Name                 string  `json:"name"`
+	} `json:"tools"`
+	Truncated bool `json:"truncated"`
+}
+
 // MemberAccessPage defines model for MemberAccessPage.
 type MemberAccessPage struct {
 	AuthorizationRevision int64                         `json:"authorizationRevision"`
@@ -8170,9 +8339,15 @@ type PermissionKey string
 
 // PersonalCriteria Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search.
 type PersonalCriteria struct {
+	// AgentProtocol Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+	AgentProtocol *string `json:"agentProtocol,omitempty"`
+
 	// Categories All selected categories must match after trimming, lowercasing and deduplication. Local releases use Listing categories; external entries use bounded literal Dublin Core subjects. Missing, malformed or oversized declarations do not match. Live candidates are checked before admission; their bounded population can be incomplete. Applies across selected origins.
-	Categories *[]string       `json:"categories,omitempty"`
-	Kinds      *[]ResourceKind `json:"kinds,omitempty"`
+	Categories *[]string `json:"categories,omitempty"`
+
+	// IncludeMcpTools Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+	IncludeMcpTools *bool           `json:"includeMcpTools,omitempty"`
+	Kinds           *[]ResourceKind `json:"kinds,omitempty"`
 
 	// License Empty means no license filter. Trimmed, case-sensitive exact match against the immutable local Listing license or bounded external metadata.license string. No SPDX interpretation or match for absent, malformed or oversized declarations. Applies across selected origins.
 	License *string `json:"license,omitempty"`
@@ -8842,6 +9017,30 @@ type ReleaseTransition struct {
 	SunsetAt *time.Time `json:"sunsetAt,omitempty"`
 }
 
+// ReleaseWithdrawalPreview defines model for ReleaseWithdrawalPreview.
+type ReleaseWithdrawalPreview struct {
+	ObservedAt      time.Time                          `json:"observedAt"`
+	ReleaseId       UUID                               `json:"releaseId"`
+	ReleaseRevision int64                              `json:"releaseRevision"`
+	Snapshots       []ReleaseWithdrawalSnapshot        `json:"snapshots"`
+	Transition      ReleaseWithdrawalPreviewTransition `json:"transition"`
+}
+
+// ReleaseWithdrawalPreviewTransition defines model for ReleaseWithdrawalPreview.Transition.
+type ReleaseWithdrawalPreviewTransition string
+
+// ReleaseWithdrawalSnapshot defines model for ReleaseWithdrawalSnapshot.
+type ReleaseWithdrawalSnapshot struct {
+	Audience   ReleaseWithdrawalSnapshotAudience `json:"audience"`
+	Etag       string                            `json:"etag"`
+	Generation int64                             `json:"generation"`
+	Host       string                            `json:"host"`
+	SnapshotId UUID                              `json:"snapshotId"`
+}
+
+// ReleaseWithdrawalSnapshotAudience defines model for ReleaseWithdrawalSnapshot.Audience.
+type ReleaseWithdrawalSnapshotAudience string
+
 // RemoveSource defines model for RemoveSource.
 type RemoveSource struct {
 	ChangePreviewDigest string `json:"changePreviewDigest"`
@@ -9416,6 +9615,17 @@ type SourceSyncAccepted struct {
 	Existing bool `json:"existing"`
 	Job      Job  `json:"job"`
 }
+
+// SourceSyncAttempt defines model for SourceSyncAttempt.
+type SourceSyncAttempt struct {
+	CompletedAt time.Time              `json:"completedAt"`
+	Revision    int64                  `json:"revision"`
+	SnapshotId  UUID                   `json:"snapshotId"`
+	State       SourceSyncAttemptState `json:"state"`
+}
+
+// SourceSyncAttemptState defines model for SourceSyncAttempt.State.
+type SourceSyncAttemptState string
 
 // SourceSyncProblem defines model for SourceSyncProblem.
 type SourceSyncProblem struct {
@@ -10489,6 +10699,9 @@ type GetIndexedCatalogRecordParams struct {
 
 // BrowseCatalogParams defines parameters for BrowseCatalog.
 type BrowseCatalogParams struct {
+	// AgentProtocol Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied.
+	AgentProtocol *string `form:"agentProtocol,omitempty" json:"agentProtocol,omitempty"`
+
 	// NamespaceId Restrict to the local Listing namespace UUID without disclosing whether an unmatched namespace exists.
 	NamespaceId *UUID `form:"namespaceId,omitempty" json:"namespaceId,omitempty"`
 
@@ -10552,9 +10765,15 @@ type ListFederationSourcesParams struct {
 	// DisplayName Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid.
 	DisplayName *string `form:"displayName,omitempty" json:"displayName,omitempty"`
 
+	// SyncState Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid.
+	SyncState *ListFederationSourcesParamsSyncState `form:"syncState,omitempty" json:"syncState,omitempty"`
+
 	// Status Exact configured state. Omit for all nonremoved states; empty, repeated or removed values are invalid.
 	Status *ListFederationSourcesParamsStatus `form:"status,omitempty" json:"status,omitempty"`
 }
+
+// ListFederationSourcesParamsSyncState defines parameters for ListFederationSources.
+type ListFederationSourcesParamsSyncState string
 
 // ListFederationSourcesParamsStatus defines parameters for ListFederationSources.
 type ListFederationSourcesParamsStatus string
@@ -10690,9 +10909,15 @@ type ListOwnFeedbackParams struct {
 	ResourceId *UUID             `form:"resourceId,omitempty" json:"resourceId,omitempty"`
 	Category   *FeedbackCategory `form:"category,omitempty" json:"category,omitempty"`
 	State      *FeedbackState    `form:"state,omitempty" json:"state,omitempty"`
-	Limit      *int              `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor     *string           `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Order Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh.
+	Order  *ListOwnFeedbackParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+	Limit  *int                        `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string                     `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
+
+// ListOwnFeedbackParamsOrder defines parameters for ListOwnFeedback.
+type ListOwnFeedbackParamsOrder string
 
 // CreateFeedbackParams defines parameters for CreateFeedback.
 type CreateFeedbackParams struct {
@@ -10786,6 +11011,15 @@ type RetryJobParams struct {
 	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
+
+// PreviewListingReleaseWithdrawalParams defines parameters for PreviewListingReleaseWithdrawal.
+type PreviewListingReleaseWithdrawalParams struct {
+	// Transition The intended release disposition. Exactly one nonempty value is required.
+	Transition PreviewListingReleaseWithdrawalParamsTransition `form:"transition" json:"transition"`
+}
+
+// PreviewListingReleaseWithdrawalParamsTransition defines parameters for PreviewListingReleaseWithdrawal.
+type PreviewListingReleaseWithdrawalParamsTransition string
 
 // DeprecateListingReleaseParams defines parameters for DeprecateListingRelease.
 type DeprecateListingReleaseParams struct {
@@ -11294,6 +11528,9 @@ type DeleteResourceParams struct {
 
 // ListReviewSubmissionsParams defines parameters for ListReviewSubmissions.
 type ListReviewSubmissionsParams struct {
+	// NamespaceId Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters.
+	NamespaceId *UUID `form:"namespaceId,omitempty" json:"namespaceId,omitempty"`
+
 	// Unreleased True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter.
 	Unreleased *bool `form:"unreleased,omitempty" json:"unreleased,omitempty"`
 
@@ -14312,6 +14549,13 @@ func (t CatalogSearch) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.AgentProtocol != nil {
+		object["agentProtocol"], err = json.Marshal(t.AgentProtocol)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'agentProtocol': %w", err)
+		}
+	}
+
 	if t.Categories != nil {
 		object["categories"], err = json.Marshal(t.Categories)
 		if err != nil {
@@ -14323,6 +14567,13 @@ func (t CatalogSearch) MarshalJSON() ([]byte, error) {
 		object["cursor"], err = json.Marshal(t.Cursor)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'cursor': %w", err)
+		}
+	}
+
+	if t.IncludeMcpTools != nil {
+		object["includeMcpTools"], err = json.Marshal(t.IncludeMcpTools)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'includeMcpTools': %w", err)
 		}
 	}
 
@@ -14410,6 +14661,13 @@ func (t *CatalogSearch) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
+	if raw, found := object["agentProtocol"]; found {
+		err = json.Unmarshal(raw, &t.AgentProtocol)
+		if err != nil {
+			return fmt.Errorf("error reading 'agentProtocol': %w", err)
+		}
+	}
+
 	if raw, found := object["categories"]; found {
 		err = json.Unmarshal(raw, &t.Categories)
 		if err != nil {
@@ -14421,6 +14679,13 @@ func (t *CatalogSearch) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Cursor)
 		if err != nil {
 			return fmt.Errorf("error reading 'cursor': %w", err)
+		}
+	}
+
+	if raw, found := object["includeMcpTools"]; found {
+		err = json.Unmarshal(raw, &t.IncludeMcpTools)
+		if err != nil {
+			return fmt.Errorf("error reading 'includeMcpTools': %w", err)
 		}
 	}
 
@@ -14683,6 +14948,13 @@ func (t CatalogSearchResult) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.ToolMatch != nil {
+		object["toolMatch"], err = json.Marshal(t.ToolMatch)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'toolMatch': %w", err)
+		}
+	}
+
 	object["type"], err = json.Marshal(t.Type)
 	if err != nil {
 		return nil, fmt.Errorf("error marshaling 'type': %w", err)
@@ -14817,6 +15089,13 @@ func (t *CatalogSearchResult) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.Tags)
 		if err != nil {
 			return fmt.Errorf("error reading 'tags': %w", err)
+		}
+	}
+
+	if raw, found := object["toolMatch"]; found {
+		err = json.Unmarshal(raw, &t.ToolMatch)
+		if err != nil {
+			return fmt.Errorf("error reading 'toolMatch': %w", err)
 		}
 	}
 
@@ -15569,10 +15848,24 @@ func (t PersonalCriteria) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.AgentProtocol != nil {
+		object["agentProtocol"], err = json.Marshal(t.AgentProtocol)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'agentProtocol': %w", err)
+		}
+	}
+
 	if t.Categories != nil {
 		object["categories"], err = json.Marshal(t.Categories)
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'categories': %w", err)
+		}
+	}
+
+	if t.IncludeMcpTools != nil {
+		object["includeMcpTools"], err = json.Marshal(t.IncludeMcpTools)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'includeMcpTools': %w", err)
 		}
 	}
 
@@ -15653,10 +15946,24 @@ func (t *PersonalCriteria) UnmarshalJSON(b []byte) error {
 		return err
 	}
 
+	if raw, found := object["agentProtocol"]; found {
+		err = json.Unmarshal(raw, &t.AgentProtocol)
+		if err != nil {
+			return fmt.Errorf("error reading 'agentProtocol': %w", err)
+		}
+	}
+
 	if raw, found := object["categories"]; found {
 		err = json.Unmarshal(raw, &t.Categories)
 		if err != nil {
 			return fmt.Errorf("error reading 'categories': %w", err)
+		}
+	}
+
+	if raw, found := object["includeMcpTools"]; found {
+		err = json.Unmarshal(raw, &t.IncludeMcpTools)
+		if err != nil {
+			return fmt.Errorf("error reading 'includeMcpTools': %w", err)
 		}
 	}
 
@@ -18181,7 +18488,7 @@ type ClientInterface interface {
 
 	// GetCatalogRecord Get a governed Catalog record
 	//
-	// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+	// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 	//
 	// Corresponds with GET /api/v1/catalog/resources/{catalogRecordId} (the `GetCatalogRecord` operationId).
 	GetCatalogRecord(ctx context.Context, catalogRecordId CatalogRecordId, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -18263,7 +18570,7 @@ type ClientInterface interface {
 
 	// ListFederationSources List federation sources
 	//
-	// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+	// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 	//
 	// Corresponds with GET /api/v1/federation/sources (the `ListFederationSources` operationId).
 	ListFederationSources(ctx context.Context, params *ListFederationSourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -18503,7 +18810,7 @@ type ClientInterface interface {
 
 	// ListOwnFeedback List your own feedback
 	//
-	// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+	// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 	//
 	// Corresponds with GET /api/v1/feedback (the `ListOwnFeedback` operationId).
 	ListOwnFeedback(ctx context.Context, params *ListOwnFeedbackParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -18686,6 +18993,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /api/v1/listing-releases/{releaseId} (the `GetListingRelease` operationId).
 	GetListingRelease(ctx context.Context, releaseId ReleaseId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreviewListingReleaseWithdrawal Preview discovery snapshots affected by release withdrawal
+	//
+	// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+	//
+	// Corresponds with GET /api/v1/listing-releases/{releaseId}/withdrawal-preview (the `PreviewListingReleaseWithdrawal` operationId).
+	PreviewListingReleaseWithdrawal(ctx context.Context, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeprecateListingReleaseWithBody Deprecate a listing release
 	//
@@ -19641,7 +19955,7 @@ type ClientInterface interface {
 
 	// ListReviewSubmissions List review submissions
 	//
-	// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+	// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 	//
 	// Corresponds with GET /api/v1/review-submissions (the `ListReviewSubmissions` operationId).
 	ListReviewSubmissions(ctx context.Context, params *ListReviewSubmissionsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -21188,7 +21502,7 @@ func (c *Client) BrowseCatalog(ctx context.Context, params *BrowseCatalogParams,
 
 // GetCatalogRecord Get a governed Catalog record
 //
-// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 //
 // Corresponds with GET /api/v1/catalog/resources/{catalogRecordId} (the `GetCatalogRecord` operationId).
 func (c *Client) GetCatalogRecord(ctx context.Context, catalogRecordId CatalogRecordId, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -21370,7 +21684,7 @@ func (c *Client) GetFederationSourceInspection(ctx context.Context, inspectionId
 
 // ListFederationSources List federation sources
 //
-// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 //
 // Corresponds with GET /api/v1/federation/sources (the `ListFederationSources` operationId).
 func (c *Client) ListFederationSources(ctx context.Context, params *ListFederationSourcesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -21890,7 +22204,7 @@ func (c *Client) LiveFederatedSearch(ctx context.Context, params *LiveFederatedS
 
 // ListOwnFeedback List your own feedback
 //
-// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 //
 // Corresponds with GET /api/v1/feedback (the `ListOwnFeedback` operationId).
 func (c *Client) ListOwnFeedback(ctx context.Context, params *ListOwnFeedbackParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -22284,6 +22598,23 @@ func (c *Client) RetryJob(ctx context.Context, jobId JobId, params *RetryJobPara
 // Corresponds with GET /api/v1/listing-releases/{releaseId} (the `GetListingRelease` operationId).
 func (c *Client) GetListingRelease(ctx context.Context, releaseId ReleaseId, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetListingReleaseRequest(c.Server, releaseId)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// PreviewListingReleaseWithdrawal Preview discovery snapshots affected by release withdrawal
+//
+// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+//
+// Corresponds with GET /api/v1/listing-releases/{releaseId}/withdrawal-preview (the `PreviewListingReleaseWithdrawal` operationId).
+func (c *Client) PreviewListingReleaseWithdrawal(ctx context.Context, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreviewListingReleaseWithdrawalRequest(c.Server, releaseId, params)
 	if err != nil {
 		return nil, safeError(err)
 	}
@@ -24408,7 +24739,7 @@ func (c *Client) DeleteResource(ctx context.Context, resourceId ResourceId, para
 
 // ListReviewSubmissions List review submissions
 //
-// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 //
 // Corresponds with GET /api/v1/review-submissions (the `ListReviewSubmissions` operationId).
 func (c *Client) ListReviewSubmissions(ctx context.Context, params *ListReviewSubmissionsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -27821,6 +28152,18 @@ func NewBrowseCatalogRequest(server string, params *BrowseCatalogParams) (*http.
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
+		if params.AgentProtocol != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "agentProtocol", *params.AgentProtocol, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.NamespaceId != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespaceId", *params.NamespaceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
@@ -28291,6 +28634,18 @@ func NewListFederationSourcesRequest(server string, params *ListFederationSource
 		if params.DisplayName != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "displayName", *params.DisplayName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SyncState != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "syncState", *params.SyncState, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, safeError(err)
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -29459,6 +29814,18 @@ func NewListOwnFeedbackRequest(server string, params *ListOwnFeedbackParams) (*h
 
 		}
 
+		if params.Order != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "order", *params.Order, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
@@ -30311,6 +30678,63 @@ func NewGetListingReleaseRequest(server string, releaseId ReleaseId) (*http.Requ
 	queryURL, err := serverURL.Parse(operationPath)
 	if err != nil {
 		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewPreviewListingReleaseWithdrawalRequest constructs an http.Request for the PreviewListingReleaseWithdrawal method
+func NewPreviewListingReleaseWithdrawalRequest(server string, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "releaseId", releaseId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/listing-releases/%s/withdrawal-preview", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if queryFrag, err := runtime.StyleParamWithOptions("form", true, "transition", params.Transition, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+			return nil, safeError(err)
+		} else {
+			for _, qp := range strings.Split(queryFrag, "&") {
+				rawQueryFragments = append(rawQueryFragments, qp)
+			}
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
@@ -34956,6 +35380,18 @@ func NewListReviewSubmissionsRequest(server string, params *ListReviewSubmission
 		// per the OpenAPI spec (e.g. "color=blue,black,brown").
 		var rawQueryFragments []string
 
+		if params.NamespaceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespaceId", *params.NamespaceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
 		if params.Unreleased != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "unreleased", *params.Unreleased, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "boolean", Format: ""}); err != nil {
@@ -37517,7 +37953,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetCatalogRecordWithResponse Get a governed Catalog record
 	//
-	// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+	// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -37607,7 +38043,7 @@ type ClientWithResponsesInterface interface {
 
 	// ListFederationSourcesWithResponse List federation sources
 	//
-	// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+	// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -37859,7 +38295,7 @@ type ClientWithResponsesInterface interface {
 
 	// ListOwnFeedbackWithResponse List your own feedback
 	//
-	// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+	// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -38054,6 +38490,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /api/v1/listing-releases/{releaseId} (the `GetListingRelease` operationId).
 	GetListingReleaseWithResponse(ctx context.Context, releaseId ReleaseId, reqEditors ...RequestEditorFn) (*GetListingReleaseResponse, error)
+
+	// PreviewListingReleaseWithdrawalWithResponse Preview discovery snapshots affected by release withdrawal
+	//
+	// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/listing-releases/{releaseId}/withdrawal-preview (the `PreviewListingReleaseWithdrawal` operationId).
+	PreviewListingReleaseWithdrawalWithResponse(ctx context.Context, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams, reqEditors ...RequestEditorFn) (*PreviewListingReleaseWithdrawalResponse, error)
 
 	// DeprecateListingReleaseWithBodyWithResponse Deprecate a listing release
 	//
@@ -39101,7 +39546,7 @@ type ClientWithResponsesInterface interface {
 
 	// ListReviewSubmissionsWithResponse List review submissions
 	//
-	// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+	// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -45057,6 +45502,70 @@ func (r GetListingReleaseResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetListingReleaseResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// PreviewListingReleaseWithdrawalResponse200Headers the declared response headers of an HTTP 200 response for PreviewListingReleaseWithdrawal
+type PreviewListingReleaseWithdrawalResponse200Headers struct {
+	CacheControl *string
+}
+
+// PreviewListingReleaseWithdrawalResponseDefaultHeaders the declared response headers of an HTTP default response for PreviewListingReleaseWithdrawal
+type PreviewListingReleaseWithdrawalResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type PreviewListingReleaseWithdrawalResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ReleaseWithdrawalPreview
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *PreviewListingReleaseWithdrawalResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *PreviewListingReleaseWithdrawalResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PreviewListingReleaseWithdrawalResponse) GetJSON200() *ReleaseWithdrawalPreview {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PreviewListingReleaseWithdrawalResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PreviewListingReleaseWithdrawalResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreviewListingReleaseWithdrawalResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreviewListingReleaseWithdrawalResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreviewListingReleaseWithdrawalResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -53842,7 +54351,7 @@ func (c *ClientWithResponses) BrowseCatalogWithResponse(ctx context.Context, par
 
 // GetCatalogRecordWithResponse Get a governed Catalog record
 //
-// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -53992,7 +54501,7 @@ func (c *ClientWithResponses) GetFederationSourceInspectionWithResponse(ctx cont
 
 // ListFederationSourcesWithResponse List federation sources
 //
-// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -54412,7 +54921,7 @@ func (c *ClientWithResponses) LiveFederatedSearchWithResponse(ctx context.Contex
 
 // ListOwnFeedbackWithResponse List your own feedback
 //
-// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -54738,6 +55247,21 @@ func (c *ClientWithResponses) GetListingReleaseWithResponse(ctx context.Context,
 		return nil, safeError(err)
 	}
 	return ParseGetListingReleaseResponse(rsp)
+}
+
+// PreviewListingReleaseWithdrawalWithResponse Preview discovery snapshots affected by release withdrawal
+//
+// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/listing-releases/{releaseId}/withdrawal-preview (the `PreviewListingReleaseWithdrawal` operationId).
+func (c *ClientWithResponses) PreviewListingReleaseWithdrawalWithResponse(ctx context.Context, releaseId ReleaseId, params *PreviewListingReleaseWithdrawalParams, reqEditors ...RequestEditorFn) (*PreviewListingReleaseWithdrawalResponse, error) {
+	rsp, err := c.PreviewListingReleaseWithdrawal(ctx, releaseId, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParsePreviewListingReleaseWithdrawalResponse(rsp)
 }
 
 // DeprecateListingReleaseWithBodyWithResponse Deprecate a listing release
@@ -56482,7 +57006,7 @@ func (c *ClientWithResponses) DeleteResourceWithResponse(ctx context.Context, re
 
 // ListReviewSubmissionsWithResponse List review submissions
 //
-// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -64182,6 +64706,77 @@ func ParseGetListingReleaseResponse(rsp *http.Response) (result *GetListingRelea
 		response.Headers200 = &headers
 	case true:
 		var headers GetListingReleaseResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParsePreviewListingReleaseWithdrawalResponse parses an HTTP response from a PreviewListingReleaseWithdrawalWithResponse call
+func ParsePreviewListingReleaseWithdrawalResponse(rsp *http.Response) (result *PreviewListingReleaseWithdrawalResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &PreviewListingReleaseWithdrawalResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ReleaseWithdrawalPreview
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers PreviewListingReleaseWithdrawalResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers PreviewListingReleaseWithdrawalResponseDefaultHeaders
 		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {

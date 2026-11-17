@@ -1,0 +1,7 @@
+{
+  "text": "pdf tables",
+  "includeMcpTools": true,
+  "origins": ["local"],
+  "kinds": ["mcp_server"],
+  "limit": 20
+}

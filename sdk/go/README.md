@@ -312,3 +312,16 @@ if page.StatusCode() != 200 || page.JSON200 == nil {
 ```
 
 Here `beforeID` and `afterID` are `catalogclient.UUID` values, not Resource or observation IDs. Use `CompareFederationSourceSnapshotsParamsViewAll` to include unchanged entries. Read the [comparison semantics and permissions](../../documentation/src/content/docs/operations/federation.mdx#compare-two-saved-synchronizations) before interpreting absence or multiple occurrences. A refused continuation requires an explicit new read; the SDK does not restart it.
+
+## Find servers by declared MCP tools
+
+Control Search supports the optional wire field `includeMcpTools: true` with
+nonblank `text` and explicit `origins: ["local"]`. Use MCP kinds only and omit
+`agentProtocol`. Generated request types expose the corresponding field in this
+language. The response has optional `toolMatch` metadata with an exact
+representation ID, digest and at most three matching names/descriptions; `local`
+contains the exact release and revision references. This is private author-declared
+metadata, requires current content-read access, and makes no server or embedding
+provider call. Ordinary Search is unchanged when omitted. See the
+[reader guide](../../documentation/src/content/docs/guides/catalog-ui.mdx#find-mcp-servers-by-declared-tools)
+for admission bounds, saved criteria and release lifecycle behavior.

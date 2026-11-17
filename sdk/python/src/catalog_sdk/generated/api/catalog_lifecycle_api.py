@@ -50,6 +50,9 @@ from catalog_sdk.generated.models.listing_revision_created import ListingRevisio
 from catalog_sdk.generated.models.publish_listing import PublishListing
 from catalog_sdk.generated.models.reason import Reason
 from catalog_sdk.generated.models.release_transition import ReleaseTransition
+from catalog_sdk.generated.models.release_withdrawal_preview import (
+    ReleaseWithdrawalPreview,
+)
 from catalog_sdk.generated.models.resource import Resource
 from catalog_sdk.generated.models.resource_kind import ResourceKind
 from catalog_sdk.generated.models.resource_page import ResourcePage
@@ -9838,6 +9841,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     async def list_review_submissions(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -9878,8 +9887,10 @@ class CatalogLifecycleApi:
     ) -> ListReviewSubmissions200Response:
         """List review submissions
 
-        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 
+        :param namespace_id: Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters.
+        :type namespace_id: UUID
         :param unreleased: True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter.
         :type unreleased: bool
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
@@ -9906,6 +9917,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
 
         _param = self._list_review_submissions_serialize(
+            namespace_id=namespace_id,
             unreleased=unreleased,
             limit=limit,
             cursor=cursor,
@@ -9933,6 +9945,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     async def list_review_submissions_with_http_info(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -9973,8 +9991,10 @@ class CatalogLifecycleApi:
     ) -> ApiResponse[ListReviewSubmissions200Response]:
         """List review submissions
 
-        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 
+        :param namespace_id: Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters.
+        :type namespace_id: UUID
         :param unreleased: True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter.
         :type unreleased: bool
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
@@ -10001,6 +10021,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
 
         _param = self._list_review_submissions_serialize(
+            namespace_id=namespace_id,
             unreleased=unreleased,
             limit=limit,
             cursor=cursor,
@@ -10028,6 +10049,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     async def list_review_submissions_without_preload_content(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -10068,8 +10095,10 @@ class CatalogLifecycleApi:
     ) -> RESTResponseType:
         """List review submissions
 
-        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+        Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
 
+        :param namespace_id: Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters.
+        :type namespace_id: UUID
         :param unreleased: True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter.
         :type unreleased: bool
         :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
@@ -10096,6 +10125,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
 
         _param = self._list_review_submissions_serialize(
+            namespace_id=namespace_id,
             unreleased=unreleased,
             limit=limit,
             cursor=cursor,
@@ -10119,6 +10149,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     def list_review_submissions_sync(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -10164,6 +10200,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
         return run_sync(
             self.list_review_submissions(
+                namespace_id=namespace_id,
                 unreleased=unreleased,
                 limit=limit,
                 cursor=cursor,
@@ -10180,6 +10217,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     def list_review_submissions_sync_with_http_info(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -10225,6 +10268,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
         return run_sync(
             self.list_review_submissions_with_http_info(
+                namespace_id=namespace_id,
                 unreleased=unreleased,
                 limit=limit,
                 cursor=cursor,
@@ -10241,6 +10285,12 @@ class CatalogLifecycleApi:
     @validate_call(config={"hide_input_in_errors": True})
     def list_review_submissions_sync_without_preload_content(
         self,
+        namespace_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters."
+            ),
+        ] = None,
         unreleased: Annotated[
             Optional[StrictBool],
             Field(
@@ -10286,6 +10336,7 @@ class CatalogLifecycleApi:
         """  # noqa: E501
         return run_sync(
             self.list_review_submissions_without_preload_content(
+                namespace_id=namespace_id,
                 unreleased=unreleased,
                 limit=limit,
                 cursor=cursor,
@@ -10301,6 +10352,7 @@ class CatalogLifecycleApi:
 
     def _list_review_submissions_serialize(
         self,
+        namespace_id,
         unreleased,
         limit,
         cursor,
@@ -10327,6 +10379,9 @@ class CatalogLifecycleApi:
 
         # process the path parameters
         # process the query parameters
+        if namespace_id is not None:
+            _query_params.append(("namespaceId", namespace_id))
+
         if unreleased is not None:
             _query_params.append(("unreleased", unreleased))
 
@@ -10800,6 +10855,378 @@ class CatalogLifecycleApi:
         return self.api_client.param_serialize(
             method="GET",
             resource_path="/api/v1/resource-versions/{versionId}/revisions",
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def preview_listing_release_withdrawal(
+        self,
+        transition: Annotated[
+            StrictStr,
+            Field(
+                description="The intended release disposition. Exactly one nonempty value is required."
+            ),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ReleaseWithdrawalPreview:
+        """Preview discovery snapshots affected by release withdrawal
+
+        Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+
+        :param transition: The intended release disposition. Exactly one nonempty value is required. (required)
+        :type transition: str
+        :param release_id: Listing release identifier. (required)
+        :type release_id: UUID
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._preview_listing_release_withdrawal_serialize(
+            transition=transition,
+            release_id=release_id,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ReleaseWithdrawalPreview",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def preview_listing_release_withdrawal_with_http_info(
+        self,
+        transition: Annotated[
+            StrictStr,
+            Field(
+                description="The intended release disposition. Exactly one nonempty value is required."
+            ),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ReleaseWithdrawalPreview]:
+        """Preview discovery snapshots affected by release withdrawal
+
+        Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+
+        :param transition: The intended release disposition. Exactly one nonempty value is required. (required)
+        :type transition: str
+        :param release_id: Listing release identifier. (required)
+        :type release_id: UUID
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._preview_listing_release_withdrawal_serialize(
+            transition=transition,
+            release_id=release_id,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ReleaseWithdrawalPreview",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def preview_listing_release_withdrawal_without_preload_content(
+        self,
+        transition: Annotated[
+            StrictStr,
+            Field(
+                description="The intended release disposition. Exactly one nonempty value is required."
+            ),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Preview discovery snapshots affected by release withdrawal
+
+        Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+
+        :param transition: The intended release disposition. Exactly one nonempty value is required. (required)
+        :type transition: str
+        :param release_id: Listing release identifier. (required)
+        :type release_id: UUID
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._preview_listing_release_withdrawal_serialize(
+            transition=transition,
+            release_id=release_id,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ReleaseWithdrawalPreview",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def preview_listing_release_withdrawal_sync(
+        self,
+        transition: Annotated[
+            StrictStr,
+            Field(
+                description="The intended release disposition. Exactly one nonempty value is required."
+            ),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ReleaseWithdrawalPreview:
+        """Preview discovery snapshots affected by release withdrawal (synchronous)
+
+        Synchronous variant of :meth:`preview_listing_release_withdrawal`. It calls the asynchronous
+        method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.preview_listing_release_withdrawal(
+                transition=transition,
+                release_id=release_id,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def preview_listing_release_withdrawal_sync_with_http_info(
+        self,
+        transition: Annotated[
+            StrictStr,
+            Field(
+                description="The intended release disposition. Exactly one nonempty value is required."
+            ),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ReleaseWithdrawalPreview]:
+        """Preview discovery snapshots affected by release withdrawal (synchronous)
+
+        Synchronous variant of :meth:`preview_listing_release_withdrawal_with_http_info`. It calls the
+        asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.preview_listing_release_withdrawal_with_http_info(
+                transition=transition,
+                release_id=release_id,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def preview_listing_release_withdrawal_sync_without_preload_content(
+        self,
+        transition: Annotated[
+            StrictStr,
+            Field(
+                description="The intended release disposition. Exactly one nonempty value is required."
+            ),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Preview discovery snapshots affected by release withdrawal (synchronous)
+
+        Synchronous variant of :meth:`preview_listing_release_withdrawal_without_preload_content`. It calls
+        the asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.preview_listing_release_withdrawal_without_preload_content(
+                transition=transition,
+                release_id=release_id,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    def _preview_listing_release_withdrawal_serialize(
+        self,
+        transition,
+        release_id,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {}
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        if release_id is not None:
+            _path_params["releaseId"] = release_id
+        # process the query parameters
+        if transition is not None:
+            _query_params.append(("transition", transition))
+
+        # process the header parameters
+        # process the form parameters
+        # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json", "application/problem+json"]
+            )
+
+        # authentication setting
+        _auth_settings: List[str] = ["bearerAuth"]
+
+        return self.api_client.param_serialize(
+            method="GET",
+            resource_path="/api/v1/listing-releases/{releaseId}/withdrawal-preview",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

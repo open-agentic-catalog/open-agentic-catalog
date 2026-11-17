@@ -100,7 +100,7 @@ func writeExport(ctx context.Context, parent *os.Root, name string, manifest exp
 }
 
 func createExportDirectory(parent *os.Root, name string) (*os.Root, error) {
-	fail := safeerr.New("export: cannot save private files; a directory without export.json is incomplete")
+	fail := safeerr.New("export: cannot create the private output directory")
 	// Exclusive creation is the overwrite policy. Never rename a staging
 	// directory over a possibly existing directory after a racy precheck.
 	if parent.Mkdir(name, 0700) != nil {
@@ -120,7 +120,7 @@ func createExportDirectory(parent *os.Root, name string) (*os.Root, error) {
 }
 
 func writeExportFile(ctx context.Context, root *os.Root, name string, raw []byte) error {
-	fail := safeerr.New("export: cannot save private files; a directory without export.json is incomplete")
+	fail := safeerr.New("export: cannot save the private output file")
 	var suffix [12]byte
 	if _, err := rand.Read(suffix[:]); err != nil {
 		return fail

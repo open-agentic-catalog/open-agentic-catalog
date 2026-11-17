@@ -119,9 +119,11 @@ type Source struct {
 	LastCompleteSnapshotID  string                `json:"lastCompleteSnapshotId,omitempty"`
 	LastSyncAt              *time.Time            `json:"lastSyncAt,omitempty"`
 	LastError               string                `json:"lastError,omitempty"`
-	CreatedBy               string                `json:"createdBy"`
-	CreatedAt               time.Time             `json:"createdAt"`
-	UpdatedAt               time.Time             `json:"updatedAt"`
+	// LatestCompletedSync is a directory-only projection, never configuration.
+	LatestCompletedSync *SourceSyncAttempt `json:"latestCompletedSync,omitempty"`
+	CreatedBy           string             `json:"createdBy"`
+	CreatedAt           time.Time          `json:"createdAt"`
+	UpdatedAt           time.Time          `json:"updatedAt"`
 	// InspectionID identifies the inspection consumed by this revision write. It
 	// is transient persistence metadata, not current source state or API data.
 	InspectionID string `json:"-"`
@@ -357,9 +359,19 @@ type ObservationGroup struct {
 type SourceListRequest struct {
 	DisplayName      string
 	Status           SourceStatus
+	SyncState        SnapshotState
 	AfterDisplayName string
 	AfterID          string
 	Limit            int
+}
+
+// SourceSyncAttempt identifies the latest completed current-revision indexed
+// attempt. It does not replace last complete membership or establish freshness.
+type SourceSyncAttempt struct {
+	SnapshotID  string        `json:"snapshotId"`
+	Revision    int64         `json:"revision"`
+	State       SnapshotState `json:"state"`
+	CompletedAt time.Time     `json:"completedAt"`
 }
 
 type SnapshotListRequest struct {

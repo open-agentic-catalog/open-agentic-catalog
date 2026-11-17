@@ -5,6 +5,7 @@ import {
   atField,
   byteText,
   characterText,
+  trimGoWhitespace,
   metadataTerms,
   InputError,
 } from "./input-validation";
@@ -80,6 +81,8 @@ export default function SearchFilters({
     (value.categories?.length ?? 0) +
     Number(!!value.visibility) +
     Number(!!value.namespaceId) +
+    Number(!!value.agentProtocol) +
+    Number(!!value.includeMcpTools) +
     (value.origins?.length ?? 0);
   // Tags are exact values; preserve case, Unicode spelling and code-unit order.
   const tagChoices = [...new Set([...(draft.tags ?? []), ...tags])].sort(
@@ -179,6 +182,23 @@ export default function SearchFilters({
         throw new Error(
           "External origins require federation.discover permission and catalog.read when scopes are enforced. Remove those selections or clear the filters.",
         );
+      if (draft.includeMcpTools && !trimGoWhitespace(searchText))
+        throw new Error(
+          "Enter and apply search text before including declared tools.",
+        );
+      const agentProtocol = atField("filter-agent-protocol", () => {
+        const value = characterText(
+          draft.agentProtocol ?? "",
+          "Declared A2A protocol",
+          256,
+        );
+        if (value && !trimGoWhitespace(value))
+          throw new InputError(
+            "Enter a nonblank protocol declaration.",
+            "filter-agent-protocol",
+          );
+        return value;
+      });
       const license = atField("filter-license", () =>
         characterText((draft.license ?? "").trim(), "License", 256),
       );
@@ -198,6 +218,7 @@ export default function SearchFilters({
       );
       onApply({
         ...draft,
+        ...(draft.agentProtocol !== undefined ? { agentProtocol } : {}),
         ...(draft.publisher !== undefined ? { publisher } : {}),
         tags,
         ...(draft.license !== undefined ? { license } : {}),
@@ -391,10 +412,14 @@ export default function SearchFilters({
                   hint="All selected categories must match. Missing declarations do not match."
                 />
               </section>
-              <KindSelection
-                value={draft.kinds ?? []}
-                onChange={(kinds) => setDraft({ ...draft, kinds })}
-              />
+              <fieldset disabled={!!draft.includeMcpTools}>
+                <KindSelection
+                  value={
+                    draft.includeMcpTools ? ["mcp_server"] : (draft.kinds ?? [])
+                  }
+                  onChange={(kinds) => setDraft({ ...draft, kinds })}
+                />
+              </fieldset>
               <section
                 className="filter-group"
                 aria-labelledby="tag-filter-heading"
@@ -508,10 +533,15 @@ export default function SearchFilters({
                             : ["local"])
                         ).includes(origin)}
                         disabled={
-                          origin !== "local" &&
-                          (!!draft.namespaceId ||
-                            (!externalAllowed &&
-                              !draft.origins?.includes(origin)))
+                          (origin === "local" &&
+                            (!!draft.agentProtocol ||
+                              !!draft.includeMcpTools)) ||
+                          (origin !== "local" &&
+                            (!!draft.namespaceId ||
+                              !!draft.agentProtocol ||
+                              !!draft.includeMcpTools ||
+                              (!externalAllowed &&
+                                !draft.origins?.includes(origin))))
                         }
                         onChange={(e) => {
                           const current =
@@ -568,39 +598,104 @@ export default function SearchFilters({
                     }
                   />
                 )}
-                <label className="filter-field">
-                  Exact namespace ID
-                  <input
-                    id="filter-namespace"
-                    value={draft.namespaceId ?? ""}
-                    maxLength={36}
-                    pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
-                    placeholder="Known namespace UUID"
-                    onChange={(event) => {
-                      const namespaceId = event.target.value || undefined;
-                      setDraft({
-                        ...draft,
-                        namespaceId,
-                        origins: namespaceId ? ["local"] : draft.origins,
-                      });
-                    }}
-                  />
-                </label>
-                <p className="filter-help">
-                  A manually entered ID is not a verified namespace or an access
-                  grant. Namespace directory access is needed only for loading
-                  choices.
-                </p>
-                <p className="filter-help">
-                  A Namespace limits results to local resources. Removing it
-                  leaves Local Catalog selected until you change Origin.
-                </p>
+                <div className="filter-group">
+                  <label className="filter-field">
+                    Exact namespace ID
+                    <input
+                      id="filter-namespace"
+                      value={draft.namespaceId ?? ""}
+                      maxLength={36}
+                      pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+                      placeholder="Known namespace UUID"
+                      onChange={(event) => {
+                        const namespaceId = event.target.value || undefined;
+                        setDraft({
+                          ...draft,
+                          namespaceId,
+                          origins: namespaceId ? ["local"] : draft.origins,
+                        });
+                      }}
+                    />
+                  </label>
+                  <p className="filter-help">
+                    A manually entered ID is not a verified namespace or an
+                    access grant. Namespace directory access is needed only for
+                    loading choices.
+                  </p>
+                  <p className="filter-help">
+                    A Namespace limits results to local resources. Removing it
+                    leaves Local Catalog selected until you change Origin.
+                  </p>
+                </div>
                 <details
                   className="filter-more"
                   open={advanced}
                   onToggle={(event) => setAdvanced(event.currentTarget.open)}
                 >
                   <summary>More filters</summary>
+                  <section className="filter-group">
+                    <label className="filter-option">
+                      <input
+                        type="checkbox"
+                        checked={!!draft.includeMcpTools}
+                        disabled={!!draft.agentProtocol}
+                        onChange={(event) =>
+                          setDraft({
+                            ...draft,
+                            includeMcpTools: event.target.checked,
+                            ...(event.target.checked
+                              ? { origins: ["local"], kinds: ["mcp_server"] }
+                              : {}),
+                          })
+                        }
+                      />
+                      Include declared MCP tools
+                    </label>
+                    <p className="filter-help">
+                      Match names and descriptions in private, released tool
+                      declarations as well as listing text. Requires search text
+                      and content-read access. Selects local MCP servers and
+                      lexical search; no server or embedding provider is
+                      contacted.
+                    </p>
+                  </section>
+                  <section
+                    className="filter-group"
+                    aria-labelledby="agent-protocol-heading"
+                  >
+                    <h3 id="agent-protocol-heading">Declared A2A protocol</h3>
+                    <label className="filter-field">
+                      <span>Agent protocol binding</span>
+                      <input
+                        disabled={!!draft.includeMcpTools}
+                        id="filter-agent-protocol"
+                        list={`${descriptionID}-protocols`}
+                        value={draft.agentProtocol ?? ""}
+                        maxLength={512}
+                        onChange={(event) =>
+                          setDraft({
+                            ...draft,
+                            agentProtocol: event.target.value,
+                            ...(event.target.value
+                              ? { origins: ["local"] }
+                              : {}),
+                          })
+                        }
+                      />
+                    </label>
+                    <datalist id={`${descriptionID}-protocols`}>
+                      {["HTTP+JSON", "JSONRPC", "GRPC"].map((value) => (
+                        <option key={value} value={value} />
+                      ))}
+                    </datalist>
+                    <p className="filter-help">
+                      Exact declaration from a released primary Agent Card, up
+                      to 256 characters. Other literal bindings are accepted.
+                      Selecting a binding selects Local Catalog only and
+                      requires content-read access. This does not verify
+                      endpoint compatibility. Clear the field for any protocol.
+                    </p>
+                  </section>
                   <section
                     className="filter-group"
                     aria-labelledby="listing-filter-heading"

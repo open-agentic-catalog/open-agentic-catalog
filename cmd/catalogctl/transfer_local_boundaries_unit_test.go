@@ -143,7 +143,7 @@ func TestTransferFirstStateSavePreservesUnexpectedExistingFile(t *testing.T) {
 				t.Fatal(readErr)
 			}
 			if interference {
-				if err == nil || err.Error() != "import: cannot durably save state; preserve drafts and investigate before retrying" || !bytes.Equal(got, retained) || state.previous != nil {
+				if err == nil || err.Error() != "import: cannot durably save state; preserve progress and investigate before retrying" || !bytes.Equal(got, retained) || state.previous != nil {
 					t.Fatal("first save replaced unexpected retained bytes or recorded success", err)
 				}
 			} else {

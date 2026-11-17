@@ -7,9 +7,11 @@ import WebhookReceiver from "../../../components/architecture/WebhookReceiver.as
 
 Use the HTTP API for authoring, governance and private discovery. Use the configured Agentic Resource Discovery (ARD) interfaces for interoperable discovery. The Catalog never executes returned resources. You can call these APIs directly without an SDK, browser login or external service subscription.
 
-For a browser-first visit, [connect to an existing Catalog](reader-quickstart.mdx). Use the [search cookbook](search-cookbook.mdx) for matching UI/CLI recipes and [result interpretation](understand-results.mdx) for exact references and evidence limits. The [client matrix](../index.mdx#choose-a-client) compares supported workflows.
+For a browser-first visit, [connect to an existing Catalog](reader-quickstart.mdx). Use the [search cookbook](search-cookbook.mdx) for matching UI/CLI recipes and [result interpretation](understand-results.mdx) for exact references and evidence limits. The [client matrix](../index.mdx#choose-a-client) compares supported workflows. An operator can separately enable [anonymous browser discovery](catalog-ui.mdx#browse-a-public-directory) on the same fixed API authority. It uses manifest, List and federation-disabled Search without a private session.
 
 ## Choose an integration example
+
+For a native anonymous reader, use [`catalogctl discovery manifest` or `list`](../reference/commands.md#read-an-anonymous-publication). Each command reads one bounded response from an explicitly selected publication origin. It requires no credentials, SDK installation or model.
 
 Obtain the example files from a source checkout. Choose a workflow below, then follow its owning guide for exact tool versions, connection settings, limits and cleanup.
 
@@ -26,6 +28,8 @@ A Reader can search authorized local releases. Summarizing indexed or live resul
 The [LangGraph assistant](../../../../../examples/langgraph/README.md) supplies its own Python graph and two discovery tools. Install Python, uv and the installation-time Go toolchain, then prepare a local Ollama model. Its guide pins the versions and explains model disk and memory requirements.
 
 Configure a Reader bearer credential and API origin separately from the model. The tools search local releases and inspect selected local records; they exclude indexed and live results. Enforced OAuth scopes require `catalog.read`. Setup creates an optional Python environment and downloads model weights; discovery does not change Catalog data or execute returned resources.
+
+For standard discovery without private record reads, the separate [ARD graph](../../../../../examples/langgraph/README.md#search-approved-services-with-ard) uses Search and Explore on an active publication. It runs without an LLM by default. Configure the full endpoint URLs and each service's credentials and private CA; querying an advertised peer requires both an exact configured endpoint and explicit query-disclosure permission. Results retain per-service provenance and report incomplete discovery.
 
 ### Generate a Rust inventory report
 
@@ -66,6 +70,8 @@ The [Go webhook receiver example](../../../../../examples/webhookreceiver/README
 Custom receivers must implement event validation, durable acceptance and deduplication. Those operations create receiver-owned persistent state. The verifier outline does not provide a standalone server or storage implementation. Follow [webhook operations](../operations/webhooks.mdx) for enablement, rotation, retries and reconciliation.
 
 The `examples/` directory contains these client integrations and tutorial inputs. The `samples/` directory contains governed resource metadata and package inputs for the [sample Catalog](sample-catalog.mdx). The `api/examples/` directory contains reviewed request templates and notification payloads, indexed in [API assets](../../../../../api/README.md). The `test/` directory contains owned qualification fixtures and harnesses; use the [testing guide](../contributing/testing.md) to select their explicit checks.
+
+The [AgentField guide](agentfield.mdx) covers native public discovery and passive imports without enabling calls. Its independent records have documented field loss and manual update responsibilities.
 
 ## Obtain a local SDK package
 

@@ -6,7 +6,11 @@ Use this example to ask a local model for resources in your Catalog. The assista
 
 Use the [integration example chooser](../../documentation/src/content/docs/guides/integrating.mdx#choose-an-integration-example) to compare this graph with the terminal assistant Skill, OIDC tutorial and webhook receiver.
 
+For standard discovery across explicitly approved services, use the separate [ARD Search and Explore workflow](#search-approved-services-with-ard). Its default run needs no LLM. The SDK assistant below remains local-release-only.
+
 ## Before you start
+
+These prerequisites describe the SDK assistant. The ARD workflow uses the same locked Python environment, but its scripted mode needs no model or model weights.
 
 | Requirement | Prepare it |
 | --- | --- |
@@ -342,12 +346,112 @@ For the foreground `ollama serve` command, use Ctrl-C in that terminal. For the 
 
 The Python environment and downloaded weights remain on disk. Catalog records remain governed by the separately selected sample/OIDC setup and its cleanup instructions. Signing out with `catalogctl auth logout --file "$HOME/.catalog-login/langgraph.json"` removes that local credential file; it does not revoke provider sessions or delete Catalog data.
 
+## Search approved services with ARD
+
+Use `ard_agent.py` when you want standard ARD Search and Explore rather than private Catalog record reads. The workflow runs the actual LangGraph graph with two fixed tools. By default, a scripted selector explores types and categories, searches your text and returns up to five observed matches in service order. This needs no LLM and makes no claim about model recommendation quality.
+
+Install the [locked environment](#install-the-locked-environment). For this path, a Catalog needs an active discovery snapshot on the selected host; publishing a local release alone does not create that snapshot. Another compatible ARD service can also be configured. Use its full Search and Explore URLs, including any path prefix. The client does not append `/search`, download discovery documents or visit returned resource URLs.
+
+Create `services.json` with your actual endpoints:
+
+```json
+{
+  "primary": {
+    "search_url": "https://catalog.example.com/ard/v1/search",
+    "explore_url": "https://catalog.example.com/ard/v1/explore",
+    "token_env": "ARD_CATALOG_TOKEN"
+  }
+}
+```
+
+The two primary URLs must share an origin. An authenticated host needs a current discovery credential; `token_env` names the environment variable containing its bare bearer token. Obtain that credential through your deployment's normal sign-in or secret mechanism. An anonymous host needs no token: omit `token_env` instead of supplying an empty variable. For private TLS, add `ca_file` with the path to that service's PEM CA file. Certificate and hostname verification remain enabled.
+
+An authenticated Catalog host requires same-tenant `discovery.read` and, when OAuth scopes are enforced, `catalog.read`. A `discovery_reader` assignment supplies the Catalog permission. Private Resource-read permission is not required for this workflow.
+
+Without `ca_file`, the client uses HTTPX's default public CA bundle. Environment overrides such as `SSL_CERT_FILE` and `SSL_CERT_DIR` are ignored; configure private trust explicitly for each service.
+
+For the owned development sample Catalog, the API port is normally 18086. Replace both URLs with `http://127.0.0.1:18086/ard/v1/search` and `http://127.0.0.1:18086/ard/v1/explore`, and add `"allow_loopback_http": true` at the top level. Use the fixture's actual port if different. This exception accepts literal loopback addresses only; it does not enable remote cleartext HTTP. The UI port is not a discovery endpoint.
+
+Supply the selected token through your secret mechanism, then run:
+
+```sh
+export LANGGRAPH_ARD_CONFIG="$PWD/services.json"
+export LANGGRAPH_ARD_QUERY='web testing'
+make langgraph-ard-demo
+```
+
+The configuration contains endpoint and credential-binding names, not token values. Neither the Python entry point nor the SDK loads `.env`. Keep real credentials out of command arguments and committed files. Configuration paths and queries supplied to the Make launcher are treated as literal text.
+
+For exact filters, call the same entry point with `--type` or `--category`:
+
+```sh
+examples/langgraph/.venv/bin/python -B examples/langgraph/ard_agent.py \
+  --config services.json --query 'web testing' --category 'developer tools'
+```
+
+Repeat a flag for OR within that field; type and category constraints combine with AND. A type is an ARD media type from the Explore response, rather than a Control API kind such as `agent`. Categories use the published Dublin Core subject labels. Configured command-line filters remain fixed even if a model proposes different criteria. Explore requests type and topic facets from the primary service's local publication only.
+
+### Allow a particular referral
+
+The default Search always sends `federation: "none"`. Merely configuring a second service does not authorize sending it your question. To permit that disclosure, configure one exact second Search URL and set `disclose_to_referral` deliberately:
+
+```json
+{
+  "primary": {
+    "search_url": "https://catalog.example.com/ard/v1/search",
+    "explore_url": "https://catalog.example.com/ard/v1/explore",
+    "token_env": "ARD_CATALOG_TOKEN"
+  },
+  "referral": {
+    "search_url": "https://partner.example.org/discovery/search",
+    "token_env": "ARD_PARTNER_TOKEN",
+    "ca_file": "partner-ca.pem"
+  },
+  "disclose_to_referral": true
+}
+```
+
+This permits the same admitted text and filters to leave for that exact URL if the primary response offers it as a referral. It is not a request to query every configured service. The first Search uses `referrals`; the approved second Search uses `none`. Further referrals, unapproved URLs and differently spelled endpoint paths are not followed. Omitted referrals appear in the result, so they cannot be mistaken for a completed empty search.
+
+Each destination has its own token and private trust. The primary credential is never a fallback for the partner. Requests do not use environment proxies, retain cookies or follow redirects. A reported result `source`, entry `url`, inline definition or trust evidence URL never becomes a network destination.
+
+### Read complete and incomplete results
+
+The JSON output includes `status`, `observed_results`, recommendations and tool observations. Each recommendation binds an opaque `result_id` to metadata actually returned in this run. `responder` identifies the configured Search URL that answered; `source` retains that service's reported origin. Identical resource identifiers from different services or sparse result variants remain separate. An omitted version stays omitted, while `"version": ""` remains an explicitly empty value. Optional names and types are not fabricated.
+
+`score` is that service's relevance ranking. The client preserves service order and per-service rank; it does not compare scores globally. Trust declarations remain unverified data, and the fixed `trust: "not_verified"` outcome applies to the whole run. Recommendations authorize no installation, resource request, tool execution or trust assessment.
+
+| Status | Meaning | CLI exit |
+| --- | --- | --- |
+| `complete` | Selected reads reached their terminal pages without refusal, omission or a reported partial stage. A genuinely empty Search is possible. | 0 |
+| `partial` | Earlier valid results remain, but a later read, budget or omitted referral prevents a complete observation. | 2 |
+| `failed` | Required discovery did not complete and no usable Search result was retained. A configuration or graph error also fails safely. | 1 |
+
+These exit codes apply to `ard_agent.py` directly. GNU Make returns 2 when a recipe fails, so callers of `make langgraph-ard-demo` should inspect the JSON `status` to distinguish partial from failed discovery.
+
+The client follows at most three pages of ten results per service, with one approved referral hop. Discovery shares a sixteen-request limit across tools, and graph execution has a five-minute budget. Each discovery HTTP exchange, including its body, has a ten-second deadline. Decoded JSON bodies are limited to 2 MiB. Repeated tokens/results, changed filters, malformed consumed fields and over-limit responses refuse further traversal. The Catalog's `Server-Timing` partial-federation signal is retained as an incomplete observation. No request automatically restarts discovery, removes a filter or substitutes another service after failure. Perform a new explicit run after correcting the cause.
+
+Only selected metadata reaches the graph: inline resource definitions are omitted from tool context, descriptions are bounded excerpts, and trust declarations are not supplied as instructions. The final selected facts come from retained response projections rather than model-written resource fields.
+
+### Optionally use your local model
+
+The model-free Make command ignores model configuration. To let a local tool-calling model choose search criteria and explain its selection, use the explicit flag:
+
+```sh
+examples/langgraph/.venv/bin/python -B examples/langgraph/ard_agent.py \
+  --config services.json --query 'Find tools for web testing' --local-model \
+  --model-origin http://127.0.0.1:11434 --model qwen2.5:7b
+```
+
+Prepare the [local model](#start-a-local-model) separately. This command neither downloads weights nor enables hosted inference or tracing. It retains the same fixed tools, endpoint policy, filter bindings and request limits. The maintained ARD qualification uses a scripted model; it establishes protocol and graph behavior, not actual-model selection quality. The existing `test-langgraph-model` target continues to qualify the original local-release SDK workflow separately.
+
 ## Verify the example
 
 | Command | What it proves |
 | --- | --- |
 | `make test-langgraph-unit` | Isolated tool/graph behavior, input and output checks, bounds, cancellation and safe diagnostics. Uses in-memory test doubles, with no listeners or model calls. |
 | `make test-langgraph` | Units plus the actual SDK and graph against an owned local Catalog HTTP fixture. A scripted model chooses known tool calls; this is not real-model qualification. |
+| `make test-langgraph-ard` | Units plus the actual ARD graph against an owned publication and separate HTTPS peer. Checks Search/Explore, referral consent, credentials, private CAs, continuation, failures and absence of resource or unapproved-destination requests. No LLM is needed. |
 | `make test-langgraph-model LANGGRAPH_MODEL_ORIGIN=http://127.0.0.1:11434` | Adds a real local model to the owned Catalog fixture. The model must Search, inspect and recommend actual fixture releases. |
 
 The functional fixture creates its own Catalog and synthetic identities. It does not query or change your retained Compose Catalog. It verifies continuation across more than one page, exact readback, cross-tenant isolation and refusal of invalid credentials. Its process and temporary directory must clean up successfully.

@@ -45,7 +45,7 @@ func TestControlSearchInputMapping(t *testing.T) {
 				selected = &limit
 			}
 			order := catalog.SearchOrderPublisherDesc
-			input := catalogSearchRequest{Order: &order, Text: "query", Kinds: []catalog.Kind{catalog.KindAgent}, Tags: []string{"tag"}, License: "Apache-2.0", Categories: []string{"tools"}, Publisher: "publisher", Visibility: catalog.VisibilityPublic, Limit: selected, Cursor: "opaque"}
+			input := catalogSearchRequest{Order: &order, Text: "query", Kinds: []catalog.Kind{catalog.KindAgent}, Tags: []string{"tag"}, License: "Apache-2.0", Categories: []string{"tools"}, Publisher: "publisher", Visibility: new(catalog.VisibilityPublic), Limit: selected, Cursor: "opaque"}
 			query, err := input.searchQuery()
 			facetInput := catalogExploreRequest{Query: catalogExploreQuery{Text: input.Text, Kinds: input.Kinds, Tags: input.Tags, License: input.License, Categories: input.Categories, Publisher: input.Publisher, Visibility: input.Visibility}, Facets: []catalogFacetRequest{{Field: "kind", Limit: selected, MinCount: 2}}}
 			explore, facetErr := facetInput.exploreRequest()
@@ -354,6 +354,43 @@ func TestControlNamespaceFilterMapping(t *testing.T) {
 		if err != nil || exploreErr != nil || query.NamespaceID != explore.Query.NamespaceID || selected != nil && query.NamespaceID != *selected {
 			t.Fatal("namespace selector lost")
 		}
+	}
+}
+
+func TestControlVisibilityFilterMapping(t *testing.T) {
+	for _, selected := range []struct {
+		raw     string
+		want    catalog.Visibility
+		invalid bool
+	}{
+		{raw: `{}`},
+		{raw: `{"visibility":"private"}`, want: catalog.VisibilityPrivate},
+		{raw: `{"visibility":"tenant"}`, want: catalog.VisibilityTenant},
+		{raw: `{"visibility":"public"}`, want: catalog.VisibilityPublic},
+		{raw: `{"visibility":""}`, invalid: true},
+		{raw: `{"visibility":"PUBLIC"}`, invalid: true},
+	} {
+		t.Run(selected.raw, func(t *testing.T) {
+			var search catalogSearchRequest
+			var explore catalogExploreQuery
+			if err := json.Unmarshal([]byte(selected.raw), &search); err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal([]byte(selected.raw), &explore); err != nil {
+				t.Fatal(err)
+			}
+			query, searchErr := search.searchQuery()
+			facets, exploreErr := (catalogExploreRequest{Query: explore}).exploreRequest()
+			if selected.invalid {
+				if catalog.ErrorCodeOf(searchErr) != catalog.CodeInvalidArgument || catalog.ErrorCodeOf(exploreErr) != catalog.CodeInvalidArgument {
+					t.Fatal("explicit invalid visibility accepted", searchErr, exploreErr)
+				}
+				return
+			}
+			if searchErr != nil || exploreErr != nil || query.Visibility != selected.want || facets.Query.Visibility != selected.want {
+				t.Fatal("valid or omitted visibility changed", query, facets, searchErr, exploreErr)
+			}
+		})
 	}
 }
 

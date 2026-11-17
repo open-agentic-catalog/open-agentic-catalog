@@ -290,12 +290,15 @@ test("CDP setup skips only confirmed vanished sessions and reaches the current r
     globalThis.WebSocket = original;
     await rm(directory, { recursive: true, force: true });
   });
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
   for (const mode of ["missing", "detached", "early-detached", "permission"]) {
     const calls = [];
-    let closed = false;
+    let closed = false,
+      emit;
     globalThis.WebSocket = class extends EventTarget {
       constructor() {
         super();
+        emit = (value) => this.emit(value);
         queueMicrotask(() => this.dispatchEvent(new Event("open")));
       }
       emit(value) {
@@ -393,10 +396,31 @@ test("CDP setup skips only confirmed vanished sessions and reaches the current r
         calls.some((call) => call.method.startsWith("Input.")),
         false,
       );
+      const timeout = assert.rejects(
+        view.waitForClosed(),
+        /Disposed webview frame did not close/u,
+      );
+      t.mock.timers.tick(10000);
+      await timeout;
+      let disposed = false;
+      const disposal = view.waitForClosed().then(() => {
+        disposed = true;
+      });
+      emit({
+        method: "Target.detachedFromTarget",
+        params: { sessionId: "another-panel" },
+      });
+      t.mock.timers.tick(9999);
+      for (let at = 0; at < 10; at++) await Promise.resolve();
+      assert.equal(disposed, false, "Another panel's closure is insufficient");
       await assert.rejects(
         view.evaluate("owned mutation"),
         /CDP session detached/,
       );
+      t.mock.timers.tick(100);
+      await disposal;
+      assert.equal(disposed, true);
+      await view.waitForClosed();
       await assert.rejects(
         view.evaluate("owned mutation"),
         /CDP session detached/,

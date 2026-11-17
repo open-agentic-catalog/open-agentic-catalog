@@ -17,6 +17,10 @@
     "route": "guides/contextforge"
   },
   {
+    "source": "documentation/src/content/docs/guides/agentfield.mdx",
+    "route": "guides/agentfield"
+  },
+  {
     "source": "examples/langgraph/README.md",
     "route": "guides/langgraph-agent",
     "projection": true

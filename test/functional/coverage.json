@@ -315,6 +315,33 @@
       "gaps": []
     },
     {
+      "id": "personal-library-backup",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "catalogctl:personal export",
+        "catalogctl:personal preview",
+        "catalogctl:personal apply",
+        "catalogctl:personal resume"
+      ],
+      "evidence": [
+        {"path": "cmd/catalogctl/personal_test.go", "symbol": "TestPersonalFileStrictContract"},
+        {"path": "cmd/catalogctl/personal_test.go", "symbol": "TestPersonalOfflinePreviewSelectionAndDestination"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalObservedEnumerationAndBounds"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalSaveDurabilityAndConservativeRecovery"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalSaveRejectsUnverifiableAcknowledgements"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalSaveRequiresDurableIntentBeforeSending"},
+        {"path": "cmd/catalogctl/personal_remote_test.go", "symbol": "TestPersonalProgressValidatesAttemptedStates"},
+        {"path": "cmd/catalogctl/personal_functional_test.go", "symbol": "TestPersonalCLIRealAPIAndLostAcknowledgement"},
+        {"path": "test/functional/operators.py"}
+      ],
+      "reason": "The existing packaged operator journey restores selected private searches and exact release references through the shipped CLI and PostgreSQL. Native process controls qualify actual response loss on first and later selected saves, retained acknowledgements and skips, same-origin tenant refusal, and membership suspension/reactivation between saves. Units qualify strict local input, finite enumeration, durable intent before sending and unverified acknowledgement/progress refusal.",
+      "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per item.",
+      "rejection": "Refuse malformed/oversized files, changed origins/tenants/principals/intent, unsafe private state, unavailable targets and quota exhaustion without overwriting existing items or disclosing another owner.",
+      "recovery": "Keep acknowledged saves and original request/key/first-attempt bindings. Explicit resume skips acknowledged work, replays safe uncertain commands only within the conservative window, and refuses expired, future or missing chronology without mutation.",
+      "gaps": []
+    },
+    {
       "id": "remote-cli",
       "disposition": "compose",
       "status": "covered",
@@ -322,9 +349,15 @@
         "catalogctl:remote capabilities",
         "catalogctl:remote search",
         "catalogctl:remote record",
-        "catalogctl:remote job"
+        "catalogctl:remote job",
+        "catalogctl:discovery manifest",
+        "catalogctl:discovery list"
       ],
       "evidence": [
+        {
+          "path": "cmd/catalogctl/discovery_functional_test.go",
+          "symbol": "TestDiscoveryProcessReadsOnlyActivePublicationAndExactContinuation"
+        },
         {
           "path": "cmd/catalogctl/remote_functional_test.go",
           "symbol": "TestRemoteAgainstCatalog"
@@ -337,8 +370,8 @@
           "path": "test/functional/operators.py"
         }
       ],
-      "reason": "The existing owned operator journey invokes all four shipped read-only commands; focused tests cover transport, argument, contract and output adversaries.",
-      "success": "Retrieve capabilities, paginated Search, exact release records and retained cancelled/failed Job state with request metadata and no database configuration.",
+      "reason": "The existing owned operator journey invokes authenticated Control reads and credential-free manifest/List commands; focused HTTPS/process tests cover transport, argument, publication and output adversaries.",
+      "success": "Retrieve capabilities, paginated Search, exact release records, retained Job state and anonymous publications with request metadata and no database configuration. Continue List explicitly with the exact token and selection.",
       "rejection": "Reject cross-tenant reads, invalid inputs, untrusted TLS, redirects, ambiguous/oversized responses and terminal-control injection.",
       "recovery": "A failed Job remains a successful status read; HTTP/transport failures exit nonzero without partial success output or automatic retry. Users explicitly retry requests and restart invalidated Search cursors.",
       "gaps": []
@@ -683,6 +716,7 @@
         "http:requestReviewChanges",
         "http:rejectReviewSubmission",
         "http:getListingRelease",
+        "http:previewListingReleaseWithdrawal",
         "http:deprecateListingRelease",
         "http:retireListingRelease",
         "http:supersedeListingRelease",

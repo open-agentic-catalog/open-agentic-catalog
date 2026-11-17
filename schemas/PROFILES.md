@@ -109,6 +109,18 @@ Specification, schemas, license declaration and both license texts retain their 
 
 ARD Appendix D.3 makes the pinned Registry OpenAPI authoritative for HTTP operations. Its RegistryReferral object allows additional properties despite the closed CDDL shape. Catalog accepts bounded referral extensions; only exact-name core fields matching an approved endpoint authorize traversal. The enclosing Search response remains closed, including differently cased aliases of known fields. Live Search validates present EntryFields without imposing full-entry requirements, accepts exact integer scores such as 80, 80.0 and 8e1, and preserves raw peer evidence. Public merging rejects disclosed contradictions against canonical structured filters; section 5.3.2 permits omission of indexed projection terms, so absence alone is not a contradiction. Sparse output preserves omitted name/type fields instead of inventing empty values. Search and Explore validate query-context URI/object/array shape independently of terms and reject explicit null. Explicit Search selection after a failed GET preserves root discovery, profile binding and reinspection. These rules do not change immutable profiles. The official Registry checker does not validate every property; independent schema/filter assertions remain required.
 
+### Private declared MCP tools
+
+`open-agentic-catalog-mcp-tools-1` is a service-owned metadata profile with media
+`application/vnd.open-agentic-catalog.mcp-tools+json`, not an upstream MCP field.
+The [schema](extensions/mcp-tools-v1.schema.json) describes its closed shape;
+Catalog admission additionally rejects duplicate names, blank names and content
+beyond 65536 UTF-8 bytes. One local metadata attachment binds to each immutable
+MCP VersionRevision. Tools are names/descriptions only, never executable schemas.
+The [reader guide](../documentation/src/content/docs/guides/catalog-ui.mdx#find-mcp-servers-by-declared-tools)
+owns authoring, permission, lifecycle and explicit local lexical search behavior.
+It remains private and excluded from public publication and embedding inputs.
+
 ## ARD conformance evidence
 
 The retained schemas, OpenAPI, CDDL, context, prose, naming guide, conformance CLI and examples provide the pinned ARD inputs. Upstream ADRs, demo and mock code, and repository automation are not runtime specifications; the official examples are conformance fixtures, not schema authorities.

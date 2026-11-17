@@ -14,7 +14,7 @@ from pydantic import validate_call, Field, StrictFloat, StrictStr, StrictInt
 from typing import Any, Dict, List, Optional, Tuple, Union
 from typing_extensions import Annotated
 
-from pydantic import Field, field_validator
+from pydantic import Field, StrictStr, field_validator
 from typing import Any, Dict, Optional
 from typing_extensions import Annotated
 from uuid import UUID
@@ -2133,6 +2133,12 @@ class FeedbackApi:
         resource_id: Optional[UUID] = None,
         category: Optional[FeedbackCategory] = None,
         state: Optional[FeedbackState] = None,
+        order: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh."
+            ),
+        ] = None,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
         cursor: Optional[Annotated[str, Field(strict=True, max_length=2048)]] = None,
         _request_timeout: Union[
@@ -2149,7 +2155,7 @@ class FeedbackApi:
     ) -> FeedbackPage:
         """List your own feedback
 
-        Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+        Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 
         :param resource_id:
         :type resource_id: UUID
@@ -2157,6 +2163,8 @@ class FeedbackApi:
         :type category: FeedbackCategory
         :param state:
         :type state: FeedbackState
+        :param order: Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh.
+        :type order: str
         :param limit:
         :type limit: int
         :param cursor:
@@ -2180,6 +2188,7 @@ class FeedbackApi:
             resource_id=resource_id,
             category=category,
             state=state,
+            order=order,
             limit=limit,
             cursor=cursor,
             _request_auth=_request_auth,
@@ -2207,6 +2216,12 @@ class FeedbackApi:
         resource_id: Optional[UUID] = None,
         category: Optional[FeedbackCategory] = None,
         state: Optional[FeedbackState] = None,
+        order: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh."
+            ),
+        ] = None,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
         cursor: Optional[Annotated[str, Field(strict=True, max_length=2048)]] = None,
         _request_timeout: Union[
@@ -2223,7 +2238,7 @@ class FeedbackApi:
     ) -> ApiResponse[FeedbackPage]:
         """List your own feedback
 
-        Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+        Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 
         :param resource_id:
         :type resource_id: UUID
@@ -2231,6 +2246,8 @@ class FeedbackApi:
         :type category: FeedbackCategory
         :param state:
         :type state: FeedbackState
+        :param order: Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh.
+        :type order: str
         :param limit:
         :type limit: int
         :param cursor:
@@ -2254,6 +2271,7 @@ class FeedbackApi:
             resource_id=resource_id,
             category=category,
             state=state,
+            order=order,
             limit=limit,
             cursor=cursor,
             _request_auth=_request_auth,
@@ -2281,6 +2299,12 @@ class FeedbackApi:
         resource_id: Optional[UUID] = None,
         category: Optional[FeedbackCategory] = None,
         state: Optional[FeedbackState] = None,
+        order: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh."
+            ),
+        ] = None,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
         cursor: Optional[Annotated[str, Field(strict=True, max_length=2048)]] = None,
         _request_timeout: Union[
@@ -2297,7 +2321,7 @@ class FeedbackApi:
     ) -> RESTResponseType:
         """List your own feedback
 
-        Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+        Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
 
         :param resource_id:
         :type resource_id: UUID
@@ -2305,6 +2329,8 @@ class FeedbackApi:
         :type category: FeedbackCategory
         :param state:
         :type state: FeedbackState
+        :param order: Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh.
+        :type order: str
         :param limit:
         :type limit: int
         :param cursor:
@@ -2328,6 +2354,7 @@ class FeedbackApi:
             resource_id=resource_id,
             category=category,
             state=state,
+            order=order,
             limit=limit,
             cursor=cursor,
             _request_auth=_request_auth,
@@ -2351,6 +2378,12 @@ class FeedbackApi:
         resource_id: Optional[UUID] = None,
         category: Optional[FeedbackCategory] = None,
         state: Optional[FeedbackState] = None,
+        order: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh."
+            ),
+        ] = None,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
         cursor: Optional[Annotated[str, Field(strict=True, max_length=2048)]] = None,
         _request_timeout: Union[
@@ -2375,6 +2408,7 @@ class FeedbackApi:
                 resource_id=resource_id,
                 category=category,
                 state=state,
+                order=order,
                 limit=limit,
                 cursor=cursor,
                 _request_timeout=_request_timeout,
@@ -2391,6 +2425,12 @@ class FeedbackApi:
         resource_id: Optional[UUID] = None,
         category: Optional[FeedbackCategory] = None,
         state: Optional[FeedbackState] = None,
+        order: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh."
+            ),
+        ] = None,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
         cursor: Optional[Annotated[str, Field(strict=True, max_length=2048)]] = None,
         _request_timeout: Union[
@@ -2415,6 +2455,7 @@ class FeedbackApi:
                 resource_id=resource_id,
                 category=category,
                 state=state,
+                order=order,
                 limit=limit,
                 cursor=cursor,
                 _request_timeout=_request_timeout,
@@ -2431,6 +2472,12 @@ class FeedbackApi:
         resource_id: Optional[UUID] = None,
         category: Optional[FeedbackCategory] = None,
         state: Optional[FeedbackState] = None,
+        order: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh."
+            ),
+        ] = None,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
         cursor: Optional[Annotated[str, Field(strict=True, max_length=2048)]] = None,
         _request_timeout: Union[
@@ -2455,6 +2502,7 @@ class FeedbackApi:
                 resource_id=resource_id,
                 category=category,
                 state=state,
+                order=order,
                 limit=limit,
                 cursor=cursor,
                 _request_timeout=_request_timeout,
@@ -2470,6 +2518,7 @@ class FeedbackApi:
         resource_id,
         category,
         state,
+        order,
         limit,
         cursor,
         _request_auth,
@@ -2501,6 +2550,9 @@ class FeedbackApi:
 
         if state is not None:
             _query_params.append(("state", state.value))
+
+        if order is not None:
+            _query_params.append(("order", order))
 
         if limit is not None:
             _query_params.append(("limit", limit))

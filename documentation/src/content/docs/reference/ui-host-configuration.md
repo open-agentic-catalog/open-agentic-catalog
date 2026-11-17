@@ -12,7 +12,7 @@ Start the host with its required JSON file:
 ./bin/catalog-ui --config /path/to/ui.json
 ```
 
-The binary reads no `.env`, backend configuration or launcher environment overrides. Logging is its only built-in configuration default. Local launchers and Helm generate this independent file from their documented inputs. See [configuration delivery](configuration.mdx#configuration-delivery-and-precedence) and [CLI invocation](commands.md#optional-ui-host).
+The binary reads no `.env`, backend configuration or launcher environment overrides. Logging defaults and the disabled public-discovery flag are built in. Local launchers and Helm generate this independent file from their documented inputs. See [configuration delivery](configuration.mdx#configuration-delivery-and-precedence) and [CLI invocation](commands.md#optional-ui-host).
 
 Configuration is a regular UTF-8 JSON file of at most 64 KiB. Field names are case-sensitive. Only the documented fields are accepted. Duplicate or unknown fields, invalid Unicode, explicit nulls and trailing values fail validation. Relative file and asset paths resolve from the process's working directory, not beside the JSON file. Use absolute mounted paths in containers.
 
@@ -46,7 +46,7 @@ This example grants no Catalog permissions. Add the OAuth scopes required by the
 
 ## Configuration fields
 
-Except for `logLevel` and `logFormat`, required values have no binary defaults. Omitted optional strings are empty; omitted `scopes` is empty. Launcher and chart defaults do not change direct-binary validation.
+Required values have no binary defaults, except for `logLevel` and `logFormat`. The optional `publicDiscoveryEnabled` boolean defaults to false. Omitted optional strings are empty; omitted `scopes` is empty. Launcher and chart defaults do not change direct-binary validation.
 
 | Field | Requirement, default and bound |
 | --- | --- |
@@ -72,9 +72,36 @@ Except for `logLevel` and `logFormat`, required values have no binary defaults. 
 | `clientId` | Required nonempty confidential web-client ID in OIDC mode. Forbidden in development authentication. |
 | `clientSecretFile` | Required nonempty secret-file path in OIDC mode. Forbidden in development authentication. |
 | `scopes` | Optional additional OIDC scopes, at most 16 distinct values. Each is 1-128 bytes with no spaces, tabs or newlines. `openid` is automatic and must not be repeated. `offline_access` is rejected. Forbidden in development authentication. |
+| `publicDiscoveryEnabled` | Optional boolean, default `false`. Enables `/discover` and three credential-free public ARD forwarding operations on the fixed upstream. Does not enable a backend publication. |
 | `documentationUrl` | Optional credential-free HTTPS URL, without query or fragment. Empty selects `/docs/` when the bundled manual is present. Without a bundle or override, the UI omits the link. This is navigation, not a proxy target. |
 
 The request and response limits are separate from backend admission and client retrieval limits. See [payload and client limits](configuration.mdx#payload-and-client-limits). Logging follows the [UI host event policy](../operations/observability.mdx#ui-host-events).
+
+## Optional public discovery
+
+Set `"publicDiscoveryEnabled": true` in the host JSON to enable `/discover` beneath `basePath`. Restart the host after changes. With the setting omitted or false, both the page and its `/_discovery/` forwarding routes return 404. Disabling the UI reader does not withdraw an active backend publication. Use **Unpublish host** to withdraw discovery for that host.
+
+The API must explicitly admit an anonymous discovery binding for the hostname in `upstream`. A publisher must build and activate a snapshot for that exact binding. The browser-facing UI hostname does not select the publication. For example, `"upstream": "http://api:8080"` selects the backend binding `api`, not `127.0.0.1` or the public UI domain. Do not use forwarded headers or Host substitution to select another feed. Follow [discovery host configuration](configuration.mdx#discovery-host-configuration) and [publication](../guides/publishing.mdx#manage-discovery-snapshots-in-the-ui).
+
+The host admits only these operations beneath `basePath`:
+
+| UI host route | Fixed API operation | Inputs |
+| --- | --- | --- |
+| `GET /_discovery/manifest` | `GET /.well-known/ard.json` | None. |
+| `GET /_discovery/agents` | `GET /ard/v1/agents` | Optional `pageSize` (1-100) and opaque `pageToken` (at most 4,096 bytes). |
+| `POST /_discovery/search` | `POST /ard/v1/search` | Closed JSON: nonblank `text` (at most 500 Unicode code points), required `pageSize` (1-100), optional `pageToken` (at most 4,096 bytes). |
+
+These are browser-host routes, not additions to the Control API. Every request requires `X-Catalog-Request: 1`. Search also requires the exact browser Origin. Foreign Origin and Fetch Metadata, forwarding-authority headers, unknown inputs and redirects are refused. Configured admission, byte limits, API trust and timeout apply. The browser additionally limits responses to 16 MiB and reads to 30 seconds.
+
+Public bootstrap and reads omit browser credentials. The host never reads a session or forwards cookies, bearer tokens or caller-selected authority on these paths. Search constructs `federation: "none"` itself and accepts no remote contexts or peer selection. The optional configured embedding provider can still receive text; the visitor must acknowledge this before searching. Runtime and public metadata responses use `no-store`; upstream reads request revalidation. Refresh is explicit after an invalid continuation or unavailable publication.
+
+For local Compose, set `CATALOG_UI_PUBLIC_DISCOVERY=on` with `LOCAL_UI=on`. Supply the backend's complete intended binding array through `CATALOG_DISCOVERY_HOSTS`, including an anonymous `api` binding for the selected tenant. Preserve any other required bindings. Activate that host through **Discovery publication** in the private workspace. For a fresh development tenant, the array can contain:
+
+```json
+[{"host":"api","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"catalog.example.com"}]
+```
+
+This is an explicit publication choice. Do not replace retained deployment bindings or publish private data merely to enable the UI. `make ui-dev CATALOG_UI_PUBLIC_DISCOVERY=on` instead uses its literal-loopback API origin; that API needs the corresponding anonymous binding and active snapshot. Helm uses `ui.config.publicDiscoveryEnabled: true` and the same hostname rule for its API Service. The flag changes neither backend authentication nor readiness.
 
 ## File inputs
 
@@ -117,6 +144,6 @@ Restart the host after changing configuration, session keys, development users, 
 
 Add the new key after the current writing key in the key ring for routine rotation. Deploy that configuration. Move the new key to the first position in a second rollout. Retain old keys until sessions and five-minute callbacks from the last old-key writer expire. Follow [UI session-key rotation](../operations/maintenance.mdx#rotate-ui-session-keys) for ordering and emergency removal.
 
-The root `/livez` and `/readyz` endpoints report local process state. They do not test the API or issuer. During shutdown, the host reports not ready and stops accepting new authenticated requests. It allows up to 15 seconds for in-flight requests. The fixed `catalog-ui --probe` checks only loopback port 8080; use [operator probes](commands.md#configuration-diagnostics-and-probes) for another listener port.
+The root `/livez` and `/readyz` endpoints report local process state. They do not test the API or issuer. During shutdown, the host reports not ready and stops accepting new authenticated and public discovery requests. It allows up to 15 seconds for in-flight requests. The fixed `catalog-ui --probe` checks only loopback port 8080; use [operator probes](commands.md#configuration-diagnostics-and-probes) for another listener port.
 
 The listener uses a 10-second header timeout, `timeoutSeconds` for reads, `timeoutSeconds + 5` for writes, a 60-second idle timeout and a 32 KiB header ceiling. Login or API failures return bounded errors without making static pages unavailable.

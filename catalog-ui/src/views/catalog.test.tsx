@@ -3510,3 +3510,159 @@ it("clears the previous result order when criteria change and retries failed sor
     ).toBe("descending"),
   );
 });
+
+it("removes the declared protocol chip without broadening local scope or carrying a cursor", async () => {
+  const { props, post } = screenWorkspace();
+  post.mockResolvedValue(reply({ ...results, nextCursor: "continuation" }));
+  render(<Catalog {...props} />);
+  await screen.findByRole("button", { name: "Local helper" });
+  click(/Filters/);
+  change("Agent protocol binding", "私有+V1 ");
+  await activate(screen.getByRole("button", { name: "Apply filters" }));
+  const applied = within(screen.getByRole("group", { name: "Applied search" }));
+  const chip = await applied.findByRole("button", {
+    name: "Remove declared A2A protocol: 私有+V1",
+  });
+  expect(post.mock.calls.at(-1)?.[1]).toMatchObject({
+    body: { agentProtocol: "私有+V1 ", origins: ["local"] },
+  });
+  expect(
+    applied.getByRole("button", { name: "Remove origin Local Catalog" }),
+  ).toHaveProperty("disabled", true);
+  await activate(chip);
+  await waitFor(() =>
+    expect(post.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      "body.agentProtocol",
+    ),
+  );
+  expect(post.mock.calls.at(-1)?.[1]).toMatchObject({
+    body: { origins: ["local"] },
+  });
+  expect(post.mock.calls.at(-1)?.[1]).not.toHaveProperty("body.cursor");
+});
+
+it("inspects declared tools from cards and tables and removes their opt-in without broadening origins", async () => {
+  const { props, post, get } = screenWorkspace();
+  const mcp = {
+    ...local,
+    kind: "mcp_server",
+    local: {
+      ...local.local,
+      resource: { ...local.local.resource, kind: "mcp_server" },
+    },
+    toolMatch: {
+      representationId: "00000000-0000-7000-8000-000000000002",
+      contentDigest: "sha256:" + "a".repeat(64),
+      matchedToolCount: 1,
+      tools: [{ name: "extract_pdf_tables", descriptionTruncated: false }],
+      truncated: false,
+    },
+  };
+  const detail = {
+    ...record,
+    resource: { ...record.resource, kind: "mcp_server" },
+  };
+  get.mockResolvedValue(reply(detail));
+  post.mockResolvedValue(
+    reply({
+      ...results,
+      items: [mcp],
+      durableTotal: 1,
+      liveCount: 0,
+      profile: "core-mcp-tools-v1",
+      nextCursor: "old",
+    }),
+  );
+  render(<Catalog {...props} />);
+  await screen.findByText("extract_pdf_tables");
+  change("Search Catalog", "pdf tables");
+  click("Search");
+  await waitFor(() =>
+    expect(post.mock.calls.at(-1)?.[1]).toHaveProperty(
+      "body.text",
+      "pdf tables",
+    ),
+  );
+  click(/Filters/);
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: "Include declared MCP tools" }),
+  );
+  await activate(screen.getByRole("button", { name: "Apply filters" }));
+  await waitFor(() =>
+    expect(post.mock.calls.at(-1)?.[1]).toHaveProperty(
+      "body.includeMcpTools",
+      true,
+    ),
+  );
+  change("Search Catalog", " ");
+  const before = post.mock.calls.length;
+  click("Search");
+  await screen.findByText("Enter search text or remove declared MCP tools.");
+  expect(post).toHaveBeenCalledTimes(before);
+  change("Search Catalog", "pdf tables");
+  for (const layout of ["Cards", "Table"]) {
+    click(layout);
+    await activate(
+      screen.getByRole("button", { name: "Inspect released declaration" }),
+    );
+    await screen.findByRole("dialog");
+    await waitFor(() =>
+      expect(get.mock.calls.at(-1)?.[0]).toBe(
+        "/api/v1/catalog/resources/{catalogRecordId}",
+      ),
+    );
+    click("Close preview");
+  }
+  click("Remove declared MCP tools");
+  await waitFor(() =>
+    expect(post.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      "body.includeMcpTools",
+    ),
+  );
+  expect(post.mock.calls.at(-1)?.[1]).toMatchObject({
+    body: { text: "pdf tables", origins: ["local"], kinds: ["mcp_server"] },
+  });
+  expect(post.mock.calls.at(-1)?.[1]).not.toHaveProperty("body.cursor");
+});
+
+it("shows MCP scope for an API-authored saved tool search with implicit kinds without changing its criteria", async () => {
+  const { props, post } = screenWorkspace();
+  post.mockResolvedValue(
+    reply({ ...results, items: [], durableTotal: 0, liveCount: 0 }),
+  );
+  render(
+    <Catalog
+      {...props}
+      stagedSearch={{
+        includeMcpTools: true,
+        text: "pdf tables",
+        origins: ["local"],
+      }}
+    />,
+  );
+  expect(post).not.toHaveBeenCalled();
+  const kinds = within(screen.getByRole("group", { name: "Resource kinds" }));
+  expect(
+    kinds
+      .getByRole("button", { name: "MCP Servers" })
+      .getAttribute("aria-pressed"),
+  ).toBe("true");
+  expect(
+    kinds
+      .getByRole("button", { name: "All kinds" })
+      .getAttribute("aria-pressed"),
+  ).toBe("false");
+  expect(
+    screen.queryByRole("checkbox", { name: /configured embedding provider/ }),
+  ).toBeNull();
+  await activate(screen.getByRole("button", { name: /^Search$/ }));
+  await waitFor(() => expect(post).toHaveBeenCalledOnce());
+  expect(post.mock.calls[0]?.[1]).toMatchObject({
+    body: { includeMcpTools: true, text: "pdf tables", origins: ["local"] },
+  });
+  expect(post.mock.calls[0]?.[1]).not.toHaveProperty("body.kinds");
+  click(/Filters/);
+  expect(
+    screen.getByRole("checkbox", { name: /^MCP Servers$/ }),
+  ).toHaveProperty("checked", true);
+});

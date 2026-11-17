@@ -124,7 +124,7 @@ func (s *SearchService) searchCore(ctx context.Context, actor identity.Actor, qu
 			return CatalogSearchResponse{}, err
 		}
 	}
-	return CatalogSearchResponse{Items: selected, NextCursor: next, DurableTotal: local.Total + external.IndexedTotal, LiveCount: liveCount, Profile: CoreSearchProfile, Generation: combinedSearchGeneration(local.Generation, external.Generation), Tier: "core", FallbackReason: fallback, Partial: partial, Diagnostics: diagnostics}, nil
+	return CatalogSearchResponse{Items: selected, NextCursor: next, DurableTotal: local.Total + external.IndexedTotal, LiveCount: liveCount, Profile: coreProfile(query), Generation: combinedSearchGeneration(local.Generation, external.Generation), Tier: "core", FallbackReason: fallback, Partial: partial, Diagnostics: diagnostics}, nil
 }
 
 // unshadowedLive checks the whole selected matching durable population for at

@@ -24,11 +24,15 @@ Development login is a mutually exclusive, loopback-only mode using existing syn
 
 Cookie-authenticated requests use a required non-simple header, exact Origin checks for non-GET operations and Fetch Metadata validation, without a CORS grant. Callbacks use their protocol-specific state validation. Fixed API and issuer transports use separate scoped trust, cancellation, response bounds and no redirects. Private state stays out of persistent browser caches and is cleared across identity changes and sign-out.
 
+Provide a separately enabled public reader at `/discover` beneath the UI base path. Its `publicDiscoveryEnabled` setting defaults to false. It reads only an active anonymous publication on the existing fixed API origin through three finite manifest, List and Search routes. It does not mount the private application or resolve a session. Runtime and publication reads omit browser cookies and bearer authority; forwarding headers cannot select a different publication host.
+
+Keep Search federation fixed to `none`, and require disclosure consent for possible embedding-provider use. Display only bounded returned metadata, including honest Registry/unknown-kind and missing-version states. Do not request entry URLs, artwork or runtime endpoints. Continuation remains bound by the backend; refusal clears the page and requires explicit refresh without a private fallback. This adds no backend API, persistence, identity issuer or second upstream.
+
 ## Alternatives and consequences
 
 - A direct browser OAuth client would eliminate the forwarding host but expose access tokens to application JavaScript. The Go host keeps tokens outside that boundary at the cost of an additional optional process.
 - A persistent session database or Redis would accommodate larger tokens and coordinated refresh. It is not selected without evidence that bounded cookie sessions and reauthorization are unsuitable.
-- Server-rendered React and a microfrontend platform add serving and composition machinery not required for these authenticated application workflows. Vite produces static assets served by the Go host.
+- Server-rendered React and a microfrontend platform add serving and composition machinery not required for these application workflows. Vite produces static assets served by the Go host.
 - Sharing the backend Go module avoids a second dependency and test setup. Frontend dependencies remain separate from the documentation site, and backend builds require no frontend output.
 
 Cookie size and expiry impose real usability limits. A local test OIDC provider signs tokens with an RSA key. Host tests check authorization-code exchange with PKCE, callbacks across replicas and shared session cookies.

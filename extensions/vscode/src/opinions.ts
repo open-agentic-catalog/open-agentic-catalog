@@ -59,16 +59,33 @@ export class Opinions {
       throw new ClientError("control_mode_required");
     return this.session.guard(this.session.connection());
   }
-  async page(family: OpinionFamily, cursor?: string) {
+  async page(family: OpinionFamily, cursor?: string, recent = false) {
+    if (typeof recent !== "boolean" || (recent && family !== "feedback"))
+      throw new ClientError("invalid_query");
     const check = this.control();
     const params = new URLSearchParams({ limit: "25" });
+    if (recent) {
+      params.set("state", "addressed");
+      params.set("order", "updated_desc");
+    }
     if (cursor) params.set("cursor", metadataText(cursor, 2048));
     const data = await this.session.json(`/api/v1/${family}?${params}`);
     check();
     if (!Array.isArray(data.items) || data.items.length > 25)
       throw new ClientError("invalid_response");
+    const items = data.items.map((value) => this.opinion(family, value));
+    if (
+      recent &&
+      items.some(
+        (value) =>
+          value.state !== "addressed" ||
+          typeof value.updatedAt !== "string" ||
+          !Number.isFinite(Date.parse(value.updatedAt)),
+      )
+    )
+      throw new ClientError("invalid_response");
     return {
-      items: data.items.map((value) => this.opinion(family, value)),
+      items,
       ...(data.nextCursor ? { next: metadataText(data.nextCursor, 2048) } : {}),
     };
   }

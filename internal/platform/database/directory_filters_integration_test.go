@@ -149,7 +149,7 @@ func TestPostgresDirectoryLookupMigration(t *testing.T) {
 	db := newHousekeepingDatabase(t)
 	_ = semanticDisclosureActor(t, db, housekeepingTenantA)
 	plan, err := Plan(t.Context(), db.operator)
-	if err != nil || len(plan) != 47 || !plan[44].Applied || plan[44].Name != "000045_directory_lookup.sql" {
+	if err != nil || len(plan) != 51 || !plan[44].Applied || plan[44].Name != "000045_directory_lookup.sql" {
 		t.Fatal(plan, err)
 	}
 	applied, reports, err := ApplyAndReconcileRuntimePrivileges(t.Context(), db.operator, db.api.Config().ConnConfig.User, db.worker.Config().ConnConfig.User)
@@ -157,7 +157,7 @@ func TestPostgresDirectoryLookupMigration(t *testing.T) {
 		t.Fatal(applied, reports, err)
 	}
 	report, err := VerifyRestoredCatalog(t.Context(), db.operator, RestoreVerificationOptions{TenantID: housekeepingTenantA, RecoveryPoint: "directory-index-fixture", APIRole: db.api.Config().ConnConfig.User, WorkerRole: db.worker.Config().ConnConfig.User, Limit: 100})
-	if err != nil || report.SchemaVersion != 47 || report.PrivilegeManifestVersion != runtimePrivilegeManifestVersion || report.Integrity != restoreIntegrityValid {
+	if err != nil || report.SchemaVersion != 51 || report.PrivilegeManifestVersion != runtimePrivilegeManifestVersion || report.Integrity != restoreIntegrityValid {
 		t.Fatal(report, err)
 	}
 }

@@ -184,6 +184,64 @@ test("native feedback rejects invalid clipboard without retaining it and redacts
 });
 process.on("exit", () => hook.deregister());
 
+test("recent feedback, refresh and submission-order switches restart only the private page", async () => {
+  const f = fixture(),
+    calls = [];
+  const original = globalThis.opinionNativeFixture.window.showQuickPick;
+  const selections = [
+    "Next page",
+    "Recent addressed outcomes",
+    "Refresh feedback",
+    "Submission order",
+    undefined,
+  ];
+  f.host.opinions = {
+    clear() {},
+    page: async (family, cursor, recent) => {
+      calls.push({ family, cursor, recent });
+      return {
+        items: recent
+          ? [
+              {
+                id: "private-id",
+                category: "problem",
+                state: "addressed",
+                updatedAt: "2026-11-15T12:00:00Z",
+                response: "",
+              },
+            ]
+          : [],
+        ...(calls.length === 1 ? { next: "opaque" } : {}),
+      };
+    },
+  };
+  globalThis.opinionNativeFixture.window.showQuickPick = async (items) => {
+    if (calls.at(-1).recent)
+      assert.ok(
+        items[0].detail.includes("Addressed without a written response"),
+      );
+    const label = selections.shift();
+    if (label === undefined) return undefined;
+    const selected = items.find((item) => item.label === label);
+    assert.ok(selected, label);
+    return selected;
+  };
+  try {
+    await f.host.list("feedback");
+    assert.deepEqual(calls, [
+      { family: "feedback", cursor: undefined, recent: false },
+      { family: "feedback", cursor: "opaque", recent: false },
+      { family: "feedback", cursor: undefined, recent: true },
+      { family: "feedback", cursor: undefined, recent: true },
+      { family: "feedback", cursor: undefined, recent: false },
+    ]);
+    assert.equal(selections.length, 0);
+  } finally {
+    globalThis.opinionNativeFixture.window.showQuickPick = original;
+    f.host.dispose();
+  }
+});
+
 test("private native personal lists close immediately on account invalidation", async () => {
   const f = fixture();
   scenario = { change: () => f.change() };

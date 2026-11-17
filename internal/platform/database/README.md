@@ -34,7 +34,13 @@ Restore units check schema-result interpretation, inventory bounds, classified f
 
 Feedback, publication and notification repository units use static records, retained snapshots and the existing scripted transaction/coordinator helpers. They check tenant/host and limit arguments, row cleanup, transaction intent, valid state/evidence handoff and failure propagation. These fakes do not execute SQL, enforce RLS, prove rollback atomicity or update durable loss counters. Existing integration tests retain those assertions.
 
+[Withdrawal preview reads](postgres_withdrawal_preview.go) select one exact tenant/host active row and apply the remaining encoded-byte ceiling in SQL before transferring its document. They reuse the immutable row/document decoder and existing API grants. [Real database qualification](withdrawal_preview_integration_test.go) checks two active hosts, byte refusal, foreign-tenant denial and an injected later-host withdrawal failure: release state, earlier pointers, audit and outbox roll back in the original command transaction, while exact-key failure replay remains distinct from a refreshed advisory read. The failure must be the injected second-host error; after successful retirement, a new preview proves both active rows are absent without creating evidence. No migration or grant change is required for this read.
+
+Recent own-feedback pages use an exact member and descending `(updated_at,id)` tuple before LIMIT. An explicit state predicate lets the owner/state/update index supply recent addressed outcomes without sorting. Default and inbox pages retain their existing ID order. The same statement builder is exercised by real API-role plan qualification; it is not a separate query model. Migration 000050 adds only the supporting index, without new columns or privileges.
+
 Publication snapshot summaries intersect tenant, host, cursor and optional exact state in SQL before the generation/ID ordering and limit. The existing exact API-role integration workflow checks an older active generation behind a newer retired generation, filtered continuation and empty candidate/foreign-host/foreign-tenant controls. Existing state columns, indexes and runtime read privileges suffice; this read filter adds no migration or manifest grant.
+
+Review submission pages intersect an optional exact namespace UUID with Listing, state and unreleased criteria before the SQL limit. Current history permission selects rows; metadata and content permissions independently project context. Namespace selection does not look up or disclose a hidden namespace. Existing joins and column grants suffice, so this filter changes neither schema nor runtime privileges.
 
 Catalog collection units check bounded selection before two metadata queries, omitted document fields, retained retrieval bindings and row cleanup. Exact record/publication reads retain full Skill and Plugin evidence checks. Audit-export units check selection before hydration, aggregate byte limits and evidence handoff. Combined search units check that local/indexed reads request one repeatable-read transaction; PostgreSQL tests still qualify snapshot consistency under concurrent writes. Direct-pool outbox claim and lease methods retain their integration boundary.
 
@@ -117,3 +123,35 @@ Development owner provisioning carries exact namespace grants in the same princi
 Access directories apply exact subject/name, lifecycle/type and realm predicates before SQL limits. Member contributions select bounded assignment IDs before loading role, group and latest relation metadata in one policy-bound read. Foreign-realm group coverage remains unavailable; tenant-wide direct inventory and current-realm group administration keep their separate boundaries. This adds no schema object or runtime privilege.
 
 Self-assignment group captions hydrate only distinct group IDs from the selected page, with explicit tenant/current-realm predicates and the page limit in the same coherent authorization read. Missing or failed caption rows fail closed. No schema or privilege-manifest change is needed.
+
+## Private declared-tool projection
+
+Migration 000049 adds generated `mcp_tools` arrays to immutable representations
+and document blobs, GIN lexical indexes and one-declaration-per-revision
+uniqueness. Runtime privilege manifest 29 deliberately grants the API read-only
+projection/function access and denies it to workers. Drain API/worker before the
+schema-owner migration because stored generated columns rewrite the tables.
+Apply/reconcile with the normal migration command; runtime identities never
+migrate or update the derived columns. If reconciliation fails, keep runtimes
+stopped and correct the exact role report before retrying.
+
+The declaration bytes and digest remain authoritative. Insertions and logical
+restores recompute the arrays; restore generated columns through PostgreSQL's
+normal dump/restore behavior, rather than setting them manually. A damaged GIN
+index can be rebuilt using PostgreSQL `REINDEX` under the operator's maintenance
+procedure. A changed projection format requires a new forward migration. Do not
+rewrite immutable declarations or use the indexed-observation repair command
+for these columns. `make test-integration` qualifies migration, restore-style
+insertion/reindex, exact-role access, current content permission, lifecycle,
+tenant isolation, paging and bounded maximum-inventory query plans.
+
+## Source synchronization triage
+
+Source directory `syncState=failed|incomplete` and Overview share a scalar lateral
+lookup of the latest completed current-revision indexed attempt, ordered by
+completion time and snapshot ID. The directory applies all predicates before
+its bounded page and Source hydration. The attempt reference is a transient
+read projection, excluded from immutable configuration. Migration 000051 adds
+the supporting completed-attempt index without changing exact runtime grants.
+Real API-role tests qualify paging beyond the summary sample, tenant exclusion,
+revision changes, recovery and the query plan over 1,000 retained snapshots.

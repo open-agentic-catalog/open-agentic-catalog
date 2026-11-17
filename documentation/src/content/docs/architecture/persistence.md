@@ -40,7 +40,9 @@ Unified Catalog Search uses one tenant-scoped, read-only PostgreSQL [repeatable-
 
 ## Migration history
 
-Migrations 000001-000047 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v27. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
+The stored `representations.agent_protocol_bindings` and `document_blobs.agent_protocol_bindings` arrays derive literal interface bindings from retained A2A bytes. Discovery joins these only through the released primary validated representation and current content authority. These are rebuildable derived data, not a replacement for immutable evidence.
+
+Migrations 000001-000051 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v29. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
 
 ### 000001 - Catalog foundation
 
@@ -238,9 +240,13 @@ Migration 000046 adds Publisher changes to tenant search-generation invalidation
 
 Migration 000047 removes the obsolete `publishers.verified_domains` column after preserving its complete approval union in `approved_publication_domains`. It rejects undeclared values instead of discarding them. Existing approvals do not become DNS evidence. The migration preserves Publisher identities, revisions and timestamps.
 
-The new `publisher_domain_verifications` table retains bounded challenges, proof and the latest check result for each declared domain. Tenant RLS, immutable identities, revision guards and Publisher-first application locks protect this state. Domain removal deletes its verification state in the same transaction. Clearing DNS evidence does not revoke approval. Runtime privilege manifest v27 grants exact API columns and no worker access to this table. Restore check set 7 includes the new state without disclosing TXT values.
+The new `publisher_domain_verifications` table retains bounded challenges, proof and the latest check result for each declared domain. Tenant RLS, immutable identities, revision guards and Publisher-first application locks protect this state. Domain removal deletes its verification state in the same transaction. Clearing DNS evidence does not revoke approval. Runtime privilege manifest v27 introduced exact API columns and no worker access to this table. Restore check set 7 includes the new state without disclosing TXT values.
 
 Drain runtimes before the schema owner applies the migration and reconciles both manifests. Runtime startup never applies migrations. After a failed migration, correct the reported inconsistency and retry through the existing maintenance procedure. No database reset, automatic rollback or mixed-version runtime overlap is supported.
+
+### 000048 - Declared Agent protocol selection
+
+Migration 000048 adds stored binding arrays to inline representations and retained document blobs. A pure derivation function supports both native ProtoJSON field spellings, preserves literal values and excludes unqueryable NUL bindings without changing authoritative bytes. Selection admits only a released valid primary A2A Agent Card under current resource/content-read authority. API read/function grants and worker denials are explicit in manifest v28. Drain runtimes for the table rewrite and use the normal owner migration/reconciliation procedure; ordinary search needs no reindex or model. Omit the protocol predicate to return to unfiltered discovery rather than downgrading the schema.
 
 ## Database identities and RLS
 
@@ -347,3 +353,33 @@ The offline verifier proves file self-consistency. The read-only restore compare
 [Automatic housekeeping](../operations/housekeeping.md) - Eligible classes, retention settings, migration boundary, signals, and troubleshooting.
 
 [PostgreSQL topology decision](decisions/0004-postgresql-topology-and-provider-neutrality.md) - Why the service requires PostgreSQL without selecting an SRE provider or HA topology.
+
+### 000049 - Private MCP tool declarations
+
+Migration 000049 derives bounded private JSONB tool arrays on immutable inline
+representations and document blobs, with lexical GIN indexes and one valid
+metadata attachment per revision. The source declaration and digest stay
+unchanged; generated columns recompute on insertion and logical restore. Search
+uses exact released revision membership and current content-read authority before
+tool matches, counts and page selection. Only selected pages hydrate bounded
+explanations. Explicit selection reports `core-mcp-tools-v1` and skips embeddings.
+The [database package guide](../../../../../internal/platform/database/README.md#private-declared-tool-projection)
+explains drain, grants and rebuild boundaries.
+
+### 000050 - Recent own-feedback pages
+
+Migration 000050 adds an index on tenant, submitter, state and descending update
+time and ID. It supports bounded recent addressed outcomes without changing
+feedback rows, current-only text, ownership or runtime privileges. Apply with
+feedback writers drained; index creation locks writes. Current mutable pages and
+explicit refresh are described in the [feedback guide](../guides/feedback.mdx).
+
+### 000051 - Current completed Source attempts
+
+Migration 000051 adds the tenant/Source/revision/completion-time/ID index shared
+by Overview and Source directory triage. Only completed attempts are indexed.
+The directory applies outcome and exact Source filters before its page limit,
+then projects one scalar attempt reference beside the current Source. It never
+loads snapshot documents for this selection. No records, Source configuration
+revisions or runtime privileges change. Drain snapshot writers for index
+creation, use the schema owner and repair forward after a failed application.

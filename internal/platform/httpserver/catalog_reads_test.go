@@ -21,7 +21,9 @@ func TestSharedCatalogReadsAdmitScopesBeforeDependencies(t *testing.T) {
 	// Nil dependencies intentionally fail if a refused read reaches any store.
 	s := &Server{enforceOAuthScopes: true}
 	reads := []func(context.Context) (controlclient.Envelope, error){
-		func(c context.Context) (controlclient.Envelope, error) { return s.ReadSearch(c, catalog.SearchQuery{}) },
+		func(c context.Context) (controlclient.Envelope, error) {
+			return s.ReadSearch(c, catalog.SearchQuery{AgentProtocol: "HTTP+JSON", Origins: []catalog.SearchResultType{catalog.SearchResultLocal}})
+		},
 		func(c context.Context) (controlclient.Envelope, error) {
 			return s.ReadExplore(c, catalog.ExploreRequest{})
 		},

@@ -127,6 +127,9 @@ def ui_inputs(project, environment, create):
     if create:
         if environment.get("CATALOG_AUTH_MODE", "development") != "development":
             raise Failure("local-ui-requires-development-api")
+        public_mode = environment.get("CATALOG_UI_PUBLIC_DISCOVERY", "off")
+        if public_mode not in {"on", "off"}:
+            raise Failure("invalid-ui-public-discovery")
         private_directory(parent)
         private_directory(directory)
         # The private parent protects host access; the mounted child must be
@@ -145,6 +148,7 @@ def ui_inputs(project, environment, create):
                   "logLevel": environment.get("CATALOG_UI_LOG_LEVEL", "info"),
                   "logFormat": environment.get("CATALOG_UI_LOG_FORMAT", "text"),
                   "documentationUrl": environment.get("CATALOG_UI_DOCUMENTATION_URL", ""),
+                  "publicDiscoveryEnabled": public_mode == "on",
                   "timeoutSeconds": 60, "authMode": "development", "developmentUsersFile": "/config/users.json"}
         for name, value in [("keys.json", [{"hash": secrets.token_hex(64), "block": secrets.token_hex(32)}]),
                             ("users.json", users), ("config.json", config)]:
@@ -267,6 +271,8 @@ def development(action, project, mode):
     if ui_mode not in {"off", "on"}:
         raise Failure("invalid-ui-selection")
     if ui_mode == "on":
+        if environment.get("CATALOG_UI_PUBLIC_DISCOVERY", "off") not in {"off", "on"}:
+            raise Failure("invalid-ui-public-discovery")
         bounded_integer(environment, "CATALOG_UI_PORT", 4180, 1024, 65535)
         if action == "up" and environment.get("CATALOG_AUTH_MODE", "development") != "development":
             raise Failure("local-ui-requires-development-api")

@@ -178,10 +178,12 @@ async def qualify_published_discovery(origin, admin, namespace_id, resource, ver
         identities[str(published.data.release.id)] = (identifier, visibility)
     reader = Client(Config(origin=origin, allow_loopback_http=True, token="reader"))
     discovery = CatalogDiscoveryApi(reader)
+    unmatched = await discovery.search_catalog_with_http_info(catalog_search=CatalogSearch(agentProtocol="HTTP+JSON", origins=["local"], tags=["python-sdk"]))
+    assert unmatched.status_code == 200 and unmatched.data.durable_total == 0 and unmatched.data.items == []
     cursor = None
     seen = set()
     for i in range(len(cases)):
-        page = await discovery.search_catalog_with_http_info(catalog_search=CatalogSearch(limit=1, tags=["python-sdk"], origins=["local"], cursor=cursor))
+        page = await discovery.search_catalog_with_http_info(catalog_search=CatalogSearch(agentProtocol="JSONRPC", limit=1, tags=["python-sdk"], origins=["local"], cursor=cursor))
         assert page.status_code == 200 and len(page.data.items) == 1 and not page.data.partial
         item = page.data.items[0].to_dict()
         assert item["type"] == "local" and item["kind"] == "agent" and item["tags"] == ["python-sdk"]

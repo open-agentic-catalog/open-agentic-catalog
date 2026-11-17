@@ -110,6 +110,7 @@
         publisher: 256,
         license: 256,
         category: 80,
+        agentProtocol: 256,
       }).some(
         ([k, max]) =>
           [...String(draft[k])].length > 2 * max ||
@@ -144,6 +145,7 @@
           license: 256,
           category: 80,
           namespace: 36,
+          agentProtocol: 256,
         }[name] ?? 500);
     }
     const exact = !options && /\p{Cc}/u.test(String(draft[name]));
@@ -180,7 +182,12 @@
         category: "categories",
       }[name];
       if (multi) delete draft[multi];
-      draft[name] = name === "limit" ? Number(input.value) : input.value;
+      draft[name] =
+        name === "limit"
+          ? Number(input.value)
+          : name === "includeMcpTools"
+            ? input.value === "true"
+            : input.value;
       saveDraft();
       constraints();
       activeFilters();
@@ -218,6 +225,7 @@
       license: 256,
       category: 80,
       namespace: 36,
+      agentProtocol: 256,
     })) {
       const v = String(draft[name]);
       if (
@@ -251,6 +259,31 @@
         "origin",
         "The local namespace filter is retained. Choose Local or Clear filters before searching this origin.",
       );
+    if (!local && (draft.agentProtocol || draft.includeMcpTools))
+      issue(
+        "origin",
+        "Declared protocol and tool filters require Local governed releases. Clear those filters before choosing another origin.",
+      );
+    if (draft.agentProtocol && /^\p{White_Space}*$/u.test(draft.agentProtocol))
+      issue(
+        "agentProtocol",
+        "Enter an exact protocol containing text, or clear this filter.",
+      );
+    if (
+      draft.includeMcpTools &&
+      (/^\p{White_Space}*$/u.test(draft.text) ||
+        draft.agentProtocol ||
+        (draft.kinds?.length
+          ? draft.kinds
+          : draft.kind
+            ? [draft.kind]
+            : []
+        ).some((kind) => kind !== "mcp_server"))
+    )
+      issue(
+        "includeMcpTools",
+        "Enter search text and select All kinds or MCP Server. Clear the Agent protocol filter. This selection searches local MCP Servers only.",
+      );
     if (
       list &&
       (draft.tag ||
@@ -277,7 +310,7 @@
     if (submit) submit.disabled = state.busy || !state.canBrowse || invalid;
     const explore = document.getElementById("explore");
     if (explore) {
-      explore.disabled = state.busy || !state.canBrowse || !local;
+      explore.disabled = state.busy || !state.canBrowse || !local || invalid;
       explore.title = !local
         ? "facets_are_local: Select Local for facet counts."
         : "Explore uses the visible filter draft. Counts cover this authorized local population.";
@@ -317,7 +350,10 @@
     return document.scrollingElement.scrollTop;
   }
   function draw(previous) {
-    const scroll = capture(),
+    // Native questions and other editors can own focus while state arrives.
+    // Capture ownership before replacing DOM, which itself clears DOM focus.
+    const restoreFocus = document.hasFocus(),
+      scroll = capture(),
       oldDetail = previous?.detail?.item.key,
       newDetail = state.detail?.item.key;
     root.replaceChildren();
@@ -463,6 +499,26 @@
         ],
         fields,
       );
+      field(
+        "Agent protocol binding (exact)",
+        "agentProtocol",
+        undefined,
+        fields,
+      );
+      field(
+        "Declared MCP tools",
+        "includeMcpTools",
+        [
+          ["false", "Listing metadata only"],
+          ["true", "Include declared tool names and descriptions"],
+        ],
+        fields,
+      );
+      el(
+        "p",
+        "Protocol and private tool matches require local releases and content-read permission. Tool search needs text and uses lexical matching. Declarations do not establish compatibility, trust or permission to call a resource.",
+        advanced,
+      );
       el(
         "p",
         "Namespace names come from these authorized results. Exact UUID entry is always available. Namespace and facet counts apply to local releases. Live search sends the query to approved peers.",
@@ -513,7 +569,12 @@
     const collect = () => {
       for (const n of form.elements)
         if (n.name && !n.readOnly)
-          draft[n.name] = n.name === "limit" ? Number(n.value) : n.value;
+          draft[n.name] =
+            n.name === "limit"
+              ? Number(n.value)
+              : n.name === "includeMcpTools"
+                ? n.value === "true"
+                : n.value;
       saveDraft();
     };
     form.addEventListener("submit", collect, { capture: true });
@@ -533,6 +594,8 @@
         publisher: "",
         license: "",
         category: "",
+        agentProtocol: "",
+        includeMcpTools: false,
         visibility: "",
         federation: "none",
       };
@@ -863,21 +926,22 @@
     activeFilters();
     if (newDetail && newDetail !== oldDetail && !state.busy) {
       resultsPosition = scroll;
-      document.getElementById("detail-heading").focus();
+      if (restoreFocus) document.getElementById("detail-heading").focus();
     } else if (oldDetail && !newDetail && !state.busy && !state.error) {
-      document
-        .getElementById(selectedResult ?? "result-0")
-        ?.focus({ preventScroll: true });
+      if (restoreFocus)
+        document
+          .getElementById(selectedResult ?? "result-0")
+          ?.focus({ preventScroll: true });
       document.scrollingElement.scrollTop = resultsPosition;
     } else {
       const target = document.getElementById(focus?.id);
-      if (target && !target.disabled) {
+      if (restoreFocus && target && !target.disabled) {
         target.focus({ preventScroll: true });
         if (typeof focus.start === "number" && target.setSelectionRange)
           target.setSelectionRange(focus.start, focus.end);
-      } else if (state.busy)
+      } else if (restoreFocus && state.busy)
         document.getElementById("cancel-read")?.focus({ preventScroll: true });
-      else if (focus)
+      else if (restoreFocus && focus)
         (
           document.getElementById("read-error") ??
           root.querySelector(".guidance button:not(:disabled)") ??
@@ -906,6 +970,31 @@
         `${item.sourceCount} indexed sources · ${item.conflict ? "Conflicting declarations; inspect evidence" : "No indexed conflict reported"}${item.sameSourceConflict ? "; conflicting entries from the same source" : ""}`,
         parent,
       );
+    if (item.toolMatch) {
+      const match = item.toolMatch;
+      const section = el("section", undefined, parent);
+      section.className = "declared-tools";
+      section.setAttribute("aria-label", "Declared tool matches");
+      el(
+        "p",
+        `${match.matchedToolCount} declared tool matches${match.truncated ? "; showing a bounded selection" : ""}. Submitted metadata, not verified runtime capability.`,
+        section,
+      );
+      for (const tool of match.tools) {
+        el("code", tool.name, section);
+        if (tool.description !== undefined)
+          el(
+            "p",
+            `${tool.description}${tool.descriptionTruncated ? " (excerpt)" : ""}`,
+            section,
+          );
+      }
+      el(
+        "p",
+        `Declaration ${match.representationId} · ${match.contentDigest}. Inspect the selected release's retained documents for the complete declaration.`,
+        section,
+      );
+    }
   }
   window.addEventListener("message", ({ data: m }) => {
     if (m.type === "state") {

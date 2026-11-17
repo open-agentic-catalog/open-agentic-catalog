@@ -611,3 +611,31 @@ it("preserves package order at the exact list limit and keeps overflow in retain
     expect(data.packages.at(-1)?.identifier).toBe(`package-${count}`);
   }
 });
+
+it("shows an explicit empty declaration count and never invents a count from malformed facts", () => {
+  for (const [count, want] of [
+    [0, "Empty list (0)"],
+    [1, "1"],
+    [64, "64"],
+    [65, undefined],
+    [-1, undefined],
+    [1.5, undefined],
+    ["2", undefined],
+    [undefined, undefined],
+  ] as const) {
+    const guide = representationGuide({
+      id: "tool-representation",
+      role: "metadata",
+      mediaType: "application/vnd.open-agentic-catalog.mcp-tools+json",
+      profileId: "open-agentic-catalog-mcp-tools-1",
+      contentDigest: "sha256:" + "a".repeat(64),
+      size: 12,
+      validationState: "valid",
+      normalizedFacts: { declaredToolCount: count },
+    });
+    expect(guide.title).toBe("Declared MCP tools");
+    expect(guide.facts.find((f) => f.label === "Declared tools")?.value).toBe(
+      want,
+    );
+  }
+});

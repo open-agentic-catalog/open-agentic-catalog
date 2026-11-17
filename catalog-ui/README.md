@@ -14,6 +14,8 @@ See the [logging runbook](../documentation/src/content/docs/operations/observabi
 
 UI host configuration, mounted key/user JSON and development-login controls use exact field names and reject unknown fields, explicit typed nulls and malformed Unicode. Omit optional settings instead of setting them to null; `scopes` may be omitted or an empty array when no extra OIDC scopes are configured. Arbitrary upstream standards fields keep their own contracts.
 
+The optional public reader at `/discover` is disabled by default. Enable it explicitly with `CATALOG_UI_PUBLIC_DISCOVERY=on` in the maintained local launchers, or `ui.config.publicDiscoveryEnabled=true` in Helm. Its fixed API hostname must have an active anonymous publication. See [operator setup](../documentation/src/content/docs/reference/ui-host-configuration.md#optional-public-discovery) and the [visitor workflow](../documentation/src/content/docs/guides/catalog-ui.mdx#browse-a-public-directory). Public reads omit sessions and credentials; authoring and administration keep their original authentication.
+
 ## Document comparison limits
 
 Revision comparison uses `diff` (jsdiff) on verified original text. Line differences select blocks; character differences locate edits within each block. It does not use a JSON serializer, ignore whitespace or retrieve external content. The original text view keeps its independent 2 MiB limit per document.

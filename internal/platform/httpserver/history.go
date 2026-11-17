@@ -7,6 +7,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"net/http"
+	"strings"
 )
 
 // historyPosition requires a single UUID continuation position for bounded history queries.
@@ -146,9 +147,13 @@ func (s *Server) handleReleasesList(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, r, http.StatusOK, reply)
 }
 
-// handleSubmissionsList pages review history with listing/state filters bound into its cursor.
+// handleSubmissionsList pages review history with namespace/listing/state filters bound into its cursor.
 func (s *Server) handleSubmissionsList(w http.ResponseWriter, r *http.Request) {
-	filters := map[string]string{"listingId": r.URL.Query().Get("listingId"), "state": r.URL.Query().Get("state"), "unreleased": r.URL.Query().Get("unreleased")}
+	filters := map[string]string{"listingId": r.URL.Query().Get("listingId"), "namespaceId": strings.ToLower(r.URL.Query().Get("namespaceId")), "state": r.URL.Query().Get("state"), "unreleased": r.URL.Query().Get("unreleased")}
+	if _, exists := r.URL.Query()["namespaceId"]; exists && !identity.ValidTenantID(filters["namespaceId"]) {
+		s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "namespaceId must be a UUID"))
+		return
+	}
 	if _, exists := r.URL.Query()["unreleased"]; exists && filters["unreleased"] != "true" && filters["unreleased"] != "false" {
 		s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "unreleased must be true or false"))
 		return
@@ -163,7 +168,7 @@ func (s *Server) handleSubmissionsList(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	items, err := s.catalog.ListSubmissions(r.Context(), catalog.SubmissionListRequest{HistoryPageRequest: position, ListingID: filters["listingId"], State: catalog.SubmissionState(filters["state"]), Unreleased: filters["unreleased"] == "true"})
+	items, err := s.catalog.ListSubmissions(r.Context(), catalog.SubmissionListRequest{HistoryPageRequest: position, ListingID: filters["listingId"], NamespaceID: filters["namespaceId"], State: catalog.SubmissionState(filters["state"]), Unreleased: filters["unreleased"] == "true"})
 	if err != nil {
 		s.fail(w, r, err)
 		return

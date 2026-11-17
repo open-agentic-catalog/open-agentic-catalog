@@ -132,6 +132,32 @@ impl AsRef<str> for ListFederationSourcesStatus {
         self.as_str()
     }
 }
+///Allowed values for the `syncState` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum ListFederationSourcesSyncState {
+    #[serde(rename = "failed")]
+    Failed,
+    #[serde(rename = "incomplete")]
+    Incomplete,
+}
+impl ListFederationSourcesSyncState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Failed => "failed",
+            Self::Incomplete => "incomplete",
+        }
+    }
+}
+impl std::fmt::Display for ListFederationSourcesSyncState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListFederationSourcesSyncState {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
 ///Allowed values for the `state` query parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum ListJobsState {
@@ -224,6 +250,32 @@ impl std::fmt::Display for ListObservationsFreshness {
     }
 }
 impl AsRef<str> for ListObservationsFreshness {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+///Allowed values for the `order` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum ListOwnFeedbackOrder {
+    #[serde(rename = "id")]
+    Id,
+    #[serde(rename = "updated_desc")]
+    UpdatedDesc,
+}
+impl ListOwnFeedbackOrder {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Id => "id",
+            Self::UpdatedDesc => "updated_desc",
+        }
+    }
+}
+impl std::fmt::Display for ListOwnFeedbackOrder {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListOwnFeedbackOrder {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
@@ -485,6 +537,35 @@ impl std::fmt::Display for ListWebhooksStatus {
     }
 }
 impl AsRef<str> for ListWebhooksStatus {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+///Allowed values for the `transition` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum PreviewListingReleaseWithdrawalTransition {
+    #[serde(rename = "retired")]
+    Retired,
+    #[serde(rename = "superseded")]
+    Superseded,
+    #[serde(rename = "revoked")]
+    Revoked,
+}
+impl PreviewListingReleaseWithdrawalTransition {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Retired => "retired",
+            Self::Superseded => "superseded",
+            Self::Revoked => "revoked",
+        }
+    }
+}
+impl std::fmt::Display for PreviewListingReleaseWithdrawalTransition {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for PreviewListingReleaseWithdrawalTransition {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
@@ -1231,6 +1312,11 @@ pub enum PreflightCatalogMcpoAuthMetadataApiError {
 ///Typed error responses for `previewFederationSourceChange`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum PreviewFederationSourceChangeApiError {
+    Default(Problem),
+}
+///Typed error responses for `previewListingReleaseWithdrawal`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum PreviewListingReleaseWithdrawalApiError {
     Default(Problem),
 }
 ///Typed error responses for `publishCatalogListing`. One variant per declared non-2xx response.
@@ -2171,6 +2257,7 @@ impl Client {
     /// `GET /api/v1/catalog/resources`
     pub async fn browse_catalog(
         &self,
+        agent_protocol: Option<impl AsRef<str>>,
         namespace_id: Option<impl AsRef<str>>,
         limit: Option<i64>,
         cursor: Option<impl AsRef<str>>,
@@ -2181,6 +2268,9 @@ impl Client {
         let mut req = self.http_client.get(request_url);
         {
             let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = agent_protocol {
+                query_params.push(("agentProtocol".to_string(), v.as_ref().to_string()));
+            }
             if let Some(v) = namespace_id {
                 query_params.push(("namespaceId".to_string(), v.as_ref().to_string()));
             }
@@ -5575,7 +5665,7 @@ impl Client {
     }
     /// Get a governed Catalog record
     ///
-    /// Returns one governed catalog record visible to the caller, including its resource and release metadata.
+    /// Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
     ///
     /// `GET /api/v1/catalog/resources/{catalogRecordId}`
     pub async fn get_catalog_record(
@@ -10823,7 +10913,7 @@ impl Client {
     }
     /// List federation sources
     ///
-    /// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+    /// Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
     ///
     /// `GET /api/v1/federation/sources`
     pub async fn list_federation_sources(
@@ -10831,6 +10921,7 @@ impl Client {
         limit: Option<i64>,
         cursor: Option<impl AsRef<str>>,
         display_name: Option<impl AsRef<str>>,
+        sync_state: Option<ListFederationSourcesSyncState>,
         status: Option<ListFederationSourcesStatus>,
     ) -> Result<Response<FederationSourcePage>, ApiOpError<ListFederationSourcesApiError>> {
         let request_url = format!("{}{}", self.base_url, "/api/v1/federation/sources");
@@ -10845,6 +10936,9 @@ impl Client {
             }
             if let Some(v) = display_name {
                 query_params.push(("displayName".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = sync_state {
+                query_params.push(("syncState".to_string(), v.to_string()));
             }
             if let Some(v) = status {
                 query_params.push(("status".to_string(), v.to_string()));
@@ -11643,7 +11737,7 @@ impl Client {
     }
     /// List your own feedback
     ///
-    /// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+    /// Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
     ///
     /// `GET /api/v1/feedback`
     pub async fn list_own_feedback(
@@ -11651,6 +11745,7 @@ impl Client {
         resource_id: Option<impl AsRef<str>>,
         category: Option<FeedbackCategory>,
         state: Option<FeedbackState>,
+        order: Option<ListOwnFeedbackOrder>,
         limit: Option<i64>,
         cursor: Option<impl AsRef<str>>,
     ) -> Result<Response<FeedbackPage>, ApiOpError<ListOwnFeedbackApiError>> {
@@ -11666,6 +11761,9 @@ impl Client {
             }
             if let Some(v) = state {
                 query_params.push(("state".to_string(), v.to_string()));
+            }
+            if let Some(v) = order {
+                query_params.push(("order".to_string(), v.to_string()));
             }
             if let Some(v) = limit {
                 query_params.push(("limit".to_string(), v.to_string()));
@@ -12663,11 +12761,12 @@ impl Client {
     }
     /// List review submissions
     ///
-    /// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+    /// Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
     ///
     /// `GET /api/v1/review-submissions`
     pub async fn list_review_submissions(
         &self,
+        namespace_id: Option<impl AsRef<str>>,
         unreleased: Option<bool>,
         limit: Option<i64>,
         cursor: Option<impl AsRef<str>>,
@@ -12679,6 +12778,9 @@ impl Client {
         let mut req = self.http_client.get(request_url);
         {
             let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = namespace_id {
+                query_params.push(("namespaceId".to_string(), v.as_ref().to_string()));
+            }
             if let Some(v) = unreleased {
                 query_params.push(("unreleased".to_string(), v.to_string()));
             }
@@ -13863,6 +13965,92 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(PreviewFederationSourceChangeApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Preview discovery snapshots affected by release withdrawal
+    ///
+    /// Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+    ///
+    /// `GET /api/v1/listing-releases/{releaseId}/withdrawal-preview`
+    pub async fn preview_listing_release_withdrawal(
+        &self,
+        release_id: impl AsRef<str>,
+        transition: PreviewListingReleaseWithdrawalTransition,
+    ) -> Result<
+        Response<ReleaseWithdrawalPreview>,
+        ApiOpError<PreviewListingReleaseWithdrawalApiError>,
+    > {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/listing-releases/{}/withdrawal-preview",
+                __pct_encode_path_segment(release_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            query_params.push(("transition".to_string(), transition.to_string()));
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<PreviewListingReleaseWithdrawalApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(PreviewListingReleaseWithdrawalApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {

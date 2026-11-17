@@ -55,10 +55,14 @@ func TestPostgresPersonalLibraryOwnershipQuotaAndAtomicAudit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input := personal.Input{Type: "search", Label: "Private catalog search", Search: &personal.Criteria{Order: catalog.SearchOrderPublisherDesc, Text: "private-text-sentinel", Origins: []catalog.SearchResultType{catalog.SearchResultLocal}}}
+	input := personal.Input{Type: "search", Label: "Private catalog search", Search: &personal.Criteria{AgentProtocol: "私有+V1 ", Order: catalog.SearchOrderPublisherDesc, Text: "private-text-sentinel", Origins: []catalog.SearchResultType{catalog.SearchResultLocal}}}
 	item, err := service.Save(ctx, "", 0, input, false)
 	if err != nil {
 		t.Fatal(err)
+	}
+	got, err := service.Get(ctx, item.ID)
+	if err != nil || got.Search == nil || got.Search.AgentProtocol != "私有+V1 " || len(got.Search.Origins) != 1 || got.Search.Origins[0] != catalog.SearchResultLocal {
+		t.Fatal("SQL lost exact protocol criteria", got, err)
 	}
 	qualifyPersonalLabelFilters(t, store, ctx)
 	// The label matches an actual owner item; other retained human contexts

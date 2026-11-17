@@ -38,6 +38,7 @@ func localLiveMatches(ctx context.Context, tx pgx.Tx, tenant string, request cat
     ON probe.identifier=records.canonical_identifier AND probe.version=version.version AND probe.present
   LIMIT 51`
 	parameters := append(catalogSearchParameters(tenant, request.Query), probes...)
+	statement, parameters = agentProtocolQuery(statement, parameters, request.Query)
 	matches, err := readLiveMatches(ctx, tx, collectionStatement(ctx, statement), parameters)
 	return catalog.CatalogSearchRepositoryPage{Generation: generation, Matches: matches}, err
 }

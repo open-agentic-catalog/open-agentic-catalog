@@ -4,7 +4,12 @@ export function SearchMode({
   browsing = false,
 }: {
   browsing?: boolean;
-  result: { tier?: string; fallbackReason?: string; partialIndex?: boolean };
+  result: {
+    profile?: string;
+    tier?: string;
+    fallbackReason?: string;
+    partialIndex?: boolean;
+  };
 }) {
   const reasons: Record<string, string> = {
     indexing:
@@ -32,7 +37,9 @@ export function SearchMode({
             ? "With no search text, results are listed by name unless you choose another order."
             : result.tier === "hybrid"
               ? "Search matches your words and their meaning. The most relevant local and synced matches appear first, followed by live results."
-              : "Search matches words in resource names, descriptions, tags and other searchable metadata."}
+              : result.profile === "core-mcp-tools-v1"
+                ? "Search matches local MCP listings and private tool names and descriptions from their released revisions. All query words must occur within one tool. The best matching tool contributes to the server score, without a tool-count boost. Tools are author declarations, not verified capabilities. No embedding provider or server is contacted."
+                : "Search matches words in resource names, descriptions, tags and other searchable metadata."}
         </p>
       </details>
       {result.fallbackReason &&

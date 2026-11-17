@@ -23,6 +23,12 @@ The Catalog fills in your identity and the item context. A published item record
 
 Your submissions and current moderator responses appear in the same panel and in **Account > My feedback**. The **Your submissions** section lists existing feedback. Expand **Feedback access** for permission details; this does not load resource content. My feedback remains available after resource-read permission is revoked or a release disappears from search. New submissions require a readable Resource or local Catalog record. You cannot create feedback by pasting a resource ID into My feedback.
 
+Choose **Recent addressed outcomes** in My feedback to find moderator replies to older submissions. This selects addressed cases across all pages, newest update first. Each summary shows the current reply and update time. **Addressed without a written response** means the moderator selected Address without entering text; addressed does not confirm that a problem was fixed. Expand a case or choose **Open feedback case** for its current details.
+
+Recent pages show current records, not reply history. A response replacement can move a case ahead of the page you are reading, so continuation can miss it until you refresh. **Refresh feedback** restarts the recent view at page one. Unchanged cases with the same update time use descending case IDs as a tie-break. Category and Resource filters still apply. **Submission order** returns to the existing ascending-ID view and clears the state selection. Changing views asks before discarding entered drafts; prepared commands must be completed or closed first. There are no unread markers, automatic polling or notifications.
+
+An edit or reopen removes a case from the addressed selection and clears its response. Withdraw or remove clears both texts. Back, reload and returning from an exact case preserve the selected view and category/state filters; pages remain bounded. Losing feedback permission stops new reads, and changed authorization invalidates continuation. Deleted Resources remain excluded from lists.
+
 **Edit** reopens a submission and clears the earlier response. **Withdraw** permanently clears the current comment and response and prevents further edits. Submit a new report if you need to report the issue again.
 
 ## Moderation inbox
@@ -72,6 +78,8 @@ For reader feedback, request `catalog.read` and `feedback.write` in the UI host'
 
 Existing development human identities work without another authentication mechanism. Anonymous visitors and service accounts cannot submit feedback, even for public listings.
 
+API and SDK clients can request `GET /api/v1/feedback?state=addressed&order=updated_desc&limit=20`. The optional `order` accepts `id` (the default ascending-ID order) or `updated_desc` (descending `updatedAt`, then descending ID). Follow `nextCursor` with the same order, filters and page size; omit the cursor to refresh from the newest current records. Cursors are private to the caller and current authorization. The moderator inbox does not accept an order parameter and retains its existing order.
+
 A creation request contains no submitter field:
 
 ```json
@@ -89,13 +97,13 @@ Use IDs returned by your Catalog. Omit `releaseId` for general resource feedback
 
 Comments and responses are plain text. Each allows at most 4,000 Unicode code points, including supplementary characters such as emoji. Request bodies are limited to 64 KiB or a smaller configured HTTP body limit. The Catalog does not render HTML/Markdown, fetch links or accept attachments. The UI uses the same character count.
 
-List pages default to 20 records and allow at most 100. Continuation cursors are bound to the caller and filters. The API admits at most eight concurrent feedback writes per process. A busy process returns `503`; retry the same command with the same key. This limit is per process, with no deployment-wide rate quota or stored-record cap.
+List pages default to 20 records and allow at most 100. Continuation cursors bind the caller, filters, order, page size and current authorization. The API admits at most eight concurrent feedback writes per process. A busy process returns `503`; retry the same command with the same key. This limit is per process, with no deployment-wide rate quota or stored-record cap.
 
 Only current comment/response text is stored. Withdrawal/removal clears it atomically, retaining minimal context/state metadata and safe audit facts. There is no edit history, automatic age-based deletion, notification, email or webhook for feedback. Audit records and durable command receipts never contain comment/response text. Private reads are non-cacheable and the UI does not save feedback drafts to browser storage.
 
 Clearing current fields does not erase database pages, older backups or earlier authorized copies/screenshots. Existing backup procedures cover this table; restoring an older backup restores that recovery point's feedback state. Feedback does not implement legal hold or contractual deletion guarantees. See [backup and restore](../operations/backup-restore.mdx) and [audit](../operations/audit.md).
 
-Lists show category, state, submission time and a short permitted preview. Expand a row to read its full comment and response or open its authorized case. Expand **Identifiers and revision** for exact **feedback ID** and **feedback revision** copy controls. Use these to distinguish similar submissions during internal support or audit investigation. The immutable resource context stays beside the reference. Copying does not fetch the Resource. Case URLs contain only the exact case ID, never comments, responses or return filters.
+Default lists show category, state, submission time and a short permitted comment preview. Recent addressed outcomes show update time and the current reply preview instead. Expand a row to read its full comment and response or open its authorized case. Expand **Identifiers and revision** for exact **feedback ID** and **feedback revision** copy controls. Use these to distinguish similar submissions during internal support or audit investigation. The immutable resource context stays beside the reference. Copying does not fetch the Resource. Case URLs contain only the exact case ID, never comments, responses or return filters.
 
 ## Inspect open feedback counts
 

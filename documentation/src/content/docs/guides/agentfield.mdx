@@ -1,0 +1,100 @@
+---
+title: Use Catalog metadata in AgentField
+description: Search published Catalog definitions and explicitly save passive metadata in AgentField without enabling calls.
+---
+
+AgentField can search an allowed Catalog and save a selected resource as passive metadata. This workflow uses its native external Search and import APIs. It needs no language model and does not invoke the discovered resource.
+
+## Prepare the two services
+
+Use a Catalog with an active [anonymous discovery publication](publishing.mdx). Drafts and private authoring records are not exposed. Keep the Catalog control API authenticated.
+
+Use an AgentField server with its native JSON UI APIs enabled. Configure a separate management API key and persistent storage. Browser assets are not required for these API calls. Configure the exact Catalog ARD base, including its deployment path:
+
+```yaml
+agentfield:
+  ard:
+    enabled: true
+    external:
+      search_enabled: true
+      invocation_enabled: false
+      allowed_registries:
+        - https://catalog.example.com/ard/v1
+ui:
+  enabled: true
+  mode: separate
+api:
+  auth:
+    api_key: replace-with-your-agentfield-management-key
+telemetry:
+  enabled: false
+```
+
+Supply the management key through your deployment's supported secret inputs. Do not reuse a Catalog access token. For private certificates, install the signing CA in AgentField's trust store or configure its Go `SSL_CERT_FILE` input. Do not disable certificate verification.
+
+The tested AgentField reader does not attach a Catalog bearer token. Use anonymous published discovery for this workflow. An authenticated Catalog correctly returns a source error; the public success does not establish private access.
+
+This native reader has no response-byte ceiling on the external Search path. Use a trusted Catalog and independent deployment egress restrictions. The local qualification does not establish safe arbitrary registry or redirect handling.
+
+## Search and explicitly import
+
+Send authenticated requests to your AgentField server. Replace the example origins and use your own AgentField key. The examples write only local JSON files.
+
+```sh
+export AGENTFIELD_URL=https://agentfield.example.com
+read -r AGENTFIELD_KEY
+
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $AGENTFIELD_KEY" \
+  -H 'Content-Type: application/json' \
+  "$AGENTFIELD_URL/api/ui/v1/ard/external/search" \
+  --data '{"query":{"text":"order"},"registries":["https://catalog.example.com/ard/v1"],"pageSize":10}' \
+  > search.json
+```
+
+Check `sources` as well as `results`. Source failures can appear in an HTTP 200 response with an empty results array. Select a returned entry only after checking its identity and metadata. Search itself creates no import or callable binding.
+
+Create `import.json` with the selected `results` object as `entry` and the configured registry base as `source_registry`. Preserve the actual selected metadata. Submit that file:
+
+```sh
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $AGENTFIELD_KEY" \
+  -H 'Content-Type: application/json' \
+  "$AGENTFIELD_URL/api/ui/v1/ard/imports" \
+  --data-binary @import.json
+
+curl --fail --silent --show-error \
+  -H "Authorization: Bearer $AGENTFIELD_KEY" \
+  "$AGENTFIELD_URL/api/ui/v1/ard"
+```
+
+Verify the fresh dashboard's `imports`, `state.imports` and summary. The selected item must have status `imported`, no binding and zero callable resources. Read it again after an AgentField restart to verify your persistent store.
+
+## Understand what is saved
+
+The qualified runtime is AgentField commit `118b90ba42af9bc9f9366d645c9d0d38cd5f245a`. Later versions need their own qualification.
+
+| Behavior | Limit |
+| --- | --- |
+| Search source | AgentField replaces the returned source with the queried registry base. |
+| Search completeness | Continuation and referrals are dropped. A successful first page is not a complete inventory. |
+| Sparse results | Missing name and type become empty strings. Null trust declarations are omitted; present empty inline JSON data is retained. |
+| Imported fields | Identity, type, name, description, URL or data, representative queries and an optional identity trust summary are retained. |
+| Omitted fields | Version, tags, capabilities, update time and extensions are not saved. Publisher extraction does not recognize Catalog `urn:air` identifiers. |
+| Import identity | The identifier alone determines the import ID. Different sources or versions can overwrite the same imported record. |
+| Verification | The importer accepts submitted metadata. It does not fetch the entry URL or verify its trust declarations. |
+| Updates and withdrawal | Imports remain independent copies. A Catalog draft, new release or withdrawal does not synchronize or remove them. |
+
+An import is not approval, installation or permission to execute. Keep invocation disabled and bindings absent for this metadata workflow. Review saved copies manually when the Catalog changes.
+
+## Reproduce the qualification locally
+
+From the Catalog repository, run these commands separately:
+
+```sh
+make agentfield-tools-install
+make test-interoperability-agentfield
+make test-interoperability-agentfield-cleanup
+```
+
+The installer acquires pinned public tooling. The tests use disposable Catalog and AgentField services with separate PostgreSQL databases, private HTTPS and no external egress. They check real published metadata, restart persistence, refusal causes, unpublished drafts, withdrawal and zero resource requests. They remove their own environments and preserve retained development data. See the [harness guide](../../../../../test/interoperability/agentfield/README.md) for prerequisites and exact scope.

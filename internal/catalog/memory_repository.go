@@ -1578,6 +1578,14 @@ func (m *MemoryRepository) SearchCatalog(ctx context.Context, tenantID string, r
 	if request.ExpectedGeneration != "" && request.ExpectedGeneration != generation {
 		return CatalogSearchRepositoryPage{}, Wrap(CodeInvalidArgument, "catalog cursor is stale", ErrSearchGenerationChanged)
 	}
+	records, err = m.agentProtocolRecordsLocked(ctx, tenantID, records, request.Query.AgentProtocol)
+	if err != nil {
+		return CatalogSearchRepositoryPage{}, err
+	}
+	records, err = m.mcpToolRecordsLocked(ctx, tenantID, records, request.Query)
+	if err != nil {
+		return CatalogSearchRepositoryPage{}, err
+	}
 	matched := filterAndScoreRecords(records, request.Query)
 	if request.IdentityProbes != nil {
 		if len(request.IdentityProbes) > LiveSearchWindow {
@@ -1623,6 +1631,14 @@ func (m *MemoryRepository) ExploreCatalog(ctx context.Context, tenantID string, 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	records, err := m.authorizedCatalogRecordsLocked(ctx, tenantID)
+	if err != nil {
+		return ExploreResponse{}, err
+	}
+	records, err = m.agentProtocolRecordsLocked(ctx, tenantID, records, query.AgentProtocol)
+	if err != nil {
+		return ExploreResponse{}, err
+	}
+	records, err = m.mcpToolRecordsLocked(ctx, tenantID, records, query)
 	if err != nil {
 		return ExploreResponse{}, err
 	}

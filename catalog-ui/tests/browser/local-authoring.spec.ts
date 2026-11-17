@@ -99,6 +99,12 @@ test("author loads an Agent Card and explicitly prefills a listing from its save
   await page
     .getByRole("link", { name: "Open saved version", exact: true })
     .click();
+  await expect(page).toHaveURL(
+    `${catalog.origin}${catalog.basePath}/versions/${text(object(bundle.version).id)}`,
+  );
+  await expect(
+    page.getByRole("heading", { name: "Version 3.0.0", exact: true }),
+  ).toBeVisible();
   await page.reload();
   await expect(
     page.getByRole("heading", { name: "Version 3.0.0", exact: true }),
@@ -242,6 +248,18 @@ test("author loads an Agent Card and explicitly prefills a listing from its save
       exact: true,
     })
     .click();
+  await expect(
+    page.getByRole("link", {
+      name: "Reload listing to review saved revision",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("link", { name: "Inspect candidate revision", exact: true }),
+  ).toHaveAttribute(
+    "href",
+    `${catalog.basePath}/listing-revisions/${text(object(listing.revision).id)}`,
+  );
   await page.reload();
   await page
     .getByRole("link", { name: "Inspect candidate revision", exact: true })
@@ -304,7 +322,16 @@ test("author rejects malformed local text and saves a UTF-8 Skill Markdown docum
   await page
     .getByRole("link", { name: "Open saved version", exact: true })
     .click();
+  await expect(page).toHaveURL(
+    `${catalog.origin}${catalog.basePath}/versions/${text(object(bundle.version).id)}`,
+  );
+  await expect(
+    page.getByRole("heading", { name: "Version 3.0.0", exact: true }),
+  ).toBeVisible();
   await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Version 3.0.0", exact: true }),
+  ).toBeVisible();
   await page
     .getByRole("link", {
       name: "Inspect current revision and validation",

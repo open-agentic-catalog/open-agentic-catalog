@@ -759,7 +759,7 @@ export interface paths {
         };
         /**
          * List your own feedback
-         * @description Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind authorization and filters. Responses are non-cacheable.
+         * @description Requires active human membership with feedback.own and catalog.read scope when scopes are enforced. Filters apply before pagination; cursors bind current authorization, caller, order, filters and page size. Responses are non-cacheable. Default id order is ascending creation ID. updated_desc orders current records by updatedAt descending, then ID descending; combine it with state=addressed for recent moderator outcomes, including addressed cases without response text. These are mutable current pages, not response history. A case updated ahead of the continuation boundary may be missed until a fresh first-page request; reopened or cleared cases leave the addressed selection. Refresh restarts at page one. Separate Resource-read permission is not required; deleted Resources remain excluded. The moderator inbox retains its existing order.
          */
         get: operations["listOwnFeedback"];
         put?: never;
@@ -1602,7 +1602,7 @@ export interface paths {
         };
         /**
          * List review submissions
-         * @description Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. The filter binds continuation.
+         * @description Requires catalog.read when scopes are enforced. Current resource.read_history predicates select the authorized namespace population before pagination. Filter by namespace, listing and state; results use ascending immutable UUID order. A listing filter additionally requires history authority at that canonical namespace. Optional canonicalIdentifier and submittedDisplayName are independently projected under current resource.read and resource.read_content permissions. Names come from the exact submitted listing revision; missing context does not remove an otherwise authorized submission. Set unreleased=true only with state=approved to exclude every submission referenced by a release, including retired or revoked releases. False or omission adds no release filter. All filters bind continuation. namespaceId matches one exact UUID, case-insensitively, before the page limit and intersects other filters. Omission selects all authorized namespaces. A nonexistent, foreign-tenant or unauthorized namespace yields an empty page without a namespace lookup or disclosure. An explicit empty or malformed namespaceId is invalid.
          */
         get: operations["listReviewSubmissions"];
         put?: never;
@@ -2106,6 +2106,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listing-releases/{releaseId}/withdrawal-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Listing release identifier. */
+                releaseId: components["parameters"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Preview discovery snapshots affected by release withdrawal
+         * @description Requires resource.read_history for the release's namespace and tenant-wide publication.read. Returns complete observed references to active configured-host snapshots that the selected release transition would withdraw as whole bundles. Both ARD and AI Catalog membership are checked. Invalid or unavailable evidence and aggregate work-limit exhaustion refuse the preview, never a partial or false zero. The read starts no Job, sends no notification and changes no release or publication state. This advisory observation does not reserve active pointers, authorize a transition, validate replacement guidance or create a replacement publication. Explicitly refresh before preparing confirmation. The later command independently checks current authority, If-Match, idempotency and transition eligibility. Deprecation does not withdraw discovery and is not supported by this preview.
+         */
+        get: operations["previewListingReleaseWithdrawal"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/listing-releases/{releaseId}:deprecate": {
         parameters: {
             query?: never;
@@ -2253,7 +2276,7 @@ export interface paths {
         };
         /**
          * Get a governed Catalog record
-         * @description Returns one governed catalog record visible to the caller, including its resource and release metadata.
+         * @description Returns one governed catalog record visible to the caller. Private declared MCP tool attachments require current resource.read_content in the canonical Namespace. Without it, these attachments are omitted and toolDeclarationRedacted is true for every MCP record, regardless of whether a declaration exists. Authorized attachment disclosure requires the normal version-revision private-read audit before returning content. Other record metadata is unchanged.
          */
         get: operations["getCatalogRecord"];
         put?: never;
@@ -2852,7 +2875,7 @@ export interface paths {
         };
         /**
          * List federation sources
-         * @description Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName and status filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. No peer is contacted and credential values are never returned.
+         * @description Returns nonremoved configured sources in the authenticated tenant, ordered by exact display name then ID. Optional exact displayName, status and syncState filters apply before pagination. Duplicate names retain distinct IDs. Continuation binds filters, ordering, page size, tenant and current authority. Removed sources are unavailable here and through exact Source reads; exact retained evidence follows its separate admission. syncState selects failed or incomplete latest completed indexed attempts for the current Source revision. A running retry does not hide a completed failure; newer completion replaces the outcome and old-revision evidence does not match. Live-only Sources have no indexed outcome. Each row can include one bounded latestCompletedSync reference without loading snapshot documents. Pages reflect current metadata, not an immutable inventory; outcomes can change between pages. Refresh without a cursor to reread current matches. No peer is contacted, Job started or raw evidence read; credential values are never returned.
          */
         get: operations["listFederationSources"];
         put?: never;
@@ -4025,6 +4048,10 @@ export interface components {
         });
         /** @description Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search. */
         PersonalCriteria: {
+            /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
+            includeMcpTools?: boolean;
+            /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
+            agentProtocol?: string;
             order?: components["schemas"]["CatalogSearchOrder"];
             /** @description Select local, indexed or transient live provenance. Omission preserves existing participation. With namespaceId, omit origins or select local alone. License and category filters apply across selected origins. Local releases shadow matching indexed identities only when local participates. Live-only search can continue a verified bounded live window and reports zero durableTotal. */
             origins?: ("local" | "indexed" | "live")[];
@@ -4041,9 +4068,9 @@ export interface components {
             /** @description Source-aware selector matched against the Catalog Publisher UUID for local releases and the normalized AIR publisher component for indexed or live entries. Excludes NUL and is limited to 256 UTF-8 bytes. */
             publisher?: string;
             visibility?: components["schemas"]["Visibility"];
-        } & (unknown | {
+        } & (unknown & unknown & (unknown | {
             origins?: "local"[];
-        });
+        }));
         PersonalInput: {
             /** @enum {string} */
             type: "resource" | "search";
@@ -5931,6 +5958,25 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        ReleaseWithdrawalPreview: {
+            releaseId: components["schemas"]["UUID"];
+            /** Format: int64 */
+            releaseRevision: number;
+            /** @enum {string} */
+            transition: "retired" | "superseded" | "revoked";
+            /** Format: date-time */
+            observedAt: string;
+            snapshots: components["schemas"]["ReleaseWithdrawalSnapshot"][];
+        };
+        ReleaseWithdrawalSnapshot: {
+            snapshotId: components["schemas"]["UUID"];
+            host: string;
+            /** @enum {string} */
+            audience: "anonymous" | "authenticated";
+            /** Format: int64 */
+            generation: number;
+            etag: string;
+        };
         AdoptionProvenance: {
             observationId: components["schemas"]["UUID"];
             sourceId: components["schemas"]["UUID"];
@@ -5956,6 +6002,11 @@ export interface components {
             listingRevision: components["schemas"]["ListingRevision"];
         };
         CatalogRecord: {
+            /**
+             * @description Current content permission does not permit private tool declaration disclosure. Set for every MCP record without that permission, whether a declaration exists or not; absence of a displayed attachment cannot establish not supplied.
+             * @constant
+             */
+            toolDeclarationRedacted?: true;
             display?: components["schemas"]["CatalogPresentation"];
             resource: components["schemas"]["Resource"];
             version: components["schemas"]["ResourceVersion"];
@@ -6097,7 +6148,20 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        CatalogSearchResult: {
+        /** @description Private declaration evidence from the local result's exact released VersionRevision. Present only for authorized matching tool text. Names and descriptions are untrusted display data, not invocation instructions. */
+        MCPToolMatch: {
+            representationId: components["schemas"]["UUID"];
+            contentDigest: string;
+            matchedToolCount: number;
+            truncated: boolean;
+            tools: {
+                name: string;
+                description?: string;
+                descriptionTruncated: boolean;
+            }[];
+        };
+        CatalogSearchResult: ({
+            toolMatch?: components["schemas"]["MCPToolMatch"];
             peerRatings?: {
                 /** Format: uri */
                 reporter: string;
@@ -6129,7 +6193,7 @@ export interface components {
             local?: components["schemas"]["CatalogSearchLocal"];
             indexed?: components["schemas"]["IndexedCatalogSearchEvidence"];
             live?: components["schemas"]["LiveCatalogSearchEvidence"];
-        } & ({
+        } & unknown) & ({
             /** @constant */
             type?: "local";
         } | {
@@ -6298,6 +6362,10 @@ export interface components {
          */
         CatalogSearchOrder: "name_asc" | "name_desc" | "kind_asc" | "kind_desc" | "publisher_asc" | "publisher_desc";
         CatalogSearch: {
+            /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
+            includeMcpTools?: boolean;
+            /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
+            agentProtocol?: string;
             order?: components["schemas"]["CatalogSearchOrder"];
             /** @description Select local, indexed or transient live provenance. Omission preserves existing participation. With namespaceId, omit origins or select local alone. License and category filters apply across selected origins. Local releases shadow matching indexed identities only when local participates. Live-only search can continue a verified bounded live window and reports zero durableTotal. */
             origins?: ("local" | "indexed" | "live")[];
@@ -6317,9 +6385,9 @@ export interface components {
             limit?: number;
             /** @description Opaque expiring continuation cursor bound to the principal, permissions, normalized query, core SearchProfile, and durable local and indexed generations. Core live continuation replays an unchanged bounded window of at most 50 candidates with a fixed 15-minute expiry. Changed evidence requires restart; temporary replay failure permits retrying the same cursor. Hybrid Search preserves the precise durable ranking before a separate live tail. Live-only Search binds the live window without durable generation or embedding work. */
             cursor?: string;
-        } & (unknown | {
+        } & (unknown & unknown & (unknown | {
             origins?: "local"[];
-        });
+        }));
         CatalogExplore: {
             query?: components["schemas"]["CatalogExploreQuery"];
             facets: {
@@ -6330,6 +6398,10 @@ export interface components {
             }[];
         };
         CatalogExploreQuery: {
+            /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
+            includeMcpTools?: boolean;
+            /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
+            agentProtocol?: string;
             namespaceId?: components["schemas"]["UUID"];
             text?: string;
             kinds?: components["schemas"]["ResourceKind"][];
@@ -6341,7 +6413,7 @@ export interface components {
             /** @description Catalog Publisher UUID. Explore covers local governed releases only. */
             publisher?: string;
             visibility?: components["schemas"]["Visibility"];
-        };
+        } & unknown;
         CatalogFacetBucket: {
             value: string;
             count: number;
@@ -6456,6 +6528,8 @@ export interface components {
             createdAt: string;
         };
         FederationSource: {
+            /** @description Directory-only scalar projection of the latest completed current-revision indexed attempt. Absent for live-only or unsynchronized configurations. Not configuration, last complete membership or a freshness guarantee. */
+            readonly latestCompletedSync?: components["schemas"]["SourceSyncAttempt"];
             /** @description Named operator ANS policy; empty clears selection. Inert when verification is disabled. */
             trustVerificationPolicy?: string;
             /** @description Explicit opt-in to source-provided artwork and native icons; image origin policy still applies. */
@@ -6505,6 +6579,15 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+        };
+        SourceSyncAttempt: {
+            snapshotId: components["schemas"]["UUID"];
+            /** Format: int64 */
+            revision: number;
+            /** @enum {string} */
+            state: "complete" | "incomplete" | "failed";
+            /** Format: date-time */
+            completedAt: string;
         };
         FederationSourcePage: {
             items: components["schemas"]["FederationSource"][];
@@ -9935,6 +10018,8 @@ export interface operations {
                 resourceId?: components["schemas"]["UUID"];
                 category?: components["schemas"]["FeedbackCategory"];
                 state?: components["schemas"]["FeedbackState"];
+                /** @description Current own-feedback ordering. Use updated_desc with state=addressed to find recent moderator outcomes; restart from page one to refresh. */
+                order?: "id" | "updated_desc";
                 limit?: number;
                 cursor?: string;
             };
@@ -11021,6 +11106,8 @@ export interface operations {
     listReviewSubmissions: {
         parameters: {
             query?: {
+                /** @description Restrict the authorized queue to one exact namespace UUID. Unavailable namespaces produce an empty page. Intersects Listing, state and unreleased filters. */
+                namespaceId?: components["schemas"]["UUID"];
                 /** @description True requires state=approved and excludes submissions with any retained release. False or omission adds no release filter. */
                 unreleased?: boolean;
                 /** @description Maximum items in one page. Follow nextCursor with the same page size and filters to continue. */
@@ -11583,6 +11670,34 @@ export interface operations {
             default: components["responses"]["Problem"];
         };
     };
+    previewListingReleaseWithdrawal: {
+        parameters: {
+            query: {
+                /** @description The intended release disposition. Exactly one nonempty value is required. */
+                transition: "retired" | "superseded" | "revoked";
+            };
+            header?: never;
+            path: {
+                /** @description Listing release identifier. */
+                releaseId: components["parameters"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete advisory impact, including an empty array only when all relevant active evidence proves absence. */
+            200: {
+                headers: {
+                    "Cache-Control"?: "no-store";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseWithdrawalPreview"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     deprecateListingRelease: {
         parameters: {
             query?: never;
@@ -11699,6 +11814,8 @@ export interface operations {
     browseCatalog: {
         parameters: {
             query?: {
+                /** @description Exact declared primary A2A binding on current authorized local Agent releases. Requires content-read authority; no runtime compatibility is implied. */
+                agentProtocol?: string;
                 /** @description Restrict to the local Listing namespace UUID without disclosing whether an unmatched namespace exists. */
                 namespaceId?: components["schemas"]["UUID"];
                 /** @description Maximum items in one page. Follow nextCursor with the same page size and filters to continue. */
@@ -12334,6 +12451,8 @@ export interface operations {
                 cursor?: components["parameters"]["Cursor"];
                 /** @description Exact stored display name. No trimming, case folding or substring matching. Omit for all names; empty or repeated values are invalid. */
                 displayName?: string;
+                /** @description Latest completed current-revision indexed synchronization outcome. Empty, repeated or unsupported values are invalid. */
+                syncState?: "failed" | "incomplete";
                 /** @description Exact configured state. Omit for all nonremoved states; empty, repeated or removed values are invalid. */
                 status?: "active" | "paused" | "error";
             };

@@ -2452,6 +2452,22 @@
   },
   {
     "consumption": "buffered",
+    "method": "preview_listing_release_withdrawal",
+    "operation_id": "previewListingReleaseWithdrawal",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1listing-releases~1{releaseId}~1withdrawal-preview/get",
+    "source_method": "GET",
+    "source_operation_id": "previewListingReleaseWithdrawal",
+    "source_path": "/api/v1/listing-releases/{releaseId}/withdrawal-preview",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "publish_catalog_listing",
     "operation_id": "publishCatalogListing",
     "response_excluded_statuses": [],

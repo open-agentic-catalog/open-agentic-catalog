@@ -51,3 +51,15 @@ it("explains browsing without a redundant search-method badge", () => {
     screen.getByText(/With no search text, results are listed by name/),
   ).toBeTruthy();
 });
+
+it("explains private declared-tool search as lexical and without runtime calls", () => {
+  render(
+    <SearchMode result={{ tier: "core", profile: "core-mcp-tools-v1" }} />,
+  );
+  expect(
+    screen.getByText(/All query words must occur within one tool/),
+  ).not.toBeNull();
+  expect(
+    screen.getByText(/No embedding provider or server is contacted/),
+  ).not.toBeNull();
+});

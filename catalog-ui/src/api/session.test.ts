@@ -168,6 +168,19 @@ describe("public runtime configuration", () => {
       expect(decodeRuntime(runtime)).toEqual(runtime);
     },
   );
+  it.each([false, true])("decodes explicit public discovery %s", (enabled) => {
+    expect(
+      decodeRuntime({ ...runtime, publicDiscoveryEnabled: enabled }),
+    ).toEqual({ ...runtime, publicDiscoveryEnabled: enabled });
+  });
+  it.each([null, "true", 1, {}])(
+    "rejects invalid public discovery flag %j",
+    (publicDiscoveryEnabled) => {
+      expect(() =>
+        decodeRuntime({ ...runtime, publicDiscoveryEnabled }),
+      ).toThrow("Invalid UI reply.");
+    },
+  );
   it("preserves an empty documentation fragment accepted by the host", () => {
     const value = { ...runtime, documentationUrl: "https://docs.test/#" };
     expect(decodeRuntime(value)).toEqual(value);

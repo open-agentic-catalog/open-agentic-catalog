@@ -836,6 +836,7 @@ export async function packagedJourneys({
   expect(hostInventory.status()).toBe(200);
   expect((await hostInventory.json()).items).toEqual([
     expect.objectContaining({ host: "127.0.0.1", mode: "anonymous" }),
+    expect.objectContaining({ host: "api", mode: "anonymous" }),
     expect.objectContaining({
       host: "private.catalog.test",
       mode: "authenticated",
@@ -849,6 +850,7 @@ export async function packagedJourneys({
     configuredSourceHost.locator("option:not([value='']):not([disabled])"),
   ).toHaveText([
     "127.0.0.1 (anonymous)",
+    "api (anonymous)",
     "private.catalog.test (authenticated)",
   ]);
   await configuredSourceHost.selectOption("127.0.0.1");
@@ -2301,6 +2303,50 @@ export async function packagedJourneys({
   ).toContainText("The source query failed");
   const partialJobURL = await sync();
   await waitJob("waiting");
+  // Real worker/database outcomes remain separate from retained complete membership.
+  const incompleteRead = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith("/api/v1/federation/sources") &&
+      url.searchParams.get("syncState") === "incomplete"
+    );
+  });
+  await visit("/sources?syncState=incomplete");
+  const incompleteResponse = await incompleteRead;
+  expect(incompleteResponse.status()).toBe(200);
+  const incompletePage = await incompleteResponse.json();
+  expect(
+    incompletePage.items.every(
+      (item) => item.latestCompletedSync?.state === "incomplete",
+    ),
+  ).toBe(true);
+  const incompleteSource = incompletePage.items.find(
+    (item) => item.id === sourceID,
+  );
+  expect(incompleteSource).toBeDefined();
+  expect(incompleteSource.latestCompletedSync.revision).toBe(
+    incompleteSource.revision,
+  );
+  expect(incompleteSource.lastCompleteSnapshotId).toBeTruthy();
+  expect(incompleteSource.latestCompletedSync.snapshotId).not.toBe(
+    incompleteSource.lastCompleteSnapshotId,
+  );
+  const incompletePanel = page.locator("section.workspace-panel").filter({
+    has: page.locator(`h2 a[href="${new URL(sourceURL).pathname}"]`),
+  });
+  await expect(
+    incompletePanel.getByRole("link", {
+      name: "Inspect completed attempt",
+      exact: true,
+    }),
+  ).toHaveAttribute(
+    "href",
+    new URL(origin).pathname.replace(/\/$/, "") +
+      "/source-snapshots/" +
+      incompleteSource.latestCompletedSync.snapshotId,
+  );
+  await page.goto(partialJobURL);
+
   await expect(button("Retry job")).toHaveCount(0);
   await page.goto(indexedURL);
   await expect(
@@ -2312,6 +2358,19 @@ export async function packagedJourneys({
   await fixtureRequest("/control", { mode: "initial" });
   await page.goto(partialJobURL);
   await waitJob("succeeded");
+  const recoveryRead = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      url.pathname.endsWith("/api/v1/federation/sources") &&
+      url.searchParams.get("syncState") === "incomplete"
+    );
+  });
+  await visit("/sources?syncState=incomplete");
+  const recoveryResponse = await recoveryRead;
+  expect(recoveryResponse.status()).toBe(200);
+  expect(
+    (await recoveryResponse.json()).items.some((item) => item.id === sourceID),
+  ).toBe(false);
 
   phase("compose-job-cancellation");
   // Stop only the invocation-owned worker to leave this new Job queued.
@@ -2803,12 +2862,22 @@ export async function packagedJourneys({
   phase("compose-independent-publication");
   await publicationJourney({
     page,
+    origin,
     visit,
     login,
     button,
     field,
     link,
     command,
+  });
+  phase("compose-declared-mcp-tools");
+  await declaredMCPToolsJourney({
+    page,
+    origin,
+    login,
+    visit,
+    button,
+    remoteSearch,
   });
   console.log(
     "Packaged federation, Job, webhook and publication journeys passed",
@@ -3219,6 +3288,7 @@ async function alternateSourceArtworkJourney({
 // cookies are tested separately at both paths, not with duplicate mutations.
 async function publicationJourney({
   page,
+  origin,
   visit,
   login,
   button,
@@ -3484,6 +3554,7 @@ async function publicationJourney({
   // The functional Compose overlay supplies both audiences, overriding api.json.
   await expect(configured).toHaveText([
     "127.0.0.1 — anonymous",
+    "api — anonymous",
     "private.catalog.test — authenticated",
   ]);
   const configuredHost = "127.0.0.1";
@@ -3493,6 +3564,39 @@ async function publicationJourney({
   await expect(button("Build candidate snapshot")).toHaveCount(0);
   await button("Open host").click();
   await expect(button("Build candidate snapshot")).toBeEnabled();
+  const activateFeed = async (host, reason) => {
+    await visit(`/publication?host=${encodeURIComponent(host)}`);
+    await command("Build candidate snapshot");
+    await link("Inspect candidate").click();
+    const snapshotId = new URL(page.url()).pathname.split("/").pop();
+    await field("Reason").fill(reason);
+    await command("Activate candidate");
+    await button("Reload snapshot state").click();
+    await expect(
+      page.getByText(
+        "This snapshot is active for its host and audience. Later listing releases are not added automatically.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    return { host, snapshotId };
+  };
+  const readPublication = async (path) => {
+    const reply = await page.evaluate(async (url) => {
+      const response = await fetch(url, {
+        headers: { "X-Catalog-Request": "1" },
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      return { status: response.status, data: await response.json() };
+    }, `${origin}/_catalog${path}`);
+    expect(reply.status).toBe(200);
+    return reply.data;
+  };
+  const activeFeeds = [];
+  for (const host of ["127.0.0.1", "private.catalog.test"])
+    activeFeeds.push(
+      await activateFeed(host, "Owned withdrawal-preview baseline"),
+    );
   await page.goto(releaseURL);
   await expect(
     page.getByText(/this screen does not establish that a snapshot is active/),
@@ -3543,6 +3647,73 @@ async function publicationJourney({
     ),
   ).toBeVisible();
   await expect(link("Public discovery snapshots")).toHaveCount(0);
+  await login("local-publisher");
+  await page.goto(releaseURL);
+  await page
+    .getByRole("combobox", { name: "Disposition", exact: true })
+    .selectOption("retire");
+  await field("Reason").fill("Owned previewed release retirement");
+  const previewResponse = page.waitForResponse((response) =>
+    new URL(response.url()).pathname.endsWith("/withdrawal-preview"),
+  );
+  await button("Preview or refresh affected feeds").click();
+  const previewReply = await previewResponse;
+  expect(previewReply.status()).toBe(200);
+  const preview = await previewReply.json();
+  expect(preview.transition).toBe("retired");
+  expect(
+    preview.snapshots.map(({ host, snapshotId }) => ({ host, snapshotId })),
+  ).toEqual(activeFeeds);
+  const previewRegion = page.getByRole("region", {
+    name: "Discovery withdrawal preview",
+    exact: true,
+  });
+  for (const feed of activeFeeds)
+    await expect(previewRegion).toContainText(feed.snapshotId);
+  await command("Change release disposition");
+  await expect(page.getByRole("status")).toContainText("Release retired.");
+  for (const feed of activeFeeds) {
+    const active = await readPublication(
+      `/api/v1/publication/snapshots?host=${encodeURIComponent(feed.host)}&state=active&limit=1`,
+    );
+    expect(active.items).toEqual([]);
+  }
+  // Restore discovery of other eligible releases with new publications. Never
+  // roll back to the withdrawn bundles containing the retired release.
+  const retiredReleaseId = new URL(releaseURL).pathname.split("/").pop();
+  for (const feed of activeFeeds) {
+    const replacement = await activateFeed(
+      feed.host,
+      "Restore other eligible discovery after owned release retirement",
+    );
+    expect(replacement.snapshotId).not.toBe(feed.snapshotId);
+    const snapshot = await readPublication(
+      `/api/v1/publication/snapshots/${replacement.snapshotId}?host=${encodeURIComponent(feed.host)}`,
+    );
+    expect(snapshot.state).toBe("active");
+    expect(snapshot.ard.entries.length).toBeGreaterThan(1);
+    expect(snapshot.aiCatalog.entries.length).toBeGreaterThan(0);
+    expect(
+      snapshot.ard.entries.some(
+        (entry) => entry.metadata?.catalogReleaseId === retiredReleaseId,
+      ),
+    ).toBe(false);
+    expect(
+      snapshot.aiCatalog.entries.some(
+        (entry) =>
+          entry.extensions?.["https://ai-catalog.org/extensions/metadata"]
+            ?.catalogReleaseId === retiredReleaseId,
+      ),
+    ).toBe(false);
+  }
+  // Leave the completed publication form before the next identity handoff.
+  await page.goto(releaseURL);
+  await expect(
+    page.getByRole("heading", { name: "Release", exact: true }),
+  ).toBeVisible();
+  console.log(
+    "Packaged withdrawal preview, both-audience retirement and explicit replacement publication passed",
+  );
 }
 
 // One persisted private-feedback handoff complements the memory-browser and
@@ -3818,6 +3989,37 @@ export async function privateFeedbackJourney({ page, origin, network, api }) {
     await visit(`/my-feedback/${created.id}`);
     await expect(responseParagraph).toBeVisible();
     expect(await request("GET", path)).toEqual(persisted);
+    await visit("/my-feedback");
+    const [recent] = await Promise.all([
+      page.waitForResponse(
+        (reply) =>
+          reply.request().method() === "GET" &&
+          new URL(reply.url()).pathname === feedbackPath &&
+          new URL(reply.url()).searchParams.get("order") === "updated_desc",
+      ),
+      button("Recent addressed outcomes").click(),
+    ]);
+    expect(recent.status()).toBe(200);
+    expect(recent.headers()["cache-control"]).toBe("no-store");
+    expect(new URL(recent.url()).searchParams.get("limit")).toBe("20");
+    expect((await recent.json()).items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: created.id,
+          state: "addressed",
+          response: responseText,
+        }),
+      ]),
+    );
+    const current = page
+      .locator(".case-summary")
+      .filter({ hasText: responseText });
+    await expect(current).toHaveCount(1);
+    await current
+      .getByRole("link", { name: "Open feedback case", exact: true })
+      .click();
+    await expect(responseParagraph).toBeVisible();
+    expect(writes).toHaveLength(2);
   } finally {
     page.off("request", observe);
   }
@@ -3853,4 +4055,194 @@ export async function privateFeedbackJourney({ page, origin, network, api }) {
   expect(restored.data.availablePermissions).not.toContain("feedback.moderate");
   await login("local-reader");
   await page.goto(releaseURL);
+}
+
+// The new release lives only in this harness's PostgreSQL project. Setup uses
+// ordinary governed commands; Search, CLI and browser reads use real services.
+async function declaredMCPToolsJourney({
+  page,
+  origin,
+  login,
+  visit,
+  button,
+  remoteSearch,
+}) {
+  const request = (method, path, body, etag) =>
+    page.evaluate(
+      async ({ url, method, body, etag, key }) => {
+        const response = await fetch(url, {
+          method,
+          credentials: "same-origin",
+          signal: AbortSignal.timeout(10000),
+          headers: {
+            "X-Catalog-Request": "1",
+            ...(body === undefined
+              ? {}
+              : { "Content-Type": "application/json" }),
+            ...(key ? { "Idempotency-Key": key } : {}),
+            ...(etag ? { "If-Match": etag } : {}),
+          },
+          ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        });
+        return {
+          status: response.status,
+          etag: response.headers.get("ETag"),
+          data: await response.json(),
+        };
+      },
+      {
+        url: origin + "/_catalog" + path,
+        method,
+        body,
+        etag,
+        key: method === "GET" ? undefined : randomUUID(),
+      },
+    );
+  await login("local-admin");
+  const createdNamespace = await request("POST", "/api/v1/namespaces", {
+    slug: "declared-tool-qualification",
+    displayName: "Declared tool qualification",
+  });
+  expect(createdNamespace.status).toBe(201);
+  const namespace = createdNamespace.data;
+  const publishers = await request(
+    "GET",
+    "/api/v1/publishers?displayName=Demo%20Publisher",
+  );
+  expect(publishers.status).toBe(200);
+  const publisher = publishers.data.items.find(
+    (p) => p.displayName === "Demo Publisher",
+  );
+  expect(publisher).toBeTruthy();
+  const resource = await request("POST", "/api/v1/resources", {
+    namespaceId: namespace.id,
+    kind: "mcp_server",
+    canonicalIdentifier:
+      "urn:air:demo.catalog.example.com:demo:declared-tool-qualification",
+  });
+  expect(resource.status).toBe(201);
+  const native = JSON.parse(
+    await readFile(
+      new URL("../../samples/cards/order-mcp.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const version = await request(
+    "POST",
+    `/api/v1/resources/${resource.data.id}/versions`,
+    {
+      version: native.version,
+      representations: [
+        {
+          role: "primary",
+          mediaType: "application/mcp-server-card+json",
+          data: native,
+        },
+        {
+          role: "metadata",
+          mediaType: "application/vnd.open-agentic-catalog.mcp-tools+json",
+          profileId: "open-agentic-catalog-mcp-tools-1",
+          data: {
+            tools: [
+              {
+                name: "extract_packaged_pdf_tables",
+                description: "Parse packaged PDF tables",
+              },
+            ],
+          },
+        },
+      ],
+    },
+  );
+  expect(version.status).toBe(201);
+  expect(version.data.evidence.state).toBe("complete");
+  const listing = await request("POST", "/api/v1/catalog-listings", {
+    namespaceId: namespace.id,
+    resourceId: resource.data.id,
+  });
+  expect(listing.status).toBe(201);
+  const revision = await request(
+    "POST",
+    `/api/v1/catalog-listings/${listing.data.id}/revisions`,
+    {
+      versionRevisionId: version.data.revision.id,
+      publisherId: publisher.id,
+      displayName: "Owned tool qualification",
+      description: "Processes documents",
+      visibility: "tenant",
+    },
+    listing.etag,
+  );
+  expect(revision.status).toBe(201);
+  const submitted = await request(
+    "POST",
+    `/api/v1/catalog-listings/${listing.data.id}/submissions`,
+    {},
+  );
+  expect(submitted.status).toBe(201);
+  await login("local-reviewer");
+  expect(
+    (
+      await request(
+        "POST",
+        `/api/v1/review-submissions/${submitted.data.id}:approve`,
+        { reason: "Review exact private tools" },
+        submitted.etag,
+      )
+    ).status,
+  ).toBe(200);
+  await login("local-publisher");
+  const published = await request(
+    "POST",
+    `/api/v1/catalog-listings/${listing.data.id}:publish`,
+    { submissionId: submitted.data.id },
+    revision.etag,
+  );
+  expect(published.status).toBe(201);
+  const query = { text: "packaged pdf tables", origins: ["local"] };
+  await login("local-reader");
+  const ordinary = await request("POST", "/api/v1/catalog/search", query);
+  expect(ordinary.status).toBe(200);
+  expect(ordinary.data.durableTotal).toBe(0);
+  const cli = await remoteSearch({ ...query, includeMcpTools: true });
+  expect(cli).toMatchObject({
+    profile: "core-mcp-tools-v1",
+    tier: "core",
+    durableTotal: 1,
+    liveCount: 0,
+  });
+  expect(cli.items).toHaveLength(1);
+  expect(cli.items[0].local.release.id).toBe(published.data.release.id);
+  expect(cli.items[0].local.versionRevision.id).toBe(version.data.revision.id);
+  expect(cli.items[0].toolMatch.tools[0].name).toBe(
+    "extract_packaged_pdf_tables",
+  );
+  await visit("/catalog");
+  await page
+    .getByRole("searchbox", { name: "Search Catalog", exact: true })
+    .fill(query.text);
+  await button("Search").click();
+  await expect(page.locator("article.resource-card")).toHaveCount(0);
+  await page.getByRole("button", { name: /^Filters/ }).click();
+  await page
+    .getByRole("checkbox", { name: "Include declared MCP tools", exact: true })
+    .check();
+  await button("Apply filters").click();
+  await expect(page.locator("article.resource-card")).toHaveCount(1);
+  await expect(page.locator("article.resource-card")).toContainText(
+    "extract_packaged_pdf_tables",
+  );
+  await button("Inspect released declaration").click();
+  await expect(page.getByRole("dialog")).toContainText("Declared MCP tools");
+  await page
+    .getByRole("dialog")
+    .getByText("Exact release and revision IDs", { exact: true })
+    .click();
+  await expect(page.getByRole("dialog")).toContainText(
+    version.data.revision.id,
+  );
+  await button("Close preview").click();
+  console.log(
+    "Packaged declared-tool Search, exact revision readback and CLI passed",
+  );
 }

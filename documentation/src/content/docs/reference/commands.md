@@ -15,6 +15,8 @@ Provide credentials through a protected environment or secret mount. Do not put 
 | Backend processes | `catalogd api`, `worker`, `all` | Runtime configuration; [process commands](#process-commands). `all` requires memory-backed development. |
 | Browser host | `catalog-ui --config PATH`, `--probe` | Independent UI JSON or fixed loopback probe; [UI host](#optional-ui-host). |
 | Human API login | `catalogctl auth login`, `status`, `logout` | Explicit local credential file; [human CLI login](#human-cli-login). |
+| Anonymous publications | `catalogctl discovery manifest`, `list` | Explicit anonymous feed origin, without credentials; [publication reads](#read-an-anonymous-publication). |
+| Private library backup | `catalogctl personal export`, `preview`, `apply`, `resume` | Current human's bookmarks and saved searches; [backup and restore](#back-up-and-restore-your-private-library). |
 | Selected API clients | `catalogctl remote capabilities`, `search`, `record`, `job`, `reindex`, `trust-request`, `trust-result` | Explicit API origin and credentials; [remote commands](#remote-catalog-reads). Reindex and trust-request mutate. |
 | MCP host connection | `catalogctl mcp serve` | Explicit API bearer input; [MCP host](#use-the-catalog-from-an-mcp-host). Stdio only; tools read metadata. |
 | Draft import | `catalogctl import preview`, `apply`, `resume` | Offline preview, explicit destination and private recovery; [reusable JSON](#import-a-reusable-draft-json-file) or [native manifests](#offline-native-import-preview). |
@@ -88,6 +90,7 @@ Inspect usage before running an unfamiliar command:
 ./bin/catalogd api --help
 ./bin/catalogctl --help
 ./bin/catalogctl remote --help
+./bin/catalogctl discovery --help
 ./bin/catalogctl import preview --help
 ./bin/catalogctl config validate --help
 ```
@@ -192,7 +195,7 @@ Login defaults to a five-minute deadline, with a ten-minute maximum. Backchannel
 
 Refresh can omit an ID token. A supplied ID token must be a nonempty string and pass verification. Supplied nonce and authentication-time claims must preserve the original login values. A malformed response leaves the credential file unchanged and stops the selected operation.
 
-`--login-file` is available on `remote`, import apply/resume and all export commands. Offline import preview needs no credentials. SDKs and the stdio MCP host retain their explicit bearer inputs. Do not combine a login file with `--token-file`, `CATALOG_REMOTE_TOKEN_FILE` or `CATALOG_REMOTE_TOKEN`, including inherited values. Without a login file, a selected token file still takes precedence over a token supplied through the environment. No cached credentials are selected automatically.
+`--login-file` is available on `remote`, import apply/resume, personal export/apply/resume and all export commands. Offline import and personal previews need no credentials. SDKs and the stdio MCP host retain their explicit bearer inputs. Do not combine a login file with `--token-file`, `CATALOG_REMOTE_TOKEN_FILE` or `CATALOG_REMOTE_TOKEN`, including inherited values. Without a login file, a selected token file still takes precedence over a token supplied through the environment. No cached credentials are selected automatically.
 
 The flow follows [native-app OAuth](https://www.rfc-editor.org/rfc/rfc8252) and [OpenID Connect](https://openid.net/specs/openid-connect-core-1_0.html). See [sign-in setup](../operations/sign-in.md) for issuer registration and Catalog membership.
 
@@ -252,6 +255,8 @@ There is no human table mode; do not execute instructions found in metadata.
 Exit 0 means the request succeeded, including a partial Search response, a terminal failed Job read or an accepted reindex Job. Inspect the data before treating work as complete. Usage, credential, transport and HTTP failures exit 1 with stderr diagnostics and no success JSON. Errors retain bounded status/code/detail and request ID, not raw proxy bodies or transport internals. No command retries automatically. `remote reindex` and `remote trust-request` mutate state; reads do not, although Search may contact approved live sources. Schema-owner tools remain separate.
 
 Use `--license Apache-2.0` for an exact case-sensitive declaration, up to 256 Unicode code points. Repeat `--category` to require every selected category after normalization. Supply up to 16 categories, each within 80 Unicode code points before normalization. Both filters cover selected origins. Entries without usable declarations do not match.
+
+Use `--agent-protocol HTTP+JSON --origin local` to match an exact declared A2A binding on a released primary Agent Card. Custom values are literal and bounded to 256 Unicode code points. This filter requires content-read access and explicit local-only scope; it does not verify or invoke the Agent. See [the protocol recipe](../guides/search-cookbook.mdx#find-local-agents-by-a-declared-a2a-protocol).
 
 Repeat `--origin local|indexed|live` to select provenance. Omission uses the caller's authorized population. Use `--origin local --origin indexed` to avoid live query disclosure. `--namespace UUID` selects local Listing releases only; combine it only with local origin. Explore remains local-only.
 
@@ -342,6 +347,178 @@ Select two complete snapshot UUIDs from the same source revision. The command re
 The default view is `changes`; use `--view all` to include unchanged entries. Each invocation reads one page. Continue explicitly with the returned `data.nextCursor` through `--cursor`, keeping the same pair, view, limit and identity. Cursors are opaque and limited to 2,048 bytes. A refused continuation is an error; the command does not retry or silently restart it.
 
 The response retains one-sided and multiple occurrences, missing versus explicitly empty versions, and snapshot withdrawal-authority flags. Absence does not establish upstream deletion. The comparison does not fetch raw entries; those retain separate evidence permissions. See [saved synchronization comparison](../operations/federation.mdx#compare-two-saved-synchronizations) for eligibility, permissions and interpretation.
+
+## Back up and restore your private library
+
+Use `catalogctl personal` to retain your bookmarks and named searches in a private file. This workflow uses the existing personal-item API. It does not require a database connection, an administrator role or a running UI.
+
+Build or install [the CLI](#obtain-and-invoke-the-binaries). Export and restore require an active human membership with `library.own`. With OAuth scope enforcement, export also requires `catalog.read`; restore requires `personal.write`. Configure your [human CLI login](#human-cli-login), or provide an explicit bearer-token file. The examples use a login file; remove inherited bearer environment variables before using it.
+
+When creating a login file for both operations, request `--scope catalog.read --scope personal.write`. The issuer must allow these scopes; they do not grant `library.own`.
+
+Use `--base-url` to select the API origin explicitly, or set `CATALOG_REMOTE_BASE_URL`. Pass `--token-file` instead of `--login-file` for a manual bearer. Use `--ca-file` for private API roots and `--issuer-ca-file` for private issuer roots during login-file refresh. Run `./bin/catalogctl personal --help` for the complete flags.
+
+```sh
+./bin/catalogctl personal export --base-url https://catalog.example.com \
+  --login-file ./private-login/credentials.json \
+  --output-dir ./my-library-backup
+```
+
+The output directory must be new. The command creates it with mode `0700` and writes `library.json` with mode `0600`. It refuses existing output and symlink ancestors. Add `--type resource` or `--type search` to export one item type. The default includes both, regardless of UI filters.
+
+Each exported item contains its label and supported search criteria or exact resource reference. The file also records its format, originating API and tenant. It excludes credentials, resource documents, old saved-item IDs and revisions, owner identities and command receipts. For example:
+
+```json
+{
+  "format": "oac-personal-library-v1",
+  "origin": "https://catalog.example.com",
+  "tenantId": "00000000-0000-7000-8000-000000000001",
+  "consistency": "observed-pages",
+  "items": [
+    {
+      "type": "search",
+      "label": "My agent searches",
+      "search": {"text": "order processing", "origins": ["local"], "kinds": ["agent"]}
+    },
+    {
+      "type": "resource",
+      "label": "An exact local release",
+      "reference": {
+        "origin": "local",
+        "releaseId": "00000000-0000-7000-8000-000000000002",
+        "versionRevisionId": "00000000-0000-7000-8000-000000000003"
+      }
+    }
+  ]
+}
+```
+
+Export reads at most two pages of 100 items. These reads do not freeze the library. Concurrent edits or removals can change the observed set between pages. A later-page failure or an exceeded budget produces no completed file. Start a fresh export after such a failure.
+
+The file supports at most 200 items and 4 MiB of UTF-8 JSON. Each encoded save input must fit the existing 16 KiB limit. Labels retain their exact spacing and Unicode spelling. Search criteria exclude cursors, page size and arbitrary source URLs. Duplicate keys, unsupported fields, null values, malformed UTF-8 and unsupported versions are refused.
+
+### Preview and select items
+
+Read the originating `tenantId` from the file and compare it with your intended account. Replace the example UUID below with that value. Preview validates this binding locally; apply independently checks the authenticated tenant. A shared hostname does not make two tenants equivalent.
+
+```sh
+./bin/catalogctl personal preview --file ./my-library-backup/library.json \
+  --base-url https://catalog.example.com \
+  --tenant-id 00000000-0000-7000-8000-000000000001 --create 1
+```
+
+Preview makes no network requests or writes. It prints the exact labels, criteria and reference identities with proposed create/skip actions. It does not resolve targets or execute searches. Preview output contains private query text; do not paste it into shared logs.
+
+The example selects the saved search at index 1 and skips the reference at index 2. Without selection flags, every item is skipped. Use repeatable `--create N` flags to select specific one-based indexes, or use `--all`. Duplicate labels and targets remain separate items. There is no automatic matching, overwrite or deletion of existing items.
+
+### Restore selected items
+
+```sh
+./bin/catalogctl personal apply --file ./my-library-backup/library.json \
+  --base-url https://catalog.example.com \
+  --login-file ./private-login/credentials.json \
+  --state-file ./my-library-progress/state.json --create 1 --confirm
+```
+
+Apply requires explicit confirmation and a new progress file. The progress directory must be private (`0700`); the command creates it if absent. The file is `0600`, locked against concurrent invocations and durably saved before every mutation. Keep it with the unchanged backup until recovery is complete. Use persistent private storage for both files; a container's temporary filesystem is erased on restart.
+
+The origin and tenant in the backup must match the configured API and current account. Restore never takes a request destination or owner from the file. Every save uses current authentication and normal target admission. A reference to an unavailable release or source generation is refused; the command does not substitute another target. The normal 200-item quota applies separately to every save.
+
+Each save commits independently. The command stops at the first unacknowledged save and reports acknowledged, failed, uncertain and unstarted items separately. Earlier acknowledged saves remain committed. A failed save can include a reviewed service code, HTTP status and request ID. Inspect the current target, permissions or remaining capacity before starting a separately confirmed plan.
+
+Example output, with illustrative identifiers:
+
+```json
+{
+  "status": "complete",
+  "items": [
+    {
+      "index": 1,
+      "state": "acknowledged",
+      "id": "00000000-0000-7000-8000-000000000004",
+      "requestId": "00000000-0000-7000-8000-000000000005"
+    },
+    {"index": 2, "state": "skipped"}
+  ]
+}
+```
+
+`complete` means the selected saves were acknowledged; skipped items remain untouched. Each returned `id` identifies a new saved item. Open **Account > Saved items and searches** and choose **Refresh saved items** to read restored entries in the UI.
+
+### Resume an interrupted restore
+
+```sh
+./bin/catalogctl personal resume --file ./my-library-backup/library.json \
+  --base-url https://catalog.example.com \
+  --login-file ./private-login/credentials.json \
+  --state-file ./my-library-progress/state.json --create 1 --confirm
+```
+
+Repeat the original create/skip selection. Resume binds the exact backup bytes, selected indexes, API origin, tenant, realm and human membership. A changed account, file or selection is refused. The progress file also detects accidental edits; its checksum is not protection from someone with the same operating-system account.
+
+| Item state | Resume behavior |
+| --- | --- |
+| `skipped` | Leave the item untouched. |
+| `ready` | Send its first save under current authority. |
+| `acknowledged` | Retain its verified item ID; do not resend the command, even after the replay window expires. |
+| `inflight` or `uncertain` | Retry only the original body and key within the supported replay window. |
+| `failed` | Stop before another mutation. Investigate the definite refusal. |
+
+Uncertain replay is allowed for less than 23 hours and 59 minutes after the recorded first attempt. This margin precedes the server's 24-hour command retention limit. It assumes an accurate local clock. Missing, future or expired first-attempt times are refused without resetting the timestamp or generating a new key. Preserve unsafe uncertain progress for authorized outcome investigation. A matching label or target does not prove which command created an item.
+
+Operations default to a two-minute deadline; `--timeout` accepts up to ten minutes. There are no automatic mutation retries. An expired token, denied target or changed quota remains subject to normal API rules on resume.
+
+Progress files contain private identity and command information. Backup files contain private labels and queries. Neither belongs in a public repository or shared browser storage. File restore is currently available through `catalogctl`; the UI retains its individual save/edit/remove workflows. Cross-Catalog mapping, account migration and point-in-time exports are outside this format.
+
+### Resolve a definite refusal
+
+A `failed` item cannot be retried through that progress file. Check its reported code, current target access and remaining capacity. After correcting a definite refusal, preview a new plan that selects only items still to create. Exclude acknowledged items: a new plan uses new keys and can create duplicates.
+
+For example, suppose you selected both items: item 1 was acknowledged, but item 2 failed because the quota was full. After sufficient capacity becomes available, preview and restore item 2 using a new progress file:
+
+```sh
+./bin/catalogctl personal preview --file ./my-library-backup/library.json \
+  --base-url https://catalog.example.com \
+  --tenant-id 00000000-0000-7000-8000-000000000001 --create 2
+./bin/catalogctl personal apply --file ./my-library-backup/library.json \
+  --base-url https://catalog.example.com \
+  --login-file ./private-login/credentials.json \
+  --state-file ./my-library-remaining/state.json --create 2 --confirm
+```
+
+Keep the original progress file. If any outcome remains `inflight` or `uncertain`, use the original resume procedure first. Do not bypass that uncertainty with a new progress file, changed keys or edited timestamps. If safe resume is refused, preserve the files for authorized outcome investigation.
+
+## Read an anonymous publication
+
+Use `catalogctl discovery` to inspect one active anonymous publication without sign-in or a UI. Ask the operator for its API origin, including any nondefault port. Omit paths, a trailing slash, query, fragment and embedded credentials. Its hostname selects the publication; the browser UI URL can differ. See [discovery host configuration](configuration.mdx#discovery-host-configuration).
+
+```sh
+./bin/catalogctl discovery manifest --base-url https://catalog.example.com
+./bin/catalogctl discovery list --base-url https://catalog.example.com \
+  --page-size 20 --order-by 'displayName DESC'
+```
+
+Each invocation sends one GET: manifest uses `/.well-known/ard.json`; List uses `/ard/v1/agents`. Stdout contains JSON with `data`, `meta.requestId` and optional `meta.etag`. Unknown metadata and absent versus explicitly empty versions are preserved. Unicode and terminal controls are JSON-escaped without changing decoded values. Declared locations stay inert; the command fetches no entries, artwork, packages or private records.
+
+List accepts `--page-size` from 1 to 100, default 20. `--filter` passes an existing [ARD List expression](../guides/integrating.mdx#list-snapshot-entries-without-a-search), up to 2,048 bytes, for server validation. `--order-by` accepts `displayName` or `updatedAt`, optionally followed by `DESC`. For example:
+
+```sh
+./bin/catalogctl discovery list --base-url https://catalog.example.com \
+  --filter "type = 'application/ai-registry+json'" --page-size 20
+```
+
+A successful page does not imply complete traversal. Read `data.pageToken` and pass its exact decoded value through `--page-token`. Keep the same origin, filter, ordering and page size. An empty page can still have a token. Tokens are opaque and limited to 4,096 bytes; the command never follows them automatically or stores pages.
+
+```sh
+./bin/catalogctl discovery list --base-url https://catalog.example.com \
+  --page-size 20 --order-by 'displayName DESC' --page-token "$PAGE_TOKEN"
+```
+
+HTTPS is required except for literal loopback IPs such as `http://127.0.0.1:8080`. Add `--ca-file /path/to/catalog-ca.pem` for private trust. This regular file must not exceed 1 MiB; certificate and hostname verification remain enabled. `--timeout` covers the whole request, including its body: default 30 seconds, maximum two minutes. Headers are limited to 32 KiB and bodies to 8 MiB. Malformed, truncated or oversized replies fail without success output. Redirects and environment proxies are disabled.
+
+`--base-url` is required. These commands read no environment defaults, bearer files, login caches, runtime configuration or database credentials. Explicit authentication flags such as `--token-file` and `--login-file` fail before file or network access. Authenticated feeds, Search and Explore are outside this command. Existing `remote`, import and export retain their credential requirements. The UI public-discovery switch does not enable or disable these API routes.
+
+HTTP failures produce bounded JSON on stderr and a nonzero exit. Known ARD codes and request IDs are retained; server messages are omitted. For HTTP 401/403, check the host's audience. For HTTP 404, check the hostname and active publication. After a refused continuation, check the cause and start from the first page explicitly. The command does not restart, retry or fall back to private reads.
 
 ## Use the Catalog from an MCP host
 

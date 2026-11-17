@@ -351,6 +351,10 @@ from catalog_sdk.generated.models.mcp_reply import MCPReply
 from catalog_sdk.generated.models.mcp_reply_id import MCPReplyId
 from catalog_sdk.generated.models.mcp_request import MCPRequest
 from catalog_sdk.generated.models.mcp_request_id import MCPRequestId
+from catalog_sdk.generated.models.mcp_tool_match import MCPToolMatch
+from catalog_sdk.generated.models.mcp_tool_match_tools_inner import (
+    MCPToolMatchToolsInner,
+)
 from catalog_sdk.generated.models.member_access_page import MemberAccessPage
 from catalog_sdk.generated.models.member_contribution import MemberContribution
 from catalog_sdk.generated.models.membership import Membership
@@ -507,6 +511,12 @@ from catalog_sdk.generated.models.reindex_catalog_request import ReindexCatalogR
 from catalog_sdk.generated.models.relationship import Relationship
 from catalog_sdk.generated.models.release_overview import ReleaseOverview
 from catalog_sdk.generated.models.release_transition import ReleaseTransition
+from catalog_sdk.generated.models.release_withdrawal_preview import (
+    ReleaseWithdrawalPreview,
+)
+from catalog_sdk.generated.models.release_withdrawal_snapshot import (
+    ReleaseWithdrawalSnapshot,
+)
 from catalog_sdk.generated.models.remove_source import RemoveSource
 from catalog_sdk.generated.models.representation import Representation
 from catalog_sdk.generated.models.representation_input import RepresentationInput
@@ -569,6 +579,7 @@ from catalog_sdk.generated.models.source_overview import SourceOverview
 from catalog_sdk.generated.models.source_scope import SourceScope
 from catalog_sdk.generated.models.source_state_count import SourceStateCount
 from catalog_sdk.generated.models.source_sync_accepted import SourceSyncAccepted
+from catalog_sdk.generated.models.source_sync_attempt import SourceSyncAttempt
 from catalog_sdk.generated.models.source_sync_problem import SourceSyncProblem
 from catalog_sdk.generated.models.sync_summary import SyncSummary
 from catalog_sdk.generated.models.tenant_settings import TenantSettings

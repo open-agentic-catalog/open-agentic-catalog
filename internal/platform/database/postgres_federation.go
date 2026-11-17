@@ -106,6 +106,7 @@ func (p *PostgresFederationStore) CreateSource(ctx context.Context, source feder
 	source.LastCompleteSnapshotID = ""
 	source.LastSyncAt = nil
 	source.LastError = ""
+	source.LatestCompletedSync = nil
 	return withTenantTx(ctx, p.repository.pool, source.TenantID, pgx.TxOptions{}, func(tx pgx.Tx) (federation.Source, error) {
 		if err := lockCurrentSourceInspection(ctx, tx, source.TenantID, source.InspectionID); err != nil {
 			return federation.Source{}, err
@@ -136,6 +137,7 @@ func (p *PostgresFederationStore) CreateSource(ctx context.Context, source feder
 // preserves synchronization state and appends revision evidence; pre-write
 // revision conflicts leave room for safe test-attempt auditing.
 func (p *PostgresFederationStore) UpdateSource(ctx context.Context, source federation.Source, expectedRevision int64, evidence ...federation.MutationEvidence) (federation.Source, error) {
+	source.LatestCompletedSync = nil
 	var deferredPrecondition error
 	updated, err := withTenantTx(ctx, p.repository.pool, source.TenantID, pgx.TxOptions{}, func(tx pgx.Tx) (federation.Source, error) {
 		current, err := readFederationSource(ctx, tx, source.TenantID, source.ID, true)
@@ -256,6 +258,7 @@ func marshalFederationSourceConfiguration(source federation.Source) ([]byte, err
 	source.LastCompleteSnapshotID = ""
 	source.LastSyncAt = nil
 	source.LastError = ""
+	source.LatestCompletedSync = nil
 	return json.Marshal(source)
 }
 
@@ -453,12 +456,11 @@ func (p *PostgresFederationStore) listDiscoverySources(ctx context.Context, tena
 	return result.items, result.truncated, err
 }
 
-// queryFederationSources joins current revision, audience and referral evidence
-// before decoding source state, applying the supplied administrative page when
-// present.
-func queryFederationSources(ctx context.Context, tx pgx.Tx, tenantID string, request *federation.SourceListRequest) ([]federation.Source, error) {
+// federationSourcePageSQL applies directory predicates and bounds before
+// source hydration, including the shared completed-attempt projection.
+func federationSourcePageSQL(tenantID string, request *federation.SourceListRequest) (string, []any) {
 	query := `
-			SELECT revision.configuration,jsonb_build_object('lastError',source.last_error),source.status,source.revision,
+			SELECT latest.id::text,latest.state,latest.completed_at,revision.configuration,jsonb_build_object('lastError',source.last_error),source.status,source.revision,
 			       coalesce(source.last_complete_snapshot_id::text,''),source.last_sync_at,source.updated_at,
 			       revision.revision IS NOT NULL,coalesce(revision.retrieval_mode,''),coalesce(revision.policy_id,''),
 			       coalesce(revision.policy_revision,0),coalesce(revision.policy_digest,''),coalesce(revision.credential_revision,''),
@@ -470,7 +472,7 @@ func queryFederationSources(ctx context.Context, tx pgx.Tx, tenantID string, req
 			                 WHERE referral.tenant_id=source.tenant_id AND referral.source_id=source.id AND referral.source_revision=source.revision),'[]'::jsonb)
 			FROM federation_sources source
       LEFT JOIN federation_source_revisions revision
-        ON revision.tenant_id=source.tenant_id AND revision.source_id=source.id AND revision.revision=source.revision
+        ON revision.tenant_id=source.tenant_id AND revision.source_id=source.id AND revision.revision=source.revision` + sourceLatestCompletedJoinSQL + `
       WHERE source.tenant_id=$1 AND source.status <> $2`
 	arguments := []any{tenantID, federation.SourceRemoved}
 	if request != nil {
@@ -479,6 +481,10 @@ func queryFederationSources(ctx context.Context, tx pgx.Tx, tenantID string, req
 		if request.DisplayName != "" {
 			arguments = append(arguments, request.DisplayName)
 			query += ` AND source.display_name COLLATE "C"=$` + strconv.Itoa(len(arguments)) + ` COLLATE "C"`
+		}
+		if request.SyncState != "" {
+			arguments = append(arguments, request.SyncState)
+			query += ` AND latest.state=$` + strconv.Itoa(len(arguments))
 		}
 		if request.Status != "" {
 			arguments = append(arguments, request.Status)
@@ -490,6 +496,12 @@ func queryFederationSources(ctx context.Context, tx pgx.Tx, tenantID string, req
 		arguments = append(arguments, request.Limit)
 		query += ` LIMIT $` + strconv.Itoa(len(arguments))
 	}
+	return query, arguments
+}
+
+// queryFederationSources hydrates only the SQL-selected bounded source page.
+func queryFederationSources(ctx context.Context, tx pgx.Tx, tenantID string, request *federation.SourceListRequest) ([]federation.Source, error) {
+	query, arguments := federationSourcePageSQL(tenantID, request)
 	rows, err := tx.Query(ctx, query, arguments...)
 	if err != nil {
 		return nil, translateError("list federation sources", err)
@@ -497,6 +509,8 @@ func queryFederationSources(ctx context.Context, tx pgx.Tx, tenantID string, req
 	defer rows.Close()
 	items := make([]federation.Source, 0)
 	for rows.Next() {
+		var attemptID, attemptState *string
+		var attemptCompleted *time.Time
 		var raw, currentRaw []byte
 		var status federation.SourceStatus
 		var revision int64
@@ -507,12 +521,15 @@ func queryFederationSources(ctx context.Context, tx pgx.Tx, tenantID string, req
 		var retrievalMode, policyID, policyDigest, credentialRevision string
 		var policyRevision int64
 		var assignmentsRaw, referralsRaw []byte
-		if err := rows.Scan(&raw, &currentRaw, &status, &revision, &snapshotID, &lastSync, &updated, &hasRevision, &retrievalMode, &policyID, &policyRevision, &policyDigest, &credentialRevision, &assignmentsRaw, &referralsRaw); err != nil {
+		if err := rows.Scan(&attemptID, &attemptState, &attemptCompleted, &raw, &currentRaw, &status, &revision, &snapshotID, &lastSync, &updated, &hasRevision, &retrievalMode, &policyID, &policyRevision, &policyDigest, &credentialRevision, &assignmentsRaw, &referralsRaw); err != nil {
 			return nil, translateError("scan federation source", err)
 		}
 		source, decodeErr := decodeFederationSource(raw, currentRaw, status, revision, snapshotID, lastSync, updated, hasRevision, retrievalMode, policyID, policyRevision, policyDigest, credentialRevision, assignmentsRaw, referralsRaw)
 		if decodeErr != nil {
 			return nil, decodeErr
+		}
+		if attemptID != nil && attemptState != nil && attemptCompleted != nil {
+			source.LatestCompletedSync = &federation.SourceSyncAttempt{SnapshotID: *attemptID, Revision: source.Revision, State: federation.SnapshotState(*attemptState), CompletedAt: *attemptCompleted}
 		}
 		items = append(items, source)
 	}

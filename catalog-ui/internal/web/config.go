@@ -19,29 +19,30 @@ import (
 
 // Config contains non-secret startup settings. Credentials are mounted files.
 type Config struct {
-	LogLevel             string   `json:"logLevel"`
-	LogFormat            string   `json:"logFormat"`
-	Listen               string   `json:"listen"`
-	Environment          string   `json:"environment"`
-	Origin               string   `json:"origin"`
-	BasePath             string   `json:"basePath"`
-	Assets               string   `json:"assets"`
-	Upstream             string   `json:"upstream"`
-	APICAFile            string   `json:"apiCAFile"`
-	CookieName           string   `json:"cookieName"`
-	KeysFile             string   `json:"keysFile"`
-	SessionSeconds       int      `json:"sessionSeconds"`
-	RequestBytes         int64    `json:"requestBytes"`
-	ResponseBytes        int64    `json:"responseBytes"`
-	TimeoutSeconds       int      `json:"timeoutSeconds"`
-	AuthMode             string   `json:"authMode"`
-	DevelopmentUsersFile string   `json:"developmentUsersFile"`
-	Issuer               string   `json:"issuer"`
-	IssuerCAFile         string   `json:"issuerCAFile"`
-	ClientID             string   `json:"clientId"`
-	ClientSecretFile     string   `json:"clientSecretFile"`
-	Scopes               []string `json:"scopes,omitempty"`
-	DocumentationURL     string   `json:"documentationUrl"`
+	LogLevel               string   `json:"logLevel"`
+	LogFormat              string   `json:"logFormat"`
+	Listen                 string   `json:"listen"`
+	Environment            string   `json:"environment"`
+	Origin                 string   `json:"origin"`
+	BasePath               string   `json:"basePath"`
+	Assets                 string   `json:"assets"`
+	Upstream               string   `json:"upstream"`
+	APICAFile              string   `json:"apiCAFile"`
+	CookieName             string   `json:"cookieName"`
+	KeysFile               string   `json:"keysFile"`
+	SessionSeconds         int      `json:"sessionSeconds"`
+	RequestBytes           int64    `json:"requestBytes"`
+	ResponseBytes          int64    `json:"responseBytes"`
+	TimeoutSeconds         int      `json:"timeoutSeconds"`
+	AuthMode               string   `json:"authMode"`
+	DevelopmentUsersFile   string   `json:"developmentUsersFile"`
+	Issuer                 string   `json:"issuer"`
+	IssuerCAFile           string   `json:"issuerCAFile"`
+	ClientID               string   `json:"clientId"`
+	ClientSecretFile       string   `json:"clientSecretFile"`
+	Scopes                 []string `json:"scopes,omitempty"`
+	DocumentationURL       string   `json:"documentationUrl"`
+	PublicDiscoveryEnabled bool     `json:"publicDiscoveryEnabled"`
 }
 
 // keyPair is one mounted signing/encryption pair; order selects the active writer.

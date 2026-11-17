@@ -247,3 +247,74 @@ func TestBoundedUpstreamContinuationCodecs(t *testing.T) {
 		}
 	}
 }
+
+// Query decoding and generated model types are not a substitute for validating
+// the original OpenAPI conditions, Unicode bounds and literal spellings.
+func TestDeclaredAgentProtocolRequestSchemas(t *testing.T) {
+	for _, name := range []string{"CatalogSearch", "CatalogExploreQuery", "PersonalCriteria"} {
+		schema := component(t, name)
+		for _, tc := range []struct {
+			value any
+			valid bool
+		}{
+			{"", true}, {"HTTP+JSON", true}, {"私有+V1 ", true}, {"\ufeff", true}, {strings.Repeat("🙂", 256), true},
+			{" ", false}, {"\n", false}, {"\u0085", false}, {"x\x00", false}, {strings.Repeat("🙂", 257), false}, {nil, false}, {12, false},
+		} {
+			input := map[string]any{"agentProtocol": tc.value}
+			if name != "CatalogExploreQuery" {
+				input["origins"] = []string{"local"}
+			}
+			raw, err := json.Marshal(input)
+			must(t, err)
+			if err := schema.Validate(exactJSON(t, raw)); (err == nil) != tc.valid {
+				t.Fatalf("%s value %q: %v", name, tc.value, err)
+			}
+		}
+		if name == "CatalogExploreQuery" {
+			continue
+		}
+		for _, origins := range []any{nil, []string{"indexed"}, []string{"local", "live"}} {
+			input := map[string]any{"agentProtocol": "HTTP+JSON"}
+			if origins != nil {
+				input["origins"] = origins
+			}
+			raw, err := json.Marshal(input)
+			must(t, err)
+			if schema.Validate(exactJSON(t, raw)) == nil {
+				t.Fatal("schema allowed nonlocal protocol selection", name, origins)
+			}
+		}
+	}
+	// The Browse query schema is checked independently of kin-openapi's string
+	// decoder, which does not implement conditional validation.
+	var document map[string]any
+	must(t, yaml.Unmarshal(api.ControlV1, &document))
+	parameters := document["paths"].(map[string]any)["/api/v1/catalog/resources"].(map[string]any)["get"].(map[string]any)["parameters"].([]any)
+	var found bool
+	for _, parameter := range parameters {
+		value := parameter.(map[string]any)
+		if value["name"] != "agentProtocol" {
+			continue
+		}
+		found = true
+		compiler := jsonschema.NewCompiler()
+		compiler.DefaultDraft(jsonschema.Draft2020)
+		must(t, compiler.AddResource("https://catalog.example/binding.json", value["schema"]))
+		schema, err := compiler.Compile("https://catalog.example/binding.json")
+		must(t, err)
+		for _, tc := range []struct {
+			value string
+			valid bool
+		}{{"", true}, {"HTTP+JSON", true}, {"私有+V1 ", true}, {"\ufeff", true}, {"\n", false}, {"\u0085", false}, {"x\x00", false}} {
+			if err := schema.Validate(tc.value); (err == nil) != tc.valid {
+				t.Fatalf("Browse value %q: %v", tc.value, err)
+			}
+		}
+		if value["allowEmptyValue"] != true {
+			t.Fatal("Browse empty no-op was not documented")
+		}
+	}
+	if !found {
+		t.Fatal("Browse protocol schema is missing")
+	}
+}

@@ -20,7 +20,14 @@ else:
     import re  # noqa: F401
     import json
 
-    from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+    from pydantic import (
+        BaseModel,
+        ConfigDict,
+        Field,
+        StrictBool,
+        StrictStr,
+        field_validator,
+    )
     from typing import Any, ClassVar, Dict, Optional
     from typing_extensions import Annotated
     from catalog_sdk.generated.models.catalog_listing import CatalogListing
@@ -40,6 +47,11 @@ else:
         CatalogRecord
         """  # noqa: E501
 
+        tool_declaration_redacted: Optional[StrictBool] = Field(
+            default=None,
+            description="Current content permission does not permit private tool declaration disclosure. Set for every MCP record without that permission, whether a declaration exists or not; absence of a displayed attachment cannot establish not supplied.",
+            alias="toolDeclarationRedacted",
+        )
         display: Optional[CatalogPresentation] = None
         resource: Resource
         version: ResourceVersion
@@ -53,6 +65,7 @@ else:
         )
         source: StrictStr
         __properties: ClassVar[List[str]] = [
+            "toolDeclarationRedacted",
             "display",
             "resource",
             "version",
@@ -64,6 +77,16 @@ else:
             "relevanceScore",
             "source",
         ]
+
+        @field_validator("tool_declaration_redacted")
+        def tool_declaration_redacted_validate_enum(cls, value):
+            """Validates the enum"""
+            if value is None:
+                return value
+
+            if value is not True:
+                raise ValueError("must be one of enum values ('true')")
+            return value
 
         @field_validator("source")
         def source_validate_enum(cls, value):
@@ -146,6 +169,7 @@ else:
 
             _obj = cls.model_validate(
                 {
+                    "toolDeclarationRedacted": obj.get("toolDeclarationRedacted"),
                     "display": CatalogPresentation.from_dict(obj["display"])
                     if obj.get("display") is not None
                     else None,

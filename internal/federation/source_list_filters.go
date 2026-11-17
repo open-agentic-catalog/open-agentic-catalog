@@ -15,5 +15,8 @@ func validateSourceListFilters(request SourceListRequest) error {
 	if request.Status != "" && request.Status != SourceActive && request.Status != SourcePaused && request.Status != SourceError {
 		return catalog.E(catalog.CodeInvalidArgument, "status must be active, paused or error")
 	}
+	if request.SyncState != "" && request.SyncState != SnapshotFailed && request.SyncState != SnapshotIncomplete {
+		return catalog.E(catalog.CodeInvalidArgument, "syncState must be failed or incomplete")
+	}
 	return nil
 }

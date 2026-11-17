@@ -199,9 +199,19 @@ exports.run = async (api) => {
         await progress("native contained reveal");
         await action(b.plan.name, "Reveal Owned Package");
         try {
-          await ui.until(
-            "[...document.querySelectorAll('.explorer-viewlet .monaco-list-row[aria-selected=true]')].some(row=>row.textContent.includes('owned-skill'))",
-          );
+          const revealed =
+            "[...document.querySelectorAll('.explorer-viewlet .monaco-list-row[aria-selected=true]')].some(row=>row.textContent.includes('owned-skill'))";
+          const picker =
+            "[...document.querySelectorAll('.quick-input-widget')].find(widget=>widget.getClientRects().length&&widget.querySelector('.quick-input-title')?.textContent==='Reveal an owned package in Explorer')";
+          await ui.until(`(${revealed}) || !!(${picker})`);
+          if (await ui.evaluate(`!!(${picker})`)) {
+            // The command also supports native selection when the editor
+            // supplies no row. Complete that explicit choice before readback.
+            const choice = `([...(${picker}).querySelectorAll('.monaco-list-row')].find(row=>row.textContent.includes(${JSON.stringify(b.plan.name)})&&row.textContent.includes(${JSON.stringify(root)})))`;
+            await ui.until(`!!${choice}`);
+            await ui.click(choice);
+          }
+          await ui.until(revealed);
         } catch (error) {
           throw new Error(
             error.message +

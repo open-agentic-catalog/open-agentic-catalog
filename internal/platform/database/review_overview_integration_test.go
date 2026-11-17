@@ -22,7 +22,13 @@ func TestPostgresReviewOverviewLongHistoryKeepsFixedQueryWork(t *testing.T) {
 	seed(0)
 	author := semanticDisclosureActor(t, db, housekeepingTenantA)
 	key := sha256.Sum256([]byte(t.Name()))
-	svc, err := catalog.NewService(catalog.Options{Repository: repo, Clock: clock.Real{}, IDs: id.Generator{}, Validator: adapter.NewRegistry(), CursorKey: key[:], Policy: "search-cost-test"})
+	// The fixture's retained decisions define this cost test's observation
+	// window. A host clock step must not exclude its own freshly seeded row.
+	var decidedAt time.Time
+	if err := db.operator.QueryRow(t.Context(), `SELECT decided_at FROM review_submissions WHERE tenant_id=$1 AND state='approved' LIMIT 1`, housekeepingTenantA).Scan(&decidedAt); err != nil {
+		t.Fatal(err)
+	}
+	svc, err := catalog.NewService(catalog.Options{Repository: repo, Clock: clock.NewFake(decidedAt.Add(time.Second)), IDs: id.Generator{}, Validator: adapter.NewRegistry(), CursorKey: key[:], Policy: "search-cost-test"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +125,7 @@ func TestPostgresReviewOverviewAndUnreleasedQueueFollowRealLifecycle(t *testing.
 	if err != nil || result.Pending.Value != 0 || result.ApprovedUnreleased.Value != 1 || result.Decisions.Value != 2 || result.MedianSeconds == nil {
 		t.Fatal(result.Pending, result.ApprovedUnreleased, result.Decisions, err)
 	}
-	queue, err := svc.ListSubmissions(author, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1}, State: catalog.SubmissionApproved, Unreleased: true})
+	queue, err := svc.ListSubmissions(author, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 1}, NamespaceID: listing.NamespaceID, State: catalog.SubmissionApproved, Unreleased: true})
 	if err != nil || len(queue) != 1 || queue[0].ID != submission.ID {
 		t.Fatal(queue, err)
 	}
@@ -138,7 +144,7 @@ func TestPostgresReviewOverviewAndUnreleasedQueueFollowRealLifecycle(t *testing.
 	if _, err = svc.TransitionRelease(author, newRelease.ID, catalog.ReleaseRetired, "retire synthetic overview release", "", nil, newRelease.Revision); err != nil {
 		t.Fatal(err)
 	}
-	queue, err = svc.ListSubmissions(author, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 10}, State: catalog.SubmissionApproved, Unreleased: true})
+	queue, err = svc.ListSubmissions(author, catalog.SubmissionListRequest{HistoryPageRequest: catalog.HistoryPageRequest{Limit: 10}, NamespaceID: listing.NamespaceID, State: catalog.SubmissionApproved, Unreleased: true})
 	if err != nil || len(queue) != 0 {
 		t.Fatal("retirement restored an already released submission", queue, err)
 	}

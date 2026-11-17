@@ -247,7 +247,21 @@ func decodeImportReceipt(raw []byte) (importReceipt, error) {
 }
 
 func (f *importStateFile) save(receipt importReceipt) error {
-	fail := safeerr.New("import: cannot durably save state; preserve drafts and investigate before retrying")
+	encoded, err := json.Marshal(receipt)
+	if err != nil {
+		return safeerr.New("import: cannot encode private state")
+	}
+	raw, err := json.Marshal(importReceiptFile{Receipt: receipt, Digest: importDigest(encoded)})
+	if err != nil {
+		return safeerr.New("import: cannot encode private state")
+	}
+	return f.saveRaw(raw)
+}
+
+// saveRaw shares durable private-file replacement with the personal importer.
+// Each caller owns its versioned receipt, checksum and transition validation.
+func (f *importStateFile) saveRaw(raw []byte) error {
+	fail := safeerr.New("import: cannot durably save state; preserve progress and investigate before retrying")
 	if f.previous != nil {
 		current, err := f.read()
 		if err != nil || !bytes.Equal(current, f.previous) {
@@ -256,12 +270,7 @@ func (f *importStateFile) save(receipt importReceipt) error {
 	} else if _, err := f.root.Lstat(f.name); !os.IsNotExist(err) {
 		return fail
 	}
-	encoded, err := json.Marshal(receipt)
-	if err != nil {
-		return fail
-	}
-	raw, err := json.Marshal(importReceiptFile{Receipt: receipt, Digest: importDigest(encoded)})
-	if err != nil || len(raw) > importMaxReceiptBytes {
+	if len(raw) > importMaxReceiptBytes {
 		return fail
 	}
 	var suffix [12]byte
