@@ -1,10 +1,10 @@
 # Scan MCP definitions after a release notification
 
-Run this optional HTTPS receiver to collect and scan definitions from an explicitly configured local MCP server. The receiver uses the Catalog Go SDK and the MCP Go SDK. PostgreSQL stores its inbox, reports and observations in a separate database.
+This example connects Catalog release webhooks to the third-party Cisco MCP Scanner. Its HTTPS receiver collects definitions from an explicitly configured local MCP server. The receiver uses the Catalog Go SDK and the MCP Go SDK. PostgreSQL stores its inbox, reports and observations in a separate database.
 
 The receiver never invokes tools or changes Catalog records. It does not approve, revoke or block releases. It does not enable Catalog software assessments. A runtime endpoint can change after publication; these reports describe captured definitions, not immutable runtime code.
 
-The [Compose guide](../../../documentation/src/content/docs/guides/mcp-scanner.mdx) covers the complete Catalog/worker/MCP workflow. This guide covers the receiver's configuration and commands. Native YARA controls and the full Compose campaign use the installed locked scanner. Its LiteLLM dependency retains the [documented advisories](../../../test/mcp-scanner/README.md#pins-and-lock-maintenance); successful offline execution does not clear them. Focused receiver tests use an explicit scanner executable double; they do not qualify the real scanner.
+The [manual](../../../documentation/src/content/docs/guides/mcp-scanner.mdx) owns operator setup and the complete Catalog/worker/MCP workflow. This README covers receiver development, processing behavior and limits. Native YARA controls and the full Compose campaign use the installed locked scanner. Focused receiver tests use an explicit scanner executable double; they do not qualify the real scanner.
 
 ## Prerequisites
 
@@ -48,134 +48,11 @@ make test-mcp-scanner-receiver-fuzz FUZZ_TIME=10s
 
 The selected budget accepts 1 to 60 seconds. The target requires the installed Go toolchain and cached module dependencies; it makes no scanner, database or network request. It first requires native seed-owner completion, then runs the bounded campaign with two workers. Reports bind source and Go identities under `output/mcp-scanner-receiver-fuzz/`. A failing campaign preserves its exit status even if bounded counterexample retention fails. Only new synthetic files for `FuzzEventAdmission` are eligible; retained input files remain untouched. Review and minimize an actual counterexample before adding a permanent regression. This selection is separate from root-module `test-fuzz`.
 
-## Prepare private inputs
+## Configure and run the receiver
 
-Create a private directory outside the checkout:
+Follow [the manual's example receiver setup](../../../documentation/src/content/docs/guides/mcp-scanner.mdx#configure-the-example-receiver) for private inputs, endpoint mapping, minimum permissions, the separate database, webhook registration, signer installation and startup. It includes normal delivery, results, recovery and retirement. The manual owns that operator procedure; this README owns build/test commands and the implementation limits below.
 
-```sh
-MCP_SCAN_INPUTS="$HOME/.local/share/catalog-mcp-scanner"
-install -d -m 700 "$MCP_SCAN_INPUTS"
-```
-
-Supply these files through your local operator setup:
-
-| File | Contents |
-| --- | --- |
-| `receiver.dsn` | Complete connection string for the separate receiver database/account. |
-| `catalog-token` | Catalog access token without a `Bearer` prefix. |
-| `mcp-token` | Separate MCP bearer credential. |
-| `mapping.json` | Exact resource, namespace and endpoint mapping. |
-| `signer.json` | Webhook signing secret and version returned by endpoint registration. |
-| `receiver.pem` and `receiver-key.pem` | Receiver certificate chain and private key. |
-| `catalog-ca.pem` | Optional private CA for the Catalog API. |
-| `mcp-ca.pem` | Optional private CA for the MCP endpoint. |
-
-Set these files to mode `0600`. The receiver refuses symlinks, nonregular files and group-readable or world-readable inputs. It loads credentials from the selected files, not from URLs or Catalog metadata. Include explicit PostgreSQL connection and TLS settings in the DSN. Use verified database TLS outside an owned loopback fixture.
-
-The signer file has this shape:
-
-```json
-{"secret":"REPLACE_WITH_RETURNED_SECRET","version":1}
-```
-
-Replace its secret and version with the exact registration response. During rotation, install the new signer atomically. Each request loads the current file. The verifier also supports the predecessor signature during normal overlap.
-
-## Configure the resource mapping
-
-Use the exact local Resource and namespace IDs from the Catalog. Configure the endpoint outside the published record:
-
-```json
-{
-  "resources": [
-    {
-      "resourceId": "00000000-0000-4000-8000-000000000002",
-      "namespaceId": "00000000-0000-4000-8000-000000000003",
-      "endpoint": "https://127.0.0.1:9445/mcp",
-      "tokenFile": "/absolute/private/path/mcp-token",
-      "caFile": "/absolute/private/path/mcp-ca.pem"
-    }
-  ]
-}
-```
-
-Replace the sample IDs, endpoint and paths. Omit `caFile` for public CA trust. Credential and CA paths must be absolute. The mapping accepts at most 32 Resources across eight namespaces. Endpoint URLs must fit within 1,024 UTF-8 bytes, including the path.
-
-The released primary MCP Server Card or registry representation must declare the exact endpoint with type `streamable-http`. The receiver checks the local kind, tenant, current release, revision links and representation digests. The Resource and Listing must use the mapped namespace. It ignores newer unpublished drafts.
-
-Every resolved endpoint address must be private or loopback. Public, unspecified, multicast and link-local addresses are refused before connection. The receiver pins a validated address for each connection and verifies TLS against the configured hostname. It follows no redirects and uses no ambient proxy. URL credentials, query strings and fragments are refused.
-
-The MCP credential must differ from the Catalog credential. The collector checks both files for each request. It sends only the MCP credential to the runtime.
-
-## Grant Catalog access
-
-Give the receiver only these permissions:
-
-| Purpose | Permission | OAuth scope, when enforced |
-| --- | --- | --- |
-| Read releases and browse the configured namespaces | `resource.read` in those namespaces | `catalog.read` |
-| Read tenant notification-loss counters | Tenant-wide `webhook.read` and `webhook.read_evidence` | `webhooks.manage` |
-
-Use separate operator credentials to register or rotate a webhook endpoint. The receiver needs no authoring, release-publication, webhook-management or assessment-write permission.
-
-Register the receiver's HTTPS `/webhook` URL for `listing.release.published`. An explicit signed `webhook.test` is also accepted. Configure Catalog-side routing, the exact receiver origin and private trust through the [webhook runbook](../../../documentation/src/content/docs/operations/webhooks.mdx).
-
-The event subject is a ListingRelease ID, not a Resource ID. The receiver reads that exact release through the SDK. A delayed event cannot substitute a newer release. Denied, missing, withdrawn or unmapped records cause no MCP contact.
-
-## Initialize the separate database
-
-Create the database and account before initialization. For example, a PostgreSQL administrator can use `psql`:
-
-```sql
-CREATE ROLE catalog_mcp_receiver LOGIN;
-\password catalog_mcp_receiver
-CREATE DATABASE catalog_mcp_receiver OWNER catalog_mcp_receiver;
-```
-
-Save the account's complete connection string in `receiver.dsn`. The account owns only the receiver database. Initialization refuses a database that already contains Catalog migrations.
-
-Set your nonsecret Catalog inputs:
-
-```sh
-MCP_SCAN_ORIGIN=https://catalog.example.test:8080
-MCP_SCAN_TENANT=00000000-0000-4000-8000-000000000001
-```
-
-Initialize the four receiver tables:
-
-```sh
-bin/examples/mcp-scan-receiver init \
-  --origin "$MCP_SCAN_ORIGIN" --tenant "$MCP_SCAN_TENANT" \
-  --config-file "$MCP_SCAN_INPUTS/mapping.json" \
-  --database-file "$MCP_SCAN_INPUTS/receiver.dsn"
-```
-
-Initialization binds the database to the exact tenant, API origin and normalized mapping. Other commands refuse a different binding. Startup does not create tables. Credential contents can rotate at their existing paths without changing the mapping.
-
-## Start one receiver
-
-Run from the repository root:
-
-```sh
-bin/examples/mcp-scan-receiver serve \
-  --origin "$MCP_SCAN_ORIGIN" --tenant "$MCP_SCAN_TENANT" \
-  --config-file "$MCP_SCAN_INPUTS/mapping.json" \
-  --database-file "$MCP_SCAN_INPUTS/receiver.dsn" \
-  --token-file "$MCP_SCAN_INPUTS/catalog-token" \
-  --catalog-ca-file "$MCP_SCAN_INPUTS/catalog-ca.pem" \
-  --signer-file "$MCP_SCAN_INPUTS/signer.json" \
-  --tls-cert "$MCP_SCAN_INPUTS/receiver.pem" \
-  --tls-key "$MCP_SCAN_INPUTS/receiver-key.pem" \
-  --scanner-python "$PWD/.tools/dev/bin/python" \
-  --scanner-runner "$PWD/test/mcp-scanner/runner.py" \
-  --reports-dir "$MCP_SCAN_INPUTS/reports" \
-  --listen 127.0.0.1:9444
-```
-
-Omit `--catalog-ca-file` for public CA trust. `--allow-loopback-http` permits an explicitly selected literal-loopback Catalog API only. MCP always requires verified HTTPS.
-
-Startup verifies the installed scanner identity before opening the listener. Missing or stale scanner tools fail startup. Setup and checks never install them implicitly. The scanner child receives no Catalog, MCP, webhook or database credentials.
-
-The listener exposes only `GET /healthz` and `POST /webhook`. Health reports listener availability, not a successful scan. Reports remain private files and database rows.
+The receiver uses an explicitly configured local HTTPS MCP endpoint and separate credentials. It never treats a notification or Catalog record as authority to choose an arbitrary destination. Reports stay outside Catalog assessments and release decisions.
 
 ## Processing, reports and recovery
 
@@ -195,7 +72,7 @@ Startup and periodic reconciliation read both loss counters and traverse the con
 
 Restart with the same database and binding after interruption. Accepted pending work survives. A session advisory lock refuses a second processor. Loss of that lock connection stops processing; restart the single receiver after repairing the database connection.
 
-Stop `serve` before a one-shot command. Reuse its connection, mapping, token and trust flags:
+Stop `serve` before a one-shot command. Reuse its connection, mapping and `--reports-dir` flags. Include token and trust flags for Catalog reads:
 
 - Run `reconcile` to refresh Catalog membership and schedule scans. This command does not contact MCP.
 - Run `process` to process at most one due receipt. Include the scanner flags.
@@ -208,9 +85,10 @@ These commands accept the same flags as `serve`; listener and signer flags are r
 | Work or setting | Limit or default |
 | --- | --- |
 | Resources and namespaces | 32 Resources, eight namespaces |
+| Configured MCP endpoint URL | 1,024 UTF-8 bytes, including the path |
 | Catalog reconciliation | Eight pages total, 32 entries per page, 30-second budget |
 | MCP collection | Eight pages, 128 tools, 1 MiB, 30 seconds |
-| Scan analysis | Batch 1's 30-second process budget |
+| Scan analysis | 30-second process budget |
 | Full processing step | Three minutes, plus bounded scanner-child cleanup |
 | Native report | 4 MiB |
 | Retained notification receipts, `--capacity` | 1,000 by default; accepted range 1-10,000 |

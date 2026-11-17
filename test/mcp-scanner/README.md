@@ -2,6 +2,8 @@
 
 This harness owns the optional [saved-capture example](../../examples/mcp-scanner/README.md) and its offline scanner runner. The separate [signed-webhook receiver](../../examples/mcp-scanner/receiver/README.md) uses that runner. Neither is a Catalog runtime dependency.
 
+Qualify the connection with the native scanner controls and complete Compose campaign. Receiver tests with a scanner double qualify only their selected boundaries. Track scanner dependency findings separately: they do not prevent native functional qualification, but a successful integration run does not clear those findings.
+
 ## Setup and checks
 
 Run these targets separately:
@@ -20,6 +22,14 @@ The example guide explains the `mcp-scanner-scan` inputs, limits, report fields 
 1. Pure capture, schema and report validation tests.
 2. Owned subprocess doubles for process limits, failures, cleanup and file handling.
 3. The pinned scanner's actual YARA controls inside network-disabled containers.
+
+When Go uses an automatically downloaded toolchain, select its native binary before the check:
+
+```sh
+export PATH="$(go env GOROOT)/bin:$PATH"
+```
+
+The receiver fuzz calibrations use the Go executable on PATH with `GOTOOLCHAIN=local` and network access disabled. The host launcher alone can select an older local compiler in those temporary modules.
 
 The third selection verifies real benign, description-only and parameter-only outcomes. It also tests pagination, empty work, invalid rules and timeout cleanup. A test-only injected YARA exception verifies the upstream static analyzer's failure and partial-result evidence. No upstream source or rule is patched.
 
@@ -46,7 +56,11 @@ The runner's `identity` command checks the existing installation receipt and pri
 
 ## Complete Compose campaign
 
-Run `make test-mcp-scanner-compose` after native scanner setup and checks. The [manual guide](../../documentation/src/content/docs/guides/mcp-scanner.mdx) provides prerequisites, automatic execution and explicit prepare/start/test/stop commands.
+Run `make test-mcp-scanner-compose` after native scanner setup and checks. The [manual guide](../../documentation/src/content/docs/guides/mcp-scanner.mdx) owns operator setup and the isolated demonstration. The campaign exposes `prepare`, `start`, `test` and `stop` for bounded manual qualification.
+
+The command prints its owned run directory. Exit status `0` requires all cases and cleanup to pass. Its `report.json` retains `completed`, `success`, `cleanup`, source/build identities and failure details. The `test` action cleans up automatically; use `stop --directory` for an unfinished run. This campaign does not leave a persistent receiver or UI running.
+
+Run native checks and the campaign sequentially. Avoid concurrent container removal or retained-environment rebuilds during the campaign. Cleanup checks that every container present at preparation still exists.
 
 This target builds the current backend and one inert MCP fixture. It owns one Compose project with an internal network. Application containers publish no ports. The receiver runs on the host and binds to that project's private bridge. This permits native network-disabled scanner execution without mounting a Docker socket into a container.
 
@@ -66,11 +80,11 @@ The isolated campaign units run through the scanner's existing unit selection. O
 
 [pins.json](pins.json) fixes scanner 4.8.7, source revision, bundled-rule digest and the Python image digest. [requirements.in](requirements.in) names direct requirements. [constraints.txt](constraints.txt) retains previously approved exact security exceptions. [requirements.txt](requirements.txt) pins the complete wheel closure and hashes.
 
-The maintainer approves the age exception for MCP Scanner 4.8.7. Apply `scannerAgeExceptionApproved` through the reviewed installer inputs before installation. The dependency findings still require supported fixes. After November 3, 2026, at 17:30:42 UTC, ordinary release-age admission permits this exact wheel.
+The installer enforces the ordinary 14-day release-age policy. Set `scannerAgeExceptionApproved` only for an explicitly reviewed exception to the selected release. Age admission does not clear the dependency findings. The current published wheel requires exactly LiteLLM 1.93.2; a relaxed requirement on upstream main is not a replacement for released package metadata.
 
 Use the repository-pinned uv 0.13.6 to regenerate the lock. The command in its header records the fixed cutoff and package-specific exceptions. Start from the repository root. Do not inherit registry credentials or user uv configuration. Review every changed version, wheel hash, release timestamp and dependency requirement before reinstalling.
 
-The base image and pip 26.2.2 reuse earlier approved exact security exceptions. The lock also reuses certifi 2026.10.19 and filelock 4.2.1. The constraint file preserves earlier approvals for Pillow and setuptools if a future resolution needs them. Constraints do not add absent packages.
+The base image and pip 26.2.2 reuse earlier approved exact security exceptions. The lock also reuses certifi 2026.10.23 and filelock 4.2.4. The constraint file preserves earlier approvals for Pillow and setuptools if a future resolution needs them. Constraints do not add absent packages.
 
 The rules hash covers a sorted array of filenames and SHA-256 file hashes. Its JSON encoding uses sorted keys, ASCII escapes and compact separators. Setup checks the wheel's actual rules against this independent source-derived pin. Runtime binds each report to the installed rules and image.
 
