@@ -30,6 +30,7 @@ class StagedSelectionTests(unittest.TestCase):
             "test/ci/Containerfile.act": "hadolint", "test/mcp-scanner/Containerfile": "hadolint",
             "examples/tutorials/local-oidc/Containerfile": "hadolint",
             "test/interoperability/mcp/catalog/Containerfile": "hadolint",
+            "test/interoperability/ard-registry/Containerfile": "hadolint",
             ".github/workflows/check.yml": "actionlint", ".github/workflows/other.yaml": "actionlint",
         }
         for path, tool in expected.items():

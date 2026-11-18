@@ -36,7 +36,7 @@ CONTAINER_FILES = {"Containerfile", "test/functional/Containerfile", "catalog-ui
                    "test/ci/Containerfile.act", "test/mcp-scanner/Containerfile",
                    "examples/tutorials/local-oidc/Containerfile",
                    *(f"test/interoperability/{name}/Containerfile" for name in
-                     ("mcp", "mcp/catalog", "a2a", "skills", "plugins", "agntcy/router", "ans")),
+                     ("mcp", "mcp/catalog", "a2a", "skills", "plugins", "agntcy/router", "ans", "ard-registry")),
                    "test/interoperability/gateway/Containerfile.auth"}
 MARKDOWN_EXCLUDES = ("schemas/upstream/", "samples/upstream/", "specs/", "output/", ".tools/",
                      "internal/adapter/testdata/upstream/openai/", "internal/adapter/testdata/upstream/huggingface/",

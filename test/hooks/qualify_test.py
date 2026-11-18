@@ -162,10 +162,18 @@ class ScannerQualification(unittest.TestCase):
                     "    steps:\n      - run: printf 'ok\\n'\n")
         cases = (
             ("ruff", "test/staged.py", "value = 1\n", "import private_staged_marker\n"),
+            ("ruff", "examples/mcp-scanner/staged.py", "value = 1\n", "import private_staged_marker\n"),
             ("shellcheck", "test/functional/restore.sh", "#!/bin/sh\nprintf 'ok\\n'\n",
+             "#!/bin/sh\necho $private_staged_marker\n"),
+            ("shellcheck", "test/functional/pitr_archive.sh", "#!/bin/sh\nprintf 'ok\\n'\n",
              "#!/bin/sh\necho $private_staged_marker\n"),
             ("markdownlint", "notes [draft]\n-file.md", "# Title\n\nText.\n", "# Title\n\n#### private_staged_marker\n"),
             ("hadolint", "Containerfile", "FROM scratch\n", "FROM private-staged-marker\n"),
+            *(("hadolint", name, "FROM scratch\n", "FROM private-staged-marker\n") for name in (
+                "test/ci/Containerfile.act", "test/mcp-scanner/Containerfile",
+                "examples/tutorials/local-oidc/Containerfile", "test/interoperability/mcp/catalog/Containerfile",
+                "test/interoperability/ard-registry/Containerfile",
+            )),
             ("actionlint", ".github/workflows/check.yml", workflow,
              workflow + "        if: $" + "{{ private_staged_marker.value }}\n"),
         )
@@ -209,7 +217,7 @@ class ScannerQualification(unittest.TestCase):
             self.assertNotEqual(raw.returncode, 0, "external-source control did not reach ShellCheck")
             self.assertIn(b"shellcheck", raw.stdout + raw.stderr)
             fixture.check()
-        print(f"Real pinned file linters: five passing/failing controls, maximum pair {max(durations):.3f}s.")
+        print(f"Real pinned file linters: {len(cases)} passing/failing controls, maximum pair {max(durations):.3f}s.")
 
     def test_unselected_tools_are_not_required_with_real_path(self):
         fixture = self.fixture()
