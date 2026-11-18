@@ -82,6 +82,7 @@ type Manager struct {
 	liveTimeout                 time.Duration
 	targets                     map[string]DiscoveryTarget
 	adopter                     ObservationAdopter
+	versionAdoptionEnabled      bool
 	evidence                    EvidenceSink
 	acknowledgeOutboxAtCreation bool
 }
@@ -2796,60 +2797,72 @@ func ObservationGroupID(identifier, version string, versionPresent bool) (string
 // before delegating creation of an explicit local draft.
 func (m *Manager) AdoptObservation(ctx context.Context, observationID string, input AdoptInput) (catalog.ExternalObservationAdoption, error) {
 	ctx = identity.WithPermissionContext(ctx)
-	actor, err := permissionActor(ctx, "source.read_evidence")
+	prepared, err := m.prepareAdoption(ctx, observationID, input)
 	if err != nil {
 		return catalog.ExternalObservationAdoption{}, err
 	}
+	return m.adopter.AdoptExternalObservation(ctx, prepared)
+}
+
+func (m *Manager) prepareAdoption(ctx context.Context, observationID string, input AdoptInput) (catalog.ExternalObservationAdoptionInput, error) {
+	ctx = identity.WithPermissionContext(ctx)
+	actor, err := permissionActor(ctx, "source.read_evidence")
+	if err != nil {
+		return catalog.ExternalObservationAdoptionInput{}, err
+	}
 	if m.adopter == nil {
-		return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodeDependencyUnavailable, "observation adoption is unavailable")
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodeDependencyUnavailable, "observation adoption is unavailable")
 	}
 	observation, err := m.store.GetObservation(ctx, actor.TenantID, observationID)
 	if err != nil {
-		return catalog.ExternalObservationAdoption{}, err
+		return catalog.ExternalObservationAdoptionInput{}, err
 	}
 	if observation.Freshness != FreshCurrent || observation.Completeness != CompleteEntry || observation.Compatibility.Structural != "valid" || observation.Compatibility.Support != "supported" || !observation.Kind.Valid() || observation.NormalizedEntryDigest == "" || len(observation.NormalizedEntry) == 0 {
-		return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodePreconditionFailed, "only a current complete supported observation can be adopted")
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodePreconditionFailed, "only a current complete supported observation can be adopted")
 	}
 	source, err := m.store.GetSource(ctx, actor.TenantID, observation.SourceID)
 	if err != nil {
-		return catalog.ExternalObservationAdoption{}, err
+		return catalog.ExternalObservationAdoptionInput{}, err
 	}
 	if !scopeMatches(source.Scope, sourceEntry{Identifier: observation.Identifier, Version: observation.Version, Type: observation.MediaType, Tags: observation.SearchTags}) {
-		return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodePreconditionFailed, "source scope excludes this observation")
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodePreconditionFailed, "source scope excludes this observation")
 	}
 	occurrence, err := m.store.GetObservationOccurrence(ctx, actor.TenantID, observation.ID, input.SnapshotID, input.RetrievalDigest, input.EntryLocation)
 	if err != nil {
-		return catalog.ExternalObservationAdoption{}, err
+		return catalog.ExternalObservationAdoptionInput{}, err
 	}
 	if !occurrence.EvidenceComplete || occurrence.SourceID != observation.SourceID || occurrence.ExactEntryDigest != observation.ExactEntryDigest || occurrence.NormalizedEntryDigest != observation.NormalizedEntryDigest {
-		return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodePreconditionFailed, "selected occurrence does not contain complete matching provenance")
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodePreconditionFailed, "selected occurrence does not contain complete matching provenance")
 	}
 	snapshot, err := m.store.GetSnapshot(ctx, actor.TenantID, occurrence.SnapshotID)
 	if err != nil {
-		return catalog.ExternalObservationAdoption{}, err
+		return catalog.ExternalObservationAdoptionInput{}, err
 	}
 	if snapshot.State != SnapshotComplete || !snapshot.EnumerationComplete || snapshot.SourceRevision != occurrence.SourceRevision {
-		return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodePreconditionFailed, "selected occurrence is not from a complete source snapshot")
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodePreconditionFailed, "selected occurrence is not from a complete source snapshot")
 	}
 	_, sourceConflicts, err := m.store.ObservationGroupConflicts(ctx, actor.TenantID, observation.Identifier, observation.Version, observation.VersionPresent, []string{observation.SourceID})
 	if err != nil {
-		return catalog.ExternalObservationAdoption{}, err
+		return catalog.ExternalObservationAdoptionInput{}, err
 	}
 	if sourceConflicts[observation.SourceID] {
-		return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodeConflict, "selected source has conflicting current observations for this exact identity and version")
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodeConflict, "selected source has conflicting current observations for this exact identity and version")
 	}
 	localVersion := strings.TrimSpace(input.Version)
 	if observation.VersionPresent {
 		if localVersion != "" && localVersion != observation.Version {
-			return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodeInvalidArgument, "local version must match the selected versioned observation")
+			return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodeInvalidArgument, "local version must match the selected versioned observation")
 		}
 		localVersion = observation.Version
 	} else if localVersion == "" {
-		return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodeInvalidArgument, "an explicit local version is required for an unversioned observation")
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodeInvalidArgument, "an explicit local version is required for an unversioned observation")
 	}
 	var entry normalizedObservationEntry
 	if err := json.Unmarshal(observation.NormalizedEntry, &entry); err != nil {
-		return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodeDependencyUnavailable, "normalized observation evidence is invalid")
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodeDependencyUnavailable, "normalized observation evidence is invalid")
+	}
+	if observation.Kind == catalog.KindSkill && (entry.MediaType == adapter.MediaSkillZIP || entry.MediaType == adapter.MediaSkillGZIP) {
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodePreconditionFailed, "Skill archives require an explicit immutable Git or OCI handoff through inspected package authoring")
 	}
 	displayName := strings.TrimSpace(input.DisplayName)
 	if displayName == "" {
@@ -2866,7 +2879,7 @@ func (m *Manager) AdoptObservation(ctx context.Context, observationID string, in
 	if observation.Kind == catalog.KindPlugin && len(entry.Metadata) > 0 {
 		digest, err := catalog.PluginExpectedDigest(entry.Metadata)
 		if err != nil {
-			return catalog.ExternalObservationAdoption{}, err
+			return catalog.ExternalObservationAdoptionInput{}, err
 		}
 		representation.ExpectedDigest = digest
 	}
@@ -2874,10 +2887,10 @@ func (m *Manager) AdoptObservation(ctx context.Context, observationID string, in
 		representation.Data = append(json.RawMessage(nil), entry.Data...)
 	}
 	provenance := catalog.AdoptionProvenance{ObservationID: observation.ID, SourceID: observation.SourceID, SourceRevision: occurrence.SourceRevision, SnapshotID: occurrence.SnapshotID, RetrievalDigest: occurrence.RetrievalDigest, EntryLocation: occurrence.EntryLocation, ExactEntryDigest: occurrence.ExactEntryDigest, NormalizedEntryDigest: occurrence.NormalizedEntryDigest, NormalizationProfile: observation.NormalizationProfile}
-	return m.adopter.AdoptExternalObservation(ctx, catalog.ExternalObservationAdoptionInput{SourceAdmissionRevision: source.Revision, AdmitCommit: func(ctx context.Context, commit func(context.Context) error) error {
+	return catalog.ExternalObservationAdoptionInput{SourceAdmissionRevision: source.Revision, AdmitCommit: func(ctx context.Context, commit func(context.Context) error) error {
 		return identity.WithCurrentPermissionAdmission(ctx, func(ctx context.Context) error {
 			if memory, ok := m.store.(*MemoryStore); ok {
-				return memory.withSourceRevision(ctx, actor.TenantID, source.ID, source.Revision, commit)
+				return memory.withAdoptionOccurrence(ctx, actor.TenantID, source.ID, source.Revision, observation, occurrence, commit)
 			}
 			current, err := m.store.GetSource(ctx, actor.TenantID, source.ID)
 			if err != nil {
@@ -2888,7 +2901,7 @@ func (m *Manager) AdoptObservation(ctx context.Context, observationID string, in
 			}
 			return commit(ctx)
 		})
-	}, NamespaceID: input.NamespaceID, CanonicalIdentifier: observation.Identifier, Kind: observation.Kind, Version: localVersion, Representation: representation, DisplayName: displayName, Description: description, Tags: entry.Tags, Categories: input.Categories, RepresentativeQueries: entry.RepresentativeQueries, PublisherID: input.PublisherID, DocumentationURL: input.DocumentationURL, SupportURL: input.SupportURL, License: input.License, TermsURL: input.TermsURL, Visibility: input.Visibility, Provenance: provenance})
+	}, NamespaceID: input.NamespaceID, CanonicalIdentifier: observation.Identifier, Kind: observation.Kind, Version: localVersion, Representation: representation, DisplayName: displayName, Description: description, Tags: entry.Tags, Categories: input.Categories, RepresentativeQueries: entry.RepresentativeQueries, PublisherID: input.PublisherID, DocumentationURL: input.DocumentationURL, SupportURL: input.SupportURL, License: input.License, TermsURL: input.TermsURL, Visibility: input.Visibility, Provenance: provenance}, nil
 }
 
 // Search evaluates a bounded indexed observation query for the source

@@ -167,7 +167,9 @@ A group previews at most 100 source contributions and explicitly marks truncatio
 
 ### Explicit adoption only
 
-Adoption requires tenant-level `source.read_evidence` and `resource.create` for the target namespace. The actor selects one exact complete occurrence from a current supported observation without a same-source conflict. The command creates a local draft with immutable provenance; visibility defaults to private. Normal validation, review, and publication still apply.
+Creating a Resource through adoption requires tenant-level `source.read_evidence` and `resource.create` for the target namespace. The actor selects one exact complete occurrence from a current supported observation without a same-source conflict. The command creates a local draft with immutable provenance; visibility defaults to private. Normal validation, review, and publication still apply.
+
+The separately default-off [upstream Version adoption](../operations/federation.mdx#adopt-a-different-upstream-version-into-an-existing-resource) command requires `resource.edit` in the existing Resource's namespace instead of `resource.create`. An exact retained prior adoption proves the same-Source relationship. Only a different nonempty declared version is supported; labels have no ordering. The new immutable revision retains its own occurrence and validation evidence. Resource origin, Listing choices, releases and active publication remain unchanged until explicit subsequent governance commands.
 
 ### Compare historical memberships
 

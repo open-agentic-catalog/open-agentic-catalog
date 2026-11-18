@@ -1877,3 +1877,29 @@ export function versionCommandResult(
     (!target.versionId || value.version.id === target.versionId)
   );
 }
+
+export function VersionAdoptionTarget(value: unknown): boolean {
+  return (
+    object(value) &&
+    identifier(value.resourceId) &&
+    identifier(value.namespaceId) &&
+    identifier(value.priorVersionRevisionId) &&
+    text(value.version) &&
+    text(value.upstreamVersion)
+  );
+}
+export function ResourceVersionAdoption(value: unknown): boolean {
+  return (
+    object(value) &&
+    identifier(value.resourceId) &&
+    ResourceVersion(value.version) &&
+    VersionRevision(value.versionRevision) &&
+    EvidenceSet(value.evidence) &&
+    object(value.version) &&
+    object(value.versionRevision) &&
+    value.version.resourceId === value.resourceId &&
+    value.versionRevision.resourceVersionId === value.version.id &&
+    object(value.evidence) &&
+    value.versionRevision.evidenceSetId === value.evidence.id
+  );
+}

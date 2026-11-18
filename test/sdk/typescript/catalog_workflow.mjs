@@ -9,6 +9,86 @@ const { createCatalogClient } = await import(
 const origin = process.argv[2];
 const options = { origin, allowLoopbackHTTP: true };
 const admin = createCatalogClient({ ...options, token: "admin" });
+const adoption = JSON.parse(process.env.CATALOG_SDK_VERSION_ADOPTION);
+const adopter = createCatalogClient({
+  origin: adoption.origin,
+  allowLoopbackHTTP: true,
+  token: "admin",
+});
+const destination = await adopter.api.GET(
+  "/api/v1/observations/{observationId}/adoption-target",
+  { params: { path: { observationId: adoption.body.observationId } } },
+);
+assert.equal(destination.response.status, 200);
+assert.equal(destination.data.resourceId, adoption.resourceId);
+assert.equal(
+  destination.data.priorVersionRevisionId,
+  adoption.priorVersionRevisionId,
+);
+assert.equal(destination.data.version, "opaque-first");
+assert.equal(destination.data.upstreamVersion, "opaque-next");
+const appendVersion = (key) =>
+  adopter.api.POST("/api/v1/resources/{resourceId}/versions:adopt", {
+    params: {
+      path: { resourceId: adoption.resourceId },
+      header: { "Idempotency-Key": key },
+    },
+    body: adoption.body,
+  });
+const adopted = await appendVersion("ts-enabled-adoption");
+assert.equal(adopted.response.status, 201);
+assert.equal(adopted.data.resourceId, adoption.resourceId);
+assert.equal(adopted.data.version.version, "opaque-next");
+assert.equal(adopted.data.evidence.state, "complete");
+const proof = adopted.data.versionRevision.adoption;
+assert.equal(proof.sourceId, adoption.sourceId);
+for (const field of [
+  "observationId",
+  "snapshotId",
+  "retrievalDigest",
+  "entryLocation",
+]) {
+  assert.equal(proof[field], adoption.body[field]);
+}
+assert.equal(
+  adopted.data.versionRevision.representations[0].validationState,
+  "valid",
+);
+const adoptedReplay = await appendVersion("ts-enabled-adoption");
+assert.equal(adoptedReplay.response.status, 201);
+assert.equal(
+  adoptedReplay.response.headers.get("Idempotency-Replayed"),
+  "true",
+);
+assert.deepEqual(adoptedReplay.data, adopted.data);
+const duplicateVersion = await appendVersion("ts-duplicate-adoption");
+assert.equal(duplicateVersion.response.status, 409);
+assert.equal(duplicateVersion.error.code, "CONFLICT");
+const selectedId = "00000000-0000-7000-8000-000000000001";
+const disabledTarget = await admin.api.GET(
+  "/api/v1/observations/{observationId}/adoption-target",
+  { params: { path: { observationId: selectedId } } },
+);
+assert.equal(disabledTarget.response.status, 403);
+assert.equal(disabledTarget.error.code, "FORBIDDEN");
+const disabledAppend = await admin.api.POST(
+  "/api/v1/resources/{resourceId}/versions:adopt",
+  {
+    params: {
+      path: { resourceId: selectedId },
+      header: { "Idempotency-Key": "ts-disabled-adoption" },
+    },
+    body: {
+      observationId: selectedId,
+      snapshotId: selectedId,
+      priorVersionRevisionId: selectedId,
+      retrievalDigest: "sha256:" + "a".repeat(64),
+      entryLocation: "/entries/0",
+    },
+  },
+);
+assert.equal(disabledAppend.response.status, 403);
+assert.equal(disabledAppend.error.code, "FORBIDDEN");
 const namespaces = [];
 for (let i = 0; i < 2; i++) {
   const reply = await admin.api.POST("/api/v1/namespaces", {

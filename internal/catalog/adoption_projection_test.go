@@ -25,7 +25,7 @@ func TestAdoptionProjectionSelectsOnlyReadableRetainedImports(t *testing.T) {
 		repository.versionRevisions[r.ID] = VersionRevision{ID: r.ID, TenantID: r.TenantID, ResourceVersionID: r.ID, Adoption: &AdoptionProvenance{SourceID: "source", SourceRevision: 2, ObservationID: "retained", NormalizedEntryDigest: "exact-digest"}}
 	}
 	repository.versionRevisions["non-import"] = VersionRevision{ID: "non-import", TenantID: tenant, ResourceVersionID: "readable"}
-	candidates, err := repository.FindAdoptions(ctx, tenant, []string{air})
+	candidates, err := repository.FindAdoptions(ctx, tenant, []AdoptionLookup{{SourceID: "source", Identifier: air, Kind: KindAgent}})
 	if err != nil || len(candidates) != 1 || candidates[0].ResourceID != "readable" || candidates[0].Provenance.SourceRevision != 2 {
 		t.Fatal(candidates, err)
 	}
@@ -33,14 +33,14 @@ func TestAdoptionProjectionSelectsOnlyReadableRetainedImports(t *testing.T) {
 	r := repository.resources["readable"]
 	r.DeletedAt = &now
 	repository.resources[r.ID] = r
-	candidates, err = repository.FindAdoptions(ctx, tenant, []string{air})
+	candidates, err = repository.FindAdoptions(ctx, tenant, []AdoptionLookup{{SourceID: "source", Identifier: air, Kind: KindAgent}})
 	if err != nil || len(candidates) != 0 {
 		t.Fatal("deleted import disclosed", candidates, err)
 	}
-	if _, err = repository.FindAdoptions(ctx, tenant, make([]string, 101)); err == nil {
+	if _, err = repository.FindAdoptions(ctx, tenant, make([]AdoptionLookup, 101)); err == nil {
 		t.Fatal("unbounded request")
 	}
-	if _, err = repository.FindAdoptions(ctx, private, []string{air}); err == nil {
+	if _, err = repository.FindAdoptions(ctx, private, []AdoptionLookup{{SourceID: "source", Identifier: air, Kind: KindAgent}}); err == nil {
 		t.Fatal("cross tenant read")
 	}
 }

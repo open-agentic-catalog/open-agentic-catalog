@@ -81,6 +81,22 @@
   },
   {
     "consumption": "buffered",
+    "method": "adopt_resource_version",
+    "operation_id": "adoptResourceVersion",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "201"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1resources~1{resourceId}~1versions:adopt/post",
+    "source_method": "POST",
+    "source_operation_id": "adoptResourceVersion",
+    "source_path": "/api/v1/resources/{resourceId}/versions:adopt",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "approve_publisher_publication_domain",
     "operation_id": "approvePublisherPublicationDomain",
     "response_excluded_statuses": [],
@@ -1653,6 +1669,22 @@
     "source_method": "GET",
     "source_operation_id": "getVersion",
     "source_path": "/version",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_version_adoption_target",
+    "operation_id": "getVersionAdoptionTarget",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1observations~1{observationId}~1adoption-target/get",
+    "source_method": "GET",
+    "source_operation_id": "getVersionAdoptionTarget",
+    "source_path": "/api/v1/observations/{observationId}/adoption-target",
     "webhook": false
   },
   {

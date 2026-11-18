@@ -317,6 +317,9 @@ type Repository interface {
 	// AdoptExternalObservation atomically creates local authoring records while
 	// retaining the external observation's provenance; it does not publish them.
 	AdoptExternalObservation(context.Context, AdoptExternalObservationParams) (ExternalObservationAdoption, error)
+	AdoptExternalVersion(context.Context, AdoptExternalVersionParams) (ExternalVersionAdoption, error)
+	FindVersionAdoptionTarget(context.Context, string, string, string, Kind, string) (AdoptionTarget, error)
+	GetVersionAdoptionProof(context.Context, string, string, string) (ResourceVersion, AdoptionProvenance, error)
 	// GetListingRevision looks up immutable content by tenant ID and revision ID.
 	GetListingRevision(context.Context, string, string) (ListingRevision, error)
 	// Submit retains a review submission against its referenced revisions.

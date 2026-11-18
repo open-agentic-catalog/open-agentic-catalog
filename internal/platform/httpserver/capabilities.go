@@ -78,6 +78,7 @@ type searchCapabilities struct {
 }
 
 type optionalCapabilities struct {
+	VersionAdoption      CapabilityState `json:"versionAdoption"`
 	ServiceActivity      CapabilityState `json:"serviceActivity"`
 	CredentialResolution CapabilityState `json:"credentialResolution"`
 	ManagedMedia         CapabilityState `json:"managedMedia"`
@@ -131,6 +132,11 @@ func (s *Server) handleCapabilities(writer http.ResponseWriter, request *http.Re
 
 func (s *Server) capabilitiesRead(ctx context.Context) (capabilitiesResponse, error) {
 	operations := []string{"catalog.lifecycle", "catalog.search", "catalog.explore", "skill.package.inspect", "plugin.package.inspect", "skill.handoff", "publication.ard", "publication.ai_catalog", "publication.rollback", "registry.search", "registry.explore", "registry.list", "source.inspect", "source.configure", "source.test", "source.sync", "source.snapshot_history", "federation.live"}
+	versionAdoption := CapabilityDisabled
+	if s.federation.VersionAdoptionEnabled() {
+		versionAdoption = CapabilityEnabled
+		operations = append(operations, "source.version_adoption")
+	}
 	if s.capabilities.Webhooks == CapabilityEnabled {
 		operations = append(operations, "webhooks.signed")
 	}
@@ -183,6 +189,7 @@ func (s *Server) capabilitiesRead(ctx context.Context) (capabilitiesResponse, er
 		},
 		Search: search,
 		OptionalCapabilities: optionalCapabilities{
+			VersionAdoption:      versionAdoption,
 			ServiceActivity:      s.capabilities.ServiceActivity,
 			CredentialResolution: s.capabilities.CredentialResolution,
 			ManagedMedia:         s.capabilities.ManagedMedia,

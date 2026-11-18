@@ -1,3 +1,4 @@
+import { capabilities } from "../../tests/unit/responses";
 import { testAccess, testPermissions } from "../../tests/unit/access-fixtures";
 import { required } from "../../tests/required";
 // @vitest-environment jsdom
@@ -29,6 +30,13 @@ import {
 } from "../../tests/unit/screens";
 
 screenLifecycle("/unit/observations");
+function observationReplies(
+  get: Parameters<typeof readReplies>[0],
+  routes: Record<string, unknown>,
+) {
+  readReplies(get, { "/api/v1/capabilities": capabilities, ...routes });
+}
+
 const sourceAdmin = {
   ...reader,
   ...testAccess(["reader", "source_admin"]),
@@ -82,7 +90,7 @@ const occurrence: components["schemas"]["ObservationOccurrence"] = {
 
 function adoptionSetup() {
   const setup = screenWorkspace();
-  readReplies(setup.get, {
+  observationReplies(setup.get, {
     "/api/v1/observations/{observationId}/occurrences": { items: [occurrence] },
     "/api/v1/namespaces": {
       items: [
@@ -345,6 +353,7 @@ it("keeps a create-only destination selector usable with write scope and no loca
   );
   expect(w.get.mock.calls.map(([path]) => path)).toEqual([
     "/api/v1/observations/{observationId}/occurrences",
+    "/api/v1/capabilities",
   ]);
   expect(w.post).not.toHaveBeenCalled();
 });
@@ -419,7 +428,7 @@ it("shows a safe error for a contribution bookmark missing its required identifi
 });
 it("preserves absent, empty and populated version identities in observation links", async () => {
   const { props, get } = screenWorkspace();
-  readReplies(get, {
+  observationReplies(get, {
     "/api/v1/observations": {
       items: [
         observation,
@@ -505,7 +514,7 @@ it.each([false, true])(
       `/unit/observation-group?identifier=${encodeURIComponent(observation.identifier!)}`,
     );
     const { props, get } = screenWorkspace();
-    readReplies(get, {
+    observationReplies(get, {
       "/api/v1/observation-groups": {
         identifier: observation.identifier,
         conflict,
@@ -743,7 +752,7 @@ it("keeps a dirty occurrence selection unless discard is confirmed, then resets 
     retrievalDigest: "retrieval-2",
     entryLocation: "/entries/3",
   };
-  readReplies(get, {
+  observationReplies(get, {
     "/api/v1/observations/{observationId}/occurrences": {
       items: [occurrence, second],
     },
@@ -808,7 +817,7 @@ it("keeps a dirty occurrence selection unless discard is confirmed, then resets 
 
 it("pages occurrences and adoption selectors independently without a hidden mutation", async () => {
   const { props, get, post } = adoptionSetup();
-  readReplies(get, {
+  observationReplies(get, {
     "/api/v1/observations/{observationId}/occurrences": {
       items: [occurrence],
       nextCursor: "occurrences-next",
@@ -972,6 +981,7 @@ it("adopts into an exact namespace without catalog.read, directory reads or an u
   await screen.findByText("Adoption result");
   expect(w.get.mock.calls.map(([path]) => path)).toEqual([
     "/api/v1/observations/{observationId}/occurrences",
+    "/api/v1/capabilities",
   ]);
   expect(w.post.mock.calls[0]?.[1]).toMatchObject({
     body: {
@@ -1117,3 +1127,28 @@ it.each([false, true])(
     expect(w.get).toHaveBeenCalledOnce();
   },
 );
+
+it("allows an editor without Resource creation authority to select an exact occurrence for Version adoption", async () => {
+  const w = adoptionSetup();
+  const access = {
+    ...contributor,
+    permissions: contributor.permissions.filter((p) => p !== "resource.create"),
+    availablePermissions: contributor.availablePermissions.filter(
+      (p) => p !== "resource.create",
+    ),
+    namespaceGrants: contributor.namespaceGrants.map((g) => ({
+      ...g,
+      permissions: g.permissions.filter((p) => p !== "resource.create"),
+    })),
+  };
+  render(<Observations {...w.props} id={observation.id} access={access} />);
+  const select = await screen.findByRole("button", {
+    name: "Use this occurrence for adoption",
+  });
+  expect(select).toHaveProperty("disabled", false);
+  click("Use this occurrence for adoption");
+  await screen.findByRole("heading", {
+    name: "Adopt as a new Version",
+  });
+  expect(w.post).not.toHaveBeenCalled();
+});

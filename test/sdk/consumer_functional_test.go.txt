@@ -112,12 +112,61 @@ func TestSDKCompleteOperationInventory(t *testing.T) {
 	t.Logf("Qualified every operation in the current unchanged contract: %d", len(seen))
 }
 
+func TestManagedSDKVersionAdoption(t *testing.T) {
+	input := newVersionAdoptionCase(t)
+	c, err := sdk.New(sdk.Config{Origin: input.Origin, AllowLoopbackHTTP: true, Token: "admin"})
+	must(t, err)
+	defer c.Close()
+	observation := decode[sdk.ObservationId](t, []byte(strconv.Quote(input.Body.ObservationID)))
+	resource := decode[sdk.ResourceId](t, []byte(strconv.Quote(input.ResourceID)))
+	target, err := c.GetVersionAdoptionTargetWithResponse(t.Context(), observation)
+	must(t, err)
+	if target.JSON200 == nil || target.JSON200.ResourceId.String() != input.ResourceID || target.JSON200.PriorVersionRevisionId.String() != input.PriorVersionRevisionID || target.JSON200.Version != "opaque-first" || target.JSON200.UpstreamVersion != "opaque-next" {
+		t.Fatal("typed adoption target changed", target.StatusCode())
+	}
+	encoded, err := json.Marshal(input.Body)
+	must(t, err)
+	body := decode[sdk.AdoptResourceVersionJSONRequestBody](t, encoded)
+	params := &sdk.AdoptResourceVersionParams{IdempotencyKey: "go-enabled-adoption"}
+	created, err := c.AdoptResourceVersionWithResponse(t.Context(), resource, params, body)
+	must(t, err)
+	if created.JSON201 == nil || created.JSON201.Version.Version != "opaque-next" || created.JSON201.VersionRevision.Adoption == nil || created.JSON201.VersionRevision.Adoption.ObservationId.String() != input.Body.ObservationID || created.JSON201.VersionRevision.Adoption.SourceId.String() != input.SourceID || created.JSON201.VersionRevision.Adoption.SnapshotId.String() != input.Body.SnapshotID || created.JSON201.VersionRevision.Adoption.RetrievalDigest != input.Body.RetrievalDigest || created.JSON201.VersionRevision.Adoption.EntryLocation != input.Body.EntryLocation || created.JSON201.ResourceId.String() != input.ResourceID || created.JSON201.Evidence.State != "complete" || len(created.JSON201.VersionRevision.Representations) != 1 || created.JSON201.VersionRevision.Representations[0].ValidationState != "valid" {
+		t.Fatal("typed adoption receipt changed", created.StatusCode())
+	}
+	replay, err := c.AdoptResourceVersionWithResponse(t.Context(), resource, params, body)
+	must(t, err)
+	if replay.StatusCode() != 201 || replay.HTTPResponse.Header.Get("Idempotency-Replayed") != "true" || !bytes.Equal(created.Body, replay.Body) {
+		t.Fatal("typed adoption replay changed")
+	}
+	params.IdempotencyKey = "go-duplicate-adoption"
+	duplicate, err := c.AdoptResourceVersionWithResponse(t.Context(), resource, params, body)
+	must(t, err)
+	if duplicate.StatusCode() != 409 || duplicate.ApplicationproblemJSONDefault == nil || duplicate.ApplicationproblemJSONDefault.Code != "CONFLICT" {
+		t.Fatal("duplicate adoption was not refused")
+	}
+}
+
 func TestManagedSDKRealCatalogDraftAndReplay(t *testing.T) {
 	f := newFixture(t)
 	ctx := context.Background()
 	c, err := sdk.New(sdk.Config{Origin: f.server.URL, AllowLoopbackHTTP: true, Token: "admin"})
 	must(t, err)
 	defer c.Close()
+
+	// Independent generated operations must preserve the administrator default-off boundary.
+	emptyID := decode[sdk.ResourceId](t, []byte(`"00000000-0000-7000-8000-000000000001"`))
+	selectedID := decode[sdk.ObservationId](t, []byte(`"00000000-0000-7000-8000-000000000001"`))
+	target, err := c.GetVersionAdoptionTargetWithResponse(ctx, selectedID)
+	must(t, err)
+	if target.StatusCode() != 403 || target.ApplicationproblemJSONDefault == nil || target.ApplicationproblemJSONDefault.Code != "FORBIDDEN" {
+		t.Fatal("disabled target admitted")
+	}
+	appendBody := decode[sdk.AdoptResourceVersionJSONRequestBody](t, []byte(`{"observationId":"00000000-0000-7000-8000-000000000001","snapshotId":"00000000-0000-7000-8000-000000000002","priorVersionRevisionId":"00000000-0000-7000-8000-000000000003","retrievalDigest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","entryLocation":"/entries/0"}`))
+	refused, err := c.AdoptResourceVersionWithResponse(ctx, emptyID, &sdk.AdoptResourceVersionParams{IdempotencyKey: "sdk-disabled-adoption"}, appendBody)
+	must(t, err)
+	if refused.StatusCode() != 403 || refused.ApplicationproblemJSONDefault == nil || refused.ApplicationproblemJSONDefault.Code != "FORBIDDEN" {
+		t.Fatal("disabled append admitted")
+	}
 	ns, err := c.CreateNamespaceWithResponse(ctx, &sdk.CreateNamespaceParams{IdempotencyKey: "sdk-namespace"}, sdk.CreateNamespaceJSONRequestBody{DisplayName: "SDK", Slug: "sdk"})
 	must(t, err)
 	if ns.JSON201 == nil {

@@ -621,6 +621,10 @@ func (m *MemoryRepository) CreateVersion(ctx context.Context, params CreateVersi
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	return m.createVersionLocked(ctx, params)
+}
+
+func (m *MemoryRepository) createVersionLocked(ctx context.Context, params CreateVersionParams) (ResourceVersion, VersionRevision, EvidenceSet, error) {
 	resource, ok := m.resources[params.Version.ResourceID]
 	if !ok || resource.TenantID != params.Version.TenantID || resource.DeletedAt != nil {
 		return ResourceVersion{}, VersionRevision{}, EvidenceSet{}, E(CodeNotFound, "resource was not found")

@@ -32,12 +32,14 @@ else:
         CapabilitiesOptionalCapabilities
         """  # noqa: E501
 
+        version_adoption: CapabilityState = Field(alias="versionAdoption")
         credential_resolution: CapabilityState = Field(alias="credentialResolution")
         managed_media: CapabilityState = Field(alias="managedMedia")
         software_assessment: CapabilityState = Field(alias="softwareAssessment")
         service_activity: StrictStr = Field(alias="serviceActivity")
         webhooks: CapabilityState
         __properties: ClassVar[List[str]] = [
+            "versionAdoption",
             "credentialResolution",
             "managedMedia",
             "softwareAssessment",
@@ -102,6 +104,7 @@ else:
 
             _obj = cls.model_validate(
                 {
+                    "versionAdoption": obj.get("versionAdoption"),
                     "credentialResolution": obj.get("credentialResolution"),
                     "managedMedia": obj.get("managedMedia"),
                     "softwareAssessment": obj.get("softwareAssessment"),

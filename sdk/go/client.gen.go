@@ -5930,6 +5930,15 @@ type AdoptObservation struct {
 	Visibility *Visibility `json:"visibility,omitempty"`
 }
 
+// AdoptResourceVersion defines model for AdoptResourceVersion.
+type AdoptResourceVersion struct {
+	EntryLocation          string `json:"entryLocation"`
+	ObservationId          UUID   `json:"observationId"`
+	PriorVersionRevisionId UUID   `json:"priorVersionRevisionId"`
+	RetrievalDigest        string `json:"retrievalDigest"`
+	SnapshotId             UUID   `json:"snapshotId"`
+}
+
 // AdoptionProvenance defines model for AdoptionProvenance.
 type AdoptionProvenance struct {
 	AdoptedAt             time.Time                              `json:"adoptedAt"`
@@ -6319,7 +6328,7 @@ type AuditPosition struct {
 	OccurredAt time.Time `json:"occurredAt"`
 }
 
-// Capabilities Examples: {"degradations":[],"governance":{"legalRights":"not_assessed","publicationAuthorization":"administrator_approved","publisherAuthority":"not_assessed","publisherDomainVerification":"disabled"},"limits":{"ardPageSize":100,"catalogDocumentBytes":16777216,"catalogPageSize":100,"liveFederationPageSize":50,"pluginComponents":128,"pluginDocumentBytes":500000,"publicationAICatalogEntries":1000,"publicationARDEntries":1001,"publicationArtifactReferences":1000,"publicationConcurrentConstructions":1,"publicationDocumentBytes":16777216,"publicationExclusions":1000,"publicationProjectionBytes":33554432,"publicationRecords":1000,"publicationSnapshotBytes":37748736,"publicationWorkUnits":100000,"requestBodyBytes":2097152,"skillPackageBytes":16777216,"skillPackageDepth":16,"skillPackageExpandedBytes":67108864,"skillPackageExpansionRatio":100,"skillPackageFileBytes":16777216,"skillPackageFiles":1024,"validationMaxDiagnosticBytes":65536,"validationMaxFindings":128},"operations":["catalog.lifecycle","catalog.search","catalog.explore","skill.package.inspect","plugin.package.inspect","skill.handoff","publication.ard","publication.ai_catalog","publication.rollback","registry.search","registry.explore","registry.list","source.inspect","source.configure","source.test","source.sync","source.snapshot_history","federation.live"],"optionalCapabilities":{"credentialResolution":"disabled","managedMedia":"unavailable","serviceActivity":"disabled","softwareAssessment":"unavailable","webhooks":"disabled"},"profileBundle":{"artifacts":36,"digest":"sha256:83df49b7322d8a68442f8f6fec564a77d15e70798927e67fe8a1439d29aca6f3"},"profiles":{"agent":["a2a-agent-card-1.0.1-3303592","open-agentic-catalog-agent-descriptor-1"],"aiCatalog":["ai-catalog-1.0-b062278"],"ard":["ard-0.91-aa3e598"],"mcp":["mcp-registry-server-1.8.1-f52dc85","mcp-server-card-v1-experimental-526201b","open-agentic-catalog-mcp-registration-1"],"plugin":["agent-plugins-1.0.0-1fc1b627"],"skill":["agent-skills-69ef37e"]},"resourceKinds":["agent","mcp_server","skill","plugin"],"search":{"degraded":false,"profile":"core-lexical-v1","semantic":"disabled","tier":"core"}}
+// Capabilities Examples: {"degradations":[],"governance":{"legalRights":"not_assessed","publicationAuthorization":"administrator_approved","publisherAuthority":"not_assessed","publisherDomainVerification":"disabled"},"limits":{"ardPageSize":100,"catalogDocumentBytes":16777216,"catalogPageSize":100,"liveFederationPageSize":50,"pluginComponents":128,"pluginDocumentBytes":500000,"publicationAICatalogEntries":1000,"publicationARDEntries":1001,"publicationArtifactReferences":1000,"publicationConcurrentConstructions":1,"publicationDocumentBytes":16777216,"publicationExclusions":1000,"publicationProjectionBytes":33554432,"publicationRecords":1000,"publicationSnapshotBytes":37748736,"publicationWorkUnits":100000,"requestBodyBytes":2097152,"skillPackageBytes":16777216,"skillPackageDepth":16,"skillPackageExpandedBytes":67108864,"skillPackageExpansionRatio":100,"skillPackageFileBytes":16777216,"skillPackageFiles":1024,"validationMaxDiagnosticBytes":65536,"validationMaxFindings":128},"operations":["catalog.lifecycle","catalog.search","catalog.explore","skill.package.inspect","plugin.package.inspect","skill.handoff","publication.ard","publication.ai_catalog","publication.rollback","registry.search","registry.explore","registry.list","source.inspect","source.configure","source.test","source.sync","source.snapshot_history","federation.live"],"optionalCapabilities":{"credentialResolution":"disabled","managedMedia":"unavailable","serviceActivity":"disabled","softwareAssessment":"unavailable","versionAdoption":"disabled","webhooks":"disabled"},"profileBundle":{"artifacts":36,"digest":"sha256:83df49b7322d8a68442f8f6fec564a77d15e70798927e67fe8a1439d29aca6f3"},"profiles":{"agent":["a2a-agent-card-1.0.1-3303592","open-agentic-catalog-agent-descriptor-1"],"aiCatalog":["ai-catalog-1.0-b062278"],"ard":["ard-0.91-aa3e598"],"mcp":["mcp-registry-server-1.8.1-f52dc85","mcp-server-card-v1-experimental-526201b","open-agentic-catalog-mcp-registration-1"],"plugin":["agent-plugins-1.0.0-1fc1b627"],"skill":["agent-skills-69ef37e"]},"resourceKinds":["agent","mcp_server","skill","plugin"],"search":{"degraded":false,"profile":"core-lexical-v1","semantic":"disabled","tier":"core"}}
 type Capabilities struct {
 	Degradations []struct {
 		Component string `json:"component"`
@@ -6400,6 +6409,7 @@ type Capabilities struct {
 		ManagedMedia         CapabilityState                                 `json:"managedMedia"`
 		ServiceActivity      CapabilitiesOptionalCapabilitiesServiceActivity `json:"serviceActivity"`
 		SoftwareAssessment   CapabilityState                                 `json:"softwareAssessment"`
+		VersionAdoption      CapabilityState                                 `json:"versionAdoption"`
 		Webhooks             CapabilityState                                 `json:"webhooks"`
 	} `json:"optionalCapabilities"`
 	ProfileBundle struct {
@@ -9205,6 +9215,15 @@ type ResourceVersion struct {
 	Version             string    `json:"version"`
 }
 
+// ResourceVersionAdoption defines model for ResourceVersionAdoption.
+type ResourceVersionAdoption struct {
+	// Evidence Examples: {"createdAt":"2026-08-30T10:00:00Z","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","id":"00000000-0000-7000-8000-000000000021","legalRights":{"state":"not_assessed"},"policyVersion":"catalog-policy-v1","state":"complete","subjectDigest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","tenantId":"00000000-0000-7000-8000-000000000001","trust":{"state":"not_assessed"},"validationProfile":"catalog-validation-v7"}
+	Evidence        EvidenceSet     `json:"evidence"`
+	ResourceId      UUID            `json:"resourceId"`
+	Version         ResourceVersion `json:"version"`
+	VersionRevision VersionRevision `json:"versionRevision"`
+}
+
 // RetrievalMode Indexed sources contribute durable observations, live sources are queried during discovery, and hybrid sources do both.
 type RetrievalMode string
 
@@ -9909,6 +9928,17 @@ type UpdateSource struct {
 // UpdateSourceUpdateMode defines model for UpdateSource.UpdateMode.
 type UpdateSourceUpdateMode string
 
+// VersionAdoptionTarget defines model for VersionAdoptionTarget.
+type VersionAdoptionTarget struct {
+	NamespaceId            UUID `json:"namespaceId"`
+	PriorVersionRevisionId UUID `json:"priorVersionRevisionId"`
+	ResourceId             UUID `json:"resourceId"`
+
+	// UpstreamVersion Exact advertised label on the selected observation.
+	UpstreamVersion string `json:"upstreamVersion"`
+	Version         string `json:"version"`
+}
+
 // VersionEvidenceEnvelope defines model for VersionEvidenceEnvelope.
 type VersionEvidenceEnvelope struct {
 	// Evidence Examples: {"createdAt":"2026-08-30T10:00:00Z","digest":"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","id":"00000000-0000-7000-8000-000000000021","legalRights":{"state":"not_assessed"},"policyVersion":"catalog-policy-v1","state":"complete","subjectDigest":"sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","tenantId":"00000000-0000-7000-8000-000000000001","trust":{"state":"not_assessed"},"validationProfile":"catalog-validation-v7"}
@@ -10176,7 +10206,7 @@ type AuditEventPageResponse = AuditEventPage
 // AuditExportResponse defines model for AuditExport.
 type AuditExportResponse = AuditExport
 
-// CapabilitiesResponse Examples: {"degradations":[],"governance":{"legalRights":"not_assessed","publicationAuthorization":"administrator_approved","publisherAuthority":"not_assessed","publisherDomainVerification":"disabled"},"limits":{"ardPageSize":100,"catalogDocumentBytes":16777216,"catalogPageSize":100,"liveFederationPageSize":50,"pluginComponents":128,"pluginDocumentBytes":500000,"publicationAICatalogEntries":1000,"publicationARDEntries":1001,"publicationArtifactReferences":1000,"publicationConcurrentConstructions":1,"publicationDocumentBytes":16777216,"publicationExclusions":1000,"publicationProjectionBytes":33554432,"publicationRecords":1000,"publicationSnapshotBytes":37748736,"publicationWorkUnits":100000,"requestBodyBytes":2097152,"skillPackageBytes":16777216,"skillPackageDepth":16,"skillPackageExpandedBytes":67108864,"skillPackageExpansionRatio":100,"skillPackageFileBytes":16777216,"skillPackageFiles":1024,"validationMaxDiagnosticBytes":65536,"validationMaxFindings":128},"operations":["catalog.lifecycle","catalog.search","catalog.explore","skill.package.inspect","plugin.package.inspect","skill.handoff","publication.ard","publication.ai_catalog","publication.rollback","registry.search","registry.explore","registry.list","source.inspect","source.configure","source.test","source.sync","source.snapshot_history","federation.live"],"optionalCapabilities":{"credentialResolution":"disabled","managedMedia":"unavailable","serviceActivity":"disabled","softwareAssessment":"unavailable","webhooks":"disabled"},"profileBundle":{"artifacts":36,"digest":"sha256:83df49b7322d8a68442f8f6fec564a77d15e70798927e67fe8a1439d29aca6f3"},"profiles":{"agent":["a2a-agent-card-1.0.1-3303592","open-agentic-catalog-agent-descriptor-1"],"aiCatalog":["ai-catalog-1.0-b062278"],"ard":["ard-0.91-aa3e598"],"mcp":["mcp-registry-server-1.8.1-f52dc85","mcp-server-card-v1-experimental-526201b","open-agentic-catalog-mcp-registration-1"],"plugin":["agent-plugins-1.0.0-1fc1b627"],"skill":["agent-skills-69ef37e"]},"resourceKinds":["agent","mcp_server","skill","plugin"],"search":{"degraded":false,"profile":"core-lexical-v1","semantic":"disabled","tier":"core"}}
+// CapabilitiesResponse Examples: {"degradations":[],"governance":{"legalRights":"not_assessed","publicationAuthorization":"administrator_approved","publisherAuthority":"not_assessed","publisherDomainVerification":"disabled"},"limits":{"ardPageSize":100,"catalogDocumentBytes":16777216,"catalogPageSize":100,"liveFederationPageSize":50,"pluginComponents":128,"pluginDocumentBytes":500000,"publicationAICatalogEntries":1000,"publicationARDEntries":1001,"publicationArtifactReferences":1000,"publicationConcurrentConstructions":1,"publicationDocumentBytes":16777216,"publicationExclusions":1000,"publicationProjectionBytes":33554432,"publicationRecords":1000,"publicationSnapshotBytes":37748736,"publicationWorkUnits":100000,"requestBodyBytes":2097152,"skillPackageBytes":16777216,"skillPackageDepth":16,"skillPackageExpandedBytes":67108864,"skillPackageExpansionRatio":100,"skillPackageFileBytes":16777216,"skillPackageFiles":1024,"validationMaxDiagnosticBytes":65536,"validationMaxFindings":128},"operations":["catalog.lifecycle","catalog.search","catalog.explore","skill.package.inspect","plugin.package.inspect","skill.handoff","publication.ard","publication.ai_catalog","publication.rollback","registry.search","registry.explore","registry.list","source.inspect","source.configure","source.test","source.sync","source.snapshot_history","federation.live"],"optionalCapabilities":{"credentialResolution":"disabled","managedMedia":"unavailable","serviceActivity":"disabled","softwareAssessment":"unavailable","versionAdoption":"disabled","webhooks":"disabled"},"profileBundle":{"artifacts":36,"digest":"sha256:83df49b7322d8a68442f8f6fec564a77d15e70798927e67fe8a1439d29aca6f3"},"profiles":{"agent":["a2a-agent-card-1.0.1-3303592","open-agentic-catalog-agent-descriptor-1"],"aiCatalog":["ai-catalog-1.0-b062278"],"ard":["ard-0.91-aa3e598"],"mcp":["mcp-registry-server-1.8.1-f52dc85","mcp-server-card-v1-experimental-526201b","open-agentic-catalog-mcp-registration-1"],"plugin":["agent-plugins-1.0.0-1fc1b627"],"skill":["agent-skills-69ef37e"]},"resourceKinds":["agent","mcp_server","skill","plugin"],"search":{"degraded":false,"profile":"core-lexical-v1","semantic":"disabled","tier":"core"}}
 type CapabilitiesResponse = Capabilities
 
 // CatalogExploreResponse2 defines model for CatalogExplore.
@@ -11639,6 +11669,12 @@ type CreateResourceVersionParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// AdoptResourceVersionParams defines parameters for AdoptResourceVersion.
+type AdoptResourceVersionParams struct {
+	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
+	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
 // DeleteResourceParams defines parameters for DeleteResource.
 type DeleteResourceParams struct {
 	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
@@ -12117,6 +12153,9 @@ type CreateResourceJSONRequestBody = CreateResource
 
 // CreateResourceVersionJSONRequestBody defines body for CreateResourceVersion for application/json ContentType.
 type CreateResourceVersionJSONRequestBody = CreateVersion
+
+// AdoptResourceVersionJSONRequestBody defines body for AdoptResourceVersion for application/json ContentType.
+type AdoptResourceVersionJSONRequestBody = AdoptResourceVersion
 
 // DeleteResourceJSONRequestBody defines body for DeleteResource for application/json ContentType.
 type DeleteResourceJSONRequestBody = Reason
@@ -19453,6 +19492,13 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/observations (the `ListObservations` operationId).
 	ListObservations(ctx context.Context, params *ListObservationsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetVersionAdoptionTarget Find one editable local Resource previously adopted from this Source
+	//
+	// Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and resource.edit in the exact retained destination, including companion reads. Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata; it neither adopts the selected observation nor changes local content. The prior adoption may be historical. NOT_FOUND means no authorized same-source destination is available; unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+	//
+	// Corresponds with GET /api/v1/observations/{observationId}/adoption-target (the `GetVersionAdoptionTarget` operationId).
+	GetVersionAdoptionTarget(ctx context.Context, observationId ObservationId, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListObservationOccurrences List exact snapshot occurrences for an observation
 	//
 	// Entries require complete source-revision and retrieval provenance. Unsupported upstream observations may omit normalized evidence.
@@ -20154,6 +20200,24 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/resources/{resourceId}/versions (the `CreateResourceVersion` operationId).
 	CreateResourceVersion(ctx context.Context, resourceId ResourceId, params *CreateResourceVersionParams, body CreateResourceVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdoptResourceVersionWithBody Append a selected upstream version to an existing adopted Resource
+	//
+	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /api/v1/resources/{resourceId}/versions:adopt (the `AdoptResourceVersion` operationId).
+	AdoptResourceVersionWithBody(ctx context.Context, resourceId ResourceId, params *AdoptResourceVersionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdoptResourceVersion Append a selected upstream version to an existing adopted Resource
+	//
+	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /api/v1/resources/{resourceId}/versions:adopt (the `AdoptResourceVersion` operationId).
+	AdoptResourceVersion(ctx context.Context, resourceId ResourceId, params *AdoptResourceVersionParams, body AdoptResourceVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// DeleteResourceWithBody Soft-delete an unpublished local draft with no retained review, release, or adoption dependency
 	//
@@ -23556,6 +23620,23 @@ func (c *Client) ListObservations(ctx context.Context, params *ListObservationsP
 	return c.Client.Do(req)
 }
 
+// GetVersionAdoptionTarget Find one editable local Resource previously adopted from this Source
+//
+// Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and resource.edit in the exact retained destination, including companion reads. Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata; it neither adopts the selected observation nor changes local content. The prior adoption may be historical. NOT_FOUND means no authorized same-source destination is available; unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+//
+// Corresponds with GET /api/v1/observations/{observationId}/adoption-target (the `GetVersionAdoptionTarget` operationId).
+func (c *Client) GetVersionAdoptionTarget(ctx context.Context, observationId ObservationId, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetVersionAdoptionTargetRequest(c.Server, observationId)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
 // ListObservationOccurrences List exact snapshot occurrences for an observation
 //
 // Entries require complete source-revision and retrieval provenance. Unsupported upstream observations may omit normalized evidence.
@@ -25108,6 +25189,44 @@ func (c *Client) CreateResourceVersionWithBody(ctx context.Context, resourceId R
 // Corresponds with POST /api/v1/resources/{resourceId}/versions (the `CreateResourceVersion` operationId).
 func (c *Client) CreateResourceVersion(ctx context.Context, resourceId ResourceId, params *CreateResourceVersionParams, body CreateResourceVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateResourceVersionRequest(c.Server, resourceId, params, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptResourceVersionWithBody Append a selected upstream version to an existing adopted Resource
+//
+// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /api/v1/resources/{resourceId}/versions:adopt (the `AdoptResourceVersion` operationId).
+func (c *Client) AdoptResourceVersionWithBody(ctx context.Context, resourceId ResourceId, params *AdoptResourceVersionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptResourceVersionRequestWithBody(c.Server, resourceId, params, contentType, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptResourceVersion Append a selected upstream version to an existing adopted Resource
+//
+// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /api/v1/resources/{resourceId}/versions:adopt (the `AdoptResourceVersion` operationId).
+func (c *Client) AdoptResourceVersion(ctx context.Context, resourceId ResourceId, params *AdoptResourceVersionParams, body AdoptResourceVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptResourceVersionRequest(c.Server, resourceId, params, body)
 	if err != nil {
 		return nil, safeError(err)
 	}
@@ -32959,6 +33078,40 @@ func NewListObservationsRequest(server string, params *ListObservationsParams) (
 	return req, nil
 }
 
+// NewGetVersionAdoptionTargetRequest constructs an http.Request for the GetVersionAdoptionTarget method
+func NewGetVersionAdoptionTargetRequest(server string, observationId ObservationId) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "observationId", observationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/observations/%s/adoption-target", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
 // NewListObservationOccurrencesRequest constructs an http.Request for the ListObservationOccurrences method
 func NewListObservationOccurrencesRequest(server string, observationId ObservationId, params *ListObservationOccurrencesParams) (*http.Request, error) {
 	var err error
@@ -36165,6 +36318,66 @@ func NewCreateResourceVersionRequestWithBody(server string, resourceId ResourceI
 	}
 
 	operationPath := fmt.Sprintf("/api/v1/resources/%s/versions", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		var headerParam0 string
+
+		headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+		if err != nil {
+			return nil, safeError(err)
+		}
+
+		req.Header.Set("Idempotency-Key", headerParam0)
+
+	}
+
+	return req, nil
+}
+
+// NewAdoptResourceVersionRequest calls the generic AdoptResourceVersion builder with application/json body
+func NewAdoptResourceVersionRequest(server string, resourceId ResourceId, params *AdoptResourceVersionParams, body AdoptResourceVersionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAdoptResourceVersionRequestWithBody(server, resourceId, params, "application/json", bodyReader)
+}
+
+// NewAdoptResourceVersionRequestWithBody constructs an http.Request for the AdoptResourceVersion method, with any body, and a specified content type
+func NewAdoptResourceVersionRequestWithBody(server string, resourceId ResourceId, params *AdoptResourceVersionParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "resourceId", resourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: "uuid"})
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/resources/%s/versions:adopt", pathParam0)
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -39765,6 +39978,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/observations (the `ListObservations` operationId).
 	ListObservationsWithResponse(ctx context.Context, params *ListObservationsParams, reqEditors ...RequestEditorFn) (*ListObservationsResponse, error)
 
+	// GetVersionAdoptionTargetWithResponse Find one editable local Resource previously adopted from this Source
+	//
+	// Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and resource.edit in the exact retained destination, including companion reads. Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata; it neither adopts the selected observation nor changes local content. The prior adoption may be historical. NOT_FOUND means no authorized same-source destination is available; unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/observations/{observationId}/adoption-target (the `GetVersionAdoptionTarget` operationId).
+	GetVersionAdoptionTargetWithResponse(ctx context.Context, observationId ObservationId, reqEditors ...RequestEditorFn) (*GetVersionAdoptionTargetResponse, error)
+
 	// ListObservationOccurrencesWithResponse List exact snapshot occurrences for an observation
 	//
 	// Entries require complete source-revision and retrieval provenance. Unsupported upstream observations may omit normalized evidence.
@@ -40538,6 +40760,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/resources/{resourceId}/versions (the `CreateResourceVersion` operationId).
 	CreateResourceVersionWithResponse(ctx context.Context, resourceId ResourceId, params *CreateResourceVersionParams, body CreateResourceVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateResourceVersionResponse, error)
+
+	// AdoptResourceVersionWithBodyWithResponse Append a selected upstream version to an existing adopted Resource
+	//
+	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/resources/{resourceId}/versions:adopt (the `AdoptResourceVersion` operationId).
+	AdoptResourceVersionWithBodyWithResponse(ctx context.Context, resourceId ResourceId, params *AdoptResourceVersionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdoptResourceVersionResponse, error)
+
+	// AdoptResourceVersionWithResponse Append a selected upstream version to an existing adopted Resource
+	//
+	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /api/v1/resources/{resourceId}/versions:adopt (the `AdoptResourceVersion` operationId).
+	AdoptResourceVersionWithResponse(ctx context.Context, resourceId ResourceId, params *AdoptResourceVersionParams, body AdoptResourceVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*AdoptResourceVersionResponse, error)
 
 	// DeleteResourceWithBodyWithResponse Soft-delete an unpublished local draft with no retained review, release, or adoption dependency
 	//
@@ -48346,6 +48586,63 @@ func (r ListObservationsResponse) ContentType() string {
 	return ""
 }
 
+// GetVersionAdoptionTargetResponseDefaultHeaders the declared response headers of an HTTP default response for GetVersionAdoptionTarget
+type GetVersionAdoptionTargetResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type GetVersionAdoptionTargetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *VersionAdoptionTarget
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *GetVersionAdoptionTargetResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetVersionAdoptionTargetResponse) GetJSON200() *VersionAdoptionTarget {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetVersionAdoptionTargetResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetVersionAdoptionTargetResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetVersionAdoptionTargetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetVersionAdoptionTargetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetVersionAdoptionTargetResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListObservationOccurrencesResponse200Headers the declared response headers of an HTTP 200 response for ListObservationOccurrences
 type ListObservationOccurrencesResponse200Headers struct {
 	XRequestID *string
@@ -52223,6 +52520,72 @@ func (r CreateResourceVersionResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateResourceVersionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// AdoptResourceVersionResponse201Headers the declared response headers of an HTTP 201 response for AdoptResourceVersion
+type AdoptResourceVersionResponse201Headers struct {
+	IdempotencyReplayed *string
+	Location            *string
+	XRequestID          *string
+}
+
+// AdoptResourceVersionResponseDefaultHeaders the declared response headers of an HTTP default response for AdoptResourceVersion
+type AdoptResourceVersionResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type AdoptResourceVersionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *ResourceVersionAdoption
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers201 the parsed response headers for an HTTP 201 response
+	Headers201 *AdoptResourceVersionResponse201Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *AdoptResourceVersionResponseDefaultHeaders
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r AdoptResourceVersionResponse) GetJSON201() *ResourceVersionAdoption {
+	return r.JSON201
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r AdoptResourceVersionResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AdoptResourceVersionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AdoptResourceVersionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AdoptResourceVersionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AdoptResourceVersionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -57385,6 +57748,21 @@ func (c *ClientWithResponses) ListObservationsWithResponse(ctx context.Context, 
 	return ParseListObservationsResponse(rsp)
 }
 
+// GetVersionAdoptionTargetWithResponse Find one editable local Resource previously adopted from this Source
+//
+// Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and resource.edit in the exact retained destination, including companion reads. Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata; it neither adopts the selected observation nor changes local content. The prior adoption may be historical. NOT_FOUND means no authorized same-source destination is available; unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/observations/{observationId}/adoption-target (the `GetVersionAdoptionTarget` operationId).
+func (c *ClientWithResponses) GetVersionAdoptionTargetWithResponse(ctx context.Context, observationId ObservationId, reqEditors ...RequestEditorFn) (*GetVersionAdoptionTargetResponse, error) {
+	rsp, err := c.GetVersionAdoptionTarget(ctx, observationId, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseGetVersionAdoptionTargetResponse(rsp)
+}
+
 // ListObservationOccurrencesWithResponse List exact snapshot occurrences for an observation
 //
 // Entries require complete source-revision and retrieval provenance. Unsupported upstream observations may omit normalized evidence.
@@ -58673,6 +59051,36 @@ func (c *ClientWithResponses) CreateResourceVersionWithResponse(ctx context.Cont
 		return nil, safeError(err)
 	}
 	return ParseCreateResourceVersionResponse(rsp)
+}
+
+// AdoptResourceVersionWithBodyWithResponse Append a selected upstream version to an existing adopted Resource
+//
+// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/resources/{resourceId}/versions:adopt (the `AdoptResourceVersion` operationId).
+func (c *ClientWithResponses) AdoptResourceVersionWithBodyWithResponse(ctx context.Context, resourceId ResourceId, params *AdoptResourceVersionParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdoptResourceVersionResponse, error) {
+	rsp, err := c.AdoptResourceVersionWithBody(ctx, resourceId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseAdoptResourceVersionResponse(rsp)
+}
+
+// AdoptResourceVersionWithResponse Append a selected upstream version to an existing adopted Resource
+//
+// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /api/v1/resources/{resourceId}/versions:adopt (the `AdoptResourceVersion` operationId).
+func (c *ClientWithResponses) AdoptResourceVersionWithResponse(ctx context.Context, resourceId ResourceId, params *AdoptResourceVersionParams, body AdoptResourceVersionJSONRequestBody, reqEditors ...RequestEditorFn) (*AdoptResourceVersionResponse, error) {
+	rsp, err := c.AdoptResourceVersion(ctx, resourceId, params, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseAdoptResourceVersionResponse(rsp)
 }
 
 // DeleteResourceWithBodyWithResponse Soft-delete an unpublished local draft with no retained review, release, or adoption dependency
@@ -68653,6 +69061,67 @@ func ParseListObservationsResponse(rsp *http.Response) (result *ListObservations
 	return response, nil
 }
 
+// ParseGetVersionAdoptionTargetResponse parses an HTTP response from a GetVersionAdoptionTargetWithResponse call
+func ParseGetVersionAdoptionTargetResponse(rsp *http.Response) (result *GetVersionAdoptionTargetResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &GetVersionAdoptionTargetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest VersionAdoptionTarget
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case true:
+		var headers GetVersionAdoptionTargetResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
 // ParseListObservationOccurrencesResponse parses an HTTP response from a ListObservationOccurrencesWithResponse call
 func ParseListObservationOccurrencesResponse(rsp *http.Response) (result *ListObservationOccurrencesResponse, err error) {
 	defer func() { err = safeResponseError(err, rsp) }()
@@ -73275,6 +73744,91 @@ func ParseCreateResourceVersionResponse(rsp *http.Response) (result *CreateResou
 		response.Headers201 = &headers
 	case true:
 		var headers CreateResourceVersionResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseAdoptResourceVersionResponse parses an HTTP response from a AdoptResourceVersionWithResponse call
+func ParseAdoptResourceVersionResponse(rsp *http.Response) (result *AdoptResourceVersionResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &AdoptResourceVersionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest ResourceVersionAdoption
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 201:
+		var headers AdoptResourceVersionResponse201Headers
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Location"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Location", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Location = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers201 = &headers
+	case true:
+		var headers AdoptResourceVersionResponseDefaultHeaders
 		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {

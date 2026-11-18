@@ -68,6 +68,7 @@ from catalog_sdk.generated.models.actor_type import ActorType
 from catalog_sdk.generated.models.add_collection_member import AddCollectionMember
 from catalog_sdk.generated.models.administration_overview import AdministrationOverview
 from catalog_sdk.generated.models.adopt_observation import AdoptObservation
+from catalog_sdk.generated.models.adopt_resource_version import AdoptResourceVersion
 from catalog_sdk.generated.models.adoption_provenance import AdoptionProvenance
 from catalog_sdk.generated.models.artwork_asset import ArtworkAsset
 from catalog_sdk.generated.models.artwork_asset_input import ArtworkAssetInput
@@ -530,6 +531,9 @@ from catalog_sdk.generated.models.resource_kind import ResourceKind
 from catalog_sdk.generated.models.resource_overview import ResourceOverview
 from catalog_sdk.generated.models.resource_page import ResourcePage
 from catalog_sdk.generated.models.resource_version import ResourceVersion
+from catalog_sdk.generated.models.resource_version_adoption import (
+    ResourceVersionAdoption,
+)
 from catalog_sdk.generated.models.retrieval_mode import RetrievalMode
 from catalog_sdk.generated.models.review_age_counts import ReviewAgeCounts
 from catalog_sdk.generated.models.review_day import ReviewDay
@@ -612,6 +616,7 @@ from catalog_sdk.generated.models.trust_evidence_bundle import TrustEvidenceBund
 from catalog_sdk.generated.models.trust_summary import TrustSummary
 from catalog_sdk.generated.models.update_collection import UpdateCollection
 from catalog_sdk.generated.models.update_source import UpdateSource
+from catalog_sdk.generated.models.version_adoption_target import VersionAdoptionTarget
 from catalog_sdk.generated.models.version_evidence_envelope import (
     VersionEvidenceEnvelope,
 )

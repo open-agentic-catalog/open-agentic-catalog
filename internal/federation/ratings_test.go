@@ -88,7 +88,7 @@ type ratingAdoptionReader struct {
 func (r ratingAdoptionReader) HasPublishedIdentity(context.Context, string, string, string) (bool, error) {
 	return false, nil
 }
-func (r ratingAdoptionReader) FindAdoptions(context.Context, string, []string) ([]catalog.AdoptionCandidate, error) {
+func (r ratingAdoptionReader) FindAdoptions(context.Context, string, []catalog.AdoptionLookup) ([]catalog.AdoptionCandidate, error) {
 	return r.candidates, r.err
 }
 func TestSelectedRatingSignalsKeepPublisherAndHistoricalImportAuthority(t *testing.T) {

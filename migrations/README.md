@@ -1,5 +1,7 @@
 # Embedded PostgreSQL migrations
 
+Migration `000053_adoption_version_selection.sql` adds a partial B-tree index for retained adoption Source selection. It changes no rows, runtime grants, RLS rules or immutable evidence. Apply it with the normal drained schema-owner workflow; allow index-build storage and write-lock time. Failure rolls back this migration; correct the cause and retry forward before restarting runtimes. No data backfill or automatic rollback is required.
+
 Migration `000031_agent_plugins.sql` adds the Plugin resource kind and immutable retained inspection documents/inventory. Runtime privilege manifest v15 introduced API insertion and API/worker reads of `plugin_inspection`, without update authority. Drain API and worker runtimes, apply migrations with the schema owner, reconcile both manifests, then start the matching binaries. External archives are not copied into PostgreSQL or reconstructed during restore.
 
 Numbered `.sql` files are the forward-only schema history embedded by [embed.go](embed.go). The migration runner in [internal/platform/database/migrate.go](../internal/platform/database/migrate.go) plans and applies them; database lifecycle and exact runtime grants are documented in the [database-role runbook](../documentation/src/content/docs/operations/database-roles.mdx).

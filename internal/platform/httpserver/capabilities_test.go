@@ -113,7 +113,7 @@ func TestCapabilitiesProjection(t *testing.T) {
 			if response.Code != http.StatusOK || response.Header().Get("Content-Type") != "application/json; charset=utf-8" || !reflect.DeepEqual(got.Search, wantSearch) || strings.Contains(response.Body.String(), "private-fixture") {
 				t.Fatalf("capabilities status=%d search=%+v body=%s", response.Code, got.Search, response.Body.String())
 			}
-			if strings.Contains(response.Body.String(), `"indexing"`) != tc.indexing || slices.Contains(got.Operations, "webhooks.signed") != tc.webhooks || got.OptionalCapabilities != (optionalCapabilities{CredentialResolution: CapabilityDisabled, ManagedMedia: CapabilityUnavailable, SoftwareAssessment: CapabilityUnavailable, Webhooks: server.capabilities.Webhooks}) {
+			if strings.Contains(response.Body.String(), `"indexing"`) != tc.indexing || slices.Contains(got.Operations, "webhooks.signed") != tc.webhooks || got.OptionalCapabilities != (optionalCapabilities{VersionAdoption: CapabilityDisabled, CredentialResolution: CapabilityDisabled, ManagedMedia: CapabilityUnavailable, SoftwareAssessment: CapabilityUnavailable, Webhooks: server.capabilities.Webhooks}) {
 				t.Fatal("capability availability or administrator-only field changed")
 			}
 			if got.Profiles.ARD == nil || got.Profiles.AICatalog == nil || (tc.profiles && (!slices.Equal(got.Profiles.ARD, []string{server.ardProfile}) || !slices.Equal(got.Profiles.AICatalog, []string{server.aiCatalogProfile}))) || (!tc.profiles && (len(got.Profiles.ARD) != 0 || len(got.Profiles.AICatalog) != 0)) {

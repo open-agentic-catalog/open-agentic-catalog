@@ -72,6 +72,7 @@ var environmentOverrides = []environmentOverride{
 	durationOverride("CATALOG_WORKER_TERMINAL_JOB_RETENTION", func(c *Config) *Duration { return &c.Worker.TerminalJobRetention }),
 	durationOverride("CATALOG_WORKER_ACKNOWLEDGED_OUTBOX_RETENTION", func(c *Config) *Duration { return &c.Worker.AcknowledgedOutboxRetention }),
 	stringOverride("CATALOG_WORKER_OPERATIONS_ADDRESS", func(c *Config) *string { return &c.Worker.OperationsAddress }),
+	boolOverride("CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED", func(c *Config) *bool { return &c.Federation.VersionAdoptionEnabled }),
 	durationOverride("CATALOG_FEDERATION_REQUEST_TIMEOUT", func(c *Config) *Duration { return &c.Federation.RequestTimeout }),
 	int64Override("CATALOG_FEDERATION_MAX_RESPONSE_BYTES", func(c *Config) *int64 { return &c.Federation.MaxResponseBytes }),
 	intOverride("CATALOG_FEDERATION_MAX_REDIRECTS", func(c *Config) *int { return &c.Federation.MaxRedirects }),

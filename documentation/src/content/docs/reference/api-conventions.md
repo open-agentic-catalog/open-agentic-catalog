@@ -248,6 +248,10 @@ Observation list, search and group responses never inline raw source entries. Th
 
 Successful adoption creates the Resource, ResourceVersion, VersionRevision, validation evidence, CatalogListing, ListingRevision, audit event, and outbox event in one repository transaction. The PostgreSQL command path also stores the exact replay response atomically with that transaction. The VersionRevision retains the selected observation, source revision, snapshot, retrieval digest, entry location, exact and normalized entry digests, normalization profile, actor, and adoption time. Source credentials are never copied or reused; a credential-free observed HTTPS representation is independently fetched through the ordinary hardened public representation boundary. Adoption creates a draft only and does not imply approval, trust, rights, publication, installation, deployment, invocation, or execution.
 
+### Existing-Resource upstream Version adoption
+
+The separately default-off `POST /api/v1/resources/{resourceId}/versions:adopt` appends an explicit different advertised version to a proven prior adoption. Its exact occurrence and prior VersionRevision references are closed command inputs. It uses `Idempotency-Key`, not `If-Match`, and returns a child Version, immutable revision and evidence without changing the Listing. Current source-evidence and destination edit permissions plus both enforced `sources.read` and `catalog.write` scopes apply, including retained-response disclosure. Administrator disablement refuses lookup and recovery. See the [operator procedure](../operations/federation.mdx#adopt-a-different-upstream-version-into-an-existing-resource) for supported delivery, limitations and deliberate review/publication.
+
 ## Agent Skill package requests
 
 Standalone Skill Markdown and packaged `SKILL.md` use the same frontmatter checks. Validation checks YAML-decoded strings before display normalization:

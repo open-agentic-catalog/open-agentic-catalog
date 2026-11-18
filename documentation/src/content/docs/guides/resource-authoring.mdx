@@ -489,6 +489,8 @@ Choose a namespace or enter its exact ID. If namespace names cannot be read, the
 
 **Add version** requires confirmed `resource.edit` permission in the Resource's namespace. Required selection, missing write scope, unconfirmed access and sealed-version restrictions have separate explanations. The API still decides every command. A grant change can deny an action that was previously available.
 
+For a Resource previously adopted from an approved Source, the optional [upstream Version adoption procedure](../operations/federation.mdx#adopt-a-different-upstream-version-into-an-existing-resource) can append a different advertised version with exact source provenance. It requires administrator enablement and a deliberate occurrence selection; synchronization never updates the local Resource automatically.
+
 Version and listing revision editors check `resource.edit` in the exact namespace and the current revision marker. History remains readable with its independent permission when editing is unavailable. A pending or failed exact-Namespace check retains an open editor's input and disables the command. Permission or scope changes retain protected drafts and explain unavailable actions. Replacing the tenant, realm or signed-in identity clears private drafts and retry state.
 
 Permission checks resolve the selected Namespace even when its grant is beyond the first My access page. The command remains unavailable while that lookup is pending or has failed; authorized draft inputs remain usable. **Reload** retries the lookup. Listing revision creation uses `resource.edit`.

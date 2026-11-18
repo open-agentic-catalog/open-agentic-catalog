@@ -129,6 +129,7 @@ export const capabilities = {
     degraded: false,
   },
   optionalCapabilities: {
+    versionAdoption: "disabled",
     serviceActivity: "disabled",
     credentialResolution: "disabled",
     managedMedia: "unavailable",

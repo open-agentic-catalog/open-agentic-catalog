@@ -681,7 +681,7 @@ class RunnerTests(unittest.TestCase):
                 self.assertNotIn("private-secret", str(error.exception))
         with mock.patch.object(runner, "read_document", return_value=good):
             families = runner.inventory()
-            self.assertEqual(len(families), 54)
+            self.assertEqual(len(families), 55)
             for identifier, count in (("publisher-domain-verification", 5), ("catalog-content-overview", 14), ("service-activity", 1)):
                 family = next(item for item in families if item["id"] == identifier)
                 self.assertEqual(family["surfaceCount"], count)

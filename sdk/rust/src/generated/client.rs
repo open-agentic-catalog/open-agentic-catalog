@@ -595,6 +595,11 @@ pub enum AddressFeedbackApiError {
 pub enum AdoptObservationApiError {
     Default(Problem),
 }
+///Typed error responses for `adoptResourceVersion`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum AdoptResourceVersionApiError {
+    Default(Problem),
+}
 ///Typed error responses for `approvePublisherPublicationDomain`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ApprovePublisherPublicationDomainApiError {
@@ -1063,6 +1068,11 @@ pub enum GetTrustAssessmentApiError {
     Status404(Problem),
     Status409(Problem),
     Status503(Problem),
+}
+///Typed error responses for `getVersionAdoptionTarget`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum GetVersionAdoptionTargetApiError {
+    Default(Problem),
 }
 ///Typed error responses for `getVersionRevision`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
@@ -2021,6 +2031,87 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(AdoptObservationApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Append a selected upstream version to an existing adopted Resource
+    ///
+    /// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+    ///
+    /// `POST /api/v1/resources/{resourceId}/versions:adopt`
+    pub async fn adopt_resource_version(
+        &self,
+        resource_id: impl AsRef<str>,
+        idempotency_key: impl AsRef<str>,
+        request: AdoptResourceVersion,
+    ) -> Result<Response<ResourceVersionAdoption>, ApiOpError<AdoptResourceVersionApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/resources/{}/versions:adopt",
+                __pct_encode_path_segment(resource_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.post(request_url);
+        req = req
+            .body(serde_json::to_vec(&request).map_err(HttpError::serialization_error)?)
+            .header("content-type", "application/json");
+        req = req.header("Idempotency-Key", idempotency_key.as_ref());
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 201u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "201",
+                )),
+            }))
+        } else {
+            let typed: Option<AdoptResourceVersionApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(AdoptResourceVersionApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {
@@ -9763,6 +9854,81 @@ impl Client {
                 _ => match serde_json::from_slice::<serde_json::Value>(&raw_body) {
                     Ok(v) => {
                         typed = Some(v);
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Find one editable local Resource previously adopted from this Source
+    ///
+    /// Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and resource.edit in the exact retained destination, including companion reads. Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata; it neither adopts the selected observation nor changes local content. The prior adoption may be historical. NOT_FOUND means no authorized same-source destination is available; unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+    ///
+    /// `GET /api/v1/observations/{observationId}/adoption-target`
+    pub async fn get_version_adoption_target(
+        &self,
+        observation_id: impl AsRef<str>,
+    ) -> Result<Response<VersionAdoptionTarget>, ApiOpError<GetVersionAdoptionTargetApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/observations/{}/adoption-target",
+                __pct_encode_path_segment(observation_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.get(request_url);
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<GetVersionAdoptionTargetApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(GetVersionAdoptionTargetApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {

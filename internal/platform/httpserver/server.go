@@ -250,6 +250,7 @@ func New(dependencies Dependencies) (*Server, error) {
 	cache.atomic = dependencies.AtomicIdempotency
 	cache.replayAdmission = server.accessReplayAdmission
 	handler = cache.middleware(dependencies.MaxBodyBytes, handler)
+	handler = server.versionAdoptionAdmission(handler)
 	handler = authorizationScopes(dependencies.EnforceOAuthScopes, handler)
 	handler = auditExecution(handler)
 	handler = authentication(dependencies.Authenticator, handler)
@@ -396,6 +397,8 @@ func (s *Server) routes(router *http.ServeMux) {
 	router.HandleFunc("POST /api/v1/resources", s.withQueryParameters(s.handleResourcesCreate))
 	router.HandleFunc("GET /api/v1/resources/{resourceId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleResourceGet, "resourceId")))
 	router.HandleFunc("POST /api/v1/resources/{resourceCommand}", s.withQueryParameters(s.dispatchResourceCommand))
+	router.HandleFunc("POST /api/v1/resources/{resourceId}/versions:adopt", s.withQueryParameters(s.withUUIDPathParameters(s.handleVersionAdoption, "resourceId")))
+	router.HandleFunc("GET /api/v1/observations/{observationId}/adoption-target", s.withQueryParameters(s.withUUIDPathParameters(s.handleVersionAdoptionTarget, "observationId")))
 	router.HandleFunc("POST /api/v1/resources/{resourceId}/versions", s.withQueryParameters(s.withUUIDPathParameters(s.handleVersionCreate, "resourceId")))
 	router.HandleFunc("GET /api/v1/resource-versions/{versionId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleVersionGet, "versionId")))
 	router.HandleFunc("POST /api/v1/resource-versions/{versionId}/revisions", s.withQueryParameters(s.withUUIDPathParameters(s.handleVersionRevisionCreate, "versionId")))

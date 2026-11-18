@@ -583,6 +583,49 @@ The `201` response contains `resource`, `version`, `versionRevision`, `evidence`
 
 Adoption does not reuse source credentials or the source's private route for resource content. A declared HTTPS representation uses the ordinary public fetch boundary. Review its permitted origin and package requirements separately, especially for Plugins. Adoption never installs or executes the resource.
 
+### Adopt a different upstream version into an existing Resource
+
+This optional authoring operation is disabled by default. A deployment administrator enables `federation.versionAdoptionEnabled: true` in the API configuration, or sets `CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED=true`, then restarts the API. Compose accepts the same environment variable. Helm uses `configEnv.CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED: "true"`. No Source or curator can enable it. The capability response reports `optionalCapabilities.versionAdoption`; disabling it also refuses recovery responses through these routes. Existing local Versions and ordinary authoring remain available.
+
+Use it when the same approved Source advertises a different, nonempty version of a Resource you previously adopted. Version labels are opaque: the Catalog neither compares semantic versions nor chooses a latest version. The canonical identifier and resource kind must match. The prior adopted revision proves the relationship even after its old upstream observation has been withdrawn; a manually authored Resource with a matching identifier is insufficient.
+
+The operation reuses ordinary adoption delivery and native validation:
+
+| Kind | Adoption delivery |
+| --- | --- |
+| Agent | Supported inline JSON or an independently permitted HTTPS document, including the A2A Agent Card. |
+| MCP Server | Supported inline JSON or an independently permitted HTTPS document, including the Server Card and Registry record. |
+| Skill | Inline JSON metadata or a permitted HTTPS standalone Markdown document. JSON metadata is not an installable package. |
+| Plugin | HTTPS ZIP or gzip archive with retained digest and mandatory manifest/component inspection; an advertised package digest must match the fetched bytes. |
+
+Skill ZIP/gzip observations are refused before retrieval: a discovery archive URL does not supply the immutable Git/OCI handoff required by inspected package authoring. Use that ordinary authoring workflow instead. Source approval or source credentials do not authorize private native-content destinations. Existing format, integrity, fetch-policy and size restrictions still apply. Discovery eligibility does not establish valid native content. Retain and inspect any validation findings; a blocked draft cannot bypass review or release.
+
+1. Open the current observation and select one complete occurrence.
+2. Choose **Find existing local Resource** under **Adopt as a new Version**. Inspect the returned Resource, prior adopted version and selected upstream version.
+3. Confirm the exact occurrence and destination. This requires `source.read_evidence` and `resource.edit` in the destination Namespace, including their permission companions. When OAuth scopes are enforced, both `sources.read` and `catalog.write` are required for lookup and adoption.
+4. Inspect the resulting VersionRevision and its validation evidence.
+5. Deliberately create a Listing revision selecting that VersionRevision. Preserve or revise your local Listing metadata as needed, then use ordinary independent review, release and snapshot activation.
+
+The append creates only a draft Version, its initial immutable VersionRevision, native validation evidence and exact adoption provenance. It does not change Resource metadata, prior revisions, Listing candidates, custom descriptions, releases or active discovery snapshots. It performs no installation or invocation. Synchronization continues to leave local content unchanged.
+
+For API clients, `GET /api/v1/observations/{observationId}/adoption-target` returns a bounded editable destination and exact `priorVersionRevisionId`, without native content. This is a destination lookup, not a readiness guarantee; the command rechecks current source and occurrence eligibility. A missing authorized adoption returns `404`; unversioned selections or incompatible prior evidence return `412`.
+
+Submit `POST /api/v1/resources/{resourceId}/versions:adopt` with a new `Idempotency-Key` and the following closed body. Use values returned by the selected occurrence and destination lookup, not guessed IDs or digests:
+
+```json
+{
+  "observationId": "01900000-0000-7000-8000-000000000001",
+  "snapshotId": "01900000-0000-7000-8000-000000000002",
+  "retrievalDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "entryLocation": "/entries/0",
+  "priorVersionRevisionId": "01900000-0000-7000-8000-000000000003"
+}
+```
+
+A `201` response contains `resourceId`, `version`, `versionRevision` and `evidence`. This child-creation operation does not take `If-Match`; the later Listing revision does. All four generated SDKs expose the lookup and append operations. There is no dedicated catalogctl or VS Code adoption command; those clients can read the subsequently governed release through their existing discovery workflows.
+
+Preserve the exact body and key after an uncertain response. An explicit retry returns the committed result under current source-evidence and destination edit authority, without fetching native content again. Later Source exclusion or observation withdrawal does not invalidate that recovery. A new key still follows current eligibility and duplicate rules. A changed body under the original key returns `409 IDEMPOTENCY_KEY_REUSED`; a duplicate local version under a new key returns `409 CONFLICT`. Same-label correction, unversioned conversion and cross-Source replacement are unsupported. Invalid or stale evidence refuses atomically; no partial draft or successful creation evidence is committed.
+
 ### Adopt an observation in the UI
 
 After selecting a complete retained occurrence, **Local metadata overrides** provides labelled optional version, name, description, category, documentation/support/terms URL and license controls, plus visibility. Unchecked overrides are omitted. Enabled empty categories submit `[]`. Disabling the category override omits that field.

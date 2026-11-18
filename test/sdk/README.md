@@ -1,5 +1,7 @@
 # SDK generation and verification
 
+All four SDK HTTP consumers qualify both disabled and enabled upstream Version adoption. The enabled fixture ingests two actual Source generations and initially adopts the first. Consumers decode the generated destination and creation models, preserve opaque labels and exact occurrence provenance, replay the same key and reject a duplicate new key. Independent service readback verifies exactly two Versions and unchanged Resource, custom Listing and prior immutable revision. The fixture has no worker, database or external network requests; its actual loopback API and consumer processes make these functional tests.
+
 All four SDK HTTP consumers exercise all eight shared-collection operations through the generated client. They verify parent ETags and revisions, exact add replay, filtered directory and current-member identities, an empty description clearing saved text, stale-update and reader-write refusal, member removal, parent deletion and source preservation. These are real local functional exchanges; they do not count toward the handwritten isolated-unit coverage percentages.
 
 Review queue units in all four SDKs verify exact namespace, Listing, state and unreleased query parameters, Unicode/reserved-character cursors and explicit one-page continuation. They use injected transports without listeners or network access. The Catalog's SQL and browser suites qualify actual queue selection; SDK tests do not implement filters locally.

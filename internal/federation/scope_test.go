@@ -195,10 +195,16 @@ func TestSourceExclusionPreviewBindsPolicyAndPreservesCurrentEvidence(t *testing
 	}
 }
 
-func TestSourceRevisionCommitGuardRejectsStaleTenantAndRemoval(t *testing.T) {
+func TestAdoptionCommitGuardRejectsStaleTenantRemovalAndMembership(t *testing.T) {
 	t.Parallel()
 	store := NewMemoryStore()
 	store.sources["source"] = Source{ID: "source", TenantID: "tenant", Revision: 2, Status: SourceActive}
+	selected := Observation{ID: "selected", TenantID: "tenant", SourceID: "source", Identifier: "opaque", Version: "next", VersionPresent: true, Freshness: FreshCurrent, Completeness: CompleteEntry, ExactEntryDigest: "exact", NormalizedEntryDigest: "normalized"}
+	occurrence := ObservationOccurrence{ObservationID: selected.ID, SourceID: "source", SnapshotID: "snapshot", SourceRevision: 1, EvidenceComplete: true}
+	store.observations[observationKey(selected)] = selected
+	store.occurrences[occurrenceKey("tenant", occurrence)] = occurrence
+	store.snapshots["snapshot"] = Snapshot{ID: "snapshot", TenantID: "tenant", SourceID: "source", State: SnapshotComplete, EnumerationComplete: true}
+
 	for _, tc := range []struct {
 		tenant, source string
 		revision       int64
@@ -207,15 +213,34 @@ func TestSourceRevisionCommitGuardRejectsStaleTenantAndRemoval(t *testing.T) {
 		{"tenant", "source", 2, true}, {"tenant", "source", 1, false}, {"other", "source", 2, false}, {"tenant", "absent", 2, false},
 	} {
 		called := false
-		err := store.withSourceRevision(t.Context(), tc.tenant, tc.source, tc.revision, func(context.Context) error { called = true; return nil })
+		err := store.withAdoptionOccurrence(t.Context(), tc.tenant, tc.source, tc.revision, selected, occurrence, func(context.Context) error { called = true; return nil })
 		if called != tc.allowed || (err == nil) != tc.allowed {
 			t.Fatalf("%+v called=%t err=%v", tc, called, err)
 		}
 	}
+	for _, mutation := range []string{"withdrawn", "incomplete", "conflict"} {
+		changed := selected
+		switch mutation {
+		case "withdrawn":
+			changed.Freshness = FreshWithdrawn
+		case "incomplete":
+			changed.Completeness = Unresolved
+		case "conflict":
+			changed.ID = "conflict"
+			changed.NormalizedEntryDigest = "other"
+		}
+		store.observations[observationKey(changed)] = changed
+		if err := store.withAdoptionOccurrence(t.Context(), "tenant", "source", 2, selected, occurrence, func(context.Context) error { t.Fatal("changed membership committed"); return nil }); err == nil {
+			t.Fatal("same-revision change admitted", mutation)
+		}
+		delete(store.observations, observationKey(changed))
+		store.observations[observationKey(selected)] = selected
+	}
+
 	source := store.sources["source"]
 	source.Status = SourceRemoved
 	store.sources["source"] = source
-	if err := store.withSourceRevision(t.Context(), "tenant", "source", 2, func(context.Context) error { t.Fatal("removed source committed"); return nil }); catalog.ErrorCodeOf(err) != catalog.CodePreconditionFailed {
+	if err := store.withAdoptionOccurrence(t.Context(), "tenant", "source", 2, selected, occurrence, func(context.Context) error { t.Fatal("removed source committed"); return nil }); catalog.ErrorCodeOf(err) != catalog.CodePreconditionFailed {
 		t.Fatal(err)
 	}
 }

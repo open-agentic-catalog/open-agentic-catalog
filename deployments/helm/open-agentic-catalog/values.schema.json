@@ -711,6 +711,7 @@
         "CATALOG_WORKER_TERMINAL_JOB_RETENTION": {"type": "string", "minLength": 1},
         "CATALOG_WORKER_ACKNOWLEDGED_OUTBOX_RETENTION": {"type": "string", "minLength": 1},
         "CATALOG_WORKER_OPERATIONS_ADDRESS": {"const": "0.0.0.0:9090"},
+        "CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED": {"type": "string", "enum": ["true", "false"]},
         "CATALOG_FEDERATION_REQUEST_TIMEOUT": {"type": "string", "minLength": 1},
         "CATALOG_FEDERATION_MAX_RESPONSE_BYTES": {"type": "string", "pattern": "^[0-9]+$"},
         "CATALOG_FEDERATION_MAX_REDIRECTS": {"type": "string", "pattern": "^[0-9]+$"},

@@ -153,7 +153,7 @@ def prepare_plugin_archives(environment, packages, *, include_mcp=False):
 def prepare_archives(environment):
     directory = Path(environment["CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY"])
     origin = prepare_plugin_archives(environment, (("a-plugin", "1.0.0"), ("b-plugin", "1.0.0"),
-                                                  ("fresh-plugin", "1.0.0"), ("a-plugin-v2", "2.0.0")))
+                                                  ("fresh-plugin", "1.0.0"), ("fresh-plugin-v2", "2.0.0"), ("a-plugin-v2", "2.0.0")))
     # B retains its loopback and authenticated hosts, adding only the fixed TLS peer host.
     config = read_document(directory / "peer-a.json")
     config["demoArchives"] = {"origin": origin, "trustBundleFile": "/config/archives-cert.pem", "allowlistFile": "/config/archives-allowlist.json"}
@@ -294,11 +294,13 @@ class Peers:
         elif kind == "plugin":
             archive = "b-plugin" if self.namespace_slug == "peers-b" else "fresh-plugin" if name.startswith("freshpeer") else "a-plugin"
             representation = self.plugin_representation(archive)
+        elif name.startswith("freshpeer"):
+            representation = {"role": "primary", "mediaType": "application/agent-skills+json", "data": {"name": "peer-skill", "description": "Inert peer Skill metadata"}}
         else:
             representation = {"role": "primary", "mediaType": "application/agent-skills+md", "content": "---\nname: peer-skill\ndescription: Inert peer test instructions.\nlicense: Apache-2.0\n---\n# Instructions\nReview catalog metadata.\n"}
         version, _ = mutate(self.author, "/api/v1/resources/" + resource["id"] + "/versions", {"version": "1.0.0", "representations": [representation]}, 201)
         listing, _ = mutate(self.author, "/api/v1/catalog-listings", {"namespaceId": self.namespace, "resourceId": resource["id"]}, 201)
-        item = {"resource": resource, "version": version, "listing": listing, "name": name, "visibility": visibility}
+        item = {"resource": resource, "version": version, "listing": listing, "name": name, "visibility": visibility, "representation": copy.deepcopy(representation)}
         self.publish_item(item, draft)
         return item
 
@@ -753,6 +755,7 @@ class Peers:
         self.passed("adoption")
         self.phase("automatic")
         source = self.automatic(source, items[0], adopted)
+        self.adopt_next_versions(source, [items[0], fresh[1], fresh[2], fresh[3]], adopted)
         self.passed("automatic")
         self.phase("pause-resume")
         source = self.pause_resume(source, fresh_ids)
@@ -763,6 +766,7 @@ class Peers:
         self.check_no_adoption()
         self.phase("draft-transfer")
         peer_drafts.qualify(self)
+        self.release_adopted_version(adopted)
         self.passed("draft-transfer")
         self.phase("complete")
         write_document(self.state / "peer-contacts.json", self.stats())
@@ -1074,8 +1078,16 @@ class Peers:
         return source
 
     def adopt(self, indexed, agent_identifier):
+        # The original published Markdown Skill uses A's private fixture address.
+        # Source approval does not authorize native-content retrieval there.
+        skill = next(row for row in indexed if row["kind"] == "skill" and "freshpeer" not in row["identifier"])
+        occurrence = next(row for row in self.b.request("GET", "/api/v1/observations/" + skill["id"] + "/occurrences")[0]["items"] if row["evidenceComplete"])
+        denied = {field: occurrence[field] for field in ("snapshotId", "retrievalDigest", "entryLocation")}
+        denied.update(namespaceId=self.b_owner.namespace, publisherId=self.b_owner.publisher)
+        self.b.request("POST", "/api/v1/observations/" + skill["id"] + ":adopt", denied, expected=(503,), headers={"Idempotency-Key": key("private-skill-adoption")})
+        self.check_no_adoption()
         adopted = []
-        for kind in ("agent", "plugin"):
+        for kind in KINDS:
             observation = next(x for x in indexed if x["kind"] == kind and (x["identifier"] == agent_identifier if kind == "agent" else "freshpeer" in x["identifier"]))
             occurrences = self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/occurrences?limit=100")[0]["items"]
             complete = self.b.request("GET", "/api/v1/federation/sources/" + observation["sourceId"])[0]["lastCompleteSnapshotId"]
@@ -1124,6 +1136,8 @@ class Peers:
             # compare the same read surface during subsequent synchronization.
             result["versionRevision"] = retained
             result["resource"] = self.b.request("GET", "/api/v1/resources/" + result["resource"]["id"])[0]
+            result["listing"] = self.b.request("GET", "/api/v1/catalog-listings/" + result["listing"]["id"])[0]
+            result["listingRevision"] = self.b.request("GET", "/api/v1/listing-revisions/" + result["listingRevision"]["id"])[0]
             adopted.append(result)
             self.check_no_adoption()
         return adopted
@@ -1150,6 +1164,101 @@ class Peers:
         assert self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/raw")[0] == entry, "automatic refresh did not converge on exact updated entry"
         self.check_adopted(adopted)
         return current
+
+    def adopt_next_versions(self, source, upstream, adopted):
+        """Explicit draft append through API and browser; synchronization alone stays inert."""
+        self.release_adopted_version(adopted, initial=True)
+        for item in upstream:
+            kind = item["resource"]["kind"]
+            if kind == "plugin":
+                representation = self.plugin_representation("fresh-plugin-v2")
+            else:
+                old = item["representation"]
+                representation = {field: copy.deepcopy(old[field]) for field in ("role", "mediaType", "data", "content", "url", "profileId") if field in old}
+                if "data" in representation:
+                    representation["data"]["version"] = "2.0.0"
+            item["version"] = mutate(self.author, "/api/v1/resources/" + item["resource"]["id"] + "/versions", {"version": "2.0.0", "representations": [representation]}, 201)[0]
+            self.publish_item(item)
+        self.snapshot(self.publisher_client, PUBLIC_A)
+        indexed = self.synchronize(source)
+        self.check_adopted(adopted)
+        for previous in adopted:
+            observation = next(row for row in indexed if row["identifier"] == previous["resource"]["canonicalIdentifier"])
+            assert observation["version"] == "2.0.0", "upstream version missing"
+            occurrences = self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/occurrences")[0]["items"]
+            occurrence = next(row for row in occurrences if row["evidenceComplete"])
+            target = self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/adoption-target")[0]
+            assert target["resourceId"] == previous["resource"]["id"], "wrong existing Resource"
+            body = {field: occurrence[field] for field in ("snapshotId", "retrievalDigest", "entryLocation")}
+            body.update(observationId=observation["id"], priorVersionRevisionId=target["priorVersionRevisionId"])
+            path = "/api/v1/resources/" + target["resourceId"] + "/versions:adopt"
+            if previous["resource"]["kind"] == "agent":
+                directory = self.fixture / "peer-ui"
+                write_document(directory / "version-adoption.json", {"api": self.b.base_url, "observationId": observation["id"], "resourceId": target["resourceId"], "body": body, "reportDirectory": str(self.state.parent.parent)})
+                result = json.loads(command(["node", "catalog-ui/scripts/version-adoption-journey.mjs", str(directory)], self.env, 90, capture=True, failed_stdout=lambda raw: peer_drafts.failed_stage(raw, self.state / "peer-draft-failure.json")))
+                assert result == {"result": "passed", "cleanup": "passed"}, "browser adoption incomplete"
+            else:
+                headers = {"Idempotency-Key": key("append-version")}
+                result = self.b.request("POST", path, body, expected=(201,), headers=headers)[0]
+                replay, replay_headers = self.b.request("POST", path, body, expected=(201,), headers=headers)
+                assert replay == result and header(replay_headers, "Idempotency-Replayed") == "true", "version replay changed result"
+                assert result["versionRevision"]["adoption"]["observationId"] == observation["id"], "new proof missing"
+                assert all(row["validationState"] == "valid" for row in result["versionRevision"]["representations"]), "new native content is not valid"
+            self.b.request("POST", path, body, expected=(409,), headers={"Idempotency-Key": key("duplicate-append")})
+            retained_listing = self.b.request("GET", "/api/v1/catalog-listings/" + previous["listing"]["id"])[0]
+            assert retained_listing == previous["listing"], "append modified Listing or its existing release"
+            assert self.b.request("GET", "/api/v1/listing-revisions/" + previous["listingRevision"]["id"])[0] == previous["listingRevision"], "append rewrote local Listing metadata"
+            if "release" in previous:
+                assert self.b.request("GET", "/api/v1/listing-releases/" + previous["release"]["id"])[0] == previous["release"], "append changed the published release"
+                assert self.b_private.request("GET", "/.well-known/ard.json")[0] == previous["activeManifest"], "append changed active discovery"
+        self.check_adopted(adopted)
+
+    def release_adopted_version(self, adopted, *, initial=False):
+        """Publish deliberately before append and again after upstream Source removal."""
+        previous = next(row for row in adopted if row["resource"]["kind"] == "agent")
+        versions = self.b.request("GET", "/api/v1/resources/" + previous["resource"]["id"] + "/versions")[0]["items"]
+        version = previous["version"] if initial else next(row for row in versions if row["version"] == "2.0.0")
+        path = "/api/v1/catalog-listings/" + previous["listing"]["id"]
+        listing, headers = self.b.request("GET", path)
+        assert listing["candidateRevisionId"] == previous["listingRevision"]["id"], "append selected the draft without consent"
+        body = {field: copy.deepcopy(previous["listingRevision"][field]) for field in ("displayName", "description", "publisherId", "tags", "representativeQueries", "categories", "license") if field in previous["listingRevision"]}
+        body.update(versionRevisionId=version["candidateRevisionId"], visibility="tenant")
+        if initial:
+            body.update(displayName="Locally curated peer Agent", description="Locally maintained release metadata", tags=["local-choice"], categories=["integration"])
+        candidate, candidate_headers = mutate(self.b, path + "/revisions", body, 201, header(headers, "ETag"))
+        if not initial:
+            retained_listing = self.b.request("GET", path)[0]
+            refused = self.b.request("POST", path + "/revisions", body, expected=(412,),
+                                    headers={"Idempotency-Key": key("stale-adopted-listing"), "If-Match": header(headers, "ETag")})[0]
+            assert refused["code"] == "PRECONDITION_FAILED", "stale adopted Listing edit reached a different guard"
+            assert self.b.request("GET", path)[0] == retained_listing, "stale adopted Listing edit changed state"
+        submission, submission_headers = mutate(self.b, path + "/submissions", {}, 201)
+        if not initial:
+            retained_submission = self.b.request("GET", "/api/v1/review-submissions/" + submission["id"])[0]
+            refused = self.b.request("POST", "/api/v1/review-submissions/" + submission["id"] + ":approve",
+                                    {"reason": "Refuse adopted Version self-approval"}, expected=(409,),
+                                    headers={"Idempotency-Key": key("self-approve-adopted-version"), "If-Match": header(submission_headers, "ETag")})[0]
+            assert refused["code"] == "SEPARATION_OF_DUTIES", "self-approval did not reach the independent-review guard"
+            assert self.b.request("GET", "/api/v1/review-submissions/" + submission["id"])[0] == retained_submission, "self-approval changed the submission"
+        mutate(self.b_owner.reviewer, "/api/v1/review-submissions/" + submission["id"] + ":approve", {"reason": "Independent adopted Version review"}, etag=header(submission_headers, "ETag"))
+        publish = {"submissionId": submission["id"]}
+        if "release" in previous:
+            publish.update(priorDisposition="superseded", priorReason="Deliberately release the adopted update")
+        release = mutate(self.b_owner.publisher_client, path + ":publish", publish, 201, header(candidate_headers, "ETag"))[0]["release"]
+        assert release["versionRevisionId"] == version["candidateRevisionId"], "released a different revision"
+        record = Client(self.b.base_url, "local-reader").request("GET", "/api/v1/catalog/resources/" + release["id"])[0]
+        assert all(record["listingRevision"].get(field) == body.get(field) for field in ("displayName", "description", "tags", "categories", "license")), "governed handoff lost local metadata"
+        assert record["versionRevision"]["adoption"]["sourceId"], "governed handoff lost origin"
+        assert candidate["revision"]["versionRevisionId"] == version["candidateRevisionId"], "wrong deliberate Listing candidate"
+        self.snapshot(self.b, PRIVATE_B)
+        manifest = self.b_private.request("GET", "/.well-known/ard.json")[0]
+        entry = next(row for row in manifest["entries"] if row["identifier"] == previous["resource"]["canonicalIdentifier"])
+        assert entry["version"] == version["version"] and entry["displayName"] == body["displayName"], "active discovery lost the governed adoption"
+        if initial:
+            previous.update(listing=self.b.request("GET", path)[0],
+                            listingRevision=self.b.request("GET", "/api/v1/listing-revisions/" + candidate["revision"]["id"])[0],
+                            release=self.b.request("GET", "/api/v1/listing-releases/" + release["id"])[0], activeManifest=manifest)
+            self.b_private_native.add(previous["resource"]["canonicalIdentifier"])
 
     def wait_automatic(self, source, previous):
         def read():

@@ -8,7 +8,7 @@ from runner import Failure, command, read_document, write_document
 
 KINDS = ["agent", "mcp_server", "skill", "plugin"]
 STAGES = {"prepare", "transfer", "startup", "destination", "source-download", "cli-import", "retained-readback",
-          "cli-export", "destination-import", "publication", "publication-readback"}
+          "cli-export", "destination-import", "publication", "publication-readback", "version-adoption"}
 
 
 def valid_failure(value):

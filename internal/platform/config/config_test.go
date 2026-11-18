@@ -45,7 +45,7 @@ func TestShippedConfigurationsAreValid(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if cfg.TrustVerification.Enabled || cfg.Tracing.Enabled || cfg.Webhooks.Enabled || cfg.SemanticSearch.Enabled || cfg.ManagedMedia.Enabled || cfg.SoftwareAssessment.Enabled || cfg.CredentialResolution.Enabled {
+				if cfg.Federation.VersionAdoptionEnabled || cfg.TrustVerification.Enabled || cfg.Tracing.Enabled || cfg.Webhooks.Enabled || cfg.SemanticSearch.Enabled || cfg.ManagedMedia.Enabled || cfg.SoftwareAssessment.Enabled || cfg.CredentialResolution.Enabled {
 					t.Fatal("shipped baseline enables an optional capability")
 				}
 				if cfg.Federation.PolicyFile != "" || cfg.Federation.Policy.Public.Mode != "allowlist" || len(cfg.Federation.Policy.Public.Origins) != 0 || len(cfg.Federation.Policy.PrivateProfiles) != 0 {
@@ -228,6 +228,7 @@ func TestEveryEnvironmentOverrideIsUniqueAndApplied(t *testing.T) {
 		"CATALOG_WORKER_TERMINAL_JOB_RETENTION":         "240h",
 		"CATALOG_WORKER_ACKNOWLEDGED_OUTBOX_RETENTION":  "48h",
 		"CATALOG_WORKER_OPERATIONS_ADDRESS":             "127.0.0.1:9091",
+		"CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED":   "true",
 		"CATALOG_FEDERATION_REQUEST_TIMEOUT":            "4s",
 		"CATALOG_FEDERATION_MAX_RESPONSE_BYTES":         "8192",
 		"CATALOG_FEDERATION_MAX_REDIRECTS":              "2",
@@ -309,13 +310,14 @@ func TestEveryEnvironmentOverrideIsUniqueAndApplied(t *testing.T) {
 			TerminalJobRetention: Duration{Duration: 240 * time.Hour}, AcknowledgedOutboxRetention: Duration{Duration: 48 * time.Hour}, OperationsAddress: "127.0.0.1:9091",
 		},
 		Federation: Federation{
-			RequestTimeout:        Duration{Duration: 4 * time.Second},
-			MaxResponseBytes:      8192,
-			MaxRedirects:          2,
-			MaxFanout:             3,
-			MaxLivePagesPerSource: 3,
-			MaxHops:               2,
-			PolicyFile:            "/etc/open-agentic-catalog/federation/policy.json",
+			VersionAdoptionEnabled: true,
+			RequestTimeout:         Duration{Duration: 4 * time.Second},
+			MaxResponseBytes:       8192,
+			MaxRedirects:           2,
+			MaxFanout:              3,
+			MaxLivePagesPerSource:  3,
+			MaxHops:                2,
+			PolicyFile:             "/etc/open-agentic-catalog/federation/policy.json",
 		},
 		Discovery:            Discovery{Hosts: []DiscoveryHost{{Host: "catalog.example.net", TenantID: "00000000-0000-7000-8000-000000000002", Mode: "authenticated", PublisherDomain: "publisher.example.net"}}},
 		Publication:          Publication{ARDProfile: "ard-override", AICatalogProfile: "ai-catalog-override"},
