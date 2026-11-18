@@ -137,7 +137,10 @@ export function jobOverview(value: unknown, tenant: string): boolean {
     seen.add(row.kind);
     const sum = (row.states as unknown[]).reduce<number>(
       (n, item) =>
-        n + (object(item) && typeof item.count === "number" ? item.count : NaN),
+        n +
+        (object(item) && typeof item.count === "number"
+          ? item.count
+          : Number.NaN),
       0,
     );
     if (!distribution(row.states, Object.keys(jobStates), sum)) return false;

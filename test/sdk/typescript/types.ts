@@ -100,7 +100,6 @@ void client.api.POST("/api/v1/resources", {
 });
 // @ts-expect-error Unknown resource kind.
 const kind: components["schemas"]["ResourceKind"] = "unknown";
-void kind;
 const native: components["schemas"]["RepresentationInput"] = {
   role: "primary",
   mediaType: "application/json",
@@ -109,7 +108,6 @@ const native: components["schemas"]["RepresentationInput"] = {
     custom: [null, false, ""],
   },
 };
-void native;
 // Generated conditionals are type approximations. The server owns full validation;
 // independent valid/invalid JSON Schema assertions remain in Go/Python harnesses.
 
@@ -150,9 +148,6 @@ const plugin: components["schemas"]["RepresentationInput"] = {
   url: "https://example.com/plugin.zip",
   expectedDigest: "sha256:" + "a".repeat(64),
 };
-void versionedTrust;
-void reference;
-void plugin;
 void client.api.POST("/api/v1/catalog/search", {
   body: { text: "pdf tables", includeMcpTools: true, origins: ["local"] },
 });
@@ -163,7 +158,6 @@ const declaredMatch: components["schemas"]["MCPToolMatch"] = {
   tools: [{ name: "extract_pdf_tables", descriptionTruncated: false }],
   truncated: false,
 };
-void declaredMatch;
 
 void client.api.GET("/api/v1/federation/sources", {
   params: {

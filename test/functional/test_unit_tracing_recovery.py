@@ -52,15 +52,19 @@ class RecoveryFixture:
         return {recovery.FAILURES: failures, recovery.SUBMITTED: submitted}
 
     def control(self, method, path, body, **kwargs):
-        assert method == "POST" and path == "/tracing/control" and kwargs == {"expected": (204,)}
+        assert method == "POST"
+        assert path == "/tracing/control"
+        assert kwargs == {"expected": (204,)}
         if body == {"reject": False}:
             assert self.failure_observed, "receiver recovered before failure evidence"
         self.reject = body["reject"]
 
     def request(self, method, path, **kwargs):
-        assert method == "GET" and path == "/api/v1/namespaces?limit=2"
+        assert method == "GET"
+        assert path == "/api/v1/namespaces?limit=2"
         if "headers" in kwargs:
-            assert not self.reject and self.failure_observed
+            assert not self.reject
+            assert self.failure_observed
             self.parents.append(kwargs["headers"]["Traceparent"])
         elif not self.reject:
             raise AssertionError("outage read skipped rejection")
@@ -94,7 +98,9 @@ class RecoveryFixture:
         return values + [fresh]
 
     def restart(self):
-        assert self.failure_observed and len(self.parents) == 1 and not self.reject
+        assert self.failure_observed
+        assert len(self.parents) == 1
+        assert not self.reject
         self.restarted = True
 
     @staticmethod

@@ -35,7 +35,7 @@ export default defineConfig({
       enforce: "pre",
       resolveId(source, importer) {
         const path = importer
-          ? normalizePath(importer.replace(/\?.*$/, ""))
+          ? normalizePath(importer.split("?", 1)[0]!)
           : undefined;
         if (
           source === "react" &&

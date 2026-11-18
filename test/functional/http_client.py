@@ -117,5 +117,5 @@ def decode(raw):
         if len(raw) > MAX_RESPONSE:
             raise ValueError()
         return json.loads(raw, object_pairs_hook=pairs, parse_constant=constant)
-    except (ValueError, UnicodeError):
+    except ValueError:
         raise ClientFailure("functional JSON response invalid") from None

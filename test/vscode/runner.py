@@ -284,5 +284,5 @@ if __name__ == "__main__":
         main()
     except (RuntimeError, ValueError) as error:
         sys.exit(str(error))
-    except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+    except (OSError, KeyError, subprocess.SubprocessError):
         sys.exit("VS Code verification failed; inspect the owned local report and installed prerequisites")

@@ -52,6 +52,7 @@ class Handler(BaseHTTPRequestHandler):
     """Forward only fixed discovery routes, retaining original request/response JSON."""
 
     def log_message(self, *_):
+        # Suppress raw request logging; the harness records bounded outcomes.
         pass
 
     def setup(self):

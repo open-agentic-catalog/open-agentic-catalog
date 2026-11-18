@@ -2,7 +2,6 @@
 // Controlled drafts and files stay local. No binary, database or network is used.
 import { useState } from "react";
 import {
-  act,
   fireEvent,
   render,
   screen,
@@ -60,10 +59,8 @@ async function editor(content = "", media = "application/agent-skills+md") {
 }
 function open(label: string, expanded = true) {
   const details = screen.getByText(label, { exact: true }).closest("details")!;
-  act(() => {
-    details.open = expanded;
-    fireEvent(details, new Event("toggle"));
-  });
+  details.open = expanded;
+  fireEvent(details, new Event("toggle"));
 }
 it("generates the real document from ordinary fields without changing a draft on mount", async () => {
   const test = await editor();

@@ -158,6 +158,7 @@ class Fault(BaseHTTPRequestHandler):
     cancelled = threading.Event()
 
     def log_message(self, *_):
+        # Suppress raw request logging; the harness records bounded outcomes.
         pass
 
     def do_GET(self):

@@ -263,6 +263,10 @@ Other rules and their severities, security/reliability checks, source exclusions
 
 Editing these parameters only in the dashboard is temporary. The scan report records the profiles and overrides used.
 
+Python analysis targets the supported 3.12, 3.13 and 3.14 versions. Security rules remain active for test tooling. Review a suspected false positive against its callers, credential use and network boundary. Fix real defects; otherwise select **False positive** on the individual issue and record why it is safe. Use **Accepted** for a valid issue deferred intentionally. Do not exclude a whole test directory or use a line-wide `NOSONAR` for one rule. See the [review procedure and persistence limits](../../../../../test/sonarqube/README.md#review-a-suspected-false-positive).
+
+Individual review decisions live in Sonar's retained database, not in the repository's scan policy. They survive ordinary scans and restarts; a fresh server needs its own review. A zero-blocker result after review does not establish that all other findings are resolved or that a quality gate passed.
+
 `make sonarqube-scan` analyzes current source without running tests or importing coverage. To include Go unit and frontend coverage, generate the reports first and select them explicitly:
 
 ```sh

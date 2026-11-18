@@ -69,7 +69,7 @@ The runner copies current tracked and nonignored untracked source into a per-run
 
 Sonar decides which languages/files its installed analyzers support. The snapshot excludes hidden paths, `.env`, `.git`, ignored outputs, dependencies, vendored standards and generated Go-client code. Generated A2A bindings and UI API declarations are excluded from issue analysis; the latter and read-only locked `catalog-ui/node_modules` remain available for TypeScript resolution.
 
-Test inclusion patterns are maintained in [sonar-project.properties](sonar-project.properties).
+Test inclusion patterns are maintained in [sonar-project.properties](sonar-project.properties). Python analysis targets the supported 3.12, 3.13 and 3.14 versions, matching the root Python project. No rule is excluded across the test directory.
 
 Each scan uses a temporary project-scoped analysis token, passes it through stdin rather than command arguments, waits for server-side processing, and revokes the token during cleanup. Sources are mounted read-only; the scanner receives no Docker socket. The runner removes its temporary scanner container and snapshot on normal success or handled failure.
 
@@ -78,6 +78,30 @@ Forced termination or a host crash can interrupt cleanup; inspect owned resource
 Reports and token-redacted scanner output live in `output/sonarqube/scan-*/report.json` and `scanner.log`. A completed report records image pins, analyzer versions, source identity, imported report hashes, server analysis ID, measures, quality-gate status and cleanup. Tool, ingestion or cleanup failures return nonzero and do not qualify the run.
 
 A completed analysis returns success even when the default quality gate reports `ERROR`: findings are for review, and the output states that distinction. Review bugs and hotspots against the actual code; counts and rule severity alone do not establish defects. Do not mass-edit code or suppress existing checks to make this optional dashboard green.
+
+### Review a suspected false positive
+
+1. Open the issue and read the rule, affected code and callers. Check whether the value is an actual credential, a development identity or a deliberately invalid test input.
+2. Check the boundary that makes the occurrence safe. For a container listener, inspect the host port binding. For TLS, check certificate verification and protocol negotiation; a private CA is not disabled verification.
+3. Fix demonstrated problems and rerun their tests. Keep existing refusal assertions and cleanup checks.
+4. For an incorrect report, use the issue's status menu to select **False positive** and enter a reason specific to that occurrence. Keep the rule active for other code. Use **Accepted** only for a valid issue deliberately deferred.
+5. Rerun the scan and inspect open blockers and the quality gate separately. A run without imported coverage reports does not measure actual test coverage.
+
+These decisions belong to Sonar's retained project database. They survive ordinary scans and `sonarqube-down`/`sonarqube-up`, but are not installed by this repository on a fresh server. A new server requires its own review. Source changes can move or reopen findings; reassess them rather than automatically accepting a matching rule or path. See Sonar's [issue management guide](https://docs.sonarsource.com/sonarqube-community-build/user-guide/issues/managing).
+
+Do not add directory-wide rule exclusions, disable security rules, or use line-wide `NOSONAR` to close one finding. Do not rewrite synthetic credentials merely to evade a detector. The checked-in scope keeps detection active; individual review does not suppress future findings elsewhere in the same file.
+
+## Recover read-only indices
+
+If ingestion fails with Elasticsearch `read-only-allow-delete` errors, check the owned server logs and available disk space. After resolving disk pressure, restart the server and repeat the scan:
+
+```sh
+make sonarqube-down
+make sonarqube-up
+make sonarqube-scan
+```
+
+Run each target separately. The restart preserves analysis history and issue decisions. Do not delete volumes or lower disk watermarks to clear an ingestion failure. Sonar documents this recovery in its [Elasticsearch troubleshooting guide](https://docs.sonarsource.com/sonarqube-server/server-update-and-maintenance/troubleshooting/elasticsearch).
 
 ## Stop and retained state
 

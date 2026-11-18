@@ -452,7 +452,7 @@ def decode(raw):
             """Reject the permissive Python decoder's nonstandard numeric constants."""
             raise ValueError()
         return json.loads(raw, object_pairs_hook=closed_object, parse_constant=nonfinite)
-    except (ValueError, UnicodeError) as error:
+    except ValueError as error:
         raise Failure("invalid-json") from error
 
 

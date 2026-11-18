@@ -7,7 +7,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from agntcy_lab import LocalHTTP, UnexpectedStatus
+from agntcy_lab import LocalHTTP
 from peer_catalog import wait_for
 from ard_registry_contract import SOURCE, EXTENSION, check_readback
 
@@ -113,7 +113,7 @@ class Campaign:
                 if after:
                     assert traffic.get(after[0], 0) > after[1], "no new source request observed"
                 return {"list": page, "search": search, "snapshot": snapshot, "sourceStatus": source, "traffic": traffic}
-            except (AssertionError, OSError, ValueError, UnexpectedStatus):
+            except (AssertionError, OSError, ValueError):
                 return None
         return wait_for("native registry exact state", current, timeout=45)
 

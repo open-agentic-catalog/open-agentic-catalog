@@ -40,6 +40,7 @@ def response(path, body, origin):
 
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_args):
+        # Suppress raw request logging; the harness records bounded outcomes.
         pass
 
     def do_GET(self):

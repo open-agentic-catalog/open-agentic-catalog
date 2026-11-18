@@ -277,7 +277,9 @@ function WebhookList(props: WorkspaceProps) {
           </select>
         </Field>
         <div className="workspace-actions">
-          <button disabled={page.busy}>Apply endpoint filters</button>
+          <button type="submit" disabled={page.busy}>
+            Apply endpoint filters
+          </button>
           <button
             type="button"
             disabled={page.busy}
@@ -322,7 +324,7 @@ function WebhookList(props: WorkspaceProps) {
           />
         </Field>
         <div className="workspace-actions">
-          <button>Open endpoint</button>
+          <button type="submit">Open endpoint</button>
         </div>
       </form>
       <div className="workspace-toolbar">
@@ -1556,7 +1558,9 @@ function Deliveries(props: WorkspaceProps) {
           </select>
         </Field>
         <div className="workspace-actions">
-          <button disabled={page.busy}>Apply delivery filters</button>
+          <button type="submit" disabled={page.busy}>
+            Apply delivery filters
+          </button>
           <button
             type="button"
             disabled={page.busy}

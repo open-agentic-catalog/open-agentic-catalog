@@ -127,6 +127,7 @@ class Campaign(Publication):
                     return None
             wait_for("native AgentField authenticated JSON routes", ready, timeout=60)
             with socket.create_connection(("127.0.0.1", 8445), timeout=3):
+                # Opening and closing the connection calibrates the inert trap.
                 pass
             wait_for("healthy inert TCP trap", lambda: self.traffic()["trapConnections"] == 1, timeout=5)
             self.observer.document("observer", "/calibrate", {"resetCalibration": True})

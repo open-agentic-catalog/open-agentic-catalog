@@ -27,6 +27,7 @@ def load(path):
         do_POST = do_GET
 
         def log_message(self, *_args):
+            # Suppress raw request logging; the harness records bounded outcomes.
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", 17654), Observer)

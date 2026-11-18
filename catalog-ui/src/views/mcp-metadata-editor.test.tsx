@@ -2,13 +2,7 @@
 // Controlled metadata units use local state/files, never a binary, database or endpoint.
 import { useState } from "react";
 import { expect, it, vi } from "vitest";
-import {
-  act,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-} from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { change, click, screenLifecycle } from "../../tests/unit/screens";
 import {
   RepresentationEditor,
@@ -84,19 +78,15 @@ async function editor(
 }
 function advanced(open: boolean) {
   const details = screen.getByText("Advanced MCP JSON").closest("details")!;
-  act(() => {
-    details.open = open;
-    fireEvent(details, new Event("toggle"));
-  });
+  details.open = open;
+  fireEvent(details, new Event("toggle"));
 }
 function open(summary: string) {
   const details = screen
     .getByText(summary, { exact: true })
     .closest("details")!;
-  act(() => {
-    details.open = true;
-    fireEvent(details, new Event("toggle"));
-  });
+  details.open = true;
+  fireEvent(details, new Event("toggle"));
 }
 async function importDocument(content: string) {
   const bytes = new TextEncoder().encode(content);

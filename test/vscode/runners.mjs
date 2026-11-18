@@ -132,7 +132,7 @@ with tarfile.open(sys.argv[1]) as t:
     const blobs = new Map([[digest(config), config]]);
     for (const name of (await readdir(join(work, "blobs")))
       .filter((name) => name !== "0")
-      .sort()) {
+      .sort((left, right) => Number(left) - Number(right))) {
       const bytes = await readFile(join(work, "blobs", name));
       blobs.set(digest(bytes), bytes);
       layers.push({
@@ -292,8 +292,11 @@ with zipfile.ZipFile(root/'catalog_owned_uv-1.0.0-py3-none-any.whl','w') as z:
       JSON.parse(directDocker.trim()).result.serverInfo.name,
       "owned-docker",
     );
-    for (let n = 0; dockerStarts < 1 && n < 50; n++)
+    // Yield to Docker's queued start events for at most fifty 100 ms waits.
+    for (let n = 0; n < 50; n++) {
+      if (dockerStarts >= 1) break;
       await new Promise((done) => setTimeout(done, 100));
+    }
     assert.equal(
       dockerStarts,
       1,

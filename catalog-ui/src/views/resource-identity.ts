@@ -1,6 +1,6 @@
 // Resource identity follows Catalog creation rules; AIR components never come
 // from the administrative Namespace or establish publisher-domain control.
-import { characterText } from "./input-validation";
+import { characterText, trimGoWhitespace } from "./input-validation";
 
 function airSegment(value: string): boolean {
   return (
@@ -36,7 +36,7 @@ function publisherDomain(value: string): boolean {
 
 /** Normalize creation input without changing opaque spelling or AIR segment case. */
 export function canonicalResourceIdentifier(input: string): string {
-  const value = input.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, "");
+  const value = trimGoWhitespace(input);
   characterText(value, "Canonical identifier", 512, 1);
   if (/\p{Surrogate}/u.test(value))
     throw new Error("Canonical identifier must contain valid Unicode text.");

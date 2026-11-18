@@ -14,6 +14,14 @@ import sonarqube as sonar
 
 
 class SonarTests(unittest.TestCase):
+    def test_checked_in_scope_preserves_security_detection_and_supported_python(self):
+        properties = dict(line.split("=", 1) for line in
+                          (sonar.CONFIG / "sonar-project.properties").read_text().splitlines()
+                          if line and not line.startswith("#"))
+        self.assertFalse(any(key.startswith(("sonar.issue.ignore.", "sonar.issue.enforce."))
+                             for key in properties), "review individual issues instead of excluding rules or paths")
+        self.assertEqual(properties["sonar.python.version"], "3.12,3.13,3.14")
+
     def test_quality_profiles_inherit_and_associate_only_the_catalog_project(self):
         local = object.__new__(sonar.Local)
         profiles, writes = {}, []

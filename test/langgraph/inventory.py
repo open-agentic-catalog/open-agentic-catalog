@@ -34,22 +34,22 @@ def inventory():
     locked = {p["name"]: p["version"] for p in lock["package"]}
     for package in distributions():
         name = package.metadata["Name"].lower().replace("_", "-")
-        license = package.metadata.get("License-Expression") or package.metadata.get(
+        license_text = package.metadata.get("License-Expression") or package.metadata.get(
             "License"
         )
         if (
             name == "python-dateutil"
             and package.version == "2.9.0.post0"
-            and license == "Dual License"
+            and license_text == "Dual License"
         ):
-            license = "Apache-2.0 OR BSD-3-Clause"
+            license_text = "Apache-2.0 OR BSD-3-Clause"
         if locked.get(name) != package.version:
             raise RuntimeError("Example environment differs from its lock: " + name)
-        if license not in ALLOWED | {"Apache-2.0 OR BSD-3-Clause"} and MPL.get(
+        if license_text not in ALLOWED | {"Apache-2.0 OR BSD-3-Clause"} and MPL.get(
             name
-        ) != (package.version, license):
+        ) != (package.version, license_text):
             raise RuntimeError("Unreviewed example dependency license: " + name)
-        result[name] = {"version": package.version, "license": license}
+        result[name] = {"version": package.version, "license": license_text}
     if (
         not {"langgraph", "langchain-ollama", "open-agentic-catalog", "coverage"}
         <= result.keys()
