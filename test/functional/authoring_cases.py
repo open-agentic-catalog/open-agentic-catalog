@@ -10,7 +10,7 @@ def valid_wire_body(raw, validator):
     """Malformed serialized JSON is an invalid control input, not a tool crash."""
     try:
         value = json.loads(raw.decode("utf-8") if isinstance(raw, bytes) else raw)
-    except (ValueError, TypeError, UnicodeError):
+    except (ValueError, TypeError):
         return False
     # A broken validator is not evidence of an invalid request.
     return validator.is_valid(value)

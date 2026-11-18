@@ -23,7 +23,7 @@ def prerequisite():
         from jsonschema.validators import validator_for
         if importlib.metadata.version("jsonschema") != JSONSCHEMA_VERSION:
             raise ValueError("unsupported jsonschema version")
-    except (ImportError, importlib.metadata.PackageNotFoundError, ValueError) as error:
+    except (ImportError, ValueError) as error:
         raise ValueError(
             "Install shared tools with make dev-tools-install and use .tools/dev/bin/python "
             f"(jsonschema=={JSONSCHEMA_VERSION}, Draft 2020-12 required)."

@@ -53,8 +53,8 @@ export async function manualLayout(page, baseURL) {
           return {
             available:
               region.clientWidth -
-              parseFloat(style.paddingLeft) -
-              parseFloat(style.paddingRight),
+              Number.parseFloat(style.paddingLeft) -
+              Number.parseFloat(style.paddingRight),
             svgWidth: region.querySelector("svg").getBoundingClientRect().width,
             documentWidth: region.ownerDocument.documentElement.scrollWidth,
             scrolls: region.scrollWidth > region.clientWidth,

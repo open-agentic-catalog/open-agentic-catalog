@@ -149,7 +149,7 @@ function ObservationList(props: WorkspaceProps) {
           </select>
         </Field>
         <div className="workspace-actions">
-          <button>Apply observation filters</button>
+          <button type="submit">Apply observation filters</button>
           <button
             type="button"
             onClick={() => {

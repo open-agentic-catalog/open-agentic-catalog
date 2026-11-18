@@ -32,7 +32,9 @@ export function ExactReference({
         />
       </Field>
       <div className="workspace-actions">
-        <button disabled={!id.trim()}>Open {label}</button>
+        <button type="submit" disabled={!id.trim()}>
+          Open {label}
+        </button>
       </div>
     </form>
   );

@@ -80,7 +80,8 @@ for(const base of ['/','/nested/manual/']) {
     await resourcesClosed(result);
     const native=inspectPDF(f.output), normalized=native.content.replace(/\s/g,'');
     for(const expected of [...requiredText,...tokens,...tokens.map((_,i)=>'END_OF_LINE_'+i)]) assert(normalized.includes(expected.replace(/\s/g,'')),expected);
-    assert.equal(native.info.match(/^Title:\s+(.+)$/m)[1],'Open Agentic Catalog manual - '+version);
+    const title=native.info.split(/\r?\n/u).find(line=>line.startsWith('Title:'));
+    assert.equal(title?.slice('Title:'.length).trimStart(),'Open Agentic Catalog manual - '+version);
     assert.match(native.info,/Tagged:\s+yes/);
     assert.match(native.info,/Pages:\s+[1-9][0-9]*/);
     const titles=['First chapter',secondTitle,'API overview','Last API operation'];

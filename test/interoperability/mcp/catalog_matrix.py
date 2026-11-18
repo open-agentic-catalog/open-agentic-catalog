@@ -31,6 +31,7 @@ class Proxy(BaseHTTPRequestHandler):
     no_sessions = True
 
     def log_message(self, *_):
+        # Suppress raw request logging; the harness records bounded outcomes.
         pass
 
     def exchange(self):

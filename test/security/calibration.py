@@ -26,6 +26,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body.encode())
 
     def log_message(self, *_args):
+        # Suppress raw request logging; the harness records bounded outcomes.
         pass
 
 

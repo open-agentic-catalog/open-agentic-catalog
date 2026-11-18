@@ -107,6 +107,7 @@ class ActualConformanceTests(unittest.TestCase):
 
         class Handler(BaseHTTPRequestHandler):
             def log_message(self, *_args):
+                # Suppress raw request logging; the harness records bounded outcomes.
                 pass
 
             def reply(self, value, body=None):

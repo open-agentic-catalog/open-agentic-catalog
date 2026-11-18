@@ -381,7 +381,9 @@ function HostSnapshots(props: WorkspaceProps & { host: string }) {
           />
         </Field>
         <div className="workspace-actions">
-          <button disabled={!snapshotId.trim()}>Open snapshot</button>
+          <button type="submit" disabled={!snapshotId.trim()}>
+            Open snapshot
+          </button>
         </div>
       </form>
       <ReadState

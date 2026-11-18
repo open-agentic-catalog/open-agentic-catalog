@@ -1322,7 +1322,7 @@ class Peers:
         path = "/api/v1/federation/sources/" + source["id"]
         stale = '"rev-' + str(source["revision"]) + '"'
         source = self.change_source(source, {"updateMode": "manual_review"})
-        current, headers = self.b.request("GET", path)
+        _, headers = self.b.request("GET", path)
         preview = mutate(self.b, path + "/change-previews", {"intent": "remove"})[0]
         body = {"changePreviewDigest": preview["digest"], "reason": "Owned source removal"}
         self.b.request("POST", path + ":remove", body, expected=(412,), headers={"Idempotency-Key": key("stale-etag"), "If-Match": stale})

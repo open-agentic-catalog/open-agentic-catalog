@@ -500,6 +500,7 @@ function SettingsEditor(props: WorkspaceProps) {
             {error && <p role="alert">{error}</p>}
             <div className="form-actions">
               <button
+                type="submit"
                 className="primary"
                 disabled={!reason.trim() || read.busy}
               >

@@ -141,8 +141,7 @@ def build_queries(documents):
     # 2 partial queries (grade 1)
 
     tuning_families = [f for f in FAMILIES if f[5] == "tune"]
-    for fam in tuning_families[:16]:
-        f_key, name, base_desc, tags, rep, _ = fam
+    for f_key, name, *_ in tuning_families[:16]:
         # Task query
         queries.append({
             "id": f"tune-{f_key}-task",
@@ -245,8 +244,7 @@ def build_queries(documents):
     heldout_families = [f for f in FAMILIES if f[5] == "test"]
 
     # 24 task queries (1 per held-out family)
-    for fam in heldout_families:
-        f_key, name, base_desc, tags, rep, _ = fam
+    for f_key, name, *_ in heldout_families:
         queries.append({
             "id": f"test-{f_key}-task",
             "split": "test",

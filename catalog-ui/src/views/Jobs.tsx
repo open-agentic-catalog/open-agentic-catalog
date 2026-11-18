@@ -223,7 +223,9 @@ function JobList(props: Props) {
           />
         </Field>
         <div className="workspace-actions">
-          <button disabled={page.busy}>Apply Job filters</button>
+          <button type="submit" disabled={page.busy}>
+            Apply Job filters
+          </button>
           <button
             type="button"
             disabled={page.busy}
@@ -252,7 +254,9 @@ function JobList(props: Props) {
           />
         </Field>
         <div className="workspace-actions">
-          <button disabled={!jobId.trim()}>Open Job</button>
+          <button type="submit" disabled={!jobId.trim()}>
+            Open Job
+          </button>
         </div>
       </form>
       <div className="workspace-toolbar">

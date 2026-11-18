@@ -79,6 +79,7 @@ def server(recordings, private_path, synthetic=False, port=None):
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *_args):
+            # Suppress raw request logging; the harness records bounded outcomes.
             pass
 
         def do_GET(self):

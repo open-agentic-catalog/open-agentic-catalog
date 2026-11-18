@@ -72,6 +72,19 @@ it("retains a rich value's DOM and local state when current facts are refreshed"
   );
   expect(button.getAttribute("aria-expanded")).toBe("true");
   expect(screen.getByText("Entries").nextElementSibling?.textContent).toBe("2");
+  rerender(
+    <Facts
+      rows={[
+        ["Evidence", <EvidenceToggle />],
+        ["Entries", 3],
+      ]}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "Hide saved evidence" })).toBe(
+    button,
+  );
+  expect(button.getAttribute("aria-expanded")).toBe("true");
+  expect(screen.getByText("Entries").nextElementSibling?.textContent).toBe("3");
   fireEvent.click(button);
   expect(screen.getByRole("button", { name: "Show saved evidence" })).toBe(
     button,

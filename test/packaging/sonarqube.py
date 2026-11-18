@@ -155,6 +155,7 @@ def coverage(raw, kind, sources):
                     raise Failure("unexpected LCOV record end")
                 in_record = False
             elif line.startswith("TN:") and not in_record:
+                # LCOV permits an optional test-name header before a source record.
                 pass
             elif not in_record or not rows.fullmatch(line):
                 raise Failure("invalid LCOV row")

@@ -47,6 +47,7 @@ def fixture():
                 self.reply(201, {**RESOURCE, **self.tenant(), **({"kind": "unsupported"} if self.mode == "response" else {})})
 
         def log_message(self, *_args):
+            # Suppress raw request logging; the harness records bounded outcomes.
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

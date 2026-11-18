@@ -96,6 +96,7 @@ def main(mode):
             self.wfile.write(body)
 
         def log_message(self, *_args):
+            # Suppress raw request logging; the harness records bounded outcomes.
             pass
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), Control)

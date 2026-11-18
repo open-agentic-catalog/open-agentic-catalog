@@ -550,11 +550,11 @@ exit 91
     for (const line of execFileSync("ps", ["-eo", "pid=,args="], {
       encoding: "utf8",
     }).split("\n")) {
-      const match = /^\s*(\d+)\s+(.*)$/u.exec(line);
+      const match = /^\s*(\d+)\s+/u.exec(line);
       if (
         !match ||
         Number(match[1]) === process.pid ||
-        !match[2].includes(work + "/")
+        !line.slice(match[0].length).includes(work + "/")
       )
         continue;
       killOwned(Number(match[1]));

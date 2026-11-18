@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { expect, it, vi } from "vitest";
 import {
-  act,
   fireEvent,
   render,
   screen,
@@ -81,10 +80,8 @@ function advanced(open: boolean) {
   const details = screen
     .getByText("Advanced Agent Card JSON")
     .closest("details")!;
-  act(() => {
-    details.open = open;
-    fireEvent(details, new Event("toggle"));
-  });
+  details.open = open;
+  fireEvent(details, new Event("toggle"));
 }
 
 it("generates an unsigned Card from ordinary fields without version duplication or a mutation on mount", async () => {

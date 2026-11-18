@@ -408,6 +408,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (Failure, OSError, ValueError, UnicodeError) as error:
+    except (Failure, OSError, ValueError) as error:
         print("Catalog monitoring failed: " + (str(error) if isinstance(error, Failure) else "local-input-or-tool-error"), file=sys.stderr)
         sys.exit(1)

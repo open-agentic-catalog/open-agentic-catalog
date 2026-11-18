@@ -46,6 +46,7 @@ class Handler(BaseHTTPRequestHandler):
     """Serve only a fixed route table and capture authorization presence, never bytes."""
 
     def log_message(self, *_args):
+        # Suppress raw request logging; the harness records bounded outcomes.
         pass
 
     def do_GET(self):
