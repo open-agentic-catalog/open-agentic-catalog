@@ -26,17 +26,20 @@ func (p *PostgresFederationStore) RatingSignals(ctx context.Context, tenant stri
  JOIN federation_sources source ON source.tenant_id=$1 AND source.id=(requested.target->>'sourceId')::uuid AND source.status IN ('active','error')
  JOIN federation_source_revisions current_source ON current_source.tenant_id=source.tenant_id AND current_source.source_id=source.id AND current_source.revision=source.revision AND coalesce((current_source.configuration->>'presentationGeneration')::bigint,1)=(requested.target->>'presentationGeneration')::bigint
  LEFT JOIN LATERAL(SELECT ratings_metadata FROM observations obs WHERE obs.tenant_id=$1 AND obs.source_id=source.id AND obs.identifier=requested.target->>'identifier' AND obs.version_present=(requested.target->>'versionPresent')::boolean AND coalesce(obs.version,'')=coalesce(requested.target->>'version','') AND obs.kind=requested.target->>'kind' AND obs.normalized_entry_digest=requested.digest AND obs.freshness='current' AND obs.completeness='complete' AND obs.compatibility->>'structural'='valid' AND obs.compatibility->>'support'='supported' ORDER BY obs.id LIMIT 1)peer ON true
- LEFT JOIN LATERAL(SELECT min(matches.id::text) AS id,bool_or(matches.changed) AS changed FROM (
- SELECT resource.id, bool_or(revision.adoption_provenance->>'normalizedEntryDigest'<>requested.digest AND requested.digest<>'') AS changed
- FROM resources resource JOIN resource_versions version ON version.tenant_id=resource.tenant_id AND version.resource_id=resource.id
+ LEFT JOIN LATERAL(
+ SELECT resource.id::text AS id,(revision.adoption_provenance->>'normalizedEntryDigest'<>requested.digest AND requested.digest<>'') AS changed
+ FROM resources resource
+ JOIN resource_versions version ON version.tenant_id=resource.tenant_id AND version.resource_id=resource.id
+  AND (NOT (requested.target->>'versionPresent')::boolean OR version.version=btrim(requested.target->>'version'))
  JOIN resource_version_revisions revision ON revision.tenant_id=version.tenant_id AND revision.resource_version_id=version.id
+  AND revision.adoption_provenance->>'sourceId'=source.id::text
  JOIN observations original ON original.tenant_id=revision.tenant_id AND original.id=(revision.adoption_provenance->>'observationId')::uuid AND original.source_id=source.id
  JOIN federation_source_revisions retained_source ON retained_source.tenant_id=revision.tenant_id AND retained_source.source_id=source.id AND retained_source.revision=(revision.adoption_provenance->>'sourceRevision')::bigint
  WHERE resource.tenant_id=$1 AND resource.deleted_at IS NULL AND resource.canonical_identifier=requested.target->>'identifier' AND resource.kind=requested.target->>'kind'
- AND revision.adoption_provenance->>'sourceId'=source.id::text AND coalesce((retained_source.configuration->>'presentationGeneration')::bigint,1)=(requested.target->>'presentationGeneration')::bigint
+ AND coalesce((retained_source.configuration->>'presentationGeneration')::bigint,1)=(requested.target->>'presentationGeneration')::bigint
  AND original.identifier=requested.target->>'identifier' AND original.version_present=(requested.target->>'versionPresent')::boolean AND coalesce(original.version,'')=coalesce(requested.target->>'version','') AND original.kind=requested.target->>'kind'
  AND `+collectionPermissionSQL("resource.read", "resource.namespace_id")+`
- GROUP BY resource.id LIMIT 2) matches HAVING count(*)=1) imported ON true`, tenant, raw)
+ LIMIT 1) imported ON true`, tenant, raw)
 		if err != nil {
 			return nil, translateError("read selected rating signals", err)
 		}

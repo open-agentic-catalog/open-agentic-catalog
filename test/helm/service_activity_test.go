@@ -22,3 +22,10 @@ func TestServiceActivityDisclosureDefaultsOffAndUsesExplicitInput(t *testing.T) 
 	}
 	validateRenderedConfiguration(t, after)
 }
+
+func TestVersionAdoptionDefaultsOff(t *testing.T) {
+	defaults := mapAt(t, oneObject(t, renderChart(t), "ConfigMap", "configuration"), "data")
+	if defaults["CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED"] != "false" {
+		t.Fatal("adoption is not default off")
+	}
+}

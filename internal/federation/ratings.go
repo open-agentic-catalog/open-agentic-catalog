@@ -130,14 +130,14 @@ func (m *MemoryStore) RatingSignals(ctx context.Context, tenant string, requests
 	if len(requests) > 100 {
 		return nil, catalog.E(catalog.CodeInvalidArgument, "rating signals exceed their bound")
 	}
-	identifiers := make([]string, len(requests))
+	targets := make([]catalog.AdoptionLookup, len(requests))
 	for i, r := range requests {
-		identifiers[i] = r.Target.Identifier
+		targets[i] = catalog.AdoptionLookup{SourceID: r.Target.SourceID, Identifier: r.Target.Identifier, Kind: r.Target.Kind, VersionPresent: r.Target.VersionPresent, Version: r.Target.Version}
 	}
 	candidates := []catalog.AdoptionCandidate{}
 	if reader, ok := m.localCatalog.(catalog.AdoptionReader); ok {
 		var err error
-		candidates, err = reader.FindAdoptions(ctx, tenant, identifiers)
+		candidates, err = reader.FindAdoptions(ctx, tenant, targets)
 		if err != nil {
 			return nil, err
 		}

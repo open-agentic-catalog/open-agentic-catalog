@@ -391,6 +391,22 @@ pub struct VersionEvidenceEnvelope {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct VersionAdoptionTarget {
+    #[serde(rename = "namespaceId")]
+    pub namespace_id: UUID,
+    #[serde(rename = "priorVersionRevisionId")]
+    pub prior_version_revision_id: UUID,
+    #[serde(rename = "resourceId")]
+    pub resource_id: UUID,
+    ///Exact advertised label on the selected observation.
+    ///Constraint: minLength=1, maxLength=128
+    #[serde(rename = "upstreamVersion")]
+    pub upstream_version: String,
+    ///Constraint: minLength=1, maxLength=128
+    pub version: String,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateSource {
     ///Explicit opt-in to source-provided artwork and native icons; image origin policy still applies.
     #[serde(rename = "artworkEnabled", skip_serializing_if = "Option::is_none")]
@@ -1786,6 +1802,16 @@ pub struct ReviewAgeCounts {
 pub struct ReviewDecision {
     pub submission: ReviewSubmission,
     pub version: ResourceVersion,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ResourceVersionAdoption {
+    pub evidence: EvidenceSet,
+    #[serde(rename = "resourceId")]
+    pub resource_id: UUID,
+    pub version: ResourceVersion,
+    #[serde(rename = "versionRevision")]
+    pub version_revision: VersionRevision,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -12780,6 +12806,8 @@ pub struct CapabilitiesOptionalCapabilities {
     pub service_activity: CapabilitiesOptionalCapabilitiesServiceActivity,
     #[serde(rename = "softwareAssessment")]
     pub software_assessment: CapabilityState,
+    #[serde(rename = "versionAdoption")]
+    pub version_adoption: CapabilityState,
     pub webhooks: CapabilityState,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
@@ -14428,6 +14456,22 @@ impl AsRef<str> for AdoptionProvenanceNormalizationProfile {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct AdoptResourceVersion {
+    ///Constraint: maxLength=1024, pattern=`^/(entries|items)/(0|[1-9][0-9]*)$`
+    #[serde(rename = "entryLocation")]
+    pub entry_location: String,
+    #[serde(rename = "observationId")]
+    pub observation_id: UUID,
+    #[serde(rename = "priorVersionRevisionId")]
+    pub prior_version_revision_id: UUID,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "retrievalDigest")]
+    pub retrieval_digest: String,
+    #[serde(rename = "snapshotId")]
+    pub snapshot_id: UUID,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

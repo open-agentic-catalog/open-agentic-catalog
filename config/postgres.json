@@ -265,6 +265,7 @@
     "operationsAddress": "0.0.0.0:9090"
   },
   "federation": {
+    "versionAdoptionEnabled": false,
     "requestTimeout": "2s",
     "maxResponseBytes": 2097152,
     "maxRedirects": 3,

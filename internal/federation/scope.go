@@ -55,14 +55,31 @@ func scopeExcludesIdentifier(scope Scope, value string) bool {
 	return slices.Contains(scope.ExcludedIdentifiers, exclusionIdentifier(value))
 }
 
-// withSourceRevision prevents a concurrent memory source edit during the final
-// local draft commit. Artifact retrieval finishes before this lock is acquired.
-func (m *MemoryStore) withSourceRevision(ctx context.Context, tenant, sourceID string, revision int64, commit func(context.Context) error) error {
+// withAdoptionOccurrence fences same-revision synchronization as well as policy
+// changes, after native acquisition and before the local repository mutation.
+func (m *MemoryStore) withAdoptionOccurrence(ctx context.Context, tenant, sourceID string, revision int64, selected Observation, occurrence ObservationOccurrence, commit func(context.Context) error) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	source, ok := m.sources[sourceID]
 	if !ok || source.TenantID != tenant || source.Status == SourceRemoved || source.Revision != revision {
 		return catalog.E(catalog.CodePreconditionFailed, "source policy changed during adoption")
+	}
+	current := false
+	for _, obs := range m.observations {
+		if obs.TenantID != tenant || obs.SourceID != sourceID {
+			continue
+		}
+		if obs.ID == selected.ID {
+			current = obs.Freshness == FreshCurrent && obs.Completeness == CompleteEntry && obs.ExactEntryDigest == selected.ExactEntryDigest && obs.NormalizedEntryDigest == selected.NormalizedEntryDigest
+		}
+		if obs.Identifier == selected.Identifier && obs.VersionPresent == selected.VersionPresent && obs.Version == selected.Version && obs.Freshness == FreshCurrent && obs.NormalizedEntryDigest != "" && obs.NormalizedEntryDigest != selected.NormalizedEntryDigest {
+			return catalog.E(catalog.CodeConflict, "selected source has conflicting current observations")
+		}
+	}
+	snap := m.snapshots[occurrence.SnapshotID]
+	saved, ok := m.occurrences[occurrenceKey(tenant, occurrence)]
+	if !current || !ok || saved != occurrence || !saved.EvidenceComplete || snap.TenantID != tenant || snap.State != SnapshotComplete || !snap.EnumerationComplete {
+		return catalog.E(catalog.CodePreconditionFailed, "selected observation is no longer current and complete")
 	}
 	return commit(ctx)
 }

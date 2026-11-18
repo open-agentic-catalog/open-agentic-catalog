@@ -44,6 +44,7 @@ services:
         aliases: [peer-a.test, private-a.test, peer-b.test]
   api:
     environment:
+      CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED: "true"
       CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE: "3"
       CATALOG_PUBLIC_BASE_URL: https://peer-b.test:8443
       CATALOG_DISCOVERY_HOSTS: >-

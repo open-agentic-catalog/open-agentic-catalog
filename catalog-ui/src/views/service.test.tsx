@@ -49,6 +49,7 @@ const capabilities = {
     degraded: false,
   },
   optionalCapabilities: {
+    versionAdoption: "disabled",
     serviceActivity: "disabled",
     credentialResolution: "unavailable",
     managedMedia: "disabled",

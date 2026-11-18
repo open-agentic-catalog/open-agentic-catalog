@@ -1,3 +1,4 @@
+import { AdoptVersion } from "./AdoptVersion";
 import { commandSummary } from "./workspace";
 import {
   CompletenessState,
@@ -24,6 +25,7 @@ import {
   permits,
   permitsNamespace,
   resourceCreationAccess,
+  availablePermission,
 } from "../api/permissions";
 import { CurrentRead, useCurrentRead } from "./current-read";
 import type { components, operations } from "../api/schema";
@@ -354,9 +356,10 @@ function ObservationDetail(props: WorkspaceProps) {
         </p>
         <p>
           Reading raw entries requires source.read_evidence and sources.read
-          scope when enforced. Adoption also requires complete retained evidence
-          and resource.create in the destination Namespace, with catalog.write
-          scope when enforced.
+          scope when enforced. Adoption requires complete retained evidence and
+          catalog.write scope when enforced. Creating a Resource requires
+          resource.create in its destination Namespace; adding a Version to an
+          existing Resource requires resource.edit there.
         </p>
         <CurrentRead
           read={page}
@@ -409,7 +412,12 @@ function ObservationDetail(props: WorkspaceProps) {
                   "source.read_evidence",
                   "sources.read",
                 ) ||
-                resourceCreationAccess(props.access) === "denied"
+                (resourceCreationAccess(props.access) === "denied" &&
+                  !availablePermission(
+                    props.access,
+                    "resource.edit",
+                    "catalog.write",
+                  ))
               }
               onClick={() => {
                 if (confirmDiscard()) setSelected(item);
@@ -431,11 +439,18 @@ function ObservationDetail(props: WorkspaceProps) {
         />
       </section>
       {selected && (
-        <Adopt
-          key={`${selected.snapshotId}-${selected.entryLocation}`}
-          {...props}
-          occurrence={selected}
-        />
+        <>
+          <Adopt
+            key={`${selected.snapshotId}-${selected.entryLocation}`}
+            {...props}
+            occurrence={selected}
+          />
+          <AdoptVersion
+            key={`version-${selected.snapshotId}-${selected.entryLocation}`}
+            {...props}
+            occurrence={selected}
+          />
+        </>
       )}
     </>
   );

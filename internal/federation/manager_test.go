@@ -240,11 +240,13 @@ type sequenceFetcher struct {
 type recordingObservationAdopter struct {
 	called bool
 	input  catalog.ExternalObservationAdoptionInput
+	checks []identity.PermissionCheck
 }
 
-func (a *recordingObservationAdopter) AdoptExternalObservation(_ context.Context, input catalog.ExternalObservationAdoptionInput) (catalog.ExternalObservationAdoption, error) {
+func (a *recordingObservationAdopter) AdoptExternalObservation(ctx context.Context, input catalog.ExternalObservationAdoptionInput) (catalog.ExternalObservationAdoption, error) {
 	a.called = true
 	a.input = input
+	a.checks = identity.RecordedPermissionChecks(ctx)
 	return catalog.ExternalObservationAdoption{}, nil
 }
 
@@ -671,8 +673,9 @@ func TestAdoptObservationPreservesImmutableSourceEvidence(t *testing.T) {
 	for _, test := range []struct {
 		kind      catalog.Kind
 		versioned bool
-	}{{catalog.KindAgent, true}, {catalog.KindPlugin, true}, {catalog.KindAgent, false}} {
-		t.Run(fmt.Sprintf("%s/versioned=%t", test.kind, test.versioned), func(t *testing.T) {
+		media     string
+	}{{catalog.KindAgent, true, ""}, {catalog.KindPlugin, true, ""}, {catalog.KindAgent, false, ""}, {catalog.KindSkill, true, adapter.MediaSkillZIP}, {catalog.KindSkill, true, adapter.MediaSkillGZIP}} {
+		t.Run(fmt.Sprintf("%s/versioned=%t/media=%s", test.kind, test.versioned, test.media), func(t *testing.T) {
 			kind := test.kind
 
 			const (
@@ -698,6 +701,11 @@ func TestAdoptObservationPreservesImmutableSourceEvidence(t *testing.T) {
 				entry.Data = nil
 				entry.Metadata = json.RawMessage(`{"packageDigest":"sha256:` + strings.Repeat("a", 64) + `","packageSize":500}`)
 			}
+			if test.media != "" {
+				entry.Type = test.media
+				entry.Data = nil
+				entry.URL = "https://source.example/skill.zip"
+			}
 			normalized, normalizedDigest := normalizeObservationEntry(entry, identifier, kind)
 			if len(normalized) == 0 || normalizedDigest == "" {
 				t.Fatal("valid observation did not normalize")
@@ -705,6 +713,9 @@ func TestAdoptObservationPreservesImmutableSourceEvidence(t *testing.T) {
 			raw := json.RawMessage(`{"identifier":"urn:air:source.example:default:adoptable-agent","version":"1.2.3","displayName":"Adoptable agent","description":"Govern this observed agent locally.","type":"application/a2a-agent-card+json","url":"https://source.example/agent.json","data":{"name":"Adoptable agent"},"tags":["observed"],"representativeQueries":["Find an adoptable agent"]}`)
 			if kind == catalog.KindPlugin {
 				raw = json.RawMessage(`{"identifier":"urn:air:source.example:default:adoptable-agent","version":"1.2.3","displayName":"Adoptable agent","description":"Govern this observed agent locally.","type":"application/agent-plugins+zip","url":"https://source.example/plugin.zip","metadata":{"packageDigest":"sha256:` + strings.Repeat("a", 64) + `","packageSize":500},"tags":["observed"],"representativeQueries":["Find an adoptable agent"]}`)
+			}
+			if test.media != "" {
+				raw = json.RawMessage(`{"identifier":"urn:air:source.example:default:adoptable-agent","version":"1.2.3","displayName":"Adoptable Skill","description":"Use inspected package authoring","type":"` + test.media + `","url":"https://source.example/skill.zip"}`)
 			}
 			if !test.versioned {
 				raw = json.RawMessage(strings.Replace(string(raw), `,"version":"1.2.3"`, "", 1))
@@ -749,11 +760,22 @@ func TestAdoptObservationPreservesImmutableSourceEvidence(t *testing.T) {
 			if !test.versioned {
 				input.Version = " 1.2.3 "
 			}
+			if test.media != "" {
+				if _, err := manager.AdoptObservation(ctx, itemID, input); catalog.ErrorCodeOf(err) != catalog.CodePreconditionFailed || adopter.called || len(outbound.requests) != 0 {
+					t.Fatal("archive adoption must require explicit inspected-package handoff", err)
+				}
+				return
+			}
 			if _, err := manager.AdoptObservation(ctx, itemID, input); err != nil {
 				t.Fatal(err)
 			}
 			if !adopter.called || adopter.input.Version != "1.2.3" || adopter.input.DisplayName != entry.DisplayName || adopter.input.Description != entry.Description || adopter.input.Representation.URL != entry.URL || string(adopter.input.Representation.Data) != string(entry.Data) || adopter.input.Provenance.ExactEntryDigest != exactDigest || adopter.input.Provenance.NormalizedEntryDigest != normalizedDigest {
 				t.Fatalf("adoption handoff = called %t, %#v", adopter.called, adopter.input)
+			}
+			if !slices.ContainsFunc(adopter.checks, func(check identity.PermissionCheck) bool {
+				return check.Permission == "source.read_evidence" && check.NamespaceID == ""
+			}) {
+				t.Fatal("source-evidence admission was lost before the authoring handoff")
 			}
 			if kind == catalog.KindPlugin && (adopter.input.Representation.ExpectedDigest == nil || *adopter.input.Representation.ExpectedDigest != "sha256:"+strings.Repeat("a", 64) || adopter.input.Representation.ProfileID != catalog.PluginProfile) {
 				t.Fatal("Plugin adoption lost the archive checksum or selected the discovery profile as a package profile")

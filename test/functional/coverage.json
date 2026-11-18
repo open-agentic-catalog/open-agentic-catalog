@@ -2130,6 +2130,36 @@
       "rejection": "Reader mutation, tenant crossing, strict bodies, stale revisions and invalid member continuations refuse.",
       "recovery": "Exact create/delete/member-removal retries replay retained receipts without repeating mutations.",
       "gaps": []
+    },
+    {
+      "id": "upstream-version-adoption",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": [
+        "http:getVersionAdoptionTarget",
+        "http:adoptResourceVersion"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/adoption_version_functional_test.go",
+          "symbol": "TestHTTPVersionAdoptionAndExactRecovery"
+        },
+        {
+          "path": "internal/platform/database/adoption_version_integration_test.go",
+          "symbol": "TestPostgresVersionAdoption"
+        },
+        {
+          "path": "test/functional/peers.py"
+        },
+        {
+          "path": "catalog-ui/scripts/version-adoption-journey.mjs"
+        }
+      ],
+      "reason": "The explicitly enabled two-Catalog profile uses real PostgreSQL and governed upstream releases. Default-off and current dual OAuth ceilings have focused HTTP controls.",
+      "success": "Append selected different version to an exact prior adoption without changing Resource, Listing candidate or publication.",
+      "rejection": "Refuse current permission/scope loss, duplicate versions, changed idempotency input and invalid occurrence references.",
+      "recovery": "Replay the exact committed command under current authority without another Version or native fetch; browser confirmation opens the retained revision.",
+      "gaps": []
     }
   ]
 }

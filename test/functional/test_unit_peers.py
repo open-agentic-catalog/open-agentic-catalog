@@ -392,7 +392,7 @@ class PeerTests(unittest.TestCase):
             archives = directory / "archives"
             self.assertEqual(archives.stat().st_mode & 0o777, 0o700)
             manifest = runner.read_document(archives / "catalog.json")
-            self.assertEqual(manifest["profiles"]["peers"], ["a-plugin", "b-plugin", "fresh-plugin", "a-plugin-v2"])
+            self.assertEqual(manifest["profiles"]["peers"], ["a-plugin", "b-plugin", "fresh-plugin", "fresh-plugin-v2", "a-plugin-v2"])
             self.assertEqual({r["representation"]["mediaType"] for r in manifest["resources"]}, {"application/agent-plugins+zip"})
             for resource in manifest["resources"]:
                 native = runner.read_document(archives / resource["key"] / "plugin.json")

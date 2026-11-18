@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 from typing_extensions import Annotated
 from uuid import UUID
 from catalog_sdk.generated.models.adopt_observation import AdoptObservation
+from catalog_sdk.generated.models.adopt_resource_version import AdoptResourceVersion
 from catalog_sdk.generated.models.artwork_override import ArtworkOverride
 from catalog_sdk.generated.models.artwork_override_page import ArtworkOverridePage
 from catalog_sdk.generated.models.connect_source import ConnectSource
@@ -52,6 +53,9 @@ from catalog_sdk.generated.models.preview_source_change import PreviewSourceChan
 from catalog_sdk.generated.models.reason import Reason
 from catalog_sdk.generated.models.remove_source import RemoveSource
 from catalog_sdk.generated.models.resource_kind import ResourceKind
+from catalog_sdk.generated.models.resource_version_adoption import (
+    ResourceVersionAdoption,
+)
 from catalog_sdk.generated.models.set_artwork_override import SetArtworkOverride
 from catalog_sdk.generated.models.source_sync_accepted import SourceSyncAccepted
 from catalog_sdk.generated.models.trust_assessment_request import TrustAssessmentRequest
@@ -59,6 +63,7 @@ from catalog_sdk.generated.models.trust_assessment_response import (
     TrustAssessmentResponse,
 )
 from catalog_sdk.generated.models.update_source import UpdateSource
+from catalog_sdk.generated.models.version_adoption_target import VersionAdoptionTarget
 
 from catalog_sdk.generated.api_client import ApiClient, RequestSerialized
 from catalog_sdk.generated.api_response import ApiResponse
@@ -528,6 +533,456 @@ class FederationApi:
         return self.api_client.param_serialize(
             method="POST",
             resource_path="/api/v1/observations/{observationId}:adopt",
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def adopt_resource_version(
+        self,
+        idempotency_key: Annotated[
+            str,
+            Field(
+                min_length=1,
+                strict=True,
+                max_length=200,
+                description="Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.",
+            ),
+        ],
+        resource_id: Annotated[
+            UUID,
+            Field(
+                description="Stable local Resource identifier, not its canonical AIR identifier."
+            ),
+        ],
+        adopt_resource_version: AdoptResourceVersion,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ResourceVersionAdoption:
+        """Append a selected upstream version to an existing adopted Resource
+
+        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+
+        :param idempotency_key: Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. (required)
+        :type idempotency_key: str
+        :param resource_id: Stable local Resource identifier, not its canonical AIR identifier. (required)
+        :type resource_id: UUID
+        :param adopt_resource_version: (required)
+        :type adopt_resource_version: AdoptResourceVersion
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._adopt_resource_version_serialize(
+            idempotency_key=idempotency_key,
+            resource_id=resource_id,
+            adopt_resource_version=adopt_resource_version,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "201": "ResourceVersionAdoption",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def adopt_resource_version_with_http_info(
+        self,
+        idempotency_key: Annotated[
+            str,
+            Field(
+                min_length=1,
+                strict=True,
+                max_length=200,
+                description="Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.",
+            ),
+        ],
+        resource_id: Annotated[
+            UUID,
+            Field(
+                description="Stable local Resource identifier, not its canonical AIR identifier."
+            ),
+        ],
+        adopt_resource_version: AdoptResourceVersion,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ResourceVersionAdoption]:
+        """Append a selected upstream version to an existing adopted Resource
+
+        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+
+        :param idempotency_key: Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. (required)
+        :type idempotency_key: str
+        :param resource_id: Stable local Resource identifier, not its canonical AIR identifier. (required)
+        :type resource_id: UUID
+        :param adopt_resource_version: (required)
+        :type adopt_resource_version: AdoptResourceVersion
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._adopt_resource_version_serialize(
+            idempotency_key=idempotency_key,
+            resource_id=resource_id,
+            adopt_resource_version=adopt_resource_version,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "201": "ResourceVersionAdoption",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def adopt_resource_version_without_preload_content(
+        self,
+        idempotency_key: Annotated[
+            str,
+            Field(
+                min_length=1,
+                strict=True,
+                max_length=200,
+                description="Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.",
+            ),
+        ],
+        resource_id: Annotated[
+            UUID,
+            Field(
+                description="Stable local Resource identifier, not its canonical AIR identifier."
+            ),
+        ],
+        adopt_resource_version: AdoptResourceVersion,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Append a selected upstream version to an existing adopted Resource
+
+        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+
+        :param idempotency_key: Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. (required)
+        :type idempotency_key: str
+        :param resource_id: Stable local Resource identifier, not its canonical AIR identifier. (required)
+        :type resource_id: UUID
+        :param adopt_resource_version: (required)
+        :type adopt_resource_version: AdoptResourceVersion
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._adopt_resource_version_serialize(
+            idempotency_key=idempotency_key,
+            resource_id=resource_id,
+            adopt_resource_version=adopt_resource_version,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "201": "ResourceVersionAdoption",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def adopt_resource_version_sync(
+        self,
+        idempotency_key: Annotated[
+            str,
+            Field(
+                min_length=1,
+                strict=True,
+                max_length=200,
+                description="Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.",
+            ),
+        ],
+        resource_id: Annotated[
+            UUID,
+            Field(
+                description="Stable local Resource identifier, not its canonical AIR identifier."
+            ),
+        ],
+        adopt_resource_version: AdoptResourceVersion,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ResourceVersionAdoption:
+        """Append a selected upstream version to an existing adopted Resource (synchronous)
+
+        Synchronous variant of :meth:`adopt_resource_version`. It calls the asynchronous
+        method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.adopt_resource_version(
+                idempotency_key=idempotency_key,
+                resource_id=resource_id,
+                adopt_resource_version=adopt_resource_version,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def adopt_resource_version_sync_with_http_info(
+        self,
+        idempotency_key: Annotated[
+            str,
+            Field(
+                min_length=1,
+                strict=True,
+                max_length=200,
+                description="Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.",
+            ),
+        ],
+        resource_id: Annotated[
+            UUID,
+            Field(
+                description="Stable local Resource identifier, not its canonical AIR identifier."
+            ),
+        ],
+        adopt_resource_version: AdoptResourceVersion,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ResourceVersionAdoption]:
+        """Append a selected upstream version to an existing adopted Resource (synchronous)
+
+        Synchronous variant of :meth:`adopt_resource_version_with_http_info`. It calls the
+        asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.adopt_resource_version_with_http_info(
+                idempotency_key=idempotency_key,
+                resource_id=resource_id,
+                adopt_resource_version=adopt_resource_version,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def adopt_resource_version_sync_without_preload_content(
+        self,
+        idempotency_key: Annotated[
+            str,
+            Field(
+                min_length=1,
+                strict=True,
+                max_length=200,
+                description="Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.",
+            ),
+        ],
+        resource_id: Annotated[
+            UUID,
+            Field(
+                description="Stable local Resource identifier, not its canonical AIR identifier."
+            ),
+        ],
+        adopt_resource_version: AdoptResourceVersion,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Append a selected upstream version to an existing adopted Resource (synchronous)
+
+        Synchronous variant of :meth:`adopt_resource_version_without_preload_content`. It calls
+        the asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.adopt_resource_version_without_preload_content(
+                idempotency_key=idempotency_key,
+                resource_id=resource_id,
+                adopt_resource_version=adopt_resource_version,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    def _adopt_resource_version_serialize(
+        self,
+        idempotency_key,
+        resource_id,
+        adopt_resource_version,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {}
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        if resource_id is not None:
+            _path_params["resourceId"] = resource_id
+        # process the query parameters
+        # process the header parameters
+        if idempotency_key is not None:
+            _header_params["Idempotency-Key"] = idempotency_key
+        # process the form parameters
+        # process the body parameter
+        if adopt_resource_version is not None:
+            _body_params = adopt_resource_version
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json", "application/problem+json"]
+            )
+
+        # set the HTTP header `Content-Type`
+        if _content_type:
+            _header_params["Content-Type"] = _content_type
+        else:
+            _default_content_type = self.api_client.select_header_content_type(
+                ["application/json"]
+            )
+            if _default_content_type is not None:
+                _header_params["Content-Type"] = _default_content_type
+
+        # authentication setting
+        _auth_settings: List[str] = ["bearerAuth"]
+
+        return self.api_client.param_serialize(
+            method="POST",
+            resource_path="/api/v1/resources/{resourceId}/versions:adopt",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,
@@ -4183,6 +4638,338 @@ class FederationApi:
         return self.api_client.param_serialize(
             method="GET",
             resource_path="/api/v1/federation/sources/{sourceId}/trust-assessments/{jobId}",
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def get_version_adoption_target(
+        self,
+        observation_id: Annotated[
+            UUID, Field(description="Retained external-source observation identifier.")
+        ],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> VersionAdoptionTarget:
+        """Find one editable local Resource previously adopted from this Source
+
+        Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and resource.edit in the exact retained destination, including companion reads. Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata; it neither adopts the selected observation nor changes local content. The prior adoption may be historical. NOT_FOUND means no authorized same-source destination is available; unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+
+        :param observation_id: Retained external-source observation identifier. (required)
+        :type observation_id: UUID
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._get_version_adoption_target_serialize(
+            observation_id=observation_id,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "VersionAdoptionTarget",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def get_version_adoption_target_with_http_info(
+        self,
+        observation_id: Annotated[
+            UUID, Field(description="Retained external-source observation identifier.")
+        ],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[VersionAdoptionTarget]:
+        """Find one editable local Resource previously adopted from this Source
+
+        Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and resource.edit in the exact retained destination, including companion reads. Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata; it neither adopts the selected observation nor changes local content. The prior adoption may be historical. NOT_FOUND means no authorized same-source destination is available; unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+
+        :param observation_id: Retained external-source observation identifier. (required)
+        :type observation_id: UUID
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._get_version_adoption_target_serialize(
+            observation_id=observation_id,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "VersionAdoptionTarget",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def get_version_adoption_target_without_preload_content(
+        self,
+        observation_id: Annotated[
+            UUID, Field(description="Retained external-source observation identifier.")
+        ],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Find one editable local Resource previously adopted from this Source
+
+        Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and resource.edit in the exact retained destination, including companion reads. Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata; it neither adopts the selected observation nor changes local content. The prior adoption may be historical. NOT_FOUND means no authorized same-source destination is available; unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+
+        :param observation_id: Retained external-source observation identifier. (required)
+        :type observation_id: UUID
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._get_version_adoption_target_serialize(
+            observation_id=observation_id,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "VersionAdoptionTarget",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def get_version_adoption_target_sync(
+        self,
+        observation_id: Annotated[
+            UUID, Field(description="Retained external-source observation identifier.")
+        ],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> VersionAdoptionTarget:
+        """Find one editable local Resource previously adopted from this Source (synchronous)
+
+        Synchronous variant of :meth:`get_version_adoption_target`. It calls the asynchronous
+        method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.get_version_adoption_target(
+                observation_id=observation_id,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def get_version_adoption_target_sync_with_http_info(
+        self,
+        observation_id: Annotated[
+            UUID, Field(description="Retained external-source observation identifier.")
+        ],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[VersionAdoptionTarget]:
+        """Find one editable local Resource previously adopted from this Source (synchronous)
+
+        Synchronous variant of :meth:`get_version_adoption_target_with_http_info`. It calls the
+        asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.get_version_adoption_target_with_http_info(
+                observation_id=observation_id,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def get_version_adoption_target_sync_without_preload_content(
+        self,
+        observation_id: Annotated[
+            UUID, Field(description="Retained external-source observation identifier.")
+        ],
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Find one editable local Resource previously adopted from this Source (synchronous)
+
+        Synchronous variant of :meth:`get_version_adoption_target_without_preload_content`. It calls
+        the asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.get_version_adoption_target_without_preload_content(
+                observation_id=observation_id,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    def _get_version_adoption_target_serialize(
+        self,
+        observation_id,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {}
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        if observation_id is not None:
+            _path_params["observationId"] = observation_id
+        # process the query parameters
+        # process the header parameters
+        # process the form parameters
+        # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json", "application/problem+json"]
+            )
+
+        # authentication setting
+        _auth_settings: List[str] = ["bearerAuth"]
+
+        return self.api_client.param_serialize(
+            method="GET",
+            resource_path="/api/v1/observations/{observationId}/adoption-target",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

@@ -86,6 +86,7 @@ __all__ = [
     "AddCollectionMember",
     "AdministrationOverview",
     "AdoptObservation",
+    "AdoptResourceVersion",
     "AdoptionProvenance",
     "ArtworkAsset",
     "ArtworkAssetInput",
@@ -374,6 +375,7 @@ __all__ = [
     "ResourceOverview",
     "ResourcePage",
     "ResourceVersion",
+    "ResourceVersionAdoption",
     "RetrievalMode",
     "ReviewAgeCounts",
     "ReviewDay",
@@ -428,6 +430,7 @@ __all__ = [
     "TrustSummary",
     "UpdateCollection",
     "UpdateSource",
+    "VersionAdoptionTarget",
     "VersionEvidenceEnvelope",
     "VersionRevision",
     "Visibility",
@@ -595,6 +598,9 @@ from catalog_sdk.generated.models.administration_overview import (
 )
 from catalog_sdk.generated.models.adopt_observation import (
     AdoptObservation as AdoptObservation,
+)
+from catalog_sdk.generated.models.adopt_resource_version import (
+    AdoptResourceVersion as AdoptResourceVersion,
 )
 from catalog_sdk.generated.models.adoption_provenance import (
     AdoptionProvenance as AdoptionProvenance,
@@ -1326,6 +1332,9 @@ from catalog_sdk.generated.models.resource_page import ResourcePage as ResourceP
 from catalog_sdk.generated.models.resource_version import (
     ResourceVersion as ResourceVersion,
 )
+from catalog_sdk.generated.models.resource_version_adoption import (
+    ResourceVersionAdoption as ResourceVersionAdoption,
+)
 from catalog_sdk.generated.models.retrieval_mode import RetrievalMode as RetrievalMode
 from catalog_sdk.generated.models.review_age_counts import (
     ReviewAgeCounts as ReviewAgeCounts,
@@ -1470,6 +1479,9 @@ from catalog_sdk.generated.models.update_collection import (
     UpdateCollection as UpdateCollection,
 )
 from catalog_sdk.generated.models.update_source import UpdateSource as UpdateSource
+from catalog_sdk.generated.models.version_adoption_target import (
+    VersionAdoptionTarget as VersionAdoptionTarget,
+)
 from catalog_sdk.generated.models.version_evidence_envelope import (
     VersionEvidenceEnvelope as VersionEvidenceEnvelope,
 )

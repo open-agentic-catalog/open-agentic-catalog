@@ -6,7 +6,7 @@
     "scripts/*.test.mjs",
     "scripts/ard-explorer-startup.mjs",
     "tests/browser/**/*.spec.ts",
-    "scripts/{dev,dependencies,licenses,packaged-test,demo-journeys,peer-journeys,draft-transfer-journeys,contextforge-journeys,security-test,e2e-report}.mjs",
+    "scripts/{dev,dependencies,licenses,packaged-test,demo-journeys,peer-journeys,version-adoption-journey,draft-transfer-journeys,contextforge-journeys,security-test,e2e-report}.mjs",
     "playwright.config.ts",
     "tests/coverage/*.functional.test.mjs",
     "tests/qualification/*.functional.test.mjs",

@@ -4377,6 +4377,59 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/ObservationOccurrencePage'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/observations/{observationId}/adoption-target:
+    parameters: [{$ref: '#/components/parameters/ObservationId'}]
+    get:
+      tags: [Federation]
+      operationId: getVersionAdoptionTarget
+      summary: Find one editable local Resource previously adopted from this Source
+      description: >-
+        Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and
+        resource.edit in the exact retained destination, including companion reads.
+        Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata;
+        it neither adopts the selected observation nor changes local content. The prior adoption
+        may be historical. NOT_FOUND means no authorized same-source destination is available;
+        unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+      responses:
+        '200':
+          description: One exact prior adoption and its local Resource.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/VersionAdoptionTarget'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/resources/{resourceId}/versions:adopt:
+    parameters: [{$ref: '#/components/parameters/ResourceId'}]
+    post:
+      tags: [Federation]
+      operationId: adoptResourceVersion
+      summary: Append a selected upstream version to an existing adopted Resource
+      description: >-
+        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact
+        destination resource.edit with companion reads; catalog.write and sources.read apply when enforced.
+        The selected complete occurrence must declare a different nonempty version and match
+        the retained prior adoption's Source, identifier and kind. Labels are opaque.
+        Creates only a Version, immutable revision, validation evidence and adoption provenance.
+        Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged.
+        Retained native validation findings can block subsequent review or release.
+        Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching
+        or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+      parameters: [{$ref: '#/components/parameters/IdempotencyKey'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AdoptResourceVersion'}
+      responses:
+        '201':
+          description: The new draft Version and exact immutable evidence.
+          headers:
+            Idempotency-Replayed: {$ref: '#/components/headers/IdempotencyReplayed'}
+            X-Request-ID: {$ref: '#/components/headers/RequestId'}
+            Location: {schema: {type: string}, description: The created resource-version route.}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ResourceVersionAdoption'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/observations/{observationId}:adopt:
     parameters: [{$ref: '#/components/parameters/ObservationId'}]
     post:
@@ -9660,8 +9713,9 @@ components:
         optionalCapabilities:
           type: object
           additionalProperties: false
-          required: [credentialResolution, managedMedia, softwareAssessment, webhooks, serviceActivity]
+          required: [versionAdoption, credentialResolution, managedMedia, softwareAssessment, webhooks, serviceActivity]
           properties:
+            versionAdoption: {$ref: '#/components/schemas/CapabilityState'}
             credentialResolution: {$ref: '#/components/schemas/CapabilityState'}
             managedMedia: {$ref: '#/components/schemas/CapabilityState'}
             softwareAssessment: {$ref: '#/components/schemas/CapabilityState'}
@@ -9776,7 +9830,7 @@ components:
             - federation.live
           governance: {publicationAuthorization: administrator_approved, publisherAuthority: not_assessed, legalRights: not_assessed, publisherDomainVerification: disabled}
           search: {tier: core, profile: core-lexical-v1, semantic: disabled, degraded: false}
-          optionalCapabilities: {credentialResolution: disabled, managedMedia: unavailable, softwareAssessment: unavailable, webhooks: disabled, serviceActivity: disabled}
+          optionalCapabilities: {versionAdoption: disabled, credentialResolution: disabled, managedMedia: unavailable, softwareAssessment: unavailable, webhooks: disabled, serviceActivity: disabled}
           limits:
             requestBodyBytes: 2097152
             validationMaxFindings: 128
@@ -11512,6 +11566,35 @@ components:
         conflict: {type: boolean}
         contributionsTruncated: {type: boolean, description: True when more than 100 exact contributions exist and the response contains only the bounded projection.}
         members: {type: array, minItems: 1, maxItems: 100, items: {$ref: '#/components/schemas/ObservationGroupMember'}}
+    AdoptResourceVersion:
+      type: object
+      additionalProperties: false
+      required: [observationId, snapshotId, retrievalDigest, entryLocation, priorVersionRevisionId]
+      properties:
+        observationId: {$ref: '#/components/schemas/UUID'}
+        snapshotId: {$ref: '#/components/schemas/UUID'}
+        retrievalDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
+        entryLocation: {type: string, pattern: '^/(entries|items)/(0|[1-9][0-9]*)$', maxLength: 1024}
+        priorVersionRevisionId: {$ref: '#/components/schemas/UUID'}
+    VersionAdoptionTarget:
+      type: object
+      additionalProperties: false
+      required: [resourceId, namespaceId, priorVersionRevisionId, version, upstreamVersion]
+      properties:
+        resourceId: {$ref: '#/components/schemas/UUID'}
+        namespaceId: {$ref: '#/components/schemas/UUID'}
+        priorVersionRevisionId: {$ref: '#/components/schemas/UUID'}
+        version: {type: string, minLength: 1, maxLength: 128}
+        upstreamVersion: {type: string, minLength: 1, maxLength: 128, description: Exact advertised label on the selected observation.}
+    ResourceVersionAdoption:
+      type: object
+      additionalProperties: false
+      required: [resourceId, version, versionRevision, evidence]
+      properties:
+        resourceId: {$ref: '#/components/schemas/UUID'}
+        version: {$ref: '#/components/schemas/ResourceVersion'}
+        versionRevision: {$ref: '#/components/schemas/VersionRevision'}
+        evidence: {$ref: '#/components/schemas/EvidenceSet'}
     AdoptObservation:
       type: object
       additionalProperties: false

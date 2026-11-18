@@ -31,6 +31,7 @@ func TestConfiguredPoliciesUseSharedConfigMapAndRollout(t *testing.T) {
 		{"CATALOG_JOBS_MAX_ATTEMPTS": "7", "CATALOG_JOBS_RETRY_CEILING": "5.5s"},
 		{"CATALOG_WORKER_DEPENDENCY_RETRY_INITIAL_DELAY": "1.25s", "CATALOG_WORKER_DEPENDENCY_RETRY_CEILING": "2.5s"},
 		{"CATALOG_FEDERATION_MAX_LIVE_PAGES_PER_SOURCE": "3"},
+		{"CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED": "true"},
 	} {
 		args := make([]string, 0, 2*len(policy))
 		for name, value := range policy {
@@ -344,6 +345,7 @@ func TestUnsafeValuesAreRejected(t *testing.T) {
 		"invalid image digest":             {"--set-string", "image.digest=sha256:abcd"},
 		"invalid migration deadline":       {"--set", "migration.activeDeadlineSeconds=0"},
 		"invalid reference":                {"--set-string", "secrets.apiDatabase.name=" + longReference},
+		"invalid Version adoption opt-in":  {"--set-string", "configEnv.CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED=yes"},
 		"invalid service type":             {"--set-string", "service.type=ExternalName"},
 		"invalid tenant":                   {"--set-string", "configEnv.CATALOG_AUTH_DEDICATED_TENANT_ID=invalid"},
 		"invalid termination grace":        {"--set", "terminationGracePeriodSeconds=0"},

@@ -52,7 +52,7 @@ See the [deployment guide](../../../documentation/src/content/docs/operations/de
 
 ## Install or upgrade
 
-The current schema runs through migration 000052 with exact privilege manifest v30. Documentation contract tests compare these values with embedded migrations and manifest code.
+The current schema runs through migration 000053 with exact privilege manifest v30. Documentation contract tests compare these values with embedded migrations and manifest code.
 
 When crossing migration 000039, keep API and worker Deployments at zero after migration and grant reconciliation. Run the [bounded search-projection repair](../../../documentation/src/content/docs/operations/search-projection-repair.mdx) for every tenant before starting the upgraded workloads. The migration hook does not perform this repair.
 
@@ -459,3 +459,7 @@ The chart delivers startup inputs. Saved automatic-source and new-Job attempt ov
 ## API request statistics
 
 `configEnv.CATALOG_HTTP_SERVICE_ACTIVITY_ENABLED` defaults to `"false"`. Set it to `"true"` to permit cross-tenant process statistics through `GET /api/v1/service-activity`. Current tenant-wide `access.manage` and enforced `tenant.admin` remain required. The configuration change rolls the backend workloads through the existing checksum. It adds no collector, Service or ingress path. See [request statistics](../../../documentation/src/content/docs/operations/observability.mdx#read-api-request-statistics).
+
+### Optional upstream Version adoption
+
+`configEnv.CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED` defaults to `"false"`. Set it to `"true"` only to allow curators with current source-evidence and exact-namespace edit permissions to append a selected upstream version to an existing adoption. The chart schema rejects other strings. The configuration rollout applies the startup setting; disabling it also refuses retained append-response recovery. It does not withdraw local content or change ordinary authoring. See the [federation procedure](../../../documentation/src/content/docs/operations/federation.mdx#adopt-a-different-upstream-version-into-an-existing-resource).

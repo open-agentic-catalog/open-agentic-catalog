@@ -105,52 +105,8 @@ func (p *PostgresRepository) AdoptExternalObservation(ctx context.Context, param
 			return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodeInvalidArgument, "adopted draft tenant or provenance is invalid")
 		}
 		provenance := params.VersionRevision.Adoption
-		var sourceRevision int64
-		if err := tx.QueryRow(ctx, `SELECT revision FROM federation_sources WHERE tenant_id=$1 AND id=$2 FOR SHARE`, params.Resource.TenantID, provenance.SourceID).Scan(&sourceRevision); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodePreconditionFailed, "selected observation source is no longer available")
-			}
-			return catalog.ExternalObservationAdoption{}, translateError("lock selected observation source", err)
-		}
-		if params.SourceAdmissionRevision < 1 || sourceRevision != params.SourceAdmissionRevision {
-			return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodePreconditionFailed, "source policy changed during adoption")
-		}
-		var sourceConflict bool
-		if err := tx.QueryRow(ctx, `
-      SELECT EXISTS (
-        SELECT 1
-          FROM observations conflicting
-         WHERE conflicting.tenant_id=observation.tenant_id
-           AND conflicting.source_id=observation.source_id
-           AND conflicting.identifier=observation.identifier
-           AND conflicting.version_present=observation.version_present
-           AND conflicting.version IS NOT DISTINCT FROM observation.version
-           AND conflicting.freshness='current'
-           AND conflicting.normalized_entry_digest IS NOT NULL
-           AND conflicting.normalized_entry_digest<>observation.normalized_entry_digest
-      )
-      FROM observations observation
-      JOIN observation_occurrences occurrence
-        ON occurrence.tenant_id=observation.tenant_id AND occurrence.observation_id=observation.id
-      JOIN source_snapshots snapshot
-        ON snapshot.tenant_id=occurrence.tenant_id AND snapshot.source_id=occurrence.source_id AND snapshot.id=occurrence.snapshot_id
-      WHERE observation.tenant_id=$1 AND observation.id=$2 AND observation.source_id=$3
-        AND observation.freshness='current' AND observation.exact_entry_digest=$8
-        AND observation.normalized_entry_digest=$9 AND observation.normalization_profile=$10
-        AND occurrence.snapshot_id=$4 AND occurrence.source_revision=$5
-        AND occurrence.retrieval_digest=$6 AND occurrence.entry_location=$7
-        AND occurrence.exact_entry_digest=$8 AND occurrence.normalized_entry_digest=$9 AND occurrence.evidence_complete
-        AND snapshot.state='complete' AND snapshot.enumeration_complete AND snapshot.source_revision=$5
-      FOR SHARE OF observation`,
-			params.Resource.TenantID, provenance.ObservationID, provenance.SourceID, provenance.SnapshotID, provenance.SourceRevision,
-			provenance.RetrievalDigest, provenance.EntryLocation, provenance.ExactEntryDigest, provenance.NormalizedEntryDigest, provenance.NormalizationProfile).Scan(&sourceConflict); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodePreconditionFailed, "selected observation occurrence is no longer current and complete")
-			}
-			return catalog.ExternalObservationAdoption{}, translateError("lock selected observation occurrence", err)
-		}
-		if sourceConflict {
-			return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodeConflict, "selected source has conflicting current observations for this exact identity and version")
+		if err := lockAdoptionOccurrence(ctx, tx, params.Resource.TenantID, provenance, params.SourceAdmissionRevision); err != nil {
+			return catalog.ExternalObservationAdoption{}, err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO resources(id,tenant_id,namespace_id,canonical_identifier,kind,created_by,revision,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, params.Resource.ID, params.Resource.TenantID, params.Resource.NamespaceID, params.Resource.CanonicalIdentifier, params.Resource.Kind, params.Resource.CreatedBy, params.Resource.Revision, params.Resource.CreatedAt, params.Resource.UpdatedAt); err != nil {
 			return catalog.ExternalObservationAdoption{}, translateError("create adopted resource", err)
@@ -570,5 +526,57 @@ func unmarshalListingExtensions(raw []byte, target *map[string]any) error {
 	if err := decoder.Decode(new(any)); !errors.Is(err, io.EOF) {
 		return catalog.E(catalog.CodeInternal, "decode listing extensions")
 	}
+	return nil
+}
+
+func lockAdoptionOccurrence(ctx context.Context, tx pgx.Tx, tenant string, provenance *catalog.AdoptionProvenance, admissionRevision int64) error {
+	var sourceRevision int64
+	if err := tx.QueryRow(ctx, `SELECT revision FROM federation_sources WHERE tenant_id=$1 AND id=$2 FOR SHARE`, tenant, provenance.SourceID).Scan(&sourceRevision); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return catalog.E(catalog.CodePreconditionFailed, "selected observation source is no longer available")
+		}
+		return translateError("lock selected observation source", err)
+	}
+	if admissionRevision < 1 || sourceRevision != admissionRevision {
+		return catalog.E(catalog.CodePreconditionFailed, "source policy changed during adoption")
+	}
+	var sourceConflict bool
+	if err := tx.QueryRow(ctx, `
+      SELECT EXISTS (
+        SELECT 1
+          FROM observations conflicting
+         WHERE conflicting.tenant_id=observation.tenant_id
+           AND conflicting.source_id=observation.source_id
+           AND conflicting.identifier=observation.identifier
+           AND conflicting.version_present=observation.version_present
+           AND conflicting.version IS NOT DISTINCT FROM observation.version
+           AND conflicting.freshness='current'
+           AND conflicting.normalized_entry_digest IS NOT NULL
+           AND conflicting.normalized_entry_digest<>observation.normalized_entry_digest
+      )
+      FROM observations observation
+      JOIN observation_occurrences occurrence
+        ON occurrence.tenant_id=observation.tenant_id AND occurrence.observation_id=observation.id
+      JOIN source_snapshots snapshot
+        ON snapshot.tenant_id=occurrence.tenant_id AND snapshot.source_id=occurrence.source_id AND snapshot.id=occurrence.snapshot_id
+      WHERE observation.tenant_id=$1 AND observation.id=$2 AND observation.source_id=$3
+        AND observation.freshness='current' AND observation.exact_entry_digest=$8
+        AND observation.normalized_entry_digest=$9 AND observation.normalization_profile=$10
+        AND occurrence.snapshot_id=$4 AND occurrence.source_revision=$5
+        AND occurrence.retrieval_digest=$6 AND occurrence.entry_location=$7
+        AND occurrence.exact_entry_digest=$8 AND occurrence.normalized_entry_digest=$9 AND occurrence.evidence_complete
+        AND snapshot.state='complete' AND snapshot.enumeration_complete AND snapshot.source_revision=$5
+      FOR SHARE OF observation`,
+		tenant, provenance.ObservationID, provenance.SourceID, provenance.SnapshotID, provenance.SourceRevision,
+		provenance.RetrievalDigest, provenance.EntryLocation, provenance.ExactEntryDigest, provenance.NormalizedEntryDigest, provenance.NormalizationProfile).Scan(&sourceConflict); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return catalog.E(catalog.CodePreconditionFailed, "selected observation occurrence is no longer current and complete")
+		}
+		return translateError("lock selected observation occurrence", err)
+	}
+	if sourceConflict {
+		return catalog.E(catalog.CodeConflict, "selected source has conflicting current observations for this exact identity and version")
+	}
+
 	return nil
 }

@@ -172,15 +172,16 @@ type Worker struct {
 }
 
 type Federation struct {
-	RequestTimeout        Duration         `json:"requestTimeout"`
-	MaxResponseBytes      int64            `json:"maxResponseBytes"`
-	MaxRedirects          int              `json:"maxRedirects"`
-	MaxFanout             int              `json:"maxFanout"`
-	MaxLivePagesPerSource int              `json:"maxLivePagesPerSource"`
-	MaxHops               int              `json:"maxHops"`
-	PolicyFile            string           `json:"policyFile,omitempty"`
-	Policy                FederationPolicy `json:"-"`
-	PolicyDigest          string           `json:"-"`
+	VersionAdoptionEnabled bool             `json:"versionAdoptionEnabled"`
+	RequestTimeout         Duration         `json:"requestTimeout"`
+	MaxResponseBytes       int64            `json:"maxResponseBytes"`
+	MaxRedirects           int              `json:"maxRedirects"`
+	MaxFanout              int              `json:"maxFanout"`
+	MaxLivePagesPerSource  int              `json:"maxLivePagesPerSource"`
+	MaxHops                int              `json:"maxHops"`
+	PolicyFile             string           `json:"policyFile,omitempty"`
+	Policy                 FederationPolicy `json:"-"`
+	PolicyDigest           string           `json:"-"`
 }
 
 type FederationPolicy struct {

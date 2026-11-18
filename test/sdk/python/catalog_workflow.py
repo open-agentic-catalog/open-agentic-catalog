@@ -13,6 +13,8 @@ from catalog_sdk.generated.api.shared_collections_api import SharedCollectionsAp
 from catalog_sdk.generated.models.create_collection import CreateCollection
 from catalog_sdk.generated.models.add_collection_member import AddCollectionMember
 from catalog_sdk.generated.models.update_collection import UpdateCollection
+from catalog_sdk.generated.api.federation_api import FederationApi
+from catalog_sdk.generated.models.adopt_resource_version import AdoptResourceVersion
 from catalog_sdk.generated.api.identity_api import IdentityApi
 from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
 from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
@@ -30,6 +32,33 @@ from catalog_sdk.generated.models.create_listing_revision import CreateListingRe
 from catalog_sdk.generated.models.publish_listing import PublishListing
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
 from catalog_sdk.generated.models.audit_details_v1 import AuditDetailsV1
+
+
+async def qualify_version_adoption():
+    """Decode real enabled-operation responses through the installed SDK."""
+    fixture = json.loads(os.environ["CATALOG_SDK_VERSION_ADOPTION"])
+    client = Client(Config(origin=fixture["origin"], allow_loopback_http=True, token="admin"))
+    federation = FederationApi(client)
+    target = await federation.get_version_adoption_target_with_http_info(UUID(fixture["body"]["observationId"]))
+    assert target.status_code == 200
+    assert str(target.data.resource_id) == fixture["resourceId"]
+    assert str(target.data.prior_version_revision_id) == fixture["priorVersionRevisionId"]
+    assert target.data.version == "opaque-first" and target.data.upstream_version == "opaque-next"
+    body = AdoptResourceVersion(**fixture["body"])
+    created = await federation.adopt_resource_version_with_http_info(resource_id=UUID(fixture["resourceId"]), idempotency_key="python-enabled-adoption", adopt_resource_version=body)
+    assert created.status_code == 201 and str(created.data.resource_id) == fixture["resourceId"]
+    assert created.data.version.version == "opaque-next" and created.data.evidence.state == "complete"
+    proof = created.data.version_revision.adoption
+    assert str(proof.source_id) == fixture["sourceId"]
+    assert str(proof.observation_id) == fixture["body"]["observationId"]
+    assert str(proof.snapshot_id) == fixture["body"]["snapshotId"]
+    assert proof.retrieval_digest == fixture["body"]["retrievalDigest"] and proof.entry_location == fixture["body"]["entryLocation"]
+    assert created.data.version_revision.representations[0].validation_state == "valid"
+    replay = await federation.adopt_resource_version_with_http_info(resource_id=UUID(fixture["resourceId"]), idempotency_key="python-enabled-adoption", adopt_resource_version=body)
+    assert replay.status_code == 201 and replay.raw_data == created.raw_data
+    assert replay.headers["Idempotency-Replayed"] == "true"
+    duplicate = await federation.adopt_resource_version_with_http_info(resource_id=UUID(fixture["resourceId"]), idempotency_key="python-duplicate-adoption", adopt_resource_version=body)
+    assert duplicate.status_code == 409 and duplicate.data.code == "CONFLICT"
 
 
 async def qualify_reviewed_corpus():
@@ -278,7 +307,14 @@ async def qualify_published_discovery(origin, admin, namespace_id, resource, ver
 
 
 async def main(origin):
+    await qualify_version_adoption()
     admin = Client(Config(origin=origin, allow_loopback_http=True, token="admin"))
+    federation = FederationApi(admin)
+    selected = UUID("00000000-0000-7000-8000-000000000001")
+    refused = await federation.get_version_adoption_target_with_http_info(selected)
+    assert refused.status_code == 403 and refused.data.code == "FORBIDDEN"
+    refused = await federation.adopt_resource_version_with_http_info(idempotency_key="python-disabled-adoption", resource_id=selected, adopt_resource_version=AdoptResourceVersion(observationId=selected, snapshotId=selected, priorVersionRevisionId=selected, retrievalDigest="sha256:" + "a" * 64, entryLocation="/entries/0"))
+    assert refused.status_code == 403 and refused.data.code == "FORBIDDEN"
     identity = IdentityApi(admin)
     created = []
     for i in range(2):

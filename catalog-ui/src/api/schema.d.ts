@@ -3306,6 +3306,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/observations/{observationId}/adoption-target": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Retained external-source observation identifier. */
+                observationId: components["parameters"]["ObservationId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Find one editable local Resource previously adopted from this Source
+         * @description Default off. Requires federation.versionAdoptionEnabled, tenant source.read_evidence and resource.edit in the exact retained destination, including companion reads. Requires catalog.write and sources.read when OAuth scopes are enforced. Returns bounded reference metadata; it neither adopts the selected observation nor changes local content. The prior adoption may be historical. NOT_FOUND means no authorized same-source destination is available; unversioned selections or incompatible prior evidence return PRECONDITION_FAILED.
+         */
+        get: operations["getVersionAdoptionTarget"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/resources/{resourceId}/versions:adopt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Stable local Resource identifier, not its canonical AIR identifier. */
+                resourceId: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Append a selected upstream version to an existing adopted Resource
+         * @description Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+         */
+        post: operations["adoptResourceVersion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/observations/{observationId}:adopt": {
         parameters: {
             query?: never;
@@ -5462,6 +5508,7 @@ export interface components {
          *         "degraded": false
          *       },
          *       "optionalCapabilities": {
+         *         "versionAdoption": "disabled",
          *         "credentialResolution": "disabled",
          *         "managedMedia": "unavailable",
          *         "softwareAssessment": "unavailable",
@@ -5552,6 +5599,7 @@ export interface components {
                 };
             };
             optionalCapabilities: {
+                versionAdoption: components["schemas"]["CapabilityState"];
                 credentialResolution: components["schemas"]["CapabilityState"];
                 managedMedia: components["schemas"]["CapabilityState"];
                 softwareAssessment: components["schemas"]["CapabilityState"];
@@ -6906,6 +6954,27 @@ export interface components {
             /** @description True when more than 100 exact contributions exist and the response contains only the bounded projection. */
             contributionsTruncated: boolean;
             members: components["schemas"]["ObservationGroupMember"][];
+        };
+        AdoptResourceVersion: {
+            observationId: components["schemas"]["UUID"];
+            snapshotId: components["schemas"]["UUID"];
+            retrievalDigest: string;
+            entryLocation: string;
+            priorVersionRevisionId: components["schemas"]["UUID"];
+        };
+        VersionAdoptionTarget: {
+            resourceId: components["schemas"]["UUID"];
+            namespaceId: components["schemas"]["UUID"];
+            priorVersionRevisionId: components["schemas"]["UUID"];
+            version: string;
+            /** @description Exact advertised label on the selected observation. */
+            upstreamVersion: string;
+        };
+        ResourceVersionAdoption: {
+            resourceId: components["schemas"]["UUID"];
+            version: components["schemas"]["ResourceVersion"];
+            versionRevision: components["schemas"]["VersionRevision"];
+            evidence: components["schemas"]["EvidenceSet"];
         };
         AdoptObservation: {
             snapshotId: components["schemas"]["UUID"];
@@ -13195,6 +13264,65 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["ObservationOccurrencePage"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    getVersionAdoptionTarget: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Retained external-source observation identifier. */
+                observationId: components["parameters"]["ObservationId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One exact prior adoption and its local Resource. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VersionAdoptionTarget"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    adoptResourceVersion: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. */
+                "Idempotency-Key": components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                /** @description Stable local Resource identifier, not its canonical AIR identifier. */
+                resourceId: components["parameters"]["ResourceId"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdoptResourceVersion"];
+            };
+        };
+        responses: {
+            /** @description The new draft Version and exact immutable evidence. */
+            201: {
+                headers: {
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    "X-Request-ID": components["headers"]["RequestId"];
+                    /** @description The created resource-version route. */
+                    Location?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResourceVersionAdoption"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };

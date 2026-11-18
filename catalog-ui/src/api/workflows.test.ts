@@ -193,6 +193,8 @@ const workflows = {
   getObservationGroup: "screen:federation",
   getRawObservation: "screen:federation",
   listObservationOccurrences: "screen:federation",
+  getVersionAdoptionTarget: "screen:observations",
+  adoptResourceVersion: "screen:observations",
   adoptObservation: "screen:federation",
   searchObservations: "screen:federation",
   liveFederatedSearch: "screen:federation",

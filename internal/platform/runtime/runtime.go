@@ -449,7 +449,7 @@ func buildWithTracing(ctx context.Context, options BuildOptions, startTracing fu
 		jobStore = memorySettingsJobs{Store: memoryTrustJobs{Store: jobStore, sources: memoryFederationStore}, settings: memorySettings}
 	}
 	federationTargets := federationDiscoveryTargets(configuration.Discovery.Hosts)
-	federationManager, err := federation.NewManager(federationStore, outbound, realClock, idGenerator, federation.WithTrustVerifier(trustVerification), federation.WithExecutionLimits(configuration.Federation.MaxFanout, configuration.Federation.MaxHops), federation.WithLiveSearchTimeout(configuration.Federation.RequestTimeout.Duration), federation.WithLiveSearchPages(configuration.Federation.MaxLivePagesPerSource), federation.WithDiscoveryTargets(federationTargets), federation.WithObservationAdopter(catalogService), federation.WithEvidenceSink(repository, !configuration.Webhooks.Enabled))
+	federationManager, err := federation.NewManager(federationStore, outbound, realClock, idGenerator, federation.WithTrustVerifier(trustVerification), federation.WithExecutionLimits(configuration.Federation.MaxFanout, configuration.Federation.MaxHops), federation.WithLiveSearchTimeout(configuration.Federation.RequestTimeout.Duration), federation.WithLiveSearchPages(configuration.Federation.MaxLivePagesPerSource), federation.WithDiscoveryTargets(federationTargets), federation.WithObservationAdopter(catalogService), federation.WithVersionAdoption(configuration.Federation.VersionAdoptionEnabled), federation.WithEvidenceSink(repository, !configuration.Webhooks.Enabled))
 	if err != nil {
 		return nil, err
 	}

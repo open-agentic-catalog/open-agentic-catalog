@@ -706,3 +706,5 @@ commands or evidence reads. These controlled metadata journeys do not qualify
 synchronization itself: packaged Compose checks use real partial worker
 attempts, retained complete membership and recovery, and real PostgreSQL tests
 qualify current-revision selection and its indexed plan over retained history.
+
+New-Version adoption units cover default-off availability, explicit destination lookup/confirmation, exact occurrence/proof binding, current destination authority, clearing private results when source access is revoked, explicit fresh lookup after access is restored, uncertain same-key recovery and rejection of a wrong-Resource or mismatched-provenance success reply. The existing two-Catalog PostgreSQL harness exercises explicit append separately from automatic synchronization. Its Agent browser journey checks a real append, responsive layout, accessibility and revision navigation; native API cases retain exact provenance, independent native validation and duplicate/replay behavior for the supported delivery forms. Existing Listing candidates and active publications stay unchanged.

@@ -309,6 +309,8 @@ func requiredOAuthScope(method, path string) string {
 		return "catalog.read"
 	case method == http.MethodPost && (path == "/api/v1/observations:search" || path == "/api/v1/federation/sources:live-search"):
 		return "sources.read"
+	case strings.HasPrefix(path, "/api/v1/observations/") && strings.HasSuffix(path, "/adoption-target"):
+		return "catalog.write"
 	case method == http.MethodPost && strings.HasPrefix(path, "/api/v1/observations/") && strings.HasSuffix(path, ":adopt"):
 		return "catalog.write"
 	case strings.HasPrefix(path, "/api/v1/ratings"):

@@ -43,11 +43,102 @@ async fn call(
     assert_eq!(result.status, status, "{method} {path}");
     result
 }
+async fn qualify_version_adoption() {
+    let fixture: Value =
+        serde_json::from_str(&env::var("CATALOG_SDK_VERSION_ADOPTION").unwrap()).unwrap();
+    let client = Client::new(config(fixture["origin"].as_str().unwrap(), Some("admin"))).unwrap();
+    let resource = fixture["resourceId"].as_str().unwrap();
+    let target = data(
+        client
+            .get_version_adoption_target(fixture["body"]["observationId"].as_str().unwrap())
+            .await
+            .unwrap(),
+        200,
+    );
+    assert_eq!(target["resourceId"], fixture["resourceId"]);
+    assert_eq!(
+        target["priorVersionRevisionId"],
+        fixture["priorVersionRevisionId"]
+    );
+    assert_eq!(target["version"], "opaque-first");
+    assert_eq!(target["upstreamVersion"], "opaque-next");
+    let created = data(
+        client
+            .adopt_resource_version(
+                resource,
+                "rust-enabled-adoption",
+                typed(fixture["body"].clone()),
+            )
+            .await
+            .unwrap(),
+        201,
+    );
+    assert_eq!(created["resourceId"], fixture["resourceId"]);
+    assert_eq!(created["version"]["version"], "opaque-next");
+    assert_eq!(created["evidence"]["state"], "complete");
+    let proof = &created["versionRevision"]["adoption"];
+    assert_eq!(proof["sourceId"], fixture["sourceId"]);
+    for field in [
+        "observationId",
+        "snapshotId",
+        "retrievalDigest",
+        "entryLocation",
+    ] {
+        assert_eq!(proof[field], fixture["body"][field]);
+    }
+    assert_eq!(
+        created["versionRevision"]["representations"][0]["validationState"],
+        "valid"
+    );
+    let replay = client
+        .adopt_resource_version(
+            resource,
+            "rust-enabled-adoption",
+            typed(fixture["body"].clone()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(replay.headers.get("Idempotency-Replayed").unwrap(), "true");
+    assert_eq!(data(replay, 201), created);
+    match client
+        .adopt_resource_version(
+            resource,
+            "rust-duplicate-adoption",
+            typed(fixture["body"].clone()),
+        )
+        .await
+        .unwrap_err()
+    {
+        ApiOpError::Api(e) => {
+            assert_eq!(e.status, 409);
+            assert_eq!(
+                serde_json::from_str::<Value>(&e.body).unwrap()["code"],
+                "CONFLICT"
+            );
+        }
+        _ => panic!("Expected duplicate adoption refusal"),
+    }
+}
+
 async fn workflow(origin: &str) {
+    qualify_version_adoption().await;
     let admin = Client::new(config(origin, Some("admin"))).unwrap();
     let reviewer = Client::new(config(origin, Some("reviewer"))).unwrap();
     let reader = Client::new(config(origin, Some("reader"))).unwrap();
     let other = Client::new(config(origin, Some("other"))).unwrap();
+    let selected = "00000000-0000-7000-8000-000000000001";
+    match admin
+        .get_version_adoption_target(selected)
+        .await
+        .unwrap_err()
+    {
+        ApiOpError::Api(e) => assert_eq!(e.status, 403),
+        _ => panic!("Expected disabled target refusal"),
+    }
+    match admin.adopt_resource_version(selected, "rust-disabled-adoption", typed(json!({"observationId":selected,"snapshotId":selected,"priorVersionRevisionId":selected,"retrievalDigest":format!("sha256:{}", "a".repeat(64)),"entryLocation":"/entries/0"}))).await.unwrap_err() {
+        ApiOpError::Api(e) => assert_eq!(e.status, 403),
+        _ => panic!("Expected disabled append refusal"),
+    }
     let mut namespaces = Vec::new();
     for i in 0..2 {
         let result = admin

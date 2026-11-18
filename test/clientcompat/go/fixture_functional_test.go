@@ -48,16 +48,18 @@ func (noFetch) PolicyDigest() string {
 }
 
 type fixture struct {
-	t          *testing.T
-	service    *catalog.Service
-	jobStore   *jobs.MemoryStore
-	auth       authn.Authenticator
-	identity   *identity.Service
-	federation *federation.Manager
-	jobs       *jobs.Service
-	server     *httptest.Server
-	document   *openapi3.T
-	now        time.Time
+	t           *testing.T
+	service     *catalog.Service
+	jobStore    *jobs.MemoryStore
+	auth        authn.Authenticator
+	identity    *identity.Service
+	federation  *federation.Manager
+	sourceStore *federation.MemoryStore
+	clock       *clock.Fake
+	jobs        *jobs.Service
+	server      *httptest.Server
+	document    *openapi3.T
+	now         time.Time
 }
 
 // newFixture uses real authentication, authorization and audited memory services,
@@ -67,6 +69,10 @@ func newFixture(t *testing.T) *fixture {
 }
 
 func newFixtureWithFetcher(t *testing.T, external catalog.ExternalRepresentationFetcher) *fixture {
+	return newFixtureWithFederation(t, external, noFetch{}, false)
+}
+
+func newFixtureWithFederation(t *testing.T, external catalog.ExternalRepresentationFetcher, outbound federation.Fetcher, adoptVersions bool) *fixture {
 	t.Helper()
 	ctx := context.Background()
 	now := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
@@ -94,7 +100,12 @@ func newFixtureWithFetcher(t *testing.T, external catalog.ExternalRepresentation
 	repo := catalog.NewMemoryRepository()
 	service, err := catalog.NewService(catalog.Options{Repository: repo, Clock: c, IDs: id.Generator{}, Validator: adapter.NewRegistry(), CursorKey: key[:], Policy: "client-compatibility", ExternalFetcher: external})
 	must(t, err)
-	federationService, err := federation.NewManager(federation.NewMemoryStore(), noFetch{}, c, id.Generator{})
+	sourceStore := federation.NewMemoryStore()
+	var federationOptions []federation.ManagerOption
+	if adoptVersions {
+		federationOptions = []federation.ManagerOption{federation.WithObservationAdopter(service), federation.WithVersionAdoption(true)}
+	}
+	federationService, err := federation.NewManager(sourceStore, outbound, c, id.Generator{}, federationOptions...)
 	must(t, err)
 	store := jobs.NewMemoryStore(repo)
 	jobService, err := jobs.NewService(store, c, id.Generator{}, jobs.WithAuditEvidence())
@@ -108,7 +119,7 @@ func newFixtureWithFetcher(t *testing.T, external catalog.ExternalRepresentation
 	document, err := openapi3.NewLoader().LoadFromData(api.ControlV1)
 	must(t, err)
 	document.Servers = nil // The test origin varies; operation schemas stay unchanged.
-	return &fixture{t: t, service: service, jobStore: store, auth: auth, identity: ids, federation: federationService, jobs: jobService, server: server, document: document, now: now}
+	return &fixture{t: t, service: service, jobStore: store, auth: auth, identity: ids, federation: federationService, sourceStore: sourceStore, clock: c, jobs: jobService, server: server, document: document, now: now}
 }
 
 func (f *fixture) actor(token string) context.Context {

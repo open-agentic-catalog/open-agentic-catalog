@@ -2963,6 +2963,30 @@
         "collection.manage"
       ],
       "conditionalPermissions": {}
+    },
+    {
+      "operationId": "getVersionAdoptionTarget",
+      "method": "GET",
+      "path": "/api/v1/observations/{observationId}/adoption-target",
+      "permissions": [
+        "source.read_evidence",
+        "resource.edit"
+      ],
+      "policy": "adoption",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "Deployment opt-in; current source evidence and exact destination edit authority with companions. Additional sources.read OAuth ceiling applies before lookup, mutation and replay."
+    },
+    {
+      "operationId": "adoptResourceVersion",
+      "method": "POST",
+      "path": "/api/v1/resources/{resourceId}/versions:adopt",
+      "permissions": [
+        "source.read_evidence",
+        "resource.edit"
+      ],
+      "policy": "adoption",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "Deployment opt-in; current source evidence and exact destination edit authority with companions. Additional sources.read OAuth ceiling applies before lookup, mutation and replay."
     }
   ],
   "domainCallers": [
@@ -5041,6 +5065,60 @@
         "WithCollectionContext"
       ],
       "roleConstants": []
+    },
+    {
+      "calls": [],
+      "method": "AdoptionVersionProof",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/adoption_version.go",
+      "policy": "adoption"
+    },
+    {
+      "calls": [],
+      "method": "FindVersionAdoptionTarget",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/adoption_version.go",
+      "policy": "adoption"
+    },
+    {
+      "calls": [],
+      "method": "AdoptExternalVersion",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/adoption_version.go",
+      "policy": "adoption"
+    },
+    {
+      "calls": [],
+      "method": "VersionAdoptionEnabled",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/adoption_version.go",
+      "policy": "process"
+    },
+    {
+      "calls": [],
+      "method": "VersionAdoptionTarget",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/adoption_version.go",
+      "policy": "adoption"
+    },
+    {
+      "calls": [],
+      "method": "AdoptVersion",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/adoption_version.go",
+      "policy": "adoption"
     }
   ],
   "internalExecution": [

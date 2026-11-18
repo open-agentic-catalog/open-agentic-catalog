@@ -28,6 +28,8 @@ Use these recipes after the language guide's client setup. Each example keeps ne
 
 A Search result ID is not a local release UUID. The local-detail recipes use `local.release.id`; indexed and live results retain their external provenance. Discovery does not authorize installation or execution.
 
+For [adopting a different upstream version into an existing Resource](../documentation/src/content/docs/operations/federation.mdx#adopt-a-different-upstream-version-into-an-existing-resource), use the generated `getVersionAdoptionTarget` and `adoptResourceVersion` operations. A deployment administrator must enable this default-off authoring feature. Bind the command to the selected occurrence and prior adopted revision, and retain its body and idempotency key for recovery. The resulting draft still requires ordinary Listing selection, review and publication before discovery changes.
+
 Resource definition highlighting belongs to the [Catalog UI](../documentation/src/content/docs/guides/resource-authoring.mdx). SDK consumers can read selected immutable revisions and exact retained documents through existing operations and compare them locally. There is no server-generated document diff. Saved source synchronization comparison is a separate, summary-only API operation; it does not return native document bytes or infer upstream deletion.
 
 Keep the returned cursor when a page budget stops traversal. An empty page can still have a continuation. Use the same query, filters, page size and identity when you resume. Inspect partial-result diagnostics before treating a result set as complete.

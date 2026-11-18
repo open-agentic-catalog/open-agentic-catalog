@@ -149,25 +149,27 @@ func scanResource(row scanner) (catalog.Resource, error) {
 // CreateVersion locks the active resource, inserts the version and first immutable
 // revision/evidence, then selects its candidate pointer atomically.
 func (p *PostgresRepository) CreateVersion(ctx context.Context, params catalog.CreateVersionParams) (catalog.ResourceVersion, catalog.VersionRevision, catalog.EvidenceSet, error) {
-	bundle, err := withTenantTx(ctx, p.pool, params.Version.TenantID, pgx.TxOptions{}, func(tx pgx.Tx) (versionBundle, error) {
-		if err := lockActiveResource(ctx, tx, params.Version.TenantID, params.Version.ResourceID); err != nil {
-			return versionBundle{}, err
-		}
-		if _, err := tx.Exec(ctx, `INSERT INTO resource_versions(id,tenant_id,resource_id,version,revision,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, params.Version.ID, params.Version.TenantID, params.Version.ResourceID, params.Version.Version, params.Version.Revision, params.Version.CreatedAt, params.Version.UpdatedAt); err != nil {
-			return versionBundle{}, translateError("create resource version", err)
-		}
-		if err := insertVersionRevision(ctx, tx, params.VersionRevision, params.Evidence, params.Documents); err != nil {
-			return versionBundle{}, err
-		}
-		if _, err := tx.Exec(ctx, `UPDATE resource_versions SET candidate_revision_id=$3 WHERE tenant_id=$1 AND id=$2`, params.Version.TenantID, params.Version.ID, params.VersionRevision.ID); err != nil {
-			return versionBundle{}, translateError("select version candidate", err)
-		}
-		if err := insertEvidence(ctx, tx, params.Audit, params.Outbox, expectEvidence(params.Version.TenantID, "resource_version", params.Version.ID, "resource_version.created")); err != nil {
-			return versionBundle{}, err
-		}
-		return versionBundle{version: params.Version, revision: params.VersionRevision, evidence: params.Evidence}, nil
-	})
+	bundle, err := withTenantTx(ctx, p.pool, params.Version.TenantID, pgx.TxOptions{}, func(tx pgx.Tx) (versionBundle, error) { return createVersionInTx(ctx, tx, params) })
 	return bundle.version, bundle.revision, bundle.evidence, err
+}
+
+func createVersionInTx(ctx context.Context, tx pgx.Tx, params catalog.CreateVersionParams) (versionBundle, error) {
+	if err := lockActiveResource(ctx, tx, params.Version.TenantID, params.Version.ResourceID); err != nil {
+		return versionBundle{}, err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO resource_versions(id,tenant_id,resource_id,version,revision,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, params.Version.ID, params.Version.TenantID, params.Version.ResourceID, params.Version.Version, params.Version.Revision, params.Version.CreatedAt, params.Version.UpdatedAt); err != nil {
+		return versionBundle{}, translateError("create resource version", err)
+	}
+	if err := insertVersionRevision(ctx, tx, params.VersionRevision, params.Evidence, params.Documents); err != nil {
+		return versionBundle{}, err
+	}
+	if _, err := tx.Exec(ctx, `UPDATE resource_versions SET candidate_revision_id=$3 WHERE tenant_id=$1 AND id=$2`, params.Version.TenantID, params.Version.ID, params.VersionRevision.ID); err != nil {
+		return versionBundle{}, translateError("select version candidate", err)
+	}
+	if err := insertEvidence(ctx, tx, params.Audit, params.Outbox, expectEvidence(params.Version.TenantID, "resource_version", params.Version.ID, "resource_version.created")); err != nil {
+		return versionBundle{}, err
+	}
+	return versionBundle{version: params.Version, revision: params.VersionRevision, evidence: params.Evidence}, nil
 }
 
 // CreateVersionRevision rejects sealed labels and stale revisions before inserting
