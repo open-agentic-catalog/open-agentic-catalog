@@ -1,10 +1,14 @@
 # Embedded PostgreSQL migrations
 
+Numbered `.sql` files are the forward-only schema history embedded by [embed.go](embed.go). The migration runner in [internal/platform/database/migrate.go](../internal/platform/database/migrate.go) plans and applies them; database lifecycle and exact runtime grants are documented in the [database-role runbook](../documentation/src/content/docs/operations/database-roles.mdx).
+
+Fresh installations use these files to create the current schema. The Helm pre-install Job and `make compose-up` apply them and configure runtime database permissions automatically. After supplying the documented deployment inputs, no separate migration command or runtime drain is needed for a fresh installation.
+
+The stop/drain and retained-data rewrite or repair instructions below apply when updating an existing database. Use `make helm-deploy` or `make compose-up` to coordinate that update. Raw `helm upgrade` does not stop existing API and worker Pods before its migration hook runs.
+
 Migration `000053_adoption_version_selection.sql` adds a partial B-tree index for retained adoption Source selection. It changes no rows, runtime grants, RLS rules or immutable evidence. Apply it with the normal drained schema-owner workflow; allow index-build storage and write-lock time. Failure rolls back this migration; correct the cause and retry forward before restarting runtimes. No data backfill or automatic rollback is required.
 
 Migration `000031_agent_plugins.sql` adds the Plugin resource kind and immutable retained inspection documents/inventory. Runtime privilege manifest v15 introduced API insertion and API/worker reads of `plugin_inspection`, without update authority. Drain API and worker runtimes, apply migrations with the schema owner, reconcile both manifests, then start the matching binaries. External archives are not copied into PostgreSQL or reconstructed during restore.
-
-Numbered `.sql` files are the forward-only schema history embedded by [embed.go](embed.go). The migration runner in [internal/platform/database/migrate.go](../internal/platform/database/migrate.go) plans and applies them; database lifecycle and exact runtime grants are documented in the [database-role runbook](../documentation/src/content/docs/operations/database-roles.mdx).
 
 Migration `000046_publisher_search_order.sql` invalidates search cursors when a Publisher changes, because its displayed name can determine result order. It reuses the existing tenant generation function and adds no table, function or runtime grant; manifest v26 is unchanged. Apply it through the normal drained schema-owner workflow. Failure rolls back this migration; keep runtimes stopped, fix the cause and rerun. There is no data rewrite or automatic SQL rollback.
 
@@ -74,3 +78,5 @@ creation locks snapshot writes; allow maintenance time for retained history.
 Repair forward after failure without resetting Source membership or history.
 
 Migration `000052_shared_collections.sql` adds namespace-owned shared collections and same-tenant Listing references, with forced RLS and ownership/revision/member guards. Manifest v30 grants API-only access. It extends the finite scoped permission vocabulary and selected retained/new built-ins; custom roles are unchanged. Drain runtimes, apply as schema owner, reconcile grants and restart matching binaries. Restore check set 8 includes collection integrity. Failure requires forward repair with runtimes stopped; no retained-data reset or automatic rollback is provided.
+
+Migration `000054_native_capability_projection.sql` adds generated private card declarations on representations and document blobs. Drain API and worker processes and budget for both stored-column rewrites before the schema owner applies it and reconciles manifest v31. The API alone reads the columns and executes the bounded pure extractor; workers gain neither privilege. Authoritative card bytes, digests, revisions and public snapshots remain unchanged. An unavailable projection never provides partial matches. No semantic reindex or external-observation repair is needed. Logical restore recomputes the generated values from retained content; use the current migration binary and exact privilege reconciliation before read-only restore verification and representative Search/Explore checks. If migration fails, keep runtimes stopped, resolve its cause and retry forward through the maintained migration command.

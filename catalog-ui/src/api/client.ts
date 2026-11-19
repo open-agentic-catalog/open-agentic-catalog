@@ -131,6 +131,8 @@ export function makeAPI(runtime: Runtime) {
   };
   const api = createClient<paths>({
     baseUrl: location.origin + runtime.basePath + "/_catalog",
+    // Collection kind arrays use the Control API single CSV parameter.
+    querySerializer: { array: { style: "form", explode: false } },
     fetch: request,
   });
   // Keep openapi-fetch serialization and parseAs handling. A request-local fetch

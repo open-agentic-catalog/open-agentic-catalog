@@ -91,6 +91,12 @@ type Route = {
 };
 const routes: Route[] = [
   {
+    route: "validation-maintenance",
+    heading: "Validation maintenance",
+    endpoint: "/api/v1/validation-maintenance",
+    query: { state: "attention", horizonHours: 24, limit: 20 },
+  },
+  {
     route: "collections",
     heading: "Shared collections",
     endpoint: "/api/v1/collections",

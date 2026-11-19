@@ -24,6 +24,9 @@ else:
     from typing import Any, ClassVar, Dict, List, Optional
     from typing_extensions import Annotated
     from uuid import UUID
+    from catalog_sdk.generated.models.native_capabilities_filter import (
+        NativeCapabilitiesFilter,
+    )
     from catalog_sdk.generated.models.resource_kind import ResourceKind
     from catalog_sdk.generated.models.visibility import Visibility
     from typing import Optional, Set
@@ -35,6 +38,9 @@ else:
         CatalogExploreQuery
         """  # noqa: E501
 
+        native_capabilities: Optional[NativeCapabilitiesFilter] = Field(
+            default=None, alias="nativeCapabilities"
+        )
         include_mcp_tools: Optional[StrictBool] = Field(
             default=None,
             description="Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.",
@@ -75,6 +81,7 @@ else:
         )
         visibility: Optional[Visibility] = None
         __properties: ClassVar[List[str]] = [
+            "nativeCapabilities",
             "includeMcpTools",
             "agentProtocol",
             "namespaceId",
@@ -148,6 +155,9 @@ else:
                 exclude=excluded_fields,
                 exclude_none=True,
             )
+            # override the default output from pydantic by calling `to_dict()` of native_capabilities
+            if self.native_capabilities:
+                _dict["nativeCapabilities"] = self.native_capabilities.to_dict()
             return _dict
 
         @classmethod
@@ -161,6 +171,11 @@ else:
 
             _obj = cls.model_validate(
                 {
+                    "nativeCapabilities": NativeCapabilitiesFilter.from_dict(
+                        obj["nativeCapabilities"]
+                    )
+                    if obj.get("nativeCapabilities") is not None
+                    else None,
                     "includeMcpTools": obj.get("includeMcpTools"),
                     "agentProtocol": obj.get("agentProtocol"),
                     "namespaceId": obj.get("namespaceId"),

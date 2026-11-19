@@ -59,7 +59,7 @@ async def failure(client, name, arguments, code):
     require(TOKEN not in text and ADMIN not in text, "refusal leaked a credential")
 
 
-async def api(path, body=None, bearer=ADMIN, etag=None):
+async def api(path, body=None, bearer=ADMIN, etag=None, *, method=None):
     import uuid
     require(path.startswith("/api/v1/"), "fixed API path")
     headers = {"Authorization": "Bearer " + bearer}
@@ -68,8 +68,8 @@ async def api(path, body=None, bearer=ADMIN, etag=None):
     if etag:
         headers["If-Match"] = etag
     async with httpx2.AsyncClient(timeout=10, trust_env=False) as client:
-        response = await client.request("POST" if body is not None else "GET", "http://127.0.0.1:8080" + path, headers=headers, json=body)
-    require(response.status_code == 200, "owned permission command failed")
+        response = await client.request(method or ("POST" if body is not None else "GET"), "http://127.0.0.1:8080" + path, headers=headers, json=body)
+    require(response.status_code == 200, "owned permission command failed: " + str(response.status_code))
     return response.json(), response.headers.get("etag")
 
 

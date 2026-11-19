@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/personal"
 )
@@ -132,6 +133,9 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 		return remoteEnvelope{Data: raw}
 	}
 	item := personalTestFile().Items[0]
+	streaming := false
+	item.Search.Origins = []catalog.SearchResultType{catalog.SearchResultLocal}
+	item.Search.NativeCapabilities = &catalog.NativeCapabilitiesFilter{AgentStreaming: &streaming, AgentSkillIDs: []string{"invoice, literal "}}
 	var saved struct {
 		ID string `json:"id"`
 	}

@@ -47,7 +47,7 @@ func TestAuthenticationFailureClassification(t *testing.T) {
 					s := projectionServer(nil)
 					s.authenticator = auth
 					s.discovery = map[string]DiscoveryHost{publicFixtureHost: {Host: publicFixtureHost, TenantID: projectionTenant, Mode: DiscoveryAuthenticated}}
-					if binding, ok := s.authorizeDiscovery(w, r); ok || binding != (DiscoveryHost{}) {
+					if binding, ok := s.authorizeDiscovery(r.Context(), w, r); ok || binding != (DiscoveryHost{}) {
 						t.Fatal("failed authentication disclosed a discovery binding")
 					}
 					requireARDProjectionProblem(t, w, tc.status, tc.code)

@@ -3,6 +3,7 @@
 package helm_test
 
 import (
+	"fmt"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -69,5 +70,40 @@ func TestMCPIngressRefusesInvalidAuthorityAndRewrites(t *testing.T) {
 				t.Fatal("unsafe MCP ingress rendered")
 			}
 		})
+	}
+}
+
+func TestARDMCPIngressFollowsExactDiscoveryHost(t *testing.T) {
+	for _, control := range []bool{false, true} {
+		t.Run(fmt.Sprint(control), func(t *testing.T) {
+			host := "discovery.example.com"
+			if control {
+				host = "catalog.example.com"
+			}
+			hosts := fmt.Sprintf(`[{"host":%q,"tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"catalog.example.com","mcpEnabled":true}]`, host)
+			args := []string{"--set", "api.ingress.enabled=true,api.ingress.tlsSecretName=catalog-tls,api.ingress.host=" + host, "--set-string", "configEnv.CATALOG_MCP_ENABLED=" + fmt.Sprint(control), "--set-literal", "configEnv.CATALOG_DISCOVERY_HOSTS=" + hosts}
+			objects := renderChart(t, args...)
+			paths := sliceAt(t, asMap(t, sliceAt(t, oneObject(t, objects, "Ingress", "mcp"), "spec", "rules")[0]), "http", "paths")
+			want := []string{"/ard/v1/mcp", "/.well-known/oauth-protected-resource/ard/v1/mcp"}
+			if control {
+				want = append([]string{"/mcp", "/.well-known/oauth-protected-resource/mcp"}, want...)
+			}
+			if len(paths) != len(want) {
+				t.Fatal(paths)
+			}
+			for i, path := range paths {
+				if stringAt(t, asMap(t, path), "path") != want[i] || stringAt(t, asMap(t, path), "pathType") != "Exact" {
+					t.Fatal(path)
+				}
+			}
+			validateRenderedConfiguration(t, objects)
+		})
+	}
+	for _, mode := range []string{"disabled", "anonymous"} {
+		hosts := fmt.Sprintf(`[{"host":"catalog.example.com","tenantId":"00000000-0000-7000-8000-000000000001","mode":%q,"publisherDomain":"catalog.example.com","mcpEnabled":false}]`, mode)
+		_, err := helm(t, "template", testRelease, chartPath(t), "--set", "api.ingress.enabled=true,api.ingress.host=catalog.example.com,api.ingress.tlsSecretName=catalog-tls", "--set-string", "configEnv.CATALOG_MCP_ENABLED=false", "--set-literal", "configEnv.CATALOG_DISCOVERY_HOSTS="+hosts)
+		if err == nil {
+			t.Fatal("disabled ARD MCP exposed through ingress", mode)
+		}
 	}
 }

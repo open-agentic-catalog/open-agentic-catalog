@@ -14,6 +14,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/federation"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jobs"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/idempotency"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/observability"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/publication"
@@ -22,6 +23,41 @@ import (
 
 type unusedServerIdempotency struct{ idempotency.Store }
 type unusedServerAtomicIdempotency struct{ idempotency.AtomicStore }
+
+func TestARDMCPConstructionWithControlDisabled(t *testing.T) {
+	t.Setenv("MCPGODEBUG", "")
+	d := inertServerDependencies()
+	d.MCP = config.Defaults().MCP
+	d.PublicBaseURL = "https://control.example.com"
+	d.DiscoveryHosts = []DiscoveryHost{{Host: publicFixtureHost, TenantID: projectionTenant, Mode: DiscoveryAnonymous, PublisherDomain: publicFixtureHost, Publication: &publication.Manager{}, MCPEnabled: true}}
+	s, err := New(d)
+	if err != nil || s.mcp != nil || s.ardMCP[publicFixtureHost] == nil || s.ardMCP[publicFixtureHost].publicOrigin != publicFixtureOrigin {
+		t.Fatal("independent construction", err)
+	}
+	for _, change := range []func(*Dependencies){func(d *Dependencies) { d.MCP.MaxToolBytes = 0 }, func(d *Dependencies) { d.MCP.MaxConcurrency = 0 }, func(d *Dependencies) { d.PublicBaseURL = "" }, func(d *Dependencies) { d.DiscoveryHosts[0].Mode = DiscoveryDisabled }} {
+		bad := d
+		bad.DiscoveryHosts = append([]DiscoveryHost(nil), d.DiscoveryHosts...)
+		change(&bad)
+		if _, err := New(bad); err == nil {
+			t.Fatal("invalid ARD-only transport admitted")
+		}
+	}
+	d.MCP.Enabled = true
+	d.DiscoveryHosts = append(d.DiscoveryHosts, DiscoveryHost{Host: "other.example.com", TenantID: projectionTenant, Mode: DiscoveryAuthenticated, PublisherDomain: publicFixtureHost, Publication: &publication.Manager{}, MCPEnabled: true})
+	shared, err := New(d)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if shared.mcp.slots != shared.ardMCP[publicFixtureHost].slots || shared.mcp.slots != shared.ardMCP["other.example.com"].slots || cap(shared.mcp.slots) != d.MCP.MaxConcurrency {
+		t.Fatal("MCP hosts did not share the configured concurrency bound")
+	}
+	d.MCP.Enabled = false
+
+	t.Setenv("MCPGODEBUG", "allowsessionsinstateless=1")
+	if _, err := New(d); err == nil {
+		t.Fatal("ARD-only construction bypassed SDK override guard")
+	}
+}
 
 // Only constructor validation and registration run. These uninitialized domain
 // pointers cannot execute a workflow; unused persistence/authentication calls fail.

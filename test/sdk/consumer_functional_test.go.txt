@@ -35,6 +35,43 @@ func TestManagedSDKReviewedUpstream(t *testing.T) {
 	if len(corpus.Cases) != 6 {
 		t.Fatal("incomplete reviewed corpus")
 	}
+	query := decode[sdk.CatalogSearch](t, []byte(`{"origins":["local"],"nativeCapabilities":{"agentSkillIds":["not-declared-sdk-sentinel"]}}`))
+	selected, err := c.SearchCatalogWithResponse(t.Context(), query)
+	must(t, err)
+	if selected.StatusCode() != 200 || selected.JSON200 == nil || selected.JSON200.DurableTotal != 0 || len(selected.JSON200.Items) != 0 {
+		t.Fatal("native SDK selectors were lost", selected.StatusCode())
+	}
+	var researcher string
+	for _, item := range corpus.Cases {
+		if item.Name == "researcher" {
+			researcher = item.ReleaseID
+		}
+	}
+	if researcher == "" {
+		t.Fatal("missing independent Agent control")
+	}
+	for _, streaming := range []bool{true, false} {
+		native := `{"agentSkillIds":["not-declared-sdk-sentinel","research"],"agentSkillTags":["planning"],"agentDefaultInputModes":["text/plain"],"agentDefaultOutputModes":["text/plain"],"agentStreaming":` + strconv.FormatBool(streaming) + `}`
+		query := decode[sdk.CatalogSearch](t, []byte(`{"origins":["local"],"nativeCapabilities":`+native+`}`))
+		selected, err := c.SearchCatalogWithResponse(t.Context(), query)
+		must(t, err)
+		want := 0
+		if streaming {
+			want = 1
+		}
+		if selected.StatusCode() != 200 || selected.JSON200 == nil || selected.JSON200.DurableTotal != want || len(selected.JSON200.Items) != want {
+			t.Fatal("native SDK selection", selected.StatusCode(), streaming)
+		}
+		if want == 1 && (selected.JSON200.Items[0].Local == nil || selected.JSON200.Items[0].Local.Release.Id.String() != researcher) {
+			t.Fatal("native SDK selected a different release")
+		}
+		facets := decode[sdk.ExploreCatalogJSONRequestBody](t, []byte(`{"query":{"nativeCapabilities":`+native+`},"facets":[{"field":"kind"}]}`))
+		explored, err := c.ExploreCatalogWithResponse(t.Context(), facets)
+		must(t, err)
+		if explored.StatusCode() != 200 || explored.JSON200 == nil || explored.JSON200.Matched != want {
+			t.Fatal("native SDK Explore population", explored.StatusCode(), streaming)
+		}
+	}
 	for _, expected := range corpus.Cases {
 		t.Run(expected.Name, func(t *testing.T) {
 			id := decode[sdk.CatalogRecordId](t, []byte(strconv.Quote(expected.ReleaseID)))
@@ -353,6 +390,21 @@ func TestManagedSDKSharedCollections(t *testing.T) {
 	if page.HTTPResponse.Header.Get("Cache-Control") != "no-store" || page.HTTPResponse.Header.Get("ETag") != "" {
 		t.Fatal("member cache policy")
 	}
+	filtered, err := reader.ListCollectionMembersWithResponse(ctx, created.JSON201.Id, &sdk.ListCollectionMembersParams{Text: ptr(record.JSON200.ListingRevision.DisplayName), Kinds: &[]sdk.ResourceKind{"agent", "skill"}})
+	must(t, err)
+	if filtered.JSON200 == nil || len(filtered.JSON200.Items) != 1 || filtered.JSON200.Items[0].Listing.Id != body.ListingId {
+		t.Fatal("typed collection filters", filtered.StatusCode())
+	}
+	excluded, err := reader.ListCollectionMembersWithResponse(ctx, created.JSON201.Id, &sdk.ListCollectionMembersParams{Text: ptr("collection-filter-no-match"), Kinds: &[]sdk.ResourceKind{"agent", "skill"}})
+	must(t, err)
+	if excluded.JSON200 == nil || len(excluded.JSON200.Items) != 0 || excluded.JSON200.NextCursor != nil {
+		t.Fatal("collection text filter ignored", excluded.StatusCode())
+	}
+	wrongKind, err := reader.ListCollectionMembersWithResponse(ctx, created.JSON201.Id, &sdk.ListCollectionMembersParams{Kinds: &[]sdk.ResourceKind{"mcp_server", "plugin"}})
+	must(t, err)
+	if wrongKind.JSON200 == nil || len(wrongKind.JSON200.Items) != 0 {
+		t.Fatal("collection kind filter ignored", wrongKind.StatusCode())
+	}
 	directory, err := reader.ListCollectionsWithResponse(ctx, &sdk.ListCollectionsParams{NamespaceId: ptr(record.JSON200.Resource.NamespaceId), Limit: ptr(100)})
 	must(t, err)
 	if directory.JSON200 == nil || len(directory.JSON200.Items) != 1 || directory.JSON200.Items[0].Id != created.JSON201.Id || directory.JSON200.NextCursor != nil {
@@ -407,5 +459,64 @@ func TestManagedSDKSharedCollections(t *testing.T) {
 	must(t, err)
 	if preserved.JSON200 == nil || preserved.JSON200.Release.Id != record.JSON200.Release.Id {
 		t.Fatal("curation changed source release", preserved.StatusCode())
+	}
+}
+
+// The installed Go SDK traverses actual maintenance pages and independent denials.
+func TestManagedSDKValidationMaintenance(t *testing.T) {
+	_, corpus := newReviewedCorpus(t)
+	admin, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "admin"})
+	must(t, err)
+	defer admin.Close()
+	reader, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "reader"})
+	must(t, err)
+	defer reader.Close()
+	record, err := admin.GetCatalogRecordWithResponse(t.Context(), decode[sdk.CatalogRecordId](t, []byte(strconv.Quote(corpus.Cases[0].ReleaseID))))
+	must(t, err)
+	if record.JSON200 == nil {
+		t.Fatal(record.StatusCode())
+	}
+	body, err := json.Marshal(map[string]any{"namespaceId": record.JSON200.Resource.NamespaceId, "kind": "agent", "canonicalIdentifier": "urn:air:catalog.example.com:go:maintenance"})
+	must(t, err)
+	resource, err := admin.CreateResourceWithResponse(t.Context(), &sdk.CreateResourceParams{IdempotencyKey: "go-maintenance-resource"}, decode[sdk.CreateResourceJSONRequestBody](t, body))
+	must(t, err)
+	if resource.JSON201 == nil {
+		t.Fatal(resource.StatusCode())
+	}
+	want := map[string]bool{}
+	for i := 0; i < 2; i++ {
+		body, err := json.Marshal(map[string]any{"version": "79.0." + strconv.Itoa(i), "representations": []map[string]any{{"role": "primary", "mediaType": "application/a2a-agent-card+json", "data": map[string]any{"name": "Incomplete maintenance fixture"}}}})
+		must(t, err)
+		version, err := admin.CreateResourceVersionWithResponse(t.Context(), resource.JSON201.Id, &sdk.CreateResourceVersionParams{IdempotencyKey: "go-maintenance-version-" + strconv.Itoa(i)}, decode[sdk.CreateResourceVersionJSONRequestBody](t, body))
+		must(t, err)
+		if version.JSON201 == nil || version.JSON201.Evidence.State != "blocked" {
+			t.Fatal("blocked control", version.StatusCode())
+		}
+		want[version.JSON201.Revision.Id.String()] = true
+	}
+	state := sdk.ListValidationMaintenanceParamsState("blocked")
+	params := &sdk.ListValidationMaintenanceParams{State: &state, HorizonHours: ptr(24), Limit: ptr(1)}
+	first, err := admin.ListValidationMaintenanceWithResponse(t.Context(), params)
+	must(t, err)
+	if first.JSON200 == nil || len(first.JSON200.Items) != 1 || first.JSON200.NextCursor == nil || !want[first.JSON200.Items[0].RevisionId.String()] || first.HTTPResponse.Header.Get("Cache-Control") != "no-store" {
+		t.Fatal("first maintenance page", first.StatusCode())
+	}
+	params.Cursor = first.JSON200.NextCursor
+	second, err := admin.ListValidationMaintenanceWithResponse(t.Context(), params)
+	must(t, err)
+	if second.JSON200 == nil || len(second.JSON200.Items) != 1 || second.JSON200.NextCursor != nil || !want[second.JSON200.Items[0].RevisionId.String()] || first.JSON200.Items[0].RevisionId == second.JSON200.Items[0].RevisionId || !first.JSON200.ObservedAt.Equal(second.JSON200.ObservedAt) {
+		t.Fatal("maintenance continuation", second.StatusCode())
+	}
+	params.Cursor = nil
+	denied, err := reader.ListValidationMaintenanceWithResponse(t.Context(), params)
+	must(t, err)
+	if denied.JSON200 == nil || len(denied.JSON200.Items) != 0 {
+		t.Fatal("reader disclosed validation maintenance", denied.StatusCode())
+	}
+	params.HorizonHours = ptr(169)
+	invalid, err := admin.ListValidationMaintenanceWithResponse(t.Context(), params)
+	must(t, err)
+	if invalid.StatusCode() != 400 || invalid.ApplicationproblemJSONDefault == nil || invalid.ApplicationproblemJSONDefault.Code != "INVALID_ARGUMENT" {
+		t.Fatal("invalid horizon", invalid.StatusCode())
 	}
 }

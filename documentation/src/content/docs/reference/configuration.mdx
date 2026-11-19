@@ -545,6 +545,8 @@ Each configured discovery hostname or IP address selects one internal tenant UUI
 
 Anonymous mode serves local discovery content from an active immutable snapshot of eligible approved `public` releases. Authenticated mode uses the ADR-0006 signed JWT verifier, requires the resolved Catalog membership tenant to match the host tenant, and serves local content from an active immutable snapshot of eligible approved `tenant` and `public` releases. ARD Search may additionally return separately approved live results or referrals under the same host and audience assignment, as described below. Namespace-private records remain on the complete Catalog query API. Disabled, unknown, malformed, forwarded, conflicting and inactive hosts return no discovery data. Candidate, activate, rollback, history, and unpublish control requests must name one exact configured host.
 
+Each host also accepts optional boolean `mcpEnabled`, default `false`. It enables `/ard/v1/mcp` for that host independently of Control `mcp.enabled`. Disabled discovery hosts cannot enable MCP. See [ARD publication MCP](../guides/mcp-server.mdx#search-an-ard-publication-over-mcp) for activation, client setup and limits.
+
 The JSON field is `discovery.hosts`. `CATALOG_DISCOVERY_HOSTS` replaces the complete array with one strict duplicate-key-safe JSON array; unlike the separate `CATALOG_TRACING` object override, it does not merge individual entries. The map requires no external product control plane. An ingress may add transport controls, but authenticated discovery still requires the Catalog-audience token.
 
 The current application rejects `Forwarded`, `X-Forwarded-Host`, and `X-Original-Host` on discovery routes because trusted-proxy configuration is not implemented; an ingress must preserve the intended HTTP `Host` and strip those fields before forwarding. The deployment-owned host map together with the service-wide publication profiles is the complete v1 publication configuration.
@@ -682,7 +684,7 @@ All three settings are service-wide, startup-only worker policy. Change them thr
 
 ### Optional HTTP MCP
 
-The API can expose six read-only Catalog tools at `/mcp`. It is disabled by default. The [MCP guide](../guides/mcp-server.mdx#connect-over-http) explains protocols, OAuth resource discovery, tool permissions and limits.
+The API can expose six read-only Catalog tools at `/mcp`. It is disabled by default. Each discovery host can separately enable the single ARD Search tool at `/ard/v1/mcp` with `mcpEnabled: true`. The [MCP guide](../guides/mcp-server.mdx#connect-over-http) explains protocols, OAuth resource discovery, tool permissions and limits.
 
 ```json
 {
@@ -697,12 +699,12 @@ The API can expose six read-only Catalog tools at `/mcp`. It is disabled by defa
 
 | Setting | Environment override | Validation |
 | --- | --- | --- |
-| `mcp.enabled` | `CATALOG_MCP_ENABLED` | Boolean; API listener only. |
+| `mcp.enabled` | `CATALOG_MCP_ENABLED` | Boolean; Control `/mcp` only. ARD host flags are independent. |
 | `mcp.allowedOrigins` | `CATALOG_MCP_ALLOWED_ORIGINS` | JSON array of up to 64 unique exact HTTP(S) origins, HTTPS in production. No wildcard or path. |
-| `mcp.maxToolBytes` | `CATALOG_MCP_MAX_TOOL_BYTES` | 1024 to 1048576 bytes; complete encoded tool results. |
-| `mcp.maxConcurrency` | `CATALOG_MCP_MAX_CONCURRENCY` | 1 to 16 simultaneous protocol requests; no waiting queue. |
+| `mcp.maxToolBytes` | `CATALOG_MCP_MAX_TOOL_BYTES` | 1024 to 1048576 bytes; complete encoded tool results, shared policy for both MCP interfaces. |
+| `mcp.maxConcurrency` | `CATALOG_MCP_MAX_CONCURRENCY` | 1 to 16 simultaneous protocol requests across both interfaces and all ARD hosts; no waiting queue. |
 
-The configured public origin is allowed in addition to the explicit MCP origins. Reuse `http.publicBaseUrl` for the MCP resource and OAuth metadata URLs. Reuse `http.requestTimeout` for work cancellation. There is no second audience, timeout, listener or session store. Restart the API after a setting changes. The chart accepts these non-secret inputs through `configEnv`; Compose forwards explicitly set runtime inputs. Optional `api.ingress` routes the two MCP paths to the existing API Service over an operator-provided TLS ingress. Its host must match the configured public HTTPS origin. See the [chart setup](../../../../../deployments/helm/open-agentic-catalog/README.md#read-only-mcp-runtime-inputs). Set no `MCPGODEBUG` overrides.
+The configured public origin is allowed in addition to the explicit MCP origins. Reuse `http.publicBaseUrl` for the MCP resource and OAuth metadata URLs. Reuse `http.requestTimeout` for work cancellation. There is no second audience, timeout, listener or session store. Restart the API after a setting changes. The chart accepts these non-secret inputs through `configEnv`; Compose forwards explicitly set runtime inputs. Optional `api.ingress` routes the two MCP paths to the existing API Service over an operator-provided TLS ingress. For Control MCP, its host must match the configured public HTTPS origin. For ARD MCP, it must match an enabled discovery host. Each ARD endpoint uses the public origin scheme and port with its bound hostname. See the [chart setup](../../../../../deployments/helm/open-agentic-catalog/README.md#read-only-mcp-runtime-inputs). Set no `MCPGODEBUG` overrides.
 
 ## Publisher domain verification
 

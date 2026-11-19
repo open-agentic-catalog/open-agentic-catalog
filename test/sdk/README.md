@@ -1,5 +1,7 @@
 # SDK generation and verification
 
+Private native-capability journeys exercise generated Search and Explore inputs in all four SDKs. Positive selections must return the independently known published release identities; mismatching declarations must return no rows. They cover literal OR alternatives, combined Agent fields, streaming presence and the matching Explore population through actual local HTTP exchanges.
+
 All four SDK HTTP consumers qualify both disabled and enabled upstream Version adoption. The enabled fixture ingests two actual Source generations and initially adopts the first. Consumers decode the generated destination and creation models, preserve opaque labels and exact occurrence provenance, replay the same key and reject a duplicate new key. Independent service readback verifies exactly two Versions and unchanged Resource, custom Listing and prior immutable revision. The fixture has no worker, database or external network requests; its actual loopback API and consumer processes make these functional tests.
 
 All four SDK HTTP consumers exercise all eight shared-collection operations through the generated client. They verify parent ETags and revisions, exact add replay, filtered directory and current-member identities, an empty description clearing saved text, stale-update and reader-write refusal, member removal, parent deletion and source preservation. These are real local functional exchanges; they do not count toward the handwritten isolated-unit coverage percentages.

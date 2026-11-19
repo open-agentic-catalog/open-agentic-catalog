@@ -878,6 +878,40 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 		// Namespace reads already use catalog.read for tenant Readers.
 		requireStatus(t, requestJSON(t, owned.URL, http.MethodGet, "/api/v1/namespaces/"+namespace.ID, "contributor", "", "", nil), http.StatusOK)
 	})
+	t.Run("private native capabilities Search and Explore", func(t *testing.T) {
+		before := externalFetcher.calls
+		for _, tc := range []struct {
+			native map[string]any
+			want   int
+		}{
+			{map[string]any{"agentSkillIds": []string{"exercise-http"}, "agentSkillTags": []string{"http"}, "agentDefaultInputModes": []string{"application/json"}}, 1},
+			{map[string]any{"agentSkillIds": []string{"Exercise-http"}}, 0},
+			{map[string]any{"agentStreaming": false}, 0},
+		} {
+			reply := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/search", "admin", "", "", map[string]any{"nativeCapabilities": tc.native, "origins": []string{"local"}})
+			requireStatus(t, reply, http.StatusOK)
+			requireControlSchema(t, "CatalogSearchResponse", reply.body)
+			var result catalog.CatalogSearchResponse
+			decodeResult(t, reply, &result)
+			if result.DurableTotal != tc.want {
+				t.Fatal("private native selection", result.DurableTotal, tc.want)
+			}
+			explored := requestJSON(t, testServer.URL, http.MethodPost, "/api/v1/catalog/explore", "admin", "", "", map[string]any{"query": map[string]any{"nativeCapabilities": tc.native}, "facets": []any{map[string]any{"field": "kind"}}})
+			requireStatus(t, explored, http.StatusOK)
+			var facets catalog.ExploreResponse
+			decodeResult(t, explored, &facets)
+			if facets.Matched != tc.want {
+				t.Fatal("native facet population", facets)
+			}
+		}
+		for _, raw := range []string{`{"nativeCapabilities":{"agentStreaming":false}}`, `{"nativeCapabilities":{"agentStreaming":false},"origins":["live"]}`, `{"nativeCapabilities":{"agentStreaming":null},"origins":["local"]}`, `{"nativeCapabilities":{"agentStreaming":false,"agentStreaming":true},"origins":["local"]}`, `{"nativeCapabilities":{"AgentStreaming":false},"origins":["local"]}`, `{"nativeCapabilities":{},"origins":["local"]}`, `{"nativeCapabilities":{"agentSkillIds":[]},"origins":["local"]}`} {
+			reply := requestWithHeaders(t, testServer.URL, http.MethodPost, "/api/v1/catalog/search", []byte(raw), map[string]string{"Authorization": "Bearer admin", "Content-Type": "application/json"})
+			requireControlProblem(t, reply, http.StatusBadRequest, catalog.CodeInvalidArgument)
+		}
+		if externalFetcher.calls != before {
+			t.Fatal("private filtering retrieved a resource")
+		}
+	})
 	t.Run("declared protocol Search Browse and Explore", func(t *testing.T) {
 		for _, binding := range []string{"JSONRPC", "HTTP+JSON", "\ufeff", ""} {
 			want := 0

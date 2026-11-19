@@ -91,6 +91,14 @@ Use **Shared collections** to create a named selection in an owner namespace. Op
 
 Collections support Agents, MCP Servers, Skills and Plugins. Membership references the Listing, so its next eligible release appears on a fresh read. Draft changes remain invisible. Unavailable references stay retained and can reappear after access or eligibility returns. Collection removal never edits or withdraws the source entry.
 
+Use **Search collection entries** and **Resource kinds** to narrow one collection. Select **Apply filters** to load the first matching page; editing the controls alone sends no request. Multiple kinds match any selected kind, and text must also match. **Clear filters** returns to browsing. **Refresh current entries** refreshes the applied selection and preserves pending filter and metadata edits.
+
+Text matches every whole-word token across the released display name and description. Matching is case-insensitive for Unicode letters and numbers; whitespace and punctuation separate tokens. There is no stemming, prefix matching, substring matching, accent folding or wildcard operator. For example, `invoice cafe` matches a name containing `Invoice` and a description containing `CAFE`. The prefix `inv` does not match these words. Punctuation-only text matches nothing.
+
+Text is limited to 256 Unicode code points before normalization. Whitespace-only text and no selected kinds leave browsing unrestricted. Tags, identifiers and unpublished candidates are not searched. Matching never changes the Listing-ID order or collection membership.
+
+Only currently readable, eligible matches contribute to a page and its continuation. A stale cursor requires an explicit first-page refresh using the applied selection; it never silently applies pending edits. Filtering grants no additional target access and provides no hidden counts.
+
 Collection names and descriptions are shared plain text. Do not put information there that collection readers should not receive. Authored text is not automatically redacted when access to a mentioned entry changes. Collection revisions and update times can reveal curation activity.
 
 A collection permits 200 retained references, including hidden or unavailable entries. Each namespace permits 100 collections and each tenant permits 1,000. The name permits 160 Unicode code points and the description 2,000. Pages default to 20 entries and permit at most 100. Capacity refusals can reveal occupied capacity, but member pages provide no hidden counts or placeholders.

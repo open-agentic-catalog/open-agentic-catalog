@@ -92,6 +92,11 @@ func (p *PostgresCollectionStore) Members(ctx context.Context, a identity.Actor,
 	if q.Limit < 0 || q.Limit > 101 {
 		return collections.MemberPage{}, catalog.E(catalog.CodeInvalidArgument, "collection member page is invalid")
 	}
+	var err error
+	q.Text, q.Kinds, err = collections.NormalizeMemberFilters(q.Text, q.Kinds)
+	if err != nil {
+		return collections.MemberPage{}, err
+	}
 	return withTenantCollectionRead(ctx, p.repository.pool, a.TenantID, func(tx pgx.Tx) (collections.MemberPage, error) {
 		item, err := readSharedCollection(ctx, tx, a.TenantID, id)
 		if err != nil {
@@ -108,7 +113,11 @@ func (p *PostgresCollectionStore) Members(ctx context.Context, a identity.Actor,
 		if q.Limit == 0 {
 			return out, nil
 		}
-		rows, err := tx.Query(ctx, `SELECT release.id FROM shared_collection_members member JOIN catalog_listings listing ON listing.tenant_id=member.tenant_id AND listing.id=member.listing_id JOIN listing_releases release ON release.tenant_id=listing.tenant_id AND release.id=listing.current_release_id AND release.state IN ('published','deprecated') JOIN resources resource ON resource.tenant_id=listing.tenant_id AND resource.id=listing.resource_id AND resource.deleted_at IS NULL WHERE member.tenant_id=$1 AND member.collection_id=$2 AND ($3='' OR member.listing_id>nullif($3,'')::uuid) AND `+collectionPermissionSQL("resource.read", "listing.namespace_id")+` ORDER BY member.listing_id LIMIT $4`, a.TenantID, id, q.AfterID, q.Limit)
+		kinds := make([]string, len(q.Kinds))
+		for n, kind := range q.Kinds {
+			kinds[n] = string(kind)
+		}
+		rows, err := tx.Query(ctx, `SELECT release.id FROM shared_collection_members member JOIN catalog_listings listing ON listing.tenant_id=member.tenant_id AND listing.id=member.listing_id JOIN listing_releases release ON release.tenant_id=listing.tenant_id AND release.id=listing.current_release_id AND release.state IN ('published','deprecated') JOIN resources resource ON resource.tenant_id=listing.tenant_id AND resource.id=listing.resource_id AND resource.deleted_at IS NULL JOIN listing_revisions revision ON revision.tenant_id=release.tenant_id AND revision.id=release.listing_revision_id AND revision.listing_id=listing.id WHERE member.tenant_id=$1 AND member.collection_id=$2 AND ($3='' OR member.listing_id>nullif($3,'')::uuid) AND `+collectionPermissionSQL("resource.read", "listing.namespace_id")+` AND ($5='' OR (revision.search_display_vector || revision.search_description_vector) @@ catalog_core_lexical_query_v1($5)) AND (cardinality($6::text[])=0 OR resource.kind=ANY($6::text[])) ORDER BY member.listing_id LIMIT $4`, a.TenantID, id, q.AfterID, q.Limit, q.Text, kinds)
 		if err != nil {
 			return out, translateError("select collection members", err)
 		}

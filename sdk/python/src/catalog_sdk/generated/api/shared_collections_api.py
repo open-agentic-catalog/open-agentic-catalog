@@ -15,13 +15,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from typing_extensions import Annotated
 
 from pydantic import Field, field_validator
-from typing import Optional
+from typing import List, Optional
 from typing_extensions import Annotated
 from uuid import UUID
 from catalog_sdk.generated.models.add_collection_member import AddCollectionMember
 from catalog_sdk.generated.models.collection_member_page import CollectionMemberPage
 from catalog_sdk.generated.models.collection_receipt import CollectionReceipt
 from catalog_sdk.generated.models.create_collection import CreateCollection
+from catalog_sdk.generated.models.resource_kind import ResourceKind
 from catalog_sdk.generated.models.shared_collection import SharedCollection
 from catalog_sdk.generated.models.shared_collection_page import SharedCollectionPage
 from catalog_sdk.generated.models.update_collection import UpdateCollection
@@ -1727,6 +1728,18 @@ class SharedCollectionsApi:
         self,
         collection_id: UUID,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        text: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected."
+            ),
+        ] = None,
+        kinds: Annotated[
+            Optional[Annotated[List[ResourceKind], Field(min_length=1, max_length=4)]],
+            Field(
+                description="One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected."
+            ),
+        ] = None,
         cursor: Annotated[
             Optional[Annotated[str, Field(strict=True, max_length=2048)]],
             Field(
@@ -1745,14 +1758,18 @@ class SharedCollectionsApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> CollectionMemberPage:
-        """Browse currently readable collection members
+        """Search and browse currently readable collection members
 
-        Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+        Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
 
         :param collection_id: (required)
         :type collection_id: UUID
         :param limit:
         :type limit: int
+        :param text: Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected.
+        :type text: str
+        :param kinds: One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected.
+        :type kinds: List[ResourceKind]
         :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
         :type cursor: str
         :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
@@ -1773,6 +1790,8 @@ class SharedCollectionsApi:
         _param = self._list_collection_members_serialize(
             collection_id=collection_id,
             limit=limit,
+            text=text,
+            kinds=kinds,
             cursor=cursor,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -1798,6 +1817,18 @@ class SharedCollectionsApi:
         self,
         collection_id: UUID,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        text: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected."
+            ),
+        ] = None,
+        kinds: Annotated[
+            Optional[Annotated[List[ResourceKind], Field(min_length=1, max_length=4)]],
+            Field(
+                description="One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected."
+            ),
+        ] = None,
         cursor: Annotated[
             Optional[Annotated[str, Field(strict=True, max_length=2048)]],
             Field(
@@ -1816,14 +1847,18 @@ class SharedCollectionsApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[CollectionMemberPage]:
-        """Browse currently readable collection members
+        """Search and browse currently readable collection members
 
-        Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+        Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
 
         :param collection_id: (required)
         :type collection_id: UUID
         :param limit:
         :type limit: int
+        :param text: Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected.
+        :type text: str
+        :param kinds: One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected.
+        :type kinds: List[ResourceKind]
         :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
         :type cursor: str
         :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
@@ -1844,6 +1879,8 @@ class SharedCollectionsApi:
         _param = self._list_collection_members_serialize(
             collection_id=collection_id,
             limit=limit,
+            text=text,
+            kinds=kinds,
             cursor=cursor,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -1869,6 +1906,18 @@ class SharedCollectionsApi:
         self,
         collection_id: UUID,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        text: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected."
+            ),
+        ] = None,
+        kinds: Annotated[
+            Optional[Annotated[List[ResourceKind], Field(min_length=1, max_length=4)]],
+            Field(
+                description="One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected."
+            ),
+        ] = None,
         cursor: Annotated[
             Optional[Annotated[str, Field(strict=True, max_length=2048)]],
             Field(
@@ -1887,14 +1936,18 @@ class SharedCollectionsApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """Browse currently readable collection members
+        """Search and browse currently readable collection members
 
-        Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+        Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
 
         :param collection_id: (required)
         :type collection_id: UUID
         :param limit:
         :type limit: int
+        :param text: Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected.
+        :type text: str
+        :param kinds: One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected.
+        :type kinds: List[ResourceKind]
         :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
         :type cursor: str
         :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
@@ -1915,6 +1968,8 @@ class SharedCollectionsApi:
         _param = self._list_collection_members_serialize(
             collection_id=collection_id,
             limit=limit,
+            text=text,
+            kinds=kinds,
             cursor=cursor,
             _request_auth=_request_auth,
             _content_type=_content_type,
@@ -1936,6 +1991,18 @@ class SharedCollectionsApi:
         self,
         collection_id: UUID,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        text: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected."
+            ),
+        ] = None,
+        kinds: Annotated[
+            Optional[Annotated[List[ResourceKind], Field(min_length=1, max_length=4)]],
+            Field(
+                description="One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected."
+            ),
+        ] = None,
         cursor: Annotated[
             Optional[Annotated[str, Field(strict=True, max_length=2048)]],
             Field(
@@ -1954,7 +2021,7 @@ class SharedCollectionsApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> CollectionMemberPage:
-        """Browse currently readable collection members (synchronous)
+        """Search and browse currently readable collection members (synchronous)
 
         Synchronous variant of :meth:`list_collection_members`. It calls the asynchronous
         method and blocks until it completes.
@@ -1963,6 +2030,8 @@ class SharedCollectionsApi:
             self.list_collection_members(
                 collection_id=collection_id,
                 limit=limit,
+                text=text,
+                kinds=kinds,
                 cursor=cursor,
                 _request_timeout=_request_timeout,
                 _request_auth=_request_auth,
@@ -1977,6 +2046,18 @@ class SharedCollectionsApi:
         self,
         collection_id: UUID,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        text: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected."
+            ),
+        ] = None,
+        kinds: Annotated[
+            Optional[Annotated[List[ResourceKind], Field(min_length=1, max_length=4)]],
+            Field(
+                description="One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected."
+            ),
+        ] = None,
         cursor: Annotated[
             Optional[Annotated[str, Field(strict=True, max_length=2048)]],
             Field(
@@ -1995,7 +2076,7 @@ class SharedCollectionsApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[CollectionMemberPage]:
-        """Browse currently readable collection members (synchronous)
+        """Search and browse currently readable collection members (synchronous)
 
         Synchronous variant of :meth:`list_collection_members_with_http_info`. It calls the
         asynchronous method and blocks until it completes.
@@ -2004,6 +2085,8 @@ class SharedCollectionsApi:
             self.list_collection_members_with_http_info(
                 collection_id=collection_id,
                 limit=limit,
+                text=text,
+                kinds=kinds,
                 cursor=cursor,
                 _request_timeout=_request_timeout,
                 _request_auth=_request_auth,
@@ -2018,6 +2101,18 @@ class SharedCollectionsApi:
         self,
         collection_id: UUID,
         limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        text: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=256)]],
+            Field(
+                description="Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected."
+            ),
+        ] = None,
+        kinds: Annotated[
+            Optional[Annotated[List[ResourceKind], Field(min_length=1, max_length=4)]],
+            Field(
+                description="One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected."
+            ),
+        ] = None,
         cursor: Annotated[
             Optional[Annotated[str, Field(strict=True, max_length=2048)]],
             Field(
@@ -2036,7 +2131,7 @@ class SharedCollectionsApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """Browse currently readable collection members (synchronous)
+        """Search and browse currently readable collection members (synchronous)
 
         Synchronous variant of :meth:`list_collection_members_without_preload_content`. It calls
         the asynchronous method and blocks until it completes.
@@ -2045,6 +2140,8 @@ class SharedCollectionsApi:
             self.list_collection_members_without_preload_content(
                 collection_id=collection_id,
                 limit=limit,
+                text=text,
+                kinds=kinds,
                 cursor=cursor,
                 _request_timeout=_request_timeout,
                 _request_auth=_request_auth,
@@ -2058,6 +2155,8 @@ class SharedCollectionsApi:
         self,
         collection_id,
         limit,
+        text,
+        kinds,
         cursor,
         _request_auth,
         _content_type,
@@ -2067,7 +2166,9 @@ class SharedCollectionsApi:
 
         _host = None
 
-        _collection_formats: Dict[str, str] = {}
+        _collection_formats: Dict[str, str] = {
+            "kinds": "csv",
+        }
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
@@ -2084,6 +2185,12 @@ class SharedCollectionsApi:
         # process the query parameters
         if limit is not None:
             _query_params.append(("limit", limit))
+
+        if text is not None:
+            _query_params.append(("text", text))
+
+        if kinds is not None:
+            _query_params.append(("kinds", kinds))
 
         if cursor is not None:
             _query_params.append(("cursor", cursor))

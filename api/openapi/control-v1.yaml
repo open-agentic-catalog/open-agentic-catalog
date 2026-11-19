@@ -27,7 +27,7 @@ tags:
   - name: Personal workspace
     description: Human caller-owned work queues and private saved references or searches.
   - name: Catalog MCP
-    description: Optional authenticated, read-only stateless MCP HTTP and public OAuth resource metadata.
+    description: Optional read-only stateless MCP interfaces for Control metadata and host-scoped ARD publication Search, with endpoint-specific OAuth resource metadata.
   - name: Service
     description: Health, version, capabilities, metrics, and the served API contract.
   - name: Identity
@@ -59,6 +59,61 @@ tags:
   - name: Discovery
     description: Exact-host anonymous or authenticated ARD and AI Catalog discovery backed by an active immutable audience snapshot.
 paths:
+  /api/v1/validation-maintenance:
+    get:
+      tags:
+        - Catalog lifecycle
+      operationId: listValidationMaintenance
+      summary: Find current validation evidence needing attention
+      description: 'Requires a current human or service membership and the intersection of resource.read,
+        resource.read_content and resource.validate in the canonical namespace before SQL limits.
+        OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native
+        documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions
+        reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each.
+        Uses the highest validation run number, never timestamp ordering. Conditions may overlap.
+        The observation time is fixed across continuation; current evidence and pointers are reread on each page.
+        This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal.
+        Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone
+        does not withdraw snapshots; renewal is a separate explicit command and never automatically restores
+        publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [attention, expiring, expired, blocked, stale]
+            default: attention
+          description: Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows.
+        - name: horizonHours
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 168
+            default: 24
+          description: Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Current authorized maintenance page
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationMaintenancePage'
+        default:
+          $ref: '#/components/responses/Problem'
   /api/v1/collections:
     get:
       tags:
@@ -243,11 +298,16 @@ paths:
       tags:
         - Shared collections
       operationId: listCollectionMembers
-      summary: Browse currently readable collection members
+      summary: Search and browse currently readable collection members
       description: 'Requires a current human or service membership and collection.read in the owner namespace. Also
         requires resource.read in each target canonical namespace; membership grants no target authority. Selects
         only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current
-        policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store;
+        policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word
+        Unicode letter/number tokens across released display name and description, case-insensitively, without
+        stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text
+        matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text
+        and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results
+        retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store;
         a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.'
       security:
         - bearerAuth: []
@@ -265,6 +325,26 @@ paths:
             minimum: 1
             maximum: 100
             default: 20
+        - name: text
+          in: query
+          description: Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected.
+          schema:
+            type: string
+            maxLength: 256
+        - name: kinds
+          in: query
+          description: One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed
+            and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it.
+            Repeated parameters, JSON arrays and empty array elements are rejected.
+          allowEmptyValue: true
+          style: form
+          explode: false
+          schema:
+            type: array
+            minItems: 1
+            maxItems: 4
+            items:
+              $ref: '#/components/schemas/ResourceKind'
         - $ref: '#/components/parameters/Cursor'
       responses:
         '200':
@@ -706,6 +786,114 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/TenantSettings'}
         default: {$ref: '#/components/responses/Problem'}
+  /ard/v1/mcp:
+    post:
+      tags: [Catalog MCP]
+      operationId: callARDPublicationMCP
+      security: [{}, {bearerAuth: []}]
+      summary: Search the active host-bound ARD publication through MCP
+      description: >-
+        Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP.
+        One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics.
+        Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require
+        current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request.
+        Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback.
+        Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE.
+        Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency
+        and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse;
+        oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata
+        carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and
+        current authorization retain the shared REST application boundary. No resource or attestation URL is fetched.
+        Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+      parameters:
+        - {name: MCP-Protocol-Version, in: header, required: false, schema: {type: string}, description: 'Required except for legacy initialize. Supported versions are 2026-07-28 and 2025-11-25.'}
+        - {name: MCP-Method, in: header, required: false, schema: {type: string}, description: Required matching method for the modern protocol.}
+        - {name: MCP-Name, in: header, required: false, schema: {type: string}, description: Required matching tool name for modern tools/call.}
+        - {name: Origin, in: header, required: false, schema: {type: string}, description: If present must exactly match the public origin or an explicit MCP allowed origin.}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MCPRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/MCPReply'}
+        '202': {description: Accepted legacy initialized notification; empty body and no session ID.}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '401': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+        '413': {$ref: '#/components/responses/MCPError'}
+        '415': {$ref: '#/components/responses/MCPError'}
+        '500': {$ref: '#/components/responses/MCPError'}
+        '503': {$ref: '#/components/responses/MCPError'}
+    options:
+      tags: [Catalog MCP]
+      operationId: preflightARDPublicationMCP
+      security: []
+      summary: Check an exact MCP browser origin
+      description: Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
+      responses:
+        '204': {description: Approved credential-free preflight.}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+    get:
+      tags: [Catalog MCP]
+      operationId: refuseARDPublicationMCPStream
+      security: []
+      summary: Refuse a standalone MCP stream
+      responses:
+        '405': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+    delete:
+      tags: [Catalog MCP]
+      operationId: refuseARDPublicationMCPSessionDeletion
+      security: []
+      summary: Refuse deletion because MCP has no retained sessions
+      responses:
+        '405': {$ref: '#/components/responses/MCPError'}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+  /.well-known/oauth-protected-resource/ard/v1/mcp:
+    get:
+      tags: [Catalog MCP]
+      operationId: getARDMCPOAuthMetadata
+      security: []
+      summary: Discover the ARD MCP OAuth resource and operator issuer
+      description: >-
+        Readable without credentials for an enabled authenticated discovery host with a configured OIDC issuer.
+        The resource is the configured discovery origin plus /ard/v1/mcp. Anonymous hosts, development authentication,
+        disabled endpoints and unknown hosts return 404. No publication lookup occurs.
+      responses:
+        '200':
+          description: RFC 9728 protected resource metadata.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MCPOAuthMetadata'}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+    head:
+      tags: [Catalog MCP]
+      operationId: headARDMCPOAuthMetadata
+      security: []
+      summary: Check MCP OAuth metadata availability
+      responses:
+        '200': {description: Metadata is available; empty body.}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+    options:
+      tags: [Catalog MCP]
+      operationId: preflightARDPublicationMCPOAuthMetadata
+      security: []
+      summary: Check an exact metadata browser origin
+      responses:
+        '204': {description: Approved credential-free metadata preflight for GET or HEAD.}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
   /mcp:
     post:
       tags: [Catalog MCP]
@@ -6942,6 +7130,36 @@ components:
       additionalProperties: false
       allOf:
         - if:
+            required: [nativeCapabilities]
+          then:
+            required: [origins]
+            properties:
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
+            allOf:
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [agentSkillIds]
+                        - required: [agentSkillTags]
+                        - required: [agentDefaultInputModes]
+                        - required: [agentDefaultOutputModes]
+                        - required: [agentStreaming]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: agent}}
+                    includeMcpTools: {const: false}
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [mcpTransports]
+                        - required: [mcpProtocolVersions]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+                    agentProtocol: {maxLength: 0}
+        - if:
             required: [includeMcpTools]
             properties: {includeMcpTools: {const: true}}
           then:
@@ -6971,6 +7189,8 @@ components:
                     enum:
                       - local
       properties:
+        nativeCapabilities:
+          $ref: "#/components/schemas/NativeCapabilitiesFilter"
         includeMcpTools:
           type: boolean
           description: >-
@@ -7227,6 +7447,80 @@ components:
           required:
             - reference
             - indexed
+    ValidationMaintenanceItem:
+      type: object
+      additionalProperties: false
+      required: [revisionId, resourceId, namespaceId, kind, canonicalIdentifier, versionId, version, revisionNumber, evidenceId, evidenceState, validationProfile, policyVersion, validatedAt, applicable, conditions]
+      properties:
+        revisionId:
+          $ref: '#/components/schemas/UUID'
+        resourceId:
+          $ref: '#/components/schemas/UUID'
+        namespaceId:
+          $ref: '#/components/schemas/UUID'
+        kind:
+          $ref: '#/components/schemas/ResourceKind'
+        canonicalIdentifier:
+          type: string
+          minLength: 1
+          maxLength: 512
+        versionId:
+          $ref: '#/components/schemas/UUID'
+        version:
+          type: string
+          minLength: 1
+          maxLength: 128
+        revisionNumber:
+          type: integer
+          minimum: 1
+        evidenceId:
+          $ref: '#/components/schemas/UUID'
+        evidenceState:
+          type: string
+          enum: [complete, blocked]
+        validationProfile:
+          type: string
+          minLength: 1
+        policyVersion:
+          type: string
+          minLength: 1
+        validatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        applicable:
+          type: boolean
+          description: Applicability at the fixed observation time, not later publication eligibility, approval or trust.
+        conditions:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            type: string
+            enum: [blocked, stale, expired, expiring]
+    ValidationMaintenancePage:
+      type: object
+      additionalProperties: false
+      required: [items, observedAt, horizonHours]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/ValidationMaintenanceItem'
+        observedAt:
+          type: string
+          format: date-time
+        horizonHours:
+          type: integer
+          minimum: 1
+          maximum: 168
+        nextCursor:
+          type: string
+          maxLength: 2048
     PersonalWorkItem:
       type: object
       additionalProperties: false
@@ -10980,10 +11274,133 @@ components:
         Publisher uses the current local display name or external publisher declaration. Kind uses its wire label.
         Primary keys use the selected direction; ties use normalized name and stable result ID ascending.
         Column ordering does not invoke the embedding provider. Changing order requires a new cursor-free search.
+    NativeCapabilitiesFilter:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: >-
+        Exact private declarations from one current released validated primary card, under current
+        resource.read and resource.read_content authority. OR within arrays, AND across fields;
+        separate skill or remote members may satisfy separate fields. No tuple compatibility,
+        media-type normalization, inference or endpoint request. Search and saved criteria require
+        explicit origins [local]; Explore is local. Select one card kind only. At most 64 string
+        values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves
+        ordinary discovery. Missing/null native streaming does not match explicit false.
+      not:
+        allOf:
+          - anyOf:
+              - required: [agentSkillIds]
+              - required: [agentSkillTags]
+              - required: [agentDefaultInputModes]
+              - required: [agentDefaultOutputModes]
+              - required: [agentStreaming]
+          - anyOf:
+              - required: [mcpTransports]
+              - required: [mcpProtocolVersions]
+      properties:
+        agentSkillIds:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Declared Agent skill IDs. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        agentSkillTags:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Declared Agent skill tags, distinct from Listing tags. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        agentDefaultInputModes:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Card default input media types, not effective modes of a selected skill. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        agentDefaultOutputModes:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Card default output media types, not effective modes of a selected skill. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        agentStreaming:
+          type: boolean
+          description: Explicit declared streaming value; omission, false and true are distinct.
+        mcpTransports:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Declared MCP Server Card remote transport types. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        mcpProtocolVersions:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Declared remote MCP protocol versions, without protocol negotiation. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
     CatalogSearch:
       type: object
       additionalProperties: false
       allOf:
+        - if:
+            required: [nativeCapabilities]
+          then:
+            required: [origins]
+            properties:
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
+            allOf:
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [agentSkillIds]
+                        - required: [agentSkillTags]
+                        - required: [agentDefaultInputModes]
+                        - required: [agentDefaultOutputModes]
+                        - required: [agentStreaming]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: agent}}
+                    includeMcpTools: {const: false}
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [mcpTransports]
+                        - required: [mcpProtocolVersions]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+                    agentProtocol: {maxLength: 0}
         - if:
             required: [includeMcpTools]
             properties: {includeMcpTools: {const: true}}
@@ -11007,6 +11424,8 @@ components:
             - properties:
                 origins: {type: array, items: {type: string, enum: [local]}}
       properties:
+        nativeCapabilities:
+          $ref: "#/components/schemas/NativeCapabilitiesFilter"
         includeMcpTools:
           type: boolean
           description: >-
@@ -11104,6 +11523,33 @@ components:
       additionalProperties: false
       allOf:
         - if:
+            required: [nativeCapabilities]
+          then:
+            allOf:
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [agentSkillIds]
+                        - required: [agentSkillTags]
+                        - required: [agentDefaultInputModes]
+                        - required: [agentDefaultOutputModes]
+                        - required: [agentStreaming]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: agent}}
+                    includeMcpTools: {const: false}
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [mcpTransports]
+                        - required: [mcpProtocolVersions]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+                    agentProtocol: {maxLength: 0}
+        - if:
             required: [includeMcpTools]
             properties: {includeMcpTools: {const: true}}
           then:
@@ -11113,6 +11559,8 @@ components:
               kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
               agentProtocol: {maxLength: 0}
       properties:
+        nativeCapabilities:
+          $ref: "#/components/schemas/NativeCapabilitiesFilter"
         includeMcpTools:
           type: boolean
           description: >-

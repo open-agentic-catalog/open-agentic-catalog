@@ -151,7 +151,7 @@ func cors(origins []string, next http.Handler) http.Handler {
 		allowed[origin] = struct{}{}
 	}
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path == "/mcp" || request.URL.Path == mcpMetadataPath {
+		if request.URL.Path == "/mcp" || request.URL.Path == mcpMetadataPath || request.URL.Path == ardMCPPath || request.URL.Path == ardMCPMetadataPath {
 			next.ServeHTTP(writer, request)
 			return
 		}

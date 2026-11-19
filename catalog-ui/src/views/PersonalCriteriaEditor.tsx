@@ -1,3 +1,4 @@
+import { NativeCapabilityFilters } from "./NativeCapabilityFilters";
 import { catalogOrders } from "./catalog-order";
 import type { PersonalCriteria } from "./personal-criteria";
 import { criteriaDraft } from "./personal-criteria";
@@ -106,7 +107,9 @@ export function PersonalCriteriaEditor({
                     type="checkbox"
                     checked={criteria.origins !== undefined}
                     disabled={
-                      !!criteria.agentProtocol || !!criteria.includeMcpTools
+                      !!criteria.nativeCapabilities ||
+                      !!criteria.agentProtocol ||
+                      !!criteria.includeMcpTools
                     }
                     onChange={(e) => {
                       const next = { ...criteria };
@@ -124,7 +127,9 @@ export function PersonalCriteriaEditor({
                         type="checkbox"
                         checked={criteria.origins!.includes(origin)}
                         disabled={
-                          !!criteria.agentProtocol || !!criteria.includeMcpTools
+                          !!criteria.nativeCapabilities ||
+                          !!criteria.agentProtocol ||
+                          !!criteria.includeMcpTools
                         }
                         onChange={(e) =>
                           update({
@@ -223,6 +228,18 @@ export function PersonalCriteriaEditor({
                   }}
                 />
               </Field>
+              <NativeCapabilityFilters
+                prefix={id}
+                value={criteria.nativeCapabilities}
+                onChange={(nativeCapabilities) => {
+                  const next = { ...criteria };
+                  if (nativeCapabilities) {
+                    next.nativeCapabilities = nativeCapabilities;
+                    next.origins = ["local"];
+                  } else delete next.nativeCapabilities;
+                  update(next);
+                }}
+              />
               <Field label="Saved visibility">
                 <select
                   id={`${id}-visibility`}

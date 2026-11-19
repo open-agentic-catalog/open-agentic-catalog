@@ -83,7 +83,7 @@ func TestDiscoveryAdmissionBeforeSnapshotAccess(t *testing.T) {
 				r.Header.Set(tc.header, "other.example")
 			}
 			w := httptest.NewRecorder()
-			got, ok := s.authorizeDiscovery(w, r)
+			got, ok := s.authorizeDiscovery(r.Context(), w, r)
 			if calls != tc.calls {
 				t.Fatal("authentication call/context mismatch")
 			}

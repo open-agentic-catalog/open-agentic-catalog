@@ -13,7 +13,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -65,6 +67,7 @@ func TestHTTPPluginArchiveContractReplayAndDisclosure(t *testing.T) {
 	if err := writer.Close(); err != nil {
 		t.Fatal(err)
 	}
+	var archiveRequests atomic.Int64
 	origin := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/plugin.zip" {
 			http.NotFound(w, r)
@@ -73,6 +76,7 @@ func TestHTTPPluginArchiveContractReplayAndDisclosure(t *testing.T) {
 		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" || r.Header.Get("Accept-Encoding") != "identity" {
 			t.Error("archive request leaked credentials or negotiated decoding")
 		}
+		archiveRequests.Add(1)
 		w.Header().Set("Content-Type", "application/zip")
 		_, _ = w.Write(archive.Bytes())
 	}))
@@ -104,7 +108,7 @@ func TestHTTPPluginArchiveContractReplayAndDisclosure(t *testing.T) {
 	auth, identities := newTestIdentity(t, c, map[string]config.DevelopmentUser{"admin": {Subject: "admin", TenantID: "00000000-0000-7000-8000-000000000001", Roles: []identity.Role{identity.RoleTenantAdmin}}, "other-admin": {Subject: "other", TenantID: "00000000-0000-7000-8000-000000000002", Roles: []identity.Role{identity.RoleTenantAdmin}}, "reader": {Subject: "reader", TenantID: "00000000-0000-7000-8000-000000000001", Roles: []identity.Role{identity.RoleReader}}})
 	// Exercise archive rejection and replay within the normal service budget.
 	// The large encoded-overflow case is not a two-second latency assertion.
-	server, err := New(Dependencies{Catalog: service, Identity: identities, Federation: f, Jobs: j, Authenticator: auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), DiscoveryHosts: []DiscoveryHost{anonymousDiscoveryHost(p)}, MaxBodyBytes: 1 << 20, RequestTimeout: config.Defaults().HTTP.RequestTimeout.Duration, CursorKey: key[:]})
+	server, err := New(Dependencies{Catalog: service, Identity: identities, Federation: f, Jobs: j, Authenticator: auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), DiscoveryHosts: []DiscoveryHost{anonymousDiscoveryHost(p)}, MaxBodyBytes: 1 << 20, RequestTimeout: config.Defaults().HTTP.RequestTimeout.Duration, CursorKey: key[:], Now: c.Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,9 +160,48 @@ func TestHTTPPluginArchiveContractReplayAndDisclosure(t *testing.T) {
 	}
 	denied := requestJSON(t, httpServer.URL, http.MethodPost, path, "reader", "reader-write", "", body)
 	requireStatus(t, denied, http.StatusForbidden)
+	// Reuse this actual owned HTTPS archive to qualify maintenance before and
+	// exactly at expiry. Browsing never contacts it; explicit renewal does.
+	type maintenancePage struct {
+		Items []catalog.ValidationMaintenanceItem `json:"items"`
+	}
+	maintenance := func(condition string) maintenancePage {
+		t.Helper()
+		response := requestJSON(t, httpServer.URL, http.MethodGet, "/api/v1/validation-maintenance?state="+condition+"&horizonHours=24", "admin", "", "", nil)
+		requireStatus(t, response, http.StatusOK)
+		requireControlSchema(t, "ValidationMaintenancePage", response.body)
+		var page maintenancePage
+		decodeResult(t, response, &page)
+		return page
+	}
+	before := archiveRequests.Load()
+	rows := maintenance("expiring")
+	if len(rows.Items) != 1 || rows.Items[0].EvidenceID != envelope.Evidence.ID || !rows.Items[0].Applicable {
+		t.Fatal("fresh HTTPS maintenance", rows)
+	}
+	c.Advance(catalog.ExternalRepresentationFreshness)
+	rows = maintenance("expired")
+	if len(rows.Items) != 1 || rows.Items[0].RevisionID != envelope.Revision.ID || rows.Items[0].Applicable || archiveRequests.Load() != before {
+		t.Fatal("expiry did not remain read-only", rows, archiveRequests.Load(), before)
+	}
 	again := post("/api/v1/version-revisions/"+envelope.Revision.ID+":validate", "validate", map[string]any{})
 	requireStatus(t, again, http.StatusCreated)
 	requireControlSchema(t, "RevisionEvidenceEnvelope", again.body)
+	var renewed struct {
+		Revision catalog.VersionRevision `json:"revision"`
+		Evidence catalog.EvidenceSet     `json:"evidence"`
+	}
+	decodeResult(t, again, &renewed)
+	if archiveRequests.Load() != before+1 || renewed.Evidence.ID == envelope.Evidence.ID || !reflect.DeepEqual(renewed.Revision.Representations, envelope.Revision.Representations) {
+		t.Fatal("explicit HTTPS renewal changed content or did not refetch")
+	}
+	if page := maintenance("expired"); len(page.Items) != 0 {
+		t.Fatal("renewed evidence remained expired", page)
+	}
+	rows = maintenance("expiring")
+	if len(rows.Items) != 1 || rows.Items[0].EvidenceID != renewed.Evidence.ID || !rows.Items[0].Applicable || archiveRequests.Load() != before+1 {
+		t.Fatal("renewal not reflected without extra fetch", rows)
+	}
 
 	// Valid UTF-8 can expand sixfold when retained inside JSON. Serve an
 	// uncompressed ZIP so this tests the storage budget, not archive ratios.

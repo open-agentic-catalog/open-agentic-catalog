@@ -14,7 +14,7 @@ import (
 
 var collectionPermissions = []identity.Permission{
 	"collection.read", "collection.manage",
-	"namespace.read", "resource.edit", "resource.read", "resource.read_history", "resource.read_content",
+	"namespace.read", "resource.edit", "resource.read", "resource.read_history", "resource.read_content", "resource.validate",
 	"federation.discover", "job.read", "source.read", "source.read_evidence", "publication.read", "operations.reindex",
 	"webhook.read", "webhook.read_evidence",
 	"feedback.moderate", "ratings.moderate",
@@ -115,6 +115,7 @@ var ownerCollectionPredicates = strings.NewReplacer(
 	collectionPermissionSQL("resource.read", "r.namespace_id"), "true",
 	collectionPermissionSQL("resource.read_history", "r.namespace_id"), "true",
 	collectionPermissionSQL("resource.read_content", "r.namespace_id"), "true",
+	collectionPermissionSQL("resource.validate", "r.namespace_id"), "true",
 	collectionPermissionSQL("resource.read", "local_listing.namespace_id"), "true",
 	collectionPermissionSQL("resource.read", "listing.namespace_id"), "true",
 	collectionPermissionSQL("resource.read_content", "listing.namespace_id"), "true",

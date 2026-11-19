@@ -58,6 +58,11 @@ import type {
 import type { MouseEvent } from "react";
 import type { components } from "../api/schema";
 import { Icon, controlIcons } from "../shell/Icon";
+import {
+  nativeArrayFields,
+  nativeKind,
+  type NativeCapabilities,
+} from "./native-capabilities";
 import SearchFilters, { visibilityOptions } from "./SearchFilters";
 import { applyFilters, publisherSuggestions } from "./search-filters";
 import { kindChoices, kindLabel } from "../resource-kinds";
@@ -609,19 +614,28 @@ function CatalogWorkspace({
       | "origins"
       | "namespaceId"
       | "agentProtocol"
-      | "includeMcpTools",
+      | "includeMcpTools"
+      | "nativeCapabilities",
     tag?: string,
   ) {
     const next = firstPage(request);
     if (
       key === "origins" &&
-      (request.namespaceId || request.agentProtocol || request.includeMcpTools)
+      (request.namespaceId ||
+        request.agentProtocol ||
+        request.includeMcpTools ||
+        request.nativeCapabilities)
     )
       return;
     // Removal is invoked only by chips rendered from these existing arrays.
     if (key === "origins" && tag) {
       next.origins = next.origins!.filter((value) => value !== tag);
       if (!next.origins.length) delete next.origins;
+    } else if (key === "nativeCapabilities" && tag) {
+      const native = { ...next.nativeCapabilities };
+      delete native[tag as keyof NativeCapabilities];
+      if (Object.keys(native).length) next.nativeCapabilities = native;
+      else delete next.nativeCapabilities;
     } else if ((key === "tags" || key === "categories") && tag)
       next[key] = next[key]!.filter((value) => value !== tag);
     else if (key === "kinds" && tag)
@@ -690,6 +704,7 @@ function CatalogWorkspace({
     request.tags?.length ||
     request.categories?.length ||
     request.license ||
+    request.nativeCapabilities ||
     request.agentProtocol ||
     request.includeMcpTools ||
     request.publisher ||
@@ -848,7 +863,11 @@ function CatalogWorkspace({
         {kindChoices.map((item) => (
           <button
             key={item.value}
-            disabled={!!request.includeMcpTools && item.value !== "mcp_server"}
+            disabled={
+              (!!request.includeMcpTools && item.value !== "mcp_server") ||
+              (!!request.nativeCapabilities &&
+                item.value !== nativeKind(request.nativeCapabilities))
+            }
             aria-label={item.label}
             data-kind={item.value}
             aria-pressed={
@@ -1028,11 +1047,13 @@ function CatalogWorkspace({
               aria-label={`Remove origin ${originLabel(origin)}`}
               disabled={
                 !!request.namespaceId ||
+                !!request.nativeCapabilities ||
                 !!request.agentProtocol ||
                 !!request.includeMcpTools
               }
               title={
                 request.namespaceId ||
+                request.nativeCapabilities ||
                 request.agentProtocol ||
                 request.includeMcpTools
                   ? "This filter requires local results. Remove filters that require local results before changing origins."
@@ -1117,6 +1138,32 @@ function CatalogWorkspace({
               <Icon name="close" size={12} />
             </button>
           )}
+          {request.nativeCapabilities &&
+            Object.entries(request.nativeCapabilities).map(
+              ([field, values]) => {
+                const label =
+                  field === "agentStreaming"
+                    ? "Agent streaming"
+                    : nativeArrayFields.find(([name]) => name === field)![1];
+                return (
+                  <button
+                    type="button"
+                    className="filter-chip"
+                    key={field}
+                    aria-label={`Remove declared capability ${label}`}
+                    onClick={() => removeCriterion("nativeCapabilities", field)}
+                  >
+                    <span>
+                      {label}:{" "}
+                      {Array.isArray(values)
+                        ? values.join(" / ")
+                        : String(values)}
+                    </span>
+                    <Icon name="close" size={12} />
+                  </button>
+                );
+              },
+            )}
           {request.agentProtocol && (
             <button
               type="button"

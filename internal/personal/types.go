@@ -30,22 +30,23 @@ type Reference struct {
 
 // Criteria deliberately excludes cursors, page size and arbitrary source URLs.
 type Criteria struct {
-	IncludeMCPTools bool                       `json:"includeMcpTools,omitempty"`
-	AgentProtocol   string                     `json:"agentProtocol,omitempty"`
-	Order           catalog.SearchOrder        `json:"order,omitempty"`
-	Text            string                     `json:"text"`
-	Origins         []catalog.SearchResultType `json:"origins,omitempty"`
-	NamespaceID     string                     `json:"namespaceId,omitempty"`
-	Kinds           []catalog.Kind             `json:"kinds,omitempty"`
-	Tags            []string                   `json:"tags,omitempty"`
-	Categories      []string                   `json:"categories,omitempty"`
-	License         string                     `json:"license,omitempty"`
-	Publisher       string                     `json:"publisher,omitempty"`
-	Visibility      catalog.Visibility         `json:"visibility,omitempty"`
+	NativeCapabilities *catalog.NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
+	IncludeMCPTools    bool                              `json:"includeMcpTools,omitempty"`
+	AgentProtocol      string                            `json:"agentProtocol,omitempty"`
+	Order              catalog.SearchOrder               `json:"order,omitempty"`
+	Text               string                            `json:"text"`
+	Origins            []catalog.SearchResultType        `json:"origins,omitempty"`
+	NamespaceID        string                            `json:"namespaceId,omitempty"`
+	Kinds              []catalog.Kind                    `json:"kinds,omitempty"`
+	Tags               []string                          `json:"tags,omitempty"`
+	Categories         []string                          `json:"categories,omitempty"`
+	License            string                            `json:"license,omitempty"`
+	Publisher          string                            `json:"publisher,omitempty"`
+	Visibility         catalog.Visibility                `json:"visibility,omitempty"`
 }
 
 func (c Criteria) Query() catalog.SearchQuery {
-	return catalog.SearchQuery{IncludeMCPTools: c.IncludeMCPTools, AgentProtocol: c.AgentProtocol, Order: c.Order, Text: c.Text, Origins: c.Origins, NamespaceID: c.NamespaceID, Kinds: c.Kinds, Tags: c.Tags, Categories: c.Categories, License: c.License, Publisher: c.Publisher, Visibility: c.Visibility}
+	return catalog.SearchQuery{NativeCapabilities: c.NativeCapabilities, IncludeMCPTools: c.IncludeMCPTools, AgentProtocol: c.AgentProtocol, Order: c.Order, Text: c.Text, Origins: c.Origins, NamespaceID: c.NamespaceID, Kinds: c.Kinds, Tags: c.Tags, Categories: c.Categories, License: c.License, Publisher: c.Publisher, Visibility: c.Visibility}
 }
 
 type Input struct {

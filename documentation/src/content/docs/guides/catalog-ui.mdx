@@ -229,7 +229,7 @@ For Plugins, follow [Create a review-tools Plugin in the browser](agent-plugins.
 
 Use [saved-draft correction](resource-authoring.mdx#correct-a-saved-draft) to fix returned findings. Use [Create a new Version from retained content](resource-authoring.mdx#create-a-new-version-from-retained-content) for a sealed source. An unpublished Version or approved submission does not replace the visible release. Follow the [browser publication tutorial](publishing.mdx#publish-an-agent-in-the-browser) for each role's next action.
 
-Authoring can find a known exact canonical identifier beyond the displayed page and combine it with the Resource kind filter. Follow [Find an existing resource](resource-authoring.mdx#find-an-existing-resource) for matching and cursor rules. Reviews display independently authorized resource identifiers and exact submitted listing names; unavailable context leaves the submission ID/state queue usable.
+Authoring can find a known exact canonical identifier beyond the displayed page and combine it with the Resource kind filter. Follow [Find an existing resource](resource-authoring.mdx#find-an-existing-resource) for matching and cursor rules. Use its **Validation maintenance** link to [find current evidence needing attention](resource-authoring.mdx#find-validation-evidence-needing-attention), then inspect and explicitly renew one exact revision. Reading or refreshing this list never runs validation. Reviews display independently authorized resource identifiers and exact submitted listing names; unavailable context leaves the submission ID/state queue usable.
 
 Select a column heading to sort the table. Select the same heading again to reverse its order.
 
@@ -443,7 +443,9 @@ Large summary collections show an explicit limit and retain their complete decla
 
 ### Inspect shared definitions
 
-Choose **Browse definitions**, or follow an operation's View button. Use **Search definitions** to search names and descriptions across the complete index. **Component kind** narrows the results. Each page groups up to 25 definitions by kind; use First, Previous and Next definitions for other matches. The index scrolls independently and accepts keyboard focus. Clear definition filters resets its search, kind and page.
+Choose **Browse definitions**, or follow an operation's View button. Use **Search definitions** to search names and descriptions across the complete index. **Component kind** narrows the results. Each page groups up to 25 definitions by kind; use First, Previous and Next definitions for other matches.
+
+On desktop, the index scrolls independently and accepts keyboard focus. Small screens use page scrolling so enlarged labels and controls remain readable. Clear definition filters resets its search, kind and page.
 
 Choose an Open button or the page's **Schema or shared definition** selector. The selected detail stays available when index criteria or pages exclude it. A notice explains that separation. Following an exact reference does not reset the index search or substitute a different definition. Additional component kinds retain their exact names and complete data.
 
@@ -791,4 +793,10 @@ Collection detail shows current readable entries and their source ownership. Ref
 
 Administrators can use [custom roles and namespace assignments](access-management.mdx#create-a-custom-role-with-explicit-read-companions) for narrower access. A collection-only reader can see shared text without seeing its targets. An owner-namespace management grant still requires separate read access before adding a target from another namespace. Reload after an access change to update the visible controls and entries.
 
-**Refresh current entries** updates member results without discarding an unfinished text edit. Use **Reload collection** to read the latest metadata and parent revision; it asks before discarding an unsaved edit. Stale revisions require that fresh metadata read before another edit. A stale member cursor requires starting from the first page. If a command outcome is uncertain, use the offered exact-command retry or reconcile the result before preparing another command. See [the limits and disclosure rules](./concepts.md#curate-a-shared-collection) before sharing collection text.
+Use **Search collection entries** and **Resource kinds**, then **Apply filters**, to select matching released names and descriptions within this collection. The controls stage edits until Apply. Selecting several kinds matches any of them, combined with the text. **Clear filters** restores ordinary browsing. These filters use [whole-word matching](concepts.md#curate-a-shared-collection), preserve Listing-ID order and do not alter membership.
+
+**Refresh current entries** reloads the applied selection. Pending filters and unsaved collection metadata stay unchanged. A stale member cursor requires an explicit refresh from the first page.
+
+Use **Reload collection** to read the latest metadata and parent revision. It asks before discarding an unsaved metadata edit. Stale revisions require this fresh metadata read before another edit.
+
+If a command outcome is uncertain, use the offered exact-command retry or reconcile the result before preparing another command. See [the limits and disclosure rules](./concepts.md#curate-a-shared-collection) before sharing collection text.

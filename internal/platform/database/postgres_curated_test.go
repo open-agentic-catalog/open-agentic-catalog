@@ -174,7 +174,7 @@ func TestPostgresCuratedListFailuresDiscardPartialRows(t *testing.T) {
 }
 
 func TestPostgresCuratedMemberSnapshotAndFailures(t *testing.T) {
-	for _, mode := range []string{"binding", "empty", "stale revision", "stale generation", "negative", "over limit", "parent", "generation", "query", "scan", "iteration", "hydration"} {
+	for _, mode := range []string{"binding", "empty", "filtered", "invalid text", "invalid kind", "stale revision", "stale generation", "negative", "over limit", "parent", "generation", "query", "scan", "iteration", "hydration"} {
 		t.Run(mode, func(t *testing.T) {
 			item := curatedStorageItem()
 			rows := &identityScriptedRows{}
@@ -185,6 +185,15 @@ func TestPostgresCuratedMemberSnapshotAndFailures(t *testing.T) {
 			switch mode {
 			case "binding":
 				q.Limit = 0
+			case "filtered":
+				q.Text = " INVOICE café "
+				q.Kinds = []catalog.Kind{catalog.KindSkill, catalog.KindAgent, catalog.KindSkill}
+			case "invalid text":
+				q.Text = "bad\x00text"
+				code = catalog.CodeInvalidArgument
+			case "invalid kind":
+				q.Kinds = []catalog.Kind{"unknown"}
+				code = catalog.CodeInvalidArgument
 			case "stale revision":
 				q.Revision++
 				code = catalog.CodeInvalidArgument
@@ -214,14 +223,19 @@ func TestPostgresCuratedMemberSnapshotAndFailures(t *testing.T) {
 				tx.queryResults = append(tx.queryResults, identityQueryResult{err: errors.New("summary failed")})
 			}
 			got, err := store.Members(ctx, a, item.ID, q)
-			if mode == "binding" || mode == "empty" {
+			if mode == "binding" || mode == "empty" || mode == "filtered" {
 				if err != nil || got.Collection != item || got.Generation != "7" || got.Items == nil || len(got.Items) != 0 {
 					t.Fatalf("snapshot = %+v, %v", got, err)
 				}
 				if mode == "binding" && len(tx.queryStatements) != 0 {
 					t.Fatal("binding-only read selected members")
 				}
-				if mode == "empty" && (!rows.closed || !reflect.DeepEqual(tx.queryArguments[0], []any{a.TenantID, item.ID, q.AfterID, q.Limit})) {
+				expected := []any{a.TenantID, item.ID, q.AfterID, q.Limit, "", []string{}}
+				if mode == "filtered" {
+					expected[4] = "invoice café"
+					expected[5] = []string{"agent", "skill"}
+				}
+				if (mode == "empty" || mode == "filtered") && (!rows.closed || !reflect.DeepEqual(tx.queryArguments[0], expected)) {
 					t.Fatalf("member bindings = %v, closed=%v", tx.queryArguments, rows.closed)
 				}
 				return

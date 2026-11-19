@@ -62,6 +62,9 @@ from catalog_sdk.generated.models.review_submission import ReviewSubmission
 from catalog_sdk.generated.models.revision_evidence_envelope import (
     RevisionEvidenceEnvelope,
 )
+from catalog_sdk.generated.models.validation_maintenance_page import (
+    ValidationMaintenancePage,
+)
 from catalog_sdk.generated.models.version_evidence_envelope import (
     VersionEvidenceEnvelope,
 )
@@ -10413,6 +10416,483 @@ class CatalogLifecycleApi:
         return self.api_client.param_serialize(
             method="GET",
             resource_path="/api/v1/review-submissions",
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_validation_maintenance(
+        self,
+        state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows."
+            ),
+        ] = None,
+        horizon_hours: Annotated[
+            Optional[Annotated[int, Field(le=168, strict=True, ge=1)]],
+            Field(
+                description="Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry."
+            ),
+        ] = None,
+        limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ValidationMaintenancePage:
+        """Find current validation evidence needing attention
+
+        Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+
+        :param state: Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows.
+        :type state: str
+        :param horizon_hours: Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry.
+        :type horizon_hours: int
+        :param limit:
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_validation_maintenance_serialize(
+            state=state,
+            horizon_hours=horizon_hours,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ValidationMaintenancePage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_validation_maintenance_with_http_info(
+        self,
+        state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows."
+            ),
+        ] = None,
+        horizon_hours: Annotated[
+            Optional[Annotated[int, Field(le=168, strict=True, ge=1)]],
+            Field(
+                description="Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry."
+            ),
+        ] = None,
+        limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ValidationMaintenancePage]:
+        """Find current validation evidence needing attention
+
+        Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+
+        :param state: Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows.
+        :type state: str
+        :param horizon_hours: Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry.
+        :type horizon_hours: int
+        :param limit:
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_validation_maintenance_serialize(
+            state=state,
+            horizon_hours=horizon_hours,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ValidationMaintenancePage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_validation_maintenance_without_preload_content(
+        self,
+        state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows."
+            ),
+        ] = None,
+        horizon_hours: Annotated[
+            Optional[Annotated[int, Field(le=168, strict=True, ge=1)]],
+            Field(
+                description="Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry."
+            ),
+        ] = None,
+        limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Find current validation evidence needing attention
+
+        Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+
+        :param state: Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows.
+        :type state: str
+        :param horizon_hours: Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry.
+        :type horizon_hours: int
+        :param limit:
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_validation_maintenance_serialize(
+            state=state,
+            horizon_hours=horizon_hours,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ValidationMaintenancePage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_validation_maintenance_sync(
+        self,
+        state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows."
+            ),
+        ] = None,
+        horizon_hours: Annotated[
+            Optional[Annotated[int, Field(le=168, strict=True, ge=1)]],
+            Field(
+                description="Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry."
+            ),
+        ] = None,
+        limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ValidationMaintenancePage:
+        """Find current validation evidence needing attention (synchronous)
+
+        Synchronous variant of :meth:`list_validation_maintenance`. It calls the asynchronous
+        method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_validation_maintenance(
+                state=state,
+                horizon_hours=horizon_hours,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_validation_maintenance_sync_with_http_info(
+        self,
+        state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows."
+            ),
+        ] = None,
+        horizon_hours: Annotated[
+            Optional[Annotated[int, Field(le=168, strict=True, ge=1)]],
+            Field(
+                description="Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry."
+            ),
+        ] = None,
+        limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ValidationMaintenancePage]:
+        """Find current validation evidence needing attention (synchronous)
+
+        Synchronous variant of :meth:`list_validation_maintenance_with_http_info`. It calls the
+        asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_validation_maintenance_with_http_info(
+                state=state,
+                horizon_hours=horizon_hours,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_validation_maintenance_sync_without_preload_content(
+        self,
+        state: Annotated[
+            Optional[StrictStr],
+            Field(
+                description="Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows."
+            ),
+        ] = None,
+        horizon_hours: Annotated[
+            Optional[Annotated[int, Field(le=168, strict=True, ge=1)]],
+            Field(
+                description="Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry."
+            ),
+        ] = None,
+        limit: Optional[Annotated[int, Field(le=100, strict=True, ge=1)]] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Find current validation evidence needing attention (synchronous)
+
+        Synchronous variant of :meth:`list_validation_maintenance_without_preload_content`. It calls
+        the asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_validation_maintenance_without_preload_content(
+                state=state,
+                horizon_hours=horizon_hours,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    def _list_validation_maintenance_serialize(
+        self,
+        state,
+        horizon_hours,
+        limit,
+        cursor,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {}
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        # process the query parameters
+        if state is not None:
+            _query_params.append(("state", state))
+
+        if horizon_hours is not None:
+            _query_params.append(("horizonHours", horizon_hours))
+
+        if limit is not None:
+            _query_params.append(("limit", limit))
+
+        if cursor is not None:
+            _query_params.append(("cursor", cursor))
+
+        # process the header parameters
+        # process the form parameters
+        # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json", "application/problem+json"]
+            )
+
+        # authentication setting
+        _auth_settings: List[str] = ["bearerAuth"]
+
+        return self.api_client.param_serialize(
+            method="GET",
+            resource_path="/api/v1/validation-maintenance",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

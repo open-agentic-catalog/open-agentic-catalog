@@ -374,6 +374,12 @@ from catalog_sdk.generated.models.membership_page import MembershipPage
 from catalog_sdk.generated.models.namespace import Namespace
 from catalog_sdk.generated.models.namespace_access import NamespaceAccess
 from catalog_sdk.generated.models.namespace_page import NamespacePage
+from catalog_sdk.generated.models.native_capabilities_filter import (
+    NativeCapabilitiesFilter,
+)
+from catalog_sdk.generated.models.native_capabilities_filter_not import (
+    NativeCapabilitiesFilterNot,
+)
 from catalog_sdk.generated.models.nesting_policy import NestingPolicy
 from catalog_sdk.generated.models.oci_handoff_reference import OCIHandoffReference
 from catalog_sdk.generated.models.observation import Observation
@@ -616,6 +622,12 @@ from catalog_sdk.generated.models.trust_evidence_bundle import TrustEvidenceBund
 from catalog_sdk.generated.models.trust_summary import TrustSummary
 from catalog_sdk.generated.models.update_collection import UpdateCollection
 from catalog_sdk.generated.models.update_source import UpdateSource
+from catalog_sdk.generated.models.validation_maintenance_item import (
+    ValidationMaintenanceItem,
+)
+from catalog_sdk.generated.models.validation_maintenance_page import (
+    ValidationMaintenancePage,
+)
 from catalog_sdk.generated.models.version_adoption_target import VersionAdoptionTarget
 from catalog_sdk.generated.models.version_evidence_envelope import (
     VersionEvidenceEnvelope,

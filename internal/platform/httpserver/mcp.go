@@ -12,8 +12,7 @@ import (
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
-	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jsondoc"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/authn"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/catalogmcp"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
@@ -26,6 +25,7 @@ const mcpMetadataPath = "/.well-known/oauth-protected-resource/mcp"
 // mcpHTTP owns finite HTTP requests. SDK sessions are ephemeral; identities,
 // tokens and cancellation are never shared across requests.
 type mcpHTTP struct {
+	discovery                     *ardMCPBinding
 	reader                        catalogmcp.Reader
 	authenticator                 authn.Authenticator
 	settings                      config.MCP
@@ -66,7 +66,7 @@ func (h *mcpHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
-	if r.URL.Path == mcpMetadataPath {
+	if r.URL.Path == h.metadataEndpoint() {
 		if h.metadata(w, r) {
 			outcome = "completed"
 		}
@@ -89,36 +89,11 @@ func (h *mcpHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
 	r = r.WithContext(ctx)
-	token, ok := mcpBearer(r.Header.Get("Authorization"))
-	if !ok {
-		h.challenge(w, "")
-		writeMCPError(w, 401, nil, -32600, "A Bearer token is required.")
+	ctx, actor, token, denied := h.authenticateMCP(w, r, ctx)
+	if denied != "" {
+		outcome = denied
 		return
 	}
-	authContext, endAuth := catalog.StartTrace(ctx, "authentication", catalog.TraceInternal, "")
-	actor, err := h.authenticator.Authenticate(authContext, token)
-	if err != nil {
-		if ctx.Err() != nil {
-			endAuth("5xx")
-			outcome = "cancelled"
-			writeMCPError(w, 503, nil, -32603, "Authentication was cancelled or its deadline expired.")
-			return
-		}
-		failure := authenticationFailure(err)
-		if catalog.ErrorCodeOf(failure) == catalog.CodeDependencyUnavailable {
-			endAuth("5xx")
-			h.dependencyWarning.Warn(time.Now(), h.logger, "MCP authentication is temporarily unavailable", "event", "mcp.authentication_unavailable", "component", "api", "request_id", requestID(ctx))
-			outcome = "failed"
-			writeMCPError(w, 503, nil, -32603, "Catalog authentication is temporarily unavailable.")
-		} else {
-			endAuth("4xx")
-			h.challenge(w, "invalid_token")
-			writeMCPError(w, 401, nil, -32600, "The Bearer token was rejected.")
-		}
-		return
-	}
-	endAuth("ok")
-	ctx = identity.WithPermissionContext(identity.WithActor(ctx, actor))
 	r = r.WithContext(ctx)
 	raw, err := io.ReadAll(io.LimitReader(r.Body, h.maxBody+1))
 	if err != nil {
@@ -129,6 +104,7 @@ func (h *mcpHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeMCPError(w, 413, nil, -32600, "The request body exceeds the MCP limit.")
 		return
 	}
+
 	admission, status, code := admitMCP(r, raw)
 	if admission.ID != nil && reflectsCredential(admission.ID, token) {
 		writeMCPError(w, 400, nil, -32600, "The request identifier is not safe to return.")
@@ -138,13 +114,20 @@ func (h *mcpHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeMCPError(w, status, admission.ID, code, "The MCP request is invalid or unsupported.")
 		return
 	}
+	if h.discovery != nil {
+		var closed mcpAdmission
+		if jsondoc.Decode(raw, &closed) != nil {
+			writeMCPError(w, 400, admission.ID, -32600, "The MCP envelope is invalid.")
+			return
+		}
+	}
 	operation = admission.operation()
 	if !normalizeMCPName(r) {
 		writeMCPError(w, 400, admission.ID, mcp.CodeHeaderMismatch, "The MCP name header is invalid.")
 		return
 	}
 	var scopeDenied, toolFailed, panicked atomic.Bool
-	server := catalogmcp.NewServer(h.version, func(_ context.Context, call *mcp.CallToolRequest) (result *mcp.CallToolResult, err error) {
+	callback := func(_ context.Context, call *mcp.CallToolRequest) (result *mcp.CallToolResult, err error) {
 		// The legacy SDK handler context is detached from the HTTP request. Always
 		// use this request's authenticated, cancellable context for application reads.
 		defer func() {
@@ -154,6 +137,11 @@ func (h *mcpHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				err = nil
 			}
 		}()
+		if h.discovery != nil {
+			result = h.callARD(ctx, call, token)
+			toolFailed.Store(result.IsError)
+			return result, nil
+		}
 		if h.enforceScopes && mcpResourceTool(call.Params.Name) && actor.Claims["scope:catalog.read"] != "true" {
 			scopeDenied.Store(true)
 			return mcpToolFailure("The catalog.read scope is required."), nil
@@ -161,8 +149,17 @@ func (h *mcpHTTP) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		result = catalogmcp.Call(ctx, h.reader, call, h.version, h.settings.MaxToolBytes, token)
 		toolFailed.Store(result.IsError)
 		return result, nil
-	}, []string{"2026-07-28", "2025-11-25"})
-	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, PropagateRequestCancellation: true, MaxRequestBodyBytes: h.maxBody, Logger: slog.New(slog.DiscardHandler)})
+	}
+	var server *mcp.Server
+	if h.discovery != nil {
+		server = newARDMCPServer(h.version, callback)
+	} else {
+		server = catalogmcp.NewServer(h.version, callback, []string{"2026-07-28", "2025-11-25"})
+	}
+	// ARD already enforces an exact configured Host and Origin before reaching
+	// the SDK. That admission also covers DNS hosts behind a loopback TLS proxy.
+	// Control MCP retains the SDK's additional generic localhost protection.
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, &mcp.StreamableHTTPOptions{Stateless: true, JSONResponse: true, PropagateRequestCancellation: true, MaxRequestBodyBytes: h.maxBody, DisableLocalhostProtection: h.discovery != nil, Logger: slog.New(slog.DiscardHandler)})
 	capture := newMCPResponse(h.settings.MaxToolBytes + catalogmcp.MaxFrameBytes)
 	r.Body = io.NopCloser(bytes.NewReader(raw))
 	handler.ServeHTTP(capture, r)
@@ -220,7 +217,7 @@ func mcpBearer(header string) (string, bool) {
 func (h *mcpHTTP) challenge(w http.ResponseWriter, reason string) {
 	value := `Bearer realm="open-agentic-catalog"`
 	if h.issuer != "" {
-		value += `, resource_metadata="` + h.publicOrigin + mcpMetadataPath + `"`
+		value += `, resource_metadata="` + h.publicOrigin + h.metadataEndpoint() + `"`
 	}
 	if reason != "" {
 		value += `, error="` + reason + `"`
@@ -232,7 +229,7 @@ func (h *mcpHTTP) challenge(w http.ResponseWriter, reason string) {
 }
 func (h *mcpHTTP) metadata(w http.ResponseWriter, r *http.Request) bool {
 	if h.issuer == "" {
-		writeMCPError(w, 404, nil, -32601, "OAuth resource metadata is unavailable in development mode.")
+		writeMCPError(w, 404, nil, -32601, "OAuth resource metadata is unavailable for this endpoint.")
 		return false
 	}
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -250,7 +247,7 @@ func (h *mcpHTTP) metadata(w http.ResponseWriter, r *http.Request) bool {
 		AuthorizationServers   []string `json:"authorization_servers"`
 		ScopesSupported        []string `json:"scopes_supported"`
 		BearerMethodsSupported []string `json:"bearer_methods_supported"`
-	}{h.publicOrigin + "/mcp", []string{h.issuer}, []string{"catalog.read"}, []string{"header"}}); err != nil {
+	}{h.publicOrigin + h.endpoint(), []string{h.issuer}, []string{"catalog.read"}, []string{"header"}}); err != nil {
 		return false
 	}
 	return true

@@ -45,6 +45,9 @@ const TrustAssessment = lazy(() => import("../views/TrustAssessment"));
 const Service = lazy(() => import("../views/Service"));
 const Resources = lazy(() => import("../views/Resources"));
 const Versions = lazy(() => import("../views/Versions"));
+const ValidationMaintenance = lazy(
+  () => import("../views/ValidationMaintenance"),
+);
 const VersionRevision = lazy(() =>
   import("../views/Versions").then((m) => ({ default: m.VersionRevision })),
 );
@@ -96,6 +99,7 @@ const FederationSearch = lazy(() =>
 const authoringScreens = {
   resources: Resources,
   versions: Versions,
+  "validation-maintenance": ValidationMaintenance,
   "version-revisions": VersionRevision,
   listings: Listings,
   "listing-revisions": ListingRevision,

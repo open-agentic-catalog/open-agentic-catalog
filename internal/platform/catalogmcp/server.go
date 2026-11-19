@@ -199,7 +199,7 @@ func toolRequest(name string, raw json.RawMessage) (selection, error) {
 		return selected, nil
 	case "catalog_control_search":
 		q := controlclient.Search{Limit: 25}
-		if jsondoc.Decode(raw, &q) != nil {
+		if jsondoc.Decode(raw, &q) != nil || q.NativeCapabilities != nil {
 			return selected, bad
 		}
 		// Omission selects defaults; explicitly empty UUID/enum values do not.

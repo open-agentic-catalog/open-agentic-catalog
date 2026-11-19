@@ -1094,3 +1094,60 @@ it("stages MCP declarations with local scope, rejects blank applied text, and al
     expect.objectContaining({ includeMcpTools: false }),
   );
 });
+
+it("stages declared false, locks origins, refuses mixed families and clears without submitting", () => {
+  const apply = vi.fn();
+  const view = render(
+    <SearchFilters value={{}} tags={[]} publishers={[]} onApply={apply} />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+  fireEvent.click(screen.getByText("Agent declarations", { exact: true }));
+  fireEvent.change(screen.getByLabelText("Agent streaming declaration"), {
+    target: { value: "false" },
+  });
+  expect(apply).not.toHaveBeenCalled();
+  expect(
+    (
+      screen.getByRole("checkbox", {
+        name: "Live external",
+      }) as HTMLInputElement
+    ).disabled,
+  ).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  expect(apply).toHaveBeenCalledWith(
+    expect.objectContaining({
+      nativeCapabilities: { agentStreaming: false },
+      origins: ["local"],
+    }),
+  );
+  view.rerender(
+    <SearchFilters
+      value={{
+        nativeCapabilities: { agentStreaming: false },
+        origins: ["local"],
+      }}
+      tags={[]}
+      publishers={[]}
+      onApply={apply}
+    />,
+  );
+  fireEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+  fireEvent.click(screen.getByText("MCP server declarations", { exact: true }));
+  fireEvent.click(screen.getByRole("button", { name: "Add transport" }));
+  fireEvent.change(screen.getByLabelText("Transport 1", { exact: true }), {
+    target: { value: "sse" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  expect(apply).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("alert").textContent).toContain("one card kind");
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Clear declared capabilities",
+    }),
+  );
+  expect(apply).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  expect(apply).toHaveBeenLastCalledWith(
+    expect.objectContaining({ nativeCapabilities: undefined }),
+  );
+});

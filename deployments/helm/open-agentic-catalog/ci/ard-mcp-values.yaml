@@ -1,0 +1,12 @@
+# Render-only ARD MCP example. Existing tenant and matching TLS Secret required.
+api:
+  ingress:
+    enabled: true
+    className: nginx
+    host: discovery.example.com
+    tlsSecretName: discovery-mcp-tls
+configEnv:
+  CATALOG_MCP_ENABLED: "false"
+  CATALOG_DISCOVERY_HOSTS: '[{"host":"discovery.example.com","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"catalog.example.com","mcpEnabled":true}]'
+  CATALOG_MCP_MAX_TOOL_BYTES: "16384"
+  CATALOG_MCP_MAX_CONCURRENCY: "2"

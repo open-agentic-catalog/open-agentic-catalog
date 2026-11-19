@@ -852,7 +852,20 @@ Use `GET/POST /api/v1/collections/{collectionId}/members` and `DELETE /api/v1/co
 
 A manager in namespace A can add an eligible Listing from B when independently permitted to read B. Member reads return existing Catalog summaries for the current published/deprecated release, not documents or execution authority. All four SDKs expose the new generated operations. This slice adds no catalogctl, Catalog MCP or VS Code collection workflow.
 
-Directory reads support an exact namespaceId filter. Both directories and member lists use bounded items/nextCursor pages, default 20 and maximum 100. Member continuations bind current policy, collection revision and target release generation; restart a refused continuation. Member pages are no-store and do not support a metadata-revision-only 304. See [shared collection limits](./concepts.md#curate-a-shared-collection) for retained hidden members and the disclosure tradeoffs.
+Directory reads support an exact namespaceId filter. Both directories and member lists use bounded items/nextCursor pages, default 20 and maximum 100. Member continuations bind current policy, collection revision, target release generation, normalized filters and page size; restart a refused continuation. Member pages are no-store and do not support a metadata-revision-only 304. See [shared collection limits](./concepts.md#curate-a-shared-collection) for retained hidden members and the disclosure tradeoffs.
+
+Filter member reads with optional `text` and `kinds` query parameters:
+
+```http
+GET /api/v1/collections/{collectionId}/members?text=invoice%20caf%C3%A9&kinds=agent,mcp_server&limit=20
+Authorization: Bearer <your-token>
+```
+
+`text` permits 256 Unicode code points before normalization. It uses the [collection whole-word matching rules](concepts.md#curate-a-shared-collection) over released names and descriptions. Send `kinds` as **one comma-separated parameter**, with one to four values from `agent`, `mcp_server`, `skill`, `plugin`. Duplicates are removed and order is canonicalized. Kind selection is OR; text and kinds intersect.
+
+Omit an optional filter to clear it; whitespace-only text or an empty scalar `kinds=` also means unrestricted browsing. Typed SDK clients should omit the kinds array when none are selected. Repeated parameters, bracket or JSON-array encodings, empty array elements and invalid kinds are rejected.
+
+For continuation, send `nextCursor` with the same normalized text, kind set and page size. Text case and whitespace are normalized; kind order and duplicates do not change the selection. If access, the collection revision or released entries change, restart explicitly from the first page. Filtering happens before the limit, preserving Listing-ID order; it does not search the global Catalog, rank results, fetch documents or expose hidden counts.
 
 For example, create a collection in a namespace you manage:
 
