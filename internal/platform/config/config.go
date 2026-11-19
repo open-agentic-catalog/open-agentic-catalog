@@ -218,6 +218,7 @@ type DiscoveryHost struct {
 	TenantID        string `json:"tenantId"`
 	Mode            string `json:"mode"`
 	PublisherDomain string `json:"publisherDomain"`
+	MCPEnabled      bool   `json:"mcpEnabled,omitempty"`
 }
 
 type Publication struct {

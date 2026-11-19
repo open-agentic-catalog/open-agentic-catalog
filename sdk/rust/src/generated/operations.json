@@ -193,6 +193,32 @@
   },
   {
     "consumption": "buffered",
+    "method": "call_ard_publication_mcp",
+    "operation_id": "callARDPublicationMCP",
+    "response_excluded_statuses": [
+      "202",
+      "400",
+      "401",
+      "403",
+      "404",
+      "413",
+      "415",
+      "500",
+      "503"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1ard~1v1~1mcp/post",
+    "source_method": "POST",
+    "source_operation_id": "callARDPublicationMCP",
+    "source_path": "/ard/v1/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "call_catalog_mcp",
     "operation_id": "callCatalogMCP",
     "response_excluded_statuses": [
@@ -755,6 +781,26 @@
     "source_method": "GET",
     "source_operation_id": "getARDManifest",
     "source_path": "/.well-known/ard.json",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "get_ardmcpo_auth_metadata",
+    "operation_id": "getARDMCPOAuthMetadata",
+    "response_excluded_statuses": [
+      "400",
+      "403",
+      "404"
+    ],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1.well-known~1oauth-protected-resource~1ard~1v1~1mcp/get",
+    "source_method": "GET",
+    "source_operation_id": "getARDMCPOAuthMetadata",
+    "source_path": "/.well-known/oauth-protected-resource/ard/v1/mcp",
     "webhook": false
   },
   {
@@ -1801,6 +1847,25 @@
   },
   {
     "consumption": "buffered",
+    "method": "head_ardmcpo_auth_metadata",
+    "operation_id": "headARDMCPOAuthMetadata",
+    "response_excluded_statuses": [
+      "403",
+      "404"
+    ],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1.well-known~1oauth-protected-resource~1ard~1v1~1mcp/head",
+    "source_method": "HEAD",
+    "source_operation_id": "headARDMCPOAuthMetadata",
+    "source_path": "/.well-known/oauth-protected-resource/ard/v1/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "head_catalog_mcpo_auth_metadata",
     "operation_id": "headCatalogMCPOAuthMetadata",
     "response_excluded_statuses": [
@@ -2540,6 +2605,46 @@
   },
   {
     "consumption": "buffered",
+    "method": "preflight_ard_publication_mcp",
+    "operation_id": "preflightARDPublicationMCP",
+    "response_excluded_statuses": [
+      "400",
+      "403",
+      "404"
+    ],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "204"
+    ],
+    "source_json_pointer": "/paths/~1ard~1v1~1mcp/options",
+    "source_method": "OPTIONS",
+    "source_operation_id": "preflightARDPublicationMCP",
+    "source_path": "/ard/v1/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "preflight_ard_publication_mcpo_auth_metadata",
+    "operation_id": "preflightARDPublicationMCPOAuthMetadata",
+    "response_excluded_statuses": [
+      "400",
+      "403",
+      "404"
+    ],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [
+      "204"
+    ],
+    "source_json_pointer": "/paths/~1.well-known~1oauth-protected-resource~1ard~1v1~1mcp/options",
+    "source_method": "OPTIONS",
+    "source_operation_id": "preflightARDPublicationMCPOAuthMetadata",
+    "source_path": "/.well-known/oauth-protected-resource/ard/v1/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "preflight_catalog_mcp",
     "operation_id": "preflightCatalogMCP",
     "response_excluded_statuses": [
@@ -2704,6 +2809,34 @@
     "source_method": "POST",
     "source_operation_id": "readRating",
     "source_path": "/api/v1/ratings/read",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "refuse_ard_publication_mcp_session_deletion",
+    "operation_id": "refuseARDPublicationMCPSessionDeletion",
+    "response_excluded_statuses": [],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [],
+    "source_json_pointer": "/paths/~1ard~1v1~1mcp/delete",
+    "source_method": "DELETE",
+    "source_operation_id": "refuseARDPublicationMCPSessionDeletion",
+    "source_path": "/ard/v1/mcp",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
+    "method": "refuse_ard_publication_mcp_stream",
+    "operation_id": "refuseARDPublicationMCPStream",
+    "response_excluded_statuses": [],
+    "response_kind": "empty",
+    "response_media_type": null,
+    "response_statuses": [],
+    "source_json_pointer": "/paths/~1ard~1v1~1mcp/get",
+    "source_method": "GET",
+    "source_operation_id": "refuseARDPublicationMCPStream",
+    "source_path": "/ard/v1/mcp",
     "webhook": false
   },
   {

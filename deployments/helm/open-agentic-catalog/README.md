@@ -442,11 +442,15 @@ configEnv:
   CATALOG_MCP_ALLOWED_ORIGINS: '["https://assistant.example.com"]'
 ```
 
-Provide the TLS Secret and an ingress controller in your deployment. The chart installs neither. Set the ingress host to the HTTPS public origin without a port, path, query or credentials. The chart rejects a disabled MCP endpoint, mismatched host, missing TLS Secret name, and rewrite or configuration-snippet annotations.
+Provide the TLS Secret and an ingress controller in your deployment. The chart installs neither. Set the ingress host to the HTTPS public origin without a port, path, query or credentials. The chart rejects a host with neither interface enabled, missing TLS Secret name, and rewrite or configuration-snippet annotations.
+
+For ARD publication MCP, supply the full `CATALOG_DISCOVERY_HOSTS` array with `mcpEnabled: true` on the intended anonymous or authenticated host. Set `api.ingress.host` to that host. Control MCP can stay disabled. The chart routes `/ard/v1/mcp` and `/.well-known/oauth-protected-resource/ard/v1/mcp` with `Exact` paths. When the same host enables both interfaces, it routes all four paths. Global MCP limits apply to both. A matching TLS certificate, existing tenant and active publication are still required.
+
+ARD discovery rejects forwarded authority fields. Preserve Host and strip `Forwarded`, `X-Forwarded-Host` and `X-Original-Host` before proxying. This ingress supplies routing, not trusted-proxy configuration. See [ARD MCP setup](../../../documentation/src/content/docs/guides/mcp-server.mdx#search-an-ard-publication-over-mcp).
 
 An external cert-manager Certificate can manage `api.ingress.tlsSecretName`. Keep its Issuer, Certificate and controllers outside this release. Verify both Secret keys before starting the consumer and check renewal through a fresh TLS connection. See [MCP ingress certificates](../../../documentation/src/content/docs/operations/deployment.mdx#optional-mcp-ingress-certificates) for local setup, independent client trust, manual renewal, issuer recovery and scoped cleanup.
 
-Both `/mcp` and `/.well-known/oauth-protected-resource/mcp` use `Exact` paths. No Control API, worker operations or UI route is added. Preserve Host, Origin, Authorization and MCP headers. Do not strip or rewrite either path. Configure edge rate limits and TLS policy in your controller. If you already manage ingress, leave this option disabled and route these two paths there.
+For Control MCP, both `/mcp` and `/.well-known/oauth-protected-resource/mcp` use `Exact` paths. No Control API, worker operations or UI route is added. Preserve Host, Origin, Authorization and MCP headers. Do not strip or rewrite either path. Configure edge rate limits and TLS policy in your controller. If you already manage ingress, leave this option disabled and route these two paths there.
 
 If your policies isolate the API, permit controller traffic to its TCP port 8080. Preserve required API access to DNS, PostgreSQL and the configured issuer. This option does not create backend network policies.
 

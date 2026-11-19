@@ -665,6 +665,18 @@ pub enum BrowseCatalogApiError {
 pub enum BuildPublicationSnapshotApiError {
     Default(Problem),
 }
+///Typed error responses for `callARDPublicationMCP`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum CallArdPublicationMcpApiError {
+    Status400(MCPReply),
+    Status401(MCPReply),
+    Status403(MCPReply),
+    Status404(MCPReply),
+    Status413(MCPReply),
+    Status415(MCPReply),
+    Status500(MCPReply),
+    Status503(MCPReply),
+}
 ///Typed error responses for `callCatalogMCP`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum CallCatalogMcpApiError {
@@ -829,6 +841,13 @@ pub enum GetAiCatalogApiError {
     Status403(ARDError),
     Status404(ARDError),
     Status503(ARDError),
+}
+///Typed error responses for `getARDMCPOAuthMetadata`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum GetArdmcpoAuthMetadataApiError {
+    Status400(MCPReply),
+    Status403(MCPReply),
+    Status404(MCPReply),
 }
 ///Typed error responses for `getARDManifest`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
@@ -1144,6 +1163,12 @@ pub enum GrantAccessAssignmentApiError {
 pub enum GrantRoleAssignmentApiError {
     Default(Problem),
 }
+///Typed error responses for `headARDMCPOAuthMetadata`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum HeadArdmcpoAuthMetadataApiError {
+    Status403(MCPReply),
+    Status404(MCPReply),
+}
 ///Typed error responses for `headCatalogMCPOAuthMetadata`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum HeadCatalogMcpoAuthMetadataApiError {
@@ -1375,6 +1400,20 @@ pub enum PauseFederationSourceApiError {
 pub enum PermitRatingApiError {
     Default(Problem),
 }
+///Typed error responses for `preflightARDPublicationMCP`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum PreflightArdPublicationMcpApiError {
+    Status400(MCPReply),
+    Status403(MCPReply),
+    Status404(MCPReply),
+}
+///Typed error responses for `preflightARDPublicationMCPOAuthMetadata`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum PreflightArdPublicationMcpoAuthMetadataApiError {
+    Status400(MCPReply),
+    Status403(MCPReply),
+    Status404(MCPReply),
+}
 ///Typed error responses for `preflightCatalogMCP`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum PreflightCatalogMcpApiError {
@@ -1423,6 +1462,21 @@ pub enum ReadArtworkApiError {
 #[derive(Debug, Clone)]
 pub enum ReadRatingApiError {
     Default(Problem),
+}
+///Typed error responses for `refuseARDPublicationMCPSessionDeletion`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum RefuseArdPublicationMcpSessionDeletionApiError {
+    Status400(MCPReply),
+    Status403(MCPReply),
+    Status404(MCPReply),
+    Status405(MCPReply),
+}
+///Typed error responses for `refuseARDPublicationMCPStream`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum RefuseArdPublicationMcpStreamApiError {
+    Status403(MCPReply),
+    Status404(MCPReply),
+    Status405(MCPReply),
 }
 ///Typed error responses for `refuseCatalogMCPSessionDeletion`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
@@ -2663,6 +2717,167 @@ impl Client {
                         parse_error = Some(e.to_string());
                     }
                 },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Search the active host-bound ARD publication through MCP
+    ///
+    /// Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+    ///
+    /// `POST /ard/v1/mcp`
+    pub async fn call_ard_publication_mcp(
+        &self,
+        mcp_protocol_version: Option<impl AsRef<str>>,
+        mcp_method: Option<impl AsRef<str>>,
+        mcp_name: Option<impl AsRef<str>>,
+        origin: Option<impl AsRef<str>>,
+        request: MCPRequest,
+    ) -> Result<Response<MCPReply>, ApiOpError<CallArdPublicationMcpApiError>> {
+        let request_url = format!("{}{}", self.base_url, "/ard/v1/mcp");
+        let mut req = self.http_client.post(request_url);
+        req = req
+            .body(serde_json::to_vec(&request).map_err(HttpError::serialization_error)?)
+            .header("content-type", "application/json");
+        if let Some(v) = mcp_protocol_version {
+            req = req.header("MCP-Protocol-Version", v.as_ref());
+        }
+        if let Some(v) = mcp_method {
+            req = req.header("MCP-Method", v.as_ref());
+        }
+        if let Some(v) = mcp_name {
+            req = req.header("MCP-Name", v.as_ref());
+        }
+        if let Some(v) = origin {
+            req = req.header("Origin", v.as_ref());
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<CallArdPublicationMcpApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                400u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CallArdPublicationMcpApiError::Status400(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                401u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CallArdPublicationMcpApiError::Status401(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                403u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CallArdPublicationMcpApiError::Status403(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                404u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CallArdPublicationMcpApiError::Status404(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                413u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CallArdPublicationMcpApiError::Status413(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                415u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CallArdPublicationMcpApiError::Status415(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                500u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CallArdPublicationMcpApiError::Status500(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                503u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(CallArdPublicationMcpApiError::Status503(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                _ => {
+                    typed = None;
+                    parse_error = None;
+                }
             }
             Err(ApiOpError::api(ApiError {
                 status: status_code,
@@ -5174,6 +5389,100 @@ impl Client {
                 503u16 => match serde_json::from_slice::<ARDError>(&raw_body) {
                     Ok(v) => {
                         typed = Some(GetAiCatalogApiError::Status503(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                _ => {
+                    typed = None;
+                    parse_error = None;
+                }
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Discover the ARD MCP OAuth resource and operator issuer
+    ///
+    /// Readable without credentials for an enabled authenticated discovery host with a configured OIDC issuer. The resource is the configured discovery origin plus /ard/v1/mcp. Anonymous hosts, development authentication, disabled endpoints and unknown hosts return 404. No publication lookup occurs.
+    ///
+    /// `GET /.well-known/oauth-protected-resource/ard/v1/mcp`
+    pub async fn get_ardmcpo_auth_metadata(
+        &self,
+    ) -> Result<Response<MCPOAuthMetadata>, ApiOpError<GetArdmcpoAuthMetadataApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url, "/.well-known/oauth-protected-resource/ard/v1/mcp"
+        );
+        let mut req = self.http_client.get(request_url);
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<GetArdmcpoAuthMetadataApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                400u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(GetArdmcpoAuthMetadataApiError::Status400(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                403u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(GetArdmcpoAuthMetadataApiError::Status403(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                404u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(GetArdmcpoAuthMetadataApiError::Status404(v));
                         parse_error = None;
                     }
                     Err(e) => {
@@ -10488,6 +10797,80 @@ impl Client {
     }
     /// Check MCP OAuth metadata availability
     ///
+    /// `HEAD /.well-known/oauth-protected-resource/ard/v1/mcp`
+    pub async fn head_ardmcpo_auth_metadata(
+        &self,
+    ) -> Result<Response<()>, ApiOpError<HeadArdmcpoAuthMetadataApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url, "/.well-known/oauth-protected-resource/ard/v1/mcp"
+        );
+        let req = self.http_client.head(request_url);
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            let _ = body_text;
+            let _ = raw_body;
+            let _ = headers;
+            Ok(Response::new((), status_code, headers, raw_body))
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<HeadArdmcpoAuthMetadataApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                403u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(HeadArdmcpoAuthMetadataApiError::Status403(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                404u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(HeadArdmcpoAuthMetadataApiError::Status404(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                _ => {
+                    typed = None;
+                    parse_error = None;
+                }
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Check MCP OAuth metadata availability
+    ///
     /// `HEAD /.well-known/oauth-protected-resource/mcp`
     pub async fn head_catalog_mcpo_auth_metadata(
         &self,
@@ -14582,6 +14965,183 @@ impl Client {
     ///
     /// Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
     ///
+    /// `OPTIONS /ard/v1/mcp`
+    pub async fn preflight_ard_publication_mcp(
+        &self,
+    ) -> Result<Response<()>, ApiOpError<PreflightArdPublicationMcpApiError>> {
+        let request_url = format!("{}{}", self.base_url, "/ard/v1/mcp");
+        let req = self
+            .http_client
+            .request(reqwest::Method::OPTIONS, request_url);
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 204u16 {
+            let _ = body_text;
+            let _ = raw_body;
+            let _ = headers;
+            Ok(Response::new((), status_code, headers, raw_body))
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "204",
+                )),
+            }))
+        } else {
+            let typed: Option<PreflightArdPublicationMcpApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                400u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(PreflightArdPublicationMcpApiError::Status400(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                403u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(PreflightArdPublicationMcpApiError::Status403(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                404u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(PreflightArdPublicationMcpApiError::Status404(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                _ => {
+                    typed = None;
+                    parse_error = None;
+                }
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Check an exact metadata browser origin
+    ///
+    /// `OPTIONS /.well-known/oauth-protected-resource/ard/v1/mcp`
+    pub async fn preflight_ard_publication_mcpo_auth_metadata(
+        &self,
+    ) -> Result<Response<()>, ApiOpError<PreflightArdPublicationMcpoAuthMetadataApiError>> {
+        let request_url = format!(
+            "{}{}",
+            self.base_url, "/.well-known/oauth-protected-resource/ard/v1/mcp"
+        );
+        let req = self
+            .http_client
+            .request(reqwest::Method::OPTIONS, request_url);
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 204u16 {
+            let _ = body_text;
+            let _ = raw_body;
+            let _ = headers;
+            Ok(Response::new((), status_code, headers, raw_body))
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "204",
+                )),
+            }))
+        } else {
+            let typed: Option<PreflightArdPublicationMcpoAuthMetadataApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                400u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(PreflightArdPublicationMcpoAuthMetadataApiError::Status400(
+                            v,
+                        ));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                403u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(PreflightArdPublicationMcpoAuthMetadataApiError::Status403(
+                            v,
+                        ));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                404u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(PreflightArdPublicationMcpoAuthMetadataApiError::Status404(
+                            v,
+                        ));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                _ => {
+                    typed = None;
+                    parse_error = None;
+                }
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Check an exact MCP browser origin
+    ///
+    /// Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
+    ///
     /// `OPTIONS /mcp`
     pub async fn preflight_catalog_mcp(
         &self,
@@ -15512,6 +16072,168 @@ impl Client {
                         parse_error = Some(e.to_string());
                     }
                 },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Refuse deletion because MCP has no retained sessions
+    ///
+    /// `DELETE /ard/v1/mcp`
+    pub async fn refuse_ard_publication_mcp_session_deletion(
+        &self,
+    ) -> Result<Response<()>, ApiOpError<RefuseArdPublicationMcpSessionDeletionApiError>> {
+        let request_url = format!("{}{}", self.base_url, "/ard/v1/mcp");
+        let req = self.http_client.delete(request_url);
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "any declared 2xx response",
+                )),
+            }))
+        } else {
+            let typed: Option<RefuseArdPublicationMcpSessionDeletionApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                400u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(RefuseArdPublicationMcpSessionDeletionApiError::Status400(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                403u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(RefuseArdPublicationMcpSessionDeletionApiError::Status403(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                404u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(RefuseArdPublicationMcpSessionDeletionApiError::Status404(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                405u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(RefuseArdPublicationMcpSessionDeletionApiError::Status405(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                _ => {
+                    typed = None;
+                    parse_error = None;
+                }
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Refuse a standalone MCP stream
+    ///
+    /// `GET /ard/v1/mcp`
+    pub async fn refuse_ard_publication_mcp_stream(
+        &self,
+    ) -> Result<Response<()>, ApiOpError<RefuseArdPublicationMcpStreamApiError>> {
+        let request_url = format!("{}{}", self.base_url, "/ard/v1/mcp");
+        let req = self.http_client.get(request_url);
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "any declared 2xx response",
+                )),
+            }))
+        } else {
+            let typed: Option<RefuseArdPublicationMcpStreamApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                403u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(RefuseArdPublicationMcpStreamApiError::Status403(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                404u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(RefuseArdPublicationMcpStreamApiError::Status404(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                405u16 => match serde_json::from_slice::<MCPReply>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(RefuseArdPublicationMcpStreamApiError::Status405(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+                _ => {
+                    typed = None;
+                    parse_error = None;
+                }
             }
             Err(ApiOpError::api(ApiError {
                 status: status_code,

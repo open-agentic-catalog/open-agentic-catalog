@@ -185,3 +185,17 @@ func TestActivityCapabilityUsesOnlyExplicitEnabledOrDisabledStates(t *testing.T)
 		}
 	}
 }
+
+func TestActivityReportsARDMCPWithoutControlMCP(t *testing.T) {
+	process, err := processinfo.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := &Server{process: process, role: "api", observability: observability.New(nil), ardMCP: map[string]*mcpHTTP{publicFixtureHost: {}}}
+	w := httptest.NewRecorder()
+	server.handleServiceActivity(w, httptest.NewRequestWithContext(activityAdminContext(t), http.MethodGet, "/api/v1/service-activity", nil))
+	var sample serviceActivityResponse
+	if json.Unmarshal(w.Body.Bytes(), &sample) != nil || w.Code != http.StatusOK || !sample.MCP.Enabled || server.mcp != nil {
+		t.Fatal("ARD-only activity is not enabled", w.Code, w.Body.String())
+	}
+}

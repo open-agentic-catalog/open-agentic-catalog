@@ -459,7 +459,7 @@ func buildWithTracing(ctx context.Context, options BuildOptions, startTracing fu
 	publicationConstructionLimiter := publication.NewConstructionLimiter()
 	discoveryHosts := make([]httpserver.DiscoveryHost, 0, len(configuration.Discovery.Hosts))
 	for _, host := range configuration.Discovery.Hosts {
-		binding := httpserver.DiscoveryHost{Host: host.Host, TenantID: host.TenantID, Mode: httpserver.DiscoveryMode(host.Mode), PublisherDomain: host.PublisherDomain}
+		binding := httpserver.DiscoveryHost{Host: host.Host, TenantID: host.TenantID, Mode: httpserver.DiscoveryMode(host.Mode), PublisherDomain: host.PublisherDomain, MCPEnabled: host.MCPEnabled}
 		if host.Mode != string(httpserver.DiscoveryDisabled) {
 			audience := publication.AudienceAnonymous
 			if host.Mode == string(httpserver.DiscoveryAuthenticated) {

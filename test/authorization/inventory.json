@@ -3006,6 +3006,81 @@
         "resource.read_content",
         "resource.validate"
       ]
+    },
+    {
+      "operationId": "callARDPublicationMCP",
+      "method": "POST",
+      "path": "/ard/v1/mcp",
+      "permissions": [],
+      "policy": "discovery",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "exact MCP-enabled discovery host and Origin policy; anonymous audience or current same-tenant membership, discovery.read and enforced catalog.read scope",
+      "conditionalPermissions": {
+        "anonymous": [],
+        "authenticated": [
+          "discovery.read"
+        ]
+      }
+    },
+    {
+      "operationId": "preflightARDPublicationMCP",
+      "method": "OPTIONS",
+      "path": "/ard/v1/mcp",
+      "permissions": [],
+      "policy": "mcp",
+      "oauthCeiling": "",
+      "currentAuthority": "exact MCP-enabled discovery host and Origin policy; public configured issuer metadata or finite protocol/method refusal",
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "refuseARDPublicationMCPStream",
+      "method": "GET",
+      "path": "/ard/v1/mcp",
+      "permissions": [],
+      "policy": "mcp",
+      "oauthCeiling": "",
+      "currentAuthority": "exact MCP-enabled discovery host and Origin policy; public configured issuer metadata or finite protocol/method refusal",
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "refuseARDPublicationMCPSessionDeletion",
+      "method": "DELETE",
+      "path": "/ard/v1/mcp",
+      "permissions": [],
+      "policy": "mcp",
+      "oauthCeiling": "",
+      "currentAuthority": "exact MCP-enabled discovery host and Origin policy; public configured issuer metadata or finite protocol/method refusal",
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "getARDMCPOAuthMetadata",
+      "method": "GET",
+      "path": "/.well-known/oauth-protected-resource/ard/v1/mcp",
+      "permissions": [],
+      "policy": "mcp",
+      "oauthCeiling": "",
+      "currentAuthority": "exact MCP-enabled discovery host and Origin policy; public configured issuer metadata or finite protocol/method refusal",
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "headARDMCPOAuthMetadata",
+      "method": "HEAD",
+      "path": "/.well-known/oauth-protected-resource/ard/v1/mcp",
+      "permissions": [],
+      "policy": "mcp",
+      "oauthCeiling": "",
+      "currentAuthority": "exact MCP-enabled discovery host and Origin policy; public configured issuer metadata or finite protocol/method refusal",
+      "conditionalPermissions": {}
+    },
+    {
+      "operationId": "preflightARDPublicationMCPOAuthMetadata",
+      "method": "OPTIONS",
+      "path": "/.well-known/oauth-protected-resource/ard/v1/mcp",
+      "permissions": [],
+      "policy": "mcp",
+      "oauthCeiling": "",
+      "currentAuthority": "exact MCP-enabled discovery host and Origin policy; public configured issuer metadata or finite protocol/method refusal",
+      "conditionalPermissions": {}
     }
   ],
   "domainCallers": [

@@ -705,6 +705,8 @@ make security
 
 ## MCP request measurements
 
+Control and ARD publication MCP share the HTTP MCP activity family and protocol counters. Activity reports MCP as enabled when either interface is available; counts do not identify hosts, audiences or tenants.
+
 When HTTP MCP is enabled, `open_agentic_catalog_mcp_requests_total` counts finite requests by fixed operation and outcome. Operations are `protocol`, `discover`, `list` and `call`. Outcomes are `completed`, `rejected`, `failed`, `tool_error`, `busy` and `cancelled`. Protocol completion does not establish a successful resource read; an HTTP 200 tool refusal uses `tool_error`. Existing Search measurements count each shared domain read once.
 
 Debug completion events include correlation, operation and outcome. Contained request panics produce a fixed error event. Authentication dependency warnings are bounded. These events omit caller identities, bearer credentials, tool arguments, descriptions and raw SDK failures. See [HTTP MCP limits](../guides/mcp-server.mdx#http-limits-and-diagnostics). Ingress or gateway configuration owns sustained per-client request rates.

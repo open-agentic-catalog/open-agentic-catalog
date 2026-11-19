@@ -74,7 +74,7 @@ func usesProductWorkDeadline(router *http.ServeMux, request *http.Request) bool 
 		return false
 	}
 	switch request.URL.Path {
-	case "/livez", "/readyz", "/version", "/metrics", "/openapi/control-v1.yaml":
+	case "/livez", "/readyz", "/version", "/metrics", "/openapi/control-v1.yaml", ardMCPPath, ardMCPMetadataPath:
 		return false
 	}
 	_, pattern := router.Handler(request)

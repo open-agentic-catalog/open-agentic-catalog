@@ -12016,6 +12016,21 @@ type ListARDRegistryEntriesParams struct {
 	PageToken *string `form:"pageToken,omitempty" json:"pageToken,omitempty"`
 }
 
+// CallARDPublicationMCPParams defines parameters for CallARDPublicationMCP.
+type CallARDPublicationMCPParams struct {
+	// MCPProtocolVersion Required except for legacy initialize. Supported versions are 2026-07-28 and 2025-11-25.
+	MCPProtocolVersion *string `json:"MCP-Protocol-Version,omitempty"`
+
+	// MCPMethod Required matching method for the modern protocol.
+	MCPMethod *string `json:"MCP-Method,omitempty"`
+
+	// MCPName Required matching tool name for modern tools/call.
+	MCPName *string `json:"MCP-Name,omitempty"`
+
+	// Origin If present must exactly match the public origin or an explicit MCP allowed origin.
+	Origin *string `json:"Origin,omitempty"`
+}
+
 // CallCatalogMCPParams defines parameters for CallCatalogMCP.
 type CallCatalogMCPParams struct {
 	// MCPProtocolVersion Required except for legacy initialize. Supported versions are 2026-07-28 and 2025-11-25.
@@ -12321,6 +12336,9 @@ type TestWebhookJSONRequestBody = TestWebhookJSONBody
 
 // ExploreARDRegistryJSONRequestBody defines body for ExploreARDRegistry for application/json ContentType.
 type ExploreARDRegistryJSONRequestBody = ARDExplore
+
+// CallARDPublicationMCPJSONRequestBody defines body for CallARDPublicationMCP for application/json ContentType.
+type CallARDPublicationMCPJSONRequestBody = MCPRequest
 
 // SearchARDRegistryJSONRequestBody defines body for SearchARDRegistry for application/json ContentType.
 type SearchARDRegistryJSONRequestBody = ARDSearch
@@ -18286,6 +18304,23 @@ type ClientInterface interface {
 	// Corresponds with GET /.well-known/ard.json (the `GetARDManifest` operationId).
 	GetARDManifest(ctx context.Context, params *GetARDManifestParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetARDMCPOAuthMetadata Discover the ARD MCP OAuth resource and operator issuer
+	//
+	// Readable without credentials for an enabled authenticated discovery host with a configured OIDC issuer. The resource is the configured discovery origin plus /ard/v1/mcp. Anonymous hosts, development authentication, disabled endpoints and unknown hosts return 404. No publication lookup occurs.
+	//
+	// Corresponds with GET /.well-known/oauth-protected-resource/ard/v1/mcp (the `GetARDMCPOAuthMetadata` operationId).
+	GetARDMCPOAuthMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// HeadARDMCPOAuthMetadata Check MCP OAuth metadata availability
+	//
+	// Corresponds with HEAD /.well-known/oauth-protected-resource/ard/v1/mcp (the `HeadARDMCPOAuthMetadata` operationId).
+	HeadARDMCPOAuthMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreflightARDPublicationMCPOAuthMetadata Check an exact metadata browser origin
+	//
+	// Corresponds with OPTIONS /.well-known/oauth-protected-resource/ard/v1/mcp (the `PreflightARDPublicationMCPOAuthMetadata` operationId).
+	PreflightARDPublicationMCPOAuthMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetCatalogMCPOAuthMetadata Discover the configured MCP OAuth resource and issuer
 	//
 	// Available only when MCP is enabled and authentication uses OIDC. URLs come from configuration, never Host or forwarding headers. Development mode and disabled MCP return 404.
@@ -20691,6 +20726,41 @@ type ClientInterface interface {
 	// Corresponds with POST /ard/v1/explore (the `ExploreARDRegistry` operationId).
 	ExploreARDRegistry(ctx context.Context, body ExploreARDRegistryJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RefuseARDPublicationMCPSessionDeletion Refuse deletion because MCP has no retained sessions
+	//
+	// Corresponds with DELETE /ard/v1/mcp (the `RefuseARDPublicationMCPSessionDeletion` operationId).
+	RefuseARDPublicationMCPSessionDeletion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// RefuseARDPublicationMCPStream Refuse a standalone MCP stream
+	//
+	// Corresponds with GET /ard/v1/mcp (the `RefuseARDPublicationMCPStream` operationId).
+	RefuseARDPublicationMCPStream(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PreflightARDPublicationMCP Check an exact MCP browser origin
+	//
+	// Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
+	//
+	// Corresponds with OPTIONS /ard/v1/mcp (the `PreflightARDPublicationMCP` operationId).
+	PreflightARDPublicationMCP(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CallARDPublicationMCPWithBody Search the active host-bound ARD publication through MCP
+	//
+	// Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /ard/v1/mcp (the `CallARDPublicationMCP` operationId).
+	CallARDPublicationMCPWithBody(ctx context.Context, params *CallARDPublicationMCPParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CallARDPublicationMCP Search the active host-bound ARD publication through MCP
+	//
+	// Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /ard/v1/mcp (the `CallARDPublicationMCP` operationId).
+	CallARDPublicationMCP(ctx context.Context, params *CallARDPublicationMCPParams, body CallARDPublicationMCPJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// SearchARDRegistryWithBody Search the host-selected ARD Registry
 	//
 	// Authentication is required only when the exact configured discovery host uses authenticated mode. Omitted federation means auto. Core auto Search merges the active local snapshot with up to 50 live candidates from administrator-approved sources. Signed continuations repeat bounded peer traversal while live candidates remain, and bind the unchanged window, snapshot, query, caller and host audience. The initial 15-minute expiry does not extend. A changed window or snapshot requires a restart; a temporary replay failure permits retry of the same token. Unsafe first-page traversal preserves healthy results with durable-only continuation. Hybrid Search returns the durable ranking before a distinct live tail; none and referrals modes continue local results only. A partial live stage is reported through Server-Timing without adding non-ARD members to the response.
@@ -20811,6 +20881,53 @@ func (c *Client) GetAICatalog(ctx context.Context, params *GetAICatalogParams, r
 // Corresponds with GET /.well-known/ard.json (the `GetARDManifest` operationId).
 func (c *Client) GetARDManifest(ctx context.Context, params *GetARDManifestParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetARDManifestRequest(c.Server, params)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// GetARDMCPOAuthMetadata Discover the ARD MCP OAuth resource and operator issuer
+//
+// Readable without credentials for an enabled authenticated discovery host with a configured OIDC issuer. The resource is the configured discovery origin plus /ard/v1/mcp. Anonymous hosts, development authentication, disabled endpoints and unknown hosts return 404. No publication lookup occurs.
+//
+// Corresponds with GET /.well-known/oauth-protected-resource/ard/v1/mcp (the `GetARDMCPOAuthMetadata` operationId).
+func (c *Client) GetARDMCPOAuthMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetARDMCPOAuthMetadataRequest(c.Server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// HeadARDMCPOAuthMetadata Check MCP OAuth metadata availability
+//
+// Corresponds with HEAD /.well-known/oauth-protected-resource/ard/v1/mcp (the `HeadARDMCPOAuthMetadata` operationId).
+func (c *Client) HeadARDMCPOAuthMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewHeadARDMCPOAuthMetadataRequest(c.Server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// PreflightARDPublicationMCPOAuthMetadata Check an exact metadata browser origin
+//
+// Corresponds with OPTIONS /.well-known/oauth-protected-resource/ard/v1/mcp (the `PreflightARDPublicationMCPOAuthMetadata` operationId).
+func (c *Client) PreflightARDPublicationMCPOAuthMetadata(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreflightARDPublicationMCPOAuthMetadataRequest(c.Server)
 	if err != nil {
 		return nil, safeError(err)
 	}
@@ -26136,6 +26253,91 @@ func (c *Client) ExploreARDRegistry(ctx context.Context, body ExploreARDRegistry
 	return c.Client.Do(req)
 }
 
+// RefuseARDPublicationMCPSessionDeletion Refuse deletion because MCP has no retained sessions
+//
+// Corresponds with DELETE /ard/v1/mcp (the `RefuseARDPublicationMCPSessionDeletion` operationId).
+func (c *Client) RefuseARDPublicationMCPSessionDeletion(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRefuseARDPublicationMCPSessionDeletionRequest(c.Server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// RefuseARDPublicationMCPStream Refuse a standalone MCP stream
+//
+// Corresponds with GET /ard/v1/mcp (the `RefuseARDPublicationMCPStream` operationId).
+func (c *Client) RefuseARDPublicationMCPStream(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRefuseARDPublicationMCPStreamRequest(c.Server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// PreflightARDPublicationMCP Check an exact MCP browser origin
+//
+// Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
+//
+// Corresponds with OPTIONS /ard/v1/mcp (the `PreflightARDPublicationMCP` operationId).
+func (c *Client) PreflightARDPublicationMCP(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPreflightARDPublicationMCPRequest(c.Server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// CallARDPublicationMCPWithBody Search the active host-bound ARD publication through MCP
+//
+// Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /ard/v1/mcp (the `CallARDPublicationMCP` operationId).
+func (c *Client) CallARDPublicationMCPWithBody(ctx context.Context, params *CallARDPublicationMCPParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCallARDPublicationMCPRequestWithBody(c.Server, params, contentType, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// CallARDPublicationMCP Search the active host-bound ARD publication through MCP
+//
+// Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /ard/v1/mcp (the `CallARDPublicationMCP` operationId).
+func (c *Client) CallARDPublicationMCP(ctx context.Context, params *CallARDPublicationMCPParams, body CallARDPublicationMCPJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCallARDPublicationMCPRequest(c.Server, params, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
 // SearchARDRegistryWithBody Search the host-selected ARD Registry
 //
 // Authentication is required only when the exact configured discovery host uses authenticated mode. Omitted federation means auto. Core auto Search merges the active local snapshot with up to 50 live candidates from administrator-approved sources. Signed continuations repeat bounded peer traversal while live candidates remain, and bind the unchanged window, snapshot, query, caller and host audience. The initial 15-minute expiry does not extend. A changed window or snapshot requires a restart; a temporary replay failure permits retry of the same token. Unsafe first-page traversal preserves healthy results with durable-only continuation. Hybrid Search returns the durable ranking before a distinct live tail; none and referrals modes continue local results only. A partial live stage is reported through Server-Timing without adding non-ARD members to the response.
@@ -26462,6 +26664,87 @@ func NewGetARDManifestRequest(server string, params *GetARDManifestParams) (*htt
 			req.Header.Set("If-Modified-Since", headerParam1)
 		}
 
+	}
+
+	return req, nil
+}
+
+// NewGetARDMCPOAuthMetadataRequest constructs an http.Request for the GetARDMCPOAuthMetadata method
+func NewGetARDMCPOAuthMetadataRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/.well-known/oauth-protected-resource/ard/v1/mcp")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewHeadARDMCPOAuthMetadataRequest constructs an http.Request for the HeadARDMCPOAuthMetadata method
+func NewHeadARDMCPOAuthMetadataRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/.well-known/oauth-protected-resource/ard/v1/mcp")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodHead, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewPreflightARDPublicationMCPOAuthMetadataRequest constructs an http.Request for the PreflightARDPublicationMCPOAuthMetadata method
+func NewPreflightARDPublicationMCPOAuthMetadataRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/.well-known/oauth-protected-resource/ard/v1/mcp")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodOptions, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
 	}
 
 	return req, nil
@@ -38336,6 +38619,175 @@ func NewExploreARDRegistryRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
+// NewRefuseARDPublicationMCPSessionDeletionRequest constructs an http.Request for the RefuseARDPublicationMCPSessionDeletion method
+func NewRefuseARDPublicationMCPSessionDeletionRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/ard/v1/mcp")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewRefuseARDPublicationMCPStreamRequest constructs an http.Request for the RefuseARDPublicationMCPStream method
+func NewRefuseARDPublicationMCPStreamRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/ard/v1/mcp")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewPreflightARDPublicationMCPRequest constructs an http.Request for the PreflightARDPublicationMCP method
+func NewPreflightARDPublicationMCPRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/ard/v1/mcp")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodOptions, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
+// NewCallARDPublicationMCPRequest calls the generic CallARDPublicationMCP builder with application/json body
+func NewCallARDPublicationMCPRequest(server string, params *CallARDPublicationMCPParams, body CallARDPublicationMCPJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewCallARDPublicationMCPRequestWithBody(server, params, "application/json", bodyReader)
+}
+
+// NewCallARDPublicationMCPRequestWithBody constructs an http.Request for the CallARDPublicationMCP method, with any body, and a specified content type
+func NewCallARDPublicationMCPRequestWithBody(server string, params *CallARDPublicationMCPParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/ard/v1/mcp")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.MCPProtocolVersion != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "MCP-Protocol-Version", *params.MCPProtocolVersion, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, safeError(err)
+			}
+
+			req.Header.Set("MCP-Protocol-Version", headerParam0)
+		}
+
+		if params.MCPMethod != nil {
+			var headerParam1 string
+
+			headerParam1, err = runtime.StyleParamWithOptions("simple", false, "MCP-Method", *params.MCPMethod, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, safeError(err)
+			}
+
+			req.Header.Set("MCP-Method", headerParam1)
+		}
+
+		if params.MCPName != nil {
+			var headerParam2 string
+
+			headerParam2, err = runtime.StyleParamWithOptions("simple", false, "MCP-Name", *params.MCPName, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, safeError(err)
+			}
+
+			req.Header.Set("MCP-Name", headerParam2)
+		}
+
+		if params.Origin != nil {
+			var headerParam3 string
+
+			headerParam3, err = runtime.StyleParamWithOptions("simple", false, "Origin", *params.Origin, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, safeError(err)
+			}
+
+			req.Header.Set("Origin", headerParam3)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewSearchARDRegistryRequest calls the generic SearchARDRegistry builder with application/json body
 func NewSearchARDRegistryRequest(server string, body SearchARDRegistryJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -38805,6 +39257,29 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /.well-known/ard.json (the `GetARDManifest` operationId).
 	GetARDManifestWithResponse(ctx context.Context, params *GetARDManifestParams, reqEditors ...RequestEditorFn) (*GetARDManifestResponse, error)
+
+	// GetARDMCPOAuthMetadataWithResponse Discover the ARD MCP OAuth resource and operator issuer
+	//
+	// Readable without credentials for an enabled authenticated discovery host with a configured OIDC issuer. The resource is the configured discovery origin plus /ard/v1/mcp. Anonymous hosts, development authentication, disabled endpoints and unknown hosts return 404. No publication lookup occurs.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /.well-known/oauth-protected-resource/ard/v1/mcp (the `GetARDMCPOAuthMetadata` operationId).
+	GetARDMCPOAuthMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetARDMCPOAuthMetadataResponse, error)
+
+	// HeadARDMCPOAuthMetadataWithResponse Check MCP OAuth metadata availability
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with HEAD /.well-known/oauth-protected-resource/ard/v1/mcp (the `HeadARDMCPOAuthMetadata` operationId).
+	HeadARDMCPOAuthMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HeadARDMCPOAuthMetadataResponse, error)
+
+	// PreflightARDPublicationMCPOAuthMetadataWithResponse Check an exact metadata browser origin
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with OPTIONS /.well-known/oauth-protected-resource/ard/v1/mcp (the `PreflightARDPublicationMCPOAuthMetadata` operationId).
+	PreflightARDPublicationMCPOAuthMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PreflightARDPublicationMCPOAuthMetadataResponse, error)
 
 	// GetCatalogMCPOAuthMetadataWithResponse Discover the configured MCP OAuth resource and issuer
 	//
@@ -41421,6 +41896,47 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /ard/v1/explore (the `ExploreARDRegistry` operationId).
 	ExploreARDRegistryWithResponse(ctx context.Context, body ExploreARDRegistryJSONRequestBody, reqEditors ...RequestEditorFn) (*ExploreARDRegistryResponse, error)
 
+	// RefuseARDPublicationMCPSessionDeletionWithResponse Refuse deletion because MCP has no retained sessions
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /ard/v1/mcp (the `RefuseARDPublicationMCPSessionDeletion` operationId).
+	RefuseARDPublicationMCPSessionDeletionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*RefuseARDPublicationMCPSessionDeletionResponse, error)
+
+	// RefuseARDPublicationMCPStreamWithResponse Refuse a standalone MCP stream
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /ard/v1/mcp (the `RefuseARDPublicationMCPStream` operationId).
+	RefuseARDPublicationMCPStreamWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*RefuseARDPublicationMCPStreamResponse, error)
+
+	// PreflightARDPublicationMCPWithResponse Check an exact MCP browser origin
+	//
+	// Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with OPTIONS /ard/v1/mcp (the `PreflightARDPublicationMCP` operationId).
+	PreflightARDPublicationMCPWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PreflightARDPublicationMCPResponse, error)
+
+	// CallARDPublicationMCPWithBodyWithResponse Search the active host-bound ARD publication through MCP
+	//
+	// Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /ard/v1/mcp (the `CallARDPublicationMCP` operationId).
+	CallARDPublicationMCPWithBodyWithResponse(ctx context.Context, params *CallARDPublicationMCPParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CallARDPublicationMCPResponse, error)
+
+	// CallARDPublicationMCPWithResponse Search the active host-bound ARD publication through MCP
+	//
+	// Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /ard/v1/mcp (the `CallARDPublicationMCP` operationId).
+	CallARDPublicationMCPWithResponse(ctx context.Context, params *CallARDPublicationMCPParams, body CallARDPublicationMCPJSONRequestBody, reqEditors ...RequestEditorFn) (*CallARDPublicationMCPResponse, error)
+
 	// SearchARDRegistryWithBodyWithResponse Search the host-selected ARD Registry
 	//
 	// Authentication is required only when the exact configured discovery host uses authenticated mode. Omitted federation means auto. Core auto Search merges the active local snapshot with up to 50 live candidates from administrator-approved sources. Signed continuations repeat bounded peer traversal while live candidates remain, and bind the unchanged window, snapshot, query, caller and host audience. The initial 15-minute expiry does not extend. A changed window or snapshot requires a restart; a temporary replay failure permits retry of the same token. Unsafe first-page traversal preserves healthy results with durable-only continuation. Hybrid Search returns the durable ranking before a distinct live tail; none and referrals modes continue local results only. A partial live stage is reported through Server-Timing without adding non-ARD members to the response.
@@ -41707,6 +42223,315 @@ func (r GetARDManifestResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r GetARDManifestResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// GetARDMCPOAuthMetadataResponse400Headers the declared response headers of an HTTP 400 response for GetARDMCPOAuthMetadata
+type GetARDMCPOAuthMetadataResponse400Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// GetARDMCPOAuthMetadataResponse403Headers the declared response headers of an HTTP 403 response for GetARDMCPOAuthMetadata
+type GetARDMCPOAuthMetadataResponse403Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// GetARDMCPOAuthMetadataResponse404Headers the declared response headers of an HTTP 404 response for GetARDMCPOAuthMetadata
+type GetARDMCPOAuthMetadataResponse404Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+type GetARDMCPOAuthMetadataResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *MCPOAuthMetadata
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *GetARDMCPOAuthMetadataResponse400Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *GetARDMCPOAuthMetadataResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *GetARDMCPOAuthMetadataResponse404Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetARDMCPOAuthMetadataResponse) GetJSON200() *MCPOAuthMetadata {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r GetARDMCPOAuthMetadataResponse) GetJSON400() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON400
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r GetARDMCPOAuthMetadataResponse) GetApplicationproblemJSON400() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON400
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r GetARDMCPOAuthMetadataResponse) GetJSON403() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON403
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetARDMCPOAuthMetadataResponse) GetApplicationproblemJSON403() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r GetARDMCPOAuthMetadataResponse) GetJSON404() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON404
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetARDMCPOAuthMetadataResponse) GetApplicationproblemJSON404() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r GetARDMCPOAuthMetadataResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetARDMCPOAuthMetadataResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetARDMCPOAuthMetadataResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetARDMCPOAuthMetadataResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// HeadARDMCPOAuthMetadataResponse403Headers the declared response headers of an HTTP 403 response for HeadARDMCPOAuthMetadata
+type HeadARDMCPOAuthMetadataResponse403Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// HeadARDMCPOAuthMetadataResponse404Headers the declared response headers of an HTTP 404 response for HeadARDMCPOAuthMetadata
+type HeadARDMCPOAuthMetadataResponse404Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+type HeadARDMCPOAuthMetadataResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *HeadARDMCPOAuthMetadataResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *HeadARDMCPOAuthMetadataResponse404Headers
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r HeadARDMCPOAuthMetadataResponse) GetJSON403() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON403
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r HeadARDMCPOAuthMetadataResponse) GetApplicationproblemJSON403() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r HeadARDMCPOAuthMetadataResponse) GetJSON404() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON404
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r HeadARDMCPOAuthMetadataResponse) GetApplicationproblemJSON404() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r HeadARDMCPOAuthMetadataResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r HeadARDMCPOAuthMetadataResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r HeadARDMCPOAuthMetadataResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r HeadARDMCPOAuthMetadataResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// PreflightARDPublicationMCPOAuthMetadataResponse400Headers the declared response headers of an HTTP 400 response for PreflightARDPublicationMCPOAuthMetadata
+type PreflightARDPublicationMCPOAuthMetadataResponse400Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// PreflightARDPublicationMCPOAuthMetadataResponse403Headers the declared response headers of an HTTP 403 response for PreflightARDPublicationMCPOAuthMetadata
+type PreflightARDPublicationMCPOAuthMetadataResponse403Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// PreflightARDPublicationMCPOAuthMetadataResponse404Headers the declared response headers of an HTTP 404 response for PreflightARDPublicationMCPOAuthMetadata
+type PreflightARDPublicationMCPOAuthMetadataResponse404Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+type PreflightARDPublicationMCPOAuthMetadataResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *PreflightARDPublicationMCPOAuthMetadataResponse400Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *PreflightARDPublicationMCPOAuthMetadataResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *PreflightARDPublicationMCPOAuthMetadataResponse404Headers
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) GetJSON400() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON400
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) GetApplicationproblemJSON400() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON400
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) GetJSON403() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON403
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) GetApplicationproblemJSON403() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) GetJSON404() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON404
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) GetApplicationproblemJSON404() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreflightARDPublicationMCPOAuthMetadataResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -54731,6 +55556,607 @@ func (r ExploreARDRegistryResponse) ContentType() string {
 	return ""
 }
 
+// RefuseARDPublicationMCPSessionDeletionResponse400Headers the declared response headers of an HTTP 400 response for RefuseARDPublicationMCPSessionDeletion
+type RefuseARDPublicationMCPSessionDeletionResponse400Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// RefuseARDPublicationMCPSessionDeletionResponse403Headers the declared response headers of an HTTP 403 response for RefuseARDPublicationMCPSessionDeletion
+type RefuseARDPublicationMCPSessionDeletionResponse403Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// RefuseARDPublicationMCPSessionDeletionResponse404Headers the declared response headers of an HTTP 404 response for RefuseARDPublicationMCPSessionDeletion
+type RefuseARDPublicationMCPSessionDeletionResponse404Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// RefuseARDPublicationMCPSessionDeletionResponse405Headers the declared response headers of an HTTP 405 response for RefuseARDPublicationMCPSessionDeletion
+type RefuseARDPublicationMCPSessionDeletionResponse405Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+type RefuseARDPublicationMCPSessionDeletionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON405 the response for an HTTP 405 `application/problem+json` response
+	ApplicationproblemJSON405 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *RefuseARDPublicationMCPSessionDeletionResponse400Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *RefuseARDPublicationMCPSessionDeletionResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *RefuseARDPublicationMCPSessionDeletionResponse404Headers
+	// Headers405 the parsed response headers for an HTTP 405 response
+	Headers405 *RefuseARDPublicationMCPSessionDeletionResponse405Headers
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r RefuseARDPublicationMCPSessionDeletionResponse) GetJSON400() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON400
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r RefuseARDPublicationMCPSessionDeletionResponse) GetApplicationproblemJSON400() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON400
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RefuseARDPublicationMCPSessionDeletionResponse) GetJSON403() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON403
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r RefuseARDPublicationMCPSessionDeletionResponse) GetApplicationproblemJSON403() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RefuseARDPublicationMCPSessionDeletionResponse) GetJSON404() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON404
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r RefuseARDPublicationMCPSessionDeletionResponse) GetApplicationproblemJSON404() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r RefuseARDPublicationMCPSessionDeletionResponse) GetJSON405() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON405
+}
+
+// GetApplicationproblemJSON405 returns the response for an HTTP 405 `application/problem+json` response
+func (r RefuseARDPublicationMCPSessionDeletionResponse) GetApplicationproblemJSON405() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON405
+}
+
+// GetBody returns the raw response body bytes
+func (r RefuseARDPublicationMCPSessionDeletionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RefuseARDPublicationMCPSessionDeletionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RefuseARDPublicationMCPSessionDeletionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RefuseARDPublicationMCPSessionDeletionResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// RefuseARDPublicationMCPStreamResponse403Headers the declared response headers of an HTTP 403 response for RefuseARDPublicationMCPStream
+type RefuseARDPublicationMCPStreamResponse403Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// RefuseARDPublicationMCPStreamResponse404Headers the declared response headers of an HTTP 404 response for RefuseARDPublicationMCPStream
+type RefuseARDPublicationMCPStreamResponse404Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// RefuseARDPublicationMCPStreamResponse405Headers the declared response headers of an HTTP 405 response for RefuseARDPublicationMCPStream
+type RefuseARDPublicationMCPStreamResponse405Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+type RefuseARDPublicationMCPStreamResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON405 the response for an HTTP 405 `application/json` response
+	JSON405 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON405 the response for an HTTP 405 `application/problem+json` response
+	ApplicationproblemJSON405 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *RefuseARDPublicationMCPStreamResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *RefuseARDPublicationMCPStreamResponse404Headers
+	// Headers405 the parsed response headers for an HTTP 405 response
+	Headers405 *RefuseARDPublicationMCPStreamResponse405Headers
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r RefuseARDPublicationMCPStreamResponse) GetJSON403() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON403
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r RefuseARDPublicationMCPStreamResponse) GetApplicationproblemJSON403() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r RefuseARDPublicationMCPStreamResponse) GetJSON404() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON404
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r RefuseARDPublicationMCPStreamResponse) GetApplicationproblemJSON404() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON404
+}
+
+// GetJSON405 returns the response for an HTTP 405 `application/json` response
+func (r RefuseARDPublicationMCPStreamResponse) GetJSON405() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON405
+}
+
+// GetApplicationproblemJSON405 returns the response for an HTTP 405 `application/problem+json` response
+func (r RefuseARDPublicationMCPStreamResponse) GetApplicationproblemJSON405() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON405
+}
+
+// GetBody returns the raw response body bytes
+func (r RefuseARDPublicationMCPStreamResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RefuseARDPublicationMCPStreamResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RefuseARDPublicationMCPStreamResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RefuseARDPublicationMCPStreamResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// PreflightARDPublicationMCPResponse400Headers the declared response headers of an HTTP 400 response for PreflightARDPublicationMCP
+type PreflightARDPublicationMCPResponse400Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// PreflightARDPublicationMCPResponse403Headers the declared response headers of an HTTP 403 response for PreflightARDPublicationMCP
+type PreflightARDPublicationMCPResponse403Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// PreflightARDPublicationMCPResponse404Headers the declared response headers of an HTTP 404 response for PreflightARDPublicationMCP
+type PreflightARDPublicationMCPResponse404Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+type PreflightARDPublicationMCPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *PreflightARDPublicationMCPResponse400Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *PreflightARDPublicationMCPResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *PreflightARDPublicationMCPResponse404Headers
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r PreflightARDPublicationMCPResponse) GetJSON400() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON400
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r PreflightARDPublicationMCPResponse) GetApplicationproblemJSON400() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON400
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r PreflightARDPublicationMCPResponse) GetJSON403() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON403
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PreflightARDPublicationMCPResponse) GetApplicationproblemJSON403() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r PreflightARDPublicationMCPResponse) GetJSON404() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON404
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PreflightARDPublicationMCPResponse) GetApplicationproblemJSON404() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON404
+}
+
+// GetBody returns the raw response body bytes
+func (r PreflightARDPublicationMCPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PreflightARDPublicationMCPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PreflightARDPublicationMCPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PreflightARDPublicationMCPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// CallARDPublicationMCPResponse200Headers the declared response headers of an HTTP 200 response for CallARDPublicationMCP
+type CallARDPublicationMCPResponse200Headers struct {
+	CacheControl *string
+	XRequestID   *string
+}
+
+// CallARDPublicationMCPResponse400Headers the declared response headers of an HTTP 400 response for CallARDPublicationMCP
+type CallARDPublicationMCPResponse400Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// CallARDPublicationMCPResponse401Headers the declared response headers of an HTTP 401 response for CallARDPublicationMCP
+type CallARDPublicationMCPResponse401Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// CallARDPublicationMCPResponse403Headers the declared response headers of an HTTP 403 response for CallARDPublicationMCP
+type CallARDPublicationMCPResponse403Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// CallARDPublicationMCPResponse404Headers the declared response headers of an HTTP 404 response for CallARDPublicationMCP
+type CallARDPublicationMCPResponse404Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// CallARDPublicationMCPResponse413Headers the declared response headers of an HTTP 413 response for CallARDPublicationMCP
+type CallARDPublicationMCPResponse413Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// CallARDPublicationMCPResponse415Headers the declared response headers of an HTTP 415 response for CallARDPublicationMCP
+type CallARDPublicationMCPResponse415Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// CallARDPublicationMCPResponse500Headers the declared response headers of an HTTP 500 response for CallARDPublicationMCP
+type CallARDPublicationMCPResponse500Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+// CallARDPublicationMCPResponse503Headers the declared response headers of an HTTP 503 response for CallARDPublicationMCP
+type CallARDPublicationMCPResponse503Headers struct {
+	Allow           *string
+	CacheControl    *string
+	RetryAfter      *string
+	WWWAuthenticate *string
+	XRequestID      *string
+}
+
+type CallARDPublicationMCPResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *MCPReplyResponse
+	// JSON400 the response for an HTTP 400 `application/json` response
+	JSON400 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON401 the response for an HTTP 401 `application/json` response
+	JSON401 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON403 the response for an HTTP 403 `application/json` response
+	JSON403 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON404 the response for an HTTP 404 `application/json` response
+	JSON404 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON413 the response for an HTTP 413 `application/json` response
+	JSON413 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON413 the response for an HTTP 413 `application/problem+json` response
+	ApplicationproblemJSON413 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON415 the response for an HTTP 415 `application/json` response
+	JSON415 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON415 the response for an HTTP 415 `application/problem+json` response
+	ApplicationproblemJSON415 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON500 the response for an HTTP 500 `application/json` response
+	JSON500 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// JSON503 the response for an HTTP 503 `application/json` response
+	JSON503 *MCPErrorResponseJSONApplicationJSON
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *MCPErrorResponseJSON2ApplicationProblemPlusJSON
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *CallARDPublicationMCPResponse200Headers
+	// Headers400 the parsed response headers for an HTTP 400 response
+	Headers400 *CallARDPublicationMCPResponse400Headers
+	// Headers401 the parsed response headers for an HTTP 401 response
+	Headers401 *CallARDPublicationMCPResponse401Headers
+	// Headers403 the parsed response headers for an HTTP 403 response
+	Headers403 *CallARDPublicationMCPResponse403Headers
+	// Headers404 the parsed response headers for an HTTP 404 response
+	Headers404 *CallARDPublicationMCPResponse404Headers
+	// Headers413 the parsed response headers for an HTTP 413 response
+	Headers413 *CallARDPublicationMCPResponse413Headers
+	// Headers415 the parsed response headers for an HTTP 415 response
+	Headers415 *CallARDPublicationMCPResponse415Headers
+	// Headers500 the parsed response headers for an HTTP 500 response
+	Headers500 *CallARDPublicationMCPResponse500Headers
+	// Headers503 the parsed response headers for an HTTP 503 response
+	Headers503 *CallARDPublicationMCPResponse503Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CallARDPublicationMCPResponse) GetJSON200() *MCPReplyResponse {
+	return r.JSON200
+}
+
+// GetJSON400 returns the response for an HTTP 400 `application/json` response
+func (r CallARDPublicationMCPResponse) GetJSON400() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON400
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r CallARDPublicationMCPResponse) GetApplicationproblemJSON400() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON400
+}
+
+// GetJSON401 returns the response for an HTTP 401 `application/json` response
+func (r CallARDPublicationMCPResponse) GetJSON401() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON401
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r CallARDPublicationMCPResponse) GetApplicationproblemJSON401() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON401
+}
+
+// GetJSON403 returns the response for an HTTP 403 `application/json` response
+func (r CallARDPublicationMCPResponse) GetJSON403() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON403
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r CallARDPublicationMCPResponse) GetApplicationproblemJSON403() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON403
+}
+
+// GetJSON404 returns the response for an HTTP 404 `application/json` response
+func (r CallARDPublicationMCPResponse) GetJSON404() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON404
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r CallARDPublicationMCPResponse) GetApplicationproblemJSON404() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON404
+}
+
+// GetJSON413 returns the response for an HTTP 413 `application/json` response
+func (r CallARDPublicationMCPResponse) GetJSON413() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON413
+}
+
+// GetApplicationproblemJSON413 returns the response for an HTTP 413 `application/problem+json` response
+func (r CallARDPublicationMCPResponse) GetApplicationproblemJSON413() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON413
+}
+
+// GetJSON415 returns the response for an HTTP 415 `application/json` response
+func (r CallARDPublicationMCPResponse) GetJSON415() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON415
+}
+
+// GetApplicationproblemJSON415 returns the response for an HTTP 415 `application/problem+json` response
+func (r CallARDPublicationMCPResponse) GetApplicationproblemJSON415() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON415
+}
+
+// GetJSON500 returns the response for an HTTP 500 `application/json` response
+func (r CallARDPublicationMCPResponse) GetJSON500() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON500
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r CallARDPublicationMCPResponse) GetApplicationproblemJSON500() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON500
+}
+
+// GetJSON503 returns the response for an HTTP 503 `application/json` response
+func (r CallARDPublicationMCPResponse) GetJSON503() *MCPErrorResponseJSONApplicationJSON {
+	return r.JSON503
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r CallARDPublicationMCPResponse) GetApplicationproblemJSON503() *MCPErrorResponseJSON2ApplicationProblemPlusJSON {
+	return r.ApplicationproblemJSON503
+}
+
+// GetBody returns the raw response body bytes
+func (r CallARDPublicationMCPResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CallARDPublicationMCPResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CallARDPublicationMCPResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CallARDPublicationMCPResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // SearchARDRegistryResponse200Headers the declared response headers of an HTTP 200 response for SearchARDRegistry
 type SearchARDRegistryResponse200Headers struct {
 	CacheControl              *string
@@ -55687,6 +57113,47 @@ func (c *ClientWithResponses) GetARDManifestWithResponse(ctx context.Context, pa
 		return nil, safeError(err)
 	}
 	return ParseGetARDManifestResponse(rsp)
+}
+
+// GetARDMCPOAuthMetadataWithResponse Discover the ARD MCP OAuth resource and operator issuer
+//
+// Readable without credentials for an enabled authenticated discovery host with a configured OIDC issuer. The resource is the configured discovery origin plus /ard/v1/mcp. Anonymous hosts, development authentication, disabled endpoints and unknown hosts return 404. No publication lookup occurs.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /.well-known/oauth-protected-resource/ard/v1/mcp (the `GetARDMCPOAuthMetadata` operationId).
+func (c *ClientWithResponses) GetARDMCPOAuthMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetARDMCPOAuthMetadataResponse, error) {
+	rsp, err := c.GetARDMCPOAuthMetadata(ctx, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseGetARDMCPOAuthMetadataResponse(rsp)
+}
+
+// HeadARDMCPOAuthMetadataWithResponse Check MCP OAuth metadata availability
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with HEAD /.well-known/oauth-protected-resource/ard/v1/mcp (the `HeadARDMCPOAuthMetadata` operationId).
+func (c *ClientWithResponses) HeadARDMCPOAuthMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*HeadARDMCPOAuthMetadataResponse, error) {
+	rsp, err := c.HeadARDMCPOAuthMetadata(ctx, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseHeadARDMCPOAuthMetadataResponse(rsp)
+}
+
+// PreflightARDPublicationMCPOAuthMetadataWithResponse Check an exact metadata browser origin
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with OPTIONS /.well-known/oauth-protected-resource/ard/v1/mcp (the `PreflightARDPublicationMCPOAuthMetadata` operationId).
+func (c *ClientWithResponses) PreflightARDPublicationMCPOAuthMetadataWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PreflightARDPublicationMCPOAuthMetadataResponse, error) {
+	rsp, err := c.PreflightARDPublicationMCPOAuthMetadata(ctx, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParsePreflightARDPublicationMCPOAuthMetadataResponse(rsp)
 }
 
 // GetCatalogMCPOAuthMetadataWithResponse Discover the configured MCP OAuth resource and issuer
@@ -60050,6 +61517,77 @@ func (c *ClientWithResponses) ExploreARDRegistryWithResponse(ctx context.Context
 	return ParseExploreARDRegistryResponse(rsp)
 }
 
+// RefuseARDPublicationMCPSessionDeletionWithResponse Refuse deletion because MCP has no retained sessions
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /ard/v1/mcp (the `RefuseARDPublicationMCPSessionDeletion` operationId).
+func (c *ClientWithResponses) RefuseARDPublicationMCPSessionDeletionWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*RefuseARDPublicationMCPSessionDeletionResponse, error) {
+	rsp, err := c.RefuseARDPublicationMCPSessionDeletion(ctx, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseRefuseARDPublicationMCPSessionDeletionResponse(rsp)
+}
+
+// RefuseARDPublicationMCPStreamWithResponse Refuse a standalone MCP stream
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /ard/v1/mcp (the `RefuseARDPublicationMCPStream` operationId).
+func (c *ClientWithResponses) RefuseARDPublicationMCPStreamWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*RefuseARDPublicationMCPStreamResponse, error) {
+	rsp, err := c.RefuseARDPublicationMCPStream(ctx, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseRefuseARDPublicationMCPStreamResponse(rsp)
+}
+
+// PreflightARDPublicationMCPWithResponse Check an exact MCP browser origin
+//
+// Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with OPTIONS /ard/v1/mcp (the `PreflightARDPublicationMCP` operationId).
+func (c *ClientWithResponses) PreflightARDPublicationMCPWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PreflightARDPublicationMCPResponse, error) {
+	rsp, err := c.PreflightARDPublicationMCP(ctx, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParsePreflightARDPublicationMCPResponse(rsp)
+}
+
+// CallARDPublicationMCPWithBodyWithResponse Search the active host-bound ARD publication through MCP
+//
+// Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /ard/v1/mcp (the `CallARDPublicationMCP` operationId).
+func (c *ClientWithResponses) CallARDPublicationMCPWithBodyWithResponse(ctx context.Context, params *CallARDPublicationMCPParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CallARDPublicationMCPResponse, error) {
+	rsp, err := c.CallARDPublicationMCPWithBody(ctx, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseCallARDPublicationMCPResponse(rsp)
+}
+
+// CallARDPublicationMCPWithResponse Search the active host-bound ARD publication through MCP
+//
+// Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /ard/v1/mcp (the `CallARDPublicationMCP` operationId).
+func (c *ClientWithResponses) CallARDPublicationMCPWithResponse(ctx context.Context, params *CallARDPublicationMCPParams, body CallARDPublicationMCPJSONRequestBody, reqEditors ...RequestEditorFn) (*CallARDPublicationMCPResponse, error) {
+	rsp, err := c.CallARDPublicationMCP(ctx, params, body, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseCallARDPublicationMCPResponse(rsp)
+}
+
 // SearchARDRegistryWithBodyWithResponse Search the host-selected ARD Registry
 //
 // Authentication is required only when the exact configured discovery host uses authenticated mode. Omitted federation means auto. Core auto Search merges the active local snapshot with up to 50 live candidates from administrator-approved sources. Signed continuations repeat bounded peer traversal while live candidates remain, and bind the unchanged window, snapshot, query, caller and host audience. The initial 15-minute expiry does not extend. A changed window or snapshot requires a restart; a temporary replay failure permits retry of the same token. Unsafe first-page traversal preserves healthy results with durable-only continuation. Hybrid Search returns the durable ranking before a distinct live tail; none and referrals modes continue local results only. A partial live stage is reported through Server-Timing without adding non-ARD members to the response.
@@ -60482,6 +62020,504 @@ func ParseGetARDManifestResponse(rsp *http.Response) (result *GetARDManifestResp
 			headers.LastModified = &value
 		}
 		response.Headers304 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseGetARDMCPOAuthMetadataResponse parses an HTTP response from a GetARDMCPOAuthMetadataWithResponse call
+func ParseGetARDMCPOAuthMetadataResponse(rsp *http.Response) (result *GetARDMCPOAuthMetadataResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &GetARDMCPOAuthMetadataResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MCPOAuthMetadata
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 400:
+		var headers GetARDMCPOAuthMetadataResponse400Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 403:
+		var headers GetARDMCPOAuthMetadataResponse403Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers GetARDMCPOAuthMetadataResponse404Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers404 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseHeadARDMCPOAuthMetadataResponse parses an HTTP response from a HeadARDMCPOAuthMetadataWithResponse call
+func ParseHeadARDMCPOAuthMetadataResponse(rsp *http.Response) (result *HeadARDMCPOAuthMetadataResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &HeadARDMCPOAuthMetadataResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		break // No content-type
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 403:
+		var headers HeadARDMCPOAuthMetadataResponse403Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers HeadARDMCPOAuthMetadataResponse404Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers404 = &headers
+	}
+
+	return response, nil
+}
+
+// ParsePreflightARDPublicationMCPOAuthMetadataResponse parses an HTTP response from a PreflightARDPublicationMCPOAuthMetadataWithResponse call
+func ParsePreflightARDPublicationMCPOAuthMetadataResponse(rsp *http.Response) (result *PreflightARDPublicationMCPOAuthMetadataResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &PreflightARDPublicationMCPOAuthMetadataResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 400:
+		var headers PreflightARDPublicationMCPOAuthMetadataResponse400Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 403:
+		var headers PreflightARDPublicationMCPOAuthMetadataResponse403Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers PreflightARDPublicationMCPOAuthMetadataResponse404Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers404 = &headers
 	}
 
 	return response, nil
@@ -76497,6 +78533,1064 @@ func ParseExploreARDRegistryResponse(rsp *http.Response) (result *ExploreARDRegi
 			headers.Link = &value
 		}
 		response.Headers200 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseRefuseARDPublicationMCPSessionDeletionResponse parses an HTTP response from a RefuseARDPublicationMCPSessionDeletionWithResponse call
+func ParseRefuseARDPublicationMCPSessionDeletionResponse(rsp *http.Response) (result *RefuseARDPublicationMCPSessionDeletionResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &RefuseARDPublicationMCPSessionDeletionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 405:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 405:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON405 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 400:
+		var headers RefuseARDPublicationMCPSessionDeletionResponse400Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 403:
+		var headers RefuseARDPublicationMCPSessionDeletionResponse403Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers RefuseARDPublicationMCPSessionDeletionResponse404Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 405:
+		var headers RefuseARDPublicationMCPSessionDeletionResponse405Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers405 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseRefuseARDPublicationMCPStreamResponse parses an HTTP response from a RefuseARDPublicationMCPStreamWithResponse call
+func ParseRefuseARDPublicationMCPStreamResponse(rsp *http.Response) (result *RefuseARDPublicationMCPStreamResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &RefuseARDPublicationMCPStreamResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 405:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON405 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 405:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON405 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 403:
+		var headers RefuseARDPublicationMCPStreamResponse403Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers RefuseARDPublicationMCPStreamResponse404Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 405:
+		var headers RefuseARDPublicationMCPStreamResponse405Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers405 = &headers
+	}
+
+	return response, nil
+}
+
+// ParsePreflightARDPublicationMCPResponse parses an HTTP response from a PreflightARDPublicationMCPWithResponse call
+func ParsePreflightARDPublicationMCPResponse(rsp *http.Response) (result *PreflightARDPublicationMCPResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &PreflightARDPublicationMCPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case rsp.StatusCode == 204:
+		break // No content-type
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 400:
+		var headers PreflightARDPublicationMCPResponse400Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 403:
+		var headers PreflightARDPublicationMCPResponse403Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers PreflightARDPublicationMCPResponse404Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers404 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseCallARDPublicationMCPResponse parses an HTTP response from a CallARDPublicationMCPWithResponse call
+func ParseCallARDPublicationMCPResponse(rsp *http.Response) (result *CallARDPublicationMCPResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &CallARDPublicationMCPResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest MCPReplyResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case rsp.StatusCode == 202:
+		break // No content-type
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 400:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 401:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 401:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 403:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 404:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 413:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 413:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON413 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 415:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON415 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 415:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON415 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 500:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 500:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/json" && rsp.StatusCode == 503:
+		var dest MCPErrorResponseJSONApplicationJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
+
+	case rsp.Header.Get("Content-Type") == "application/problem+json" && rsp.StatusCode == 503:
+		var dest MCPErrorResponseJSON2ApplicationProblemPlusJSON
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers CallARDPublicationMCPResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers200 = &headers
+	case rsp.StatusCode == 400:
+		var headers CallARDPublicationMCPResponse400Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers400 = &headers
+	case rsp.StatusCode == 401:
+		var headers CallARDPublicationMCPResponse401Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers401 = &headers
+	case rsp.StatusCode == 403:
+		var headers CallARDPublicationMCPResponse403Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers403 = &headers
+	case rsp.StatusCode == 404:
+		var headers CallARDPublicationMCPResponse404Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers404 = &headers
+	case rsp.StatusCode == 413:
+		var headers CallARDPublicationMCPResponse413Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers413 = &headers
+	case rsp.StatusCode == 415:
+		var headers CallARDPublicationMCPResponse415Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers415 = &headers
+	case rsp.StatusCode == 500:
+		var headers CallARDPublicationMCPResponse500Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers500 = &headers
+	case rsp.StatusCode == 503:
+		var headers CallARDPublicationMCPResponse503Headers
+		if values := rsp.Header.Values("Allow"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Allow", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.Allow = &value
+		}
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("WWW-Authenticate"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "WWW-Authenticate", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.WWWAuthenticate = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.Headers503 = &headers
 	}
 
 	return response, nil

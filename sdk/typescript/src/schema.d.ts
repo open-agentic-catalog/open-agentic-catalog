@@ -236,6 +236,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/ard/v1/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Refuse a standalone MCP stream */
+        get: operations["refuseARDPublicationMCPStream"];
+        put?: never;
+        /**
+         * Search the active host-bound ARD publication through MCP
+         * @description Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+         */
+        post: operations["callARDPublicationMCP"];
+        /** Refuse deletion because MCP has no retained sessions */
+        delete: operations["refuseARDPublicationMCPSessionDeletion"];
+        /**
+         * Check an exact MCP browser origin
+         * @description Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
+         */
+        options: operations["preflightARDPublicationMCP"];
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource/ard/v1/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover the ARD MCP OAuth resource and operator issuer
+         * @description Readable without credentials for an enabled authenticated discovery host with a configured OIDC issuer. The resource is the configured discovery origin plus /ard/v1/mcp. Anonymous hosts, development authentication, disabled endpoints and unknown hosts return 404. No publication lookup occurs.
+         */
+        get: operations["getARDMCPOAuthMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        /** Check an exact metadata browser origin */
+        options: operations["preflightARDPublicationMCPOAuthMetadata"];
+        /** Check MCP OAuth metadata availability */
+        head: operations["headARDMCPOAuthMetadata"];
+        patch?: never;
+        trace?: never;
+    };
     "/mcp": {
         parameters: {
             query?: never;
@@ -9278,6 +9326,160 @@ export interface operations {
                 };
             };
             default: components["responses"]["Problem"];
+        };
+    };
+    refuseARDPublicationMCPStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+            405: components["responses"]["MCPError"];
+        };
+    };
+    callARDPublicationMCP: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required except for legacy initialize. Supported versions are 2026-07-28 and 2025-11-25. */
+                "MCP-Protocol-Version"?: string;
+                /** @description Required matching method for the modern protocol. */
+                "MCP-Method"?: string;
+                /** @description Required matching tool name for modern tools/call. */
+                "MCP-Name"?: string;
+                /** @description If present must exactly match the public origin or an explicit MCP allowed origin. */
+                Origin?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MCPRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["MCPReply"];
+            /** @description Accepted legacy initialized notification; empty body and no session ID. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["MCPError"];
+            401: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+            413: components["responses"]["MCPError"];
+            415: components["responses"]["MCPError"];
+            500: components["responses"]["MCPError"];
+            503: components["responses"]["MCPError"];
+        };
+    };
+    refuseARDPublicationMCPSessionDeletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            400: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+            405: components["responses"]["MCPError"];
+        };
+    };
+    preflightARDPublicationMCP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved credential-free preflight. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+        };
+    };
+    getARDMCPOAuthMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description RFC 9728 protected resource metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPOAuthMetadata"];
+                };
+            };
+            400: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+        };
+    };
+    preflightARDPublicationMCPOAuthMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved credential-free metadata preflight for GET or HEAD. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+        };
+    };
+    headARDMCPOAuthMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Metadata is available; empty body. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
         };
     };
     refuseCatalogMCPStream: {

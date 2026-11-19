@@ -90,6 +90,46 @@
       "gaps": []
     },
     {
+      "id": "ard-publication-mcp",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:callARDPublicationMCP",
+        "http:preflightARDPublicationMCP",
+        "http:refuseARDPublicationMCPStream",
+        "http:refuseARDPublicationMCPSessionDeletion",
+        "http:getARDMCPOAuthMetadata",
+        "http:headARDMCPOAuthMetadata",
+        "http:preflightARDPublicationMCPOAuthMetadata"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/ard_mcp_functional_test.go",
+          "symbol": "TestARDMCPHTTPBothProtocolsBehindExactHostProxy"
+        },
+        {
+          "path": "internal/platform/httpserver/ard_mcp_functional_test.go",
+          "symbol": "TestARDMCPHTTPCurrentHostAuthorityAndMetadata"
+        },
+        {
+          "path": "internal/platform/httpserver/ard_mcp_functional_test.go",
+          "symbol": "TestARDMCPHTTPDeadlinesReachAuthenticationAndSearch"
+        },
+        {
+          "path": "internal/platform/httpserver/ard_mcp_functional_test.go",
+          "symbol": "TestARDMCPHTTPSharedConcurrencyAndCancellation"
+        },
+        {
+          "path": "test/interoperability/mcp/catalog_matrix.py"
+        }
+      ],
+      "reason": "Owned HTTP fixtures qualify transport and current host authority. The separately selected test-interoperability-mcp-catalog campaign uses an unchanged independent SDK and real PostgreSQL publications over verified private HTTPS. This is not packaged Compose operation coverage.",
+      "success": "Single static search tool, complete structured/text ARD responses, host/audience isolation, continuation, approved live/referrals and endpoint-specific OAuth metadata for both protocols.",
+      "rejection": "Disabled/unknown/conflicting hosts, invalid tokens or scopes, closed arguments, output bounds and obsolete generation cursors cannot fall back to Control.",
+      "recovery": "Current grant revocation and unpublication remove access. Deadlines and client cancellation reach application reads and release finite concurrency slots.",
+      "gaps": []
+    },
+    {
       "id": "human-resource-ratings",
       "disposition": "lower-level-only",
       "status": "covered",

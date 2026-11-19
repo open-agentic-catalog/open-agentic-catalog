@@ -61,3 +61,32 @@ func TestMCPConfigurationDefaultsOverridesAndRefusals(t *testing.T) {
 		}
 	}
 }
+
+func TestARDMCPHostActivationAndIndependentOverrideGuard(t *testing.T) {
+	t.Setenv("CATALOG_MCP_ENABLED", "false")
+	t.Setenv("MCPGODEBUG", "")
+	t.Setenv("CATALOG_DISCOVERY_HOSTS", `[{"host":"catalog.example.com","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"example.com","mcpEnabled":true}]`)
+	for _, role := range []Role{RoleAPI, RoleAll} {
+		cfg, err := LoadFor("../../../config/local.json", role)
+		if err != nil || cfg.MCP.Enabled || len(cfg.Discovery.Hosts) != 1 || !cfg.Discovery.Hosts[0].MCPEnabled {
+			t.Fatal("independent host activation", role, err)
+		}
+	}
+	t.Setenv("MCPGODEBUG", "allowsessionsinstateless=1")
+	for _, role := range []Role{RoleAPI, RoleAll} {
+		if _, err := LoadFor("../../../config/local.json", role); err == nil || strings.Contains(err.Error(), "allowsessionsinstateless") {
+			t.Fatal("ARD-only activation bypassed SDK override guard", role, err)
+		}
+	}
+	t.Setenv("MCPGODEBUG", "")
+	for _, value := range []string{
+		`[{"host":"catalog.example.com","tenantId":"00000000-0000-7000-8000-000000000001","mode":"disabled","publisherDomain":"example.com","mcpEnabled":true}]`,
+		`[{"host":"catalog.example.com","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"example.com","mcpEnabled":null}]`,
+		`[{"host":"catalog.example.com","tenantId":"00000000-0000-7000-8000-000000000001","mode":"anonymous","publisherDomain":"example.com","mcpEnabled":"true"}]`,
+	} {
+		t.Setenv("CATALOG_DISCOVERY_HOSTS", value)
+		if _, err := LoadFor("../../../config/local.json", RoleAPI); err == nil {
+			t.Fatal("invalid activation admitted", value)
+		}
+	}
+}

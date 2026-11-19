@@ -25,7 +25,7 @@ import (
 
 // handleARDManifest serves the host-authorized active ARD snapshot with retained identity and conditional caching.
 func (s *Server) handleARDManifest(writer http.ResponseWriter, request *http.Request) {
-	binding, ok := s.authorizeDiscovery(writer, request)
+	binding, ok := s.authorizeDiscovery(request.Context(), writer, request)
 	if !ok {
 		return
 	}
@@ -45,7 +45,7 @@ func (s *Server) handleARDManifest(writer http.ResponseWriter, request *http.Req
 
 // handleAICatalog serves the active AI Catalog document with its own media type, digest and ETag.
 func (s *Server) handleAICatalog(writer http.ResponseWriter, request *http.Request) {
-	binding, ok := s.authorizeDiscovery(writer, request)
+	binding, ok := s.authorizeDiscovery(request.Context(), writer, request)
 	if !ok {
 		return
 	}
@@ -67,7 +67,7 @@ func (s *Server) handleAICatalog(writer http.ResponseWriter, request *http.Reque
 // replays one unchanged bounded live window. Hybrid results preserve durable
 // order before the live tail; referrals disclose only approved sources.
 func (s *Server) handleARDSearch(writer http.ResponseWriter, request *http.Request) {
-	binding, ok := s.authorizeDiscovery(writer, request)
+	binding, ok := s.authorizeDiscovery(request.Context(), writer, request)
 	if !ok {
 		return
 	}
@@ -76,13 +76,32 @@ func (s *Server) handleARDSearch(writer http.ResponseWriter, request *http.Reque
 		writeARDProblem(writer, request, err)
 		return
 	}
-	if query.PageSize == 0 {
-		query.PageSize = 10
-	}
-	local, err := binding.Publication.Search(request.Context(), binding.TenantID, query)
+	local, err := s.searchARD(request.Context(), binding, query)
 	if err != nil {
 		writeARDProblem(writer, request, err)
 		return
+	}
+	writer.Header().Set("Cache-Control", "no-store")
+	if binding.Mode == DiscoveryAuthenticated {
+		addVary(writer.Header(), "Authorization")
+	}
+	writer.Header().Set("Link", publicDiscoveryLinks())
+	if local.Partial {
+		writer.Header().Set("Server-Timing", `federation;desc="partial"`)
+		s.federationWarning.Warn(s.now(), s.logger, "public ARD search completed with partial federation", requestLogAttributes(request, "event", "federation.partial", "component", "api", "diagnostic_count", len(local.Diagnostics))...)
+	}
+	setSearchModeHeaders(writer, local.Tier, local.FallbackReason, local.PartialIndex)
+	s.respondARDJSON(writer, request, "application/json", local)
+}
+
+// searchARD is the shared host-bound application Search, including approved federation.
+func (s *Server) searchARD(ctx context.Context, binding DiscoveryHost, query publication.SearchRequest) (publication.SearchResponse, error) {
+	if query.PageSize == 0 {
+		query.PageSize = 10
+	}
+	local, err := binding.Publication.Search(ctx, binding.TenantID, query)
+	if err != nil {
+		return publication.SearchResponse{}, err
 	}
 	switch query.Federation {
 	case "", "auto":
@@ -91,10 +110,9 @@ func (s *Server) handleARDSearch(writer http.ResponseWriter, request *http.Reque
 		}
 		filter, filterErr := publication.ResolveSearchFilter(query.Query)
 		if filterErr != nil {
-			writeARDProblem(writer, request, filterErr)
-			return
+			return publication.SearchResponse{}, filterErr
 		}
-		liveContext := discoveryFederationContext(request.Context(), binding.TenantID, binding.Host)
+		liveContext := discoveryFederationContext(ctx, binding.TenantID, binding.Host)
 		audience := federation.AudienceAnonymous
 		if binding.Mode == DiscoveryAuthenticated {
 			audience = federation.AudienceAuthenticated
@@ -102,8 +120,7 @@ func (s *Server) handleARDSearch(writer http.ResponseWriter, request *http.Reque
 		live, liveErr := s.federation.LiveSearch(liveContext, federation.LiveSearchRequest{Context: query.Query.Context, Text: query.Query.Text, Filter: query.Query.Filter, PageSize: catalog.LiveSearchWindow, Replay: true, DiscoveryHost: binding.Host, Audience: audience})
 		if liveErr != nil {
 			if query.PageToken != "" {
-				writeARDProblem(writer, request, catalog.E(catalog.CodeDependencyUnavailable, "live search continuation is unavailable; retry the same token"))
-				return
+				return publication.SearchResponse{}, catalog.E(catalog.CodeDependencyUnavailable, "live search continuation is unavailable; retry the same token")
 			}
 			local.Partial = true
 			local.Diagnostics = append(local.Diagnostics, publication.SourceDiagnostic{Source: "federation", Status: "failed", Message: "Live federation was unavailable within the request deadline."})
@@ -112,7 +129,7 @@ func (s *Server) handleARDSearch(writer http.ResponseWriter, request *http.Reque
 		{
 			remote := local
 			remote.Results, remote.PageToken = nil, ""
-			mergeLiveResults(request.Context(), &remote, live, filter)
+			mergeLiveResults(ctx, &remote, live, filter)
 			fingerprint := live.ReplayFingerprint
 			for _, d := range remote.Diagnostics {
 				if d.Status == "invalid_response" {
@@ -122,8 +139,7 @@ func (s *Server) handleARDSearch(writer http.ResponseWriter, request *http.Reque
 			local.Partial, local.Diagnostics = remote.Partial, remote.Diagnostics
 			local, err = binding.Publication.ContinueLiveSearch(local, remote.Results, fingerprint)
 			if err != nil {
-				writeARDProblem(writer, request, err)
-				return
+				return publication.SearchResponse{}, err
 			}
 			break
 		}
@@ -132,7 +148,7 @@ func (s *Server) handleARDSearch(writer http.ResponseWriter, request *http.Reque
 		if binding.Mode == DiscoveryAuthenticated {
 			audience = federation.AudienceAuthenticated
 		}
-		sources, partial, listErr := s.federation.Referrals(discoveryFederationContext(request.Context(), binding.TenantID, binding.Host), binding.Host, audience)
+		sources, partial, listErr := s.federation.Referrals(discoveryFederationContext(ctx, binding.TenantID, binding.Host), binding.Host, audience)
 		if listErr != nil {
 			local.Partial = true
 			local.Diagnostics = append(local.Diagnostics, publication.SourceDiagnostic{Source: "federation", Status: "failed", Message: "Federation referrals were unavailable within the request."})
@@ -147,20 +163,9 @@ func (s *Server) handleARDSearch(writer http.ResponseWriter, request *http.Reque
 		}
 	case "none":
 	default:
-		writeARDProblem(writer, request, catalog.E(catalog.CodeInvalidArgument, "federation mode is invalid"))
-		return
+		return publication.SearchResponse{}, catalog.E(catalog.CodeInvalidArgument, "federation mode is invalid")
 	}
-	writer.Header().Set("Cache-Control", "no-store")
-	if binding.Mode == DiscoveryAuthenticated {
-		addVary(writer.Header(), "Authorization")
-	}
-	writer.Header().Set("Link", publicDiscoveryLinks())
-	if local.Partial {
-		writer.Header().Set("Server-Timing", `federation;desc="partial"`)
-		s.federationWarning.Warn(s.now(), s.logger, "public ARD search completed with partial federation", requestLogAttributes(request, "event", "federation.partial", "component", "api", "diagnostic_count", len(local.Diagnostics))...)
-	}
-	setSearchModeHeaders(writer, local.Tier, local.FallbackReason, local.PartialIndex)
-	s.respondARDJSON(writer, request, "application/json", local)
+	return local, nil
 }
 
 // discoveryFederationContext creates the host-bound internal discovery actor used by approved live/referral reads.
@@ -276,7 +281,7 @@ func searchResultKey(identifier, version string) string {
 
 // handleARDExplore runs facet exploration against the authorized host's active snapshot.
 func (s *Server) handleARDExplore(writer http.ResponseWriter, request *http.Request) {
-	binding, ok := s.authorizeDiscovery(writer, request)
+	binding, ok := s.authorizeDiscovery(request.Context(), writer, request)
 	if !ok {
 		return
 	}
@@ -318,7 +323,7 @@ func setSearchModeHeaders(writer http.ResponseWriter, tier, reason string, parti
 
 // handleARDList validates bounded list paging and applies the host's public/private cache policy.
 func (s *Server) handleARDList(writer http.ResponseWriter, request *http.Request) {
-	binding, ok := s.authorizeDiscovery(writer, request)
+	binding, ok := s.authorizeDiscovery(request.Context(), writer, request)
 	if !ok {
 		return
 	}
@@ -348,7 +353,7 @@ func (s *Server) handleARDList(writer http.ResponseWriter, request *http.Request
 
 // handlePublicArtifact requires active-snapshot artifact eligibility before returning retained bytes as an attachment.
 func (s *Server) handlePublicArtifact(writer http.ResponseWriter, request *http.Request) {
-	binding, ok := s.authorizeDiscovery(writer, request)
+	binding, ok := s.authorizeDiscovery(request.Context(), writer, request)
 	if !ok {
 		return
 	}

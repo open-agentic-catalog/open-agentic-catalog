@@ -27,7 +27,7 @@ tags:
   - name: Personal workspace
     description: Human caller-owned work queues and private saved references or searches.
   - name: Catalog MCP
-    description: Optional authenticated, read-only stateless MCP HTTP and public OAuth resource metadata.
+    description: Optional read-only stateless MCP interfaces for Control metadata and host-scoped ARD publication Search, with endpoint-specific OAuth resource metadata.
   - name: Service
     description: Health, version, capabilities, metrics, and the served API contract.
   - name: Identity
@@ -786,6 +786,114 @@ paths:
             application/json:
               schema: {$ref: '#/components/schemas/TenantSettings'}
         default: {$ref: '#/components/responses/Problem'}
+  /ard/v1/mcp:
+    post:
+      tags: [Catalog MCP]
+      operationId: callARDPublicationMCP
+      security: [{}, {bearerAuth: []}]
+      summary: Search the active host-bound ARD publication through MCP
+      description: >-
+        Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP.
+        One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics.
+        Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require
+        current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request.
+        Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback.
+        Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE.
+        Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency
+        and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse;
+        oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata
+        carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and
+        current authorization retain the shared REST application boundary. No resource or attestation URL is fetched.
+        Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+      parameters:
+        - {name: MCP-Protocol-Version, in: header, required: false, schema: {type: string}, description: 'Required except for legacy initialize. Supported versions are 2026-07-28 and 2025-11-25.'}
+        - {name: MCP-Method, in: header, required: false, schema: {type: string}, description: Required matching method for the modern protocol.}
+        - {name: MCP-Name, in: header, required: false, schema: {type: string}, description: Required matching tool name for modern tools/call.}
+        - {name: Origin, in: header, required: false, schema: {type: string}, description: If present must exactly match the public origin or an explicit MCP allowed origin.}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/MCPRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/MCPReply'}
+        '202': {description: Accepted legacy initialized notification; empty body and no session ID.}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '401': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+        '413': {$ref: '#/components/responses/MCPError'}
+        '415': {$ref: '#/components/responses/MCPError'}
+        '500': {$ref: '#/components/responses/MCPError'}
+        '503': {$ref: '#/components/responses/MCPError'}
+    options:
+      tags: [Catalog MCP]
+      operationId: preflightARDPublicationMCP
+      security: []
+      summary: Check an exact MCP browser origin
+      description: Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
+      responses:
+        '204': {description: Approved credential-free preflight.}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+    get:
+      tags: [Catalog MCP]
+      operationId: refuseARDPublicationMCPStream
+      security: []
+      summary: Refuse a standalone MCP stream
+      responses:
+        '405': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+    delete:
+      tags: [Catalog MCP]
+      operationId: refuseARDPublicationMCPSessionDeletion
+      security: []
+      summary: Refuse deletion because MCP has no retained sessions
+      responses:
+        '405': {$ref: '#/components/responses/MCPError'}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+  /.well-known/oauth-protected-resource/ard/v1/mcp:
+    get:
+      tags: [Catalog MCP]
+      operationId: getARDMCPOAuthMetadata
+      security: []
+      summary: Discover the ARD MCP OAuth resource and operator issuer
+      description: >-
+        Readable without credentials for an enabled authenticated discovery host with a configured OIDC issuer.
+        The resource is the configured discovery origin plus /ard/v1/mcp. Anonymous hosts, development authentication,
+        disabled endpoints and unknown hosts return 404. No publication lookup occurs.
+      responses:
+        '200':
+          description: RFC 9728 protected resource metadata.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/MCPOAuthMetadata'}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+    head:
+      tags: [Catalog MCP]
+      operationId: headARDMCPOAuthMetadata
+      security: []
+      summary: Check MCP OAuth metadata availability
+      responses:
+        '200': {description: Metadata is available; empty body.}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
+    options:
+      tags: [Catalog MCP]
+      operationId: preflightARDPublicationMCPOAuthMetadata
+      security: []
+      summary: Check an exact metadata browser origin
+      responses:
+        '204': {description: Approved credential-free metadata preflight for GET or HEAD.}
+        '400': {$ref: '#/components/responses/MCPError'}
+        '403': {$ref: '#/components/responses/MCPError'}
+        '404': {$ref: '#/components/responses/MCPError'}
   /mcp:
     post:
       tags: [Catalog MCP]

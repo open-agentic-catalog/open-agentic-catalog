@@ -41,7 +41,7 @@ func (s *Server) handleServiceActivity(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, catalog.E(catalog.CodeDependencyUnavailable, "service activity is unavailable"))
 		return
 	}
-	sample, err := s.observability.Activity(s.mcp != nil)
+	sample, err := s.observability.Activity(s.mcp != nil || len(s.ardMCP) != 0)
 	if err != nil {
 		s.fail(w, r, catalog.E(catalog.CodeDependencyUnavailable, "service activity is unavailable"))
 		return

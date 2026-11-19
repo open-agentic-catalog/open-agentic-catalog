@@ -406,7 +406,9 @@ configEnv:
 
 Use your installed IngressClass name. The disposable test instead uses the `catalog-local` class annotation with namespace-scoped controller permissions. It creates no cluster-wide IngressClass. Follow the [coordinated deployment procedure](maintenance.mdx#coordinated-release-deployment) to apply the complete values.
 
-Route only `/mcp` and `/.well-known/oauth-protected-resource/mcp`, with `Exact` paths. Preserve Host, Origin, Authorization and MCP headers. Do not rewrite the paths or expose Control API and worker routes. Permit controller traffic to API port 8080 if your network policy requires it. Keep Catalog ServiceAccounts tokenless and without access to certificate Secrets.
+For Control MCP, route only `/mcp` and `/.well-known/oauth-protected-resource/mcp`, with `Exact` paths. Preserve Host, Origin, Authorization and MCP headers. Do not rewrite the paths or expose Control API and worker routes. Permit controller traffic to API port 8080 if your network policy requires it. Keep Catalog ServiceAccounts tokenless and without access to certificate Secrets.
+
+For the separate [ARD publication MCP interface](../guides/mcp-server.mdx#search-an-ard-publication-over-mcp), enable `mcpEnabled` on the intended discovery host. Its exact routes are `/ard/v1/mcp` and `/.well-known/oauth-protected-resource/ard/v1/mcp`. The optional chart ingress selects these routes for an enabled discovery host, independently of Control MCP. Preserve the bound Host and strip `Forwarded`, `X-Forwarded-Host` and `X-Original-Host`; trusted-proxy authority is not supported. Provide a matching certificate and an active publication. See [chart runtime inputs](../../../../../deployments/helm/open-agentic-catalog/README.md#read-only-mcp-runtime-inputs).
 
 For local access, forward your ingress Service in a separate terminal. This example assumes the Service is named `catalog-edge-traefik`:
 
