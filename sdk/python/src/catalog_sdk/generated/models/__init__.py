@@ -374,6 +374,12 @@ from catalog_sdk.generated.models.membership_page import MembershipPage
 from catalog_sdk.generated.models.namespace import Namespace
 from catalog_sdk.generated.models.namespace_access import NamespaceAccess
 from catalog_sdk.generated.models.namespace_page import NamespacePage
+from catalog_sdk.generated.models.native_capabilities_filter import (
+    NativeCapabilitiesFilter,
+)
+from catalog_sdk.generated.models.native_capabilities_filter_not import (
+    NativeCapabilitiesFilterNot,
+)
 from catalog_sdk.generated.models.nesting_policy import NestingPolicy
 from catalog_sdk.generated.models.oci_handoff_reference import OCIHandoffReference
 from catalog_sdk.generated.models.observation import Observation

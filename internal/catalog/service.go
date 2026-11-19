@@ -2411,7 +2411,7 @@ func (s *Service) Explore(ctx context.Context, request ExploreRequest) (ExploreR
 	if request.Query.Limit != 0 || request.Query.Cursor != "" {
 		return ExploreResponse{}, E(CodeInvalidArgument, "catalog explore does not accept pagination controls")
 	}
-	if (request.Query.AgentProtocol != "" || request.Query.IncludeMCPTools) && request.Query.Origins == nil {
+	if (request.Query.AgentProtocol != "" || request.Query.IncludeMCPTools || request.Query.NativeCapabilities != nil) && request.Query.Origins == nil {
 		request.Query.Origins = []SearchResultType{SearchResultLocal}
 	}
 	if err := validateCatalogSearchQuery(request.Query); err != nil {
@@ -2827,6 +2827,9 @@ func normalizeQueries(values []string) []string {
 // validateCatalogSearchQuery enforces supported query fields, filter values and
 // collection limits.
 func validateCatalogSearchQuery(query SearchQuery) error {
+	if err := ValidateNativeCapabilities(query); err != nil {
+		return err
+	}
 	if query.IncludeMCPTools && (strings.TrimSpace(query.Text) == "" || query.AgentProtocol != "" || len(query.Origins) != 1 || query.Origins[0] != SearchResultLocal || len(query.Kinds) > 1 || len(query.Kinds) == 1 && query.Kinds[0] != KindMCPServer) {
 		return E(CodeInvalidArgument, "includeMcpTools requires search text, explicit local-only origins and MCP servers; Agent protocol selection is incompatible")
 	}

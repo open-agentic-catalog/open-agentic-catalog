@@ -6784,6 +6784,9 @@ type CatalogExploreQuery struct {
 	License     *string `json:"license,omitempty"`
 	NamespaceId *UUID   `json:"namespaceId,omitempty"`
 
+	// NativeCapabilities Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+	NativeCapabilities *NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
+
 	// Publisher Catalog Publisher UUID. Explore covers local governed releases only.
 	Publisher  *string     `json:"publisher,omitempty"`
 	Tags       *[]string   `json:"tags,omitempty"`
@@ -6948,6 +6951,9 @@ type CatalogSearch struct {
 
 	// NamespaceId Local Listing namespace UUID; restricts to local releases. Unknown or other-tenant UUIDs return no matches. Not an AIR or JSON-LD namespace.
 	NamespaceId *UUID `json:"namespaceId,omitempty"`
+
+	// NativeCapabilities Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+	NativeCapabilities *NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
 
 	// Order Explicit column order across local and indexed keyword matches, followed by a separately ordered bounded live window. Omit for relevance (including configured semantic search) or name A-Z when browsing without text. Publisher uses the current local display name or external publisher declaration. Kind uses its wire label. Primary keys use the selected direction; ties use normalized name and stable result ID ascending. Column ordering does not invoke the embedding provider. Changing order requires a new cursor-free search.
 	Order *CatalogSearchOrder `json:"order,omitempty"`
@@ -8208,6 +8214,30 @@ type NamespacePage struct {
 	NextCursor *string     `json:"nextCursor,omitempty"`
 }
 
+// NativeCapabilitiesFilter Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+type NativeCapabilitiesFilter struct {
+	// AgentDefaultInputModes Card default input media types, not effective modes of a selected skill. Values are exact case-sensitive literals.
+	AgentDefaultInputModes *[]string `json:"agentDefaultInputModes,omitempty"`
+
+	// AgentDefaultOutputModes Card default output media types, not effective modes of a selected skill. Values are exact case-sensitive literals.
+	AgentDefaultOutputModes *[]string `json:"agentDefaultOutputModes,omitempty"`
+
+	// AgentSkillIds Declared Agent skill IDs. Values are exact case-sensitive literals.
+	AgentSkillIds *[]string `json:"agentSkillIds,omitempty"`
+
+	// AgentSkillTags Declared Agent skill tags, distinct from Listing tags. Values are exact case-sensitive literals.
+	AgentSkillTags *[]string `json:"agentSkillTags,omitempty"`
+
+	// AgentStreaming Explicit declared streaming value; omission, false and true are distinct.
+	AgentStreaming *bool `json:"agentStreaming,omitempty"`
+
+	// McpProtocolVersions Declared remote MCP protocol versions, without protocol negotiation. Values are exact case-sensitive literals.
+	McpProtocolVersions *[]string `json:"mcpProtocolVersions,omitempty"`
+
+	// McpTransports Declared MCP Server Card remote transport types. Values are exact case-sensitive literals.
+	McpTransports *[]string `json:"mcpTransports,omitempty"`
+}
+
 // NestingPolicy defines model for NestingPolicy.
 type NestingPolicy struct {
 	AllowedOrigins *[]string `json:"allowedOrigins,omitempty"`
@@ -8466,6 +8496,9 @@ type PersonalCriteria struct {
 
 	// NamespaceId Local Listing namespace UUID; restricts to local releases. Unknown or other-tenant UUIDs return no matches. Not an AIR or JSON-LD namespace.
 	NamespaceId *UUID `json:"namespaceId,omitempty"`
+
+	// NativeCapabilities Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+	NativeCapabilities *NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
 
 	// Order Explicit column order across local and indexed keyword matches, followed by a separately ordered bounded live window. Omit for relevance (including configured semantic search) or name A-Z when browsing without text. Publisher uses the current local display name or external publisher declaration. Kind uses its wire label. Primary keys use the selected direction; ties use normalized name and stable result ID ascending. Column ordering does not invoke the embedding provider. Changing order requires a new cursor-free search.
 	Order *CatalogSearchOrder `json:"order,omitempty"`
@@ -14919,6 +14952,13 @@ func (t CatalogSearch) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.NativeCapabilities != nil {
+		object["nativeCapabilities"], err = json.Marshal(t.NativeCapabilities)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'nativeCapabilities': %w", err)
+		}
+	}
+
 	if t.Order != nil {
 		object["order"], err = json.Marshal(t.Order)
 		if err != nil {
@@ -15028,6 +15068,13 @@ func (t *CatalogSearch) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.NamespaceId)
 		if err != nil {
 			return fmt.Errorf("error reading 'namespaceId': %w", err)
+		}
+	}
+
+	if raw, found := object["nativeCapabilities"]; found {
+		err = json.Unmarshal(raw, &t.NativeCapabilities)
+		if err != nil {
+			return fmt.Errorf("error reading 'nativeCapabilities': %w", err)
 		}
 	}
 
@@ -16204,6 +16251,13 @@ func (t PersonalCriteria) MarshalJSON() ([]byte, error) {
 		}
 	}
 
+	if t.NativeCapabilities != nil {
+		object["nativeCapabilities"], err = json.Marshal(t.NativeCapabilities)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'nativeCapabilities': %w", err)
+		}
+	}
+
 	if t.Order != nil {
 		object["order"], err = json.Marshal(t.Order)
 		if err != nil {
@@ -16299,6 +16353,13 @@ func (t *PersonalCriteria) UnmarshalJSON(b []byte) error {
 		err = json.Unmarshal(raw, &t.NamespaceId)
 		if err != nil {
 			return fmt.Errorf("error reading 'namespaceId': %w", err)
+		}
+	}
+
+	if raw, found := object["nativeCapabilities"]; found {
+		err = json.Unmarshal(raw, &t.NativeCapabilities)
+		if err != nil {
+			return fmt.Errorf("error reading 'nativeCapabilities': %w", err)
 		}
 	}
 

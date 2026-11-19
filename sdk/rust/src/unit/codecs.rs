@@ -216,6 +216,8 @@ fn skill_package_data_rejects_invalid_base64_and_wrong_wire_types() {
 #[test]
 fn declared_mcp_tools_keep_explicit_false_distinct_from_omission() {
     for wire in [
+        json!({"nativeCapabilities":{"agentStreaming":false,"agentSkillIds":["resolve-invoices"],"agentSkillTags":["finance, billing "]},"origins":["local"]}),
+        json!({"nativeCapabilities":{"mcpTransports":["sse"],"mcpProtocolVersions":["2026-07-28"]},"origins":["local"]}),
         json!({"text":"pdf tables","includeMcpTools":true,"origins":["local"]}),
         json!({"includeMcpTools":false}),
         json!({}),

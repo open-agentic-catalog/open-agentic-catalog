@@ -52,7 +52,7 @@ See the [deployment guide](../../../documentation/src/content/docs/operations/de
 
 ## Install or upgrade
 
-The current schema runs through migration 000053 with exact privilege manifest v30. Documentation contract tests compare these values with embedded migrations and manifest code.
+The current schema runs through migration 000054 with exact privilege manifest v31. Documentation contract tests compare these values with embedded migrations and manifest code.
 
 When crossing migration 000039, keep API and worker Deployments at zero after migration and grant reconciliation. Run the [bounded search-projection repair](../../../documentation/src/content/docs/operations/search-projection-repair.mdx) for every tenant before starting the upgraded workloads. The migration hook does not perform this repair.
 

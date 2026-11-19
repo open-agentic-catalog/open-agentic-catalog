@@ -238,7 +238,7 @@ Inspect the native card before use; discovery does not authorize invocation.
 
 Local entries need a matching value. Sparse live results can omit optional native members or the card itself. Disclosed contradictions, invalid selected shapes and peer refusals produce a partial outcome; healthy local results remain available. The original filters are forwarded to peers without removal.
 
-Inspection reuses the 16 MiB ARD document ceiling across local inline data. Live responses retain their configured byte limit and 8 MiB hard ceiling. Each native document is decoded once per query; filters, ranking and facets reuse the result. Cancellation and bounds stop work without truncating successful facet counts. These paths do not add filters to authenticated Control Search or the UI.
+Inspection reuses the 16 MiB ARD document ceiling across local inline data. Live responses retain their configured byte limit and 8 MiB hard ceiling. Each native document is decoded once per query; filters, ranking and facets reuse the result. Cancellation and bounds stop work without truncating successful facet counts. These ARD paths are separate from the authenticated [private capability filters](../guides/search-cookbook.mdx#filter-private-discovery-by-declared-capabilities). Private Control Search and Explore use the currently released validated primary card under current content-read permission, including retained blobs; ARD continues to use immutable audience-scoped publication data.
 
 ### Trust checks
 

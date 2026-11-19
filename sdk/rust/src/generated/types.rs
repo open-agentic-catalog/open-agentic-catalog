@@ -4679,6 +4679,7 @@ pub struct PersonalCriteria {
     pub license: Option<String>,
     ///Local Listing namespace UUID; restricts to local releases. Unknown or other-tenant UUIDs return no matches. Not an AIR or JSON-LD namespace.
     pub namespace_id: Option<UUID>,
+    pub native_capabilities: Option<NativeCapabilitiesFilter>,
     pub order: Option<CatalogSearchOrder>,
     ///Select local, indexed or transient live provenance. Omission preserves existing participation. With namespaceId, omit origins or select local alone. License and category filters apply across selected origins. Local releases shadow matching indexed identities only when local participates. Live-only search can continue a verified bounded live window and reports zero durableTotal.
     ///Constraint: minItems=1, maxItems=3, uniqueItems=true
@@ -4693,7 +4694,7 @@ pub struct PersonalCriteria {
     pub text: Option<String>,
     pub visibility: Option<Visibility>,
     /// The variant this value takes, alongside the fields above.
-    pub variant: PersonalCriteriaAllOfVariant3,
+    pub variant: PersonalCriteriaAllOfVariant4,
 }
 #[derive(Deserialize, Serialize)]
 struct __PersonalCriteriaBase {
@@ -4709,6 +4710,8 @@ struct __PersonalCriteriaBase {
     license: Option<String>,
     #[serde(rename = "namespaceId", skip_serializing_if = "Option::is_none")]
     namespace_id: Option<UUID>,
+    #[serde(rename = "nativeCapabilities", skip_serializing_if = "Option::is_none")]
+    native_capabilities: Option<NativeCapabilitiesFilter>,
     #[serde(skip_serializing_if = "Option::is_none")]
     order: Option<CatalogSearchOrder>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4734,6 +4737,7 @@ impl serde::Serialize for PersonalCriteria {
             kinds: self.kinds.clone(),
             license: self.license.clone(),
             namespace_id: self.namespace_id.clone(),
+            native_capabilities: self.native_capabilities.clone(),
             order: self.order.clone(),
             origins: self.origins.clone(),
             publisher: self.publisher.clone(),
@@ -4770,7 +4774,7 @@ impl<'de> serde::Deserialize<'de> for PersonalCriteria {
         let value = serde_json::Value::deserialize(deserializer)?;
         let base = serde_json::from_value::<__PersonalCriteriaBase>(value.clone())
             .map_err(serde::de::Error::custom)?;
-        let variant = match serde_json::from_value::<PersonalCriteriaAllOfVariant3>(value.clone()) {
+        let variant = match serde_json::from_value::<PersonalCriteriaAllOfVariant4>(value.clone()) {
             Ok(variant) => variant,
             Err(complete_error) => {
                 let mut variant_input = value;
@@ -4781,13 +4785,14 @@ impl<'de> serde::Deserialize<'de> for PersonalCriteria {
                     object.remove("kinds");
                     object.remove("license");
                     object.remove("namespaceId");
+                    object.remove("nativeCapabilities");
                     object.remove("order");
                     object.remove("publisher");
                     object.remove("tags");
                     object.remove("text");
                     object.remove("visibility");
                 }
-                serde_json::from_value::<PersonalCriteriaAllOfVariant3>(variant_input)
+                serde_json::from_value::<PersonalCriteriaAllOfVariant4>(variant_input)
                     .map_err(|projected_error| serde::de::Error::custom(
                         format!(
                             "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
@@ -4802,6 +4807,7 @@ impl<'de> serde::Deserialize<'de> for PersonalCriteria {
             kinds: base.kinds,
             license: base.license,
             namespace_id: base.namespace_id,
+            native_capabilities: base.native_capabilities,
             order: base.order,
             origins: base.origins,
             publisher: base.publisher,
@@ -4843,11 +4849,11 @@ impl AsRef<str> for PersonalCriteriaOriginsItem {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum PersonalCriteriaAllOfVariant3 {
-    PersonalCriteriaAllOfVariant3InlineVariant(PersonalCriteriaAllOfVariant3InlineVariant),
+pub enum PersonalCriteriaAllOfVariant4 {
+    PersonalCriteriaAllOfVariant4InlineVariant(PersonalCriteriaAllOfVariant4InlineVariant),
     OriginsBlockInline(OriginsBlockInline),
 }
-pub type PersonalCriteriaAllOfVariant3InlineVariant = serde_json::Value;
+pub type PersonalCriteriaAllOfVariant4InlineVariant = serde_json::Value;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PermissionChecks {
@@ -10258,6 +10264,7 @@ pub struct CatalogSearch {
     pub limit: Option<i64>,
     ///Local Listing namespace UUID; restricts to local releases. Unknown or other-tenant UUIDs return no matches. Not an AIR or JSON-LD namespace.
     pub namespace_id: Option<UUID>,
+    pub native_capabilities: Option<NativeCapabilitiesFilter>,
     pub order: Option<CatalogSearchOrder>,
     ///Select local, indexed or transient live provenance. Omission preserves existing participation. With namespaceId, omit origins or select local alone. License and category filters apply across selected origins. Local releases shadow matching indexed identities only when local participates. Live-only search can continue a verified bounded live window and reports zero durableTotal.
     ///Constraint: minItems=1, maxItems=3, uniqueItems=true
@@ -10272,7 +10279,7 @@ pub struct CatalogSearch {
     pub text: Option<String>,
     pub visibility: Option<Visibility>,
     /// The variant this value takes, alongside the fields above.
-    pub variant: CatalogSearchAllOfVariant3,
+    pub variant: CatalogSearchAllOfVariant4,
 }
 #[derive(Deserialize, Serialize)]
 struct __CatalogSearchBase {
@@ -10292,6 +10299,8 @@ struct __CatalogSearchBase {
     limit: Option<i64>,
     #[serde(rename = "namespaceId", skip_serializing_if = "Option::is_none")]
     namespace_id: Option<UUID>,
+    #[serde(rename = "nativeCapabilities", skip_serializing_if = "Option::is_none")]
+    native_capabilities: Option<NativeCapabilitiesFilter>,
     #[serde(skip_serializing_if = "Option::is_none")]
     order: Option<CatalogSearchOrder>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -10319,6 +10328,7 @@ impl serde::Serialize for CatalogSearch {
             license: self.license.clone(),
             limit: self.limit.clone(),
             namespace_id: self.namespace_id.clone(),
+            native_capabilities: self.native_capabilities.clone(),
             order: self.order.clone(),
             origins: self.origins.clone(),
             publisher: self.publisher.clone(),
@@ -10355,7 +10365,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearch {
         let value = serde_json::Value::deserialize(deserializer)?;
         let base = serde_json::from_value::<__CatalogSearchBase>(value.clone())
             .map_err(serde::de::Error::custom)?;
-        let variant = match serde_json::from_value::<CatalogSearchAllOfVariant3>(value.clone()) {
+        let variant = match serde_json::from_value::<CatalogSearchAllOfVariant4>(value.clone()) {
             Ok(variant) => variant,
             Err(complete_error) => {
                 let mut variant_input = value;
@@ -10368,13 +10378,14 @@ impl<'de> serde::Deserialize<'de> for CatalogSearch {
                     object.remove("license");
                     object.remove("limit");
                     object.remove("namespaceId");
+                    object.remove("nativeCapabilities");
                     object.remove("order");
                     object.remove("publisher");
                     object.remove("tags");
                     object.remove("text");
                     object.remove("visibility");
                 }
-                serde_json::from_value::<CatalogSearchAllOfVariant3>(variant_input)
+                serde_json::from_value::<CatalogSearchAllOfVariant4>(variant_input)
                     .map_err(|projected_error| serde::de::Error::custom(
                         format!(
                             "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
@@ -10391,6 +10402,7 @@ impl<'de> serde::Deserialize<'de> for CatalogSearch {
             license: base.license,
             limit: base.limit,
             namespace_id: base.namespace_id,
+            native_capabilities: base.native_capabilities,
             order: base.order,
             origins: base.origins,
             publisher: base.publisher,
@@ -10471,8 +10483,8 @@ impl AsRef<str> for CatalogSearchOrder {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
-pub enum CatalogSearchAllOfVariant3 {
-    CatalogSearchAllOfVariant3InlineVariant(CatalogSearchAllOfVariant3InlineVariant),
+pub enum CatalogSearchAllOfVariant4 {
+    CatalogSearchAllOfVariant4InlineVariant(CatalogSearchAllOfVariant4InlineVariant),
     OriginsBlock(OriginsBlock),
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
@@ -10498,7 +10510,7 @@ impl AsRef<str> for OriginsBlockOriginsItem {
         self.as_str()
     }
 }
-pub type CatalogSearchAllOfVariant3InlineVariant = serde_json::Value;
+pub type CatalogSearchAllOfVariant4InlineVariant = serde_json::Value;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogRecordPage {
@@ -11966,7 +11978,84 @@ impl CatalogExploreBuilder {
         self.value
     }
 }
-pub type CatalogExploreQuery = serde_json::Value;
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+pub struct CatalogExploreQuery {
+    ///Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility.
+    ///Constraint: maxLength=256, pattern=`^[^\x00]*$`
+    #[serde(rename = "agentProtocol", skip_serializing_if = "Option::is_none")]
+    pub agent_protocol: Option<String>,
+    ///All selected categories must match local Listing categories after trimming, lowercasing and deduplication. Missing categories do not match. Explore covers local releases only.
+    ///Constraint: maxItems=16
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub categories: Option<Vec<String>>,
+    ///Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call.
+    #[serde(rename = "includeMcpTools", skip_serializing_if = "Option::is_none")]
+    pub include_mcp_tools: Option<bool>,
+    ///Constraint: maxItems=4, uniqueItems=true
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kinds: Option<Vec<ResourceKind>>,
+    ///Empty means no license filter. Trimmed, case-sensitive exact match against the local immutable Listing license declaration. No SPDX interpretation or match for absent declarations. Explore covers local releases only.
+    ///Constraint: maxLength=256, pattern=`^$|^[^\x00]*[^\s\x00][^\x00]*$`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub license: Option<String>,
+    #[serde(rename = "namespaceId", skip_serializing_if = "Option::is_none")]
+    pub namespace_id: Option<UUID>,
+    #[serde(rename = "nativeCapabilities", skip_serializing_if = "Option::is_none")]
+    pub native_capabilities: Option<NativeCapabilitiesFilter>,
+    ///Catalog Publisher UUID. Explore covers local governed releases only.
+    ///Constraint: maxLength=256
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub publisher: Option<String>,
+    ///Constraint: maxItems=32
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<String>>,
+    ///Constraint: maxLength=500
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub visibility: Option<Visibility>,
+}
+///Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false.
+#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct NativeCapabilitiesFilter {
+    ///Card default input media types, not effective modes of a selected skill. Values are exact case-sensitive literals.
+    ///Constraint: minItems=1, maxItems=16, uniqueItems=true
+    #[serde(
+        rename = "agentDefaultInputModes",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent_default_input_modes: Option<Vec<String>>,
+    ///Card default output media types, not effective modes of a selected skill. Values are exact case-sensitive literals.
+    ///Constraint: minItems=1, maxItems=16, uniqueItems=true
+    #[serde(
+        rename = "agentDefaultOutputModes",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub agent_default_output_modes: Option<Vec<String>>,
+    ///Declared Agent skill IDs. Values are exact case-sensitive literals.
+    ///Constraint: minItems=1, maxItems=16, uniqueItems=true
+    #[serde(rename = "agentSkillIds", skip_serializing_if = "Option::is_none")]
+    pub agent_skill_ids: Option<Vec<String>>,
+    ///Declared Agent skill tags, distinct from Listing tags. Values are exact case-sensitive literals.
+    ///Constraint: minItems=1, maxItems=16, uniqueItems=true
+    #[serde(rename = "agentSkillTags", skip_serializing_if = "Option::is_none")]
+    pub agent_skill_tags: Option<Vec<String>>,
+    ///Explicit declared streaming value; omission, false and true are distinct.
+    #[serde(rename = "agentStreaming", skip_serializing_if = "Option::is_none")]
+    pub agent_streaming: Option<bool>,
+    ///Declared remote MCP protocol versions, without protocol negotiation. Values are exact case-sensitive literals.
+    ///Constraint: minItems=1, maxItems=16, uniqueItems=true
+    #[serde(
+        rename = "mcpProtocolVersions",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub mcp_protocol_versions: Option<Vec<String>>,
+    ///Declared MCP Server Card remote transport types. Values are exact case-sensitive literals.
+    ///Constraint: minItems=1, maxItems=16, uniqueItems=true
+    #[serde(rename = "mcpTransports", skip_serializing_if = "Option::is_none")]
+    pub mcp_transports: Option<Vec<String>>,
+}
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct CatalogExploreFacetsItem {
     pub field: CatalogExploreFacetsItemField,

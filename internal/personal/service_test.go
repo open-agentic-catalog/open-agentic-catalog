@@ -146,12 +146,12 @@ func TestPersonalLifecycleIsolationAndEvidence(t *testing.T) {
 	if err != nil || item.Revision != 2 {
 		t.Fatal(item, err)
 	}
-	if _, err = s.Save(ctx, item.ID, 1, in, false); catalog.ErrorCodeOf(err) != catalog.CodePreconditionFailed {
+	if _, err := s.Save(ctx, item.ID, 1, in, false); catalog.ErrorCodeOf(err) != catalog.CodePreconditionFailed {
 		t.Fatal(err)
 	}
 	e.fail = true
 	in.Label = "Must roll back"
-	if _, err = s.Save(ctx, item.ID, 2, in, false); err == nil {
+	if _, err := s.Save(ctx, item.ID, 2, in, false); err == nil {
 		t.Fatal("missing audit accepted")
 	}
 	got, _ = s.Get(ctx, item.ID)
@@ -171,10 +171,10 @@ func TestPersonalLifecycleIsolationAndEvidence(t *testing.T) {
 		t.Fatal(saved, err)
 	}
 	ref.Reference.VersionRevisionID = tenant
-	if _, err = s.Save(ctx, saved.ID, saved.Revision, ref, false); catalog.ErrorCodeOf(err) != catalog.CodeForbidden {
+	if _, err := s.Save(ctx, saved.ID, saved.Revision, ref, false); catalog.ErrorCodeOf(err) != catalog.CodeForbidden {
 		t.Fatal(err)
 	}
-	if _, err = s.Save(ctx, item.ID, item.Revision, Input{}, true); err != nil {
+	if _, err := s.Save(ctx, item.ID, item.Revision, Input{}, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.Get(ctx, item.ID); catalog.ErrorCodeOf(err) != catalog.CodeNotFound {
@@ -358,6 +358,84 @@ func TestSavedAgentProtocolWireValidation(t *testing.T) {
 		}
 		if (err == nil) != tc.valid {
 			t.Fatal(tc.raw, err)
+		}
+	}
+}
+
+func TestSavedNativeCapabilitiesPresenceCloneAndEncodedBudget(t *testing.T) {
+	for _, raw := range []string{`{"nativeCapabilities":{"agentStreaming":false},"origins":["local"]}`, `{"nativeCapabilities":{"mcpTransports":["sse"],"mcpProtocolVersions":["2026-07-28"]},"origins":["local"]}`} {
+		var criteria Criteria
+		if err := jsondoc.Decode([]byte(raw), &criteria); err != nil {
+			t.Fatal(err)
+		}
+		s, _, events, authority, ctx := fixture(t)
+		in := Input{Type: "search", Label: "Literal private selection", Search: &criteria}
+		saved, err := s.Save(ctx, "", 0, in, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		criteria.NativeCapabilities.MCPTransports = []string{"caller changed"}
+		if criteria.NativeCapabilities.AgentStreaming != nil {
+			*criteria.NativeCapabilities.AgentStreaming = true
+		}
+		got, err := s.Get(ctx, saved.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		encoded, err := json.Marshal(got.Search.NativeCapabilities)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(encoded), "caller changed") || strings.Contains(string(encoded), `"agentStreaming":true`) {
+			t.Fatal("saved criteria alias caller", string(encoded))
+		}
+		if authority.calls != 0 || len(events.records) != 1 {
+			t.Fatal("saving criteria accessed target content")
+		}
+	}
+	for _, raw := range []string{`{"nativeCapabilities":{"agentStreaming":false}}`, `{"nativeCapabilities":{"agentStreaming":null},"origins":["local"]}`, `{"nativeCapabilities":{"unknown":false},"origins":["local"]}`, `{"nativeCapabilities":{},"origins":["local"]}`} {
+		var c Criteria
+		err := jsondoc.Decode([]byte(raw), &c)
+		if err == nil {
+			err = catalog.ValidateSavedSearch(c.Query())
+		}
+		if err == nil {
+			t.Fatal("accepted unsupported native criteria", raw)
+		}
+	}
+	// Go escapes HTML in every input field. Fill remaining bytes with legal tag
+	// literals so the complete input, not merely the native subobject, is bounded.
+	for _, delta := range []int{-1, 0, 1} {
+		s, _, events, _, ctx := fixture(t)
+		streaming := false
+		in := Input{Type: "search", Label: strings.Repeat("<", 120), Search: &Criteria{Origins: []catalog.SearchResultType{catalog.SearchResultLocal}, NativeCapabilities: &catalog.NativeCapabilitiesFilter{AgentStreaming: &streaming}}}
+		for i := 0; i < 28; i++ {
+			in.Search.Tags = append(in.Search.Tags, strings.Repeat("<", 80))
+		}
+		in.Search.Publisher = strings.Repeat("<", 240)
+		in.Search.License = strings.Repeat("<", 32)
+		raw, err := json.Marshal(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		remaining := MaxBodyBytes + delta - len(raw)
+		if remaining < 0 || remaining > 500 {
+			t.Fatal("invalid boundary fixture", len(raw))
+		}
+		in.Search.Text = strings.Repeat("x", remaining)
+		wire, err := json.Marshal(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(wire) != MaxBodyBytes+delta {
+			t.Fatal("fixture encoded size", len(wire), delta)
+		}
+		_, err = s.Save(ctx, "", 0, in, false)
+		if delta <= 0 && err != nil || delta > 0 && catalog.ErrorCodeOf(err) != catalog.CodeInvalidArgument {
+			t.Fatal("encoded input boundary", delta, err)
+		}
+		if delta > 0 && len(events.records) != 0 {
+			t.Fatal("rejected over-budget save wrote evidence")
 		}
 	}
 }

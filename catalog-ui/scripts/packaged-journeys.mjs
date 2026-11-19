@@ -4247,11 +4247,46 @@ async function declaredMCPToolsJourney({
   await page
     .getByRole("checkbox", { name: "Include declared MCP tools", exact: true })
     .check();
+  await page.getByText("MCP server declarations", { exact: true }).click();
+  await button("Add transport").click();
+  await page
+    .getByRole("textbox", { name: "Transport 1", exact: true })
+    .fill("streamable-http");
+  await button("Add protocol version").click();
+  await page
+    .getByRole("textbox", { name: "Protocol version 1", exact: true })
+    .fill("2025-11-25");
   await button("Apply filters").click();
   await expect(page.locator("article.resource-card")).toHaveCount(1);
   await expect(page.locator("article.resource-card")).toContainText(
     "extract_packaged_pdf_tables",
   );
+  const selected = await request("POST", "/api/v1/catalog/search", {
+    ...query,
+    includeMcpTools: true,
+    nativeCapabilities: {
+      mcpTransports: ["streamable-http"],
+      mcpProtocolVersions: ["2025-11-25"],
+    },
+  });
+  expect(selected.status).toBe(200);
+  expect(selected.data.durableTotal).toBe(1);
+  expect(selected.data.items[0].local.release.id).toBe(
+    published.data.release.id,
+  );
+  const facets = await request("POST", "/api/v1/catalog/explore", {
+    query: {
+      text: query.text,
+      includeMcpTools: true,
+      nativeCapabilities: {
+        mcpTransports: ["streamable-http"],
+        mcpProtocolVersions: ["2025-11-25"],
+      },
+    },
+    facets: [{ field: "kind" }],
+  });
+  expect(facets.status).toBe(200);
+  expect(facets.data.matched).toBe(1);
   await button("Inspect released declaration").click();
   await expect(page.getByRole("dialog")).toContainText("Declared MCP tools");
   await page

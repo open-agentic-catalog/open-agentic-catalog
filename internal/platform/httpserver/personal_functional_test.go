@@ -289,3 +289,36 @@ func qualifyHTTPPersonalExactReference(t *testing.T, base, actor string, ref per
 	requireStatus(t, requestJSON(t, base, "DELETE", path, actor, "personal-body-"+ref.Origin, loaded.header.Get("ETag"), map[string]any{"owner": "forged"}), 400)
 	requireStatus(t, requestJSON(t, base, "DELETE", path, actor, "personal-delete-"+ref.Origin, loaded.header.Get("ETag"), nil), 200)
 }
+
+func TestHTTPPersonalNativeSelectorsAndWireBudget(t *testing.T) {
+	s := newWebhookHTTPServer(t)
+	defer s.Close()
+	base := `{"type":"search","label":"` + strings.Repeat("<", 120) + `","search":{"origins":["local"],"nativeCapabilities":{"agentSkillIds":["invoice, literal "],"agentStreaming":false}}}`
+	for _, delta := range []int{-1, 0, 1} {
+		body := base + strings.Repeat(" ", personal.MaxBodyBytes+delta-len(base))
+		reply := requestWithHeaders(t, s.URL, "POST", "/api/v1/personal/items", []byte(body), map[string]string{"Authorization": "Bearer reader", "Content-Type": "application/json", "Idempotency-Key": fmt.Sprintf("native-wire-%d", delta)})
+		if delta > 0 {
+			requireControlProblem(t, reply, 400, catalog.CodeInvalidArgument)
+			continue
+		}
+		requireStatus(t, reply, 201)
+		var receipt feedbackReceipt
+		decodeResult(t, reply, &receipt)
+		got := requestJSON(t, s.URL, "GET", "/api/v1/personal/items/"+receipt.ID, "reader", "", "", nil)
+		requireStatus(t, got, 200)
+		var item personal.Item
+		decodeResult(t, got, &item)
+		if item.Search == nil || item.Search.NativeCapabilities == nil || item.Search.NativeCapabilities.AgentStreaming == nil || *item.Search.NativeCapabilities.AgentStreaming || item.Search.NativeCapabilities.AgentSkillIDs[0] != "invoice, literal " {
+			t.Fatal("saved native selectors changed", item)
+		}
+	}
+	page := requestJSON(t, s.URL, "GET", "/api/v1/personal/items?type=search", "reader", "", "", nil)
+	requireStatus(t, page, 200)
+	var items struct {
+		Items []personal.Item `json:"items"`
+	}
+	decodeResult(t, page, &items)
+	if len(items.Items) != 2 {
+		t.Fatal("oversized native save mutated library", len(items.Items))
+	}
+}

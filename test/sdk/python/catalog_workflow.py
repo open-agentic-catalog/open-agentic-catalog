@@ -269,6 +269,9 @@ async def qualify_published_discovery(origin, admin, namespace_id, resource, ver
         identities[str(published.data.release.id)] = (identifier, visibility)
     reader = Client(Config(origin=origin, allow_loopback_http=True, token="reader"))
     discovery = CatalogDiscoveryApi(reader)
+    for native, count in (({"agentDefaultInputModes": ["application/json"]}, len(releases)), ({"agentStreaming": False}, 0), ({"agentSkillIds": ["not-declared-sdk-sentinel"]}, 0)):
+        selected = await discovery.search_catalog_with_http_info(catalog_search=CatalogSearch.from_dict({"origins": ["local"], "nativeCapabilities": native, "tags": ["python-sdk"]}))
+        assert selected.status_code == 200 and selected.data.durable_total == count
     unmatched = await discovery.search_catalog_with_http_info(catalog_search=CatalogSearch(agentProtocol="HTTP+JSON", origins=["local"], tags=["python-sdk"]))
     assert unmatched.status_code == 200 and unmatched.data.durable_total == 0 and unmatched.data.items == []
     cursor = None

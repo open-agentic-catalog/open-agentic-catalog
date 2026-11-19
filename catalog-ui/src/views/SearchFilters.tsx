@@ -11,6 +11,8 @@ import {
 } from "./input-validation";
 import { applyFilters, categoryFacetQuery, mergeTags } from "./search-filters";
 import type { FilterValues, PublisherSuggestion } from "./search-filters";
+import { checkedNative, nativeKind } from "./native-capabilities";
+import { NativeCapabilityFilters } from "./NativeCapabilityFilters";
 import { NamespaceFilter } from "./NamespaceFilter";
 import type { Client } from "../api/client";
 import { KindSelection } from "./KindSelection";
@@ -83,6 +85,7 @@ export default function SearchFilters({
     Number(!!value.namespaceId) +
     Number(!!value.agentProtocol) +
     Number(!!value.includeMcpTools) +
+    Number(!!value.nativeCapabilities) +
     (value.origins?.length ?? 0);
   // Tags are exact values; preserve case, Unicode spelling and code-unit order.
   const tagChoices = [...new Set([...(draft.tags ?? []), ...tags])].sort(
@@ -216,6 +219,19 @@ export default function SearchFilters({
       const tags = atField("filter-tags", () =>
         mergeTags(draft.tags ?? [], tagInput),
       );
+      if (draft.nativeCapabilities) {
+        const native = checkedNative(draft.nativeCapabilities);
+        const kind = nativeKind(native);
+        if (
+          (draft.kinds?.length &&
+            (draft.kinds.length !== 1 || draft.kinds[0] !== kind)) ||
+          (kind === "agent" && draft.includeMcpTools) ||
+          (kind === "mcp_server" && agentProtocol)
+        )
+          throw new Error(
+            "Declared capabilities conflict with the selected kind or content filters. Clear incompatible selections first.",
+          );
+      }
       onApply({
         ...draft,
         ...(draft.agentProtocol !== undefined ? { agentProtocol } : {}),
@@ -534,10 +550,12 @@ export default function SearchFilters({
                         ).includes(origin)}
                         disabled={
                           (origin === "local" &&
-                            (!!draft.agentProtocol ||
+                            (!!draft.nativeCapabilities ||
+                              !!draft.agentProtocol ||
                               !!draft.includeMcpTools)) ||
                           (origin !== "local" &&
                             (!!draft.namespaceId ||
+                              !!draft.nativeCapabilities ||
                               !!draft.agentProtocol ||
                               !!draft.includeMcpTools ||
                               (!externalAllowed &&
@@ -659,6 +677,16 @@ export default function SearchFilters({
                       contacted.
                     </p>
                   </section>
+                  <NativeCapabilityFilters
+                    value={draft.nativeCapabilities}
+                    onChange={(nativeCapabilities) =>
+                      setDraft({
+                        ...draft,
+                        nativeCapabilities,
+                        ...(nativeCapabilities ? { origins: ["local"] } : {}),
+                      })
+                    }
+                  />
                   <section
                     className="filter-group"
                     aria-labelledby="agent-protocol-heading"

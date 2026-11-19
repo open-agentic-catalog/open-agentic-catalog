@@ -276,6 +276,8 @@ __all__ = [
     "Namespace",
     "NamespaceAccess",
     "NamespacePage",
+    "NativeCapabilitiesFilter",
+    "NativeCapabilitiesFilterNot",
     "NestingPolicy",
     "OCIHandoffReference",
     "Observation",
@@ -1089,6 +1091,12 @@ from catalog_sdk.generated.models.namespace_access import (
     NamespaceAccess as NamespaceAccess,
 )
 from catalog_sdk.generated.models.namespace_page import NamespacePage as NamespacePage
+from catalog_sdk.generated.models.native_capabilities_filter import (
+    NativeCapabilitiesFilter as NativeCapabilitiesFilter,
+)
+from catalog_sdk.generated.models.native_capabilities_filter_not import (
+    NativeCapabilitiesFilterNot as NativeCapabilitiesFilterNot,
+)
 from catalog_sdk.generated.models.nesting_policy import NestingPolicy as NestingPolicy
 from catalog_sdk.generated.models.oci_handoff_reference import (
     OCIHandoffReference as OCIHandoffReference,

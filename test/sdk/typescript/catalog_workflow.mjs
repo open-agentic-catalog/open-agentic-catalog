@@ -563,6 +563,17 @@ for (let index = 0; index < 2; index++) {
   });
 }
 const other = createCatalogClient({ ...options, token: "other" });
+for (const [nativeCapabilities, count] of [
+  [{ agentDefaultInputModes: ["application/json"] }, releases.size],
+  [{ agentStreaming: false }, 0],
+  [{ agentSkillIds: ["not-declared-sdk-sentinel"] }, 0],
+]) {
+  const selected = await reader.api.POST("/api/v1/catalog/search", {
+    body: { nativeCapabilities, origins: ["local"] },
+  });
+  assert.equal(selected.response.status, 200);
+  assert.equal(selected.data.durableTotal, count);
+}
 const unmatchedProtocol = await reader.api.POST("/api/v1/catalog/search", {
   body: { agentProtocol: "HTTP+JSON", origins: ["local"] },
 });

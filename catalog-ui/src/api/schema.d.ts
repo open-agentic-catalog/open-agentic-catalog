@@ -4301,6 +4301,7 @@ export interface components {
         });
         /** @description Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search. */
         PersonalCriteria: {
+            nativeCapabilities?: components["schemas"]["NativeCapabilitiesFilter"];
             /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
             includeMcpTools?: boolean;
             /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
@@ -4321,7 +4322,7 @@ export interface components {
             /** @description Source-aware selector matched against the Catalog Publisher UUID for local releases and the normalized AIR publisher component for indexed or live entries. Excludes NUL and is limited to 256 UTF-8 bytes. */
             publisher?: string;
             visibility?: components["schemas"]["Visibility"];
-        } & (unknown & unknown & (unknown | {
+        } & (unknown & unknown & unknown & (unknown | {
             origins?: "local"[];
         }));
         PersonalInput: {
@@ -6645,7 +6646,25 @@ export interface components {
          * @enum {string}
          */
         CatalogSearchOrder: "name_asc" | "name_desc" | "kind_asc" | "kind_desc" | "publisher_asc" | "publisher_desc";
+        /** @description Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false. */
+        NativeCapabilitiesFilter: {
+            /** @description Declared Agent skill IDs. Values are exact case-sensitive literals. */
+            agentSkillIds?: string[];
+            /** @description Declared Agent skill tags, distinct from Listing tags. Values are exact case-sensitive literals. */
+            agentSkillTags?: string[];
+            /** @description Card default input media types, not effective modes of a selected skill. Values are exact case-sensitive literals. */
+            agentDefaultInputModes?: string[];
+            /** @description Card default output media types, not effective modes of a selected skill. Values are exact case-sensitive literals. */
+            agentDefaultOutputModes?: string[];
+            /** @description Explicit declared streaming value; omission, false and true are distinct. */
+            agentStreaming?: boolean;
+            /** @description Declared MCP Server Card remote transport types. Values are exact case-sensitive literals. */
+            mcpTransports?: string[];
+            /** @description Declared remote MCP protocol versions, without protocol negotiation. Values are exact case-sensitive literals. */
+            mcpProtocolVersions?: string[];
+        };
         CatalogSearch: {
+            nativeCapabilities?: components["schemas"]["NativeCapabilitiesFilter"];
             /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
             includeMcpTools?: boolean;
             /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
@@ -6669,7 +6688,7 @@ export interface components {
             limit?: number;
             /** @description Opaque expiring continuation cursor bound to the principal, permissions, normalized query, core SearchProfile, and durable local and indexed generations. Core live continuation replays an unchanged bounded window of at most 50 candidates with a fixed 15-minute expiry. Changed evidence requires restart; temporary replay failure permits retrying the same cursor. Hybrid Search preserves the precise durable ranking before a separate live tail. Live-only Search binds the live window without durable generation or embedding work. */
             cursor?: string;
-        } & (unknown & unknown & (unknown | {
+        } & (unknown & unknown & unknown & (unknown | {
             origins?: "local"[];
         }));
         CatalogExplore: {
@@ -6682,6 +6701,7 @@ export interface components {
             }[];
         };
         CatalogExploreQuery: {
+            nativeCapabilities?: components["schemas"]["NativeCapabilitiesFilter"];
             /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
             includeMcpTools?: boolean;
             /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
@@ -6697,7 +6717,7 @@ export interface components {
             /** @description Catalog Publisher UUID. Explore covers local governed releases only. */
             publisher?: string;
             visibility?: components["schemas"]["Visibility"];
-        } & unknown;
+        } & (unknown & unknown);
         CatalogFacetBucket: {
             value: string;
             count: number;

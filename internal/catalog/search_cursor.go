@@ -278,6 +278,7 @@ func searchPositionAfter(candidate, after CatalogSearchPosition, orders ...Searc
 // normalizeCatalogSearchQuery canonicalizes text and set-valued filters before
 // search and cursor binding.
 func normalizeCatalogSearchQuery(query SearchQuery) SearchQuery {
+	query.NativeCapabilities = query.NativeCapabilities.normalized()
 	query.NamespaceID = strings.ToLower(query.NamespaceID)
 	if query.Origins != nil {
 		query.Origins = append([]SearchResultType{}, query.Origins...)

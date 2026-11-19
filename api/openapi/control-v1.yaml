@@ -7130,6 +7130,36 @@ components:
       additionalProperties: false
       allOf:
         - if:
+            required: [nativeCapabilities]
+          then:
+            required: [origins]
+            properties:
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
+            allOf:
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [agentSkillIds]
+                        - required: [agentSkillTags]
+                        - required: [agentDefaultInputModes]
+                        - required: [agentDefaultOutputModes]
+                        - required: [agentStreaming]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: agent}}
+                    includeMcpTools: {const: false}
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [mcpTransports]
+                        - required: [mcpProtocolVersions]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+                    agentProtocol: {maxLength: 0}
+        - if:
             required: [includeMcpTools]
             properties: {includeMcpTools: {const: true}}
           then:
@@ -7159,6 +7189,8 @@ components:
                     enum:
                       - local
       properties:
+        nativeCapabilities:
+          $ref: "#/components/schemas/NativeCapabilitiesFilter"
         includeMcpTools:
           type: boolean
           description: >-
@@ -11242,10 +11274,133 @@ components:
         Publisher uses the current local display name or external publisher declaration. Kind uses its wire label.
         Primary keys use the selected direction; ties use normalized name and stable result ID ascending.
         Column ordering does not invoke the embedding provider. Changing order requires a new cursor-free search.
+    NativeCapabilitiesFilter:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      description: >-
+        Exact private declarations from one current released validated primary card, under current
+        resource.read and resource.read_content authority. OR within arrays, AND across fields;
+        separate skill or remote members may satisfy separate fields. No tuple compatibility,
+        media-type normalization, inference or endpoint request. Search and saved criteria require
+        explicit origins [local]; Explore is local. Select one card kind only. At most 64 string
+        values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves
+        ordinary discovery. Missing/null native streaming does not match explicit false.
+      not:
+        allOf:
+          - anyOf:
+              - required: [agentSkillIds]
+              - required: [agentSkillTags]
+              - required: [agentDefaultInputModes]
+              - required: [agentDefaultOutputModes]
+              - required: [agentStreaming]
+          - anyOf:
+              - required: [mcpTransports]
+              - required: [mcpProtocolVersions]
+      properties:
+        agentSkillIds:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Declared Agent skill IDs. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        agentSkillTags:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Declared Agent skill tags, distinct from Listing tags. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        agentDefaultInputModes:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Card default input media types, not effective modes of a selected skill. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        agentDefaultOutputModes:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Card default output media types, not effective modes of a selected skill. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        agentStreaming:
+          type: boolean
+          description: Explicit declared streaming value; omission, false and true are distinct.
+        mcpTransports:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Declared MCP Server Card remote transport types. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
+        mcpProtocolVersions:
+          type: array
+          minItems: 1
+          maxItems: 16
+          uniqueItems: true
+          description: Declared remote MCP protocol versions, without protocol negotiation. Values are exact case-sensitive literals.
+          items:
+            type: string
+            minLength: 1
+            maxLength: 256
+            pattern: '^[^\x00]*$'
     CatalogSearch:
       type: object
       additionalProperties: false
       allOf:
+        - if:
+            required: [nativeCapabilities]
+          then:
+            required: [origins]
+            properties:
+              origins: {type: array, minItems: 1, maxItems: 1, items: {const: local}}
+            allOf:
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [agentSkillIds]
+                        - required: [agentSkillTags]
+                        - required: [agentDefaultInputModes]
+                        - required: [agentDefaultOutputModes]
+                        - required: [agentStreaming]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: agent}}
+                    includeMcpTools: {const: false}
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [mcpTransports]
+                        - required: [mcpProtocolVersions]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+                    agentProtocol: {maxLength: 0}
         - if:
             required: [includeMcpTools]
             properties: {includeMcpTools: {const: true}}
@@ -11269,6 +11424,8 @@ components:
             - properties:
                 origins: {type: array, items: {type: string, enum: [local]}}
       properties:
+        nativeCapabilities:
+          $ref: "#/components/schemas/NativeCapabilitiesFilter"
         includeMcpTools:
           type: boolean
           description: >-
@@ -11366,6 +11523,33 @@ components:
       additionalProperties: false
       allOf:
         - if:
+            required: [nativeCapabilities]
+          then:
+            allOf:
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [agentSkillIds]
+                        - required: [agentSkillTags]
+                        - required: [agentDefaultInputModes]
+                        - required: [agentDefaultOutputModes]
+                        - required: [agentStreaming]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: agent}}
+                    includeMcpTools: {const: false}
+              - if:
+                  properties:
+                    nativeCapabilities:
+                      anyOf:
+                        - required: [mcpTransports]
+                        - required: [mcpProtocolVersions]
+                then:
+                  properties:
+                    kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
+                    agentProtocol: {maxLength: 0}
+        - if:
             required: [includeMcpTools]
             properties: {includeMcpTools: {const: true}}
           then:
@@ -11375,6 +11559,8 @@ components:
               kinds: {type: array, maxItems: 1, items: {const: mcp_server}}
               agentProtocol: {maxLength: 0}
       properties:
+        nativeCapabilities:
+          $ref: "#/components/schemas/NativeCapabilitiesFilter"
         includeMcpTools:
           type: boolean
           description: >-

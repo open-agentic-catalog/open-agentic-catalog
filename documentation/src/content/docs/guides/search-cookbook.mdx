@@ -88,6 +88,45 @@ The Control API uses `agentProtocol` on Search, local Browse and Explore. Search
 
 This reads a declaration, without contacting the Agent or proving endpoint health, protocol-version compatibility or permission to invoke it. Keyword-only deployments need no model. Hybrid Search applies the same filter before ranking and adds no protocol values to embedding inputs; its existing query-text disclosure rules still apply.
 
+## Filter private discovery by declared capabilities
+
+In **Catalog > Filters > More filters > Declared capabilities**, expand **Agent declarations** or **MCP server declarations**. Add exact values, choose **Apply filters**, and use **Clear declared capabilities** to remove this group. Edits are staged until Apply. Selecting any declaration restricts origins to **Local Catalog**, including **Declared false** for streaming.
+
+| Card | Selectors | Native members |
+| --- | --- | --- |
+| A2A Agent Card | Skill IDs and tags | `skills[].id`, `skills[].tags[]` |
+| A2A Agent Card | Default input and output modes | `defaultInputModes[]`, `defaultOutputModes[]` |
+| A2A Agent Card | Streaming declaration | `capabilities.streaming` |
+| MCP Server Card | Transports and protocol versions | `remotes[].type`, `remotes[].supportedProtocolVersions[]` |
+
+Values are case-sensitive literals. Spaces and commas are significant. Values within one field are alternatives; different fields must all match. An ID and tag may come from different skills, and a transport and version may come from different remotes. This is declaration matching, not proof that a particular skill supports a mode or that a transport/version pair is compatible. Missing or null streaming never matches explicit false. MCP Registry `server.json` is a separate format and does not supply these card declarations.
+
+The backend reads the currently released, validated primary card, including retained document blobs. It does not inspect unpublished drafts, supporting cards or resource endpoints. Your current `resource.read` and `resource.read_content` permissions must cover the Listing namespace; OAuth scope enforcement also requires `catalog.read`. Permission checks constrain matches, totals, facets and pages. Ordinary searches retain their existing metadata-read rules. No public ARD snapshot or embedding model is required.
+
+For the Control API, use `nativeCapabilities` on `POST /api/v1/catalog/search` with explicit local-only origins:
+
+```json
+{
+  "origins": ["local"],
+  "nativeCapabilities": {
+    "agentSkillIds": ["resolve-invoices"],
+    "agentSkillTags": ["finance", "billing"],
+    "agentDefaultInputModes": ["application/json"],
+    "agentStreaming": false
+  }
+}
+```
+
+For MCP cards, use `mcpTransports` and `mcpProtocolVersions` instead of Agent fields. Agent selectors can combine with `agentProtocol` on the same primary card. MCP selectors can combine with `includeMcpTools` under its existing text/local-only rules. Mixing card families, incompatible kinds or external origins is rejected.
+
+Local Explore accepts the same object inside `query`; omit origins because Explore is intrinsically local. Existing facet fields count only the matching population; native facet buckets and suggestions are not provided. Keep selectors unchanged during continuation. Empty-text requests use the normal Search ordering.
+
+Each supplied array has 1-16 distinct nonblank values of up to 256 Unicode characters. The object accepts at most 64 string values and 8192 bytes after Go JSON encoding, which escapes HTML characters. Empty objects, unknown fields and null selector values are rejected. Card extraction is also bounded: at most 16 MiB, 256 members per inspected array and projected field, 512 characters per declaration and 32 KiB of selected UTF-8 strings before deduplication. Malformed or over-limit selected declarations are unavailable and do not partially match; unrelated extensions are not selectors.
+
+Named searches and personal-library export/restore retain exact selectors, including false. Reopening only stages the search; choose **Search** to execute with current permissions and disclosure consent. The complete saved-item input, including its label and other criteria, must fit the existing 16 KiB wire and service-encoded limits. A valid Search can exceed the save limit; a refused save preserves the unsaved selection. Shorten the criteria before trying again.
+
+All generated SDKs expose the typed Search/Explore and saved-criteria fields. There are no dedicated `catalogctl` flags, Control MCP arguments or VS Code filter controls for these selectors. Public ARD uses its separate [native-card filters](../reference/standards.mdx#native-card-filters-and-facets); these private selectors do not change that contract or authorize calls.
+
 ## Combine kinds, categories, a tag and a license
 
 Clear the text query. Open **Filters** and select both **Skills** and **Plugins** checkboxes; the toolbar shortcuts select only one kind. Choose categories `development` and `testing`. Add exact tag `catalog-curated`; under **More filters**, enter `Apache-2.0` in **License declaration**. Keep only **Local Catalog**, then select **Apply filters**.

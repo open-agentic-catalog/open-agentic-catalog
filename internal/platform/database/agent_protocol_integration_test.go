@@ -26,6 +26,13 @@ import (
 )
 
 func TestPostgresAgentProtocolSelectionAndAuthority(t *testing.T) {
+	for _, native := range []bool{false, true} {
+		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) { testPostgresAgentProtocolSelectionAndAuthority(t, native) })
+	}
+}
+
+func testPostgresAgentProtocolSelectionAndAuthority(t *testing.T, native bool) {
+	t.Helper()
 	documents := make([]catalog.SearchDocument, 9)
 	listings := make([]catalog.CreateListingRevisionInput, 9)
 	for i := range documents {
@@ -49,6 +56,7 @@ func TestPostgresAgentProtocolSelectionAndAuthority(t *testing.T) {
 			interfaces = append(interfaces, map[string]any{"url": "https://inert.example/agent", "protocolBinding": binding, "protocolVersion": "0.3"})
 		}
 		body["supportedInterfaces"] = interfaces
+		body["capabilities"] = map[string]any{"streaming": false}
 		data, err := json.Marshal(body)
 		if err != nil {
 			t.Fatal(err)
@@ -64,6 +72,10 @@ func TestPostgresAgentProtocolSelectionAndAuthority(t *testing.T) {
 	seed(7, json.RawMessage(strings.ReplaceAll(strings.ReplaceAll(string(card("HTTP+JSON")), "supportedInterfaces", "supported_interfaces"), "protocolBinding", "protocol_binding")))
 	seed(8, card("HTTP+JSON"))
 	q := catalog.SearchQuery{AgentProtocol: "HTTP+JSON", Origins: []catalog.SearchResultType{catalog.SearchResultLocal}, Limit: 2}
+	if native {
+		streaming := false
+		q.NativeCapabilities = &catalog.NativeCapabilitiesFilter{AgentStreaming: &streaming}
+	}
 	seen := map[string]bool{}
 	var after *catalog.CatalogSearchPosition
 	generation := ""
@@ -246,7 +258,7 @@ func TestPostgresAgentProtocolSelectionAndAuthority(t *testing.T) {
 	}
 	draftCard["version"] = "2.0.0"
 	// Valid native extension data can retain escaped NUL in a blob. It must not hide the declared binding.
-	draftCard["capabilities"] = map[string]any{"extensions": []any{map[string]any{"uri": "https://extensions.example.test/projection", "params": map[string]any{"unrelated": "\x00"}}}}
+	draftCard["capabilities"] = map[string]any{"streaming": false, "extensions": []any{map[string]any{"uri": "https://extensions.example.test/projection", "params": map[string]any{"unrelated": "\x00"}}}}
 	draftBytes, err := json.Marshal(draftCard)
 	if err != nil {
 		t.Fatal(err)
@@ -457,6 +469,13 @@ func (p *agentProtocolProvider) Query(_ context.Context, text string) ([]float32
 }
 
 func TestPostgresAgentProtocolHybridAndFreshFallback(t *testing.T) {
+	for _, native := range []bool{false, true} {
+		t.Run(fmt.Sprintf("native=%t", native), func(t *testing.T) { testPostgresAgentProtocolHybridAndFreshFallback(t, native) })
+	}
+}
+
+func testPostgresAgentProtocolHybridAndFreshFallback(t *testing.T, native bool) {
+	t.Helper()
 	db, repo, _, seed := newSearchCostFixture(t)
 	raw, err := os.ReadFile("../../../samples/cards/dice-rest.json")
 	if err != nil {
@@ -467,6 +486,7 @@ func TestPostgresAgentProtocolHybridAndFreshFallback(t *testing.T) {
 		if err := json.Unmarshal(raw, &card); err != nil {
 			t.Fatal(err)
 		}
+		card["capabilities"] = map[string]any{"streaming": false}
 		card["supportedInterfaces"] = []any{map[string]any{"url": "https://inert.example/agent", "protocolBinding": binding, "protocolVersion": "1.0"}}
 		bytes, err := json.Marshal(card)
 		if err != nil {
@@ -523,6 +543,10 @@ func TestPostgresAgentProtocolHybridAndFreshFallback(t *testing.T) {
 	}
 	author := semanticDisclosureActor(t, db, g.TenantID)
 	q := catalog.SearchQuery{Text: "synthetic", AgentProtocol: "HTTP+JSON", Origins: []catalog.SearchResultType{catalog.SearchResultLocal}, Limit: 1}
+	if native {
+		streaming := false
+		q.NativeCapabilities = &catalog.NativeCapabilitiesFilter{AgentStreaming: &streaming}
+	}
 	first, err := service.Search(author, q)
 	if err != nil || first.Tier != "hybrid" || first.Total != 2 || len(first.Items) != 1 || first.NextCursor == "" {
 		t.Fatal("hybrid preselection", first, err)

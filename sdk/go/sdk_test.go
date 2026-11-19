@@ -881,7 +881,7 @@ func TestGeneratedWireSemantics(t *testing.T) {
 }
 
 func TestDeclaredMCPToolsWireRoundTrip(t *testing.T) {
-	for _, wire := range []string{`{"text":"pdf tables","includeMcpTools":true,"origins":["local"]}`, `{"includeMcpTools":false}`, `{}`} {
+	for _, wire := range []string{`{"nativeCapabilities":{"agentStreaming":false,"agentSkillIds":["resolve-invoices"],"agentSkillTags":["finance, billing "]},"origins":["local"]}`, `{"nativeCapabilities":{"mcpTransports":["sse"],"mcpProtocolVersions":["2026-07-28"]},"origins":["local"]}`, `{"text":"pdf tables","includeMcpTools":true,"origins":["local"]}`, `{"includeMcpTools":false}`, `{}`} {
 		var value CatalogSearch
 		if err := json.Unmarshal([]byte(wire), &value); err != nil {
 			t.Fatal(err)

@@ -771,6 +771,25 @@ async fn workflow(origin: &str) {
                 .to_owned(),
         );
     }
+    for (native, count) in [
+        (
+            json!({"agentDefaultInputModes":["application/json"]}),
+            releases.len(),
+        ),
+        (json!({"agentStreaming":false}), 0),
+        (json!({"agentSkillIds":["not-declared-sdk-sentinel"]}), 0),
+    ] {
+        let selected = data(
+            reader
+                .search_catalog(typed(
+                    json!({"origins":["local"],"nativeCapabilities":native,"tags":["rust-sdk"]}),
+                ))
+                .await
+                .unwrap(),
+            200,
+        );
+        assert_eq!(selected["durableTotal"], count);
+    }
     let unmatched_protocol = data(
         reader
             .search_catalog(typed(

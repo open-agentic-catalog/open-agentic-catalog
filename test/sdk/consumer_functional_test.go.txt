@@ -35,6 +35,12 @@ func TestManagedSDKReviewedUpstream(t *testing.T) {
 	if len(corpus.Cases) != 6 {
 		t.Fatal("incomplete reviewed corpus")
 	}
+	query := decode[sdk.CatalogSearch](t, []byte(`{"origins":["local"],"nativeCapabilities":{"agentSkillIds":["not-declared-sdk-sentinel"]}}`))
+	selected, err := c.SearchCatalogWithResponse(t.Context(), query)
+	must(t, err)
+	if selected.StatusCode() != 200 || selected.JSON200 == nil || selected.JSON200.DurableTotal != 0 || len(selected.JSON200.Items) != 0 {
+		t.Fatal("native SDK selectors were lost", selected.StatusCode())
+	}
 	for _, expected := range corpus.Cases {
 		t.Run(expected.Name, func(t *testing.T) {
 			id := decode[sdk.CatalogRecordId](t, []byte(strconv.Quote(expected.ReleaseID)))

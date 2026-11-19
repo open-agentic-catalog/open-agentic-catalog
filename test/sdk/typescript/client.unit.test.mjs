@@ -1296,6 +1296,21 @@ test("declared MCP tool selection and bounded explanation survive the fixed API 
     truncated: false,
   };
   for (const body of [
+    {
+      nativeCapabilities: {
+        agentStreaming: false,
+        agentSkillIds: ["resolve-invoices"],
+        agentSkillTags: ["finance, billing "],
+      },
+      origins: ["local"],
+    },
+    {
+      nativeCapabilities: {
+        mcpTransports: ["sse"],
+        mcpProtocolVersions: ["2026-07-28"],
+      },
+      origins: ["local"],
+    },
     { text: "pdf tables", includeMcpTools: true, origins: ["local"] },
     { includeMcpTools: false },
     {},

@@ -698,20 +698,21 @@ func (s *Server) handleCatalogExplore(writer http.ResponseWriter, request *http.
 }
 
 type catalogSearchRequest struct {
-	IncludeMCPTools bool                       `json:"includeMcpTools,omitempty"`
-	AgentProtocol   string                     `json:"agentProtocol,omitempty"`
-	Order           *catalog.SearchOrder       `json:"order,omitempty"`
-	Origins         []catalog.SearchResultType `json:"origins,omitempty"`
-	NamespaceID     *string                    `json:"namespaceId,omitempty"`
-	Text            string                     `json:"text"`
-	Kinds           []catalog.Kind             `json:"kinds,omitempty"`
-	Categories      []string                   `json:"categories,omitempty"`
-	License         string                     `json:"license,omitempty"`
-	Tags            []string                   `json:"tags,omitempty"`
-	Publisher       string                     `json:"publisher,omitempty"`
-	Visibility      *catalog.Visibility        `json:"visibility,omitempty"`
-	Limit           *int                       `json:"limit,omitempty"`
-	Cursor          string                     `json:"cursor,omitempty"`
+	NativeCapabilities *catalog.NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
+	IncludeMCPTools    bool                              `json:"includeMcpTools,omitempty"`
+	AgentProtocol      string                            `json:"agentProtocol,omitempty"`
+	Order              *catalog.SearchOrder              `json:"order,omitempty"`
+	Origins            []catalog.SearchResultType        `json:"origins,omitempty"`
+	NamespaceID        *string                           `json:"namespaceId,omitempty"`
+	Text               string                            `json:"text"`
+	Kinds              []catalog.Kind                    `json:"kinds,omitempty"`
+	Categories         []string                          `json:"categories,omitempty"`
+	License            string                            `json:"license,omitempty"`
+	Tags               []string                          `json:"tags,omitempty"`
+	Publisher          string                            `json:"publisher,omitempty"`
+	Visibility         *catalog.Visibility               `json:"visibility,omitempty"`
+	Limit              *int                              `json:"limit,omitempty"`
+	Cursor             string                            `json:"cursor,omitempty"`
 }
 
 // searchQuery preserves omitted limits while rejecting explicit limits outside the Catalog page bound.
@@ -738,7 +739,7 @@ func (input catalogSearchRequest) searchQuery() (catalog.SearchQuery, error) {
 		}
 		limit = *input.Limit
 	}
-	return catalog.SearchQuery{IncludeMCPTools: input.IncludeMCPTools, AgentProtocol: input.AgentProtocol, Order: order, Origins: input.Origins, NamespaceID: namespaceID, Text: input.Text, Kinds: input.Kinds, Tags: input.Tags, Categories: input.Categories, License: input.License, Publisher: input.Publisher, Visibility: visibility, Limit: limit, Cursor: input.Cursor}, nil
+	return catalog.SearchQuery{NativeCapabilities: input.NativeCapabilities, IncludeMCPTools: input.IncludeMCPTools, AgentProtocol: input.AgentProtocol, Order: order, Origins: input.Origins, NamespaceID: namespaceID, Text: input.Text, Kinds: input.Kinds, Tags: input.Tags, Categories: input.Categories, License: input.License, Publisher: input.Publisher, Visibility: visibility, Limit: limit, Cursor: input.Cursor}, nil
 }
 
 type catalogExploreRequest struct {
@@ -747,16 +748,17 @@ type catalogExploreRequest struct {
 }
 
 type catalogExploreQuery struct {
-	IncludeMCPTools bool                `json:"includeMcpTools,omitempty"`
-	AgentProtocol   string              `json:"agentProtocol,omitempty"`
-	NamespaceID     *string             `json:"namespaceId,omitempty"`
-	Text            string              `json:"text"`
-	Kinds           []catalog.Kind      `json:"kinds,omitempty"`
-	Categories      []string            `json:"categories,omitempty"`
-	License         string              `json:"license,omitempty"`
-	Tags            []string            `json:"tags,omitempty"`
-	Publisher       string              `json:"publisher,omitempty"`
-	Visibility      *catalog.Visibility `json:"visibility,omitempty"`
+	NativeCapabilities *catalog.NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
+	IncludeMCPTools    bool                              `json:"includeMcpTools,omitempty"`
+	AgentProtocol      string                            `json:"agentProtocol,omitempty"`
+	NamespaceID        *string                           `json:"namespaceId,omitempty"`
+	Text               string                            `json:"text"`
+	Kinds              []catalog.Kind                    `json:"kinds,omitempty"`
+	Categories         []string                          `json:"categories,omitempty"`
+	License            string                            `json:"license,omitempty"`
+	Tags               []string                          `json:"tags,omitempty"`
+	Publisher          string                            `json:"publisher,omitempty"`
+	Visibility         *catalog.Visibility               `json:"visibility,omitempty"`
 }
 
 type catalogFacetRequest struct {
@@ -776,7 +778,7 @@ func (input catalogExploreRequest) exploreRequest() (catalog.ExploreRequest, err
 		return catalog.ExploreRequest{}, err
 	}
 	request := catalog.ExploreRequest{
-		Query:  catalog.SearchQuery{IncludeMCPTools: input.Query.IncludeMCPTools, AgentProtocol: input.Query.AgentProtocol, NamespaceID: namespaceID, Text: input.Query.Text, Kinds: input.Query.Kinds, Tags: input.Query.Tags, Categories: input.Query.Categories, License: input.Query.License, Publisher: input.Query.Publisher, Visibility: visibility},
+		Query:  catalog.SearchQuery{NativeCapabilities: input.Query.NativeCapabilities, IncludeMCPTools: input.Query.IncludeMCPTools, AgentProtocol: input.Query.AgentProtocol, NamespaceID: namespaceID, Text: input.Query.Text, Kinds: input.Query.Kinds, Tags: input.Query.Tags, Categories: input.Query.Categories, License: input.Query.License, Publisher: input.Query.Publisher, Visibility: visibility},
 		Facets: make([]catalog.FacetRequest, 0, len(input.Facets)),
 	}
 	for _, facet := range input.Facets {

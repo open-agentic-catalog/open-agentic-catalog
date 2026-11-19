@@ -185,6 +185,11 @@ for (const base of ["root", "subpath"]) {
       );
       window.scrollTo(0, 0);
     });
+    expect(
+      await page
+        .locator(".api-definition-index")
+        .evaluate((element) => element.scrollHeight <= element.clientHeight),
+    ).toBe(true);
     const accessibility = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
       .analyze();
