@@ -42,6 +42,8 @@ The data qualification checks actual JSON/YAML failures, upstream syntax-only po
 
 The file-linter campaign uses all five pinned tools with passing and failing staged inputs. It checks sanitized diagnostics, relative Ruff exclusions and literal Markdown filenames. A workflow control selects actionlint and ShellCheck through `PATH` without explicit command variables. It also verifies that workflow ShellCheck does not read an unstaged external script.
 
+The campaign also checks each added shell, Python and container recipe path with valid and invalid staged content. Packaging regressions compare Make and hook selections against regular tracked and new non-ignored source files, including extensionless shell scripts and suffixed container recipes. Copied upstream trees, generated compatibility clients and the separately linted Python SDK retain their existing owners; the compatibility Dockerfile is checked by `container-sync-check`.
+
 A separate real campaign removes Go and all file linters from `PATH`. Plain-text checks pass. Markdown passes with only its explicit CLI and Node. A Python change then fails because Ruff is absent. No checkout cache is created.
 
 Another real campaign changes each working scanner policy after verification. Gitleaks still rejects the staged synthetic credential and preserves the working edits.

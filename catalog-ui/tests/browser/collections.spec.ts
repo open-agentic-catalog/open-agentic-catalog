@@ -712,6 +712,17 @@ for (const location of ["root", "subpath"]) {
         exact: true,
       }),
     ).toBeVisible();
+    let releaseMemberRead!: () => void;
+    let memberReadPaused!: () => void;
+    const memberReadGate = new Promise<void>((resolve) => {
+      releaseMemberRead = resolve;
+    });
+    const memberReadStarted = new Promise<void>((resolve) => {
+      memberReadPaused = resolve;
+    });
+    const memberReadRoute = (url: URL) =>
+      url.origin === catalog.origin &&
+      url.pathname === `${catalog.basePath}/_catalog${collectionPath}/members`;
     await catalog.admin(
       "POST",
       `/api/v1/access/assignments/${targetGrant.assignment.data.id}:revoke`,
@@ -721,8 +732,48 @@ for (const location of ["root", "subpath"]) {
       },
       targetGrant.assignment.etag,
     );
-    await page.reload();
-    await expect(page.locator(".resource-card")).toHaveCount(0);
+    await page.route(
+      memberReadRoute,
+      async (route) => {
+        memberReadPaused();
+        await memberReadGate;
+        await route.continue();
+      },
+      { times: 1 },
+    );
+    const currentEntries = page.locator(".workspace-panel").filter({
+      has: page.getByRole("heading", { name: "Current entries", exact: true }),
+    });
+    const emptyEntries = currentEntries.getByText(
+      /^No currently readable entries\./,
+    );
+    try {
+      await page
+        .getByRole("button", { name: "Refresh current entries", exact: true })
+        .click();
+      await memberReadStarted;
+      // Zero cards also matches a pending read, not just current target denial.
+      await expect(page.locator(".resource-card")).toHaveCount(0);
+      await expect(
+        currentEntries.getByRole("status").filter({ hasText: "Loading..." }),
+      ).toBeVisible();
+      await expect(emptyEntries).toHaveCount(0);
+      const refreshed = page.waitForResponse(
+        (reply) =>
+          reply.request().method() === "GET" &&
+          memberReadRoute(new URL(reply.url())),
+      );
+      releaseMemberRead();
+      const response = await refreshed;
+      expect(response.status()).toBe(200);
+      expect(await response.json()).toMatchObject({ items: [] });
+      // Preserve collection authority until the actual empty page is rendered.
+      await expect(emptyEntries).toBeVisible();
+      await expect(page.locator(".resource-card")).toHaveCount(0);
+    } finally {
+      releaseMemberRead();
+      await page.unroute(memberReadRoute);
+    }
     await expect(
       page.getByRole("heading", { name, exact: true }),
     ).toBeVisible();

@@ -1,4 +1,5 @@
 import ast
+import importlib.util
 from pathlib import Path
 import json
 import os
@@ -692,6 +693,133 @@ if Path("fail-" + stage).exists():
                 "test/validation": "node --test *.unit.test.mjs",
             }
             self.assertEqual(script, expected[project])
+
+    def test_python_lint_roots_match_the_staged_hook_and_cover_first_party_python(self):
+        command = next(line for line in self.run_make("-n", "python-lint", "RUFF=ownership-ruff").splitlines()
+                       if line.startswith('"ownership-ruff" check '))
+        roots = shlex.split(command)[shlex.split(command).index("--no-fix") + 1:]
+        spec = importlib.util.spec_from_file_location("hook_runner", ROOT / "test/hooks/runner.py")
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        self.assertEqual({root + "/" for root in roots}, set(runner.PYTHON_ROOTS), "hook and python-lint roots differ")
+        # SDK Python has its own lint gate; generated compatibility clients are not maintained source.
+        python = {name for name in self.source_files(ROOT) if name.endswith(".py")
+                  and not name.startswith(("sdk/python/", "test/clientcompat/go/generated/"))}
+        unowned = sorted(name for name in python if not name.startswith(tuple(r + "/" for r in roots)))
+        self.assertEqual(unowned, [], "Python source outside python-lint and named owners")
+        for name in python:
+            self.assertEqual(runner.lint_kind(name), "ruff", name)
+
+    def test_container_sources_have_a_container_check_owner_in_make_and_the_hook(self):
+        command = next(line for line in self.run_make("-n", "container-check", "HADOLINT=ownership-hadolint",
+                       "CONTAINERFILE=Containerfile", "FUNCTIONAL_CONTAINERFILE=test/functional/Containerfile").splitlines()
+                       if line.startswith("ownership-hadolint "))
+        paths = shlex.split(command)[1:]
+        self.assertEqual(len(paths), len(set(paths)), "container-check repeats a path")
+        selected = set(paths)
+        spec = importlib.util.spec_from_file_location("hook_runner", ROOT / "test/hooks/runner.py")
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        found = self.container_sources(ROOT)
+        # The compatibility Dockerfile is a byte copy checked by container-sync-check.
+        copy = "deployments/container/Dockerfile"
+        self.assertIn(copy, found)
+        self.assertEqual(found - {copy} - selected, set(), "Containerfile outside make container-check")
+        self.assertEqual(selected - found, set(), "container-check names a missing or non-Containerfile path")
+        self.assertEqual(set(runner.CONTAINER_FILES), selected, "staged-hook Containerfile list differs from container-check")
+        for name in selected:
+            self.assertEqual(runner.lint_kind(name), "hadolint", name)
+
+    # Immutable or copied upstream trees have their own qualification, not first-party style policy.
+    SOURCE_EXCLUDED = ("schemas/upstream/", "samples/upstream/", "internal/adapter/testdata/upstream/")
+    SHELL_SHEBANG = re.compile(rb"#!\s*(?:/usr/bin/env\s+(?:-S\s+)?)?(?:\S*/)?(?:ba|da|z|k)?sh(?:\s|$)")
+
+    @classmethod
+    def source_files(cls, root):
+        """List regular Git-visible first-party files, including new files and excluding deleted paths."""
+        environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        listed = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
+            env=environment, check=True, capture_output=True, timeout=30,
+        ).stdout.split(b"\0")
+        found = set()
+        for raw in listed:
+            name = os.fsdecode(raw)
+            path = root / name
+            if not name or name.startswith(cls.SOURCE_EXCLUDED) or path.is_symlink() or not path.is_file():
+                continue
+            found.add(name)
+        return found
+
+    @classmethod
+    def shell_sources(cls, root):
+        """Identify shell extensions and interpreter shebangs without executing scripts."""
+        found = set()
+        for name in cls.source_files(root):
+            if name.endswith((".sh", ".bash")):
+                found.add(name)
+                continue
+            with (root / name).open("rb") as handle:
+                if cls.SHELL_SHEBANG.match(handle.readline(256)):
+                    found.add(name)
+        return found
+
+    @classmethod
+    def container_sources(cls, root):
+        """Identify canonical and suffixed container recipes, including compatibility copies."""
+        return {name for name in cls.source_files(root)
+                if re.fullmatch(r"(?:Containerfile|Dockerfile)(?:\.[^/]+)?", Path(name).name)}
+
+    def test_shell_sources_have_a_shell_check_owner_in_make_and_the_hook(self):
+        selected = shlex.split(next(line for line in self.run_make("-n", "shell-check", "SHELLCHECK=ownership-shellcheck").splitlines()
+                                    if line.startswith("ownership-shellcheck ")))[1:]
+        self.assertEqual(len(selected), len(set(selected)))
+        sources = self.shell_sources(ROOT)
+        self.assertEqual(sources - set(selected), set(), "shell source outside make shell-check")
+        self.assertEqual(set(selected) - sources, set(), "shell-check names a non-shell or missing file")
+        spec = importlib.util.spec_from_file_location("hook_runner", ROOT / "test/hooks/runner.py")
+        runner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(runner)
+        self.assertEqual(set(runner.SHELL_FILES), set(selected), "staged-hook shell list differs from make shell-check")
+        for name in sources:
+            self.assertEqual(runner.lint_kind(name), "shellcheck", name)
+
+    def test_source_inventory_finds_new_and_tracked_files_and_preserves_exclusions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve()
+            environment = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+            subprocess.run(["git", "init", "-q", directory], env=environment, check=True, timeout=10)
+            (root / ".gitignore").write_text("output/\ntracked.sh\n")
+            files = {
+                "scripts/by-extension.sh": "echo ok\n", "scripts/by-shebang": "#!/usr/bin/env bash\n",
+                "scripts/posix": "#!/bin/sh\n", "scripts/env-split": "#!/usr/bin/env -S sh -eu\n",
+                "scripts/python-tool": "#!/usr/bin/env python3\n", "scripts/shell-named.py": "#!/usr/bin/env python3\n",
+                "scripts/shellish": "#!/usr/bin/env shellcheck-wrapper\n",
+                "schemas/upstream/vendor.sh": "echo vendored\n", "output/ignored.sh": "echo ignored\n",
+                "samples/upstream/vendor.py": "vendor = True\n",
+                "internal/adapter/testdata/upstream/Containerfile": "FROM scratch\n",
+                "new category/tool.py": "value = 1\n", "line\nbreak.py": "value = 2\n",
+                "new category/Containerfile": "FROM scratch\n", "new category/Dockerfile.control": "FROM scratch\n",
+                "output/ignored.py": "value = 1\n", "output/Containerfile": "FROM scratch\n",
+                "near-Containerfile.txt": "not a recipe\n", "tracked.sh": "echo tracked\n", "deleted.py": "value = 3\n",
+            }
+            for name, content in files.items():
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / name).write_text(content)
+            (root / "scripts/linked.sh").symlink_to(root / "scripts/by-extension.sh")
+            (root / "linked.py").symlink_to(root / "new category/tool.py")
+            (root / "Dockerfile.link").symlink_to(root / "new category/Containerfile")
+            (root / "scripts/directory.sh").mkdir()
+            subprocess.run(["git", "-C", str(root), "add", "-f", "--", "tracked.sh", "deleted.py"],
+                           env=environment, check=True, timeout=10)
+            (root / "deleted.py").unlink()
+            self.assertEqual(self.shell_sources(root), {
+                "scripts/by-extension.sh", "scripts/by-shebang", "scripts/posix", "scripts/env-split", "tracked.sh",
+            })
+            self.assertEqual({name for name in self.source_files(root) if name.endswith(".py")}, {
+                "new category/tool.py", "line\nbreak.py", "scripts/shell-named.py",
+            })
+            self.assertEqual(self.container_sources(root), {"new category/Containerfile", "new category/Dockerfile.control"})
 
     def test_source_gate_failures_stop_later_checks_without_installing_tools(self):
         """Execute maintained Make/shell sequences with owned tool doubles."""
