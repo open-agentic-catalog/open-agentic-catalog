@@ -4306,6 +4306,51 @@ async function sharedCollectionsJourney({
   await expect(link(record.listingRevision.displayName)).toBeVisible();
   await expect(button("Remove from collection")).toHaveCount(0);
   await expect(button("Delete collection")).toHaveCount(0);
+  const search = page.getByRole("searchbox", {
+    name: /Search collection entries/,
+  });
+  const kindLabel = {
+    agent: "Agents",
+    mcp_server: "MCP Servers",
+    skill: "Skills",
+    plugin: "Plugins",
+  }[record.resource.kind];
+  expect(kindLabel).toBeTruthy();
+  const collectionId = new URL(collectionURL).pathname.split("/").at(-1);
+  const memberReply = (text) =>
+    page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" &&
+        url.pathname.endsWith(`/api/v1/collections/${collectionId}/members`) &&
+        url.searchParams.get("text") === text
+      );
+    });
+  await search.fill(record.listingRevision.displayName);
+  await page.getByRole("checkbox", { name: kindLabel, exact: true }).check();
+  let received = memberReply(record.listingRevision.displayName);
+  await button("Apply filters").click();
+  let filtered = await received;
+  expect(filtered.status()).toBe(200);
+  expect((await filtered.json()).items.map((item) => item.listing.id)).toEqual([
+    record.listing.id,
+  ]);
+  await expect(page.locator(".resource-card")).toHaveCount(1);
+  await search.fill("collection-filter-no-match");
+  received = memberReply("collection-filter-no-match");
+  await button("Apply filters").click();
+  filtered = await received;
+  expect(filtered.status()).toBe(200);
+  expect((await filtered.json()).items).toEqual([]);
+  await expect(
+    page.getByText(/No currently readable entries match these filters/),
+  ).toBeVisible();
+  await expect(page.locator(".resource-card")).toHaveCount(0);
+  received = memberReply(null);
+  await button("Clear filters").click();
+  expect((await received).status()).toBe(200);
+  await expect(page.locator(".resource-card")).toHaveCount(1);
+
   await login("local-contributor");
   await page.goto(collectionURL);
   await command("Remove from collection");

@@ -5,9 +5,11 @@ package database
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"sync"
 	"testing"
 	"time"
@@ -105,7 +107,7 @@ func TestPostgresSharedCollectionsScopesLifecycleAndIntegrity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		current, _, err = catalogService.CreateListingRevision(admin, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, PublisherID: source.Items[0].ListingRevision.PublisherID, DisplayName: "Visible entry", Description: "Current collection entry", Visibility: catalog.VisibilityTenant}, current.Revision)
+		current, _, err = catalogService.CreateListingRevision(admin, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, PublisherID: source.Items[0].ListingRevision.PublisherID, DisplayName: "Visible entry", Description: "Current collection entry and searchable fixture.", Visibility: catalog.VisibilityTenant}, current.Revision)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -134,6 +136,19 @@ func TestPostgresSharedCollectionsScopesLifecycleAndIntegrity(t *testing.T) {
 	page, err := service.Members(curator, collection.ID, collections.MemberRequest{Limit: 1})
 	if err != nil || len(page.Items) != 1 || page.Items[0].Release.ID != first.Release.ID {
 		t.Fatal("hidden prefix consumed SQL limit", page, err)
+	}
+
+	filtered, err := service.Members(curator, collection.ID, collections.MemberRequest{Limit: 1, Text: "fixture"})
+	if err != nil || len(filtered.Items) != 1 || filtered.Items[0].Release.ID != first.Release.ID {
+		t.Fatal("hidden matching rows consumed filtered SQL limit", filtered, err)
+	}
+	filtered, err = service.Members(curator, collection.ID, collections.MemberRequest{Limit: 1, Text: "fixture", Kinds: []catalog.Kind{catalog.KindSkill}})
+	if err != nil || len(filtered.Items) != 1 || filtered.Items[0].Release.ID != first.Release.ID {
+		t.Fatal("kind and text intersection", filtered, err)
+	}
+	filtered, err = service.Members(curator, collection.ID, collections.MemberRequest{Limit: 1, Text: "fixture", Kinds: []catalog.Kind{catalog.KindAgent}})
+	if err != nil || len(filtered.Items) != 0 {
+		t.Fatal("nonmatching kind returned members", filtered, err)
 	}
 	replacement := publish("2.0.0")
 	if _, err := service.Members(curator, collection.ID, collections.MemberRequest{Limit: 1, Revision: collection.Revision, Generation: page.Generation}); catalog.ErrorCodeOf(err) != catalog.CodeInvalidArgument {
@@ -178,8 +193,22 @@ func TestPostgresSharedCollectionsScopesLifecycleAndIntegrity(t *testing.T) {
 	if err != nil || len(withTargetRead.Items) != 2 || withTargetRead.Collection.Revision != collection.Revision {
 		t.Fatal("current target grant did not reveal the retained member", withTargetRead, err)
 	}
+	filtered, err = service.Members(curator, collection.ID, collections.MemberRequest{Limit: 100, Text: "fixture", Kinds: []catalog.Kind{catalog.KindSkill}})
+	if err != nil || len(filtered.Items) != 2 {
+		t.Fatal("current target grant did not reveal the filtered member", filtered, err)
+	}
+	wantedFiltered := []string{source.Items[1].Listing.ID, replacement.Listing.ID}
+	sort.Strings(wantedFiltered)
+	if got := []string{filtered.Items[0].Listing.ID, filtered.Items[1].Listing.ID}; !reflect.DeepEqual(got, wantedFiltered) {
+		t.Fatal("filtered grant selected unexpected members", got, wantedFiltered)
+	}
 	if _, err := authority.RevokeRole(admin, targetGrant.ID, "Withdraw target read without changing collection access", "curator-target-revoke", targetGrant.Revision); err != nil {
 		t.Fatal(err)
+	}
+
+	filtered, err = service.Members(curator, collection.ID, collections.MemberRequest{Limit: 1, Text: "fixture", Kinds: []catalog.Kind{catalog.KindSkill}})
+	if err != nil || len(filtered.Items) != 1 || filtered.Items[0].Listing.ID != replacement.Listing.ID {
+		t.Fatal("revocation did not remove filtered matches", filtered, err)
 	}
 	afterTargetRevoke, err := service.Members(curator, collection.ID, collections.MemberRequest{Limit: 100})
 	if err != nil || len(afterTargetRevoke.Items) != 1 || afterTargetRevoke.Items[0].Listing.ID != replacement.Listing.ID || afterTargetRevoke.Collection.Revision != collection.Revision {
@@ -609,5 +638,133 @@ func TestPostgresSharedCollectionMemberQuotaAndAuditRollback(t *testing.T) {
 	}
 	if _, err := service.Change(admin, packed.ID, packed.Revision, collections.Delete, collections.Patch{}, ""); err != nil {
 		t.Fatal("bounded full collection deletion", err)
+	}
+}
+
+func TestPostgresCollectionFiltersReleasedFieldsAndBoundedPages(t *testing.T) {
+	documents := []catalog.SearchDocument{
+		{Identifier: "urn:air:catalog.example.com:finance:first", DisplayName: "Invoice", Description: "CAFÉ"},
+		{Identifier: "urn:air:catalog.example.com:finance:invoice-cafe", DisplayName: "Unrelated", Description: "Other", Tags: []string{"invoice", "café"}},
+		{Identifier: "urn:air:catalog.example.com:finance:second", DisplayName: "INVOICE café", Description: "Second"},
+		{Identifier: "urn:air:catalog.example.com:finance:third", DisplayName: "Invoice", Description: "Café third"},
+		{Identifier: "urn:air:catalog.example.com:finance:fourth", DisplayName: "Invoice cafeteria", Description: "Other"},
+		{Identifier: "urn:air:catalog.example.com:finance:agent", DisplayName: "Invoice Agent", Description: "CAFÉ"},
+		{Identifier: "urn:air:catalog.example.com:finance:elsewhere", DisplayName: "Invoice", Description: "CAFÉ in another collection"},
+	}
+	db, repo, _, seed := newSearchCostFixture(t, documents...)
+	for n := range documents {
+		if n == 5 {
+			seed(n, json.RawMessage(`{"name":"Collection Agent","description":"Metadata fixture","version":"1.0.0","supportedInterfaces":[{"url":"https://agent.example.com/a2a","protocolBinding":"JSONRPC","protocolVersion":"1.0"}],"capabilities":{},"defaultInputModes":["text/plain"],"defaultOutputModes":["text/plain"],"skills":[{"id":"collection","name":"Collection","description":"Read metadata only","tags":["collection"]}]}`))
+		} else {
+			seed(n)
+		}
+	}
+	admin := semanticDisclosureActor(t, db, housekeepingTenantA)
+	source, err := repo.SearchCatalog(admin, housekeepingTenantA, catalog.CatalogSearchRepositoryRequest{Limit: 100})
+	if err != nil || len(source.Items) != len(documents) {
+		t.Fatal(source, err)
+	}
+	store, err := NewPostgresCollectionStore(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := collections.New(store, clock.Real{}, id.Generator{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	collection, err := service.Create(admin, collections.Input{NamespaceID: source.Items[0].Listing.NamespaceID, Name: "Filtered selection"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	byIdentifier := map[string]catalog.CatalogSummary{}
+	for _, record := range source.Items {
+		byIdentifier[record.Resource.CanonicalIdentifier] = record
+		if record.Resource.CanonicalIdentifier == documents[6].Identifier {
+			continue
+		}
+		collection, err = service.Change(admin, collection.ID, collection.Revision, collections.Add, collections.Patch{}, record.Listing.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A valid matching member of a second collection must not enter this page.
+	otherCollection, err := service.Create(admin, collections.Input{NamespaceID: collection.NamespaceID, Name: "Other selection"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := byIdentifier[documents[6].Identifier]
+	if _, err = service.Change(admin, otherCollection.ID, otherCollection.Revision, collections.Add, collections.Patch{}, outside.Listing.ID); err != nil {
+		t.Fatal(err)
+	}
+	outsidePage, err := service.Members(admin, otherCollection.ID, collections.MemberRequest{Limit: 1, Text: "invoice café", Kinds: []catalog.Kind{catalog.KindSkill}})
+	if err != nil || len(outsidePage.Items) != 1 || outsidePage.Items[0].Listing.ID != outside.Listing.ID {
+		t.Fatal("other collection matching control", outsidePage, err)
+	}
+	// Keep an unpublished candidate whose metadata would change matching if the
+	// selector incorrectly joined the mutable candidate instead of the release.
+	original := byIdentifier[documents[0].Identifier]
+	key := sha256.Sum256([]byte(t.Name()))
+	domain, err := catalog.NewService(catalog.Options{Repository: repo, Clock: clock.Real{}, IDs: id.Generator{}, Validator: adapter.NewRegistry(), CursorKey: key[:], Policy: "collection-filter-test"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	listing, err := domain.GetListing(admin, original.Listing.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = domain.CreateListingRevision(admin, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: original.VersionRevision.ID, PublisherID: original.ListingRevision.PublisherID, DisplayName: "Candidate-only", Description: "Draft replacement", Visibility: catalog.VisibilityTenant}, listing.Revision)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wanted := []string{original.Listing.ID, byIdentifier[documents[2].Identifier].Listing.ID, byIdentifier[documents[3].Identifier].Listing.ID}
+	agent := byIdentifier[documents[5].Identifier]
+	for _, selection := range []struct {
+		name  string
+		kinds []catalog.Kind
+		ids   []string
+	}{
+		{"skills", []catalog.Kind{catalog.KindSkill, catalog.KindSkill}, wanted},
+		{"agent", []catalog.Kind{catalog.KindAgent}, []string{agent.Listing.ID}},
+		{"mixed", []catalog.Kind{catalog.KindSkill, catalog.KindAgent, catalog.KindSkill}, append([]string{agent.Listing.ID}, wanted...)},
+		{"all kinds", nil, append([]string{agent.Listing.ID}, wanted...)},
+	} {
+		sort.Strings(selection.ids)
+		after := ""
+		for n, want := range selection.ids {
+			page, err := service.Members(admin, collection.ID, collections.MemberRequest{Limit: 1, Text: "  INVOICE\u2003café ", Kinds: selection.kinds, AfterID: after})
+			if err != nil || len(page.Items) != min(2, len(selection.ids)-n) || page.Items[0].Listing.ID != want {
+				t.Fatal(selection.name, "filters after limit or incorrect collection/lexical/released fields", page, err)
+			}
+			if page.Items[0].Listing.ID == original.Listing.ID && (page.Items[0].ListingRevision.ID != original.ListingRevision.ID || page.Items[0].ListingRevision.DisplayName != documents[0].DisplayName || page.Items[0].ListingRevision.Description != documents[0].Description) {
+				t.Fatal("unpublished candidate replaced released response metadata", page.Items[0])
+			}
+			after = want
+		}
+		page, err := service.Members(admin, collection.ID, collections.MemberRequest{Limit: 1, Text: "invoice café", Kinds: selection.kinds, AfterID: after})
+		if err != nil || len(page.Items) != 0 {
+			t.Fatal(selection.name, "filtered traversal did not end", page, err)
+		}
+	}
+	for _, text := range []string{"candidate-only", "inv", "%_*", "cafe"} {
+		page, err := service.Members(admin, collection.ID, collections.MemberRequest{Limit: 100, Text: text})
+		if err != nil || len(page.Items) != 0 {
+			t.Fatal("unreleased, identifier-only, prefix or wildcard match", text, page, err)
+		}
+	}
+	for _, kind := range []catalog.Kind{catalog.KindMCPServer, catalog.KindPlugin} {
+		page, err := service.Members(admin, collection.ID, collections.MemberRequest{Limit: 100, Kinds: []catalog.Kind{kind}})
+		if err != nil || len(page.Items) != 0 {
+			t.Fatal("kind predicate ignored", kind, page, err)
+		}
+	}
+	probe, err := service.Members(admin, collection.ID, collections.MemberRequest{Text: "invoice", Kinds: []catalog.Kind{catalog.KindSkill}})
+	if err != nil || len(probe.Items) != 0 {
+		t.Fatal("zero-limit probe hydrated members", probe, err)
+	}
+	if _, err := service.Members(admin, collection.ID, collections.MemberRequest{Limit: 1, Text: "invoice", Revision: collection.Revision + 1, Generation: probe.Generation}); catalog.ErrorCodeOf(err) != catalog.CodeInvalidArgument {
+		t.Fatal("parent selection changed between probe and query", err)
+	}
+	if _, err := service.Members(semanticDisclosureActor(t, db, housekeepingTenantB), collection.ID, collections.MemberRequest{Limit: 1, Text: "invoice", Kinds: []catalog.Kind{catalog.KindSkill}}); catalog.ErrorCodeOf(err) != catalog.CodeNotFound {
+		t.Fatal("filtered cross-tenant disclosure", err)
 	}
 }

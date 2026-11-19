@@ -2126,8 +2126,8 @@
         }
       ],
       "reason": "Namespace-owned curation composes owner and target scopes without changing source governance.",
-      "success": "Create, list, read, edit and delete collections; add, page and remove current local members.",
-      "rejection": "Reader mutation, tenant crossing, strict bodies, stale revisions and invalid member continuations refuse.",
+      "success": "Create, list, read, edit and delete collections; add, page, text/kind-filter and remove current local members. Filters select readable released metadata before pagination.",
+      "rejection": "Reader mutation, tenant crossing, strict bodies, invalid query serialization, stale revisions and substituted member filter/cursor bindings refuse.",
       "recovery": "Exact create/delete/member-removal retries replay retained receipts without repeating mutations.",
       "gaps": []
     },

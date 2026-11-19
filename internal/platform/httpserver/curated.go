@@ -3,6 +3,7 @@ package httpserver
 import (
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/collections"
@@ -17,7 +18,7 @@ func (s *Server) collectionRoutes(router *http.ServeMux) {
 	router.HandleFunc("GET /api/v1/collections/{collectionId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleCollectionGet, "collectionId")))
 	router.HandleFunc("PATCH /api/v1/collections/{collectionId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleCollectionChange, "collectionId")))
 	router.HandleFunc("DELETE /api/v1/collections/{collectionId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleCollectionChange, "collectionId")))
-	router.HandleFunc("GET /api/v1/collections/{collectionId}/members", s.withQueryParameters(s.withUUIDPathParameters(s.handleCollectionMembers, "collectionId"), "limit", "cursor"))
+	router.HandleFunc("GET /api/v1/collections/{collectionId}/members", s.withQueryParameters(s.withUUIDPathParameters(s.handleCollectionMembers, "collectionId"), "limit", "cursor", "text", "kinds"))
 	router.HandleFunc("POST /api/v1/collections/{collectionId}/members", s.withQueryParameters(s.withUUIDPathParameters(s.handleCollectionChange, "collectionId")))
 	router.HandleFunc("DELETE /api/v1/collections/{collectionId}/members/{listingId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleCollectionChange, "collectionId", "listingId")))
 }
@@ -135,6 +136,31 @@ func (s *Server) handleCollectionChange(w http.ResponseWriter, r *http.Request) 
 }
 func (s *Server) handleCollectionMembers(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("collectionId")
+	if err := validateQueryParameters(r, "limit", "cursor", "text", "kinds"); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	values, err := parseQueryParameters(r)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	var kinds []catalog.Kind
+	if raw := values.Get("kinds"); raw != "" {
+		for _, kind := range strings.SplitN(raw, ",", collections.MaxMemberKinds+1) {
+			kinds = append(kinds, catalog.Kind(kind))
+		}
+	}
+	text, kinds, err := collections.NormalizeMemberFilters(values.Get("text"), kinds)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	kindNames := make([]string, len(kinds))
+	for n, kind := range kinds {
+		kindNames[n] = string(kind)
+	}
+	filters := map[string]string{"text": text, "kinds": strings.Join(kindNames, ",")}
 	snapshot, err := s.collections.Members(r.Context(), id, collections.MemberRequest{})
 	if err != nil {
 		s.fail(w, r, err)
@@ -142,12 +168,12 @@ func (s *Server) handleCollectionMembers(w http.ResponseWriter, r *http.Request)
 	}
 	// This binding is server-owned; it is not an accepted query parameter.
 	parent := fmt.Sprintf("%s:%d:%s", id, snapshot.Collection.Revision, snapshot.Generation)
-	page, err := s.parseAdminPage(r, "shared-collection-members", parent, "listing-id", nil)
+	page, err := s.parseAdminPage(r, "shared-collection-members", parent, "listing-id", filters)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
-	q := collections.MemberRequest{Limit: page.Limit, Revision: snapshot.Collection.Revision, Generation: snapshot.Generation}
+	q := collections.MemberRequest{Limit: page.Limit, Revision: snapshot.Collection.Revision, Generation: snapshot.Generation, Text: text, Kinds: kinds}
 	if len(page.Position) > 0 {
 		if len(page.Position) != 1 {
 			s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "collection cursor is invalid"))

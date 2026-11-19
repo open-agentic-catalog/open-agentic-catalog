@@ -791,4 +791,10 @@ Collection detail shows current readable entries and their source ownership. Ref
 
 Administrators can use [custom roles and namespace assignments](access-management.mdx#create-a-custom-role-with-explicit-read-companions) for narrower access. A collection-only reader can see shared text without seeing its targets. An owner-namespace management grant still requires separate read access before adding a target from another namespace. Reload after an access change to update the visible controls and entries.
 
-**Refresh current entries** updates member results without discarding an unfinished text edit. Use **Reload collection** to read the latest metadata and parent revision; it asks before discarding an unsaved edit. Stale revisions require that fresh metadata read before another edit. A stale member cursor requires starting from the first page. If a command outcome is uncertain, use the offered exact-command retry or reconcile the result before preparing another command. See [the limits and disclosure rules](./concepts.md#curate-a-shared-collection) before sharing collection text.
+Use **Search collection entries** and **Resource kinds**, then **Apply filters**, to select matching released names and descriptions within this collection. The controls stage edits until Apply. Selecting several kinds matches any of them, combined with the text. **Clear filters** restores ordinary browsing. These filters use [whole-word matching](concepts.md#curate-a-shared-collection), preserve Listing-ID order and do not alter membership.
+
+**Refresh current entries** reloads the applied selection. Pending filters and unsaved collection metadata stay unchanged. A stale member cursor requires an explicit refresh from the first page.
+
+Use **Reload collection** to read the latest metadata and parent revision. It asks before discarding an unsaved metadata edit. Stale revisions require this fresh metadata read before another edit.
+
+If a command outcome is uncertain, use the offered exact-command retry or reconcile the result before preparing another command. See [the limits and disclosure rules](./concepts.md#curate-a-shared-collection) before sharing collection text.

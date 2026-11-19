@@ -225,6 +225,12 @@ async def qualify_published_discovery(origin, admin, namespace_id, resource, ver
                 assert page.status_code == 200 and len(page.data.items) == 1 and not page.data.next_cursor
                 assert page.data.items[0].listing.id == listing.data.id and page.data.items[0].release.id == published.data.release.id
                 assert page.headers["Cache-Control"] == "no-store" and "ETag" not in page.headers
+                selected = await reads.list_collection_members_with_http_info(created.data.id, text="SDK", kinds=["agent", "skill"])
+                assert selected.status_code == 200 and [item.listing.id for item in selected.data.items] == [listing.data.id]
+                excluded = await reads.list_collection_members_with_http_info(created.data.id, text="collection-filter-no-match", kinds=["agent", "skill"])
+                assert excluded.status_code == 200 and not excluded.data.items and not excluded.data.next_cursor
+                wrong_kind = await reads.list_collection_members_with_http_info(created.data.id, kinds=["mcp_server", "plugin"])
+                assert wrong_kind.status_code == 200 and not wrong_kind.data.items
                 updated = await collections.update_collection_with_http_info(created.data.id, "python-update-collection", metadata.headers["ETag"], UpdateCollection(name="Updated Python collection", description=""))
                 assert updated.status_code == 200 and updated.data.revision == 3
                 stale = await collections.update_collection_with_http_info(created.data.id, "python-stale-collection", metadata.headers["ETag"], UpdateCollection(name="Stale"))

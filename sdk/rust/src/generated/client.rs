@@ -11256,15 +11256,17 @@ impl Client {
             }))
         }
     }
-    /// Browse currently readable collection members
+    /// Search and browse currently readable collection members
     ///
-    /// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+    /// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
     ///
     /// `GET /api/v1/collections/{collectionId}/members`
     pub async fn list_collection_members(
         &self,
         collection_id: impl AsRef<str>,
         limit: Option<i64>,
+        text: Option<impl AsRef<str>>,
+        kinds: Option<Vec<ResourceKind>>,
         cursor: Option<impl AsRef<str>>,
     ) -> Result<Response<CollectionMemberPage>, ApiOpError<ListCollectionMembersApiError>> {
         let request_url = format!(
@@ -11280,6 +11282,32 @@ impl Client {
             let mut query_params: Vec<(String, String)> = Vec::new();
             if let Some(v) = limit {
                 query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = text {
+                query_params.push(("text".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = kinds {
+                if v.is_empty() {
+                    query_params.push((format!("{}[]", "kinds"), String::new()));
+                } else {
+                    let mut parts = Vec::with_capacity(v.len());
+                    for item in &v {
+                        let item = item.to_string();
+                        if item.contains(',') {
+                            return Err(
+                                HttpError::serialization_error(
+                                        format!(
+                                            "query array `{}` contains a comma; use explode=true for lossless string values",
+                                            "kinds",
+                                        ),
+                                    )
+                                    .into(),
+                            );
+                        }
+                        parts.push(item);
+                    }
+                    query_params.push(("kinds".to_string(), parts.join(",")));
+                }
             }
             if let Some(v) = cursor {
                 query_params.push(("cursor".to_string(), v.as_ref().to_string()));

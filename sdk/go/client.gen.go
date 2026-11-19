@@ -10860,6 +10860,12 @@ type UpdateCollectionParams struct {
 type ListCollectionMembersParams struct {
 	Limit *int `form:"limit,omitempty" json:"limit,omitempty"`
 
+	// Text Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected.
+	Text *string `form:"text,omitempty" json:"text,omitempty"`
+
+	// Kinds One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected.
+	Kinds *[]ResourceKind `form:"kinds,omitempty" json:"kinds,omitempty"`
+
 	// Cursor Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
 	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
@@ -18756,9 +18762,9 @@ type ClientInterface interface {
 	// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
 	UpdateCollection(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListCollectionMembers Browse currently readable collection members
+	// ListCollectionMembers Search and browse currently readable collection members
 	//
-	// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+	// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
 	//
 	// Corresponds with GET /api/v1/collections/{collectionId}/members (the `ListCollectionMembers` operationId).
 	ListCollectionMembers(ctx context.Context, collectionId UUID, params *ListCollectionMembersParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -22004,9 +22010,9 @@ func (c *Client) UpdateCollection(ctx context.Context, collectionId UUID, params
 	return c.Client.Do(req)
 }
 
-// ListCollectionMembers Browse currently readable collection members
+// ListCollectionMembers Search and browse currently readable collection members
 //
-// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
 //
 // Corresponds with GET /api/v1/collections/{collectionId}/members (the `ListCollectionMembers` operationId).
 func (c *Client) ListCollectionMembers(ctx context.Context, collectionId UUID, params *ListCollectionMembersParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -29231,6 +29237,30 @@ func NewListCollectionMembersRequest(server string, collectionId UUID, params *L
 		if params.Limit != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Text != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "text", *params.Text, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Kinds != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "kinds", *params.Kinds, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "array", Format: ""}); err != nil {
 				return nil, safeError(err)
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -39186,9 +39216,9 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with PATCH /api/v1/collections/{collectionId} (the `UpdateCollection` operationId).
 	UpdateCollectionWithResponse(ctx context.Context, collectionId UUID, params *UpdateCollectionParams, body UpdateCollectionJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateCollectionResponse, error)
 
-	// ListCollectionMembersWithResponse Browse currently readable collection members
+	// ListCollectionMembersWithResponse Search and browse currently readable collection members
 	//
-	// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+	// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -56428,9 +56458,9 @@ func (c *ClientWithResponses) UpdateCollectionWithResponse(ctx context.Context, 
 	return ParseUpdateCollectionResponse(rsp)
 }
 
-// ListCollectionMembersWithResponse Browse currently readable collection members
+// ListCollectionMembersWithResponse Search and browse currently readable collection members
 //
-// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+// Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
 //
 // Returns a wrapper object for the known response body format(s).
 //

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -24,6 +25,8 @@ const (
 	MaxMembers              = 200
 	MaxNamespaceCollections = 100
 	MaxTenantCollections    = 1000
+	MaxMemberText           = 256
+	MaxMemberKinds          = 4
 )
 
 type Collection struct {
@@ -53,6 +56,8 @@ type ListRequest struct {
 }
 type MemberRequest struct {
 	AfterID, Generation string
+	Text                string
+	Kinds               []catalog.Kind
 	Revision            int64
 	Limit               int
 }
@@ -160,6 +165,11 @@ func (s *Service) List(ctx context.Context, q ListRequest) ([]Collection, error)
 // Members also supplies the current snapshot binding before cursor admission.
 // A zero limit returns no members and only the parent/generation binding.
 func (s *Service) Members(ctx context.Context, id string, q MemberRequest) (MemberPage, error) {
+	var err error
+	q.Text, q.Kinds, err = NormalizeMemberFilters(q.Text, q.Kinds)
+	if err != nil {
+		return MemberPage{}, err
+	}
 	id, q.AfterID = strings.ToLower(id), strings.ToLower(q.AfterID)
 	if !identity.ValidTenantID(id) || q.Limit < 0 || q.Limit > 100 || q.AfterID != "" && !identity.ValidTenantID(q.AfterID) || q.Revision < 0 {
 		return MemberPage{}, catalog.E(catalog.CodeInvalidArgument, "collection member page is invalid")
@@ -172,6 +182,29 @@ func (s *Service) Members(ctx context.Context, id string, q MemberRequest) (Memb
 		q.Limit++
 	}
 	return s.store.Members(ctx, a, id, q)
+}
+
+// NormalizeMemberFilters bounds inputs and gives cursors and both stores one
+// canonical selection. Empty/whitespace text and empty kinds mean ordinary browse.
+func NormalizeMemberFilters(text string, kinds []catalog.Kind) (string, []catalog.Kind, error) {
+	if !utf8.ValidString(text) || utf8.RuneCountInString(text) > MaxMemberText || strings.IndexFunc(text, func(r rune) bool { return unicode.IsControl(r) && !unicode.IsSpace(r) }) >= 0 || len(kinds) > MaxMemberKinds {
+		return "", nil, catalog.E(catalog.CodeInvalidArgument, "collection filters permit at most 256 text characters and four kinds")
+	}
+	for _, kind := range kinds {
+		if !kind.Valid() {
+			return "", nil, catalog.E(catalog.CodeInvalidArgument, "collection kind must be agent, mcp_server, skill or plugin")
+		}
+	}
+	kinds = slices.Clone(kinds)
+	slices.Sort(kinds)
+	return strings.ToLower(strings.Join(strings.Fields(text), " ")), slices.Compact(kinds), nil
+}
+
+func matchesMember(item catalog.CatalogSummary, q MemberRequest) bool {
+	if len(q.Kinds) > 0 && !slices.Contains(q.Kinds, item.Resource.Kind) {
+		return false
+	}
+	return q.Text == "" || catalog.CoreLexicalScore(catalog.SearchDocument{DisplayName: item.ListingRevision.DisplayName, Description: item.ListingRevision.Description}, q.Text) > 0
 }
 func (s *Service) Create(ctx context.Context, in Input) (Collection, error) {
 	in.NamespaceID = strings.ToLower(in.NamespaceID)

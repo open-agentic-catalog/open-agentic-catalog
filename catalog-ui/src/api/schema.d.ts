@@ -64,8 +64,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Browse currently readable collection members
-         * @description Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+         * Search and browse currently readable collection members
+         * @description Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
          */
         get: operations["listCollectionMembers"];
         put?: never;
@@ -8838,6 +8838,10 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected. */
+                text?: string;
+                /** @description One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected. */
+                kinds?: components["schemas"]["ResourceKind"][];
                 /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
                 cursor?: components["parameters"]["Cursor"];
             };

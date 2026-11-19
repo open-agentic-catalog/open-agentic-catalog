@@ -388,6 +388,8 @@ export function createCatalogClient(
         const { timeoutMs, responseBytes, ...init } = options;
         const local = createClient<paths>({
           baseUrl: origin,
+          // Collection kind arrays use the Control API single CSV parameter.
+          querySerializer: { array: { style: "form", explode: false } },
           fetch: async (request) => {
             response = await exchange(request, {
               ...(timeoutMs !== undefined

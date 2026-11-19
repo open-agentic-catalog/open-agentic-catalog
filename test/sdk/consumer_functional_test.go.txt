@@ -353,6 +353,21 @@ func TestManagedSDKSharedCollections(t *testing.T) {
 	if page.HTTPResponse.Header.Get("Cache-Control") != "no-store" || page.HTTPResponse.Header.Get("ETag") != "" {
 		t.Fatal("member cache policy")
 	}
+	filtered, err := reader.ListCollectionMembersWithResponse(ctx, created.JSON201.Id, &sdk.ListCollectionMembersParams{Text: ptr(record.JSON200.ListingRevision.DisplayName), Kinds: &[]sdk.ResourceKind{"agent", "skill"}})
+	must(t, err)
+	if filtered.JSON200 == nil || len(filtered.JSON200.Items) != 1 || filtered.JSON200.Items[0].Listing.Id != body.ListingId {
+		t.Fatal("typed collection filters", filtered.StatusCode())
+	}
+	excluded, err := reader.ListCollectionMembersWithResponse(ctx, created.JSON201.Id, &sdk.ListCollectionMembersParams{Text: ptr("collection-filter-no-match"), Kinds: &[]sdk.ResourceKind{"agent", "skill"}})
+	must(t, err)
+	if excluded.JSON200 == nil || len(excluded.JSON200.Items) != 0 || excluded.JSON200.NextCursor != nil {
+		t.Fatal("collection text filter ignored", excluded.StatusCode())
+	}
+	wrongKind, err := reader.ListCollectionMembersWithResponse(ctx, created.JSON201.Id, &sdk.ListCollectionMembersParams{Kinds: &[]sdk.ResourceKind{"mcp_server", "plugin"}})
+	must(t, err)
+	if wrongKind.JSON200 == nil || len(wrongKind.JSON200.Items) != 0 {
+		t.Fatal("collection kind filter ignored", wrongKind.StatusCode())
+	}
 	directory, err := reader.ListCollectionsWithResponse(ctx, &sdk.ListCollectionsParams{NamespaceId: ptr(record.JSON200.Resource.NamespaceId), Limit: ptr(100)})
 	must(t, err)
 	if directory.JSON200 == nil || len(directory.JSON200.Items) != 1 || directory.JSON200.Items[0].Id != created.JSON201.Id || directory.JSON200.NextCursor != nil {

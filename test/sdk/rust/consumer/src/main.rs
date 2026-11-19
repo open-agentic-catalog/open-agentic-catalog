@@ -608,12 +608,48 @@ async fn workflow(origin: &str) {
             assert_eq!(replayed.headers["idempotency-replayed"], "true");
             assert_eq!(added.raw_body, replayed.raw_body);
             let page = reader
-                .list_collection_members(&collection_id, Some(1), None::<&str>)
+                .list_collection_members(&collection_id, Some(1), None::<&str>, None, None::<&str>)
                 .await
                 .unwrap();
             assert_eq!(page.status, 200);
             assert_eq!(page.headers["cache-control"], "no-store");
             assert!(!page.headers.contains_key("etag"));
+            let selected = reader
+                .list_collection_members(
+                    &collection_id,
+                    Some(1),
+                    Some("SDK"),
+                    Some(vec![ResourceKind::Agent, ResourceKind::Skill]),
+                    None::<&str>,
+                )
+                .await
+                .unwrap();
+            let selected = selected.data.unwrap();
+            assert_eq!(selected.items.len(), 1);
+            assert_eq!(selected.items[0].listing.id.to_string(), listing_id);
+            let excluded = reader
+                .list_collection_members(
+                    &collection_id,
+                    Some(1),
+                    Some("collection-filter-no-match"),
+                    Some(vec![ResourceKind::Agent, ResourceKind::Skill]),
+                    None::<&str>,
+                )
+                .await
+                .unwrap();
+            assert!(excluded.data.unwrap().items.is_empty());
+            let wrong_kind = reader
+                .list_collection_members(
+                    &collection_id,
+                    Some(1),
+                    None::<&str>,
+                    Some(vec![ResourceKind::McpServer, ResourceKind::Plugin]),
+                    None::<&str>,
+                )
+                .await
+                .unwrap();
+            assert!(wrong_kind.data.unwrap().items.is_empty());
+
             let page = page.data.unwrap();
             assert!(page.next_cursor.is_none());
             assert_eq!(page.items.len(), 1);
@@ -693,7 +729,13 @@ async fn workflow(origin: &str) {
             assert_eq!(removed.status, 200);
             assert_eq!(removed.data.as_ref().unwrap().revision, 4);
             let empty = reader
-                .list_collection_members(&collection_id, Some(100), None::<&str>)
+                .list_collection_members(
+                    &collection_id,
+                    Some(100),
+                    None::<&str>,
+                    None,
+                    None::<&str>,
+                )
                 .await
                 .unwrap();
             assert_eq!(empty.status, 200);

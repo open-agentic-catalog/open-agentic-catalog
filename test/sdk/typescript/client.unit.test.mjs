@@ -1312,3 +1312,24 @@ test("declared MCP tool selection and bounded explanation survive the fixed API 
     assert.deepEqual(reply.data.items[0].toolMatch, toolMatch);
   }
 });
+
+test("collection kinds use one CSV parameter and retain opaque cursors", async () => {
+  let url;
+  const client = make(async (request) => {
+    url = new URL(request.url);
+    return json({ items: [] });
+  });
+  await client.api.GET("/api/v1/collections/{collectionId}/members", {
+    params: {
+      path: { collectionId: "collection" },
+      query: {
+        text: "invoice café",
+        kinds: ["agent", "mcp_server"],
+        cursor: "opaque+/=",
+      },
+    },
+  });
+  assert.deepEqual(url.searchParams.getAll("kinds"), ["agent,mcp_server"]);
+  assert.equal(url.searchParams.get("text"), "invoice café");
+  assert.equal(url.searchParams.get("cursor"), "opaque+/=");
+});

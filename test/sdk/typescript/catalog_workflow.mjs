@@ -397,6 +397,46 @@ for (let index = 0; index < 2; index++) {
     assert.equal(page.data.items.length, 1);
     assert.equal(page.data.items[0].listing.id, listing.data.id);
     assert.equal(page.data.items[0].release.id, published.data.release.id);
+    const selected = await reader.api.GET(
+      "/api/v1/collections/{collectionId}/members",
+      {
+        params: {
+          path: { collectionId: created.data.id },
+          query: { text: "SDK", kinds: ["agent", "skill"] },
+        },
+      },
+    );
+    assert.equal(selected.response.status, 200);
+    assert.deepEqual(
+      selected.data.items.map((item) => item.listing.id),
+      [listing.data.id],
+    );
+    const excluded = await reader.api.GET(
+      "/api/v1/collections/{collectionId}/members",
+      {
+        params: {
+          path: { collectionId: created.data.id },
+          query: {
+            text: "collection-filter-no-match",
+            kinds: ["agent", "skill"],
+          },
+        },
+      },
+    );
+    assert.equal(excluded.response.status, 200);
+    assert.deepEqual(excluded.data.items, []);
+    const wrongKind = await reader.api.GET(
+      "/api/v1/collections/{collectionId}/members",
+      {
+        params: {
+          path: { collectionId: created.data.id },
+          query: { kinds: ["mcp_server", "plugin"] },
+        },
+      },
+    );
+    assert.equal(wrongKind.response.status, 200);
+    assert.deepEqual(wrongKind.data.items, []);
+
     assert.equal(page.data.nextCursor, undefined);
     assert.equal(page.response.headers.get("Cache-Control"), "no-store");
     assert.equal(page.response.headers.get("ETag"), null);

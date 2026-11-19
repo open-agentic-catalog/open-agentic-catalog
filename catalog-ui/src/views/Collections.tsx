@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { components } from "../api/schema";
-import { result } from "../api/client";
+import { result, type Kind } from "../api/client";
 import { availablePermission, permitsNamespace } from "../api/permissions";
 import { kindLabel } from "../resource-kinds";
 import {
@@ -19,6 +19,7 @@ import { CatalogPresentation, SelectedNamespace } from "./CatalogPresentation";
 import * as checks from "./collection-responses";
 import { PersonalReceipt } from "./responses";
 import { characterText } from "./input-validation";
+import { KindSelection } from "./KindSelection";
 
 type Collection = components["schemas"]["SharedCollection"];
 export default function Collections(props: WorkspaceProps) {
@@ -32,7 +33,7 @@ export default function Collections(props: WorkspaceProps) {
       {props.id === "new" ? (
         <CollectionEditor {...props} />
       ) : props.id ? (
-        <CollectionDetail {...props} />
+        <CollectionDetail key={props.id} {...props} />
       ) : (
         <CollectionList {...props} />
       )}
@@ -115,6 +116,14 @@ function CollectionList(props: WorkspaceProps) {
 }
 function CollectionDetail(props: WorkspaceProps) {
   const [cursor, setCursor] = useState("");
+  const [filters, setFilters] = useState<{ text: string; kinds: Kind[] }>({
+    text: "",
+    kinds: [],
+  });
+  const [draft, setDraft] = useState(filters);
+  const [filterError, setFilterError] = useState("");
+  const filterErrorId = useId();
+  const pendingFilters = JSON.stringify(draft) !== JSON.stringify(filters);
   const [command, setCommand] = useState<Command>();
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -137,6 +146,7 @@ function CollectionDetail(props: WorkspaceProps) {
       props.id,
       props.access,
       cursor,
+      filters,
       detail.data?.item.revision,
     ]),
     async (signal) =>
@@ -146,7 +156,12 @@ function CollectionDetail(props: WorkspaceProps) {
           {
             params: {
               path: { collectionId: props.id },
-              query: { limit: 20, ...(cursor ? { cursor } : {}) },
+              query: {
+                limit: 20,
+                ...(cursor ? { cursor } : {}),
+                ...(filters.text ? { text: filters.text } : {}),
+                ...(filters.kinds.length ? { kinds: filters.kinds } : {}),
+              },
             },
             signal,
           },
@@ -177,8 +192,8 @@ function CollectionDetail(props: WorkspaceProps) {
     members.refresh();
   }
   function refreshMembers() {
-    setCursor("");
-    members.refresh();
+    if (cursor) setCursor("");
+    else members.refresh();
   }
   function remove(listingId?: string) {
     const selected = detail.data;
@@ -254,6 +269,75 @@ function CollectionDetail(props: WorkspaceProps) {
               Entries appear here when you can read them and a current release
               is available.
             </p>
+            <form
+              className="workspace-form"
+              aria-label="Filter collection entries"
+              onSubmit={(event) => {
+                event.preventDefault();
+                try {
+                  characterText(draft.text, "Collection text", 256);
+                  setFilterError("");
+                  if (!pendingFilters && !cursor) members.refresh();
+                  setFilters(draft);
+                  setCursor("");
+                } catch (error) {
+                  setFilterError(
+                    error instanceof Error
+                      ? error.message
+                      : "Check the collection filters.",
+                  );
+                }
+              }}
+            >
+              <Field
+                label="Search collection entries"
+                help="Match every whole word in released names and descriptions. No ranking or wildcard search."
+              >
+                <input
+                  type="search"
+                  value={draft.text}
+                  aria-invalid={!!filterError}
+                  aria-describedby={filterError ? filterErrorId : undefined}
+                  onChange={(event) =>
+                    setDraft({ ...draft, text: event.target.value })
+                  }
+                />
+              </Field>
+              <KindSelection
+                value={draft.kinds}
+                onChange={(kinds) => setDraft({ ...draft, kinds })}
+              />
+              {filterError && (
+                <p role="alert" id={filterErrorId}>
+                  {filterError}
+                </p>
+              )}
+              {pendingFilters && (
+                <p className="muted">
+                  Filter edits are pending. Apply filters to update the entries.
+                </p>
+              )}
+              <div className="workspace-toolbar">
+                <button type="submit" disabled={members.busy}>
+                  Apply filters
+                </button>
+                <button
+                  type="button"
+                  disabled={members.busy}
+                  onClick={() => {
+                    const empty = { text: "", kinds: [] };
+                    setDraft(empty);
+                    setFilters(empty);
+                    setFilterError("");
+                    if (!filters.text && !filters.kinds.length && !cursor)
+                      members.refresh();
+                    setCursor("");
+                  }}
+                >
+                  Clear filters
+                </button>
+              </div>
+            </form>
             <div className="workspace-toolbar">
               <button type="button" onClick={refreshMembers}>
                 Refresh current entries
@@ -264,6 +348,15 @@ function CollectionDetail(props: WorkspaceProps) {
                 </button>
               )}
             </div>
+            {(filters.text || filters.kinds.length > 0) && (
+              <p role="status">
+                Applied filters: {filters.text || "any text"};{" "}
+                {filters.kinds.length
+                  ? filters.kinds.map(kindLabel).join(", ")
+                  : "all kinds"}
+                .
+              </p>
+            )}
             <ReadState {...members} />
             {members.data && (
               <>
@@ -306,8 +399,11 @@ function CollectionDetail(props: WorkspaceProps) {
                 </div>
                 {members.data.items.length === 0 && (
                   <p className="workspace-empty">
-                    No currently readable entries. References can reappear when
-                    access or a current release becomes available.
+                    {filters.text || filters.kinds.length
+                      ? "No currently readable entries match these filters."
+                      : "No currently readable entries."}{" "}
+                    References can reappear when access or a current release
+                    becomes available.
                   </p>
                 )}
                 <Pager
