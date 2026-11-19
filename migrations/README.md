@@ -1,10 +1,14 @@
 # Embedded PostgreSQL migrations
 
+Numbered `.sql` files are the forward-only schema history embedded by [embed.go](embed.go). The migration runner in [internal/platform/database/migrate.go](../internal/platform/database/migrate.go) plans and applies them; database lifecycle and exact runtime grants are documented in the [database-role runbook](../documentation/src/content/docs/operations/database-roles.mdx).
+
+Fresh installations use these files to create the current schema. The Helm pre-install Job and `make compose-up` apply them and configure runtime database permissions automatically. After supplying the documented deployment inputs, no separate migration command or runtime drain is needed for a fresh installation.
+
+The stop/drain and retained-data rewrite or repair instructions below apply when updating an existing database. Use `make helm-deploy` or `make compose-up` to coordinate that update. Raw `helm upgrade` does not stop existing API and worker Pods before its migration hook runs.
+
 Migration `000053_adoption_version_selection.sql` adds a partial B-tree index for retained adoption Source selection. It changes no rows, runtime grants, RLS rules or immutable evidence. Apply it with the normal drained schema-owner workflow; allow index-build storage and write-lock time. Failure rolls back this migration; correct the cause and retry forward before restarting runtimes. No data backfill or automatic rollback is required.
 
 Migration `000031_agent_plugins.sql` adds the Plugin resource kind and immutable retained inspection documents/inventory. Runtime privilege manifest v15 introduced API insertion and API/worker reads of `plugin_inspection`, without update authority. Drain API and worker runtimes, apply migrations with the schema owner, reconcile both manifests, then start the matching binaries. External archives are not copied into PostgreSQL or reconstructed during restore.
-
-Numbered `.sql` files are the forward-only schema history embedded by [embed.go](embed.go). The migration runner in [internal/platform/database/migrate.go](../internal/platform/database/migrate.go) plans and applies them; database lifecycle and exact runtime grants are documented in the [database-role runbook](../documentation/src/content/docs/operations/database-roles.mdx).
 
 Migration `000046_publisher_search_order.sql` invalidates search cursors when a Publisher changes, because its displayed name can determine result order. It reuses the existing tenant generation function and adds no table, function or runtime grant; manifest v26 is unchanged. Apply it through the normal drained schema-owner workflow. Failure rolls back this migration; keep runtimes stopped, fix the cause and rerun. There is no data rewrite or automatic SQL rollback.
 
