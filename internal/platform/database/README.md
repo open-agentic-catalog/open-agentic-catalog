@@ -2,6 +2,8 @@
 
 This package implements the domain repository ports against PostgreSQL 18. It owns SQL, tenant context, exact API/worker privileges, atomic command execution and bounded operator inspection. It does not run migrations during API or worker startup.
 
+[Validation maintenance](postgres_validation_maintenance.go) selects current revision pointers and the latest validation run under current scoped permissions before its page limit. Its metadata-only representation query selects at most 17 rows, including lookahead for the 16-representation ceiling. [Integration tests](validation_maintenance_integration_test.go) cover time boundaries, current references, policy changes, actual grant revocation, isolation and oversized retained data; the read never fetches or renews evidence.
+
 | Files | Responsibility |
 | --- | --- |
 | [postgres.go](postgres.go), [role.go](role.go), [privileges.go](privileges.go) | Pool/session admission, readiness, role validation and exact effective privilege manifests. |

@@ -430,6 +430,8 @@ __all__ = [
     "TrustSummary",
     "UpdateCollection",
     "UpdateSource",
+    "ValidationMaintenanceItem",
+    "ValidationMaintenancePage",
     "VersionAdoptionTarget",
     "VersionEvidenceEnvelope",
     "VersionRevision",
@@ -1479,6 +1481,12 @@ from catalog_sdk.generated.models.update_collection import (
     UpdateCollection as UpdateCollection,
 )
 from catalog_sdk.generated.models.update_source import UpdateSource as UpdateSource
+from catalog_sdk.generated.models.validation_maintenance_item import (
+    ValidationMaintenanceItem as ValidationMaintenanceItem,
+)
+from catalog_sdk.generated.models.validation_maintenance_page import (
+    ValidationMaintenancePage as ValidationMaintenancePage,
+)
 from catalog_sdk.generated.models.version_adoption_target import (
     VersionAdoptionTarget as VersionAdoptionTarget,
 )

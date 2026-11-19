@@ -2412,6 +2412,22 @@
   },
   {
     "consumption": "buffered",
+    "method": "list_validation_maintenance",
+    "operation_id": "listValidationMaintenance",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1validation-maintenance/get",
+    "source_method": "GET",
+    "source_operation_id": "listValidationMaintenance",
+    "source_path": "/api/v1/validation-maintenance",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "list_version_revisions",
     "operation_id": "listVersionRevisions",
     "response_excluded_statuses": [],

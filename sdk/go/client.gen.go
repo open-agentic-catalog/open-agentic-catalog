@@ -4622,6 +4622,48 @@ func (e UpdateSourceUpdateMode) Valid() bool {
 	}
 }
 
+// Defines values for ValidationMaintenanceItemConditions.
+const (
+	ValidationMaintenanceItemConditionsBlocked  ValidationMaintenanceItemConditions = "blocked"
+	ValidationMaintenanceItemConditionsExpired  ValidationMaintenanceItemConditions = "expired"
+	ValidationMaintenanceItemConditionsExpiring ValidationMaintenanceItemConditions = "expiring"
+	ValidationMaintenanceItemConditionsStale    ValidationMaintenanceItemConditions = "stale"
+)
+
+// Valid indicates whether the value is a known member of the ValidationMaintenanceItemConditions enum.
+func (e ValidationMaintenanceItemConditions) Valid() bool {
+	switch e {
+	case ValidationMaintenanceItemConditionsBlocked:
+		return true
+	case ValidationMaintenanceItemConditionsExpired:
+		return true
+	case ValidationMaintenanceItemConditionsExpiring:
+		return true
+	case ValidationMaintenanceItemConditionsStale:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ValidationMaintenanceItemEvidenceState.
+const (
+	ValidationMaintenanceItemEvidenceStateBlocked  ValidationMaintenanceItemEvidenceState = "blocked"
+	ValidationMaintenanceItemEvidenceStateComplete ValidationMaintenanceItemEvidenceState = "complete"
+)
+
+// Valid indicates whether the value is a known member of the ValidationMaintenanceItemEvidenceState enum.
+func (e ValidationMaintenanceItemEvidenceState) Valid() bool {
+	switch e {
+	case ValidationMaintenanceItemEvidenceStateBlocked:
+		return true
+	case ValidationMaintenanceItemEvidenceStateComplete:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for Visibility.
 const (
 	Private Visibility = "private"
@@ -5399,6 +5441,33 @@ func (e ListReviewSubmissionsParamsState) Valid() bool {
 	case ListReviewSubmissionsParamsStateRejected:
 		return true
 	case ListReviewSubmissionsParamsStateSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListValidationMaintenanceParamsState.
+const (
+	ListValidationMaintenanceParamsStateAttention ListValidationMaintenanceParamsState = "attention"
+	ListValidationMaintenanceParamsStateBlocked   ListValidationMaintenanceParamsState = "blocked"
+	ListValidationMaintenanceParamsStateExpired   ListValidationMaintenanceParamsState = "expired"
+	ListValidationMaintenanceParamsStateExpiring  ListValidationMaintenanceParamsState = "expiring"
+	ListValidationMaintenanceParamsStateStale     ListValidationMaintenanceParamsState = "stale"
+)
+
+// Valid indicates whether the value is a known member of the ListValidationMaintenanceParamsState enum.
+func (e ListValidationMaintenanceParamsState) Valid() bool {
+	switch e {
+	case ListValidationMaintenanceParamsStateAttention:
+		return true
+	case ListValidationMaintenanceParamsStateBlocked:
+		return true
+	case ListValidationMaintenanceParamsStateExpired:
+		return true
+	case ListValidationMaintenanceParamsStateExpiring:
+		return true
+	case ListValidationMaintenanceParamsStateStale:
 		return true
 	default:
 		return false
@@ -9928,6 +9997,41 @@ type UpdateSource struct {
 // UpdateSourceUpdateMode defines model for UpdateSource.UpdateMode.
 type UpdateSourceUpdateMode string
 
+// ValidationMaintenanceItem defines model for ValidationMaintenanceItem.
+type ValidationMaintenanceItem struct {
+	// Applicable Applicability at the fixed observation time, not later publication eligibility, approval or trust.
+	Applicable          bool                                   `json:"applicable"`
+	CanonicalIdentifier string                                 `json:"canonicalIdentifier"`
+	Conditions          []ValidationMaintenanceItemConditions  `json:"conditions"`
+	EvidenceId          UUID                                   `json:"evidenceId"`
+	EvidenceState       ValidationMaintenanceItemEvidenceState `json:"evidenceState"`
+	ExpiresAt           *time.Time                             `json:"expiresAt,omitempty"`
+	Kind                ResourceKind                           `json:"kind"`
+	NamespaceId         UUID                                   `json:"namespaceId"`
+	PolicyVersion       string                                 `json:"policyVersion"`
+	ResourceId          UUID                                   `json:"resourceId"`
+	RevisionId          UUID                                   `json:"revisionId"`
+	RevisionNumber      int                                    `json:"revisionNumber"`
+	ValidatedAt         time.Time                              `json:"validatedAt"`
+	ValidationProfile   string                                 `json:"validationProfile"`
+	Version             string                                 `json:"version"`
+	VersionId           UUID                                   `json:"versionId"`
+}
+
+// ValidationMaintenanceItemConditions defines model for ValidationMaintenanceItem.Conditions.
+type ValidationMaintenanceItemConditions string
+
+// ValidationMaintenanceItemEvidenceState defines model for ValidationMaintenanceItem.EvidenceState.
+type ValidationMaintenanceItemEvidenceState string
+
+// ValidationMaintenancePage defines model for ValidationMaintenancePage.
+type ValidationMaintenancePage struct {
+	HorizonHours int                         `json:"horizonHours"`
+	Items        []ValidationMaintenanceItem `json:"items"`
+	NextCursor   *string                     `json:"nextCursor,omitempty"`
+	ObservedAt   time.Time                   `json:"observedAt"`
+}
+
 // VersionAdoptionTarget defines model for VersionAdoptionTarget.
 type VersionAdoptionTarget struct {
 	NamespaceId            UUID `json:"namespaceId"`
@@ -11783,6 +11887,22 @@ type SetTenantSettingsParams struct {
 	// IfMatch Exact settings ETag from GET, including before the first save. Wildcards and validator lists are not accepted.
 	IfMatch string `json:"If-Match"`
 }
+
+// ListValidationMaintenanceParams defines parameters for ListValidationMaintenance.
+type ListValidationMaintenanceParams struct {
+	// State Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows.
+	State *ListValidationMaintenanceParamsState `form:"state,omitempty" json:"state,omitempty"`
+
+	// HorizonHours Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry.
+	HorizonHours *int `form:"horizonHours,omitempty" json:"horizonHours,omitempty"`
+	Limit        *int `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ListValidationMaintenanceParamsState defines parameters for ListValidationMaintenance.
+type ListValidationMaintenanceParamsState string
 
 // ExportVersionRevisionDraftParams defines parameters for ExportVersionRevisionDraft.
 type ExportVersionRevisionDraftParams struct {
@@ -20400,6 +20520,13 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/tenant-settings (the `SetTenantSettings` operationId).
 	SetTenantSettings(ctx context.Context, params *SetTenantSettingsParams, body SetTenantSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListValidationMaintenance Find current validation evidence needing attention
+	//
+	// Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+	//
+	// Corresponds with GET /api/v1/validation-maintenance (the `ListValidationMaintenance` operationId).
+	ListValidationMaintenance(ctx context.Context, params *ListValidationMaintenanceParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetVersionRevision Get an immutable version revision
 	//
 	// Returns an authorized immutable version revision with its representation references and retained validation evidence.
@@ -25618,6 +25745,23 @@ func (c *Client) SetTenantSettingsWithBody(ctx context.Context, params *SetTenan
 // Corresponds with POST /api/v1/tenant-settings (the `SetTenantSettings` operationId).
 func (c *Client) SetTenantSettings(ctx context.Context, params *SetTenantSettingsParams, body SetTenantSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetTenantSettingsRequest(c.Server, params, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// ListValidationMaintenance Find current validation evidence needing attention
+//
+// Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+//
+// Corresponds with GET /api/v1/validation-maintenance (the `ListValidationMaintenance` operationId).
+func (c *Client) ListValidationMaintenance(ctx context.Context, params *ListValidationMaintenanceParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListValidationMaintenanceRequest(c.Server, params)
 	if err != nil {
 		return nil, safeError(err)
 	}
@@ -37241,6 +37385,96 @@ func NewSetTenantSettingsRequestWithBody(server string, params *SetTenantSetting
 	return req, nil
 }
 
+// NewListValidationMaintenanceRequest constructs an http.Request for the ListValidationMaintenance method
+func NewListValidationMaintenanceRequest(server string, params *ListValidationMaintenanceParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/validation-maintenance")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.HorizonHours != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "horizonHours", *params.HorizonHours, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
 // NewGetVersionRevisionRequest constructs an http.Request for the GetVersionRevision method
 func NewGetVersionRevisionRequest(server string, revisionId RevisionId) (*http.Request, error) {
 	var err error
@@ -40997,6 +41231,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/tenant-settings (the `SetTenantSettings` operationId).
 	SetTenantSettingsWithResponse(ctx context.Context, params *SetTenantSettingsParams, body SetTenantSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTenantSettingsResponse, error)
+
+	// ListValidationMaintenanceWithResponse Find current validation evidence needing attention
+	//
+	// Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/validation-maintenance (the `ListValidationMaintenance` operationId).
+	ListValidationMaintenanceWithResponse(ctx context.Context, params *ListValidationMaintenanceParams, reqEditors ...RequestEditorFn) (*ListValidationMaintenanceResponse, error)
 
 	// GetVersionRevisionWithResponse Get an immutable version revision
 	//
@@ -53523,6 +53766,70 @@ func (r SetTenantSettingsResponse) ContentType() string {
 	return ""
 }
 
+// ListValidationMaintenanceResponse200Headers the declared response headers of an HTTP 200 response for ListValidationMaintenance
+type ListValidationMaintenanceResponse200Headers struct {
+	CacheControl *string
+}
+
+// ListValidationMaintenanceResponseDefaultHeaders the declared response headers of an HTTP default response for ListValidationMaintenance
+type ListValidationMaintenanceResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type ListValidationMaintenanceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ValidationMaintenancePage
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListValidationMaintenanceResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *ListValidationMaintenanceResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListValidationMaintenanceResponse) GetJSON200() *ValidationMaintenancePage {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListValidationMaintenanceResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListValidationMaintenanceResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListValidationMaintenanceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListValidationMaintenanceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListValidationMaintenanceResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // GetVersionRevisionResponse200Headers the declared response headers of an HTTP 200 response for GetVersionRevision
 type GetVersionRevisionResponse200Headers struct {
 	XRequestID *string
@@ -59426,6 +59733,21 @@ func (c *ClientWithResponses) SetTenantSettingsWithResponse(ctx context.Context,
 		return nil, safeError(err)
 	}
 	return ParseSetTenantSettingsResponse(rsp)
+}
+
+// ListValidationMaintenanceWithResponse Find current validation evidence needing attention
+//
+// Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/validation-maintenance (the `ListValidationMaintenance` operationId).
+func (c *ClientWithResponses) ListValidationMaintenanceWithResponse(ctx context.Context, params *ListValidationMaintenanceParams, reqEditors ...RequestEditorFn) (*ListValidationMaintenanceResponse, error) {
+	rsp, err := c.ListValidationMaintenance(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseListValidationMaintenanceResponse(rsp)
 }
 
 // GetVersionRevisionWithResponse Get an immutable version revision
@@ -74972,6 +75294,77 @@ func ParseSetTenantSettingsResponse(rsp *http.Response) (result *SetTenantSettin
 		response.Headers200 = &headers
 	case true:
 		var headers SetTenantSettingsResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListValidationMaintenanceResponse parses an HTTP response from a ListValidationMaintenanceWithResponse call
+func ParseListValidationMaintenanceResponse(rsp *http.Response) (result *ListValidationMaintenanceResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &ListValidationMaintenanceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ValidationMaintenancePage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListValidationMaintenanceResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers ListValidationMaintenanceResponseDefaultHeaders
 		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {

@@ -424,3 +424,62 @@ func TestManagedSDKSharedCollections(t *testing.T) {
 		t.Fatal("curation changed source release", preserved.StatusCode())
 	}
 }
+
+// The installed Go SDK traverses actual maintenance pages and independent denials.
+func TestManagedSDKValidationMaintenance(t *testing.T) {
+	_, corpus := newReviewedCorpus(t)
+	admin, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "admin"})
+	must(t, err)
+	defer admin.Close()
+	reader, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "reader"})
+	must(t, err)
+	defer reader.Close()
+	record, err := admin.GetCatalogRecordWithResponse(t.Context(), decode[sdk.CatalogRecordId](t, []byte(strconv.Quote(corpus.Cases[0].ReleaseID))))
+	must(t, err)
+	if record.JSON200 == nil {
+		t.Fatal(record.StatusCode())
+	}
+	body, err := json.Marshal(map[string]any{"namespaceId": record.JSON200.Resource.NamespaceId, "kind": "agent", "canonicalIdentifier": "urn:air:catalog.example.com:go:maintenance"})
+	must(t, err)
+	resource, err := admin.CreateResourceWithResponse(t.Context(), &sdk.CreateResourceParams{IdempotencyKey: "go-maintenance-resource"}, decode[sdk.CreateResourceJSONRequestBody](t, body))
+	must(t, err)
+	if resource.JSON201 == nil {
+		t.Fatal(resource.StatusCode())
+	}
+	want := map[string]bool{}
+	for i := 0; i < 2; i++ {
+		body, err := json.Marshal(map[string]any{"version": "79.0." + strconv.Itoa(i), "representations": []map[string]any{{"role": "primary", "mediaType": "application/a2a-agent-card+json", "data": map[string]any{"name": "Incomplete maintenance fixture"}}}})
+		must(t, err)
+		version, err := admin.CreateResourceVersionWithResponse(t.Context(), resource.JSON201.Id, &sdk.CreateResourceVersionParams{IdempotencyKey: "go-maintenance-version-" + strconv.Itoa(i)}, decode[sdk.CreateResourceVersionJSONRequestBody](t, body))
+		must(t, err)
+		if version.JSON201 == nil || version.JSON201.Evidence.State != "blocked" {
+			t.Fatal("blocked control", version.StatusCode())
+		}
+		want[version.JSON201.Revision.Id.String()] = true
+	}
+	state := sdk.ListValidationMaintenanceParamsState("blocked")
+	params := &sdk.ListValidationMaintenanceParams{State: &state, HorizonHours: ptr(24), Limit: ptr(1)}
+	first, err := admin.ListValidationMaintenanceWithResponse(t.Context(), params)
+	must(t, err)
+	if first.JSON200 == nil || len(first.JSON200.Items) != 1 || first.JSON200.NextCursor == nil || !want[first.JSON200.Items[0].RevisionId.String()] || first.HTTPResponse.Header.Get("Cache-Control") != "no-store" {
+		t.Fatal("first maintenance page", first.StatusCode())
+	}
+	params.Cursor = first.JSON200.NextCursor
+	second, err := admin.ListValidationMaintenanceWithResponse(t.Context(), params)
+	must(t, err)
+	if second.JSON200 == nil || len(second.JSON200.Items) != 1 || second.JSON200.NextCursor != nil || !want[second.JSON200.Items[0].RevisionId.String()] || first.JSON200.Items[0].RevisionId == second.JSON200.Items[0].RevisionId || !first.JSON200.ObservedAt.Equal(second.JSON200.ObservedAt) {
+		t.Fatal("maintenance continuation", second.StatusCode())
+	}
+	params.Cursor = nil
+	denied, err := reader.ListValidationMaintenanceWithResponse(t.Context(), params)
+	must(t, err)
+	if denied.JSON200 == nil || len(denied.JSON200.Items) != 0 {
+		t.Fatal("reader disclosed validation maintenance", denied.StatusCode())
+	}
+	params.HorizonHours = ptr(169)
+	invalid, err := admin.ListValidationMaintenanceWithResponse(t.Context(), params)
+	must(t, err)
+	if invalid.StatusCode() != 400 || invalid.ApplicationproblemJSONDefault == nil || invalid.ApplicationproblemJSONDefault.Code != "INVALID_ARGUMENT" {
+		t.Fatal("invalid horizon", invalid.StatusCode())
+	}
+}

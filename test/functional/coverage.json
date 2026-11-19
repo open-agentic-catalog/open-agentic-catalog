@@ -2160,6 +2160,37 @@
       "rejection": "Refuse current permission/scope loss, duplicate versions, changed idempotency input and invalid occurrence references.",
       "recovery": "Replay the exact committed command under current authority without another Version or native fetch; browser confirmation opens the retained revision.",
       "gaps": []
+    },
+    {
+      "id": "validation-maintenance",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:listValidationMaintenance"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/validation_maintenance_functional_test.go",
+          "symbol": "TestHTTPValidationMaintenanceExplicitRenewalAndPrivateScope"
+        },
+        {
+          "path": "internal/platform/httpserver/validation_maintenance_functional_test.go",
+          "symbol": "TestHTTPValidationMaintenanceAuthenticationAndOAuthCeiling"
+        },
+        {
+          "path": "internal/platform/database/validation_maintenance_integration_test.go",
+          "symbol": "TestPostgresValidationMaintenanceBoundariesCurrentScopeAndPermissions"
+        },
+        {
+          "path": "internal/platform/database/validation_maintenance_integration_test.go",
+          "symbol": "TestPostgresValidationMaintenanceBindingSelectionLimit"
+        }
+      ],
+      "reason": "A current-revision metadata inventory reuses existing evidence policy and explicit validation, with no automatic fetch or renewal.",
+      "success": "Find exact current evidence before SQL limits, deduplicate current references, preserve fixed observation time and inspect/renew through the existing command.",
+      "rejection": "Independent permission intersections, tenant boundaries, invalid filters/horizons, stale authorization and substituted continuation refuse. Selected integrity failures disclose no partial page.",
+      "recovery": "Explicit first-page refresh rereads the moving population; exact renewal replay retains one evidence run and unchanged content.",
+      "gaps": []
     }
   ]
 }

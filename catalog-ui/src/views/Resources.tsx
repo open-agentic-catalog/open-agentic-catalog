@@ -38,7 +38,25 @@ export default function Resources(props: WorkspaceProps) {
         title="Authoring"
         icon="book"
         description="Create and maintain locally governed Agents, MCP Servers, Skills and Plugins."
-      />
+      >
+        {!props.id &&
+          (
+            [
+              "resource.read",
+              "resource.read_content",
+              "resource.validate",
+            ] as const
+          ).every((permission) =>
+            availablePermission(props.access, permission, "catalog.read"),
+          ) && (
+            <a
+              className="button"
+              href={`${props.runtime.basePath}/validation-maintenance`}
+            >
+              Validation maintenance
+            </a>
+          )}
+      </Heading>
       {props.id === "new" ? (
         <Suspense fallback={<p role="status">Loading authoring...</p>}>
           <AuthoringWorkspace {...props} />

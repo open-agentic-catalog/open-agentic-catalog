@@ -292,6 +292,8 @@ A package-only governed release remains available through authenticated Catalog 
 
 ## Version validation runs
 
+`GET /api/v1/validation-maintenance?state=expiring&horizonHours=24&limit=20` finds current evidence through a read-only inventory. It requires `resource.read`, `resource.read_content` and `resource.validate` in the same canonical Namespace and `catalog.read` when scopes are enforced. It returns no documents, findings or delivery URLs and performs no fetch or command. Follow [validation maintenance](../guides/resource-authoring.mdx#find-validation-evidence-needing-attention) for the current-pointer scope, overlapping conditions, equality boundaries and moving-window continuation contract. The separate explicit validation command below keeps its existing permissions and idempotency semantics.
+
 Creating a VersionRevision records its first profile-v7 EvidenceSet. Profile v7 normalizes digest-bound timestamps to PostgreSQL microsecond precision. Deterministic validation over immutable inline JSON, bounded PostgreSQL documents, or retained Skill package inventory and immutable handoff has no wall-clock expiry. Evidence about changeable HTTPS delivery bytes expires exactly 24 hours after retrieval.
 
 A caller with current `resource.validate` can `POST /api/v1/version-revisions/{revisionId}:validate` with an optional empty object. The command appends a tenant-bound run under the current adapter profile and policy. The response shows the new EvidenceSet in `revision.evidenceSetId`. VersionRevision content, the content-set digest, creation fields, prior evidence, approval and release history do not change.

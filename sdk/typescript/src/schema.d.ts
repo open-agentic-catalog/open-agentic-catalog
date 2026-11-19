@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/validation-maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find current validation evidence needing attention
+         * @description Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+         */
+        get: operations["listValidationMaintenance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collections": {
         parameters: {
             query?: never;
@@ -4319,6 +4339,35 @@ export interface components {
                 origin?: "foreign";
             };
         });
+        ValidationMaintenanceItem: {
+            revisionId: components["schemas"]["UUID"];
+            resourceId: components["schemas"]["UUID"];
+            namespaceId: components["schemas"]["UUID"];
+            kind: components["schemas"]["ResourceKind"];
+            canonicalIdentifier: string;
+            versionId: components["schemas"]["UUID"];
+            version: string;
+            revisionNumber: number;
+            evidenceId: components["schemas"]["UUID"];
+            /** @enum {string} */
+            evidenceState: "complete" | "blocked";
+            validationProfile: string;
+            policyVersion: string;
+            /** Format: date-time */
+            validatedAt: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** @description Applicability at the fixed observation time, not later publication eligibility, approval or trust. */
+            applicable: boolean;
+            conditions: ("blocked" | "stale" | "expired" | "expiring")[];
+        };
+        ValidationMaintenancePage: {
+            items: components["schemas"]["ValidationMaintenanceItem"][];
+            /** Format: date-time */
+            observedAt: string;
+            horizonHours: number;
+            nextCursor?: string;
+        };
         PersonalWorkItem: {
             id: string;
             /** @enum {string} */
@@ -8683,6 +8732,36 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listValidationMaintenance: {
+        parameters: {
+            query?: {
+                /** @description Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows. */
+                state?: "attention" | "expiring" | "expired" | "blocked" | "stale";
+                /** @description Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry. */
+                horizonHours?: number;
+                limit?: number;
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current authorized maintenance page */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationMaintenancePage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     listCollections: {
         parameters: {
             query?: {

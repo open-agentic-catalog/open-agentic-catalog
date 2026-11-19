@@ -139,6 +139,22 @@ async def qualify_private_resources(admin, namespace_id):
     assert page.status_code == 200 and {str(item.id) for item in page.data.items} == retained
 
 
+async def qualify_validation_maintenance(origin, admin, namespace_id):
+    """Read actual blocked evidence through the generated maintenance binding."""
+    api = CatalogLifecycleApi(admin)
+    resource = await api.create_resource_with_http_info("python-maintenance-resource", CreateResource(namespaceId=namespace_id, kind=ResourceKind("agent"), canonicalIdentifier="urn:air:catalog.example.com:python:maintenance"))
+    assert resource.status_code == 201
+    created = await api.create_resource_version_with_http_info(resource_id=resource.data.id, idempotency_key="python-maintenance-version", create_version=CreateVersion(version="79.0.0", representations=[RepresentationInput(role="primary", mediaType="application/a2a-agent-card+json", data={"name": "Incomplete maintenance fixture"})]))
+    assert created.status_code == 201 and created.data.evidence.state == "blocked"
+    page = await api.list_validation_maintenance_with_http_info(state="blocked", horizon_hours=24, limit=100)
+    assert page.status_code == 200 and page.headers["Cache-Control"] == "no-store"
+    row = next(item for item in page.data.items if item.revision_id == created.data.revision.id)
+    assert row.evidence_id == created.data.evidence.id and row.conditions == ["blocked"] and not row.applicable and row.expires_at is None
+    reader = Client(Config(origin=origin, allow_loopback_http=True, token="reader"))
+    denied = await CatalogLifecycleApi(reader).list_validation_maintenance_with_http_info(state="blocked", horizon_hours=24)
+    assert denied.status_code == 200 and not denied.data.items
+
+
 async def qualify_published_discovery(origin, admin, namespace_id, resource, version, native):
     """Exercise nonempty generated response models through the installed package."""
     identity = IdentityApi(admin)
@@ -394,6 +410,7 @@ async def main(origin):
     assert refused.status_code == 401
     await qualify_published_discovery(origin, admin, ns.data.id, resources[0], version, native)
     await qualify_reviewed_corpus()
+    await qualify_validation_maintenance(origin, admin, ns.data.id)
     print("Python Catalog workflow passed: four kinds, native evidence, governed publication, Search/Browse/audit pages, replay/conflict, current-permission replay refusal, denied-write readback and private Jobs")
 
 

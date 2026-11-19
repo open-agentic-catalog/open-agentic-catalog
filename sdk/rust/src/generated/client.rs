@@ -485,6 +485,41 @@ impl AsRef<str> for ListRoleDefinitionsState {
 }
 ///Allowed values for the `state` query parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum ListValidationMaintenanceState {
+    #[serde(rename = "attention")]
+    Attention,
+    #[serde(rename = "expiring")]
+    Expiring,
+    #[serde(rename = "expired")]
+    Expired,
+    #[serde(rename = "blocked")]
+    Blocked,
+    #[serde(rename = "stale")]
+    Stale,
+}
+impl ListValidationMaintenanceState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Attention => "attention",
+            Self::Expiring => "expiring",
+            Self::Expired => "expired",
+            Self::Blocked => "blocked",
+            Self::Stale => "stale",
+        }
+    }
+}
+impl std::fmt::Display for ListValidationMaintenanceState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListValidationMaintenanceState {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+///Allowed values for the `state` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum ListWebhookDeliveriesState {
     #[serde(rename = "pending")]
     Pending,
@@ -1298,6 +1333,11 @@ pub enum ListRoleDefinitionsApiError {
 ///Typed error responses for `listRoleImpact`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ListRoleImpactApiError {
+    Default(Problem),
+}
+///Typed error responses for `listValidationMaintenance`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum ListValidationMaintenanceApiError {
     Default(Problem),
 }
 ///Typed error responses for `listVersionRevisions`. One variant per declared non-2xx response.
@@ -13825,6 +13865,96 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(ListRoleImpactApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Find current validation evidence needing attention
+    ///
+    /// Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+    ///
+    /// `GET /api/v1/validation-maintenance`
+    pub async fn list_validation_maintenance(
+        &self,
+        state: Option<ListValidationMaintenanceState>,
+        horizon_hours: Option<i64>,
+        limit: Option<i64>,
+        cursor: Option<impl AsRef<str>>,
+    ) -> Result<Response<ValidationMaintenancePage>, ApiOpError<ListValidationMaintenanceApiError>>
+    {
+        let request_url = format!("{}{}", self.base_url, "/api/v1/validation-maintenance");
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = state {
+                query_params.push(("state".to_string(), v.to_string()));
+            }
+            if let Some(v) = horizon_hours {
+                query_params.push(("horizonHours".to_string(), v.to_string()));
+            }
+            if let Some(v) = limit {
+                query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = cursor {
+                query_params.push(("cursor".to_string(), v.as_ref().to_string()));
+            }
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<ListValidationMaintenanceApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(ListValidationMaintenanceApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {

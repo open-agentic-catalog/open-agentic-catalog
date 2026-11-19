@@ -285,6 +285,8 @@ Domain revocation, separate release-transition commands and blocked external rev
 
 External HTTPS validation retains exact evidence with 24-hour freshness. Identical bytes renew it; drift requires a new VersionRevision. Publication refetches reviewed identity. Blocked revalidation withdraws snapshots; expiry/policy drift marks readiness stale without rewriting them.
 
+Validation maintenance is a read-only current-revision inventory for the intersection of canonical-namespace resource.read, resource.read_content and resource.validate. It deduplicates Version candidate/sealed, Listing candidate and eligible current-release references, selecting the highest retained validation run number. Expiring, expired, blocked and policy-stale conditions filter before SQL limits; the 24-hour default horizon permits 1-168 hours and pages permit 1-100 entries. Cursors retain a fixed observation time while current evidence/pointers move, and bind current authority and deployment policy. Metadata excludes native documents/findings/URLs. Authoring links to exact audited revision reads and existing explicit idempotent renewal; there is no automatic renewal, expiry withdrawal or successful-renewal restoration. Unsupported or inconsistent selected evidence fails closed.
+
 ## Search and optional hybrid retrieval
 
 Authoring, Members, Explore Browse, Namespaces and Publishers support keyboard-accessible header sorting of the loaded page. Reviews, Jobs, My work and Saved items offer the same controls. Dates compare actual timestamps, while progress, attempts and domain counts compare numerically. Paging and Refresh retain the selected column without fetching other pages. Initial order comes from each API.

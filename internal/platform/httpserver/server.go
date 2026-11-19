@@ -328,6 +328,7 @@ func (s *Server) routes(router *http.ServeMux) {
 	}
 	s.collectionRoutes(router)
 	s.personalRoutes(router)
+	router.HandleFunc("GET /api/v1/validation-maintenance", s.withQueryParameters(s.handleValidationMaintenance, "state", "horizonHours", "limit", "cursor"))
 	s.feedbackRoutes(router)
 	s.ratingsRoutes(router)
 	router.HandleFunc("GET /api/v1/tenant-settings", s.withQueryParameters(s.handleTenantSettings))

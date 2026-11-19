@@ -59,6 +59,61 @@ tags:
   - name: Discovery
     description: Exact-host anonymous or authenticated ARD and AI Catalog discovery backed by an active immutable audience snapshot.
 paths:
+  /api/v1/validation-maintenance:
+    get:
+      tags:
+        - Catalog lifecycle
+      operationId: listValidationMaintenance
+      summary: Find current validation evidence needing attention
+      description: 'Requires a current human or service membership and the intersection of resource.read,
+        resource.read_content and resource.validate in the canonical namespace before SQL limits.
+        OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native
+        documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions
+        reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each.
+        Uses the highest validation run number, never timestamp ordering. Conditions may overlap.
+        The observation time is fixed across continuation; current evidence and pointers are reread on each page.
+        This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal.
+        Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone
+        does not withdraw snapshots; renewal is a separate explicit command and never automatically restores
+        publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.'
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [attention, expiring, expired, blocked, stale]
+            default: attention
+          description: Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows.
+        - name: horizonHours
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 168
+            default: 24
+          description: Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry.
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Current authorized maintenance page
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationMaintenancePage'
+        default:
+          $ref: '#/components/responses/Problem'
   /api/v1/collections:
     get:
       tags:
@@ -7252,6 +7307,80 @@ components:
           required:
             - reference
             - indexed
+    ValidationMaintenanceItem:
+      type: object
+      additionalProperties: false
+      required: [revisionId, resourceId, namespaceId, kind, canonicalIdentifier, versionId, version, revisionNumber, evidenceId, evidenceState, validationProfile, policyVersion, validatedAt, applicable, conditions]
+      properties:
+        revisionId:
+          $ref: '#/components/schemas/UUID'
+        resourceId:
+          $ref: '#/components/schemas/UUID'
+        namespaceId:
+          $ref: '#/components/schemas/UUID'
+        kind:
+          $ref: '#/components/schemas/ResourceKind'
+        canonicalIdentifier:
+          type: string
+          minLength: 1
+          maxLength: 512
+        versionId:
+          $ref: '#/components/schemas/UUID'
+        version:
+          type: string
+          minLength: 1
+          maxLength: 128
+        revisionNumber:
+          type: integer
+          minimum: 1
+        evidenceId:
+          $ref: '#/components/schemas/UUID'
+        evidenceState:
+          type: string
+          enum: [complete, blocked]
+        validationProfile:
+          type: string
+          minLength: 1
+        policyVersion:
+          type: string
+          minLength: 1
+        validatedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        applicable:
+          type: boolean
+          description: Applicability at the fixed observation time, not later publication eligibility, approval or trust.
+        conditions:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items:
+            type: string
+            enum: [blocked, stale, expired, expiring]
+    ValidationMaintenancePage:
+      type: object
+      additionalProperties: false
+      required: [items, observedAt, horizonHours]
+      properties:
+        items:
+          type: array
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/ValidationMaintenanceItem'
+        observedAt:
+          type: string
+          format: date-time
+        horizonHours:
+          type: integer
+          minimum: 1
+          maximum: 168
+        nextCursor:
+          type: string
+          maxLength: 2048
     PersonalWorkItem:
       type: object
       additionalProperties: false

@@ -2870,6 +2870,15 @@ export async function packagedJourneys({
     link,
     command,
   });
+  phase("compose-validation-maintenance");
+  await validationMaintenanceJourney({
+    page,
+    origin,
+    visit,
+    login,
+    button,
+    command,
+  });
   phase("compose-independent-publication");
   await publicationJourney({
     page,
@@ -4259,6 +4268,91 @@ async function declaredMCPToolsJourney({
 }
 
 // Join the real packaged UI/API and PostgreSQL through ordinary user controls.
+/** Prepare owned blocked metadata, then inspect and renew through the shipped UI. */
+async function validationMaintenanceJourney({
+  page,
+  origin,
+  visit,
+  login,
+  button,
+  command,
+}) {
+  await login("local-contributor");
+  const fixture = await page.evaluate(async (endpoint) => {
+    const headers = { "X-Catalog-Request": "1" };
+    const records = await fetch(
+      endpoint + "/api/v1/catalog/resources?limit=100",
+      { headers },
+    );
+    if (!records.ok) throw new Error("Maintenance fixture Catalog read failed");
+    const record = (await records.json()).items.find(
+      (item) => item.resource.kind === "agent",
+    );
+    if (!record) throw new Error("Maintenance fixture requires an Agent");
+    const key = crypto.randomUUID();
+    const reply = await fetch(
+      endpoint + `/api/v1/resources/${record.resource.id}/versions`,
+      {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "Idempotency-Key": key,
+        },
+        body: JSON.stringify({
+          version: "maintenance-" + key,
+          representations: [
+            {
+              role: "primary",
+              mediaType: "application/a2a-agent-card+json",
+              data: { name: "Incomplete maintenance fixture" },
+            },
+          ],
+        }),
+      },
+    );
+    if (reply.status !== 201)
+      throw new Error("Maintenance fixture version creation failed");
+    return await reply.json();
+  }, origin + "/_catalog");
+  expect(fixture.evidence.state).toBe("blocked");
+  await visit("/validation-maintenance");
+  await page
+    .getByRole("combobox", { name: "Evidence condition" })
+    .selectOption("blocked");
+  await button("Apply filters").click();
+  const row = page.getByRole("row").filter({ hasText: fixture.evidence.id });
+  await expect(row).toBeVisible();
+  await row.getByRole("link", { name: "Inspect evidence and renewal" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Version revision", exact: true }),
+  ).toBeVisible();
+  const validated = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith(
+        `/api/v1/version-revisions/${fixture.revision.id}:validate`,
+      ),
+  );
+  await command("Revalidate revision");
+  const response = await validated;
+  expect(response.status()).toBe(201);
+  const fresh = await response.json();
+  expect(fresh.revision.id).toBe(fixture.revision.id);
+  expect(fresh.revision.contentSetDigest).toBe(
+    fixture.revision.contentSetDigest,
+  );
+  expect(fresh.evidence.id).not.toBe(fixture.evidence.id);
+  expect(fresh.evidence.state).toBe("blocked");
+  await visit("/validation-maintenance");
+  await expect(
+    page.getByRole("row").filter({ hasText: fresh.evidence.id }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("row").filter({ hasText: fixture.evidence.id }),
+  ).toHaveCount(0);
+}
+
 async function sharedCollectionsJourney({
   page,
   origin,

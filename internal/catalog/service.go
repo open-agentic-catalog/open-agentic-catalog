@@ -2073,7 +2073,7 @@ func (s *Service) Publish(ctx context.Context, listingID string, input PublishIn
 // validationEvidenceCurrent checks completed evidence against the active
 // validation policy and expiry.
 func (s *Service) validationEvidenceCurrent(evidence EvidenceSet, now time.Time) bool {
-	return evidence.State == EvidenceComplete && evidence.ValidationProfile == currentValidationProfile && evidence.PolicyVersion == s.policy && (evidence.ExpiresAt.IsZero() || evidence.ExpiresAt.After(now))
+	return evidence.State == EvidenceComplete && validationProfilePolicyCurrent(evidence, currentValidationProfile, s.policy) && (evidence.ExpiresAt.IsZero() || evidence.ExpiresAt.After(now))
 }
 
 // validationEvidenceCurrentForRevision also verifies the retained revision's

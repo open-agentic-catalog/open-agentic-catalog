@@ -616,6 +616,12 @@ from catalog_sdk.generated.models.trust_evidence_bundle import TrustEvidenceBund
 from catalog_sdk.generated.models.trust_summary import TrustSummary
 from catalog_sdk.generated.models.update_collection import UpdateCollection
 from catalog_sdk.generated.models.update_source import UpdateSource
+from catalog_sdk.generated.models.validation_maintenance_item import (
+    ValidationMaintenanceItem,
+)
+from catalog_sdk.generated.models.validation_maintenance_page import (
+    ValidationMaintenancePage,
+)
 from catalog_sdk.generated.models.version_adoption_target import VersionAdoptionTarget
 from catalog_sdk.generated.models.version_evidence_envelope import (
     VersionEvidenceEnvelope,

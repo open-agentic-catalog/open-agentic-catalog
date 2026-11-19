@@ -66,6 +66,8 @@ Webhook inventory accepts intersecting exact `name` and `status` query filters, 
 
 ## Reviewed examples
 
+`GET /api/v1/validation-maintenance` pages current revisions needing attention with optional `state`, `horizonHours`, `limit` and `cursor`. It intersects metadata, content and validation permissions in each canonical Namespace before selection. Responses contain bounded evidence metadata and the fixed observation time, never native documents or findings. It performs no fetch or renewal. Follow [validation maintenance](../documentation/src/content/docs/guides/resource-authoring.mdx#find-validation-evidence-needing-attention) for exact pointer scope, conditions, moving-window continuation and the separate validation command.
+
 Snapshot inventory supports an optional exact state filter, for example `GET /api/v1/publication/snapshots?host=catalog.example.com&state=active&limit=1`. Omit `state` for all retained states; supplied values must be exactly `candidate`, `active` or `retired`. Empty, repeated and incorrectly cased values are rejected. Filtering precedes selection limits, and continuations bind the selected state as well as host, tenant, current authorization, ordering and page size. A summary is an observation; its ETag identifies retained content rather than continued activity. Full inspection uses the returned exact snapshot ID and the same host.
 
 | Example | Demonstrates |

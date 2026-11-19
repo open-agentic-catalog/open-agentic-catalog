@@ -407,6 +407,117 @@ pub struct VersionAdoptionTarget {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
+pub struct ValidationMaintenancePage {
+    ///Constraint: minimum=1, maximum=168
+    #[serde(rename = "horizonHours")]
+    pub horizon_hours: i64,
+    ///Constraint: maxItems=100
+    pub items: Vec<ValidationMaintenanceItem>,
+    ///Constraint: maxLength=2048
+    #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+    #[serde(rename = "observedAt")]
+    pub observed_at: chrono::DateTime<chrono::Utc>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ValidationMaintenanceItem {
+    ///Applicability at the fixed observation time, not later publication eligibility, approval or trust.
+    pub applicable: bool,
+    ///Constraint: minLength=1, maxLength=512
+    #[serde(rename = "canonicalIdentifier")]
+    pub canonical_identifier: String,
+    ///Constraint: minItems=1, maxItems=4, uniqueItems=true
+    pub conditions: Vec<ValidationMaintenanceItemConditionsItem>,
+    #[serde(rename = "evidenceId")]
+    pub evidence_id: UUID,
+    #[serde(rename = "evidenceState")]
+    pub evidence_state: ValidationMaintenanceItemEvidenceState,
+    #[serde(rename = "expiresAt", skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub kind: ResourceKind,
+    #[serde(rename = "namespaceId")]
+    pub namespace_id: UUID,
+    ///Constraint: minLength=1
+    #[serde(rename = "policyVersion")]
+    pub policy_version: String,
+    #[serde(rename = "resourceId")]
+    pub resource_id: UUID,
+    #[serde(rename = "revisionId")]
+    pub revision_id: UUID,
+    ///Constraint: minimum=1
+    #[serde(rename = "revisionNumber")]
+    pub revision_number: i64,
+    #[serde(rename = "validatedAt")]
+    pub validated_at: chrono::DateTime<chrono::Utc>,
+    ///Constraint: minLength=1
+    #[serde(rename = "validationProfile")]
+    pub validation_profile: String,
+    ///Constraint: minLength=1, maxLength=128
+    pub version: String,
+    #[serde(rename = "versionId")]
+    pub version_id: UUID,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum ValidationMaintenanceItemEvidenceState {
+    #[default]
+    #[serde(rename = "complete")]
+    Complete,
+    #[serde(rename = "blocked")]
+    Blocked,
+}
+impl ValidationMaintenanceItemEvidenceState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Complete => "complete",
+            Self::Blocked => "blocked",
+        }
+    }
+}
+impl ::std::fmt::Display for ValidationMaintenanceItemEvidenceState {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ValidationMaintenanceItemEvidenceState {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum ValidationMaintenanceItemConditionsItem {
+    #[default]
+    #[serde(rename = "blocked")]
+    Blocked,
+    #[serde(rename = "stale")]
+    Stale,
+    #[serde(rename = "expired")]
+    Expired,
+    #[serde(rename = "expiring")]
+    Expiring,
+}
+impl ValidationMaintenanceItemConditionsItem {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Blocked => "blocked",
+            Self::Stale => "stale",
+            Self::Expired => "expired",
+            Self::Expiring => "expiring",
+        }
+    }
+}
+impl ::std::fmt::Display for ValidationMaintenanceItemConditionsItem {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ValidationMaintenanceItemConditionsItem {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateSource {
     ///Explicit opt-in to source-provided artwork and native icons; image origin policy still applies.
     #[serde(rename = "artworkEnabled", skip_serializing_if = "Option::is_none")]
