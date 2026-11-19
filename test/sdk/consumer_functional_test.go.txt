@@ -41,6 +41,37 @@ func TestManagedSDKReviewedUpstream(t *testing.T) {
 	if selected.StatusCode() != 200 || selected.JSON200 == nil || selected.JSON200.DurableTotal != 0 || len(selected.JSON200.Items) != 0 {
 		t.Fatal("native SDK selectors were lost", selected.StatusCode())
 	}
+	var researcher string
+	for _, item := range corpus.Cases {
+		if item.Name == "researcher" {
+			researcher = item.ReleaseID
+		}
+	}
+	if researcher == "" {
+		t.Fatal("missing independent Agent control")
+	}
+	for _, streaming := range []bool{true, false} {
+		native := `{"agentSkillIds":["not-declared-sdk-sentinel","research"],"agentSkillTags":["planning"],"agentDefaultInputModes":["text/plain"],"agentDefaultOutputModes":["text/plain"],"agentStreaming":` + strconv.FormatBool(streaming) + `}`
+		query := decode[sdk.CatalogSearch](t, []byte(`{"origins":["local"],"nativeCapabilities":`+native+`}`))
+		selected, err := c.SearchCatalogWithResponse(t.Context(), query)
+		must(t, err)
+		want := 0
+		if streaming {
+			want = 1
+		}
+		if selected.StatusCode() != 200 || selected.JSON200 == nil || selected.JSON200.DurableTotal != want || len(selected.JSON200.Items) != want {
+			t.Fatal("native SDK selection", selected.StatusCode(), streaming)
+		}
+		if want == 1 && (selected.JSON200.Items[0].Local == nil || selected.JSON200.Items[0].Local.Release.Id.String() != researcher) {
+			t.Fatal("native SDK selected a different release")
+		}
+		facets := decode[sdk.ExploreCatalogJSONRequestBody](t, []byte(`{"query":{"nativeCapabilities":`+native+`},"facets":[{"field":"kind"}]}`))
+		explored, err := c.ExploreCatalogWithResponse(t.Context(), facets)
+		must(t, err)
+		if explored.StatusCode() != 200 || explored.JSON200 == nil || explored.JSON200.Matched != want {
+			t.Fatal("native SDK Explore population", explored.StatusCode(), streaming)
+		}
+	}
 	for _, expected := range corpus.Cases {
 		t.Run(expected.Name, func(t *testing.T) {
 			id := decode[sdk.CatalogRecordId](t, []byte(strconv.Quote(expected.ReleaseID)))

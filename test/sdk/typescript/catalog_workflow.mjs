@@ -565,6 +565,14 @@ for (let index = 0; index < 2; index++) {
 const other = createCatalogClient({ ...options, token: "other" });
 for (const [nativeCapabilities, count] of [
   [{ agentDefaultInputModes: ["application/json"] }, releases.size],
+  [
+    {
+      agentSkillIds: ["not-declared-sdk-sentinel", "ts"],
+      agentSkillTags: ["sdk"],
+      agentDefaultOutputModes: ["application/json"],
+    },
+    releases.size,
+  ],
   [{ agentStreaming: false }, 0],
   [{ agentSkillIds: ["not-declared-sdk-sentinel"] }, 0],
 ]) {
@@ -573,6 +581,16 @@ for (const [nativeCapabilities, count] of [
   });
   assert.equal(selected.response.status, 200);
   assert.equal(selected.data.durableTotal, count);
+  assert.equal(selected.data.items.length, count);
+  assert.deepEqual(
+    new Set(selected.data.items.map((item) => item.local.release.id)),
+    count ? new Set(releases.keys()) : new Set(),
+  );
+  const explored = await reader.api.POST("/api/v1/catalog/explore", {
+    body: { query: { nativeCapabilities }, facets: [{ field: "kind" }] },
+  });
+  assert.equal(explored.response.status, 200);
+  assert.equal(explored.data.matched, count);
 }
 const unmatchedProtocol = await reader.api.POST("/api/v1/catalog/search", {
   body: { agentProtocol: "HTTP+JSON", origins: ["local"] },

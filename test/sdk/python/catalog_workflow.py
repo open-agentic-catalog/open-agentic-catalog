@@ -31,6 +31,7 @@ from catalog_sdk.generated.models.create_listing import CreateListing
 from catalog_sdk.generated.models.create_listing_revision import CreateListingRevision
 from catalog_sdk.generated.models.publish_listing import PublishListing
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
+from catalog_sdk.generated.models.catalog_explore import CatalogExplore
 from catalog_sdk.generated.models.audit_details_v1 import AuditDetailsV1
 
 
@@ -269,9 +270,13 @@ async def qualify_published_discovery(origin, admin, namespace_id, resource, ver
         identities[str(published.data.release.id)] = (identifier, visibility)
     reader = Client(Config(origin=origin, allow_loopback_http=True, token="reader"))
     discovery = CatalogDiscoveryApi(reader)
-    for native, count in (({"agentDefaultInputModes": ["application/json"]}, len(releases)), ({"agentStreaming": False}, 0), ({"agentSkillIds": ["not-declared-sdk-sentinel"]}, 0)):
+    for native, count in (({"agentDefaultInputModes": ["application/json"]}, len(releases)), ({"agentSkillIds": ["not-declared-sdk-sentinel", "python"], "agentSkillTags": ["sdk"], "agentDefaultOutputModes": ["application/json"]}, len(releases)), ({"agentStreaming": False}, 0), ({"agentSkillIds": ["not-declared-sdk-sentinel"]}, 0)):
         selected = await discovery.search_catalog_with_http_info(catalog_search=CatalogSearch.from_dict({"origins": ["local"], "nativeCapabilities": native, "tags": ["python-sdk"]}))
         assert selected.status_code == 200 and selected.data.durable_total == count
+        assert len(selected.data.items) == count
+        assert {item.to_dict()["local"]["release"]["id"] for item in selected.data.items} == (releases if count else set())
+        explored = await discovery.explore_catalog_with_http_info(catalog_explore=CatalogExplore.from_dict({"query": {"nativeCapabilities": native, "tags": ["python-sdk"]}, "facets": [{"field": "kind"}]}))
+        assert explored.status_code == 200 and explored.data.matched == count
     unmatched = await discovery.search_catalog_with_http_info(catalog_search=CatalogSearch(agentProtocol="HTTP+JSON", origins=["local"], tags=["python-sdk"]))
     assert unmatched.status_code == 200 and unmatched.data.durable_total == 0 and unmatched.data.items == []
     cursor = None

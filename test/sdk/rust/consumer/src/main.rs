@@ -776,19 +776,45 @@ async fn workflow(origin: &str) {
             json!({"agentDefaultInputModes":["application/json"]}),
             releases.len(),
         ),
+        (
+            json!({"agentSkillIds":["not-declared-sdk-sentinel","rust"],"agentSkillTags":["sdk"],"agentDefaultOutputModes":["application/json"]}),
+            releases.len(),
+        ),
         (json!({"agentStreaming":false}), 0),
         (json!({"agentSkillIds":["not-declared-sdk-sentinel"]}), 0),
     ] {
         let selected = data(
             reader
                 .search_catalog(typed(
-                    json!({"origins":["local"],"nativeCapabilities":native,"tags":["rust-sdk"]}),
+                    json!({"origins":["local"],"nativeCapabilities":native.clone(),"tags":["rust-sdk"]}),
                 ))
                 .await
                 .unwrap(),
             200,
         );
         assert_eq!(selected["durableTotal"], count);
+        let mut actual: Vec<_> = selected["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["local"]["release"]["id"].as_str().unwrap().to_owned())
+            .collect();
+        let mut expected = if count > 0 {
+            releases.clone()
+        } else {
+            Vec::new()
+        };
+        actual.sort();
+        expected.sort();
+        assert_eq!(actual, expected);
+        let explored = data(
+            reader
+                .explore_catalog(typed(json!({"query":{"nativeCapabilities":native,"tags":["rust-sdk"]},"facets":[{"field":"kind"}]})))
+                .await
+                .unwrap(),
+            200,
+        );
+        assert_eq!(explored["matched"], count);
     }
     let unmatched_protocol = data(
         reader
