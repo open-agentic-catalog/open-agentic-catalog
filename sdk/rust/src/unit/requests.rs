@@ -6,6 +6,35 @@ const RESOURCE_ID: &str = "00000000-0000-7000-8000-000000000010";
 const VERSION_ID: &str = "00000000-0000-7000-8000-000000000011";
 
 #[tokio::test]
+async fn unresolved_exact_relationship_stays_unlinked() {
+    let wire = br#"{"items":[{"declaration":{"type":"depends_on","targetIdentifier":"opaque:tools","targetVersion":"1.0"}},{"declaration":{"type":"bundled_with","targetIdentifier":"opaque:tools"},"related":{"releaseId":"00000000-0000-7000-8000-000000000301","listingRevisionId":"00000000-0000-7000-8000-000000000401","displayName":"Tools","version":"2.0"}}]}"#;
+    let transport = Scripted::new(vec![reply(200, wire)]);
+    let client = client(transport.clone());
+    let page = client
+        .list_release_relationships(
+            RESOURCE_ID,
+            ListReleaseRelationshipsView::Outgoing,
+            None,
+            None::<&str>,
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap();
+    assert_eq!(page.items.len(), 2);
+    assert!(page.items[0].related.is_none());
+    assert_eq!(
+        page.items[0].declaration.target_version.as_deref(),
+        Some("1.0")
+    );
+    assert!(page.items[1].declaration.target_version.is_none());
+    assert_eq!(page.items[1].related.as_ref().unwrap().version, "2.0");
+    let requests = transport.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].url().query(), Some("view=outgoing"));
+}
+
+#[tokio::test]
 async fn withdrawal_preview_is_one_explicit_read_with_bound_references() {
     let transport = Scripted::new(vec![reply(200, br#"{"releaseId":"00000000-0000-7000-8000-000000000010","releaseRevision":3,"transition":"retired","observedAt":"2026-11-15T12:00:00Z","snapshots":[{"snapshotId":"00000000-0000-7000-8000-000000000201","host":"catalog.example.com","audience":"anonymous","generation":2,"etag":"feed-two"}]}"#)]);
     let response = client(transport.clone())

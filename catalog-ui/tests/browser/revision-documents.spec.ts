@@ -748,171 +748,446 @@ test("root: retained BOM, CRLF and numeric tokens survive comparison and integri
   }
 });
 
-test("review comparison keeps submitted cross-Version documents when the Listing candidate moves", async ({
+test("subpath: changed MCP headers remain inspectable when declared connections match", async ({
   page,
   catalog,
 }) => {
   const resource = await catalog.admin("POST", "/api/v1/resources", {
     namespaceId: catalog.receipt.namespaceId,
-    kind: "skill",
+    kind: "mcp_server",
     canonicalIdentifier:
-      "urn:air:catalog.example.com:authoring:review-comparison",
+      "urn:air:catalog.example.com:authoring:header-comparison",
   });
-  const resourceId = text(resource.data.id);
-  const versions: { id: string; revisionId: string }[] = [];
-  for (const [index, host] of ["old", "new", "later"].entries()) {
-    const content = `---\nname: review-comparison\ndescription: "Inspect the submitted connection change."\n---\n# Connection\n\nEndpoint: https://${host}.example/mcp\n`;
-    const created = await catalog.admin(
-      "POST",
-      `/api/v1/resources/${resourceId}/versions`,
-      {
-        version: `${index + 1}.0.0`,
-        representations: [
+  const representations = (header: string) => [
+    {
+      role: "primary",
+      mediaType: "application/mcp-server-card+json",
+      data: {
+        $schema:
+          "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+        name: "com.example/orders",
+        description: "Inspect the two retained header declarations.",
+        version: "1.0.0",
+        remotes: [
           {
-            role: "primary",
-            mediaType: "application/agent-skills+md",
-            profileId: "agent-skills-69ef37e",
-            content,
+            type: "streamable-http",
+            url: "https://mcp.example.com/orders",
+            headers: [{ name: "X-Example", value: header }],
           },
         ],
       },
-    );
-    expect(object(created.data.evidence).state).toBe("complete");
-    versions.push({
-      id: text(object(created.data.version).id),
-      revisionId: text(object(created.data.revision).id),
-    });
-  }
-  expect(new Set(versions.map((version) => version.id)).size).toBe(3);
-  const listing = await catalog.admin("POST", "/api/v1/catalog-listings", {
-    namespaceId: catalog.receipt.namespaceId,
-    resourceId,
-  });
-  const listingId = text(listing.data.id);
-  const input = (index: number) => ({
-    versionRevisionId: required(versions[index]).revisionId,
-    publisherId: catalog.receipt.publisherId,
-    displayName: "Review connection changes",
-    description: "Compare the submitted definition with the earlier Version.",
-    visibility: "public",
-    license: "Apache-2.0",
-    representativeQueries: [
-      "Find a connection Skill",
-      "Review connection metadata",
-    ],
-  });
+    },
+  ];
   const before = await catalog.admin(
     "POST",
-    `/api/v1/catalog-listings/${listingId}/revisions`,
-    input(0),
-    listing.etag,
+    `/api/v1/resources/${text(resource.data.id)}/versions`,
+    {
+      version: "1.0.0",
+      representations: representations("first-header-value"),
+    },
   );
-  const submitted = await catalog.admin(
+  const version = text(object(before.data.version).id);
+  const after = await catalog.admin(
     "POST",
-    `/api/v1/catalog-listings/${listingId}/revisions`,
-    input(1),
+    `/api/v1/resource-versions/${version}/revisions`,
+    {
+      representations: representations("second-header-value"),
+    },
     before.etag,
   );
-  const submission = await catalog.admin(
-    "POST",
-    `/api/v1/catalog-listings/${listingId}/submissions`,
-    {},
-  );
-  const submissionId = text(submission.data.id);
-  const submittedId = text(object(submitted.data.revision).id);
-  expect(submission.data.listingRevisionId).toBe(submittedId);
-  const later = await catalog.admin(
-    "POST",
-    `/api/v1/catalog-listings/${listingId}/revisions`,
-    input(2),
-    submitted.etag,
-  );
-  const current = await catalog.admin(
-    "GET",
-    `/api/v1/catalog-listings/${listingId}`,
-  );
-  expect(current.data.candidateRevisionId).toBe(object(later.data.revision).id);
-  expect(current.data.candidateRevisionId).not.toBe(submittedId);
-  const retainedSubmission = await catalog.admin(
-    "GET",
-    `/api/v1/review-submissions/${submissionId}`,
-  );
-  const nativeReads: string[] = [],
-    artifactReads: string[] = [],
-    writes: string[] = [];
-  page.on("request", (request) => {
-    const path = new URL(request.url()).pathname;
-    if (!path.startsWith("/_catalog/api/v1/")) return;
-    if (request.method() !== "GET") writes.push(path);
-    if (path.includes("/version-revisions/")) nativeReads.push(path);
-    if (path.includes("/artifacts/")) artifactReads.push(path);
-  });
-  await login(page, catalog, "local-reviewer", `/reviews/${submissionId}`);
+  await login(page, catalog, "local-contributor", `/versions/${version}`);
   const comparison = page.getByRole("region", {
     name: "Revision comparison",
     exact: true,
   });
   await comparison
-    .getByRole("button", { name: "Choose revisions to compare", exact: true })
+    .getByRole("button", { name: "Choose revisions to compare" })
+    .click();
+  const digests = [];
+  for (const [label, bundle] of [
+    ["Before", before],
+    ["After", after],
+  ] as const) {
+    const revision = object(bundle.data.revision);
+    const rep = object(required(array(revision.representations)[0]));
+    expect(rep.validationState).toBe("valid");
+    digests.push(text(rep.contentDigest));
+    await comparison
+      .getByRole("combobox", { name: label + " revision", exact: true })
+      .selectOption(text(revision.id));
+  }
+  expect(digests[0]).not.toBe(digests[1]);
+  await comparison
+    .getByRole("button", { name: "Compare selected revisions" })
     .click();
   await comparison
-    .getByRole("combobox", { name: "Before revision", exact: true })
-    .selectOption(text(object(before.data.revision).id));
-  await expect(
-    comparison.getByRole("combobox", { name: "After revision", exact: true }),
-  ).toHaveCount(0);
-  await expect(comparison).toContainText(
-    `After is fixed to the submitted revision ${submittedId}`,
+    .getByRole("button", { name: "Inspect selected documents" })
+    .click();
+  const summary = comparison.getByRole("region", {
+    name: "Declared capability and connection changes",
+  });
+  await expect(summary).toContainText(
+    "No changes in the selected declarations.",
   );
-  await comparison
-    .getByRole("button", { name: "Compare selected revisions", exact: true })
-    .click();
-  const compared = comparison.getByLabel("Compared revisions", { exact: true });
-  await expect(compared).toContainText(submittedId);
-  await expect(compared).not.toContainText(
-    text(object(later.data.revision).id),
+  await expect(summary).not.toContainText("header-value");
+  await expect(comparison).not.toContainText(
+    "Exact retained documents are identical.",
   );
-  expect(artifactReads).toEqual([]);
-  await comparison
-    .getByRole("button", {
-      name: "Compare linked Version revisions",
-      exact: true,
-    })
-    .click();
-  const linked = comparison.getByRole("region", {
-    name: "Linked Version comparison",
+  const documents = comparison.getByRole("region", {
+    name: "Document comparison",
     exact: true,
   });
-  for (const version of versions.slice(0, 2))
-    await expect(linked).toContainText(version.revisionId);
-  await expect(linked).not.toContainText(required(versions[2]).revisionId);
-  await linked
-    .getByRole("button", { name: "Inspect selected documents", exact: true })
-    .click();
-  const changes = linked.getByRole("region", {
-    name: "Document changes",
+  for (const digest of digests)
+    await expect(documents.getByText(digest, { exact: true })).toBeVisible();
+  const decoded = documents.getByRole("group", {
+    name: "JSON document",
     exact: true,
   });
-  await expect(changes.getByRole("status")).toHaveText("1 changed region.");
-  await expect(changes.locator("del")).toHaveText("old");
-  await expect(changes.locator("ins")).toHaveText("new");
-  expect(nativeReads).toEqual(
-    versions
-      .slice(0, 2)
-      .map(
-        (version) => `/_catalog/api/v1/version-revisions/${version.revisionId}`,
-      ),
-  );
-  expect(artifactReads).toHaveLength(2);
-  expect(writes).toEqual([]);
-  expect(
-    (await catalog.admin("GET", `/api/v1/review-submissions/${submissionId}`))
-      .data,
-  ).toEqual(retainedSubmission.data);
-  const after = await catalog.admin(
-    "GET",
-    `/api/v1/catalog-listings/${listingId}`,
-  );
-  expect(after.data).toEqual(current.data);
-  expect(after.etag).toBe(current.etag);
+  await expect(decoded).toHaveCount(2);
+  await expect(decoded.first()).toContainText("first-header-value");
+  await expect(decoded.last()).toContainText("second-header-value");
 });
+
+function reviewRepresentation(
+  kind: "skill" | "agent" | "mcp_server",
+  version: string,
+  host: string,
+) {
+  if (kind === "skill")
+    return {
+      role: "primary",
+      mediaType: "application/agent-skills+md",
+      profileId: "agent-skills-69ef37e",
+      content: `---\nname: review-comparison\ndescription: "Inspect the submitted connection change."\n---\n# Connection\n\nEndpoint: https://${host}.example/mcp\n`,
+    };
+  if (kind === "agent") {
+    const first = {
+      protocolBinding: "JSONRPC",
+      protocolVersion: "1.0",
+      url: "https://agent.example.com/card",
+      tenant: "orders",
+    };
+    const second = { ...first, tenant: "returns" };
+    const find = {
+      id: "find",
+      name: "Find",
+      description: "Find an order.",
+      tags: ["orders"],
+    };
+    return {
+      role: "primary",
+      mediaType: "application/a2a-agent-card+json",
+      data: {
+        name: "Order assistant",
+        description: "Review declared order capabilities.",
+        version,
+        skills:
+          host === "old"
+            ? [find, { ...find, id: "track" }]
+            : [{ ...find, id: host === "later" ? "later-only" : "find" }],
+        capabilities: host === "old" ? {} : { streaming: false },
+        defaultInputModes: ["text/plain"],
+        defaultOutputModes: ["text/plain"],
+        supportedInterfaces: host === "old" ? [first, second] : [second, first],
+      },
+    };
+  }
+  return {
+    role: "primary",
+    mediaType: "application/mcp-server-card+json",
+    data: {
+      $schema:
+        "https://static.modelcontextprotocol.io/schemas/v1/server-card.schema.json",
+      name: "com.example/orders",
+      description: "Order lookup service.",
+      version,
+      remotes: [
+        {
+          type: "streamable-http",
+          url:
+            host === "later"
+              ? "https://mcp.example.com/later-only"
+              : "https://mcp.example.com/orders",
+          supportedProtocolVersions:
+            host === "old" ? ["2025-11-25", "2026-07-28"] : ["2026-07-28"],
+          headers: [{ name: "X-Sample", value: "outside-summary" }],
+        },
+      ],
+    },
+  };
+}
+
+for (const kind of ["skill", "agent", "mcp_server"] as const)
+  test(`review comparison keeps submitted ${kind} cross-Version documents when the Listing candidate moves`, async ({
+    page,
+    catalog,
+  }) => {
+    const resource = await catalog.admin("POST", "/api/v1/resources", {
+      namespaceId: catalog.receipt.namespaceId,
+      kind,
+      canonicalIdentifier:
+        "urn:air:catalog.example.com:authoring:review-comparison",
+    });
+    const resourceId = text(resource.data.id);
+    const versions: { id: string; revisionId: string }[] = [];
+    for (const [index, host] of ["old", "new", "later"].entries()) {
+      const version = `${index + 1}.0.0`;
+      const created = await catalog.admin(
+        "POST",
+        `/api/v1/resources/${resourceId}/versions`,
+        {
+          version,
+          representations: [reviewRepresentation(kind, version, host)],
+        },
+      );
+      expect(object(created.data.evidence).state).toBe("complete");
+      versions.push({
+        id: text(object(created.data.version).id),
+        revisionId: text(object(created.data.revision).id),
+      });
+    }
+    expect(new Set(versions.map((version) => version.id)).size).toBe(3);
+    const listing = await catalog.admin("POST", "/api/v1/catalog-listings", {
+      namespaceId: catalog.receipt.namespaceId,
+      resourceId,
+    });
+    const listingId = text(listing.data.id);
+    const input = (index: number) => ({
+      versionRevisionId: required(versions[index]).revisionId,
+      publisherId: catalog.receipt.publisherId,
+      displayName: "Review connection changes",
+      description: "Compare the submitted definition with the earlier Version.",
+      visibility: "public",
+      license: "Apache-2.0",
+      representativeQueries: [
+        "Find a connection definition",
+        "Review connection metadata",
+      ],
+    });
+    const before = await catalog.admin(
+      "POST",
+      `/api/v1/catalog-listings/${listingId}/revisions`,
+      input(0),
+      listing.etag,
+    );
+    const submitted = await catalog.admin(
+      "POST",
+      `/api/v1/catalog-listings/${listingId}/revisions`,
+      input(1),
+      before.etag,
+    );
+    const submission = await catalog.admin(
+      "POST",
+      `/api/v1/catalog-listings/${listingId}/submissions`,
+      {},
+    );
+    const submissionId = text(submission.data.id);
+    const submittedId = text(object(submitted.data.revision).id);
+    expect(submission.data.listingRevisionId).toBe(submittedId);
+    const later = await catalog.admin(
+      "POST",
+      `/api/v1/catalog-listings/${listingId}/revisions`,
+      input(2),
+      submitted.etag,
+    );
+    const current = await catalog.admin(
+      "GET",
+      `/api/v1/catalog-listings/${listingId}`,
+    );
+    expect(current.data.candidateRevisionId).toBe(
+      object(later.data.revision).id,
+    );
+    expect(current.data.candidateRevisionId).not.toBe(submittedId);
+    const retainedSubmission = await catalog.admin(
+      "GET",
+      `/api/v1/review-submissions/${submissionId}`,
+    );
+    const nativeReads: string[] = [],
+      artifactReads: string[] = [],
+      writes: string[] = [];
+    const outside: string[] = [];
+    page.on("request", (request) => {
+      const url = new URL(request.url());
+      if (
+        ["https:", "http:"].includes(url.protocol) &&
+        url.origin !== catalog.origin
+      )
+        outside.push(url.origin);
+      const path = url.pathname;
+      if (!path.startsWith("/_catalog/api/v1/")) return;
+      if (request.method() !== "GET") writes.push(path);
+      if (path.includes("/version-revisions/")) nativeReads.push(path);
+      if (path.includes("/artifacts/")) artifactReads.push(path);
+    });
+    await login(page, catalog, "local-reviewer", `/reviews/${submissionId}`);
+    const comparison = page.getByRole("region", {
+      name: "Revision comparison",
+      exact: true,
+    });
+    await comparison
+      .getByRole("button", { name: "Choose revisions to compare", exact: true })
+      .click();
+    await comparison
+      .getByRole("combobox", { name: "Before revision", exact: true })
+      .selectOption(text(object(before.data.revision).id));
+    await expect(
+      comparison.getByRole("combobox", { name: "After revision", exact: true }),
+    ).toHaveCount(0);
+    await expect(comparison).toContainText(
+      `After is fixed to the submitted revision ${submittedId}`,
+    );
+    await comparison
+      .getByRole("button", { name: "Compare selected revisions", exact: true })
+      .click();
+    const compared = comparison.getByLabel("Compared revisions", {
+      exact: true,
+    });
+    await expect(compared).toContainText(submittedId);
+    await expect(compared).not.toContainText(
+      text(object(later.data.revision).id),
+    );
+    expect(artifactReads).toEqual([]);
+    await comparison
+      .getByRole("button", {
+        name: "Compare linked Version revisions",
+        exact: true,
+      })
+      .click();
+    const linked = comparison.getByRole("region", {
+      name: "Linked Version comparison",
+      exact: true,
+    });
+    for (const version of versions.slice(0, 2))
+      await expect(linked).toContainText(version.revisionId);
+    await expect(linked).not.toContainText(required(versions[2]).revisionId);
+    await linked
+      .getByRole("button", { name: "Inspect selected documents", exact: true })
+      .focus();
+    await page.keyboard.press("Enter");
+    const changes = linked.getByRole("region", {
+      name: "Document changes",
+      exact: true,
+    });
+    const summary = linked.getByRole("region", {
+      name: "Declared capability and connection changes",
+    });
+    if (kind === "skill") {
+      await expect(summary).toContainText("Summary unavailable.");
+      await expect(changes.getByRole("status")).toHaveText("1 changed region.");
+      await expect(changes.locator("del")).toHaveText("old");
+      await expect(changes.locator("ins")).toHaveText("new");
+    } else {
+      await expect(changes).toHaveCount(0);
+      await expect(linked).toContainText(
+        "Lossless document comparison is unavailable",
+      );
+      if (kind === "agent") {
+        await expect(
+          summary.getByRole("region", { name: "Skills", exact: true }),
+        ).toContainText('Removed skills[id="track"]');
+        await expect(summary).toContainText(
+          "supportedInterfaces[0] (preferred)",
+        );
+        await expect(summary).toContainText(
+          "capabilities.streamingBefore: Not declaredAfter: false",
+        );
+      } else {
+        await expect(summary).toContainText(
+          'supportedProtocolVersionsRemoved: ["2025-11-25"]Added: []',
+        );
+        await expect(summary).not.toContainText("outside-summary");
+      }
+      await expect(summary).not.toContainText("later-only");
+      await expect(summary.getByRole("link")).toHaveCount(0);
+      await page.setViewportSize({ width: 390, height: 844 });
+      await doubleText(page);
+      expect(
+        await summary.evaluate((el) => el.scrollWidth <= el.clientWidth),
+      ).toBe(true);
+      // At doubled text the full summary is taller than a phone screen.
+      // Inspect the actual viewport with the first change below the sticky header.
+      const firstChange = summary.locator("li strong").first();
+      await firstChange.evaluate((el) => {
+        const header = document
+          .querySelector(".topbar")!
+          .getBoundingClientRect();
+        window.scrollBy(0, el.getBoundingClientRect().top - header.bottom - 16);
+      });
+      expect(
+        await firstChange.evaluate((el) => {
+          const rect = el.getBoundingClientRect();
+          return (
+            document.elementFromPoint(
+              rect.left + 2,
+              rect.top + rect.height / 2,
+            ) === el
+          );
+        }),
+      ).toBe(true);
+      await page.screenshot({
+        path: test.info().outputPath("review-declarations-narrow.png"),
+      });
+    }
+    expect(outside).toEqual([]);
+    expect(nativeReads).toEqual(
+      versions
+        .slice(0, 2)
+        .map(
+          (version) =>
+            `/_catalog/api/v1/version-revisions/${version.revisionId}`,
+        ),
+    );
+    expect(artifactReads).toHaveLength(kind === "skill" ? 2 : 0);
+    expect(writes).toEqual([]);
+    expect(
+      (await catalog.admin("GET", `/api/v1/review-submissions/${submissionId}`))
+        .data,
+    ).toEqual(retainedSubmission.data);
+    const after = await catalog.admin(
+      "GET",
+      `/api/v1/catalog-listings/${listingId}`,
+    );
+    expect(after.data).toEqual(current.data);
+    expect(after.etag).toBe(current.etag);
+    if (kind === "agent") {
+      // Delay an actual authorized read across sign-out. A new session must not
+      // inherit either the previous summary or the late native response.
+      await comparison
+        .getByRole("button", { name: "Close linked Version comparison" })
+        .click();
+      await expect(summary).toHaveCount(0);
+      const url = catalog.origin + required(nativeReads[0]);
+      let captured!: () => void, release!: () => void;
+      const pending = new Promise<void>((resolve) => {
+        captured = resolve;
+      });
+      const released = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(url, async (route) => {
+        const response = await route.fetch();
+        expect(response.status()).toBe(200);
+        captured();
+        await released;
+        await route.fulfill({ response });
+      });
+      try {
+        const aborted = page.waitForEvent(
+          "requestfailed",
+          (r) => r.url() === url,
+        );
+        await comparison
+          .getByRole("button", { name: "Compare linked Version revisions" })
+          .click();
+        await pending;
+        await signOut(page);
+        expect((await aborted).failure()?.errorText).toBe("net::ERR_ABORTED");
+        release();
+        await page.unrouteAll({ behavior: "wait" });
+        await expect(comparison).toHaveCount(0);
+        await expect(summary).toHaveCount(0);
+      } finally {
+        release();
+      }
+    }
+  });

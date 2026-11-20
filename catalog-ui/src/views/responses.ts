@@ -220,7 +220,7 @@ export function CatalogResourceSummary(value: unknown): boolean {
 export function CatalogSearchDiagnostic(value: unknown): boolean {
   return (
     object(value) &&
-    optional(value.sourceId, sourceUUID) &&
+    optional(value.sourceId, uuid) &&
     choice(value.status, [
       "failed",
       "invalid_response",
@@ -717,7 +717,7 @@ export function IndexedCatalogSearchEvidence(value: unknown): boolean {
     ) &&
     text(value.normalizedEntryDigest) &&
     Array.isArray(value.sourceIds) &&
-    array(value.sourceIds, sourceUUID) &&
+    array(value.sourceIds, uuid) &&
     value.sourceIds.length <= 16 &&
     new Set(value.sourceIds).size === value.sourceIds.length &&
     number(value.sourceCount, 1, Infinity, true) &&
@@ -727,8 +727,7 @@ export function IndexedCatalogSearchEvidence(value: unknown): boolean {
   );
 }
 
-/** Source references used for literal copy and local routes follow the UUID contract. */
-function sourceUUID(value: unknown): value is string {
+function uuid(value: unknown): value is string {
   return (
     text(value) &&
     /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(value)
@@ -960,7 +959,7 @@ export function LiveSearchResult(value: unknown): boolean {
     flag(value.versionPresent) &&
     optional(value.version, text) &&
     number(value.score, 0, 100, true) &&
-    sourceUUID(value.sourceId) &&
+    uuid(value.sourceId) &&
     number(value.sourceRevision, 1) &&
     text(value.exactEntryDigest) &&
     value.exactEntryDigest.length === 71 &&
@@ -979,7 +978,7 @@ function validTrustPolicy(value: string): boolean {
 export function LiveSearchDiagnostic(value: unknown): boolean {
   return (
     object(value) &&
-    optional(value.sourceId, sourceUUID) &&
+    optional(value.sourceId, uuid) &&
     choice(value.status, [
       "succeeded",
       "failed",
@@ -1614,7 +1613,7 @@ export function ObservationSearchResult(value: unknown): boolean {
     object(value) &&
     Observation(value.observation) &&
     number(value.score, 0, 100, true) &&
-    sourceUUID(value.source)
+    uuid(value.source)
   );
 }
 
@@ -1765,10 +1764,19 @@ export function PersonalInput(v: unknown): boolean {
       const n = c.codePointAt(0)!;
       return n < 32 || (n >= 127 && n <= 159);
     }) &&
-    ((v.type === "resource" &&
-      PersonalReference(v.reference) &&
-      v.search === undefined) ||
+    ((v.type === "follow" &&
+      uuid(v.listingId) &&
+      v.search === undefined &&
+      v.reference === undefined &&
+      (v.observed === undefined || releaseObservation(v.observed))) ||
+      (v.type === "resource" &&
+        v.listingId === undefined &&
+        v.observed === undefined &&
+        PersonalReference(v.reference) &&
+        v.search === undefined) ||
       (v.type === "search" &&
+        v.listingId === undefined &&
+        v.observed === undefined &&
         PersonalCriteria(v.search) &&
         v.reference === undefined))
   );
@@ -1778,6 +1786,8 @@ export function PersonalItem(v: unknown): boolean {
   return (
     object(v) &&
     PersonalInput(v) &&
+    v.observed === undefined &&
+    v.acknowledged === undefined &&
     identifier(v.id) &&
     number(v.revision, 1) &&
     timestamp(v.createdAt) &&
@@ -1789,10 +1799,26 @@ export function PersonalReceipt(v: unknown): boolean {
   return object(v) && identifier(v.id) && number(v.revision, 1);
 }
 
+function releaseObservation(v: unknown): boolean {
+  return (
+    object(v) &&
+    Object.keys(v).length === 2 &&
+    uuid(v.releaseId) &&
+    number(v.revision, 1)
+  );
+}
 export function PersonalResolution(v: unknown): boolean {
   if (!object(v)) return false;
-  if (v.status === "unavailable")
-    return v.reference === undefined && v.indexed === undefined;
+  if (v.status === "unavailable") return Object.keys(v).length === 1;
+  if (v.current !== undefined || v.change !== undefined)
+    return (
+      v.status === "available" &&
+      v.reference === undefined &&
+      v.indexed === undefined &&
+      releaseObservation(v.current) &&
+      typeof v.change === "string" &&
+      ["unacknowledged", "changed", "unchanged"].includes(v.change)
+    );
   if (
     v.status !== "available" ||
     !PersonalReference(v.reference) ||

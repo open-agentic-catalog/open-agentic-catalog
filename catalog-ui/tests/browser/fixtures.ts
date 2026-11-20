@@ -9,6 +9,7 @@ import {
 import { fileURLToPath } from "node:url";
 import { writeFile } from "node:fs/promises";
 import { startCatalog } from "../../scripts/browser-fixture.mjs";
+import { browserErrors } from "../../scripts/browser-errors.mjs";
 import { networkObserver } from "../../scripts/network-observer.mjs";
 import { personalCommandOutcome } from "../../scripts/personal-evidence.mjs";
 
@@ -214,7 +215,19 @@ export const test = base.extend<{
     }
   },
   browserErrors: [
-    async ({ page, context }, use) => {
+    async ({ page, context, catalog, browser }, use) => {
+      if (process.env.CATALOG_UI_ENGINE) {
+        expect(browser.browserType().name()).toBe(
+          process.env.CATALOG_UI_ENGINE,
+        );
+        expect(browser.version()).toBe(process.env.CATALOG_UI_ENGINE_VERSION);
+        const observer = browserErrors();
+        const stop = observer.observe(context, [catalog.origin]);
+        await use([]);
+        stop();
+        expect(observer.results(), "Unexpected browser errors").toEqual([]);
+        return;
+      }
       const errors: string[] = [];
       const observe = (page: Page) => {
         page.on("pageerror", (error) => errors.push(error.message));

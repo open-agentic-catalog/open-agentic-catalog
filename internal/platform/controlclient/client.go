@@ -38,8 +38,9 @@ const (
 )
 
 type Envelope struct {
-	Data json.RawMessage `json:"data"`
-	Meta Metadata        `json:"meta"`
+	Status int             `json:"-"`
+	Data   json.RawMessage `json:"data"`
+	Meta   Metadata        `json:"meta"`
 }
 
 type Metadata struct {
@@ -216,7 +217,8 @@ func Exchange(ctx context.Context, client *http.Client, origin, token string, re
 		expectedStatus = http.StatusOK
 	}
 
-	if response.StatusCode != expectedStatus {
+	allowedAlternate := requestOptions.AlternateStatus != 0 && response.StatusCode == requestOptions.AlternateStatus
+	if response.StatusCode != expectedStatus && !allowedAlternate {
 		return result, HTTPFailure(response.StatusCode, response.Header, data, token)
 	}
 	if mediaErr != nil || media != "application/json" || !validJSON {
@@ -231,6 +233,7 @@ func Exchange(ctx context.Context, client *http.Client, origin, token string, re
 			return result, APIError{response.StatusCode, "invalid_response", "response metadata is ambiguous or unsafe", requestID}
 		}
 	}
+	result.Status = response.StatusCode
 	result.Data = data
 	result.Meta = Metadata{RequestID: response.Header.Get("X-Request-ID"), ETag: response.Header.Get("ETag")}
 	return result, nil
@@ -342,7 +345,7 @@ type Request struct {
 	Method, Path, IdempotencyKey, IfMatch string
 	Body                                  json.RawMessage
 	MaxResponseBytes                      int64
-	ExpectedStatus                        int
+	ExpectedStatus, AlternateStatus       int
 }
 
 type Search struct {

@@ -198,17 +198,21 @@ test("search pages contain disjoint real releases and submitting filters resets 
   const third = await names();
   expect(new Set([...first, ...second, ...third]).size).toBe(releases.length);
   await expect(next).toHaveCount(0);
+  await previous.focus();
+  await expect(previous).toBeFocused();
   const [secondPreviousResponse] = await Promise.all([
     page.waitForResponse(
       (response) =>
         response.url().endsWith("/api/v1/catalog/search") &&
         response.request().method() === "POST",
     ),
-    previous.click(),
+    page.keyboard.press("Enter"),
   ]);
   await requireSearchPage(secondPreviousResponse, "previous");
   await expect.poll(names).toEqual(second);
+  await expect(previous).toBeEnabled();
   await previous.focus();
+  await expect(previous).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await visibleFocus(
     page.getByRole("button", { name: "First page", exact: true }),

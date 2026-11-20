@@ -56,22 +56,22 @@ HTTPS is required except for literal loopback IPs. Redirects are refused.
 `
 
 type remoteOptions struct {
-	body             json.RawMessage
-	expectedStatus   int
-	ifMatch          string
-	maxResponseBytes int64
-	baseURL          string
-	tokenFile        string
-	loginFile        string
-	issuerCAFile     string
-	caFile           string
-	token            string
-	timeout          time.Duration
-	path             string
-	search           *remoteSearch
-	trustRequest     json.RawMessage
-	reindex          *remoteReindex
-	idempotencyKey   string
+	body                            json.RawMessage
+	expectedStatus, alternateStatus int
+	ifMatch                         string
+	maxResponseBytes                int64
+	baseURL                         string
+	tokenFile                       string
+	loginFile                       string
+	issuerCAFile                    string
+	caFile                          string
+	token                           string
+	timeout                         time.Duration
+	path                            string
+	search                          *remoteSearch
+	trustRequest                    json.RawMessage
+	reindex                         *remoteReindex
+	idempotencyKey                  string
 }
 
 // remoteReindex is the focused administrative command, not a provider selector.

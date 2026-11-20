@@ -76,7 +76,7 @@ export const builtinHelp: Record<
   },
   library_member: {
     summary:
-      "Humans can manage their own saved Resource references and named searches.",
+      "Humans can manage their own saved searches, release bookmarks and followed Listings.",
     limits:
       "New references need separate target access. Saving a search does not authorize its execution; resolving a reference uses current visibility. Nonhuman identities cannot use personal library actions.",
   },

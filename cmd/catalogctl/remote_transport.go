@@ -109,5 +109,5 @@ func exchangeRemote(ctx context.Context, client *http.Client, options remoteOpti
 	if expectedStatus == 0 && (options.reindex != nil || options.trustRequest != nil) {
 		expectedStatus = http.StatusAccepted
 	}
-	return controlclient.Exchange(ctx, client, origin, token, controlclient.Request{Method: method, Path: options.path, Body: body, MaxResponseBytes: options.maxResponseBytes, ExpectedStatus: expectedStatus, IdempotencyKey: options.idempotencyKey, IfMatch: options.ifMatch})
+	return controlclient.Exchange(ctx, client, origin, token, controlclient.Request{Method: method, Path: options.path, Body: body, MaxResponseBytes: options.maxResponseBytes, ExpectedStatus: expectedStatus, AlternateStatus: options.alternateStatus, IdempotencyKey: options.idempotencyKey, IfMatch: options.ifMatch})
 }

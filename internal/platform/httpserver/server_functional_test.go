@@ -183,6 +183,7 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 		t.Fatal(err)
 	}
 	authenticator, identityService := newTestIdentity(t, serviceClock, map[string]config.DevelopmentUser{
+		"follower":    {Subject: "follower", TenantID: tenantID, Roles: []identity.Role{identity.RoleServiceClient}},
 		"admin":       {Subject: "admin", TenantID: tenantID, Roles: []identity.Role{identity.RoleTenantAdmin, identity.RoleContributor, identity.RolePublisher}},
 		"contributor": {Subject: "contributor", TenantID: tenantID, Roles: []identity.Role{identity.RoleContributor, identity.RoleReader}},
 		"reviewer":    {Subject: "reviewer", TenantID: tenantID, Roles: []identity.Role{identity.RoleReviewer, identity.RoleReader}},
@@ -957,6 +958,34 @@ func TestHTTPAuthoringPublicationSecurityAndReplay(t *testing.T) {
 		}
 	})
 	qualifyHTTPPersonalExactReference(t, testServer.URL, "contributor", personal.Reference{Origin: "local", ReleaseID: publishEnvelope.Release.ID, VersionRevisionID: publishEnvelope.Release.VersionRevisionID})
+	follower, err := authenticator.Authenticate(t.Context(), "follower")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adminActor, err := authenticator.Authenticate(t.Context(), "admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adminContext := identity.WithActor(t.Context(), adminActor)
+	grant := func(permission identity.Permission, scope string) identity.AccessAssignment {
+		t.Helper()
+		role, e := identityService.SaveRoleDefinition(adminContext, "", 0, identity.RoleDefinitionInput{Name: "Personal " + string(permission), Permissions: []identity.Permission{permission}, Reason: "Qualify replay admission"}, false, "follow-role")
+		if e != nil {
+			t.Fatal(e)
+		}
+		assignment, e := identityService.GrantAuthorizationAssignment(adminContext, identity.AccessAssignmentInput{RoleDefinitionID: role.ID, MembershipID: follower.MembershipID, NamespaceID: scope, Reason: "Qualify follow access"}, "follow-grant")
+		if e != nil {
+			t.Fatal(e)
+		}
+		return assignment
+	}
+	grant("library.own", "")
+	targetGrant := grant("resource.read", namespace.ID)
+	qualifyHTTPListingFollow(t, testServer.URL, "follower", publishEnvelope.Release.ListingID, publishEnvelope.Release.ID, publishEnvelope.Release.Revision, func() {
+		if _, e := identityService.RevokeAuthorizationAssignment(adminContext, targetGrant.ID, targetGrant.Revision, "Remove target access", "follow-revoke"); e != nil {
+			t.Fatal(e)
+		}
+	})
 	t.Run("current-user rating scopes and HTTP commands", func(t *testing.T) {
 		qualifyHTTPRatingScopes(t, Dependencies{RatingsStore: ratings.NewMemoryStore(repository), Catalog: catalogService, Identity: identityService, Federation: federationManager, Jobs: jobService, Authenticator: authenticator, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: 1 << 20, RequestTimeout: config.Defaults().HTTP.RequestTimeout.Duration, CursorKey: cursorKey[:], Now: serviceClock.Now}, publishEnvelope.Release.ID)
 	})

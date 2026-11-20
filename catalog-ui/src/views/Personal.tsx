@@ -31,12 +31,19 @@ import { JSONBlock } from "./CodeBlock";
 import { parseObject } from "./representations";
 import { checkedCriteria } from "./personal-criteria";
 import { PersonalCriteriaEditor } from "./PersonalCriteriaEditor";
-import { personalFacts, PersonalSummary } from "./PersonalSummary";
+import { changeLabels, followResolution, FollowUpdates } from "./FollowUpdates";
+import {
+  personalFacts,
+  PersonalSummary,
+  savedTypeNames,
+} from "./PersonalSummary";
 import { CurrentRead, useCurrentRead } from "./current-read";
 import { ExternalHandoff, IndexedProvenance } from "./Handoff";
 type Input = components["schemas"]["PersonalInput"];
 type SavedItem = components["schemas"]["PersonalItem"];
 function SavedRowSummary({ input }: { input: SavedItem }) {
+  if (input.type === "follow")
+    return <span>Local Listing {input.listingId}</span>;
   if (input.reference)
     return (
       <span>
@@ -321,7 +328,7 @@ export function PersonalLibrary(props: LibraryProps) {
       <Heading
         title="Saved items and searches"
         icon="bookmark"
-        description="Your private server-stored references and named Catalog criteria. Saving does not grant access, approval, trust or execution."
+        description="Your private release bookmarks, followed Listings and named Catalog searches. Saving does not grant access, approval, trust or execution."
       />
       {props.id ? <LibraryDetail {...props} /> : <LibraryList {...props} />}
     </>
@@ -329,7 +336,7 @@ export function PersonalLibrary(props: LibraryProps) {
 }
 function LibraryList(props: WorkspaceProps) {
   const sortHint = useId();
-  const [kind, setKind] = useState<"" | "resource" | "search">("");
+  const [kind, setKind] = useState<"" | SavedItem["type"]>("");
   const [label, setLabel] = useState("");
   const [draftKind, setDraftKind] = useState<typeof kind>("");
   const [draftLabel, setDraftLabel] = useState("");
@@ -357,10 +364,7 @@ function LibraryList(props: WorkspaceProps) {
   const sorted = usePageSort(read.data?.items, {
     label: (a, b) => compareTableText(a.label, b.label),
     type: (a, b) =>
-      compareTableText(
-        a.type === "search" ? "Named search" : "Resource reference",
-        b.type === "search" ? "Named search" : "Resource reference",
-      ),
+      compareTableText(savedTypeNames[a.type], savedTypeNames[b.type]),
     updated: (a, b) => Date.parse(a.updatedAt) - Date.parse(b.updatedAt),
   });
   const refresh = () => (read.error && cursor ? setCursor("") : read.refresh());
@@ -405,6 +409,7 @@ function LibraryList(props: WorkspaceProps) {
             <option value="">All types</option>
             <option value="resource">Resources</option>
             <option value="search">Searches</option>
+            <option value="follow">Followed Listings</option>
           </select>
         </Field>
         <Field
@@ -445,6 +450,15 @@ function LibraryList(props: WorkspaceProps) {
           )}
         </div>
       </form>
+      {read.data && !read.busy && !read.error && (
+        <FollowUpdates
+          key={JSON.stringify([kind, label, cursor, read.epoch, props.access])}
+          client={props.client}
+          onFailure={props.onFailure}
+          basePath={props.runtime.basePath}
+          items={read.data.items.filter((i) => i.type === "follow")}
+        />
+      )}
       {filterError && (
         <p className="notice error" role="alert">
           {filterError}
@@ -505,9 +519,7 @@ function LibraryList(props: WorkspaceProps) {
                           item.type === "search" ? "search" : "bookmark"
                         ]
                       }{" "}
-                      {item.type === "search"
-                        ? "Named search"
-                        : "Resource reference"}
+                      {savedTypeNames[item.type]}
                     </td>
                     <td>
                       <SavedRowSummary input={item} />
@@ -523,7 +535,7 @@ function LibraryList(props: WorkspaceProps) {
               <p className="workspace-empty">
                 {kind || label
                   ? "No saved items match the applied filters."
-                  : "Your library is empty. Save a resource from Catalog or create a named search."}
+                  : "Your library is empty. Bookmark a resource, follow a local Listing or save a named search."}
               </p>
             )}
           </ScrollableTable>
@@ -726,7 +738,11 @@ function ExistingItem(props: LibraryProps) {
               }}
             />
             <ActionForm
-              title="Remove saved item"
+              title={
+                base.item.type === "follow"
+                  ? "Unfollow Listing"
+                  : "Remove saved item"
+              }
               intent="danger"
               icon="remove"
               description="Remove this private reference or search. Its target is not changed."
@@ -781,114 +797,171 @@ function ExistingItem(props: LibraryProps) {
                 };
               }}
             />
-            {visible && base.item.reference && (
-              <section>
-                <h3>Exact saved reference</h3>
-                <PersonalSummary input={base.item} referenceOnly />
-                <JSONBlock value={base.item.reference} />
-                <p>
-                  Check this exact release or source generation against your
-                  current access. This does not make live requests or substitute
-                  another source.
-                </p>
-                <button
-                  disabled={resolving || !ready}
-                  onClick={() => {
-                    if (!ready || !authority.current.readable) return;
-                    resolveRequest.current?.abort();
-                    const controller = new AbortController();
-                    resolveRequest.current = controller;
-                    const expectedEpoch = authority.current.epoch;
-                    const expectedReference = base!.item.reference!;
-                    setResolution(undefined);
-                    setResolveError("");
-                    setResolving(true);
-                    void props.client.api
-                      .POST("/api/v1/personal/items/{itemId}/resolve", {
-                        params: { path: { itemId: props.id } },
-                        body: {},
-                        signal: controller.signal,
-                      })
-                      .then((reply) => {
-                        if (
-                          controller.signal.aborted ||
-                          authority.current.epoch !== expectedEpoch ||
-                          !authority.current.readable
-                        )
-                          return;
-                        setResolution(
-                          result(
-                            reply,
-                            (value) =>
-                              checks.PersonalResolution(value) &&
-                              object(value) &&
-                              (value.status === "unavailable" ||
-                                referenceKey(
-                                  value.reference as components["schemas"]["PersonalReference"],
-                                ) === referenceKey(expectedReference)),
-                          ),
-                        );
-                      })
-                      .catch((error) => {
-                        if (
-                          controller.signal.aborted ||
-                          authority.current.epoch !== expectedEpoch ||
-                          !authority.current.readable
-                        )
-                          return;
-                        props.onFailure(error);
-                        setResolveError(
-                          "The saved reference could not be checked. Retry explicitly.",
-                        );
-                      })
-                      .finally(() => {
-                        if (!controller.signal.aborted) setResolving(false);
-                      });
-                  }}
-                >
-                  {controlIcons["check"]}
-                  Check saved reference
-                </button>
-                {resolveError && <p role="alert">{resolveError}</p>}
-                {resolution?.status === "unavailable" && (
-                  <p role="status">
-                    This exact saved target is unavailable with current access
-                    or source generation. Your reference is unchanged.
-                  </p>
-                )}
-                {resolution?.status === "available" &&
-                  resolution.reference?.origin === "local" && (
-                    <p>
-                      <a
-                        href={`${props.runtime.basePath}/catalog/${resolution.reference.releaseId}`}
-                      >
-                        {controlIcons["arrow"]}
-                        Open exact saved release
-                      </a>
+            {visible &&
+              (base.item.reference || base.item.type === "follow") && (
+                <section>
+                  {base.item.type === "follow" ? (
+                    <>
+                      <h3>Followed Listing</h3>
+                      <p>
+                        Check the current release to compare it with your last
+                        acknowledgement.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <h3>Exact saved reference</h3>
+                      <PersonalSummary input={base.item} referenceOnly />
+                      <JSONBlock value={base.item.reference} />
+                      <p>
+                        Check this exact release or source generation against
+                        your current access. This does not make live requests or
+                        substitute another source.
+                      </p>
+                    </>
+                  )}
+                  <button
+                    disabled={resolving || !ready}
+                    onClick={() => {
+                      if (!ready || !authority.current.readable) return;
+                      resolveRequest.current?.abort();
+                      const controller = new AbortController();
+                      resolveRequest.current = controller;
+                      const expectedEpoch = authority.current.epoch;
+                      const expectedReference = base!.item.reference;
+                      setResolution(undefined);
+                      setResolveError("");
+                      setResolving(true);
+                      void props.client.api
+                        .POST("/api/v1/personal/items/{itemId}/resolve", {
+                          params: { path: { itemId: props.id } },
+                          body: {},
+                          signal: controller.signal,
+                        })
+                        .then((reply) => {
+                          if (
+                            controller.signal.aborted ||
+                            authority.current.epoch !== expectedEpoch ||
+                            !authority.current.readable
+                          )
+                            return;
+                          setResolution(
+                            result(
+                              reply,
+                              (value) =>
+                                checks.PersonalResolution(value) &&
+                                object(value) &&
+                                (value.status === "unavailable" ||
+                                  (!expectedReference
+                                    ? followResolution(value)
+                                    : !!value.reference &&
+                                      referenceKey(
+                                        value.reference as components["schemas"]["PersonalReference"],
+                                      ) === referenceKey(expectedReference))),
+                            ),
+                          );
+                        })
+                        .catch((error) => {
+                          if (
+                            controller.signal.aborted ||
+                            authority.current.epoch !== expectedEpoch ||
+                            !authority.current.readable
+                          )
+                            return;
+                          props.onFailure(error);
+                          setResolveError(
+                            "The saved reference could not be checked. Retry explicitly.",
+                          );
+                        })
+                        .finally(() => {
+                          if (!controller.signal.aborted) setResolving(false);
+                        });
+                    }}
+                  >
+                    {controlIcons["check"]}
+                    {base.item.type === "follow"
+                      ? "Check current release"
+                      : "Check saved reference"}
+                  </button>
+                  {ready && resolution?.current && resolution.change && (
+                    <>
+                      <p role="status">{changeLabels[resolution.change]}</p>
+                      <p>
+                        <a
+                          href={
+                            props.runtime.basePath +
+                            "/catalog/" +
+                            resolution.current.releaseId
+                          }
+                        >
+                          Open current release
+                        </a>{" "}
+                        · Revision {resolution.current.revision}
+                      </p>
+                      {resolution.change !== "unchanged" && (
+                        <SavePersonal
+                          key={
+                            resolution.current.releaseId +
+                            ":" +
+                            resolution.current.revision
+                          }
+                          {...props}
+                          basePath={props.runtime.basePath}
+                          initial={{
+                            ...base.item,
+                            observed: resolution.current,
+                          }}
+                          existing={base}
+                          ready={ready}
+                          saved={() => {
+                            setResolution(undefined);
+                            read.refresh();
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
+                  {resolveError && <p role="alert">{resolveError}</p>}
+                  {resolution?.status === "unavailable" && (
+                    <p role="status">
+                      {base.item.type === "follow"
+                        ? "This followed Listing is unavailable."
+                        : "This exact saved target is unavailable with current access or source generation. Your reference is unchanged."}
                     </p>
                   )}
-                {resolution?.status === "available" && resolution.indexed && (
-                  <section>
-                    <h4>Current exact source metadata</h4>
-                    <p>{resolution.indexed.displayName}</p>
-                    <p>
-                      {resolution.indexed.description ||
-                        "No description supplied."}
-                    </p>
-                    <IndexedProvenance
-                      item={resolution.indexed}
-                      access={props.access}
-                      basePath={props.runtime.basePath}
-                    />
-                    <ExternalHandoff
-                      item={resolution.indexed}
-                      documentationUrl={props.runtime.documentationUrl}
-                    />
-                    <JSONBlock value={resolution.indexed} />
-                  </section>
-                )}
-              </section>
-            )}
+                  {resolution?.status === "available" &&
+                    resolution.reference?.origin === "local" && (
+                      <p>
+                        <a
+                          href={`${props.runtime.basePath}/catalog/${resolution.reference.releaseId}`}
+                        >
+                          {controlIcons["arrow"]}
+                          Open exact saved release
+                        </a>
+                      </p>
+                    )}
+                  {resolution?.status === "available" && resolution.indexed && (
+                    <section>
+                      <h4>Current exact source metadata</h4>
+                      <p>{resolution.indexed.displayName}</p>
+                      <p>
+                        {resolution.indexed.description ||
+                          "No description supplied."}
+                      </p>
+                      <IndexedProvenance
+                        item={resolution.indexed}
+                        access={props.access}
+                        basePath={props.runtime.basePath}
+                      />
+                      <ExternalHandoff
+                        item={resolution.indexed}
+                        documentationUrl={props.runtime.documentationUrl}
+                      />
+                      <JSONBlock value={resolution.indexed} />
+                    </section>
+                  )}
+                </section>
+              )}
             {visible && base.item.search && (
               <section>
                 <h3>Saved search</h3>
@@ -945,13 +1018,21 @@ export function SavePersonal(
       <ActionForm
         icon="save"
         title={
-          props.existing
-            ? "Update saved item"
-            : props.initial.type === "search"
-              ? "Save named search"
-              : "Save resource"
+          props.initial.type === "follow" && props.initial.observed
+            ? props.existing
+              ? "Acknowledge current release"
+              : "Follow this Listing"
+            : props.existing
+              ? "Update saved item"
+              : props.initial.type === "search"
+                ? "Save named search"
+                : "Save resource"
         }
-        description="Only this label and exact reference or validated criteria are retained. No record documents, credentials or transient cursors are saved."
+        description={
+          props.initial.type === "follow"
+            ? "Keep a private preference for this stable local Listing. Checking for changes is manual."
+            : "Only this label and exact reference or validated criteria are retained. No record documents, credentials or transient cursors are saved."
+        }
         editable={editable}
         allowed={
           editable &&
@@ -975,7 +1056,7 @@ export function SavePersonal(
         }
         {...(props.saved ? { onAcknowledged: props.saved } : {})}
         prepare={() => {
-          const input = {
+          const input: Input = {
             type: props.initial.type,
             label: atField(`${prefix}-label`, () => {
               characterText(label, "Saved label", 120, 1);
@@ -985,17 +1066,24 @@ export function SavePersonal(
                 );
               return label;
             }),
-            ...(props.initial.type === "search"
+            ...(props.initial.type === "follow"
               ? {
-                  search: atField(prefix, () =>
-                    checkedCriteria(parseObject(payload), prefix),
-                  ),
+                  listingId: props.initial.listingId!,
+                  ...(props.initial.observed
+                    ? { observed: props.initial.observed }
+                    : {}),
                 }
-              : {
-                  reference: atField(`${prefix}-reference`, () =>
-                    parseObject(payload),
-                  ) as components["schemas"]["PersonalReference"],
-                }),
+              : props.initial.type === "search"
+                ? {
+                    search: atField(prefix, () =>
+                      checkedCriteria(parseObject(payload), prefix),
+                    ),
+                  }
+                : {
+                    reference: atField(`${prefix}-reference`, () =>
+                      parseObject(payload),
+                    ) as components["schemas"]["PersonalReference"],
+                  }),
           };
           if (!checks.PersonalInput(input))
             throw new Error(
@@ -1020,6 +1108,18 @@ export function SavePersonal(
                   ]
                 : []),
               ...personalFacts(input),
+              ...(input.observed
+                ? [
+                    {
+                      label: "Displayed release",
+                      value: input.observed.releaseId,
+                    },
+                    {
+                      label: "Release revision",
+                      value: String(input.observed.revision),
+                    },
+                  ]
+                : []),
             ],
             run: async (key: string) => {
               const reply = old
@@ -1042,7 +1142,9 @@ export function SavePersonal(
                   });
               const receipt = result(reply, checks.PersonalReceipt);
               if (
-                (!old && receipt.revision !== 1) ||
+                (!old &&
+                  (reply.response.status === 201 || input.type !== "follow") &&
+                  receipt.revision !== 1) ||
                 (old &&
                   (receipt.id !== old.item.id ||
                     receipt.revision !== old.item.revision + 1))
@@ -1051,7 +1153,11 @@ export function SavePersonal(
                   "The save acknowledgement could not be verified.",
                 );
               setCreated(receipt.id);
-              return "Private item saved.";
+              return !old &&
+                reply.response.status === 200 &&
+                input.type === "follow"
+                ? "Already following this Listing."
+                : "Private item saved.";
             },
           };
         }}
@@ -1059,12 +1165,15 @@ export function SavePersonal(
         <Field label="Saved label">
           <input
             id={`${prefix}-label`}
+            readOnly={!!props.existing && !!props.initial.observed}
             required
             value={label}
             onChange={(e) => setLabel(e.target.value)}
           />
         </Field>
-        {props.initial.type === "search" ? (
+        {props.initial.type === "follow" ? (
+          <PersonalSummary input={props.initial} />
+        ) : props.initial.type === "search" ? (
           <PersonalCriteriaEditor
             id={prefix}
             value={payload}

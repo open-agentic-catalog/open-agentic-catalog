@@ -1,13 +1,10 @@
 package database
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/open-agentic-catalog/open-agentic-catalog/internal/personal"
 )
 
 // Restore reports IDs and fixed findings, never a person's label or query. A
@@ -35,12 +32,9 @@ func scanRestorePersonal(ctx context.Context, tx pgx.Tx, tenant, after string, l
 		if len(records) == limit {
 			return records, true, nil
 		}
-		var in personal.Input
-		decoder := json.NewDecoder(bytes.NewReader(raw))
-		decoder.DisallowUnknownFields()
-		decodeErr := decoder.Decode(&in)
+		_, decodeErr := decodePersonalInput(raw)
 		r := restoreRecord{key: id, decodedBytes: int64(len(raw))}
-		if decodeErr != nil || personal.Validate(in) != nil || revision < 1 || created.IsZero() || updated.Before(created) || !human || !quota {
+		if decodeErr != nil || revision < 1 || created.IsZero() || updated.Before(created) || !human || !quota {
 			r.finding = integrityFinding("RESTORE_PERSONAL_ITEM_INVALID", "personal_library", id, "keep traffic disabled and investigate private item shape, ownership or quota without exposing labels or criteria")
 		}
 		records = append(records, r)

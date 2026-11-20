@@ -9,7 +9,7 @@ Run Make commands from the repository root with GNU Make. Managed builds and loc
 | Workflow | Start here |
 | --- | --- |
 | Backend development | Go 1.27.3. `make run` starts the in-memory API/worker; `make build` writes `catalogd` and `catalogctl` to `bin/`. No Python packages are needed to compile. |
-| Persistent local environment | Docker with Compose v2 and BuildKit. `make compose-up` starts PostgreSQL and the backend; add `LOCAL_UI=on` for the UI and bundled manual. No host Go or Node.js is needed. |
+| Persistent local environment | Docker with the `docker compose` plugin and BuildKit. `make compose-up` starts PostgreSQL and the backend. Add `LOCAL_UI=on` for the UI and bundled manual. No host Go or Node.js is needed. |
 | Direct Docker | Build with Docker/BuildKit, or use a supplied image. No host Go is needed with an explicit build platform. Follow the [PostgreSQL procedure](documentation/src/content/docs/operations/docker.mdx) for separate roles and file inputs. |
 | UI development | The backend toolchain plus Node.js 22.23.4 and npm 12.2.2, recorded in `catalog-ui/.nvmrc` and `catalog-ui/package.json`. Run `make ui-install`, then `make ui-dev` against a backend on port 8080. See the [UI developer guide](catalog-ui/README.md). |
 | SDKs and client examples | Follow the [SDK overview](sdk/README.md) for the selected Go, Python, TypeScript or Rust toolchain and isolated package checks. The [LangGraph example](examples/langgraph/README.md) has its own optional Python environment and explicit local model setup. |
@@ -26,7 +26,7 @@ Validate the selected profile with `make config-check`, and follow the [configur
 
 ## Check a change
 
-Install the prerequisites in the [testing guide](documentation/src/content/docs/contributing/testing.md), the separate API tools with `make validation-tools-install`, actionlint with `make workflow-tools-install` and shared Python tools with `make dev-tools-install`. Include the pinned [Ruff executable](documentation/src/content/docs/contributing/testing.md#python-linting). For backend code changes, run:
+Follow [shared development tools](documentation/src/content/docs/contributing/build-and-release.md#shared-development-tools) to run `make dev-tools-install` with the pinned version of uv. This installs Ruff, yamllint and the Python JSON Schema validator used for ARD conformance. Install the API tools with `make validation-tools-install` and actionlint with `make workflow-tools-install`, each in a separate invocation. The [testing guide](documentation/src/content/docs/contributing/testing.md#linting-and-source-checks) lists the other source linters. For backend code changes, run:
 
 ```sh
 make test-unit
@@ -35,7 +35,7 @@ make check verify
 
 Run `test-unit` separately, or substitute `coverage-unit` when measuring the same isolated selection. An explicit unit-only task uses isolated selections and requested linters; the broad functional gate remains separate.
 
-`check` runs source, API, documentation and configuration linters. `verify` requires the explicitly installed [ARD Python validator](documentation/src/content/docs/contributing/testing.md#schema-validation-and-ard-conformance) and runs the service-free Go regression gate, including race detection, coverage checks, standards conformance and binary checks. They do not launch PostgreSQL or a deployed Catalog, and neither runs the separate frontend or documentation-site gates.
+`check` runs source, API, documentation and configuration linters. `verify` runs the service-free Go regression gate, including race detection, coverage checks, [standards conformance](documentation/src/content/docs/contributing/testing.md#schema-validation-and-ard-conformance) and binary checks. They do not launch PostgreSQL or a deployed Catalog, and neither runs the separate frontend or documentation-site gates.
 
 For documentation-only changes, use `make check`, which includes `docs-check`, plus the site gate below when manual content changes. Choose other checks for the boundary you changed:
 
@@ -44,6 +44,7 @@ For documentation-only changes, use `make check`, which includes `docs-check`, p
 | Isolated Go package units | `go test ./internal/identity -shuffle=on -count=1`, substituting the affected package. |
 | Go package units and local functional tests | `go test -tags=functional ./cmd/catalogctl -shuffle=on -count=1`, substituting the affected package. |
 | UI behavior | `make test-ui` after `make ui-install` and the one-time `make ui-browser-install`. Use `make ui-test-unit` for isolated tests, `make ui-test` for local functional fixtures, and `make ui-check` for lint/type checks. |
+| Firefox or WebKit compatibility | After `make ui-engine-install`, run `make test-ui-engine UI_BROWSER_ENGINE=firefox` and repeat with `webkit`. Each engine runs five local journeys and a packaged OIDC session-recovery test. See [platform prerequisites and scope](documentation/src/content/docs/contributing/testing.md#qualify-firefox-and-webkit). |
 | UI appearance or dependencies | Use `make ui-visual` for appearance or dependency changes. Use `make ui-deps-check` for local dependency scans. `make ui-deps-audit` submits dependency metadata to the registry and remains maintainer-only. Follow [UI dependency maintenance](documentation/src/content/docs/reference/dependencies.md#ui-dependency-maintenance) for update and packaging checks. |
 | Reader documentation | `make docs-site-check` after `make docs-install`; `make docs-check` remains the source-only gate. |
 | Local workflow files | Use `make workflow-check` for syntax. Follow [local act setup and qualification](test/ci/README.md#local-workflow-commands) for the fixed local selections. Uploads remain disabled under act. |
@@ -51,7 +52,7 @@ For documentation-only changes, use `make check`, which includes `docs-check`, p
 | Optional hybrid search | `make embeddings-check` is service-free. After explicit `make embeddings-install`, use `make test-semantic` for real-model Compose/browser/1k checks and `make test-minikube-semantic` for the replicated Helm fixture. See [setup and limits](documentation/src/content/docs/operations/hybrid-search.mdx). |
 | Packaged API workflows | `make test-functional` owns and cleans separate default-off, webhook and OIDC Compose stacks. |
 | Helm or deployment assets | `make deploy-check` validates charts and manifests without a cluster; select relevant Minikube scenarios from the [testing guide](documentation/src/content/docs/contributing/testing.md). |
-| API or generated clients | Follow [API validation](test/validation/README.md) and [Go-client compatibility](test/clientcompat/README.md); install their locked tools explicitly and run their Make targets separately. |
+| API or generated clients | Use [API validation](test/validation/README.md) for the contract, `make ui-client-check` for the generated UI client and [Go-client compatibility](test/clientcompat/README.md) for the raw Go client. Regenerate and test each affected [SDK](test/sdk/README.md) separately. |
 
 The manual also covers [UI packaging and login tests](documentation/src/content/docs/contributing/testing.md#optional-browser-client), [performance testing](documentation/src/content/docs/guides/performance-and-monitoring.md), coverage reports, security checks and optional pre-commit hooks. Use those focused guides rather than running every deployment or scale scenario for every edit.
 

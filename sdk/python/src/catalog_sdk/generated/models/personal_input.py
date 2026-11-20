@@ -13,163 +13,138 @@ Do not edit the class manually.
 
 from __future__ import annotations
 
-if "PersonalInput" == "TrustAssessmentRequest":
-    from catalog_sdk.conditional import ConditionalObject as TrustAssessmentRequest
-elif "PersonalInput" == "CatalogSearchResult":
-    from catalog_sdk.conditional import ConditionalObject as CatalogSearchResult
-elif "PersonalInput" == "AuditDetailsV1":
-    from catalog_sdk.conditional import ConditionalObject as AuditDetailsV1
+if "PersonalInput" == "RepresentationInput":
+    from catalog_sdk.conditional import ConditionalObject as RepresentationInput
 else:
-    import json
     import pprint
-    from pydantic import (
-        BaseModel,
-        ConfigDict,
-        Field,
-        StrictStr,
-        ValidationError,
-        field_validator,
-    )
-    from typing import Any, List, Optional
-    from catalog_sdk.generated.models.personal_input_one_of import PersonalInputOneOf
-    from catalog_sdk.generated.models.personal_input_one_of1 import PersonalInputOneOf1
-    from pydantic import StrictStr, Field
-    from typing import Union, List, Set, Optional, Dict
-    from typing_extensions import Literal, Self
+    import re  # noqa: F401
+    import json
 
-    PERSONALINPUT_ONE_OF_SCHEMAS = ["PersonalInputOneOf", "PersonalInputOneOf1"]
+    from pydantic import BaseModel, ConfigDict, Field, StrictStr, field_validator
+    from typing import Any, ClassVar, Dict, Optional
+    from typing_extensions import Annotated
+    from uuid import UUID
+    from catalog_sdk.generated.models.personal_criteria import PersonalCriteria
+    from catalog_sdk.generated.models.personal_reference import PersonalReference
+    from catalog_sdk.generated.models.release_observation import ReleaseObservation
+    from typing import Optional, Set
+    from typing_extensions import Self
+    from pydantic_core import to_jsonable_python
 
     class PersonalInput(BaseModel):
         """
         PersonalInput
-        """
+        """  # noqa: E501
 
-        # data type: PersonalInputOneOf
-        oneof_schema_1_validator: Optional[PersonalInputOneOf] = None
-        # data type: PersonalInputOneOf1
-        oneof_schema_2_validator: Optional[PersonalInputOneOf1] = None
-        actual_instance: Optional[Union[PersonalInputOneOf, PersonalInputOneOf1]] = None
-        one_of_schemas: Set[str] = {"PersonalInputOneOf", "PersonalInputOneOf1"}
+        type: StrictStr
+        label: Annotated[str, Field(min_length=1, strict=True, max_length=120)]
+        listing_id: Optional[UUID] = Field(default=None, alias="listingId")
+        reference: Optional[PersonalReference] = None
+        search: Optional[PersonalCriteria] = None
+        observed: Optional[ReleaseObservation] = Field(
+            default=None,
+            description="Exact current release shown to the human. Omit on restore or rename.",
+        )
+        __properties: ClassVar[List[str]] = [
+            "type",
+            "label",
+            "listingId",
+            "reference",
+            "search",
+            "observed",
+        ]
+
+        @field_validator("type")
+        def type_validate_enum(cls, value):
+            """Validates the enum"""
+            if value not in set(["resource", "search", "follow"]):
+                raise ValueError(
+                    "must be one of enum values ('resource', 'search', 'follow')"
+                )
+            return value
+
+        @field_validator("label", mode="before")
+        def label_validate_regular_expression(cls, value):
+            """Validates the regular expression"""
+            if isinstance(value, str) and not re.match(
+                r"^[^\x00-\x1F\x7F-\x9F]*$", value
+            ):
+                raise ValueError(
+                    r"must validate the regular expression /^[^\x00-\x1F\x7F-\x9F]*$/"
+                )
+            return value
 
         model_config = ConfigDict(
+            validate_by_name=True,
+            validate_by_alias=True,
             validate_assignment=True,
             protected_namespaces=(),
         )
 
-        def __init__(self, *args, **kwargs) -> None:
-            if args:
-                if len(args) > 1:
-                    raise ValueError(
-                        "If a position argument is used, only 1 is allowed to set `actual_instance`"
-                    )
-                if kwargs:
-                    raise ValueError(
-                        "If a position argument is used, keyword arguments cannot be used."
-                    )
-                super().__init__(actual_instance=args[0])
-            else:
-                super().__init__(**kwargs)
-
-        @field_validator("actual_instance")
-        def actual_instance_must_validate_oneof(cls, v):
-            instance = PersonalInput.model_construct()
-            error_messages = []
-            match = 0
-            # validate data type: PersonalInputOneOf
-            if not isinstance(v, PersonalInputOneOf):
-                error_messages.append(
-                    f"Error! Input type `{type(v)}` is not `PersonalInputOneOf`"
-                )
-            else:
-                match += 1
-            # validate data type: PersonalInputOneOf1
-            if not isinstance(v, PersonalInputOneOf1):
-                error_messages.append(
-                    f"Error! Input type `{type(v)}` is not `PersonalInputOneOf1`"
-                )
-            else:
-                match += 1
-            if match > 1:
-                # more than 1 match
-                raise ValueError(
-                    "Multiple matches found when setting `actual_instance` in PersonalInput with oneOf schemas: PersonalInputOneOf, PersonalInputOneOf1. Details: "
-                    + ", ".join(error_messages)
-                )
-            elif match == 0:
-                # no match
-                raise ValueError(
-                    "No match found when setting `actual_instance` in PersonalInput with oneOf schemas: PersonalInputOneOf, PersonalInputOneOf1. Details: "
-                    + ", ".join(error_messages)
-                )
-            else:
-                return v
-
-        @classmethod
-        def from_dict(cls, obj: Union[str, Dict[str, Any]]) -> Self:
-            return cls.from_json(json.dumps(obj))
-
-        @classmethod
-        def from_json(cls, json_str: str) -> Self:
-            """Returns the object represented by the json string"""
-            instance = cls.model_construct()
-            error_messages = []
-            match = 0
-
-            # deserialize data into PersonalInputOneOf
-            try:
-                instance.actual_instance = PersonalInputOneOf.from_json(json_str)
-                match += 1
-            except (ValidationError, ValueError) as e:
-                error_messages.append(str(e))
-            # deserialize data into PersonalInputOneOf1
-            try:
-                instance.actual_instance = PersonalInputOneOf1.from_json(json_str)
-                match += 1
-            except (ValidationError, ValueError) as e:
-                error_messages.append(str(e))
-
-            if match > 1:
-                # more than 1 match
-                raise ValueError(
-                    "Multiple matches found when deserializing the JSON string into PersonalInput with oneOf schemas: PersonalInputOneOf, PersonalInputOneOf1. Details: "
-                    + ", ".join(error_messages)
-                )
-            elif match == 0:
-                # no match
-                raise ValueError(
-                    "No match found when deserializing the JSON string into PersonalInput with oneOf schemas: PersonalInputOneOf, PersonalInputOneOf1. Details: "
-                    + ", ".join(error_messages)
-                )
-            else:
-                return instance
+        def to_str(self) -> str:
+            """Returns the string representation of the model using alias"""
+            return pprint.pformat(self.model_dump(by_alias=True))
 
         def to_json(self) -> str:
-            """Returns the JSON representation of the actual instance"""
-            if self.actual_instance is None:
-                return "null"
+            """Returns the JSON representation of the model using alias"""
+            return json.dumps(to_jsonable_python(self.to_dict()))
 
-            if hasattr(self.actual_instance, "to_json") and callable(
-                self.actual_instance.to_json
-            ):
-                return self.actual_instance.to_json()
-            else:
-                return json.dumps(self.actual_instance)
+        @classmethod
+        def from_json(cls, json_str: str) -> Optional[Self]:
+            """Create an instance of PersonalInput from a JSON string"""
+            return cls.from_dict(json.loads(json_str))
 
-        def to_dict(
-            self,
-        ) -> Optional[Union[Dict[str, Any], PersonalInputOneOf, PersonalInputOneOf1]]:
-            """Returns the dict representation of the actual instance"""
-            if self.actual_instance is None:
+        def to_dict(self) -> Dict[str, Any]:
+            """Return the dictionary representation of the model using alias.
+
+            This has the following differences from calling pydantic's
+            `self.model_dump(by_alias=True)`:
+
+            * `None` is only added to the output dict for nullable fields that
+              were set at model initialization. Other fields with value `None`
+              are ignored.
+            """
+            excluded_fields: Set[str] = set([])
+
+            _dict = self.model_dump(
+                by_alias=True,
+                exclude=excluded_fields,
+                exclude_none=True,
+            )
+            # override the default output from pydantic by calling `to_dict()` of reference
+            if self.reference:
+                _dict["reference"] = self.reference.to_dict()
+            # override the default output from pydantic by calling `to_dict()` of search
+            if self.search:
+                _dict["search"] = self.search.to_dict()
+            # override the default output from pydantic by calling `to_dict()` of observed
+            if self.observed:
+                _dict["observed"] = self.observed.to_dict()
+            return _dict
+
+        @classmethod
+        def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
+            """Create an instance of PersonalInput from a dict"""
+            if obj is None:
                 return None
 
-            if hasattr(self.actual_instance, "to_dict") and callable(
-                self.actual_instance.to_dict
-            ):
-                return self.actual_instance.to_dict()
-            else:
-                # primitive type
-                return self.actual_instance
+            if not isinstance(obj, dict):
+                return cls.model_validate(obj)
 
-        def to_str(self) -> str:
-            """Returns the string representation of the actual instance"""
-            return pprint.pformat(self.model_dump())
+            _obj = cls.model_validate(
+                {
+                    "type": obj.get("type"),
+                    "label": obj.get("label"),
+                    "listingId": obj.get("listingId"),
+                    "reference": PersonalReference.from_dict(obj["reference"])
+                    if obj.get("reference") is not None
+                    else None,
+                    "search": PersonalCriteria.from_dict(obj["search"])
+                    if obj.get("search") is not None
+                    else None,
+                    "observed": ReleaseObservation.from_dict(obj["observed"])
+                    if obj.get("observed") is not None
+                    else None,
+                }
+            )
+            return _obj

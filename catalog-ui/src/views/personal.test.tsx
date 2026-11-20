@@ -400,7 +400,7 @@ it("changes the library filter, follows a cursor and refreshes explicitly", asyn
   });
   render(<PersonalLibrary {...w.props} />);
   await screen.findByText(
-    "Your library is empty. Save a resource from Catalog or create a named search.",
+    "Your library is empty. Bookmark a resource, follow a local Listing or save a named search.",
   );
   fireEvent.click(screen.getByRole("button", { name: "Next page" }));
   await waitFor(() =>

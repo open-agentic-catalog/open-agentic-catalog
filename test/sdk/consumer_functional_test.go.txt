@@ -107,6 +107,49 @@ func TestManagedSDKReviewedUpstream(t *testing.T) {
 	}
 }
 
+func TestManagedSDKRelationshipPagesAndFollow(t *testing.T) {
+	_, corpus := newReviewedCorpus(t)
+	cases := map[string]reviewedCase{}
+	for _, item := range corpus.Cases {
+		cases[item.Name] = item
+	}
+	source, target := cases["context7-plugin"], cases["context7-registry"]
+	sourceID := decode[sdk.ReleaseId](t, []byte(strconv.Quote(source.ReleaseID)))
+	c, err := sdk.New(sdk.Config{Origin: corpus.Origin, AllowLoopbackHTTP: true, Token: "follower"})
+	must(t, err)
+	defer c.Close()
+
+	query := &sdk.ListReleaseRelationshipsParams{View: "outgoing", Limit: ptr(1)}
+	first, err := c.ListReleaseRelationshipsWithResponse(t.Context(), sourceID, query)
+	must(t, err)
+	if first.JSON200 == nil || len(first.JSON200.Items) != 1 || first.JSON200.NextCursor == nil || first.JSON200.Items[0].Declaration.TargetIdentifier != "fixture:unreleased-dependency" || first.JSON200.Items[0].Related != nil {
+		t.Fatalf("unreleased destination or cursor changed (HTTP %d)", first.StatusCode())
+	}
+	query.Cursor = first.JSON200.NextCursor
+	second, err := c.ListReleaseRelationshipsWithResponse(t.Context(), sourceID, query)
+	must(t, err)
+	if second.JSON200 == nil || len(second.JSON200.Items) != 1 || second.JSON200.NextCursor != nil {
+		t.Fatalf("invalid final page (HTTP %d)", second.StatusCode())
+	}
+	edge := second.JSON200.Items[0]
+	if edge.Declaration.TargetIdentifier != target.Identifier || edge.Related == nil || edge.Related.ReleaseId.String() != target.ReleaseID || edge.Related.Version != "4.0.3" {
+		t.Fatal("exact relationship did not resolve to its current release")
+	}
+	listingID := decode[sdk.UUID](t, []byte(strconv.Quote(target.ListingID)))
+	observed := sdk.ReleaseObservation{ReleaseId: edge.Related.ReleaseId, Revision: 1}
+	body := sdk.PersonalInput{Type: "follow", Label: "Go SDK follow", ListingId: &listingID, Observed: &observed}
+	saved, err := c.CreatePersonalItemWithResponse(t.Context(), &sdk.CreatePersonalItemParams{IdempotencyKey: "go-target-follow"}, body)
+	must(t, err)
+	if saved.JSON201 == nil || saved.JSON201.Revision != 1 {
+		t.Fatalf("create follow (HTTP %d)", saved.StatusCode())
+	}
+	resolved, err := c.ResolvePersonalItemWithResponse(t.Context(), saved.JSON201.Id, sdk.ResolvePersonalItemJSONRequestBody{})
+	must(t, err)
+	if resolved.JSON200 == nil || resolved.JSON200.Change == nil || *resolved.JSON200.Change != "unchanged" || resolved.JSON200.Current == nil || *resolved.JSON200.Current != observed {
+		t.Fatalf("follow did not preserve the acknowledged release (HTTP %d)", resolved.StatusCode())
+	}
+}
+
 func TestSDKCompleteOperationInventory(t *testing.T) {
 	var contract struct {
 		Paths map[string]map[string]any `yaml:"paths"`

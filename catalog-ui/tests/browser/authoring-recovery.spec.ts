@@ -180,8 +180,12 @@ for (const fault of [
     expect(
       writes.filter((item) => item.path.endsWith("/catalog-listings")),
     ).toHaveLength(1);
-    if (fault === "uncertain Listing revision")
-      expect(writes[4]).toEqual(writes[3]);
+    if (fault === "uncertain Listing revision") {
+      const original = required(writes[3]);
+      expect(original.etag).toMatch(/^".+"$/);
+      expect(original.key).toMatch(/\S/);
+      expect(writes[4]).toEqual(original);
+    }
     const saved = required(writes.at(-1));
     const listingId = required(saved.path.split("/").at(-2));
     const retained = await catalog.admin(

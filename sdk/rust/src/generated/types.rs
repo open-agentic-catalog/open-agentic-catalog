@@ -2111,6 +2111,23 @@ impl ReleaseTransitionBuilder {
         self.value
     }
 }
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleaseRelationshipPage {
+    ///Constraint: maxItems=100
+    pub items: Vec<ReleasedRelationship>,
+    ///Constraint: minLength=1, maxLength=2048
+    #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleasedRelationship {
+    pub declaration: Relationship,
+    ///Current source for incoming and dependencies. Current target for outgoing, omitted when no readable release matches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub related: Option<RelatedRelease>,
+}
 ///Independent current published and deprecated Listing counts. Neither count represents distinct Resources.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -2148,6 +2165,19 @@ impl AsRef<str> for ReleaseOverviewScope {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RelatedRelease {
+    ///Constraint: minLength=1, maxLength=160
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+    #[serde(rename = "listingRevisionId")]
+    pub listing_revision_id: UUID,
+    #[serde(rename = "releaseId")]
+    pub release_id: UUID,
+    ///Constraint: minLength=1, maxLength=128
+    pub version: String,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ReindexCatalogRequest {
@@ -3487,274 +3517,6 @@ impl AsRef<str> for PersonalWorkItemState {
         self.as_str()
     }
 }
-#[derive(Debug, Clone)]
-pub struct PersonalResolution {
-    pub indexed: Option<CatalogSearchResult>,
-    pub reference: Option<PersonalReference>,
-    pub status: PersonalResolutionStatus,
-    /// The variant this value takes, alongside the fields above.
-    pub variant: PersonalResolutionVariant,
-}
-#[derive(Deserialize, Serialize)]
-struct __PersonalResolutionBase {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    indexed: Option<CatalogSearchResult>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    reference: Option<PersonalReference>,
-    status: PersonalResolutionStatus,
-}
-impl serde::Serialize for PersonalResolution {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let base = __PersonalResolutionBase {
-            indexed: self.indexed.clone(),
-            reference: self.reference.clone(),
-            status: self.status.clone(),
-        };
-        let mut value = serde_json::to_value(base).map_err(serde::ser::Error::custom)?;
-        let variant = serde_json::to_value(&self.variant).map_err(serde::ser::Error::custom)?;
-        let object = value.as_object_mut().ok_or_else(|| {
-            serde::ser::Error::custom("shared union base did not serialize as an object")
-        })?;
-        let variant_object = variant.as_object().ok_or_else(|| {
-            serde::ser::Error::custom("shared union variant did not serialize as an object")
-        })?;
-        for (key, variant_value) in variant_object {
-            if let Some(base_value) = object.get(key)
-                && base_value != variant_value
-            {
-                return Err(serde::ser::Error::custom(format!(
-                    "shared union field `{key}` serialized conflicting values",
-                )));
-            }
-            object.insert(key.clone(), variant_value.clone());
-        }
-        serde::Serialize::serialize(&value, serializer)
-    }
-}
-impl<'de> serde::Deserialize<'de> for PersonalResolution {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer)?;
-        let base = serde_json::from_value::<__PersonalResolutionBase>(value.clone())
-            .map_err(serde::de::Error::custom)?;
-        let variant = match serde_json::from_value::<PersonalResolutionVariant>(value.clone()) {
-            Ok(variant) => variant,
-            Err(complete_error) => {
-                let variant_input = value;
-                serde_json::from_value::<PersonalResolutionVariant>(variant_input)
-                    .map_err(|projected_error| serde::de::Error::custom(
-                        format!(
-                            "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
-                        ),
-                    ))?
-            }
-        };
-        Ok(Self {
-            indexed: base.indexed,
-            reference: base.reference,
-            status: base.status,
-            variant: variant,
-        })
-    }
-}
-#[derive(Debug, Clone)]
-pub enum PersonalResolutionVariant {
-    StatusBlock(StatusBlock),
-    ReferenceBlock(ReferenceBlock),
-    ReferenceBlockInline(ReferenceBlockInline),
-}
-impl Serialize for PersonalResolutionVariant {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Self::StatusBlock(value) => serde::Serialize::serialize(value, serializer),
-            Self::ReferenceBlock(value) => serde::Serialize::serialize(value, serializer),
-            Self::ReferenceBlockInline(value) => serde::Serialize::serialize(value, serializer),
-        }
-    }
-}
-impl<'de> Deserialize<'de> for PersonalResolutionVariant {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        fn exact_json_integer(number: &serde_json::Number) -> Option<i128> {
-            number
-                .as_i64()
-                .map(i128::from)
-                .or_else(|| number.as_u64().map(i128::from))
-        }
-        fn json_numbers_have_same_value(
-            encoded: &serde_json::Number,
-            input: &serde_json::Number,
-        ) -> bool {
-            match (exact_json_integer(encoded), exact_json_integer(input)) {
-                (Some(encoded), Some(input)) => encoded == input,
-                (Some(encoded), None) => input.as_f64().is_some_and(|input| {
-                    input.is_finite() && input.fract() == 0.0 && input as i128 == encoded
-                }),
-                (None, Some(input)) => encoded.as_f64().is_some_and(|encoded| {
-                    encoded.is_finite() && encoded.fract() == 0.0 && encoded as i128 == input
-                }),
-                (None, None) => encoded.as_f64() == input.as_f64(),
-            }
-        }
-        /// `nulls_may_be_absent` also accepts an input `null` that the
-        /// branch omits, as a skipped `None` does. Extra encoded
-        /// keys are allowed only by the pre-existing anyOf match.
-        fn preserves_complete_json_input(
-            encoded: &serde_json::Value,
-            input: &serde_json::Value,
-            nulls_may_be_absent: bool,
-            encoded_keys_may_be_extra: bool,
-        ) -> bool {
-            match (encoded, input) {
-                (serde_json::Value::Object(encoded), serde_json::Value::Object(input)) => {
-                    (encoded_keys_may_be_extra || encoded.keys().all(|key| input.contains_key(key)))
-                        && input.iter().all(|(key, value)| match encoded.get(key) {
-                            Some(encoded_value) => preserves_complete_json_input(
-                                encoded_value,
-                                value,
-                                nulls_may_be_absent,
-                                encoded_keys_may_be_extra,
-                            ),
-                            None => nulls_may_be_absent && value.is_null(),
-                        })
-                }
-                (serde_json::Value::Array(encoded), serde_json::Value::Array(input)) => {
-                    encoded.len() == input.len()
-                        && encoded.iter().zip(input).all(|(encoded, input)| {
-                            preserves_complete_json_input(
-                                encoded,
-                                input,
-                                nulls_may_be_absent,
-                                encoded_keys_may_be_extra,
-                            )
-                        })
-                }
-                (serde_json::Value::Number(encoded), serde_json::Value::Number(input)) => {
-                    json_numbers_have_same_value(encoded, input)
-                }
-                _ => encoded == input,
-            }
-        }
-        let input = <serde_json::Value as Deserialize>::deserialize(deserializer)?;
-        let mut equivalent = None;
-        if let Ok(candidate) = serde_json::from_value::<StatusBlock>(input.clone()) {
-            match serde_json::to_value(&candidate) {
-                Ok(encoded) if preserves_complete_json_input(&encoded, &input, false, true) => {
-                    return Ok(Self::StatusBlock(candidate));
-                }
-                Ok(encoded)
-                    if equivalent.is_none()
-                        && preserves_complete_json_input(&encoded, &input, true, false) =>
-                {
-                    equivalent = Some(Self::StatusBlock(candidate));
-                }
-                _ => {}
-            }
-        }
-        if let Ok(candidate) = serde_json::from_value::<ReferenceBlock>(input.clone()) {
-            match serde_json::to_value(&candidate) {
-                Ok(encoded) if preserves_complete_json_input(&encoded, &input, false, true) => {
-                    return Ok(Self::ReferenceBlock(candidate));
-                }
-                Ok(encoded)
-                    if equivalent.is_none()
-                        && preserves_complete_json_input(&encoded, &input, true, false) =>
-                {
-                    equivalent = Some(Self::ReferenceBlock(candidate));
-                }
-                _ => {}
-            }
-        }
-        if let Ok(candidate) = serde_json::from_value::<ReferenceBlockInline>(input.clone()) {
-            match serde_json::to_value(&candidate) {
-                Ok(encoded) if preserves_complete_json_input(&encoded, &input, false, true) => {
-                    return Ok(Self::ReferenceBlockInline(candidate));
-                }
-                Ok(encoded)
-                    if equivalent.is_none()
-                        && preserves_complete_json_input(&encoded, &input, true, false) =>
-                {
-                    equivalent = Some(Self::ReferenceBlockInline(candidate));
-                }
-                _ => {}
-            }
-        }
-        equivalent.ok_or_else(|| {
-            serde::de::Error::custom(concat!(
-                "no anyOf branch for ",
-                stringify!(PersonalResolutionVariant),
-                " preserved the complete input",
-            ))
-        })
-    }
-}
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct StatusBlock {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<serde_json::Value>,
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ReferenceBlockInline {
-    pub indexed: serde_json::Value,
-    pub reference: ReferenceBlockInlineReference,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<serde_json::Value>,
-    /// Additional properties not explicitly defined in the schema
-    #[serde(flatten)]
-    pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
-}
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct ReferenceBlockInlineReference {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub origin: Option<serde_json::Value>,
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ReferenceBlock {
-    pub reference: ReferenceBlockReference,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub status: Option<serde_json::Value>,
-}
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct ReferenceBlockReference {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub origin: Option<serde_json::Value>,
-}
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
-pub enum PersonalResolutionStatus {
-    #[default]
-    #[serde(rename = "available")]
-    Available,
-    #[serde(rename = "unavailable")]
-    Unavailable,
-}
-impl PersonalResolutionStatus {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Available => "available",
-            Self::Unavailable => "unavailable",
-        }
-    }
-}
-impl ::std::fmt::Display for PersonalResolutionStatus {
-    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-impl AsRef<str> for PersonalResolutionStatus {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PersonalReceipt {
@@ -3771,279 +3533,24 @@ pub struct PersonalPage {
     #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
     pub next_cursor: Option<String>,
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PersonalItem {
+    #[serde(rename = "createdAt")]
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub id: UUID,
     ///Constraint: minLength=1, maxLength=120, pattern=`^[^\x00-\x1F\x7F-\x9F]*$`
     pub label: String,
+    #[serde(rename = "listingId", skip_serializing_if = "Option::is_none")]
+    pub listing_id: Option<UUID>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub reference: Option<PersonalReference>,
     ///Constraint: minimum=1
     pub revision: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub search: Option<PersonalCriteria>,
     pub r#type: PersonalItemType,
-    pub updated_at: chrono::DateTime<chrono::Utc>,
-    /// The variant this value takes, alongside the fields above.
-    pub variant: PersonalItemVariant,
-}
-#[derive(Deserialize, Serialize)]
-struct __PersonalItemBase {
-    #[serde(rename = "createdAt")]
-    created_at: chrono::DateTime<chrono::Utc>,
-    id: UUID,
-    label: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    reference: Option<PersonalReference>,
-    revision: i64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    search: Option<PersonalCriteria>,
-    r#type: PersonalItemType,
     #[serde(rename = "updatedAt")]
-    updated_at: chrono::DateTime<chrono::Utc>,
-}
-impl serde::Serialize for PersonalItem {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let base = __PersonalItemBase {
-            created_at: self.created_at.clone(),
-            id: self.id.clone(),
-            label: self.label.clone(),
-            reference: self.reference.clone(),
-            revision: self.revision.clone(),
-            search: self.search.clone(),
-            r#type: self.r#type.clone(),
-            updated_at: self.updated_at.clone(),
-        };
-        let mut value = serde_json::to_value(base).map_err(serde::ser::Error::custom)?;
-        let variant = serde_json::to_value(&self.variant).map_err(serde::ser::Error::custom)?;
-        let object = value.as_object_mut().ok_or_else(|| {
-            serde::ser::Error::custom("shared union base did not serialize as an object")
-        })?;
-        let variant_object = variant.as_object().ok_or_else(|| {
-            serde::ser::Error::custom("shared union variant did not serialize as an object")
-        })?;
-        for (key, variant_value) in variant_object {
-            if let Some(base_value) = object.get(key)
-                && base_value != variant_value
-            {
-                return Err(serde::ser::Error::custom(format!(
-                    "shared union field `{key}` serialized conflicting values",
-                )));
-            }
-            object.insert(key.clone(), variant_value.clone());
-        }
-        serde::Serialize::serialize(&value, serializer)
-    }
-}
-impl<'de> serde::Deserialize<'de> for PersonalItem {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer)?;
-        let base = serde_json::from_value::<__PersonalItemBase>(value.clone())
-            .map_err(serde::de::Error::custom)?;
-        let variant = match serde_json::from_value::<PersonalItemVariant>(value.clone()) {
-            Ok(variant) => variant,
-            Err(complete_error) => {
-                let mut variant_input = value;
-                if let Some(object) = variant_input.as_object_mut() {
-                    object.remove("createdAt");
-                    object.remove("id");
-                    object.remove("label");
-                    object.remove("revision");
-                    object.remove("updatedAt");
-                }
-                serde_json::from_value::<PersonalItemVariant>(variant_input)
-                    .map_err(|projected_error| serde::de::Error::custom(
-                        format!(
-                            "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
-                        ),
-                    ))?
-            }
-        };
-        Ok(Self {
-            created_at: base.created_at,
-            id: base.id,
-            label: base.label,
-            reference: base.reference,
-            revision: base.revision,
-            search: base.search,
-            r#type: base.r#type,
-            updated_at: base.updated_at,
-            variant: variant,
-        })
-    }
-}
-#[derive(Debug, Clone)]
-pub enum PersonalItemVariant {
-    Resource(PersonalItemVariantInline),
-    Search(PersonalItemVariant2),
-}
-impl serde::Serialize for PersonalItemVariant {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Self::Resource(payload) => {
-                let mut value = serde_json::to_value(payload).map_err(serde::ser::Error::custom)?;
-                let object = value.as_object_mut().ok_or_else(|| {
-                    serde::ser::Error::custom(concat!(
-                        "discriminated union variant `",
-                        stringify!(Resource),
-                        "` did not serialize as an object",
-                    ))
-                })?;
-                match object.get("type") {
-                    Some(serde_json::Value::String(tag)) if matches!(tag.as_str(), "resource") => {}
-                    Some(serde_json::Value::String(tag)) => {
-                        return Err(serde::ser::Error::custom(format!(
-                            "discriminator `{}` value `{tag}` is not valid for variant `{}`",
-                            "type",
-                            stringify!(Resource),
-                        )));
-                    }
-                    Some(_) => {
-                        return Err(serde::ser::Error::custom(concat!(
-                            "discriminator `",
-                            "type",
-                            "` did not serialize as a string",
-                        )));
-                    }
-                    None => {
-                        object.insert(
-                            "type".to_string(),
-                            serde_json::Value::String("resource".to_string()),
-                        );
-                    }
-                }
-                value.serialize(serializer)
-            }
-            Self::Search(payload) => {
-                let mut value = serde_json::to_value(payload).map_err(serde::ser::Error::custom)?;
-                let object = value.as_object_mut().ok_or_else(|| {
-                    serde::ser::Error::custom(concat!(
-                        "discriminated union variant `",
-                        stringify!(Search),
-                        "` did not serialize as an object",
-                    ))
-                })?;
-                match object.get("type") {
-                    Some(serde_json::Value::String(tag)) if matches!(tag.as_str(), "search") => {}
-                    Some(serde_json::Value::String(tag)) => {
-                        return Err(serde::ser::Error::custom(format!(
-                            "discriminator `{}` value `{tag}` is not valid for variant `{}`",
-                            "type",
-                            stringify!(Search),
-                        )));
-                    }
-                    Some(_) => {
-                        return Err(serde::ser::Error::custom(concat!(
-                            "discriminator `",
-                            "type",
-                            "` did not serialize as a string",
-                        )));
-                    }
-                    None => {
-                        object.insert(
-                            "type".to_string(),
-                            serde_json::Value::String("search".to_string()),
-                        );
-                    }
-                }
-                value.serialize(serializer)
-            }
-        }
-    }
-}
-impl<'de> serde::Deserialize<'de> for PersonalItemVariant {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer)?;
-        let discriminator = match value.get("type") {
-            Some(serde_json::Value::String(discriminator)) => Some(discriminator.as_str()),
-            Some(_) => {
-                return Err(serde::de::Error::custom(concat!(
-                    "non-string discriminator `",
-                    "type",
-                    "`",
-                )));
-            }
-            None => None,
-        };
-        match discriminator {
-            Some(discriminator) => match discriminator {
-                "resource" => {
-                    let primary_error =
-                        match serde_json::from_value::<PersonalItemVariantInline>(value.clone()) {
-                            Ok(payload) => return Ok(Self::Resource(payload)),
-                            Err(error) => error,
-                        };
-                    if let Ok(payload) =
-                        serde_json::from_value::<PersonalItemVariant2>(value.clone())
-                    {
-                        return Ok(Self::Search(payload));
-                    }
-                    Err(serde::de::Error::custom(primary_error))
-                }
-                "search" => {
-                    let primary_error =
-                        match serde_json::from_value::<PersonalItemVariant2>(value.clone()) {
-                            Ok(payload) => return Ok(Self::Search(payload)),
-                            Err(error) => error,
-                        };
-                    if let Ok(payload) =
-                        serde_json::from_value::<PersonalItemVariantInline>(value.clone())
-                    {
-                        return Ok(Self::Resource(payload));
-                    }
-                    Err(serde::de::Error::custom(primary_error))
-                }
-                other => Err(serde::de::Error::custom(format!(
-                    "unknown discriminator value `{other}` for `{}`",
-                    "type",
-                ))),
-            },
-            None => {
-                if let Ok(payload) =
-                    serde_json::from_value::<PersonalItemVariantInline>(value.clone())
-                {
-                    return Ok(Self::Resource(payload));
-                }
-                if let Ok(payload) = serde_json::from_value::<PersonalItemVariant2>(value.clone()) {
-                    return Ok(Self::Search(payload));
-                }
-                Err(serde::de::Error::custom(concat!(
-                    "missing string discriminator `",
-                    "type",
-                    "` and no tagless branch matched",
-                )))
-            }
-        }
-    }
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PersonalItemVariantInline {
-    pub reference: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r#type: Option<serde_json::Value>,
-    /// Additional properties not explicitly defined in the schema
-    #[serde(flatten)]
-    pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PersonalItemVariant2 {
-    pub search: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r#type: Option<serde_json::Value>,
-    /// Additional properties not explicitly defined in the schema
-    #[serde(flatten)]
-    pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
+    pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum PersonalItemType {
@@ -4052,12 +3559,15 @@ pub enum PersonalItemType {
     Resource,
     #[serde(rename = "search")]
     Search,
+    #[serde(rename = "follow")]
+    Follow,
 }
 impl PersonalItemType {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Resource => "resource",
             Self::Search => "search",
+            Self::Follow => "follow",
         }
     }
 }
@@ -4071,374 +3581,112 @@ impl AsRef<str> for PersonalItemType {
         self.as_str()
     }
 }
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PersonalInput {
     ///Constraint: minLength=1, maxLength=120, pattern=`^[^\x00-\x1F\x7F-\x9F]*$`
     pub label: String,
+    #[serde(rename = "listingId", skip_serializing_if = "Option::is_none")]
+    pub listing_id: Option<UUID>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub observed: Option<ReleaseObservation>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub reference: Option<PersonalReference>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub search: Option<PersonalCriteria>,
     pub r#type: PersonalInputType,
-    /// The variant this value takes, alongside the fields above.
-    pub variant: PersonalInputVariant,
 }
-#[derive(Deserialize, Serialize)]
-struct __PersonalInputBase {
-    label: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    reference: Option<PersonalReference>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    search: Option<PersonalCriteria>,
-    r#type: PersonalInputType,
-}
-impl serde::Serialize for PersonalInput {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let base = __PersonalInputBase {
-            label: self.label.clone(),
-            reference: self.reference.clone(),
-            search: self.search.clone(),
-            r#type: self.r#type.clone(),
-        };
-        let mut value = serde_json::to_value(base).map_err(serde::ser::Error::custom)?;
-        let variant = serde_json::to_value(&self.variant).map_err(serde::ser::Error::custom)?;
-        let object = value.as_object_mut().ok_or_else(|| {
-            serde::ser::Error::custom("shared union base did not serialize as an object")
-        })?;
-        let variant_object = variant.as_object().ok_or_else(|| {
-            serde::ser::Error::custom("shared union variant did not serialize as an object")
-        })?;
-        for (key, variant_value) in variant_object {
-            if let Some(base_value) = object.get(key)
-                && base_value != variant_value
-            {
-                return Err(serde::ser::Error::custom(format!(
-                    "shared union field `{key}` serialized conflicting values",
-                )));
-            }
-            object.insert(key.clone(), variant_value.clone());
+impl PersonalInput {
+    /// Construct this request with every required wire field.
+    pub fn new(label: String, r#type: PersonalInputType) -> Self {
+        Self {
+            label,
+            r#type,
+            listing_id: None,
+            observed: None,
+            reference: None,
+            search: None,
         }
-        serde::Serialize::serialize(&value, serializer)
+    }
+    /// Start a dependency-free builder with every required wire field.
+    pub fn builder(label: String, r#type: PersonalInputType) -> PersonalInputBuilder {
+        PersonalInputBuilder::new(label, r#type)
     }
 }
-impl<'de> serde::Deserialize<'de> for PersonalInput {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer)?;
-        let base = serde_json::from_value::<__PersonalInputBase>(value.clone())
-            .map_err(serde::de::Error::custom)?;
-        let variant = match serde_json::from_value::<PersonalInputVariant>(value.clone()) {
-            Ok(variant) => variant,
-            Err(complete_error) => {
-                let mut variant_input = value;
-                if let Some(object) = variant_input.as_object_mut() {
-                    object.remove("label");
-                }
-                serde_json::from_value::<PersonalInputVariant>(variant_input)
-                    .map_err(|projected_error| serde::de::Error::custom(
-                        format!(
-                            "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
-                        ),
-                    ))?
-            }
-        };
-        Ok(Self {
-            label: base.label,
-            reference: base.reference,
-            search: base.search,
-            r#type: base.r#type,
-            variant: variant,
-        })
-    }
-}
+/// Dependency-free builder for this request.
 #[derive(Debug, Clone)]
+#[must_use]
+pub struct PersonalInputBuilder {
+    value: PersonalInput,
+}
+impl PersonalInputBuilder {
+    /// Start a builder with every required wire field.
+    pub fn new(label: String, r#type: PersonalInputType) -> Self {
+        Self {
+            value: PersonalInput::new(label, r#type),
+        }
+    }
+    #[doc = concat!("Set the optional `", "listingId", "` request field.")]
+    #[must_use]
+    pub fn listing_id(mut self, listing_id: UUID) -> Self {
+        self.value.listing_id = Some(listing_id);
+        self
+    }
+    #[doc = concat!("Set the optional `", "observed", "` request field.")]
+    #[must_use]
+    pub fn observed(mut self, observed: ReleaseObservation) -> Self {
+        self.value.observed = Some(observed);
+        self
+    }
+    #[doc = concat!("Set the optional `", "reference", "` request field.")]
+    #[must_use]
+    pub fn reference(mut self, reference: PersonalReference) -> Self {
+        self.value.reference = Some(reference);
+        self
+    }
+    #[doc = concat!("Set the optional `", "search", "` request field.")]
+    #[must_use]
+    pub fn search(mut self, search: PersonalCriteria) -> Self {
+        self.value.search = Some(search);
+        self
+    }
+    /// Finish building the request model.
+    pub fn build(self) -> PersonalInput {
+        self.value
+    }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleaseObservation {
+    #[serde(rename = "releaseId")]
+    pub release_id: UUID,
+    ///Constraint: minimum=1
+    pub revision: i64,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PersonalReference {
     ///Constraint: minLength=1, maxLength=512
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub identifier: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<ResourceKind>,
     pub origin: PersonalReferenceOrigin,
     ///Constraint: minimum=1
-    pub presentation_generation: Option<i64>,
-    pub release_id: Option<UUID>,
-    pub source_id: Option<UUID>,
-    ///Constraint: maxLength=128
-    pub version: Option<String>,
-    pub version_present: Option<bool>,
-    pub version_revision_id: Option<UUID>,
-    /// The variant this value takes, alongside the fields above.
-    pub variant: PersonalReferenceVariant,
-}
-#[derive(Deserialize, Serialize)]
-struct __PersonalReferenceBase {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    identifier: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    kind: Option<ResourceKind>,
-    origin: PersonalReferenceOrigin,
     #[serde(
         rename = "presentationGeneration",
         skip_serializing_if = "Option::is_none"
     )]
-    presentation_generation: Option<i64>,
+    pub presentation_generation: Option<i64>,
     #[serde(rename = "releaseId", skip_serializing_if = "Option::is_none")]
-    release_id: Option<UUID>,
+    pub release_id: Option<UUID>,
     #[serde(rename = "sourceId", skip_serializing_if = "Option::is_none")]
-    source_id: Option<UUID>,
+    pub source_id: Option<UUID>,
+    ///Constraint: maxLength=128
     #[serde(skip_serializing_if = "Option::is_none")]
-    version: Option<String>,
+    pub version: Option<String>,
     #[serde(rename = "versionPresent", skip_serializing_if = "Option::is_none")]
-    version_present: Option<bool>,
+    pub version_present: Option<bool>,
     #[serde(rename = "versionRevisionId", skip_serializing_if = "Option::is_none")]
-    version_revision_id: Option<UUID>,
-}
-impl serde::Serialize for PersonalReference {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let base = __PersonalReferenceBase {
-            identifier: self.identifier.clone(),
-            kind: self.kind.clone(),
-            origin: self.origin.clone(),
-            presentation_generation: self.presentation_generation.clone(),
-            release_id: self.release_id.clone(),
-            source_id: self.source_id.clone(),
-            version: self.version.clone(),
-            version_present: self.version_present.clone(),
-            version_revision_id: self.version_revision_id.clone(),
-        };
-        let mut value = serde_json::to_value(base).map_err(serde::ser::Error::custom)?;
-        let variant = serde_json::to_value(&self.variant).map_err(serde::ser::Error::custom)?;
-        let object = value.as_object_mut().ok_or_else(|| {
-            serde::ser::Error::custom("shared union base did not serialize as an object")
-        })?;
-        let variant_object = variant.as_object().ok_or_else(|| {
-            serde::ser::Error::custom("shared union variant did not serialize as an object")
-        })?;
-        for (key, variant_value) in variant_object {
-            if let Some(base_value) = object.get(key)
-                && base_value != variant_value
-            {
-                return Err(serde::ser::Error::custom(format!(
-                    "shared union field `{key}` serialized conflicting values",
-                )));
-            }
-            object.insert(key.clone(), variant_value.clone());
-        }
-        serde::Serialize::serialize(&value, serializer)
-    }
-}
-impl<'de> serde::Deserialize<'de> for PersonalReference {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer)?;
-        let base = serde_json::from_value::<__PersonalReferenceBase>(value.clone())
-            .map_err(serde::de::Error::custom)?;
-        let variant = match serde_json::from_value::<PersonalReferenceVariant>(value.clone()) {
-            Ok(variant) => variant,
-            Err(complete_error) => {
-                let mut variant_input = value;
-                if let Some(object) = variant_input.as_object_mut() {
-                    object.remove("version");
-                }
-                serde_json::from_value::<PersonalReferenceVariant>(variant_input)
-                    .map_err(|projected_error| serde::de::Error::custom(
-                        format!(
-                            "complete shared-union input failed: {complete_error}; projected input failed: {projected_error}",
-                        ),
-                    ))?
-            }
-        };
-        Ok(Self {
-            identifier: base.identifier,
-            kind: base.kind,
-            origin: base.origin,
-            presentation_generation: base.presentation_generation,
-            release_id: base.release_id,
-            source_id: base.source_id,
-            version: base.version,
-            version_present: base.version_present,
-            version_revision_id: base.version_revision_id,
-            variant: variant,
-        })
-    }
-}
-#[derive(Debug, Clone)]
-pub enum PersonalReferenceVariant {
-    Local(OriginBlock),
-    Foreign(OriginBlockInline),
-}
-impl serde::Serialize for PersonalReferenceVariant {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Self::Local(payload) => {
-                let mut value = serde_json::to_value(payload).map_err(serde::ser::Error::custom)?;
-                let object = value.as_object_mut().ok_or_else(|| {
-                    serde::ser::Error::custom(concat!(
-                        "discriminated union variant `",
-                        stringify!(Local),
-                        "` did not serialize as an object",
-                    ))
-                })?;
-                match object.get("origin") {
-                    Some(serde_json::Value::String(tag)) if matches!(tag.as_str(), "local") => {}
-                    Some(serde_json::Value::String(tag)) => {
-                        return Err(serde::ser::Error::custom(format!(
-                            "discriminator `{}` value `{tag}` is not valid for variant `{}`",
-                            "origin",
-                            stringify!(Local),
-                        )));
-                    }
-                    Some(_) => {
-                        return Err(serde::ser::Error::custom(concat!(
-                            "discriminator `",
-                            "origin",
-                            "` did not serialize as a string",
-                        )));
-                    }
-                    None => {
-                        object.insert(
-                            "origin".to_string(),
-                            serde_json::Value::String("local".to_string()),
-                        );
-                    }
-                }
-                value.serialize(serializer)
-            }
-            Self::Foreign(payload) => {
-                let mut value = serde_json::to_value(payload).map_err(serde::ser::Error::custom)?;
-                let object = value.as_object_mut().ok_or_else(|| {
-                    serde::ser::Error::custom(concat!(
-                        "discriminated union variant `",
-                        stringify!(Foreign),
-                        "` did not serialize as an object",
-                    ))
-                })?;
-                match object.get("origin") {
-                    Some(serde_json::Value::String(tag)) if matches!(tag.as_str(), "foreign") => {}
-                    Some(serde_json::Value::String(tag)) => {
-                        return Err(serde::ser::Error::custom(format!(
-                            "discriminator `{}` value `{tag}` is not valid for variant `{}`",
-                            "origin",
-                            stringify!(Foreign),
-                        )));
-                    }
-                    Some(_) => {
-                        return Err(serde::ser::Error::custom(concat!(
-                            "discriminator `",
-                            "origin",
-                            "` did not serialize as a string",
-                        )));
-                    }
-                    None => {
-                        object.insert(
-                            "origin".to_string(),
-                            serde_json::Value::String("foreign".to_string()),
-                        );
-                    }
-                }
-                value.serialize(serializer)
-            }
-        }
-    }
-}
-impl<'de> serde::Deserialize<'de> for PersonalReferenceVariant {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer)?;
-        let discriminator = match value.get("origin") {
-            Some(serde_json::Value::String(discriminator)) => Some(discriminator.as_str()),
-            Some(_) => {
-                return Err(serde::de::Error::custom(concat!(
-                    "non-string discriminator `",
-                    "origin",
-                    "`",
-                )));
-            }
-            None => None,
-        };
-        match discriminator {
-            Some(discriminator) => match discriminator {
-                "local" => {
-                    let primary_error = match serde_json::from_value::<OriginBlock>(value.clone()) {
-                        Ok(payload) => return Ok(Self::Local(payload)),
-                        Err(error) => error,
-                    };
-                    if let Ok(payload) = serde_json::from_value::<OriginBlockInline>(value.clone())
-                    {
-                        return Ok(Self::Foreign(payload));
-                    }
-                    Err(serde::de::Error::custom(primary_error))
-                }
-                "foreign" => {
-                    let primary_error =
-                        match serde_json::from_value::<OriginBlockInline>(value.clone()) {
-                            Ok(payload) => return Ok(Self::Foreign(payload)),
-                            Err(error) => error,
-                        };
-                    if let Ok(payload) = serde_json::from_value::<OriginBlock>(value.clone()) {
-                        return Ok(Self::Local(payload));
-                    }
-                    Err(serde::de::Error::custom(primary_error))
-                }
-                other => Err(serde::de::Error::custom(format!(
-                    "unknown discriminator value `{other}` for `{}`",
-                    "origin",
-                ))),
-            },
-            None => {
-                if let Ok(payload) = serde_json::from_value::<OriginBlock>(value.clone()) {
-                    return Ok(Self::Local(payload));
-                }
-                if let Ok(payload) = serde_json::from_value::<OriginBlockInline>(value.clone()) {
-                    return Ok(Self::Foreign(payload));
-                }
-                Err(serde::de::Error::custom(concat!(
-                    "missing string discriminator `",
-                    "origin",
-                    "` and no tagless branch matched",
-                )))
-            }
-        }
-    }
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct OriginBlockInline {
-    pub identifier: serde_json::Value,
-    pub kind: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub origin: Option<serde_json::Value>,
-    #[serde(rename = "presentationGeneration")]
-    pub presentation_generation: serde_json::Value,
-    #[serde(rename = "sourceId")]
-    pub source_id: serde_json::Value,
-    #[serde(rename = "versionPresent")]
-    pub version_present: serde_json::Value,
-    /// Additional properties not explicitly defined in the schema
-    #[serde(flatten)]
-    pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct OriginBlock {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub origin: Option<serde_json::Value>,
-    #[serde(rename = "releaseId")]
-    pub release_id: serde_json::Value,
-    #[serde(rename = "versionRevisionId")]
-    pub version_revision_id: serde_json::Value,
-    /// Additional properties not explicitly defined in the schema
-    #[serde(flatten)]
-    pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
+    pub version_revision_id: Option<UUID>,
 }
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum PersonalReferenceOrigin {
@@ -4466,175 +3714,6 @@ impl AsRef<str> for PersonalReferenceOrigin {
         self.as_str()
     }
 }
-#[derive(Debug, Clone)]
-pub enum PersonalInputVariant {
-    Resource(PersonalInputVariantInline),
-    Search(PersonalInputVariant2),
-}
-impl serde::Serialize for PersonalInputVariant {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        match self {
-            Self::Resource(payload) => {
-                let mut value = serde_json::to_value(payload).map_err(serde::ser::Error::custom)?;
-                let object = value.as_object_mut().ok_or_else(|| {
-                    serde::ser::Error::custom(concat!(
-                        "discriminated union variant `",
-                        stringify!(Resource),
-                        "` did not serialize as an object",
-                    ))
-                })?;
-                match object.get("type") {
-                    Some(serde_json::Value::String(tag)) if matches!(tag.as_str(), "resource") => {}
-                    Some(serde_json::Value::String(tag)) => {
-                        return Err(serde::ser::Error::custom(format!(
-                            "discriminator `{}` value `{tag}` is not valid for variant `{}`",
-                            "type",
-                            stringify!(Resource),
-                        )));
-                    }
-                    Some(_) => {
-                        return Err(serde::ser::Error::custom(concat!(
-                            "discriminator `",
-                            "type",
-                            "` did not serialize as a string",
-                        )));
-                    }
-                    None => {
-                        object.insert(
-                            "type".to_string(),
-                            serde_json::Value::String("resource".to_string()),
-                        );
-                    }
-                }
-                value.serialize(serializer)
-            }
-            Self::Search(payload) => {
-                let mut value = serde_json::to_value(payload).map_err(serde::ser::Error::custom)?;
-                let object = value.as_object_mut().ok_or_else(|| {
-                    serde::ser::Error::custom(concat!(
-                        "discriminated union variant `",
-                        stringify!(Search),
-                        "` did not serialize as an object",
-                    ))
-                })?;
-                match object.get("type") {
-                    Some(serde_json::Value::String(tag)) if matches!(tag.as_str(), "search") => {}
-                    Some(serde_json::Value::String(tag)) => {
-                        return Err(serde::ser::Error::custom(format!(
-                            "discriminator `{}` value `{tag}` is not valid for variant `{}`",
-                            "type",
-                            stringify!(Search),
-                        )));
-                    }
-                    Some(_) => {
-                        return Err(serde::ser::Error::custom(concat!(
-                            "discriminator `",
-                            "type",
-                            "` did not serialize as a string",
-                        )));
-                    }
-                    None => {
-                        object.insert(
-                            "type".to_string(),
-                            serde_json::Value::String("search".to_string()),
-                        );
-                    }
-                }
-                value.serialize(serializer)
-            }
-        }
-    }
-}
-impl<'de> serde::Deserialize<'de> for PersonalInputVariant {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = serde_json::Value::deserialize(deserializer)?;
-        let discriminator = match value.get("type") {
-            Some(serde_json::Value::String(discriminator)) => Some(discriminator.as_str()),
-            Some(_) => {
-                return Err(serde::de::Error::custom(concat!(
-                    "non-string discriminator `",
-                    "type",
-                    "`",
-                )));
-            }
-            None => None,
-        };
-        match discriminator {
-            Some(discriminator) => match discriminator {
-                "resource" => {
-                    let primary_error =
-                        match serde_json::from_value::<PersonalInputVariantInline>(value.clone()) {
-                            Ok(payload) => return Ok(Self::Resource(payload)),
-                            Err(error) => error,
-                        };
-                    if let Ok(payload) =
-                        serde_json::from_value::<PersonalInputVariant2>(value.clone())
-                    {
-                        return Ok(Self::Search(payload));
-                    }
-                    Err(serde::de::Error::custom(primary_error))
-                }
-                "search" => {
-                    let primary_error =
-                        match serde_json::from_value::<PersonalInputVariant2>(value.clone()) {
-                            Ok(payload) => return Ok(Self::Search(payload)),
-                            Err(error) => error,
-                        };
-                    if let Ok(payload) =
-                        serde_json::from_value::<PersonalInputVariantInline>(value.clone())
-                    {
-                        return Ok(Self::Resource(payload));
-                    }
-                    Err(serde::de::Error::custom(primary_error))
-                }
-                other => Err(serde::de::Error::custom(format!(
-                    "unknown discriminator value `{other}` for `{}`",
-                    "type",
-                ))),
-            },
-            None => {
-                if let Ok(payload) =
-                    serde_json::from_value::<PersonalInputVariantInline>(value.clone())
-                {
-                    return Ok(Self::Resource(payload));
-                }
-                if let Ok(payload) = serde_json::from_value::<PersonalInputVariant2>(value.clone())
-                {
-                    return Ok(Self::Search(payload));
-                }
-                Err(serde::de::Error::custom(concat!(
-                    "missing string discriminator `",
-                    "type",
-                    "` and no tagless branch matched",
-                )))
-            }
-        }
-    }
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PersonalInputVariantInline {
-    pub reference: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r#type: Option<serde_json::Value>,
-    /// Additional properties not explicitly defined in the schema
-    #[serde(flatten)]
-    pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct PersonalInputVariant2 {
-    pub search: serde_json::Value,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub r#type: Option<serde_json::Value>,
-    /// Additional properties not explicitly defined in the schema
-    #[serde(flatten)]
-    pub additional_properties: std::collections::BTreeMap<String, serde_json::Value>,
-}
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum PersonalInputType {
     #[default]
@@ -4642,12 +3721,15 @@ pub enum PersonalInputType {
     Resource,
     #[serde(rename = "search")]
     Search,
+    #[serde(rename = "follow")]
+    Follow,
 }
 impl PersonalInputType {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Resource => "resource",
             Self::Search => "search",
+            Self::Follow => "follow",
         }
     }
 }
@@ -16356,6 +15438,7 @@ pub struct PermissionDecision {
     #[serde(rename = "catalogAllowed")]
     pub catalog_allowed: Vec<bool>,
 }
+pub type PersonalResolution = serde_json::Value;
 pub type PreviewSourceChange = serde_json::Value;
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

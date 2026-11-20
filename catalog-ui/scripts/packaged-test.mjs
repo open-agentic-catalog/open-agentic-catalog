@@ -65,6 +65,15 @@ import { publisherVerificationJourney } from "./publisher-verification-journey.m
 import { localPasswordJourney } from "./local-password-journey.mjs";
 import { manualLayout } from "./manual-layout.mjs";
 
+import { selectedEngine } from "./engine-qualification.mjs";
+import {
+  issueFixtureCertificate,
+  openEngineContext,
+  verifyInlineStylePolicy,
+  verifyIssuerTLS,
+} from "./engine-oidc.mjs";
+
+const engine = selectedEngine(process.argv.slice(3));
 const mode = process.argv[2];
 if (!["compose", "oidc"].includes(mode))
   throw new Error("Select compose or oidc");
@@ -73,16 +82,18 @@ const mcp = process.argv[3] === "--mcp";
 const publisherDNSOnly = process.argv[3] === "--publisher-dns";
 const localPasswords = process.argv[3] === "--local-passwords";
 if (
+  (engine && (mode !== "oidc" || !process.env.CATALOG_UI_ENGINE_OUTPUT)) ||
   (mcp && mode !== "oidc") ||
   (localPasswords && mode !== "oidc") ||
   (publisherDNSOnly && mode !== "compose") ||
   (process.argv[3] &&
+    !engine &&
     !coverage &&
     !mcp &&
     !publisherDNSOnly &&
     !localPasswords) ||
   process.argv.length >
-    (coverage || mcp || publisherDNSOnly || localPasswords ? 4 : 3)
+    (engine ? 5 : coverage || mcp || publisherDNSOnly || localPasswords ? 4 : 3)
 )
   throw new Error("Unexpected packaged test selection");
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -90,6 +101,7 @@ const candidates = loadCandidates(root, process.env, {
   coverage,
   mcp,
   publisherDNSOnly,
+  engine,
   localPasswords,
 });
 const coverageRoot = join(root, "output/coverage/e2e", mode);
@@ -407,6 +419,9 @@ async function ready(url, ca) {
 let phase = "setup";
 let mcpChecks = [];
 let mcpCleanup = false;
+let engineComplete = false;
+let engineImages;
+let observedEngine;
 let mcpBuild;
 let outcomes;
 let lastPage;
@@ -424,26 +439,29 @@ try {
     CATALOG_COMPOSE_HTTP_PORT: String(apiHostPort),
     CATALOG_UI_PORT: String(uiHostPort),
   });
-  await command([
-    "openssl",
-    "req",
-    "-x509",
-    "-newkey",
-    "rsa:2048",
-    "-nodes",
-    "-days",
-    "2",
-    "-keyout",
-    join(directory, "server-key.pem"),
-    "-out",
-    join(directory, "server.pem"),
-    "-subj",
-    "/CN=catalog-oidc",
-    "-addext",
-    "subjectAltName=DNS:catalog-oidc,DNS:catalog-mcp.test,IP:127.0.0.1",
-    "-addext",
-    "basicConstraints=critical,CA:TRUE",
-  ]);
+  if (engine)
+    await issueFixtureCertificate(privateDirectory, directory, command);
+  else
+    await command([
+      "openssl",
+      "req",
+      "-x509",
+      "-newkey",
+      "rsa:2048",
+      "-nodes",
+      "-days",
+      "2",
+      "-keyout",
+      join(directory, "server-key.pem"),
+      "-out",
+      join(directory, "server.pem"),
+      "-subj",
+      "/CN=catalog-oidc",
+      "-addext",
+      "subjectAltName=DNS:catalog-oidc,DNS:catalog-mcp.test,IP:127.0.0.1",
+      "-addext",
+      "basicConstraints=critical,CA:TRUE",
+    ]);
   // The private invocation directory is 0700. Container-readable leaves are
   // required for the non-root UI and external provider, not host-global trust.
   const key = await readFile(join(directory, "server-key.pem"));
@@ -767,6 +785,20 @@ try {
     });
     baseCompose.push("-f", join(directory, "coverage.json"));
   }
+  if (engine)
+    engineImages = (
+      await command([
+        "docker",
+        "image",
+        "inspect",
+        "--format",
+        "{{.Id}}",
+        image,
+        uiImage,
+      ])
+    )
+      .trim()
+      .split("\n");
   phase = "catalog-startup";
   if (mcp) {
     // Exercise the shipped Compose substitutions for both runtime roles.
@@ -1229,7 +1261,7 @@ try {
         "--no-proxy-server",
       ],
     });
-  if (mode === "oidc" && !mcp && !coverage) {
+  if (mode === "oidc" && !mcp && !coverage && !engine) {
     phase = "cli-network-readiness";
     await waitForStableNetwork({ interrupted: () => interrupted });
     phase = "cli-human-oidc";
@@ -1309,7 +1341,7 @@ try {
   }
   for (const basePath of mcp
     ? []
-    : publisherDNSOnly
+    : publisherDNSOnly || engine
       ? ["/browser"]
       : ["", "/browser"]) {
     phase = `${mode}-${basePath ? "subpath" : "root"}`;
@@ -1405,7 +1437,7 @@ try {
       throw new Error(
         "UI startup identity or selected logging settings differ from the image inputs",
       );
-    let context, page, collector;
+    let context, page, collector, providerFormAction;
     const ledger = networkObserver(origin, basePath);
     const providerLedger = issuer
       ? networkObserver(new URL(issuer).origin)
@@ -1424,14 +1456,26 @@ try {
       phase = `${mode}-network-readiness`;
       await waitForStableNetwork({ interrupted: () => interrupted });
       phase = browserPhase;
-      browser = await launchBrowser();
-      if (!browserObservationCalibrated) {
-        phase = `${mode}-browser-error-calibration`;
-        await calibrateBrowserErrors(browser);
-        browserObservationCalibrated = true;
+      if (engine) {
+        phase = engine + "-issuer-tls";
+        context = await openEngineContext(engine, privateDirectory, command);
+        browser = context.browser();
+        observedEngine = browser.browserType().name();
+        expect(observedEngine).toBe(engine);
+        await verifyIssuerTLS(context, issuer, engine);
+        phase = engine + "-style-policy";
+        await verifyInlineStylePolicy(context, origin + basePath + "/about");
         phase = browserPhase;
+      } else {
+        browser = await launchBrowser();
+        if (!browserObservationCalibrated) {
+          phase = `${mode}-browser-error-calibration`;
+          await calibrateBrowserErrors(browser);
+          browserObservationCalibrated = true;
+          phase = browserPhase;
+        }
+        context = await browser.newContext();
       }
-      context = await browser.newContext();
       jsErrors.observe(context, [
         origin,
         ...(issuer ? [new URL(issuer).origin] : []),
@@ -1463,8 +1507,20 @@ try {
       });
       context.on("requestfailed", (r) => {
         ledger.failure(r.method(), r.url(), r.failure()?.errorText);
-        providerLedger?.failure(r.method(), r.url(), r.failure()?.errorText);
         const category = r.failure()?.errorText;
+        // WebKit reports a successful cross-origin POST redirect as an
+        // interrupted frame load. Match only this one submitted issuer form.
+        // signInWithCallback independently requires the authenticated callback.
+        if (
+          engine === "webkit" &&
+          providerFormAction === r.url() &&
+          r.method() === "POST" &&
+          r.isNavigationRequest() &&
+          r.frame() === page.mainFrame() &&
+          category === "Frame load interrupted"
+        ) {
+          providerFormAction = undefined;
+        } else providerLedger?.failure(r.method(), r.url(), category);
         if (
           category !== "net::ERR_ABORTED" &&
           /^net::ERR_[A-Z_]{1,64}$/.test(category || "")
@@ -1472,7 +1528,35 @@ try {
           console.error(`Browser transport category: ${category}`);
       });
     };
+    const signInWithCallback = async () => {
+      const [callback] = await Promise.all([
+        page.waitForResponse(
+          (r) =>
+            r.request().method() === "GET" &&
+            r.url().startsWith(origin + basePath + "/auth/callback?"),
+        ),
+        signIn(),
+      ]);
+      providerFormAction = undefined;
+      expect([302, 303]).toContain(callback.status());
+    };
+    let savedNamespace, savedNamespaceURL, savedNamespaceRead;
     await openBrowser();
+    if (engine) {
+      phase = engine + "-oidc-login";
+      await page.goto(origin + basePath + "/catalog");
+      await signInWithCallback();
+      await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
+      await expect(page.locator("article.resource-card")).toHaveCount(3);
+      await savedWork(await sessionCookie());
+      await collector.finish();
+      await context.close();
+      await browser.close();
+      expect(outcomes.results()).toEqual([]);
+      expect(jsErrors.results()).toEqual([]);
+      engineComplete = true;
+      continue;
+    }
     if (publisherDNSOnly) {
       await collector.finish();
       await context.close();
@@ -1903,7 +1987,7 @@ try {
     expect(missingManual).toBe(404);
     expect(manualErrors).toEqual([]);
     await manual.close();
-    const signIn = async (username = "browser-human") => {
+    async function signIn(username = "browser-human") {
       const loginPhase = phase;
       phase = loginPhase + "-start";
       await (
@@ -1932,14 +2016,24 @@ try {
           expect(pending[0].secure && pending[0].httpOnly).toBe(true);
           phase = loginPhase + "-credentials";
           await page.getByLabel("Username or email").fill(username);
-          await page.getByLabel("Password", { exact: true }).fill(password);
+          const passwordInput = page.getByLabel("Password", { exact: true });
+          if (engine === "webkit") {
+            const action = new URL(
+              await passwordInput.evaluate((input) => input.form.action),
+            );
+            expect(action.origin + action.pathname).toBe(
+              issuer + "/login-actions/authenticate",
+            );
+            providerFormAction = action.href;
+          }
+          await passwordInput.fill(password);
           await page
             .getByRole("button", { name: "Sign In", exact: true })
             .click();
         }
       }
       phase = loginPhase;
-    };
+    }
     phase += "-public-help";
     await page.goto(origin + basePath + "/about");
     await expect(
@@ -2448,17 +2542,21 @@ try {
       ).toHaveText(expectedBuild.version);
     await page.goto(origin + basePath + "/catalog");
     await expect(page.locator("article.resource-card")).toHaveCount(3);
-    const session = (await context.cookies(origin + basePath + "/")).find(
-      (c) => c.name === "catalog-ui-packaged",
-    );
-    expect(
-      !!session &&
-        session.httpOnly &&
-        session.secure &&
-        session.sameSite === "Lax" &&
-        session.path === basePath + "/",
-    ).toBe(true);
-    expect(session.value.length).toBeLessThanOrEqual(3600);
+    async function sessionCookie() {
+      const session = (await context.cookies(origin + basePath + "/")).find(
+        (c) => c.name === "catalog-ui-packaged",
+      );
+      expect(
+        !!session &&
+          session.httpOnly &&
+          session.secure &&
+          session.sameSite === "Lax" &&
+          session.path === basePath + "/",
+      ).toBe(true);
+      expect(session.value.length).toBeLessThanOrEqual(3600);
+      return session;
+    }
+    const session = await sessionCookie();
     console.log(`Session cookie: ${session.value.length} bytes (${phase})`);
     await page.goto(origin + basePath + "/access");
     await expect(
@@ -2466,80 +2564,103 @@ try {
         .getByRole("definition")
         .filter({ hasText: mode === "oidc" ? subject : "local-reader" }),
     ).toBeVisible();
-    let savedNamespace, savedNamespaceURL, savedNamespaceRead;
-    if (mode === "oidc") {
-      // Persist work through the actual human-authorized UI and PostgreSQL,
-      // then return to that exact record after losing the local UI session.
-      phase = `oidc-${basePath ? "subpath" : "root"}-saved-work`;
-      const slug = basePath ? "browser-subpath" : "browser-root";
-      await page.goto(origin + basePath + "/namespaces/new");
-      await page.getByLabel("Display name", { exact: true }).fill(slug);
-      await page.getByLabel("Slug", { exact: true }).fill(slug);
-      await page
-        .getByRole("button", { name: "Create namespace", exact: true })
-        .click();
-      await page
-        .getByRole("dialog")
-        .getByRole("button", { name: "Confirm", exact: true })
-        .click();
-      await expect(page.getByRole("status")).toContainText(
-        `Created namespace ${slug}`,
-      );
-      await page
-        .getByRole("link", { name: "Back to namespaces", exact: true })
-        .click();
-      await page.getByRole("link", { name: slug, exact: true }).click();
-      savedNamespace = slug;
-      savedNamespaceURL = page.url();
-      const namespaceId = new URL(savedNamespaceURL).pathname.split("/").pop();
-      savedNamespaceRead = {
-        route: basePath + "/_catalog/api/v1/namespaces/" + namespaceId,
-        id: namespaceId,
-        slug,
-        tenant,
-      };
-      await page.reload();
-      await expect(
-        page.getByLabel("Display name", { exact: true }),
-      ).toHaveValue(slug);
-      expect(
-        await page.evaluate(namespaceReadControl, savedNamespaceRead),
-      ).toEqual({ status: 200, retained: true, forbidden: false });
+    async function savedWork(session) {
+      if (mode === "oidc") {
+        // Persist work through the actual human-authorized UI and PostgreSQL,
+        // then return to that exact record after losing the local UI session.
+        phase = `oidc-${basePath ? "subpath" : "root"}-saved-work`;
+        const slug = basePath ? "browser-subpath" : "browser-root";
+        await page.goto(origin + basePath + "/namespaces/new");
+        await page.getByLabel("Display name", { exact: true }).fill(slug);
+        await page.getByLabel("Slug", { exact: true }).fill(slug);
+        await page
+          .getByRole("button", { name: "Create namespace", exact: true })
+          .click();
+        await page
+          .getByRole("dialog")
+          .getByRole("button", { name: "Confirm", exact: true })
+          .click();
+        await expect(page.getByRole("status")).toContainText(
+          `Created namespace ${slug}`,
+        );
+        await page
+          .getByRole("link", { name: "Back to namespaces", exact: true })
+          .click();
+        await page.getByRole("link", { name: slug, exact: true }).click();
+        savedNamespace = slug;
+        savedNamespaceURL = page.url();
+        const namespaceId = new URL(savedNamespaceURL).pathname
+          .split("/")
+          .pop();
+        savedNamespaceRead = {
+          route: basePath + "/_catalog/api/v1/namespaces/" + namespaceId,
+          id: namespaceId,
+          slug,
+          tenant,
+        };
+        await page.reload();
+        await expect(
+          page.getByLabel("Display name", { exact: true }),
+        ).toHaveValue(slug);
+        expect(
+          await page.evaluate(namespaceReadControl, savedNamespaceRead),
+        ).toEqual({ status: 200, retained: true, forbidden: false });
+      }
+      if (mode === "oidc" && basePath) {
+        phase = "oidc-cookie-loss";
+        const providerCookies = (await context.cookies()).filter(
+          (cookie) => cookie.name !== "catalog-ui-packaged",
+        );
+        await context.clearCookies({
+          name: "catalog-ui-packaged",
+          domain: session.domain,
+          path: session.path,
+        });
+        const remaining = await context.cookies();
+        expect(
+          providerCookies.some((c) => c.domain === new URL(issuer).hostname),
+        ).toBe(true);
+        expect(remaining.length).toBe(providerCookies.length);
+        expect(
+          providerCookies.every((c) =>
+            remaining.some(
+              (r) =>
+                r.name === c.name &&
+                r.domain === c.domain &&
+                r.path === c.path &&
+                r.value === c.value,
+            ),
+          ),
+        ).toBe(true);
+        const route = savedNamespaceRead.route;
+        ledger.expectFailure("GET", route.slice(basePath.length), 401);
+        const [denied] = await Promise.all([
+          page.waitForResponse(
+            (r) => r.request().method() === "GET" && r.url() === origin + route,
+          ),
+          page
+            .getByRole("button", { name: "Reload namespace", exact: true })
+            .click(),
+        ]);
+        expect(denied.status()).toBe(401);
+        await expect(
+          page.getByLabel("Display name", { exact: true }),
+        ).toHaveCount(0);
+        await expect(page.getByTitle("Account", { exact: true })).toHaveCount(
+          0,
+        );
+        await signInWithCallback();
+        await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
+        await page.goto(savedNamespaceURL);
+        await expect(
+          page.getByLabel("Display name", { exact: true }),
+        ).toHaveValue(savedNamespace);
+        expect(
+          await page.evaluate(namespaceReadControl, savedNamespaceRead),
+        ).toEqual({ status: 200, retained: true, forbidden: false });
+      }
     }
-    if (mode === "oidc" && basePath) {
-      phase = "oidc-cookie-loss";
-      const providerCookies = (await context.cookies()).filter(
-        (cookie) => cookie.name !== "catalog-ui-packaged",
-      );
-      await context.clearCookies({
-        name: "catalog-ui-packaged",
-        domain: session.domain,
-        path: session.path,
-      });
-      expect(await context.cookies()).toEqual(providerCookies);
-      const route =
-        basePath +
-        "/_catalog/api/v1/namespaces/" +
-        new URL(savedNamespaceURL).pathname.split("/").pop();
-      ledger.expectFailure("GET", route.slice(basePath.length), 401);
-      const [denied] = await Promise.all([
-        page.waitForResponse((r) => new URL(r.url()).pathname === route),
-        page
-          .getByRole("button", { name: "Reload namespace", exact: true })
-          .click(),
-      ]);
-      expect(denied.status()).toBe(401);
-      await expect(
-        page.getByLabel("Display name", { exact: true }),
-      ).toHaveCount(0);
-      await expect(page.getByTitle("Account", { exact: true })).toHaveCount(0);
-      await signIn();
-      await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
-      await page.goto(savedNamespaceURL);
-      await expect(
-        page.getByLabel("Display name", { exact: true }),
-      ).toHaveValue(savedNamespace);
-    }
+    await savedWork(session);
     await page.goto(origin + basePath + "/troubleshooting");
     await page
       .getByRole("button", { name: "Preview diagnostic details", exact: true })
@@ -3835,9 +3956,11 @@ try {
   console.log(
     mcp
       ? `Packaged MCP OAuth/TLS passed (${mcpChecks.length} checks)`
-      : publisherDNSOnly
-        ? "Packaged Publisher DNS workflow passed"
-        : `Packaged UI ${mode} passed (root and subpath)`,
+      : engine
+        ? "Packaged " + engine + " OIDC session recovery passed"
+        : publisherDNSOnly
+          ? "Packaged Publisher DNS workflow passed"
+          : `Packaged UI ${mode} passed (root and subpath)`,
   );
 } catch (error) {
   if (!readinessFailureRecorded && phase === "compose-ui-restart")
@@ -3990,6 +4113,23 @@ if (coverage) {
       process.exitCode = 1;
     }
   }
+}
+
+if (engine) {
+  const status =
+    engineComplete && mcpCleanup && !process.exitCode ? "passed" : "failed";
+  if (status !== "passed") process.exitCode = 1;
+  await writeFile(
+    join(process.env.CATALOG_UI_ENGINE_OUTPUT, "oidc.json"),
+    JSON.stringify({
+      status,
+      phase,
+      engine: observedEngine,
+      browser: coverageBrowser,
+      images: engineImages,
+      cleanup: mcpCleanup ? "passed" : "failed",
+    }),
+  );
 }
 
 if (mcp) {

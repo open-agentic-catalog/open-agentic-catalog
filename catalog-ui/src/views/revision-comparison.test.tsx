@@ -528,7 +528,7 @@ it.each([false, true])(
   async (oversized) => {
     const f = fixture("version");
     const text = oversized
-      ? "x".repeat(2 * 1024 * 1024 + 1)
+      ? "é".repeat(1024 * 1024 + 1)
       : '{ "n":9007199254740993123456789, "literal":"<script>read only</script>" }';
     const bytes = new TextEncoder().encode(text);
     const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
@@ -556,7 +556,13 @@ it.each([false, true])(
             ...body,
             revision: {
               ...body.revision,
-              representations: [{ ...representation, artifactId: id }],
+              representations: [
+                {
+                  ...representation,
+                  artifactId: id,
+                  contentDigest: "sha256:" + id,
+                },
+              ],
             },
           },
         };
@@ -768,7 +774,7 @@ it("treats object-key order as equal while bounding nested metadata", () => {
   expect(() => metadataChanges({}, { deep })).toThrow("depth");
 });
 
-it.each([false, true])(
+it.each(["local", "namespace", "tenant"])(
   "compares only explicitly requested Listing-linked native revisions, refusing a foreign context: %s",
   async (foreign) => {
     const f = fixture();
@@ -777,9 +783,11 @@ it.each([false, true])(
       if (p === "/api/v1/version-revisions/{revisionId}") {
         const opts = o as { params: { path: { revisionId: string } } };
         return reply({
-          namespaceId: foreign ? "foreign" : "ns-1",
+          namespaceId: foreign === "namespace" ? "foreign" : "ns-1",
           revision: {
             ...versionRevision,
+            tenantId:
+              foreign === "tenant" ? "other-tenant" : versionRevision.tenantId,
             id: opts.params.path.revisionId,
             representations: [
               { ...representation, data: { name: "Retained metadata" } },
@@ -802,7 +810,7 @@ it.each([false, true])(
       ),
     ).toHaveLength(0);
     click("Compare linked Version revisions");
-    if (foreign) {
+    if (foreign !== "local") {
       await screen.findByRole("alert");
       expect(screen.queryByText("Before representations")).toBeNull();
     } else {
@@ -819,3 +827,333 @@ it.each([false, true])(
     ).toBeNull();
   },
 );
+
+const serverCard = {
+  remotes: [
+    {
+      type: "sse",
+      url: "https://declared.example/stream",
+      supportedProtocolVersions: ["one"],
+    },
+  ],
+};
+const serverBytes = new TextEncoder().encode(JSON.stringify(serverCard));
+async function mixedPair(
+  artifactSide: "before" | "after" | "both",
+  override: Record<string, unknown> = {},
+) {
+  const f = await retainedFixture(serverBytes);
+  const original = f.get.getMockImplementation()!;
+  f.get.mockImplementation(async (path, options) => {
+    const response = (await original(path, options)) as ReturnType<
+      typeof reply
+    >;
+    if (path !== "/api/v1/version-revisions/{revisionId}") return response;
+    const body = response.data as { revision: typeof versionRevision };
+    const selected = body.revision.id;
+    const rep = body.revision.representations[0]!;
+    const record =
+      artifactSide === "both" || artifactSide === selected
+        ? rep
+        : {
+            ...representation,
+            id: "inline-rep",
+            data: {
+              remotes: [
+                {
+                  ...serverCard.remotes[0],
+                  supportedProtocolVersions: ["two"],
+                },
+              ],
+            },
+            contentDigest: "sha256:" + "a".repeat(64),
+          };
+    return {
+      ...response,
+      data: {
+        ...body,
+        revision: {
+          ...body.revision,
+          representations: [
+            {
+              ...record,
+              mediaType: "application/mcp-server-card+json",
+              profileId: "mcp-server-card-v1-experimental-526201b",
+              ...(selected === "after" && override),
+            },
+          ],
+        },
+      },
+    };
+  });
+  return f;
+}
+it.each(["before", "after", "both"] as const)(
+  "reads %s retained side(s) and preserves each selected source",
+  async (side) => {
+    const f = await mixedPair(side);
+    render(<RevisionComparison {...f.props} />);
+    await select();
+    expect(
+      screen.queryByLabelText("Declared capability and connection changes"),
+    ).toBeNull();
+    click("Inspect selected documents");
+    const summary = await screen.findByRole("region", {
+      name: "Declared capability and connection changes",
+    });
+    if (side === "both") {
+      expect(summary.textContent).toContain(
+        "No changes in the selected declarations.",
+      );
+      expect(
+        screen.getByText("Exact retained documents are identical."),
+      ).toBeTruthy();
+    } else {
+      expect(summary.textContent).toContain(
+        side === "before"
+          ? 'Removed: ["one"]Added: ["two"]'
+          : 'Removed: ["two"]Added: ["one"]',
+      );
+      expect(
+        screen.queryByRole("region", { name: "Document changes" }),
+      ).toBeNull();
+      expect(
+        screen.getByText(/Lossless document comparison is unavailable/),
+      ).toBeTruthy();
+      expect(screen.getByText("inline-rep", { selector: "code" })).toBeTruthy();
+    }
+    expect(
+      f.get.mock.calls.filter(([p]) => String(p).includes("/artifacts/")),
+    ).toHaveLength(side === "both" ? 2 : 1);
+  },
+);
+it("refuses bytes that verify against their own artifact but disagree with the selected digest", async () => {
+  const f = await mixedPair("both", {
+    contentDigest: "sha256:" + "b".repeat(64),
+  });
+  render(<RevisionComparison {...f.props} />);
+  await select();
+  click("Inspect selected documents");
+  expect((await screen.findByRole("alert")).textContent).toContain(
+    "Document integrity could not be verified",
+  );
+  expect(
+    screen.queryByLabelText("Declared capability and connection changes"),
+  ).toBeNull();
+  expect(screen.queryByRole("region", { name: "Document changes" })).toBeNull();
+  expect(
+    screen.queryByText("Exact retained documents are identical."),
+  ).toBeNull();
+});
+it.each([
+  { validationState: "invalid" },
+  { role: "metadata" },
+  { mediaType: "application/vnd.mcp.server+json" },
+  { profileId: "mcp-registry-server-1.8.1-f52dc85" },
+])(
+  "retains exact comparison when summary evidence is ineligible: %j",
+  async (override) => {
+    const f = await mixedPair("both", override);
+    render(<RevisionComparison {...f.props} />);
+    await select();
+    click("Inspect selected documents");
+    expect(
+      (
+        await screen.findByLabelText(
+          "Declared capability and connection changes",
+        )
+      ).textContent,
+    ).toContain("Summary unavailable");
+    expect(
+      screen.getByText("Exact retained documents are identical."),
+    ).toBeTruthy();
+  },
+);
+it("preserves the authorized inline document when the opposite artifact exceeds the comparison limit", async () => {
+  const f = await mixedPair("after", { size: 2097153 });
+  render(<RevisionComparison {...f.props} />);
+  await select();
+  click("Inspect selected documents");
+  expect((await screen.findByRole("alert")).textContent).toContain("2 MiB");
+  // These two declarations are distinct from all representation metadata.
+  const documents = screen.getAllByRole("group", { name: "JSON document" });
+  expect(documents.some((d) => d.textContent?.includes('"two"'))).toBe(true);
+  expect(documents.some((d) => d.textContent?.includes('"one"'))).toBe(false);
+  expect(
+    f.get.mock.calls.filter(([p]) => String(p).includes("/artifacts/")),
+  ).toHaveLength(0);
+  expect(
+    screen.queryByText("No changes in the selected declarations."),
+  ).toBeNull();
+});
+
+it("keeps a missing, malformed or oversized inline card out of the summary", async () => {
+  for (const override of [
+    { data: undefined },
+    { data: "not an inline object" },
+    { contentDigest: "missing" },
+    { size: 2097153 },
+  ]) {
+    const f = await mixedPair("before", override);
+    const view = render(<RevisionComparison {...f.props} />);
+    await select();
+    click("Inspect selected documents");
+    if ("size" in override) {
+      expect((await screen.findByRole("alert")).textContent).toContain("2 MiB");
+      expect(
+        f.get.mock.calls.filter(([p]) => String(p).includes("/artifacts/")),
+      ).toHaveLength(0);
+    } else
+      expect(
+        (
+          await screen.findByLabelText(
+            "Declared capability and connection changes",
+          )
+        ).textContent,
+      ).toContain("Summary unavailable");
+    view.unmount();
+  }
+});
+it("discards a pending hash on a private card when the session changes", async () => {
+  const f = await mixedPair("after");
+  const view = render(<RevisionComparison {...f.props} />);
+  await select();
+  const correctDigest = await crypto.subtle.digest("SHA-256", serverBytes);
+  const hash = deferred<ArrayBuffer>();
+  const digest = vi
+    .spyOn(crypto.subtle, "digest")
+    .mockReturnValue(hash.promise);
+  click("Inspect selected documents");
+  await waitFor(() => expect(digest).toHaveBeenCalledTimes(1));
+  view.rerender(
+    <RevisionComparison
+      {...f.props}
+      access={{ ...administrator, subject: "other", ...testAccess([]) }}
+    />,
+  );
+  await act(async () => hash.resolve(correctDigest));
+  expect(
+    screen.queryByLabelText("Declared capability and connection changes"),
+  ).toBeNull();
+  expect(
+    screen.queryByText("No changes in the selected declarations."),
+  ).toBeNull();
+  expect(f.props.onFailure).not.toHaveBeenCalled();
+});
+it("refuses a submitted Listing that names a different native revision", async () => {
+  const f = fixture("listing");
+  render(
+    <RevisionComparison
+      {...f.props}
+      fixedAfter="after"
+      submittedVersionRevisionId="different"
+    />,
+  );
+  click("Choose revisions to compare");
+  await screen.findByRole("option", { name: "Revision 1 / before" });
+  choose("Before revision", "before");
+  click("Compare selected revisions");
+  await screen.findByRole("alert");
+  expect(screen.queryByLabelText("Compared revisions")).toBeNull();
+  expect(
+    f.get.mock.calls.some(([p]) => String(p).includes("/version-revisions/")),
+  ).toBe(false);
+});
+
+it("renders removed and added Agent declarations separately, preserving literal field values", async () => {
+  const f = fixture("version");
+  const original = f.get.getMockImplementation()!;
+  f.get.mockImplementation(async (path, options) => {
+    const response = (await original(path, options)) as ReturnType<
+      typeof reply
+    >;
+    if (path !== "/api/v1/version-revisions/{revisionId}") return response;
+    const body = response.data as { revision: typeof versionRevision };
+    const before = body.revision.id === "before";
+    return {
+      ...response,
+      data: {
+        ...body,
+        revision: {
+          ...body.revision,
+          representations: [
+            {
+              ...representation,
+              mediaType: "application/a2a-agent-card+json",
+              profileId: "a2a-agent-card-1.0.1-3303592",
+              contentDigest: "sha256:" + (before ? "b" : "a").repeat(64),
+              data: {
+                skills: [{ id: before ? "read<orders>" : "read<returns>" }],
+                supportedInterfaces: [
+                  {
+                    url: "https://agent.example",
+                    protocolBinding: "JSONRPC",
+                    protocolVersion: "1.0",
+                  },
+                ],
+                defaultInputModes: ["text/plain"],
+                defaultOutputModes: ["text/plain"],
+                capabilities: before ? {} : { streaming: false },
+              },
+            },
+          ],
+        },
+      },
+    };
+  });
+  render(<RevisionComparison {...f.props} />);
+  await select();
+  click("Inspect selected documents");
+  const skills = await screen.findByRole("region", { name: "Skills" });
+  expect(skills.textContent).toContain(
+    'Removed skills[id="read<orders>"]Before: "read<orders>"After: Not declared',
+  );
+  expect(skills.textContent).toContain(
+    'Added skills[id="read<returns>"]Before: Not declaredAfter: "read<returns>"',
+  );
+  const caps = screen.getByRole("region", { name: "Capabilities" });
+  expect(caps.textContent).toContain(
+    "capabilities.streamingBefore: Not declaredAfter: false",
+  );
+  expect(skills.querySelector("orders,returns,a")).toBeNull();
+});
+it("shows occurrence deltas without choosing which duplicate remote was changed", async () => {
+  const remote = serverCard.remotes[0]!;
+  const f = await mixedPair("before", {
+    data: {
+      remotes: [
+        { ...remote, url: "https://other.example" },
+        { ...remote, url: "https://other.example" },
+      ],
+    },
+  });
+  render(<RevisionComparison {...f.props} />);
+  await select();
+  click("Inspect selected documents");
+  const section = await screen.findByRole("region", {
+    name: "Remote connections",
+  });
+  expect(section.textContent).toContain("1 occurrence removed");
+  expect(section.textContent).toContain("2 occurrences added");
+});
+
+it("can inspect the retained side when a mixed pair has no supported summary", async () => {
+  const f = await mixedPair("before", { profileId: "unrecognized" });
+  render(<RevisionComparison {...f.props} />);
+  await select();
+  click("Inspect selected documents");
+  expect(
+    (await screen.findByLabelText("Declared capability and connection changes"))
+      .textContent,
+  ).toContain("Summary unavailable");
+  const before = screen.getByRole("heading", {
+    name: "Before document",
+  }).parentElement!;
+  expect(
+    within(before).getByRole("group", { name: "JSON document" }).textContent,
+  ).toBe(JSON.stringify(serverCard));
+  expect(screen.queryByRole("region", { name: "Document changes" })).toBeNull();
+  expect(
+    f.get.mock.calls.filter(([p]) => String(p).includes("/artifacts/")),
+  ).toHaveLength(1);
+});

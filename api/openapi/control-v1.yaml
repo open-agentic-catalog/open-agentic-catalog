@@ -494,11 +494,13 @@ paths:
       tags:
         - Personal workspace
       operationId: listPersonalItems
-      summary: List my saved resources and searches
+      summary: List my release bookmarks, followed Listings and saved searches
       description: 'Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators
         cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope
-        when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never
-        makes a live request or substitutes a different release/source/generation.'
+        when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks
+        resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition
+        revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or
+        contact a source.'
       security:
         - bearerAuth: []
       responses:
@@ -521,6 +523,7 @@ paths:
             enum:
               - resource
               - search
+              - follow
         - name: label
           in: query
           description: 'Optional literal case-sensitive match of the complete saved label. Surrounding spaces and Unicode spelling
@@ -547,17 +550,32 @@ paths:
       tags:
         - Personal workspace
       operationId: createPersonalItem
-      summary: Save a resource or named search
+      summary: Save a resource, named search or Listing follow
       description: 'Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators
         cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope
         when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also
         require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items
-        per owner, labels up to 120 characters, bodies up to 16 KiB.'
+        per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to
+        acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the
+        existing label, revision and acknowledgement.'
       security:
         - bearerAuth: []
       responses:
         '201':
           description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonalReceipt'
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            Idempotency-Replayed:
+              $ref: '#/components/headers/IdempotencyReplayed'
+            ETag:
+              $ref: '#/components/headers/ETag'
+        '200':
+          description: Follow already exists for this owner and Listing
           content:
             application/json:
               schema:
@@ -587,8 +605,10 @@ paths:
       summary: Read my saved item
       description: 'Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators
         cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope
-        when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never
-        makes a live request or substitutes a different release/source/generation.'
+        when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks
+        resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition
+        revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or
+        contact a source.'
       security:
         - bearerAuth: []
       responses:
@@ -620,7 +640,8 @@ paths:
         cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope
         when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also
         require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items
-        per owner, labels up to 120 characters, bodies up to 16 KiB.'
+        per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact
+        current release or omit it to rename the preference. A stale observation fails with 412.'
       security:
         - bearerAuth: []
       responses:
@@ -694,11 +715,13 @@ paths:
       tags:
         - Personal workspace
       operationId: resolvePersonalItem
-      summary: Resolve an exact saved resource without live discovery
+      summary: Check a bookmark or the current release of a followed local Listing
       description: 'Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators
         cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope
-        when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never
-        makes a live request or substitutes a different release/source/generation.'
+        when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks
+        resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition
+        revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or
+        contact a source.'
       security:
         - bearerAuth: []
       responses:
@@ -3669,6 +3692,31 @@ paths:
       description: Returns a visible release binding a listing revision to a version revision, including its lifecycle state and ETag.
       responses:
         '200': {$ref: '#/components/responses/ListingRelease'}
+        default: {$ref: '#/components/responses/Problem'}
+  /api/v1/listing-releases/{releaseId}/relationships:
+    parameters: [{$ref: '#/components/parameters/ReleaseId'}]
+    get:
+      tags: [Catalog discovery]
+      operationId: listReleaseRelationships
+      summary: Inspect declared relationships of a local release
+      description: >-
+        Outgoing and incoming views require a current published or deprecated release. Both ends
+        require independently granted resource.read. Outgoing declarations remain visible when
+        their exact target has no readable current match. Incoming rows name their current source.
+        The dependencies view additionally requires resource.read_history on the selected release,
+        which may be historical. It returns only current depends_on declarations naming its exact
+        version or omitting a version. Results are ordered by source release UUID and declaration
+        order. A changed Catalog generation or authorization invalidates continuation.
+      parameters:
+        - {name: view, in: query, required: true, description: Direction or version-specific withdrawal impact., schema: {type: string, enum: [outgoing, incoming, dependencies]}}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Currently readable declarations. An empty page reveals no count of inaccessible releases.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReleaseRelationshipPage'}
         default: {$ref: '#/components/responses/Problem'}
   /api/v1/listing-releases/{releaseId}/withdrawal-preview:
     parameters: [{$ref: '#/components/parameters/ReleaseId'}]
@@ -7089,42 +7137,44 @@ components:
         version:
           type: string
           maxLength: 128
-      oneOf:
-        - properties:
-            origin:
-              const: local
-          required:
-            - releaseId
-            - versionRevisionId
-          not:
-            anyOf:
-              - required:
-                  - sourceId
-              - required:
-                  - presentationGeneration
-              - required:
-                  - identifier
-              - required:
-                  - versionPresent
-              - required:
-                  - version
-              - required:
-                  - kind
-        - properties:
-            origin:
-              const: foreign
-          required:
-            - sourceId
-            - presentationGeneration
-            - identifier
-            - versionPresent
-            - kind
-          not:
-            anyOf:
-              - required:
-                  - releaseId
-              - required:
-                  - versionRevisionId
+      allOf:
+        - if:
+            properties:
+              origin: {const: local}
+          then:
+            required:
+              - releaseId
+              - versionRevisionId
+            not:
+              anyOf:
+                - required:
+                    - sourceId
+                - required:
+                    - presentationGeneration
+                - required:
+                    - identifier
+                - required:
+                    - versionPresent
+                - required:
+                    - version
+                - required:
+                    - kind
+        - if:
+            properties:
+              origin: {const: foreign}
+          then:
+            required:
+              - sourceId
+              - presentationGeneration
+              - identifier
+              - versionPresent
+              - kind
+            not:
+              anyOf:
+                - required:
+                    - releaseId
+                - required:
+                    - versionRevisionId
     PersonalCriteria:
       type: object
       additionalProperties: false
@@ -7283,6 +7333,17 @@ components:
           $ref: '#/components/schemas/Visibility'
       description: Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent
         apply to the later explicit Search.
+    ReleaseObservation:
+      type: object
+      additionalProperties: false
+      required: [releaseId, revision]
+      properties:
+        releaseId:
+          $ref: '#/components/schemas/UUID'
+        revision:
+          type: integer
+          format: int64
+          minimum: 1
     PersonalInput:
       type: object
       additionalProperties: false
@@ -7295,32 +7356,51 @@ components:
           enum:
             - resource
             - search
+            - follow
         label:
           type: string
           minLength: 1
           maxLength: 120
           pattern: '^[^\x00-\x1F\x7F-\x9F]*$'
+        listingId:
+          $ref: '#/components/schemas/UUID'
         reference:
           $ref: '#/components/schemas/PersonalReference'
         search:
           $ref: '#/components/schemas/PersonalCriteria'
-      oneOf:
-        - properties:
-            type:
-              const: resource
-          required:
-            - reference
-          not:
-            required:
-              - search
-        - properties:
-            type:
-              const: search
-          required:
-            - search
-          not:
-            required:
-              - reference
+        observed:
+          description: Exact current release shown to the human. Omit on restore or rename.
+          $ref: '#/components/schemas/ReleaseObservation'
+      allOf:
+        - if:
+            properties:
+              type: {const: resource}
+          then:
+            required: [reference]
+            not:
+              anyOf:
+                - required: [search]
+                - required: [listingId]
+                - required: [observed]
+        - if:
+            properties:
+              type: {const: search}
+          then:
+            required: [search]
+            not:
+              anyOf:
+                - required: [reference]
+                - required: [listingId]
+                - required: [observed]
+        - if:
+            properties:
+              type: {const: follow}
+          then:
+            required: [listingId]
+            not:
+              anyOf:
+                - required: [reference]
+                - required: [search]
     PersonalItem:
       type: object
       additionalProperties: false
@@ -7339,11 +7419,14 @@ components:
           enum:
             - resource
             - search
+            - follow
         label:
           type: string
           minLength: 1
           maxLength: 120
           pattern: ^[^\x00-\x1F\x7F-\x9F]*$
+        listingId:
+          $ref: '#/components/schemas/UUID'
         reference:
           $ref: '#/components/schemas/PersonalReference'
         search:
@@ -7357,23 +7440,34 @@ components:
         updatedAt:
           type: string
           format: date-time
-      oneOf:
-        - properties:
-            type:
-              const: resource
-          required:
-            - reference
-          not:
-            required:
-              - search
-        - properties:
-            type:
-              const: search
-          required:
-            - search
-          not:
-            required:
-              - reference
+      allOf:
+        - if:
+            properties:
+              type: {const: resource}
+          then:
+            required: [reference]
+            not:
+              anyOf:
+                - required: [search]
+                - required: [listingId]
+        - if:
+            properties:
+              type: {const: search}
+          then:
+            required: [search]
+            not:
+              anyOf:
+                - required: [reference]
+                - required: [listingId]
+        - if:
+            properties:
+              type: {const: follow}
+          then:
+            required: [listingId]
+            not:
+              anyOf:
+                - required: [reference]
+                - required: [search]
     PersonalReceipt:
       type: object
       additionalProperties: false
@@ -7415,38 +7509,40 @@ components:
           $ref: '#/components/schemas/PersonalReference'
         indexed:
           $ref: '#/components/schemas/CatalogSearchResult'
-      oneOf:
-        - properties:
-            status:
-              const: unavailable
-          not:
-            anyOf:
-              - required:
-                  - reference
-              - required:
-                  - indexed
-        - properties:
-            status:
-              const: available
-            reference:
-              properties:
-                origin:
-                  const: local
-          required:
-            - reference
-          not:
-            required:
-              - indexed
-        - properties:
-            status:
-              const: available
-            reference:
-              properties:
-                origin:
-                  const: foreign
-          required:
-            - reference
-            - indexed
+        current:
+          $ref: '#/components/schemas/ReleaseObservation'
+        change:
+          type: string
+          enum: [changed, unchanged, unacknowledged]
+      allOf:
+        - if:
+            properties:
+              status: {const: unavailable}
+          then:
+            maxProperties: 1
+          else:
+            if:
+              anyOf:
+                - required: [current]
+                - required: [change]
+            then:
+              required: [current, change]
+              not:
+                anyOf:
+                  - required: [reference]
+                  - required: [indexed]
+            else:
+              required: [reference]
+              if:
+                properties:
+                  reference:
+                    properties:
+                      origin: {const: local}
+              then:
+                not:
+                  required: [indexed]
+              else:
+                required: [indexed]
     ValidationMaintenanceItem:
       type: object
       additionalProperties: false
@@ -11243,6 +11339,31 @@ components:
         type: {type: string, enum: [depends_on, recommended_with, supersedes, bundled_with]}
         targetIdentifier: {type: string, minLength: 1, maxLength: 512}
         targetVersion: {type: string, minLength: 1, maxLength: 128}
+    RelatedRelease:
+      type: object
+      additionalProperties: false
+      required: [releaseId, listingRevisionId, displayName, version]
+      properties:
+        releaseId: {$ref: '#/components/schemas/UUID'}
+        listingRevisionId: {$ref: '#/components/schemas/UUID'}
+        displayName: {type: string, minLength: 1, maxLength: 160}
+        version: {type: string, minLength: 1, maxLength: 128}
+    ReleasedRelationship:
+      type: object
+      additionalProperties: false
+      required: [declaration]
+      properties:
+        declaration: {$ref: '#/components/schemas/Relationship'}
+        related:
+          description: Current source for incoming and dependencies. Current target for outgoing, omitted when no readable release matches.
+          allOf: [{$ref: '#/components/schemas/RelatedRelease'}]
+    ReleaseRelationshipPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ReleasedRelationship'}}
+        nextCursor: {type: string, minLength: 1, maxLength: 2048}
     PublishListing:
       type: object
       additionalProperties: false

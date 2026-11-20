@@ -54,7 +54,7 @@ See the [deployment guide](../../../documentation/src/content/docs/operations/de
 
 For a fresh installation, the chart's pre-install Job creates the Catalog schema and configures runtime database permissions automatically. Supply the database, roles, Secrets and configuration listed above. No separate migration command or runtime drain is needed.
 
-The current schema runs through migration 000054 with exact privilege manifest v31. Documentation contract tests compare these values with embedded migrations and manifest code.
+The current schema runs through migration 000055 with exact privilege manifest v31. Documentation contract tests compare these values with embedded migrations and manifest code.
 
 Create the namespace and deployment-owned Secrets and ConfigMaps first. For an existing database, review the pending changes with `catalogctl migrate plan` from the exact release image. Install or upgrade with a timeout longer than `migration.activeDeadlineSeconds` plus image-pull and scheduling time.
 

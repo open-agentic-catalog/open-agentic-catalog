@@ -665,6 +665,16 @@ test("visual: native preparation and captured Listing metadata", async ({
     .click();
   // A full review is taller than the scrollable dialog. Capture one complete
   // field, avoiding a clipped element image that includes the background page.
+  // UUIDs above the capture wrap differently in a proportional font. Keep
+  // their row heights stable so this field aligns to the same pixels.
+  await page
+    .getByRole("dialog")
+    .locator('[aria-label="Command summary"] dd')
+    .filter({ hasText: /^[0-9a-f-]{36}$/ })
+    .evaluateAll((cells) => {
+      for (const cell of cells)
+        (cell as HTMLElement).style.fontFamily = "monospace";
+    });
   await expect(
     review.getByRole("region", { name: "Changed description", exact: true }),
   ).toHaveScreenshot("listing-prepared-dark-narrow.png");

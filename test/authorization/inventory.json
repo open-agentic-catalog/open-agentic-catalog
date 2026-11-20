@@ -1424,6 +1424,18 @@
       "currentAuthority": "global reader"
     },
     {
+      "operationId": "listReleaseRelationships",
+      "method": "GET",
+      "path": "/api/v1/listing-releases/{releaseId}/relationships",
+      "permissions": [
+        "resource.read",
+        "resource.read_history"
+      ],
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "scoped reads of subject and current related releases; dependency view also requires subject history"
+    },
+    {
       "operationId": "getIndexedCatalogRecord",
       "method": "GET",
       "path": "/api/v1/catalog/indexed-record",
@@ -4897,6 +4909,20 @@
     {
       "package": "personal",
       "receiver": "Service",
+      "method": "SaveObserved",
+      "source": "internal/personal/service.go",
+      "policy": "personal"
+    },
+    {
+      "package": "personal",
+      "receiver": "Service",
+      "method": "ResolveFollow",
+      "source": "internal/personal/follow.go",
+      "policy": "personal"
+    },
+    {
+      "package": "personal",
+      "receiver": "Service",
       "method": "Get",
       "source": "internal/personal/service.go",
       "policy": "personal"
@@ -5227,6 +5253,29 @@
       "method": "ValidationMaintenancePolicy",
       "source": "internal/catalog/validation_maintenance.go",
       "policy": "internal"
+    },
+    {
+      "calls": [
+        "CurrentListingRelease",
+        "GetListing"
+      ],
+      "method": "CurrentListingRelease",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/current_listing.go",
+      "policy": "content"
+    },
+    {
+      "calls": [
+        "collectionContext"
+      ],
+      "method": "ListReleaseRelationships",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/relationships.go",
+      "policy": "search"
     }
   ],
   "internalExecution": [

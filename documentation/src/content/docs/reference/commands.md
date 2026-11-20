@@ -16,7 +16,7 @@ Provide credentials through a protected environment or secret mount. Do not put 
 | Browser host | `catalog-ui --config PATH`, `--probe` | Independent UI JSON or fixed loopback probe; [UI host](#optional-ui-host). |
 | Human API login | `catalogctl auth login`, `status`, `logout` | Explicit local credential file; [human CLI login](#human-cli-login). |
 | Anonymous publications | `catalogctl discovery manifest`, `list` | Explicit anonymous feed origin, without credentials; [publication reads](#read-an-anonymous-publication). |
-| Private library backup | `catalogctl personal export`, `preview`, `apply`, `resume` | Current human's bookmarks and saved searches; [backup and restore](#back-up-and-restore-your-private-library). |
+| Private library backup | `catalogctl personal export`, `preview`, `apply`, `resume` | Current human's bookmarks, followed Listings and saved searches; [backup and restore](#back-up-and-restore-your-private-library). |
 | Selected API clients | `catalogctl remote capabilities`, `search`, `record`, `job`, `reindex`, `trust-request`, `trust-result` | Explicit API origin and credentials; [remote commands](#remote-catalog-reads). Reindex and trust-request mutate. |
 | MCP host connection | `catalogctl mcp serve` | Explicit API bearer input; [MCP host](#use-the-catalog-from-an-mcp-host). Stdio only; tools read metadata. |
 | Draft import | `catalogctl import preview`, `apply`, `resume` | Offline preview, explicit destination and private recovery; [reusable JSON](#import-a-reusable-draft-json-file) or [native manifests](#offline-native-import-preview). |
@@ -332,7 +332,9 @@ The identifier and digest above are examples. Replace them with the exact select
 ./bin/catalogctl remote trust-result --source-id "$SOURCE_ID" --id "$JOB_ID"
 ```
 
-These commands use the existing remote URL, token, CA and timeout inputs. They do not load server configuration or access PostgreSQL. A 202 response means queued work, not successful verification. Result output uses the normal `data`/`meta` envelope. No command polls or retries automatically. See [assessment operations](../operations/federation.mdx#request-an-ans-registration-assessment).
+HTTP 202 acknowledges the request. Use `remote job` to check status. Once the Job succeeds, use `remote trust-result` to read the assessment. Both reads require current `job.read` and `source.read_evidence` permissions. When OAuth scopes are enforced, Job status requires `catalog.read` and the private result requires `sources.read`. The Catalog must record the private read in its audit log before returning evidence.
+
+These commands use the usual remote URL, token, CA and timeout inputs and return the `data`/`meta` envelope. Check again explicitly for progress. These commands do not poll or retry automatically. See [assessment operations](../operations/federation.mdx#request-an-ans-registration-assessment).
 
 ### Compare saved source synchronizations
 
@@ -350,7 +352,7 @@ The response retains one-sided and multiple occurrences, missing versus explicit
 
 ## Back up and restore your private library
 
-Use `catalogctl personal` to retain your bookmarks and named searches in a private file. This workflow uses the existing personal-item API. It does not require a database connection, an administrator role or a running UI.
+Use `catalogctl personal` to retain your local and external resource bookmarks, followed Listings and named searches in a private file. This workflow uses the existing personal-item API. It does not require a database connection, an administrator role or a running UI.
 
 Build or install [the CLI](#obtain-and-invoke-the-binaries). Export and restore require an active human membership with `library.own`. With OAuth scope enforcement, export also requires `catalog.read`; restore requires `personal.write`. Configure your [human CLI login](#human-cli-login), or provide an explicit bearer-token file. The examples use a login file; remove inherited bearer environment variables before using it.
 
@@ -364,9 +366,9 @@ Use `--base-url` to select the API origin explicitly, or set `CATALOG_REMOTE_BAS
   --output-dir ./my-library-backup
 ```
 
-The output directory must be new. The command creates it with mode `0700` and writes `library.json` with mode `0600`. It refuses existing output and symlink ancestors. Add `--type resource` or `--type search` to export one item type. The default includes both, regardless of UI filters.
+The output directory must be new. The command creates it with mode `0700` and writes `library.json` with mode `0600`. It refuses existing output and symlink ancestors. Add `--type resource`, `--type search` or `--type follow` to export one item type. Without `--type`, export includes bookmarks, saved searches and followed Listings regardless of UI filters.
 
-Each exported item contains its label and supported search criteria or exact resource reference. The file also records its format, originating API and tenant. It excludes credentials, resource documents, old saved-item IDs and revisions, owner identities and command receipts. For example:
+Each exported item contains its label and either search criteria, an exact resource reference, or a followed local Listing ID. A follow backup omits the last acknowledged release and revision. The file also records its format, originating API and tenant. It excludes credentials, resource documents, old saved-item IDs and revisions, owner identities and command receipts. For example:
 
 ```json
 {
@@ -409,7 +411,7 @@ Read the originating `tenantId` from the file and compare it with your intended 
 
 Preview makes no network requests or writes. It prints the exact labels, criteria and reference identities with proposed create/skip actions. It does not resolve targets or execute searches. Preview output contains private query text; do not paste it into shared logs.
 
-The example selects the saved search at index 1 and skips the reference at index 2. Without selection flags, every item is skipped. Use repeatable `--create N` flags to select specific one-based indexes, or use `--all`. Duplicate labels and targets remain separate items. There is no automatic matching, overwrite or deletion of existing items.
+The example selects the saved search at index 1 and skips the reference at index 2. Without selection flags, every item is skipped. Use repeatable `--create N` flags to select specific one-based indexes, or use `--all`. Each selected bookmark or search creates a separate item, even when its label or target matches another. For a follow, the Listing ID identifies an existing preference regardless of its label. Restore leaves that preference intact.
 
 ### Restore selected items
 
@@ -443,7 +445,7 @@ Example output, with illustrative identifiers:
 }
 ```
 
-`complete` means the selected saves were acknowledged; skipped items remain untouched. Each returned `id` identifies a new saved item. Open **Account > Saved items and searches** and choose **Refresh saved items** to read restored entries in the UI.
+`complete` means the selected saves were acknowledged; skipped items remain untouched. For a new follow, restore checks current access and leaves the release unacknowledged. If the owner already follows that Listing, the result is `already-followed` with its existing item ID. Its label and acknowledgement stay intact. An unavailable Listing is reported without creating a follow. Open **Account > Saved items and searches** and choose **Refresh saved items** to read restored entries in the UI.
 
 ### Resume an interrupted restore
 
@@ -461,6 +463,7 @@ Repeat the original create/skip selection. Resume binds the exact backup bytes, 
 | `skipped` | Leave the item untouched. |
 | `ready` | Send its first save under current authority. |
 | `acknowledged` | Retain its verified item ID; do not resend the command, even after the replay window expires. |
+| `already-followed` | Keep the existing follow and its acknowledgement. Resume sends no request for this item. |
 | `inflight` or `uncertain` | Retry only the original body and key within the supported replay window. |
 | `failed` | Stop before another mutation. Investigate the definite refusal. |
 

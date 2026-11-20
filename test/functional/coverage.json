@@ -849,6 +849,22 @@
       "gaps": []
     },
     {
+      "id": "release-relationships",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": ["http:listReleaseRelationships"],
+      "evidence": [
+        {"path": "test/functional/core.py"},
+        {"path": "internal/platform/database/relationships_integration_test.go", "symbol": "TestPostgresReleaseRelationships"},
+        {"path": "catalog-ui/tests/browser/release-relationships.spec.ts"}
+      ],
+      "reason": "A reviewed Skill declares a dependency on one seeded release. Both directions use the packaged API.",
+      "success": "Resolve the exact target release and find the sealed source Listing revision before withdrawal.",
+      "rejection": "Cross-tenant relationship reads return no metadata.",
+      "recovery": "Replacing the source release removes its old declaration from dependency impact.",
+      "gaps": []
+    },
+    {
       "id": "catalog-read-gaps",
       "disposition": "compose",
       "status": "covered",

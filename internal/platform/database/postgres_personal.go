@@ -1,7 +1,6 @@
 package database
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +9,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/audit"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jsondoc"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/personal"
 )
 
@@ -30,13 +30,65 @@ func scanPersonal(row scanner) (personal.Item, error) {
 	if err := row.Scan(&item.ID, &raw, &item.Revision, &item.CreatedAt, &item.UpdatedAt); err != nil {
 		return item, translateError("read saved item", err)
 	}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&item.Input); err != nil {
+	retained, err := decodePersonalInput(raw)
+	if err != nil {
 		return personal.Item{}, catalog.Wrap(catalog.CodeDependencyUnavailable, "decode saved item", err)
 	}
-	if err := personal.Validate(item.Input); err != nil {
-		return personal.Item{}, catalog.Wrap(catalog.CodeDependencyUnavailable, "validate saved item", err)
+	item.Input, item.Acknowledged = retained.Input, retained.Acknowledged
+	return item, nil
+}
+func decodePersonalInput(raw []byte) (personal.RetainedInput, error) {
+	var v personal.RetainedInput
+	if err := jsondoc.Decode(raw, &v); err != nil {
+		return v, err
+	}
+	return v, v.Validate()
+}
+
+// The same eligibility predicate is used for display and the transaction that
+// records a follow. A write locks the Listing and current release through commit.
+const currentFollowSQL = `SELECT listing.namespace_id,release.id,release.revision FROM catalog_listings listing
+ JOIN listing_releases release ON release.tenant_id=listing.tenant_id AND release.listing_id=listing.id AND release.id=listing.current_release_id AND release.state IN ('published','deprecated')
+ JOIN resources resource ON resource.tenant_id=listing.tenant_id AND resource.id=listing.resource_id AND resource.deleted_at IS NULL
+ WHERE listing.tenant_id=$1 AND listing.id=$2`
+
+func (p *PostgresRepository) CurrentListingRelease(ctx context.Context, tenant, id string) (catalog.ReleaseObservation, error) {
+	return withTenantRead(ctx, p.pool, tenant, func(tx pgx.Tx) (catalog.ReleaseObservation, error) {
+		var namespace string
+		var current catalog.ReleaseObservation
+		err := tx.QueryRow(ctx, currentFollowSQL, tenant, id).Scan(&namespace, &current.ReleaseID, &current.Revision)
+		return current, translateError("read current followed release", err)
+	})
+}
+
+func saveFollowTarget(ctx context.Context, tx pgx.Tx, a identity.Actor, item personal.Item, create bool) (personal.Item, error) {
+	var namespace string
+	var current catalog.ReleaseObservation
+	err := tx.QueryRow(ctx, currentFollowSQL+` FOR SHARE OF listing,release,resource`, a.TenantID, item.ListingID).Scan(&namespace, &current.ReleaseID, &current.Revision)
+	if err != nil {
+		return personal.Item{}, translateError("read current followed release", err)
+	}
+	allowed := false
+	for _, check := range identity.RecordedPermissionChecks(ctx) {
+		if check.Permission == "resource.read" && check.NamespaceID == namespace {
+			allowed = true
+		}
+	}
+	if !allowed {
+		return personal.Item{}, catalog.E(catalog.CodeNotFound, "followed Listing is unavailable")
+	}
+	if create {
+		existing, err := scanPersonal(tx.QueryRow(ctx, `SELECT `+personalColumns+` FROM personal_items WHERE tenant_id=$1 AND membership_id=$2 AND realm_id=$3 AND input->>'type'='follow' AND input->>'listingId'=$4`, a.TenantID, a.MembershipID, a.RealmID, item.ListingID))
+		if err == nil {
+			existing.Existing = true
+			return existing, nil
+		}
+		if catalog.ErrorCodeOf(err) != catalog.CodeNotFound {
+			return personal.Item{}, err
+		}
+	}
+	if item.Acknowledged != nil && *item.Acknowledged != current {
+		return personal.Item{}, catalog.E(catalog.CodePreconditionFailed, "current release changed; refresh the follow")
 	}
 	return item, nil
 }
@@ -98,6 +150,12 @@ func (p *PostgresPersonalStore) Save(ctx context.Context, a identity.Actor, item
 		if err := personal.ValidateSave(old, item, expected, remove, e, a); err != nil {
 			return personal.Item{}, err
 		}
+		if !remove && item.Type == "follow" && (expected == 0 || item.NeedsCurrentTarget()) {
+			saved, err := saveFollowTarget(ctx, tx, a, item, expected == 0)
+			if err != nil || saved.Existing {
+				return saved, err
+			}
+		}
 		if expected == 0 {
 			var count int
 			if err := tx.QueryRow(ctx, `SELECT count(*) FROM (SELECT id FROM personal_items WHERE tenant_id=$1 AND membership_id=$2 AND realm_id=$3 LIMIT 200) bounded`, a.TenantID, a.MembershipID, a.RealmID).Scan(&count); err != nil {
@@ -107,7 +165,7 @@ func (p *PostgresPersonalStore) Save(ctx context.Context, a identity.Actor, item
 				return personal.Item{}, catalog.E(catalog.CodeConflict, "saved library contains 200 items; remove one first")
 			}
 		}
-		raw, err := json.Marshal(item.Input)
+		raw, err := json.Marshal(personal.RetainedInput{Input: item.Input, Acknowledged: item.Acknowledged})
 		if err != nil {
 			return personal.Item{}, catalog.Wrap(catalog.CodeInternal, "encode saved item", err)
 		}

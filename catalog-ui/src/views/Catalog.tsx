@@ -1,3 +1,4 @@
+import { ReleaseRelationships } from "./ReleaseRelationships";
 import { AddToCollection } from "./AddToCollection";
 import { DeclaredToolMatch } from "./DeclaredToolMatch";
 import { DraftDownload } from "./DraftDownload";
@@ -5,7 +6,7 @@ import { Facts } from "./Facts";
 import { catalogOriginPreset } from "./overview-values";
 import "./catalog-results.css";
 import { catalogOrders, type CatalogOrder } from "./catalog-order";
-import { SaveSearch, SaveResource } from "./Personal";
+import { SaveSearch, SaveResource, SavePersonal } from "./Personal";
 import { recordForRequest } from "./record-context";
 import { RecordNavigation, localRecordSections } from "./RecordNavigation";
 import { LiveRefreshNotice } from "./LiveRefreshNotice";
@@ -2405,6 +2406,29 @@ function RecordContent({
           <p className="muted">No Listing categories supplied.</p>
         )}
       </section>
+      {!compact && (
+        <>
+          {!!listing.relationships?.length && (
+            <ReleaseRelationships
+              key={record.release.id + "-out"}
+              client={client}
+              basePath={basePath}
+              onFailure={onFailure}
+              releaseId={record.release.id}
+              view="outgoing"
+              declarations={listing.relationships}
+            />
+          )}
+          <ReleaseRelationships
+            key={record.release.id}
+            client={client}
+            basePath={basePath}
+            onFailure={onFailure}
+            releaseId={record.release.id}
+            view="incoming"
+          />
+        </>
+      )}
       <LocalAssessment
         evidence={record.evidence}
         compact={compact}
@@ -2421,6 +2445,27 @@ function RecordContent({
           listingId={record.listing.id}
         />
       )}
+      {access?.actorType === "human" &&
+        permits(access, "library.own", "personal.write") && (
+          <details key={record.release.id + ":" + record.release.revision}>
+            <summary>Follow Listing</summary>
+            <SavePersonal
+              client={client}
+              access={access}
+              basePath={basePath}
+              onFailure={onFailure}
+              initial={{
+                type: "follow",
+                label: [...listing.displayName].slice(0, 120).join(""),
+                listingId: record.listing.id,
+                observed: {
+                  releaseId: record.release.id,
+                  revision: record.release.revision,
+                },
+              }}
+            />
+          </details>
+        )}
       {access && (
         <SaveResource
           client={client}

@@ -311,6 +311,7 @@ type Repository interface {
 	// CreateListing inserts a stable listing with its transition evidence.
 	CreateListing(context.Context, CreateListingParams) (CatalogListing, error)
 	// GetListing looks up a listing by tenant ID and listing ID.
+	CurrentListingRelease(context.Context, string, string) (ReleaseObservation, error)
 	GetListing(context.Context, string, string) (CatalogListing, error)
 	// CreateListingRevision appends content and advances the listing's current revision.
 	CreateListingRevision(context.Context, CreateListingRevisionParams) (CatalogListing, ListingRevision, error)
@@ -344,6 +345,8 @@ type Repository interface {
 	SearchCatalog(context.Context, string, CatalogSearchRepositoryRequest) (CatalogSearchRepositoryPage, error)
 	// ExploreCatalog computes a tenant's discovery results and requested facets.
 	ExploreCatalog(context.Context, string, SearchQuery, []FacetRequest) (ExploreResponse, error)
+	ListReleaseRelationships(context.Context, string, string, RelationshipPageRequest) (RelationshipSelection, error)
+
 	// GetCatalogRecord resolves an eligible release-backed record by tenant and release ID.
 	GetCatalogRecord(context.Context, string, string) (CatalogRecord, error)
 	// HasPublishedIdentity checks local precedence for a tenant, identifier and

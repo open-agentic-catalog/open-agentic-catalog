@@ -1,6 +1,11 @@
 import { controlIcons } from "../shell/Icon";
 // Compare selected immutable evidence without moving candidates or issuing commands.
 import { useState } from "react";
+import {
+  cardProfile,
+  declarationChanges,
+  documentLimit,
+} from "./declaration-changes";
 import { DocumentChanges } from "./DocumentChanges";
 import { result } from "../api/client";
 import { page, object } from "../api/values";
@@ -17,6 +22,7 @@ type Props = WorkspaceProps & {
   ownerId: string;
   namespaceId: string;
   fixedAfter?: string;
+  submittedVersionRevisionId?: string;
 };
 type Metadata = Record<string, unknown>;
 type Representation = Pick<
@@ -29,6 +35,7 @@ type Representation = Pick<
   | "contentDigest"
   | "size"
   | "artifactId"
+  | "validationState"
   | "data"
 > & { package?: unknown; plugin?: unknown };
 type Compared = {
@@ -47,6 +54,7 @@ export function RevisionComparison(props: Props) {
         props.ownerId,
         props.namespaceId,
         props.fixedAfter,
+        props.submittedVersionRevisionId,
       ])}
       {...props}
     />
@@ -125,7 +133,10 @@ function ComparisonContext(props: Props) {
               <ChoiceField
                 label="Before revision"
                 value={before}
-                onChange={setBefore}
+                onChange={(id) => {
+                  setSelection(undefined);
+                  setBefore(id);
+                }}
                 load={choices}
                 onFailure={props.onFailure}
                 queryKey={props.kind + props.ownerId + "before"}
@@ -139,7 +150,10 @@ function ComparisonContext(props: Props) {
                 <ChoiceField
                   label="After revision"
                   value={after}
-                  onChange={setAfter}
+                  onChange={(id) => {
+                    setSelection(undefined);
+                    setAfter(id);
+                  }}
                   load={choices}
                   onFailure={props.onFailure}
                   queryKey={props.kind + props.ownerId + "after"}
@@ -286,7 +300,10 @@ function LoadedComparison(props: Props & { before: string; after: string }) {
           if (
             revision.id !== id ||
             revision.listingId !== props.ownerId ||
-            revision.tenantId !== props.access.tenantId
+            revision.tenantId !== props.access.tenantId ||
+            (id === props.fixedAfter &&
+              props.submittedVersionRevisionId !== undefined &&
+              revision.versionRevisionId !== props.submittedVersionRevisionId)
           )
             throw new Error("The selected Listing revision does not match.");
           const {
@@ -310,6 +327,7 @@ function LoadedComparison(props: Props & { before: string; after: string }) {
         );
         if (
           bundle.revision.id !== id ||
+          bundle.revision.tenantId !== props.access.tenantId ||
           bundle.revision.resourceVersionId !== props.ownerId ||
           bundle.namespaceId !== props.namespaceId
         )
@@ -423,7 +441,7 @@ function DocumentComparison(
       </button>
       {selected && (
         <SelectedDocuments
-          key={JSON.stringify(selected)}
+          key={JSON.stringify([selected.before.id, selected.after.id])}
           {...props}
           {...selected}
         />
@@ -435,13 +453,31 @@ function SelectedDocuments(
   props: WorkspaceProps & { before: Representation; after: Representation },
 ) {
   const exact = !!props.before.artifactId && !!props.after.artifactId;
-  const read = useRead(
+  type Side = { text?: string };
+  type Failure = { failure: string; sizePreflight?: true };
+  const read = useRead<
+    | {
+        before: Side;
+        after: Side;
+        summary: ReturnType<typeof declarationChanges>;
+      }
+    | Failure
+  >(
     props.before.id + props.after.id,
     async (signal) => {
-      if (!exact) return undefined;
+      const profile = cardProfile(props.before);
+      const eligible = profile && cardProfile(props.after) === profile;
+      if ([props.before, props.after].some((r) => r.size > documentLimit))
+        return {
+          failure:
+            "This document exceeds the 2 MiB comparison text limit. The selected pair cannot be compared.",
+          sizePreflight: true,
+        };
       const load = async (
-        id: string,
-      ): Promise<{ text: string } | { failure: string }> => {
+        representation: Representation,
+      ): Promise<Side | Failure> => {
+        const id = representation.artifactId;
+        if (!id) return {};
         const reply = await props.client.api.GET(
           "/api/v1/artifacts/{artifactId}/content",
           {
@@ -451,8 +487,15 @@ function SelectedDocuments(
           },
         );
         const bytes = result(reply);
+        if (bytes.byteLength > documentLimit)
+          return {
+            failure:
+              "This document exceeds the 2 MiB comparison text limit. No document text is shown.",
+          };
         try {
           await verifyArtifact(bytes, reply.response, id);
+          if (representation.contentDigest !== "sha256:" + id)
+            throw new Error("Representation digest mismatch");
         } catch {
           // Reconcile authority before reporting a fixed local verification
           // failure. Never display a dependency exception or partial document.
@@ -465,11 +508,6 @@ function SelectedDocuments(
         }
         result(reply);
         signal.throwIfAborted();
-        if (bytes.byteLength > 2 * 1024 * 1024)
-          return {
-            failure:
-              "This document exceeds the 2 MiB comparison text limit. No document text is shown.",
-          };
         // Preserve a leading BOM and line endings. Both artifact IDs have been
         // checked against SHA-256 bytes before the identity result is disclosed.
         try {
@@ -486,23 +524,51 @@ function SelectedDocuments(
           };
         }
       };
-      const before = await load(props.before.artifactId!);
+      const before = await load(props.before);
       if ("failure" in before) return before;
-      const after = await load(props.after.artifactId!);
+      signal.throwIfAborted();
+      const after = await load(props.after);
       if ("failure" in after) return after;
-      return {
-        before: before.text,
-        after: after.text,
-        identical: props.before.artifactId === props.after.artifactId,
-      };
+      signal.throwIfAborted();
+      let summary: ReturnType<typeof declarationChanges>;
+      if (!eligible) {
+        summary = {
+          unavailable:
+            "Choose two validated primary Agent Cards or two validated primary MCP Server Cards with the same supported profile.",
+        };
+      } else if (
+        ![props.before, props.after].every((r) =>
+          /^sha256:[a-f0-9]{64}$/.test(r.contentDigest),
+        )
+      ) {
+        summary = {
+          unavailable:
+            "The selected representations need valid content digests.",
+        };
+      } else {
+        const source = (side: Side, rep: Representation) =>
+          side.text ?? (object(rep.data) ? rep.data : undefined);
+        summary = declarationChanges(
+          profile,
+          source(before, props.before),
+          source(after, props.after),
+        );
+      }
+      return { before, after, summary };
     },
     props.onFailure,
   );
-  const documents = read.data && "before" in read.data ? read.data : undefined;
-  const failure = read.data && "failure" in read.data ? read.data.failure : "";
+  const documents = read.data && "summary" in read.data ? read.data : undefined;
+  const failure = read.data && "failure" in read.data ? read.data : undefined;
   return (
     <>
-      <ReadState {...read} error={read.error || failure || ""} />
+      <ReadState {...read} error={read.error || failure?.failure || ""} />
+      {documents && "changes" in documents.summary && (
+        <DeclarationSummary
+          summary={documents.summary}
+          profile={cardProfile(props.before)}
+        />
+      )}
       {!exact && (
         <p>
           Lossless document comparison is unavailable for these representations.
@@ -511,24 +577,47 @@ function SelectedDocuments(
           is fetched.
         </p>
       )}
-      {documents && (
-        <p>
-          {documents.identical
-            ? "Exact retained documents are identical."
-            : "Exact retained documents differ, including any whitespace or numeric token changes."}
-        </p>
-      )}
-      {documents && (
-        <DocumentChanges before={documents.before} after={documents.after} />
+      {documents?.before.text !== undefined &&
+        documents.after.text !== undefined && (
+          <>
+            <p>
+              {props.before.artifactId === props.after.artifactId
+                ? "Exact retained documents are identical."
+                : "Exact retained documents differ, including any whitespace or numeric token changes."}
+            </p>
+            <DocumentChanges
+              before={documents.before.text}
+              after={documents.after.text}
+            />
+          </>
+        )}
+      {documents && "unavailable" in documents.summary && (
+        <DeclarationSummary
+          summary={documents.summary}
+          profile={cardProfile(props.before)}
+        />
       )}
       <div className="revision-comparison-grid">
         {(["before", "after"] as const).map((side) => (
           <div key={side}>
             <h4>{side === "before" ? "Before document" : "After document"}</h4>
-            {documents ? (
-              <CodeBlock text={documents[side]} original rawText />
+            <p>
+              Representation <code>{props[side].id}</code>
+              <br />
+              Profile <code>{props[side].profileId}</code>
+              <br />
+              Digest <code>{props[side].contentDigest}</code>
+              <br />
+              Retained validation: {props[side].validationState}
+            </p>
+            {documents?.[side].text !== undefined ? (
+              <CodeBlock text={documents[side].text} original rawText />
             ) : (
-              !exact && (
+              !exact &&
+              (documents ||
+                (failure?.sizePreflight &&
+                  !props[side].artifactId &&
+                  props[side].size <= documentLimit)) && (
                 <JSONBlock
                   value={
                     object(props[side].plugin)
@@ -546,6 +635,67 @@ function SelectedDocuments(
         ))}
       </div>
     </>
+  );
+}
+
+function DeclarationSummary({
+  summary,
+  profile,
+}: {
+  summary: ReturnType<typeof declarationChanges>;
+  profile: ReturnType<typeof cardProfile>;
+}) {
+  return (
+    <section aria-label="Declared capability and connection changes">
+      <h4>Declared capability and connection changes</h4>
+      {"unavailable" in summary ? (
+        <p>Summary unavailable. {summary.unavailable}</p>
+      ) : (
+        <>
+          <p>
+            {profile === "Agent"
+              ? "Compared skill IDs, declared media modes, streaming and ordered interfaces. The first interface is preferred."
+              : "Compared remote transports, URL templates, declared protocol versions and remote order. Order does not indicate preference."}{" "}
+            Inspect the documents for authentication, headers, variables and
+            other fields. Runtime behavior and compatibility are unverified.
+          </p>
+          {!summary.changes.length && (
+            <p>No changes in the selected declarations.</p>
+          )}
+          {[...new Set(summary.changes.map((c) => c.group))].map((group) => (
+            <section aria-label={group} key={group}>
+              <h5>{group}</h5>
+              <ul>
+                {summary.changes
+                  .filter((c) => c.group === group)
+                  .map((c) => (
+                    <li key={c.field}>
+                      <strong>
+                        {c.occurrences !== undefined
+                          ? `${Math.abs(c.occurrences)} occurrence${Math.abs(c.occurrences) === 1 ? "" : "s"} ${c.occurrences > 0 ? "added" : "removed"}`
+                          : c.before === undefined
+                            ? "Added"
+                            : c.after === undefined
+                              ? "Removed"
+                              : "Changed"}
+                      </strong>{" "}
+                      <code>{c.field}</code>
+                      <div>
+                        {c.membership ? "Removed" : "Before"}:{" "}
+                        <code>{c.before ?? "Not declared"}</code>
+                      </div>
+                      <div>
+                        {c.membership ? "Added" : "After"}:{" "}
+                        <code>{c.after ?? "Not declared"}</code>
+                      </div>
+                    </li>
+                  ))}
+              </ul>
+            </section>
+          ))}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -599,6 +749,7 @@ function LinkedVersionDocuments(
         );
         if (
           bundle.revision.id !== id ||
+          bundle.revision.tenantId !== props.access.tenantId ||
           bundle.namespaceId !== props.namespaceId
         )
           throw new Error(

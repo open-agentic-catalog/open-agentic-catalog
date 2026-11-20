@@ -17,7 +17,7 @@ import (
 )
 
 const personalUsage = `usage: catalogctl personal <export|preview|apply|resume> [flags]
-  export: --output-dir NEW_DIRECTORY [--type resource|search]
+  export: --output-dir NEW_DIRECTORY [--type resource|search|follow]
   preview: --file PATH --base-url URL --tenant-id UUID [selection]
   apply/resume: --file PATH --state-file PATH --base-url URL --confirm [selection]
   selection: --create N (repeatable, 1-based) OR --all; otherwise every item is skipped
@@ -75,7 +75,7 @@ func runPersonal(ctx context.Context, args []string, getenv func(string) string,
 	}
 	if action == "export" {
 		flags.StringVar(&directory, "output-dir", "", "new private directory")
-		flags.StringVar(&kind, "type", "", "resource or search; omitted selects both")
+		flags.StringVar(&kind, "type", "", "resource, search or follow; omitted selects all")
 	} else {
 		flags.StringVar(&filename, "file", "", "library JSON file")
 		flags.BoolVar(&all, "all", false, "explicitly create every item")
@@ -108,8 +108,8 @@ func runPersonal(ctx context.Context, args []string, getenv func(string) string,
 	ctx, cancel := context.WithTimeout(ctx, options.timeout)
 	defer cancel()
 	if action == "export" {
-		if directory == "" || kind != "" && kind != "resource" && kind != "search" {
-			return safeerr.New("personal: export requires a new --output-dir and an optional resource/search --type")
+		if directory == "" || kind != "" && kind != "resource" && kind != "search" && kind != "follow" {
+			return safeerr.New("personal: export requires a new --output-dir and an optional resource/search/follow --type")
 		}
 		if err = selectRemoteCredentials(&options, getenv); err != nil {
 			return err

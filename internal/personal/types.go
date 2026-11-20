@@ -50,12 +50,16 @@ func (c Criteria) Query() catalog.SearchQuery {
 }
 
 type Input struct {
+	ListingID ListingID  `json:"listingId,omitempty"`
 	Type      string     `json:"type"`
 	Label     string     `json:"label"`
 	Reference *Reference `json:"reference,omitempty"`
 	Search    *Criteria  `json:"search,omitempty"`
 }
 type Item struct {
+	Acknowledged   *catalog.ReleaseObservation `json:"-"`
+	Existing       bool                        `json:"-"`
+	checkedCurrent *catalog.ReleaseObservation
 	Input
 	ID        string    `json:"id"`
 	Revision  int64     `json:"revision"`
@@ -74,6 +78,7 @@ type Store interface {
 	Save(context.Context, identity.Actor, Item, int64, bool, audit.Record) (Item, error)
 }
 type Authority interface {
+	CurrentListingRelease(context.Context, string) (catalog.ReleaseObservation, error)
 	Admit(context.Context, Reference) error
 }
 type AuditSink interface {

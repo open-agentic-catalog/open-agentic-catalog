@@ -624,7 +624,9 @@ Submit `POST /api/v1/resources/{resourceId}/versions:adopt` with a new `Idempote
 
 A `201` response contains `resourceId`, `version`, `versionRevision` and `evidence`. This child-creation operation does not take `If-Match`; the later Listing revision does. All four generated SDKs expose the lookup and append operations. There is no dedicated catalogctl or VS Code adoption command; those clients can read the subsequently governed release through their existing discovery workflows.
 
-Preserve the exact body and key after an uncertain response. An explicit retry returns the committed result under current source-evidence and destination edit authority, without fetching native content again. Later Source exclusion or observation withdrawal does not invalidate that recovery. A new key still follows current eligibility and duplicate rules. A changed body under the original key returns `409 IDEMPOTENCY_KEY_REUSED`; a duplicate local version under a new key returns `409 CONFLICT`. Same-label correction, unversioned conversion and cross-Source replacement are unsupported. Invalid or stale evidence refuses atomically; no partial draft or successful creation evidence is committed.
+If the response is lost, retry with the same identity, key and body within 24 hours of the original reservation. A committed append returns its retained result after current authorization checks, even if the Source was later excluded or the observation withdrawn. Recovery does not fetch native content again. A changed body under the same key during this window returns `409 IDEMPOTENCY_KEY_REUSED`.
+
+After the replay window expires, inspect the destination Resource's Versions before deciding whether to submit another command. Reusing an expired key can start a new command. A new append checks current eligibility and returns `409 CONFLICT` for a duplicate local Version label. Same-label correction, unversioned conversion and cross-Source replacement are unsupported. Invalid or stale evidence leaves no partial draft. See [command recovery](../guides/integrating.mdx#retry-and-reconcile-uncertain-outcomes).
 
 ### Adopt an observation in the UI
 

@@ -1816,6 +1816,13 @@ ui-coverage-e2e: ## Measure Chromium source coverage; UI_E2E_PROFILE=local|compo
 ui-coverage-100: ## Check the full frontend 100% target; fails until all coverage gaps are closed
 	cd catalog-ui && npm run test:coverage:100
 
+.PHONY: ui-engine-install test-ui-engine
+ui-engine-install: ## Install pinned Playwright Firefox and WebKit for optional qualification
+	cd catalog-ui && node node_modules/playwright/cli.js install firefox webkit
+
+test-ui-engine: ## Qualify selected local journeys and packaged OIDC in UI_BROWSER_ENGINE=firefox|webkit
+	cd catalog-ui && node scripts/browser-test.mjs --engine "$${UI_BROWSER_ENGINE}"
+
 ui-browser-install: ## Install the pinned Playwright Chromium browser for local UI tests
 	cd catalog-ui && npm run browser-install
 

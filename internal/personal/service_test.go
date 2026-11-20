@@ -40,6 +40,9 @@ type authority struct {
 	calls int
 }
 
+func (*authority) CurrentListingRelease(context.Context, string) (catalog.ReleaseObservation, error) {
+	return catalog.ReleaseObservation{}, catalog.E(catalog.CodeNotFound, "no Listing fixture")
+}
 func (a *authority) Admit(context.Context, Reference) error {
 	a.calls++
 	if a.deny {

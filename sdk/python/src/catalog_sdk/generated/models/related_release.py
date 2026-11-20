@@ -13,31 +13,38 @@ Do not edit the class manually.
 
 from __future__ import annotations
 
-if "PersonalResolutionOneOf1" == "RepresentationInput":
+if "RelatedRelease" == "RepresentationInput":
     from catalog_sdk.conditional import ConditionalObject as RepresentationInput
 else:
     import pprint
     import re  # noqa: F401
     import json
 
-    from pydantic import BaseModel, ConfigDict
-    from typing import Any, ClassVar, Dict, List, Optional
-    from catalog_sdk.generated.models.personal_resolution_one_of1_reference import (
-        PersonalResolutionOneOf1Reference,
-    )
+    from pydantic import BaseModel, ConfigDict, Field
+    from typing import Any, ClassVar, Dict
+    from typing_extensions import Annotated
+    from uuid import UUID
     from typing import Optional, Set
     from typing_extensions import Self
     from pydantic_core import to_jsonable_python
 
-    class PersonalResolutionOneOf1(BaseModel):
+    class RelatedRelease(BaseModel):
         """
-        PersonalResolutionOneOf1
+        RelatedRelease
         """  # noqa: E501
 
-        status: Optional[Any] = None
-        reference: PersonalResolutionOneOf1Reference
-        additional_properties: Dict[str, Any] = {}
-        __properties: ClassVar[List[str]] = ["status", "reference"]
+        release_id: UUID = Field(alias="releaseId")
+        listing_revision_id: UUID = Field(alias="listingRevisionId")
+        display_name: Annotated[
+            str, Field(min_length=1, strict=True, max_length=160)
+        ] = Field(alias="displayName")
+        version: Annotated[str, Field(min_length=1, strict=True, max_length=128)]
+        __properties: ClassVar[List[str]] = [
+            "releaseId",
+            "listingRevisionId",
+            "displayName",
+            "version",
+        ]
 
         model_config = ConfigDict(
             validate_by_name=True,
@@ -56,7 +63,7 @@ else:
 
         @classmethod
         def from_json(cls, json_str: str) -> Optional[Self]:
-            """Create an instance of PersonalResolutionOneOf1 from a JSON string"""
+            """Create an instance of RelatedRelease from a JSON string"""
             return cls.from_dict(json.loads(json_str))
 
         def to_dict(self) -> Dict[str, Any]:
@@ -68,37 +75,19 @@ else:
             * `None` is only added to the output dict for nullable fields that
               were set at model initialization. Other fields with value `None`
               are ignored.
-            * Fields in `self.additional_properties` are added to the output dict.
             """
-            excluded_fields: Set[str] = set(
-                [
-                    "additional_properties",
-                ]
-            )
+            excluded_fields: Set[str] = set([])
 
             _dict = self.model_dump(
                 by_alias=True,
                 exclude=excluded_fields,
                 exclude_none=True,
             )
-            # override the default output from pydantic by calling `to_dict()` of reference
-            if self.reference:
-                _dict["reference"] = self.reference.to_dict()
-            # puts key-value pairs in additional_properties in the top level
-            if self.additional_properties is not None:
-                for _key, _value in self.additional_properties.items():
-                    _dict[_key] = _value
-
-            # set to None if status (nullable) is None
-            # and model_fields_set contains the field
-            if self.status is None and "status" in self.model_fields_set:
-                _dict["status"] = None
-
             return _dict
 
         @classmethod
         def from_dict(cls, obj: Optional[Dict[str, Any]]) -> Optional[Self]:
-            """Create an instance of PersonalResolutionOneOf1 from a dict"""
+            """Create an instance of RelatedRelease from a dict"""
             if obj is None:
                 return None
 
@@ -107,17 +96,10 @@ else:
 
             _obj = cls.model_validate(
                 {
-                    "status": obj.get("status"),
-                    "reference": PersonalResolutionOneOf1Reference.from_dict(
-                        obj["reference"]
-                    )
-                    if obj.get("reference") is not None
-                    else None,
+                    "releaseId": obj.get("releaseId"),
+                    "listingRevisionId": obj.get("listingRevisionId"),
+                    "displayName": obj.get("displayName"),
+                    "version": obj.get("version"),
                 }
             )
-            # store additional fields in additional_properties
-            for _key in obj.keys():
-                if _key not in cls.__properties:
-                    _obj.additional_properties[_key] = obj.get(_key)
-
             return _obj

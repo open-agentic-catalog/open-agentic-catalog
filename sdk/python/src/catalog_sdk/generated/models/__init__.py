@@ -415,40 +415,11 @@ from catalog_sdk.generated.models.permission_descriptor import PermissionDescrip
 from catalog_sdk.generated.models.permission_key import PermissionKey
 from catalog_sdk.generated.models.personal_criteria import PersonalCriteria
 from catalog_sdk.generated.models.personal_input import PersonalInput
-from catalog_sdk.generated.models.personal_input_one_of import PersonalInputOneOf
-from catalog_sdk.generated.models.personal_input_one_of1 import PersonalInputOneOf1
 from catalog_sdk.generated.models.personal_item import PersonalItem
 from catalog_sdk.generated.models.personal_page import PersonalPage
 from catalog_sdk.generated.models.personal_receipt import PersonalReceipt
 from catalog_sdk.generated.models.personal_reference import PersonalReference
-from catalog_sdk.generated.models.personal_reference_one_of import (
-    PersonalReferenceOneOf,
-)
-from catalog_sdk.generated.models.personal_reference_one_of1 import (
-    PersonalReferenceOneOf1,
-)
-from catalog_sdk.generated.models.personal_reference_one_of1_not import (
-    PersonalReferenceOneOf1Not,
-)
-from catalog_sdk.generated.models.personal_reference_one_of_not import (
-    PersonalReferenceOneOfNot,
-)
 from catalog_sdk.generated.models.personal_resolution import PersonalResolution
-from catalog_sdk.generated.models.personal_resolution_one_of import (
-    PersonalResolutionOneOf,
-)
-from catalog_sdk.generated.models.personal_resolution_one_of1 import (
-    PersonalResolutionOneOf1,
-)
-from catalog_sdk.generated.models.personal_resolution_one_of1_reference import (
-    PersonalResolutionOneOf1Reference,
-)
-from catalog_sdk.generated.models.personal_resolution_one_of2 import (
-    PersonalResolutionOneOf2,
-)
-from catalog_sdk.generated.models.personal_resolution_one_of_not import (
-    PersonalResolutionOneOfNot,
-)
 from catalog_sdk.generated.models.personal_work_item import PersonalWorkItem
 from catalog_sdk.generated.models.personal_work_page import PersonalWorkPage
 from catalog_sdk.generated.models.plugin_inspection import PluginInspection
@@ -519,8 +490,13 @@ from catalog_sdk.generated.models.rating_view import RatingView
 from catalog_sdk.generated.models.reason import Reason
 from catalog_sdk.generated.models.referral_policy import ReferralPolicy
 from catalog_sdk.generated.models.reindex_catalog_request import ReindexCatalogRequest
+from catalog_sdk.generated.models.related_release import RelatedRelease
 from catalog_sdk.generated.models.relationship import Relationship
+from catalog_sdk.generated.models.release_observation import ReleaseObservation
 from catalog_sdk.generated.models.release_overview import ReleaseOverview
+from catalog_sdk.generated.models.release_relationship_page import (
+    ReleaseRelationshipPage,
+)
 from catalog_sdk.generated.models.release_transition import ReleaseTransition
 from catalog_sdk.generated.models.release_withdrawal_preview import (
     ReleaseWithdrawalPreview,
@@ -528,6 +504,7 @@ from catalog_sdk.generated.models.release_withdrawal_preview import (
 from catalog_sdk.generated.models.release_withdrawal_snapshot import (
     ReleaseWithdrawalSnapshot,
 )
+from catalog_sdk.generated.models.released_relationship import ReleasedRelationship
 from catalog_sdk.generated.models.remove_source import RemoveSource
 from catalog_sdk.generated.models.representation import Representation
 from catalog_sdk.generated.models.representation_input import RepresentationInput

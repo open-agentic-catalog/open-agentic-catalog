@@ -9,9 +9,9 @@ Work from the repository root. Resolve instruction paths from that root. Read `A
 
 ## Trace the operation
 
-Inspect the route registration, handler and middleware, owning domain operation, request/response types, existing assertions and actual clients. Establish the operation's authentication, Catalog role, namespace and tenant boundaries separately. Public discovery reads active host/audience-scoped snapshots; it must not expose mutable or private state.
+Inspect the route registration, handler and middleware, owning domain operation, request/response types, existing assertions and actual clients. Check whether the route admits anonymous requests. For protected operations, identify the actor, required Catalog permissions, their tenant or namespace scope and any enforced OAuth scopes. For publication reads, trace the selected host, audience and active snapshot. ARD Search can add eligible peer results in auto mode or return approved Registry references in referrals mode. Keep private Control data out of publication responses.
 
-The worker-only listener has its own operations contract (`internal/platform/operations/README.md`); do not add its routes to Control OpenAPI. For ARD or another standards representation, establish the requirement from pinned profiles (`schemas/PROFILES.md`) before changing its wire shape. Control errors use RFC 9457 problem details; ARD Registry errors retain their protocol envelope. Neither a similar route nor a reference implementation replaces the owning contract.
+The worker-only listener has its own operations contract (`internal/platform/operations/README.md`); do not add its routes to Control OpenAPI. For ARD or another standards representation, establish the requirement from pinned profiles (`schemas/PROFILES.md`) before changing its wire shape. Control REST uses RFC 9457 problem details. ARD REST retains its protocol envelope. For HTTP MCP, check the JSON-RPC and HTTP/OAuth responses against the selected endpoint. Control `/mcp` and per-host `/ard/v1/mcp` have independent enablement, tools and authorization. Neither a similar route nor a reference implementation replaces the owning contract.
 
 ## Update the contract and its consumers together
 

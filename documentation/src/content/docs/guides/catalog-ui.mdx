@@ -335,9 +335,9 @@ Large or deeply nested documents and non-JSON text are displayed without highlig
 
 ### Browser and accessibility checks
 
-Chromium is the maintained automated browser baseline. Regression checks cover keyboard controls, responsive layouts, light/dark themes and reduced-motion preferences. The controls above remain usable without relying on color alone.
+Chromium runs the full automated UI regression suite, including keyboard controls, responsive layouts, light/dark themes and reduced-motion preferences. On Ubuntu 24.04 x86-64, selected journeys also pass in Playwright Firefox and WebKit: finding and inspecting entries, recovering a Listing edit, downloading a verified document, leaving an unsaved edit and signing back in to saved work. See the [browser qualification guide](../contributing/testing.md#qualify-firefox-and-webkit) for the tested versions and scope.
 
-Automated accessibility checks inspect the rendered page, dialogs, focus and selected contrast combinations. They do not establish native browser zoom, spoken screen-reader behavior or complete accessibility certification. Other browser engines need separate qualification. See [browser testing and qualification limits](../contributing/testing.md#optional-browser-client) for the maintained scope and test commands.
+Automated accessibility checks inspect the rendered page, dialogs, focus and selected contrast combinations. Native browser zoom and spoken screen-reader behavior require separate checks. See [browser testing and qualification limits](../contributing/testing.md#optional-browser-client) for the maintained scope and test commands.
 
 ## Check Publisher DNS evidence
 
@@ -742,6 +742,12 @@ Search and Explore tools carry the same bounded metadata without invoking tools.
 Library lists show short saved summaries and readable update times. Open an item for complete saved filters or references. List rows do not check target availability. Exact-label filters match the full label, including capitals, spaces and spelling; duplicate labels remain allowed.
 
 Open an inspected resource and expand **Save resource**. Enter a label, review the read-only captured reference, choose **Save resource**, and confirm. Local saves retain the release and Version revision IDs. External saves retain the source, presentation generation, kind, identifier, and explicit version presence. An absent version and an explicitly empty version remain different identities. Quick save cannot replace the inspected target; deliberate reference editing is available in the saved item's detail.
+
+To track future releases of a local entry, open its Catalog detail, expand **Follow Listing**, enter a private label and confirm **Follow this Listing**. The follow records the release and disposition revision on screen. Saving the same Listing again preserves the original follow.
+
+In **Account > Saved items and searches**, apply the **Followed Listings** filter. Choose **Check followed Listings on this page** to compare the displayed preferences with their currently readable releases. Open a follow and choose **Check current release** to see and optionally acknowledge that exact release. A replacement release or a change such as deprecation appears as changed. A refresh leaves the acknowledgement alone. If a newer release appears before confirmation, check it again before acknowledging.
+
+A follow can miss intermediate releases between checks. An unavailable Listing shows no change details. You can still rename or unfollow it. If access returns, the next check compares against your previous acknowledgement. A shared collection arranges Listings for other readers. Each follow belongs to one human and shares the 200-item private library quota.
 
 After Search, expand **Save this named search** to retain the submitted criteria. Unsubmitted search text is not saved. You can also open **Account > Saved items and searches > Save a named search**. Edit **Saved search text**, then expand **More saved filters** for kinds, tags, categories, origins, Namespace, Publisher, license and visibility. These controls make no Search, Explore or suggestion request.
 

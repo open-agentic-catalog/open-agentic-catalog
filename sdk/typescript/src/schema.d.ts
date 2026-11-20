@@ -148,14 +148,14 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * List my saved resources and searches
-         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+         * List my release bookmarks, followed Listings and saved searches
+         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
          */
         get: operations["listPersonalItems"];
         put?: never;
         /**
-         * Save a resource or named search
-         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+         * Save a resource, named search or Listing follow
+         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
          */
         post: operations["createPersonalItem"];
         delete?: never;
@@ -173,7 +173,7 @@ export interface paths {
         };
         /**
          * Read my saved item
-         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
          */
         get: operations["getPersonalItem"];
         put?: never;
@@ -187,7 +187,7 @@ export interface paths {
         head?: never;
         /**
          * Update my saved item
-         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
          */
         patch: operations["updatePersonalItem"];
         trace?: never;
@@ -202,8 +202,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Resolve an exact saved resource without live discovery
-         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+         * Check a bookmark or the current release of a followed local Listing
+         * @description Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
          */
         post: operations["resolvePersonalItem"];
         delete?: never;
@@ -2270,6 +2270,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listing-releases/{releaseId}/relationships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Listing release identifier. */
+                releaseId: components["parameters"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Inspect declared relationships of a local release
+         * @description Outgoing and incoming views require a current published or deprecated release. Both ends require independently granted resource.read. Outgoing declarations remain visible when their exact target has no readable current match. Incoming rows name their current source. The dependencies view additionally requires resource.read_history on the selected release, which may be historical. It returns only current depends_on declarations naming its exact version or omitting a version. Results are ordered by source release UUID and declaration order. A changed Catalog generation or authorization invalidates continuation.
+         */
+        get: operations["listReleaseRelationships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/listing-releases/{releaseId}/withdrawal-preview": {
         parameters: {
             query?: never;
@@ -4292,13 +4315,7 @@ export interface components {
             identifier?: string;
             versionPresent?: boolean;
             version?: string;
-        } & ({
-            /** @constant */
-            origin?: "local";
-        } | {
-            /** @constant */
-            origin?: "foreign";
-        });
+        } & (unknown & unknown);
         /** @description Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search. */
         PersonalCriteria: {
             nativeCapabilities?: components["schemas"]["NativeCapabilitiesFilter"];
@@ -4325,24 +4342,27 @@ export interface components {
         } & (unknown & unknown & unknown & (unknown | {
             origins?: "local"[];
         }));
+        ReleaseObservation: {
+            releaseId: components["schemas"]["UUID"];
+            /** Format: int64 */
+            revision: number;
+        };
         PersonalInput: {
             /** @enum {string} */
-            type: "resource" | "search";
+            type: "resource" | "search" | "follow";
             label: string;
+            listingId?: components["schemas"]["UUID"];
             reference?: components["schemas"]["PersonalReference"];
             search?: components["schemas"]["PersonalCriteria"];
-        } & ({
-            /** @constant */
-            type?: "resource";
-        } | {
-            /** @constant */
-            type?: "search";
-        });
+            /** @description Exact current release shown to the human. Omit on restore or rename. */
+            observed?: components["schemas"]["ReleaseObservation"];
+        } & (unknown & unknown & unknown);
         PersonalItem: {
             id: components["schemas"]["UUID"];
             /** @enum {string} */
-            type: "resource" | "search";
+            type: "resource" | "search" | "follow";
             label: string;
+            listingId?: components["schemas"]["UUID"];
             reference?: components["schemas"]["PersonalReference"];
             search?: components["schemas"]["PersonalCriteria"];
             revision: number;
@@ -4350,13 +4370,7 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
-        } & ({
-            /** @constant */
-            type?: "resource";
-        } | {
-            /** @constant */
-            type?: "search";
-        });
+        } & (unknown & unknown & unknown);
         PersonalReceipt: {
             id: components["schemas"]["UUID"];
             revision: number;
@@ -4370,24 +4384,10 @@ export interface components {
             status: "available" | "unavailable";
             reference?: components["schemas"]["PersonalReference"];
             indexed?: components["schemas"]["CatalogSearchResult"];
-        } & ({
-            /** @constant */
-            status?: "unavailable";
-        } | {
-            /** @constant */
-            status?: "available";
-            reference: {
-                /** @constant */
-                origin?: "local";
-            };
-        } | {
-            /** @constant */
-            status?: "available";
-            reference: {
-                /** @constant */
-                origin?: "foreign";
-            };
-        });
+            current?: components["schemas"]["ReleaseObservation"];
+            /** @enum {string} */
+            change?: "changed" | "unchanged" | "unacknowledged";
+        } & unknown;
         ValidationMaintenanceItem: {
             revisionId: components["schemas"]["UUID"];
             resourceId: components["schemas"]["UUID"];
@@ -6624,6 +6624,21 @@ export interface components {
             type: "depends_on" | "recommended_with" | "supersedes" | "bundled_with";
             targetIdentifier: string;
             targetVersion?: string;
+        };
+        RelatedRelease: {
+            releaseId: components["schemas"]["UUID"];
+            listingRevisionId: components["schemas"]["UUID"];
+            displayName: string;
+            version: string;
+        };
+        ReleasedRelationship: {
+            declaration: components["schemas"]["Relationship"];
+            /** @description Current source for incoming and dependencies. Current target for outgoing, omitted when no readable release matches. */
+            related?: components["schemas"]["RelatedRelease"];
+        };
+        ReleaseRelationshipPage: {
+            items: components["schemas"]["ReleasedRelationship"][];
+            nextCursor?: string;
         };
         PublishListing: {
             submissionId: components["schemas"]["UUID"];
@@ -9110,7 +9125,7 @@ export interface operations {
     listPersonalItems: {
         parameters: {
             query?: {
-                type?: "resource" | "search";
+                type?: "resource" | "search" | "follow";
                 /** @description Optional literal case-sensitive match of the complete saved label. Surrounding spaces and Unicode spelling are significant; wildcard characters are literal. Labels need not be unique. Omission leaves labels unrestricted; an empty, whitespace-only or control-containing value is invalid. Filtering precedes page limits and is bound into continuation with type and current owner authority. */
                 label?: string;
                 limit?: number;
@@ -9151,6 +9166,18 @@ export interface operations {
             };
         };
         responses: {
+            /** @description Follow already exists for this owner and Listing */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    "Idempotency-Replayed": components["headers"]["IdempotencyReplayed"];
+                    ETag: components["headers"]["ETag"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonalReceipt"];
+                };
+            };
             /** @description Created */
             201: {
                 headers: {
@@ -12427,6 +12454,37 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["ListingRelease"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    listReleaseRelationships: {
+        parameters: {
+            query: {
+                /** @description Direction or version-specific withdrawal impact. */
+                view: "outgoing" | "incoming" | "dependencies";
+                /** @description Maximum items in one page. Follow nextCursor with the same page size and filters to continue. */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                /** @description Listing release identifier. */
+                releaseId: components["parameters"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Currently readable declarations. An empty page reveals no count of inaccessible releases. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseRelationshipPage"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };

@@ -2,7 +2,7 @@
 title: "API surfaces"
 ---
 
-The checked-in [OpenAPI 3.1 contract](https://spec.openapis.org/oas/v3.1.0.html) defines every implemented API-listener operation. The separate worker listener exposes operations only. This page explains those boundaries; the HTTP API reference renders schemas directly from the checked-in contract.
+The [Catalog OpenAPI contract](../../../../../api/openapi/control-v1.yaml) defines the routes, inputs and responses on the API listener. The worker has a separate listener for health, status, version and metrics.
 
 ## Listener boundaries
 
@@ -23,6 +23,8 @@ The ARD and AI Catalog documents under `/.well-known/` select an exact configure
 ### ARD Registry
 
 `/ard/v1` provides pinned Search, Explore and List behavior. The host mode protects the active snapshot and limits federation to its approved topology.
+
+A discovery host can also expose one read-only `search` tool at `/ard/v1/mcp`. Set `mcpEnabled` on that host and restart the API. Searching requires an active publication for the host. The tool uses the same audience, federation policy and continuation rules as ARD REST Search. The Control MCP setting is independent. See [Search an ARD publication over MCP](../guides/mcp-server.mdx#search-an-ard-publication-over-mcp).
 
 ### Operations
 

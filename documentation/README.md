@@ -64,7 +64,7 @@ Root [CONTEXT.md](../CONTEXT.md) consolidates application context for repository
 | Wellknown indexed import | [Feasibility assessment](records/wellknown-indexed-import-assessment.md) records the reviewed inventory, synchronization limits, attribution and unqualified import boundaries. |
 | Local code-quality dashboard | [SonarQube setup](src/content/docs/contributing/testing.md#optional-local-sonarqube-dashboard), [login](src/content/docs/contributing/testing.md#log-in-to-sonarqube) and [scan/coverage imports](src/content/docs/contributing/testing.md#scan-and-import-coverage). |
 | Testing and measured results | [Testing pyramid and quality map](src/content/docs/contributing/testing-map.mdx), [testing strategy](src/content/docs/contributing/testing.md), [functional harness](../test/functional/README.md) and [UI matrix](../catalog-ui/tests/README.md). Raw reports stay under ignored `output/`; reviewed notes may use the optional private workspace described in [AGENTS.md](../AGENTS.md). |
-| Local work tracking, when present | Gitignored `todo/` contains active, deferred and closed tasks, plus local maintenance rules. It is optional and excluded from the site. |
+| Local work tracking, when present | Gitignored `todo/` holds active, deferred and closed tasks when present. The [tracker rules](../AGENTS.md#documentation-and-tracking) also apply in checkouts without a local tracker README. |
 | Contribution and security | Root [contribution guide](../CONTRIBUTING.md), [agent rules](../AGENTS.md), [security policy](../SECURITY.md) and [incident response](src/content/docs/operations/incident-response.md). |
 
 ## Directory layout

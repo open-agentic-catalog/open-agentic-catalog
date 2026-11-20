@@ -799,8 +799,76 @@ for (const expected of corpus.cases) {
   );
   assert.equal(denied.response.status, 404);
 }
+const sourceListing = corpus.cases.find(
+  (item) => item.name === "context7-plugin",
+);
+const targetListing = corpus.cases.find(
+  (item) => item.name === "context7-registry",
+);
+const incoming = await corpusReader.api.GET(
+  "/api/v1/listing-releases/{releaseId}/relationships",
+  {
+    params: {
+      path: { releaseId: targetListing.releaseId },
+      query: { view: "incoming" },
+    },
+  },
+);
+assert.equal(incoming.response.status, 200);
+assert.equal(incoming.data.items.length, 1);
+assert.equal(incoming.data.items[0].related.releaseId, sourceListing.releaseId);
+assert.deepEqual(incoming.data.items[0].declaration, {
+  type: "depends_on",
+  targetIdentifier: targetListing.identifier,
+  targetVersion: "4.0.3",
+});
+const follower = createCatalogClient({
+  origin: corpus.origin,
+  allowLoopbackHTTP: true,
+  token: "follower",
+});
+const observed = { releaseId: targetListing.releaseId, revision: 1 };
+const follow = {
+  type: "follow",
+  label: "TypeScript SDK follow",
+  listingId: targetListing.listingId,
+  observed,
+};
+const saved = await follower.api.POST("/api/v1/personal/items", {
+  params: { header: { "Idempotency-Key": "ts-follow" } },
+  body: follow,
+});
+assert.equal(saved.response.status, 201);
+const item = { itemId: saved.data.id };
+const staleAcknowledgement = await follower.api.PATCH(
+  "/api/v1/personal/items/{itemId}",
+  {
+    params: {
+      path: item,
+      header: {
+        "Idempotency-Key": "ts-stale-follow",
+        "If-Match": saved.response.headers.get("ETag"),
+      },
+    },
+    body: { ...follow, observed: { ...observed, revision: 2 } },
+  },
+);
+assert.equal(staleAcknowledgement.response.status, 412);
+const resolution = await follower.api.POST(
+  "/api/v1/personal/items/{itemId}/resolve",
+  {
+    params: { path: item },
+    body: {},
+  },
+);
+assert.equal(resolution.response.status, 200);
+assert.deepEqual(resolution.data, {
+  status: "available",
+  change: "unchanged",
+  current: observed,
+});
 console.log(
-  "Installed JavaScript SDK: six reviewed upstream cases, exact native content and tenant denial passed",
+  "Installed JavaScript SDK: reviewed evidence, tenant isolation, incoming relationship and stale follow acknowledgement passed",
 );
 
 // The installed binding reads actual current evidence without invoking validation.

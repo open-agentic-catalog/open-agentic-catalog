@@ -205,7 +205,7 @@ for (const base of ["root", "subpath"]) {
     await page.goto(origin + basePath + "/saved-items");
     await expect(
       page.getByText(
-        "Your library is empty. Save a resource from Catalog or create a named search.",
+        "Your library is empty. Bookmark a resource, follow a local Listing or save a named search.",
         { exact: true },
       ),
     ).toBeVisible();

@@ -235,10 +235,10 @@ def archive_journey(api, other, seed, run_id):
     reader.request("GET", foreign, expected=(400,))
     # Extend the existing archive journey through independently reviewed
     # publication. Retire its release before the original three-item checks.
-    archive_publication(api, resource, appended, blocked)
+    archive_publication(api, resource, appended, blocked, seed)
 
 
-def archive_publication(api, resource, version, blocked):
+def archive_publication(api, resource, version, blocked, target):
     validated, _ = mutate(api, "POST", "/api/v1/version-revisions/" + version["revision"]["id"] + ":validate", {}, 201)
     assert validated["evidence"]["state"] == "complete" and validated["revision"]["contentSetDigest"] == version["revision"]["contentSetDigest"], "revalidation changed archive content"
     publisher, headers = mutate(api, "POST", "/api/v1/publishers", {"displayName": "Archive publisher", "domains": ["catalog.example.com"]}, 201)
@@ -260,8 +260,10 @@ def archive_publication(api, resource, version, blocked):
     history(api, "/api/v1/review-submissions", [], listingId=listing["id"])
     current, current_headers = api.request("GET", listing_path)
     assert current["candidateRevisionId"] == blocked_listing["revision"]["id"] and header(current_headers, "ETag") == header(headers, "ETag"), "rejected submission changed the listing"
+    potential = {"type": "depends_on", "targetIdentifier": target["resource"]["canonicalIdentifier"]}
+    dependency = {**potential, "targetVersion": target["version"]["version"]}
     listing_revision, headers = mutate(api, "POST", listing_path + "/revisions", {
-        "versionRevisionId": validated["revision"]["id"], "displayName": "Reviewed archive", "description": "Owned inert Skill archive",
+        "versionRevisionId": validated["revision"]["id"], "displayName": "Reviewed archive", "relationships": [potential, dependency], "description": "Owned inert Skill archive",
         "publisherId": publisher["id"], "visibility": "tenant", "license": "Apache-2.0"}, 201, header(headers, "ETag"))
     listing_etag = header(headers, "ETag")
     submission, headers = mutate(api, "POST", listing_path + "/submissions", {}, 201)
@@ -272,6 +274,19 @@ def archive_publication(api, resource, version, blocked):
     record, _ = api.request("GET", "/api/v1/catalog/resources/" + published["release"]["id"])
     assert record["resource"]["id"] == resource["id"] and record["listingRevision"]["publisherId"] == publisher["id"], "archive publication lost identity"
     reader, other = Client(api.base_url, "local-reader"), Client(api.base_url, "other-tenant-admin")
+    relationships = "/api/v1/listing-releases/" + published["release"]["id"] + "/relationships"
+    outward, _ = reader.request("GET", relationships + "?view=outgoing&limit=1")
+    cursor = urllib.parse.urlencode({"cursor": outward["nextCursor"], "limit": 1})
+    following, _ = reader.request("GET", relationships + "?view=outgoing&" + cursor)
+    assert "nextCursor" not in following and [outward["items"][0]["declaration"], following["items"][0]["declaration"]] == [potential, dependency], "paged declarations lost exact/unversioned distinction"
+    assert all(len(page["items"]) == 1 and page["items"][0]["related"]["releaseId"] == target["release"]["id"] for page in (outward, following)), "dependency did not resolve to the current target"
+    other.request("GET", relationships + "?view=outgoing", expected=(404,))
+    reader.request("GET", relationships + "?view=incoming&" + cursor, expected=(400,))
+    reverse = "/api/v1/listing-releases/" + target["release"]["id"] + "/relationships"
+    reader.request("GET", reverse + "?view=outgoing&" + cursor, expected=(400,))
+    impact = reverse + "?view=dependencies"
+    incoming, _ = reader.request("GET", impact)
+    assert [edge["declaration"] for edge in incoming["items"] if edge["related"]["listingRevisionId"] == record["listingRevision"]["id"]] == [potential, dependency], "missing released dependent"
     evidence_path = "/api/v1/review-submissions/" + submission["id"] + "/evidence"
     bound, _ = reader.request("GET", evidence_path)
     assert (bound["id"], bound["digest"], bound["policyVersion"]) == (submission["evidenceSetId"], submission["evidenceDigest"], submission["policyVersion"]), "submission evidence binding changed"
@@ -293,6 +308,9 @@ def archive_publication(api, resource, version, blocked):
     prior_release, _ = reader.request("GET", "/api/v1/listing-releases/" + published["release"]["id"])
     assert prior_release["state"] == "superseded" and prior_release["replacementReleaseId"] == replacement["release"]["id"], "replacement lost prior release linkage"
     api.request("GET", "/api/v1/catalog/resources/" + prior_release["id"], expected=(404,))
+    incoming, _ = reader.request("GET", impact)
+    assert all(edge["related"]["releaseId"] != prior_release["id"] for edge in incoming["items"]), "replaced declaration remained current"
+
     listing_histories = (
         ("/api/v1/resources/" + resource["id"] + "/listings", [{"id": listing["id"], "currentReleaseId": replacement["release"]["id"]}]),
         (listing_path + "/revisions", [revision_summary(v["revision"], "digest") for v in (blocked_listing, listing_revision, second_revision)]),

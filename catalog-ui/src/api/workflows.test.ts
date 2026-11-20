@@ -171,6 +171,7 @@ const workflows = {
   revokeListingRelease: "screen:review-and-releases",
   getArtifactContent: "screen:authoring",
   browseCatalog: "screen:catalog-explore",
+  listReleaseRelationships: "screen:catalog",
   getCatalogRecord: "screen:catalog",
   searchCatalog: "screen:catalog",
   exploreCatalog: "screen:catalog-explore",

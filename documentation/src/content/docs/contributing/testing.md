@@ -198,7 +198,7 @@ Only explicitly offline targets such as `make vulncheck-offline` promise their d
 
 `make check` is the main source gate. Use the focused targets while editing. Run the aggregate after resolving findings. The tools and their scope are explicit:
 
-Install the `shellcheck`, `markdownlint`, `yamllint`, `hadolint` and Docker Compose CLIs, the pinned [Ruff executable](#python-linting), and the separate [API validation tools](#api-validation). Compose model validation parses configuration without starting containers. The Go analyzer commands select their versions from the Makefile and may acquire pinned modules through the Go toolchain. UI and documentation-site checks use their own locked npm installations.
+Install ShellCheck, markdownlint, Hadolint and the Docker Compose plugin. The [shared development tools](build-and-release.md#shared-development-tools) supply [Ruff](#python-linting) and yamllint. Install the [API validation tools](#api-validation) and actionlint (`make workflow-tools-install`) separately. Compose model validation parses configuration without starting containers. The Go analyzer commands select their versions from the Makefile and may acquire pinned modules through the Go toolchain. UI and documentation-site checks use their own locked npm installations.
 
 | Scope | Targets | Checks |
 | --- | --- | --- |
@@ -1158,6 +1158,34 @@ Instrumentation stays in private test builds. Packaged measurement mounts tempor
 
 Browser regressions check navigation with unsaved editor changes and exact command retry after the user dismisses a reload. They also check revocation of a prepared command's only namespace grant and real OIDC UI-cookie loss. They check explicit recovery after the packaged API stops. They retain saved-state, authorization-denial and no-unintended-write assertions. Browser timer expiry, cookie loss and server token expiry are distinct boundaries.
 
+### Qualify Firefox and WebKit
+
+The selected journeys passed on Ubuntu 24.04 x86-64 with Playwright 1.64.1, Firefox 157.0 and WebKit 27.2. Repeat both commands after a Playwright upgrade to qualify its new browser builds.
+
+On Ubuntu 24.04 x86-64, use the Playwright builds pinned by the UI lockfile. Start with the Go, Node, Docker Compose, OpenSSL, PostgreSQL image and Keycloak image prerequisites for the packaged OIDC tests. Firefox needs NSS `certutil` (package `libnss3-tools`). WebKit needs `bubblewrap` with working unprivileged mount namespaces. Install the [Playwright Linux browser libraries](https://playwright.dev/docs/browsers#install-system-dependencies) if your host lacks them.
+
+```sh
+make ui-install
+make ui-engine-install
+make test-ui-engine UI_BROWSER_ENGINE=firefox
+make test-ui-engine UI_BROWSER_ENGINE=webkit
+```
+
+Run the two engine checks serially and separately from other browser or Docker deployment tests. Creating or removing a Docker network can interrupt in-flight browser requests, including local Chromium tests. Each engine runs five existing local journeys and one packaged journey:
+
+| Task | What must work |
+| --- | --- |
+| Find and open a release | Apply filters, page through distinct releases, inspect the selected record and navigate the pager by keyboard. |
+| Read with limited permissions | Metadata-only readers see authorized information. Content and history links require their respective grants. |
+| Recover a Listing edit | On a nested UI path, recover a lost response with the original command key and revision precondition. |
+| Download a retained document | Reject corrupted responses, then save the verified bytes through the browser's download handler. |
+| Leave an unsaved edit | Dismiss and accept the browser's discard prompt and verify the editor state and Back/Forward navigation. |
+| Recover a packaged OIDC session | Sign in at `/browser`, create and reopen a namespace, remove the UI cookie and retain the issuer cookies. The next protected read must return 401 and clear the account and private view. An explicit sign-in through the callback must restore access to the same namespace. |
+
+The packaged check creates its own CA, tests the issuer on its configured name and requires a TLS rejection on a second name for the same listener. Firefox uses a disposable NSS profile. WebKit gets private resolver and CA files for its process tree. Both checks remove their browser state and Compose fixtures. WebKit reports an interrupted frame load when the issuer redirects the submitted sign-in form across origins. The harness recognizes that exact form navigation once and requires the real callback, session cookie and authorized read to succeed. Other transport failures still fail the run.
+
+The command prints its results directory. Its `report.json` records the OS, locked browser revision and observed version, source and build identity, selected journeys and cleanup. A missing prerequisite, skipped case or failed cleanup leaves that engine unqualified. The ordinary Chromium suite, visual comparisons, performance and source coverage have their own targets. These results cover the selected Playwright builds on Linux. Native Safari, branded Firefox and assistive-technology testing require separate runs.
+
 ### Select local and packaged browser gates
 
 Run `make test-local-auth` to test the [local password setup](../operations/oidc-keycloak.md#start-one-local-catalog-with-passwords). It builds owned images and runs the documented launcher. Install the UI browser tools and acquire the pinned PostgreSQL and Keycloak images first. Reserve the documented ports and subnet. The test refuses conflicts; it does not stop another deployment.
@@ -1902,7 +1930,7 @@ Review each survivor against the intended contract and existing assertions. Add 
 
 ## PostgreSQL integration environment
 
-`make compose-check` uses Docker Compose v2 by default to parse the development, disposable PostgreSQL, and merged functional models without starting them. It supplies fixed check projects and disables Compose's automatic `.env` loading. The workflow-only `COMPOSE` variable may select a compatible command or wrapper. It does not change the container engine used by image targets.
+`make compose-check` uses `docker compose` by default to parse the development, disposable PostgreSQL, and merged functional models without starting them. It supplies fixed check projects and disables Compose's automatic `.env` loading. The workflow-only `COMPOSE` variable may select a compatible command or wrapper. It does not change the container engine used by image targets.
 
 `make test-integration` creates a unique test-only Compose project from `compose.integration.yaml`. It starts digest-pinned PostgreSQL 18 with a disposable volume and waits for database health. It discovers a dynamically selected loopback port and constructs the test DSN. It then runs the race-enabled integration-tagged Go suite on the host. It removes the project and volume even if the suite or coverage floor fails. Concurrent invocations do not share a fixed project, port, container, network, or volume.
 

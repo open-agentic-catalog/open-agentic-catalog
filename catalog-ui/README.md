@@ -18,7 +18,9 @@ The optional public reader at `/discover` is disabled by default. Enable it expl
 
 ## Document comparison limits
 
-Revision comparison uses `diff` (jsdiff) on verified original text. Line differences select blocks; character differences locate edits within each block. It does not use a JSON serializer, ignore whitespace or retrieve external content. The original text view keeps its independent 2 MiB limit per document.
+Exact text comparison uses `diff` (jsdiff) on verified original text. Line differences select blocks; character differences locate edits within each block. It does not use a JSON serializer, ignore whitespace or retrieve external content. The original text view keeps its independent 2 MiB limit per document.
+
+The [declaration summary](../documentation/src/content/docs/guides/resource-authoring.mdx#read-capability-and-connection-changes) compares selected fields from two validated primary A2A Agent Cards or MCP Server Cards. Each side uses its authorized inline data or verified artifact bytes. Both forms share the native JSON limits of 64 container levels and 262,144 structural characters (braces, brackets, colons and commas). The projection caps each selected list at 128 entries and the output at 64 changes and 16,384 UTF-16 code units. MCP order comparison uses at most 128 identifiers per side and preserves duplicate counts. An unavailable summary leaves eligible text navigation available.
 
 Detailed navigation enforces these fixed bounds. Exceeding any bound discards all detailed output and leaves the original view available.
 
@@ -215,6 +217,8 @@ Only point the local launcher at an owned development Catalog using the matching
 | `make ui-coverage-100`      | Diagnose the exact 100% frontend target; residual defensive/fallback branches remain uncovered.                                              |
 | `make ui-dev`               | Build and launch the local client on loopback port 4180.                                                                                     |
 | `make ui-browser-install`   | Download the pinned Playwright Chromium browser once.                                                                                        |
+| `make ui-engine-install`    | Install the pinned Playwright Firefox and WebKit builds.                                                                                     |
+| `make test-ui-engine`       | Run selected journeys and packaged OIDC with `UI_BROWSER_ENGINE=firefox` or `webkit` on Ubuntu 24.04 x86-64.                                 |
 | `make test-ui`              | Run the complete local UI gate: static checks, client/fixture and Go host tests, an isolated build and real-browser regressions.             |
 | `make ui-container-inspect` | Inspect an existing `UI_IMAGE`: static host, runtime settings, licenses and frontend build hashes.                                           |
 | `make ui-sbom`              | Generate an image-bound SPDX inventory of host Go and locked production JavaScript dependencies.                                             |
@@ -245,6 +249,8 @@ After an OpenAPI change, run `npm run generate` in this directory and review the
 ### Repeatable browser tests
 
 The [UI test strategy and workflow matrix](tests/README.md) maps local journeys and packaged workflows to their assertions and test boundaries. A classified API operation or successful page load is not complete workflow coverage. The main suite runs Chromium against isolated processes; `make test-ui-compose` and `make test-ui-oidc` add the packaged checks below.
+
+See [Firefox and WebKit prerequisites and test scope](../documentation/src/content/docs/contributing/testing.md#qualify-firefox-and-webkit) before running either engine locally.
 
 Use the separate `make ui-performance` target for production asset/work budgets and report-only browser timings. `UI_PERFORMANCE_TIMEOUT_SCALE` defaults to `3` and accepts integers `1` through `10`; `make ui-performance UI_PERFORMANCE_TIMEOUT_SCALE=6` doubles the default execution deadlines for slower runners. See [production performance measurements](tests/README.md#production-performance-measurements) for the fixture, reports and limits.
 

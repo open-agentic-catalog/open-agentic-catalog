@@ -23,6 +23,9 @@ import (
 
 type personalTestAuthority struct{}
 
+func (personalTestAuthority) CurrentListingRelease(context.Context, string) (catalog.ReleaseObservation, error) {
+	return catalog.ReleaseObservation{}, catalog.E(catalog.CodeNotFound, "no Listing fixture")
+}
 func (personalTestAuthority) Admit(context.Context, personal.Reference) error { return nil }
 
 func TestPostgresPersonalLibraryOwnershipQuotaAndAtomicAudit(t *testing.T) {

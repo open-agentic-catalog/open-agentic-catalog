@@ -35,14 +35,18 @@ export function referenceFacts(
           : []),
       ]);
 }
+export const savedTypeNames = {
+  search: "Named search",
+  resource: "Resource reference",
+  follow: "Followed Listing",
+};
 export function personalFacts(input: Input): NonNullable<Command["summary"]> {
   const facts = commandSummary([
     ["Saved label", input.label] as const,
-    [
-      "Saved type",
-      input.type === "search" ? "Named search" : "Resource reference",
-    ] as const,
+    ["Saved type", savedTypeNames[input.type]] as const,
   ]);
+  if (input.type === "follow")
+    return [...facts, { label: "Listing ID", value: input.listingId! }];
   if (input.reference) return [...facts, ...referenceFacts(input.reference)];
   const labels: Record<string, string> = {
     text: "Search text",

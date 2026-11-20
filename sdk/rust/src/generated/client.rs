@@ -316,12 +316,15 @@ pub enum ListPersonalItemsType {
     Resource,
     #[serde(rename = "search")]
     Search,
+    #[serde(rename = "follow")]
+    Follow,
 }
 impl ListPersonalItemsType {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Resource => "resource",
             Self::Search => "search",
+            Self::Follow => "follow",
         }
     }
 }
@@ -421,6 +424,35 @@ impl std::fmt::Display for ListRatingInboxState {
     }
 }
 impl AsRef<str> for ListRatingInboxState {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+///Allowed values for the `view` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum ListReleaseRelationshipsView {
+    #[serde(rename = "outgoing")]
+    Outgoing,
+    #[serde(rename = "incoming")]
+    Incoming,
+    #[serde(rename = "dependencies")]
+    Dependencies,
+}
+impl ListReleaseRelationshipsView {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Outgoing => "outgoing",
+            Self::Incoming => "incoming",
+            Self::Dependencies => "dependencies",
+        }
+    }
+}
+impl std::fmt::Display for ListReleaseRelationshipsView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListReleaseRelationshipsView {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
@@ -1323,6 +1355,11 @@ pub enum ListPublishersApiError {
 ///Typed error responses for `listRatingInbox`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ListRatingInboxApiError {
+    Default(Problem),
+}
+///Typed error responses for `listReleaseRelationships`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum ListReleaseRelationshipsApiError {
     Default(Problem),
 }
 ///Typed error responses for `listResourceListings`. One variant per declared non-2xx response.
@@ -4000,9 +4037,9 @@ impl Client {
             }))
         }
     }
-    /// Save a resource or named search
+    /// Save a resource, named search or Listing follow
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
     ///
     /// `POST /api/v1/personal/items`
     pub async fn create_personal_item(
@@ -4024,7 +4061,7 @@ impl Client {
         let body_bytes = response.body.clone();
         let raw_body = body_bytes;
         let body_text = String::from_utf8_lossy(&raw_body).into_owned();
-        if false || status_code == 201u16 {
+        if false || status_code == 200u16 || status_code == 201u16 {
             match serde_json::from_slice(&raw_body) {
                 Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
                 Err(e) => Err(ApiOpError::api(ApiError {
@@ -4045,7 +4082,7 @@ impl Client {
                 typed: None,
                 parse_error: Some(format!(
                     "unexpected successful status {}; generated return type selects `{}`",
-                    status_code, "201",
+                    status_code, "200, 201",
                 )),
             }))
         } else {
@@ -8001,7 +8038,7 @@ impl Client {
     }
     /// Read my saved item
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
     ///
     /// `GET /api/v1/personal/items/{itemId}`
     pub async fn get_personal_item(
@@ -13128,9 +13165,9 @@ impl Client {
             }))
         }
     }
-    /// List my saved resources and searches
+    /// List my release bookmarks, followed Listings and saved searches
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
     ///
     /// `GET /api/v1/personal/items`
     pub async fn list_personal_items(
@@ -13613,6 +13650,98 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(ListRatingInboxApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Inspect declared relationships of a local release
+    ///
+    /// Outgoing and incoming views require a current published or deprecated release. Both ends require independently granted resource.read. Outgoing declarations remain visible when their exact target has no readable current match. Incoming rows name their current source. The dependencies view additionally requires resource.read_history on the selected release, which may be historical. It returns only current depends_on declarations naming its exact version or omitting a version. Results are ordered by source release UUID and declaration order. A changed Catalog generation or authorization invalidates continuation.
+    ///
+    /// `GET /api/v1/listing-releases/{releaseId}/relationships`
+    pub async fn list_release_relationships(
+        &self,
+        release_id: impl AsRef<str>,
+        view: ListReleaseRelationshipsView,
+        limit: Option<i64>,
+        cursor: Option<impl AsRef<str>>,
+    ) -> Result<Response<ReleaseRelationshipPage>, ApiOpError<ListReleaseRelationshipsApiError>>
+    {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/listing-releases/{}/relationships",
+                __pct_encode_path_segment(release_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            query_params.push(("view".to_string(), view.to_string()));
+            if let Some(v) = limit {
+                query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = cursor {
+                query_params.push(("cursor".to_string(), v.as_ref().to_string()));
+            }
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<ListReleaseRelationshipsApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(ListReleaseRelationshipsApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {
@@ -17196,9 +17325,9 @@ impl Client {
             }))
         }
     }
-    /// Resolve an exact saved resource without live discovery
+    /// Check a bookmark or the current release of a followed local Listing
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
     ///
     /// `POST /api/v1/personal/items/{itemId}/resolve`
     pub async fn resolve_personal_item(
@@ -19654,7 +19783,7 @@ impl Client {
     }
     /// Update my saved item
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
     ///
     /// `PATCH /api/v1/personal/items/{itemId}`
     pub async fn update_personal_item(

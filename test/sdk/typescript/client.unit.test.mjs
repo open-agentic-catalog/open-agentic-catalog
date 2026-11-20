@@ -14,6 +14,31 @@ const code = (name) => (error) =>
   error instanceof SDKError && error.code === name;
 const manifest = "/.well-known/ard.json";
 
+test("a declaration without a readable destination stays unlinked in the generated relationship read", async () => {
+  const releaseId = "00000000-0000-7000-8000-000000000101";
+  const declaration = {
+    type: "depends_on",
+    targetIdentifier: "opaque:tools",
+    targetVersion: "1.0",
+  };
+  const wire = { items: [{ declaration }] };
+  const client = make(async (request) => {
+    const url = new URL(request.url);
+    assert.equal(request.method, "GET");
+    assert.equal(
+      url.pathname,
+      `/api/v1/listing-releases/${releaseId}/relationships`,
+    );
+    assert.equal(url.search, "?view=outgoing");
+    return json(wire, { headers: { "Content-Type": "application/json" } });
+  });
+  const response = await client.api.GET(
+    "/api/v1/listing-releases/{releaseId}/relationships",
+    { params: { path: { releaseId }, query: { view: "outgoing" } } },
+  );
+  assert.deepEqual(response.data, wire);
+});
+
 test("withdrawal preview is one explicit read and preserves bound snapshot references", async () => {
   const releaseId = "00000000-0000-7000-8000-000000000101";
   const wire = {

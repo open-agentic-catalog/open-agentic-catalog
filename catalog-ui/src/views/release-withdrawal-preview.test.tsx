@@ -117,6 +117,52 @@ it("reads only on explicit request, refreshes changed feeds and captures their e
   expect(w.post).not.toHaveBeenCalled();
 });
 
+it.each(["malformed response", "access denied"] as const)(
+  "keeps the snapshot preview and confirmation usable after a separate dependency read returns %s",
+  async (failure) => {
+    const w = fixture();
+    w.routes["/api/v1/listing-releases/{releaseId}/relationships"] = {
+      items: [{ declaration: {} }],
+    };
+    render(<Release {...w.props} id={release.id} access={administrator} />);
+    await screen.findByLabelText("Disposition");
+    change("Disposition", "retire");
+    change("Reason", "Reviewed retirement");
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: "Preview or refresh affected feeds",
+        }),
+      ).toHaveProperty("disabled", false),
+    );
+    click("Preview or refresh affected feeds");
+    await screen.findByText(snapshot.snapshotId);
+    if (failure === "access denied") {
+      w.get.mockImplementationOnce(async () => ({
+        error: { code: "NOT_FOUND" },
+        response: new Response(null, { status: 404 }),
+      }));
+    }
+    click("Check declared dependencies");
+    const panel = screen.getByRole("region", {
+      name: "Declared dependency impact",
+    });
+    const alert = await within(panel).findByRole("alert");
+    if (failure === "access denied")
+      expect(alert.textContent).toContain(
+        "unavailable with your current access",
+      );
+    expect(
+      within(panel).queryByText("No currently readable declarations match."),
+    ).toBeNull();
+    click("Change release disposition");
+    expect(
+      within(await screen.findByRole("dialog")).getByText(snapshot.snapshotId),
+    ).toBeTruthy();
+    expect(w.post).not.toHaveBeenCalled();
+  },
+);
+
 it("keeps original-key recovery separate from preview refresh after an uncertain write", async () => {
   const w = fixture();
   w.post.mockRejectedValueOnce(new Error("Owned lost response"));

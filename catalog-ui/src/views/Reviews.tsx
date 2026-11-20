@@ -1,3 +1,4 @@
+import { ReleaseRelationships } from "./ReleaseRelationships";
 import { Facts } from "./Facts";
 import { ReleaseState } from "./ReleaseState";
 import { ScrollableTable } from "./ScrollableTable";
@@ -520,6 +521,9 @@ function ReviewDetail(props: WorkspaceProps) {
               ownerId={detail.data.submission.listingId}
               namespaceId={detail.data.listing.namespaceId}
               fixedAfter={detail.data.submission.listingRevisionId}
+              submittedVersionRevisionId={
+                detail.data.submission.versionRevisionId
+              }
             />
             {!stale && <p>{reviewGuidance[detail.data.submission.state]}</p>}
             <p>
@@ -1721,6 +1725,19 @@ function ReleaseActions(
             )}
           </section>
         )}
+        {action !== "deprecate" &&
+          metadataAllowed &&
+          historyAllowed &&
+          !props.stale && (
+            <ReleaseRelationships
+              key={previewSelection}
+              client={props.client}
+              basePath={props.runtime.basePath}
+              onFailure={props.onFailure}
+              releaseId={props.release.id}
+              view="dependencies"
+            />
+          )}
         <Field label="Disposition">
           <select
             required

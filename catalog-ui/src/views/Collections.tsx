@@ -142,13 +142,9 @@ function CollectionDetail(props: WorkspaceProps) {
     props.onFailure,
   );
   const members = useRead(
-    JSON.stringify([
-      props.id,
-      props.access,
-      cursor,
-      filters,
-      detail.data?.item.revision,
-    ]),
+    // Loading the metadata does not change the member query. Reload and
+    // successful collection commands refresh both reads explicitly below.
+    JSON.stringify([props.id, props.access, cursor, filters]),
     async (signal) =>
       result(
         await props.client.api.GET(

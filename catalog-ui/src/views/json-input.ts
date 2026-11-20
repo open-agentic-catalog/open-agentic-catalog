@@ -1,6 +1,9 @@
 // Browser object commands must preserve every submitted decimal value.
 import { DocumentInputError } from "./input-validation";
 
+export const jsonNestingLimit = 64;
+export const jsonStructureLimit = 262144;
+
 function decimalIdentity(token: string): string {
   const [base = "", exponent = "0"] = token.toLowerCase().split("e");
   const negative = base.startsWith("-");
@@ -36,13 +39,15 @@ function parseJSON(
         else if (character === '"') quoted = false;
       } else if (character === '"') quoted = true;
       else if (character === "{" || character === "[") {
-        if (++depth > 64 || ++structure > 262144)
+        if (++depth > jsonNestingLimit || ++structure > jsonStructureLimit)
           throw new DocumentInputError("depth");
       } else if (character === "}" || character === "]") {
         depth--;
-        if (++structure > 262144) throw new DocumentInputError("depth");
+        if (++structure > jsonStructureLimit)
+          throw new DocumentInputError("depth");
       } else if (character === ":" || character === ",") {
-        if (++structure > 262144) throw new DocumentInputError("depth");
+        if (++structure > jsonStructureLimit)
+          throw new DocumentInputError("depth");
       }
     }
   }
@@ -75,7 +80,7 @@ function parseJSON(
   };
   const numeric = /-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/y;
   const visit = (depth: number) => {
-    if (depth > 64) throw new DocumentInputError("depth");
+    if (depth > jsonNestingLimit) throw new DocumentInputError("depth");
     whitespace();
     const token = text[at];
     if (token === "{") {

@@ -506,7 +506,7 @@ Production sign-in uses the configured OIDC provider; development choices are no
 | Security reviewer | Private tenant audit investigation/export | No prerequisite Reader or Resource API access; the audit context remains private. |
 | Webhook administrator | Enabled webhooks and delivery evidence | Disabled capability is explained; receiver/delivery success is separate. |
 | Feedback member | Own private feedback | New submission also needs a readable resource/release context. |
-| Library member | Own saved resource references and named searches | No resource reads or administration. Saving requires `personal.write` when scopes are enforced; target checks remain separate. |
+| Library member | Manage personal resource bookmarks, followed local Listings and named searches | Saving requires `personal.write` when OAuth scopes are enforced. Checking a followed Listing also requires `resource.read` in its namespace. |
 | Service client (empty) | Membership-only setup, My access and service information | Identity type is independent. The shipped exact choice is nonhuman and has no product grants or human-only tasks. |
 
 Exact aliases are `local-template-` followed by the template key with underscores replaced by hyphens, for example `local-template-publication-admin`. The six bundles also use explicit `roleTemplates`. Reader, Contributor, Reviewer and Publisher include Discovery reader and Feedback member. Contributor adds Publisher creator; Publisher adds Publication administrator. Each administrator selects only Tenant administrator, which already contains its complete permission set. Ordinary grants never add these companions.
@@ -573,7 +573,7 @@ Aliases with the same tenant, issuer realm and exact subject identify one princi
 
 ## Personal library permission
 
-The tenant-wide `library.own` permission allows human members to manage their own saved items and named searches. Discovery reader and Tenant administrator include it. The global `library_member` template contains only this permission. Grant it explicitly alongside a namespace-capable Reader or Contributor when needed. Ordinary grants do not add companions. No grant permits selecting another owner's library. OAuth `personal.write` is an additional ceiling for mutations, while reads use `catalog.read`. See [saved items](catalog-ui.mdx#save-resources-and-searches).
+The tenant-wide `library.own` permission allows human members to manage their own bookmarks, followed Listings and named searches. Discovery reader and Tenant administrator include it. The global `library_member` template contains only this permission. Grant it explicitly alongside a namespace-capable Reader or Contributor when needed. Ordinary grants do not add companions. No grant permits selecting another owner's library. OAuth `personal.write` is an additional ceiling for mutations, while reads use `catalog.read`. See [saved items](catalog-ui.mdx#save-resources-and-searches).
 
 ## Inspect access counts
 

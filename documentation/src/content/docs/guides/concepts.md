@@ -111,7 +111,7 @@ Reading requires `collection.read` in the owner namespace. Management requires `
 
 For a restricted account, [create a custom role](access-management.mdx#create-a-custom-role-with-explicit-read-companions) with `collection.read` and assign it in the collection's owner namespace. Add `collection.manage` when that account should curate entries. Grant `resource.read` separately in each target namespace. Changing or revoking a grant takes effect on the next authorized read; it does not delete retained collections or references.
 
-Collections are authenticated metadata views. They do not grant source access, change public discovery feeds, install a resource or create a callable virtual MCP server. Personal bookmarks remain separate: they belong to a human and retain an exact release reference. Shared collections have namespace ownership and follow current releases.
+Collections are authenticated metadata views. They do not grant source access, change public discovery feeds, install a resource or create a callable virtual MCP server. A personal bookmark belongs to one human and retains an exact release reference. A private follow tracks the current release of one local Listing and remembers the release revision its owner last acknowledged. Shared collections have namespace ownership and follow current releases.
 
 ## Evidence and notifications have different purposes
 

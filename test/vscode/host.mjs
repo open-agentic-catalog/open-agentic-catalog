@@ -14,7 +14,7 @@ import {
 import assert from "node:assert/strict";
 import { resolve, join } from "node:path";
 import { peers } from "./host-peers.mjs";
-import { createServer } from "node:http";
+import { createBlockedProxy } from "./listen.mjs";
 import { execFileSync } from "node:child_process";
 import { dirname, delimiter } from "node:path";
 import { developmentHost } from "./editor.mjs";
@@ -27,13 +27,7 @@ const work = await mkdtemp(
     "host-",
   ),
 );
-const blocked = createServer((_, response) => {
-  response.writeHead(403);
-  response.end();
-});
-blocked.on("connect", (_, socket) =>
-  socket.end("HTTP/1.1 403 Forbidden\r\n\r\n"),
-);
+const blocked = createBlockedProxy();
 await new Promise((resolve) => blocked.listen(0, "127.0.0.1", resolve));
 const proxy = `http://127.0.0.1:${blocked.address().port}`;
 try {

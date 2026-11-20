@@ -322,3 +322,77 @@ func TestHTTPPersonalNativeSelectorsAndWireBudget(t *testing.T) {
 		t.Fatal("oversized native save mutated library", len(items.Items))
 	}
 }
+
+func qualifyHTTPListingFollow(t *testing.T, base, actor, listingID, releaseID string, revision int64, revoke func()) {
+	t.Helper()
+	const root = "/api/v1/personal/items"
+	requireStatus(t, requestJSON(t, base, "POST", root, actor, "follow-empty-mixed", "", map[string]any{"type": "search", "label": "mixed", "search": map[string]any{"text": "x"}, "listingId": ""}), 400)
+
+	observed := catalog.ReleaseObservation{ReleaseID: releaseID, Revision: revision}
+	input := map[string]any{"type": "follow", "label": "Owner follow", "listingId": listingID}
+	input["observed"] = catalog.ReleaseObservation{ReleaseID: releaseID, Revision: revision + 1}
+	requireStatus(t, requestJSON(t, base, "POST", root, actor, "follow-stale-create", "", input), 412)
+	input["observed"] = observed
+	created := requestJSON(t, base, "POST", root, actor, "follow-create", "", input)
+	requireStatus(t, created, 201)
+	requireControlSchema(t, "PersonalReceipt", created.body)
+	replay := requestJSON(t, base, "POST", root, actor, "follow-create", "", input)
+	requireStatus(t, replay, 201)
+	if replay.header.Get("Idempotency-Replayed") != "true" || string(created.body) != string(replay.body) {
+		t.Fatal("follow receipt replay changed")
+	}
+	var receipt feedbackReceipt
+	decodeResult(t, created, &receipt)
+	path := root + "/" + receipt.ID
+	input["label"] = "Duplicate label"
+	duplicate := requestJSON(t, base, "POST", root, actor, "follow-duplicate", "", input)
+	requireStatus(t, duplicate, 200)
+	if string(created.body) != string(duplicate.body) {
+		t.Fatal("duplicate follow changed receipt")
+	}
+	for _, other := range []string{"admin", "other-admin"} {
+		requireStatus(t, requestJSON(t, base, "POST", path+"/resolve", other, "", "", map[string]any{}), 404)
+	}
+	got := requestJSON(t, base, "GET", path, actor, "", "", nil)
+	requireStatus(t, got, 200)
+	requireControlSchema(t, "PersonalItem", got.body)
+	if strings.Contains(string(got.body), releaseID) || strings.Contains(string(got.body), "observed") || strings.Contains(string(got.body), "Duplicate label") {
+		t.Fatal("owner response retained target facts or duplicate label")
+	}
+	resolved := requestJSON(t, base, "POST", path+"/resolve", actor, "", "", map[string]any{})
+	requireStatus(t, resolved, 200)
+	requireControlSchema(t, "PersonalResolution", resolved.body)
+	var r personal.FollowResolution
+	decodeResult(t, resolved, &r)
+	if r.Change != "unchanged" || r.Current == nil || *r.Current != observed {
+		t.Fatal(r)
+	}
+	input["observed"] = catalog.ReleaseObservation{ReleaseID: releaseID, Revision: revision + 1}
+	requireStatus(t, requestJSON(t, base, "PATCH", path, actor, "follow-stale-ack", got.header.Get("ETag"), input), 412)
+	input["label"] = "Owner follow"
+	input["observed"] = observed
+	ack := requestJSON(t, base, "PATCH", path, actor, "follow-ack", got.header.Get("ETag"), input)
+	requireStatus(t, ack, 200)
+	var updated feedbackReceipt
+	decodeResult(t, ack, &updated)
+	if updated.ID != receipt.ID || updated.Revision != receipt.Revision+1 {
+		t.Fatal("acknowledgement did not advance the same saved item exactly once", updated)
+	}
+	retried := requestJSON(t, base, "PATCH", path, actor, "follow-ack", got.header.Get("ETag"), input)
+	requireStatus(t, retried, 200)
+	if retried.header.Get("Idempotency-Replayed") != "true" || string(retried.body) != string(ack.body) || retried.header.Get("ETag") != ack.header.Get("ETag") {
+		t.Fatal("acknowledgement replay changed the receipt")
+	}
+	revoke()
+	requireStatus(t, requestJSON(t, base, "POST", root, actor, "follow-create", "", input), 403)
+	requireStatus(t, requestJSON(t, base, "PATCH", path, actor, "follow-ack", got.header.Get("ETag"), input), 403)
+	unavailable := requestJSON(t, base, "POST", path+"/resolve", actor, "", "", map[string]any{})
+	requireStatus(t, unavailable, 200)
+	requireControlSchema(t, "PersonalResolution", unavailable.body)
+	var unavailableShape map[string]any
+	decodeResult(t, unavailable, &unavailableShape)
+	if len(unavailableShape) != 1 || unavailableShape["status"] != "unavailable" {
+		t.Fatal("unavailable follow disclosed more than status")
+	}
+	requireStatus(t, requestJSON(t, base, "DELETE", path, actor, "follow-remove", ack.header.Get("ETag"), nil), 200)
+}
