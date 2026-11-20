@@ -421,7 +421,16 @@ test("corrupt retained documents never become downloads and real bytes recover w
   await prepare.click();
   await expect(save).toBeVisible();
   const previous = await save.getAttribute("href");
-  await prepare.click();
+  const [source] = await Promise.all([
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === "GET" &&
+        /\/artifacts\/[^/]+\/content$/.test(new URL(response.url()).pathname),
+    ),
+    prepare.click(),
+  ]);
+  expect(source.status()).toBe(200);
+  const expected = await source.body();
   await expect(save).toBeVisible();
   await expect(save).not.toHaveAttribute("href", previous!);
   // Native CSP blocks fetching blob URLs; exact revocation calls are covered by component tests.
@@ -429,7 +438,10 @@ test("corrupt retained documents never become downloads and real bytes recover w
   await save.click();
   const download = await pending;
   const bytes = await readFile((await download.path())!);
-  expect(bytes.toString()).not.toContain("tampered");
+  expect(bytes.equals(expected)).toBe(true);
+  expect(source.headers()["content-digest"]).toBe(
+    `sha-256=:${createHash("sha256").update(bytes).digest("base64")}:`,
+  );
   expect(createHash("sha256").update(bytes).digest("hex")).toBe(
     download
       .suggestedFilename()

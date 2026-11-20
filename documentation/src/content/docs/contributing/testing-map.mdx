@@ -18,7 +18,7 @@ The pyramid shows preferred emphasis. It does not show measured test counts, tim
 4. **Packaged end-to-end:** check built API/worker/operator processes with PostgreSQL in owned Compose stacks. Packaged browser profiles check the UI against those services. The OIDC profile adds a real test issuer. Select peer, tracing, semantic or recovery profiles when those boundaries change.
 5. **Deployment qualification:** check image properties, chart rendering and schemas, then select owned Minikube scenarios for Kubernetes behavior. Static rendering cannot establish cluster readiness, disruption recovery or network enforcement. Operators separately qualify their infrastructure and changed deployment inputs.
 
-[Playwright](https://playwright.dev/docs/intro) drives browsers in local and packaged functional layers. Those journeys include accessibility assertions. Select `ui-visual` separately for visual comparison.
+[Playwright](https://playwright.dev/docs/intro) drives browsers in local and packaged functional layers. Those journeys include accessibility assertions. Select `ui-visual` separately for visual comparison. The [Firefox and WebKit checks](testing.md#qualify-firefox-and-webkit) run a smaller functional selection against the local API and the packaged OIDC deployment.
 
 Properties, fuzzing, mutation, race detection, deterministic `testing/synctest` scheduling and the focused Gobra proof strengthen selected contracts. They are techniques within the layers, not additional pyramid levels.
 

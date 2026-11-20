@@ -69,13 +69,13 @@ export interface GeneratorOwnedUnused { value: string }`,
       'throw new Error("Unit setup must not execute during analysis");',
     // Loading this actual configuration without owned fixture inputs must fail.
     "playwright.config.ts": await readFile(join(ui, "playwright.config.ts")),
-    "scripts/performance.mjs": await readFile(
-      join(ui, "scripts/performance.mjs"),
-    ),
-    "scripts/performance.unit.test.mjs": await readFile(
-      join(ui, "scripts/performance.unit.test.mjs"),
-    ),
   };
+  for (const helper of ["performance", "engine-qualification"]) {
+    for (const suffix of [".mjs", ".unit.test.mjs"]) {
+      const path = `scripts/${helper}${suffix}`;
+      files[path] = await readFile(join(ui, path));
+    }
+  }
   for (const name of ["dev", "dependencies", "licenses", "packaged-test"])
     files[`scripts/${name}.mjs`] =
       'import { helper } from "./helper.mjs"; throw new Error(helper);';

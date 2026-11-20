@@ -1,11 +1,25 @@
 // Deliberately omit titles, stdout, errors and attachments from browser execution evidence.
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { engineJourneys, journeyResults } from "./engine-qualification.mjs";
 export default class CoverageReporter {
   onBegin(_config, suite) {
     this.tests = suite.allTests();
   }
   onEnd(result) {
+    if (process.env.CATALOG_UI_ENGINE_OUTPUT) {
+      const journeys = journeyResults(this.tests);
+      writeFileSync(
+        join(process.env.CATALOG_UI_ENGINE_OUTPUT, "journeys.json"),
+        JSON.stringify(journeys),
+      );
+      if (
+        this.tests.length !== engineJourneys.length ||
+        journeys.some((j) => j.status !== "passed")
+      )
+        return { status: "failed" };
+      return;
+    }
     const counts = { passed: 0, failed: 0, skipped: 0 };
     let contexts = 0;
     for (const test of this.tests) {

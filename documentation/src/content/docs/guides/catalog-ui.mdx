@@ -335,9 +335,9 @@ Large or deeply nested documents and non-JSON text are displayed without highlig
 
 ### Browser and accessibility checks
 
-Chromium is the maintained automated browser baseline. Regression checks cover keyboard controls, responsive layouts, light/dark themes and reduced-motion preferences. The controls above remain usable without relying on color alone.
+Chromium runs the full automated UI regression suite, including keyboard controls, responsive layouts, light/dark themes and reduced-motion preferences. On Ubuntu 24.04 x86-64, selected journeys also pass in Playwright Firefox and WebKit: finding and inspecting entries, recovering a Listing edit, downloading a verified document, leaving an unsaved edit and signing back in to saved work. See the [browser qualification guide](../contributing/testing.md#qualify-firefox-and-webkit) for the tested versions and scope.
 
-Automated accessibility checks inspect the rendered page, dialogs, focus and selected contrast combinations. They do not establish native browser zoom, spoken screen-reader behavior or complete accessibility certification. Other browser engines need separate qualification. See [browser testing and qualification limits](../contributing/testing.md#optional-browser-client) for the maintained scope and test commands.
+Automated accessibility checks inspect the rendered page, dialogs, focus and selected contrast combinations. Native browser zoom and spoken screen-reader behavior require separate checks. See [browser testing and qualification limits](../contributing/testing.md#optional-browser-client) for the maintained scope and test commands.
 
 ## Check Publisher DNS evidence
 

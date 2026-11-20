@@ -130,6 +130,8 @@ Publication inventory units wait for both native disclosure events and check eac
 
 The shared Administration geometry case also renders a 128-character opaque acting identity at narrow and enlarged sizes. Its exact value is separately checked by isolated context cases; browser rectangles check wrapping and absence of clipping. Large boundary units retain all sixteen discovery assignments and thirty-two Unicode tags while reusing their semantic controls, avoiding repeated whole-page accessibility scans.
 
+For Firefox and WebKit, select `make test-ui-engine UI_BROWSER_ENGINE=firefox` or `UI_BROWSER_ENGINE=webkit`. The [qualification guide](../../documentation/src/content/docs/contributing/testing.md#qualify-firefox-and-webkit) lists the five portable journeys, the packaged session recovery scenario and the host prerequisites.
+
 Ordinary Playwright journeys use two workers. Each test retains its own Catalog/UI processes, private ports, directory and browser context. The ten-minute suite limit, per-test/assertion limits, complete selection and zero retries remain unchanged.
 
 The default full run builds once and runs both native Playwright shards serially. Each shard retains separate artifacts and the existing ten-minute suite limit. Focused arguments and explicit shards run as requested. Keep source inputs unchanged between shards and require both to pass.

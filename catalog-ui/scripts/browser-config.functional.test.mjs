@@ -4,6 +4,7 @@ import test from "node:test";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { runtimeEnvironment } from "./browser-fixture.mjs";
+import { engineJourneys } from "./engine-qualification.mjs";
 
 test("browser discovery keeps visual comparisons opt-in and requires owned fixtures", () => {
   const cwd = fileURLToPath(new URL("../", import.meta.url));
@@ -49,6 +50,29 @@ test("browser discovery keeps visual comparisons opt-in and requires owned fixtu
     return names(result.stdout);
   });
   const combined = shards.flat();
+  for (const engine of ["firefox", "webkit"]) {
+    const selected = list({ ...inputs, CATALOG_UI_ENGINE: engine });
+    assert.equal(selected.status, 0, selected.stderr);
+    assert.deepEqual(
+      names(selected.stdout)
+        .map((line) => line.split(" › ").at(-1))
+        .sort(),
+      [...engineJourneys].sort(),
+    );
+  }
+  for (const extra of [
+    "CATALOG_UI_VISUAL",
+    "CATALOG_UI_E2E_COVERAGE",
+    "CATALOG_UI_PERFORMANCE",
+  ]) {
+    const mixed = list({
+      ...inputs,
+      CATALOG_UI_ENGINE: "webkit",
+      [extra]: "1",
+    });
+    assert.notEqual(mixed.status, 0);
+    assert.match(mixed.stderr, /own functional selection/);
+  }
   assert.equal(
     new Set(combined).size,
     combined.length,

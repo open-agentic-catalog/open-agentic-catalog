@@ -1,5 +1,6 @@
 // Browser tests require invocation-owned build/output paths and keep retries and sensitive traces off.
 import { performancePolicy } from "./scripts/performance.mjs";
+import { engineJourneys } from "./scripts/engine-qualification.mjs";
 import { defineConfig } from "@playwright/test";
 
 if (!process.env.CATALOG_UI_TEST_BUILD || !process.env.CATALOG_UI_TEST_OUTPUT)
@@ -16,10 +17,18 @@ if (
   (process.env.CATALOG_UI_VISUAL || process.env.CATALOG_UI_E2E_COVERAGE)
 )
   throw new Error("Performance requires uninstrumented exclusive selection");
+const engine = process.env.CATALOG_UI_ENGINE;
+if (engine !== undefined && engine !== "webkit" && engine !== "firefox")
+  throw new Error("Unknown test browser");
 const visual = process.env.CATALOG_UI_VISUAL === "1";
+if (engine && (visual || measuring || process.env.CATALOG_UI_E2E_COVERAGE))
+  throw new Error("Engine qualification requires its own functional selection");
 
 export default defineConfig({
   testDir: "./tests/browser",
+  ...(engine
+    ? { grep: new RegExp("(?:" + engineJourneys.join("|") + ")$") }
+    : {}),
   testMatch: measuring
     ? "**/performance.spec.ts"
     : visual
@@ -49,18 +58,22 @@ export default defineConfig({
   // Keep timing and pixel measurements exclusive. Coverage contexts own unique
   // counter files; four independent workers retain the full ten-minute deadline.
   workers:
-    measuring || visual ? 1 : process.env.CATALOG_UI_E2E_COVERAGE ? 4 : 2,
+    measuring || visual || engine
+      ? 1
+      : process.env.CATALOG_UI_E2E_COVERAGE
+        ? 4
+        : 2,
   retries: 0,
   forbidOnly: true,
   reporter:
-    measuring || process.env.CATALOG_UI_E2E_COVERAGE
+    measuring || engine || process.env.CATALOG_UI_E2E_COVERAGE
       ? [["list"], ["./scripts/e2e-reporter.mjs"]]
       : "list",
   outputDir: process.env.CATALOG_UI_TEST_OUTPUT,
   use: {
-    browserName: "chromium",
+    browserName: engine ?? "chromium",
     viewport: { width: 1440, height: 900 },
-    screenshot: measuring ? "off" : "only-on-failure",
+    screenshot: measuring || engine ? "off" : "only-on-failure",
     // Traces/storageState may retain tokens and private response bodies.
     trace: "off",
     video: "off",

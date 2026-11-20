@@ -217,6 +217,8 @@ Only point the local launcher at an owned development Catalog using the matching
 | `make ui-coverage-100`      | Diagnose the exact 100% frontend target; residual defensive/fallback branches remain uncovered.                                              |
 | `make ui-dev`               | Build and launch the local client on loopback port 4180.                                                                                     |
 | `make ui-browser-install`   | Download the pinned Playwright Chromium browser once.                                                                                        |
+| `make ui-engine-install` | Install the optional pinned Playwright Firefox and WebKit builds. |
+| `make test-ui-engine UI_BROWSER_ENGINE=firefox` | Use `firefox` or `webkit` to qualify selected local tasks and packaged OIDC on Ubuntu 24.04 x86-64. See [prerequisites and scope](../documentation/src/content/docs/contributing/testing.md#qualify-firefox-and-webkit). |
 | `make test-ui`              | Run the complete local UI gate: static checks, client/fixture and Go host tests, an isolated build and real-browser regressions.             |
 | `make ui-container-inspect` | Inspect an existing `UI_IMAGE`: static host, runtime settings, licenses and frontend build hashes.                                           |
 | `make ui-sbom`              | Generate an image-bound SPDX inventory of host Go and locked production JavaScript dependencies.                                             |
