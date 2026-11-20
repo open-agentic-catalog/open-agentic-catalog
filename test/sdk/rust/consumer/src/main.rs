@@ -1065,8 +1065,76 @@ async fn qualify_reviewed_corpus() {
             _ => panic!("Expected cross-tenant refusal"),
         }
     }
+    let target = cases
+        .iter()
+        .find(|c| c["name"] == "context7-registry")
+        .unwrap();
+    let source = cases
+        .iter()
+        .find(|c| c["name"] == "context7-plugin")
+        .unwrap();
+    let release = target["releaseId"].as_str().unwrap();
+    let publisher = Client::new(config(origin, Some("admin"))).unwrap();
+    let impact = publisher
+        .list_release_relationships(
+            release,
+            ListReleaseRelationshipsView::Dependencies,
+            None,
+            None::<&str>,
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap();
+    assert_eq!(impact.items.len(), 1);
+    let edge = &impact.items[0];
+    assert_eq!(edge.declaration.target_version.as_deref(), Some("4.0.3"));
+    assert_eq!(
+        edge.related.as_ref().unwrap().release_id.to_string(),
+        source["releaseId"]
+    );
+
+    let follower = Client::new(config(origin, Some("follower"))).unwrap();
+    let follow =
+        typed(json!({"type":"follow","label":"Rust SDK follow","listingId":target["listingId"]}));
+    let saved = follower
+        .create_personal_item("rust-follow", follow)
+        .await
+        .unwrap();
+    assert_eq!(saved.status, 201);
+    let item = saved.data.unwrap().id.to_string();
+    let before = data(
+        follower
+            .resolve_personal_item(&item, typed(json!({})))
+            .await
+            .unwrap(),
+        200,
+    );
+    assert_eq!(
+        before,
+        json!({"status":"available","change":"unacknowledged","current":{"releaseId":release,"revision":1}})
+    );
+    let current = publisher.get_listing_release(release).await.unwrap();
+    let retired = publisher
+        .retire_listing_release(
+            release,
+            "rust-retire-followed",
+            current.headers["etag"].to_str().unwrap(),
+            typed(json!({"reason":"Retired test release"})),
+        )
+        .await
+        .unwrap();
+    assert_eq!(retired.status, 200);
+    let after = data(
+        follower
+            .resolve_personal_item(&item, typed(json!({})))
+            .await
+            .unwrap(),
+        200,
+    );
+    assert_eq!(after, json!({"status":"unavailable"}));
     println!(
-        "Rust installed SDK: six reviewed upstream cases, exact native content and tenant denial passed"
+        "Rust installed SDK: reviewed evidence, tenant isolation, dependency impact and follow after retirement passed"
     );
 }
 

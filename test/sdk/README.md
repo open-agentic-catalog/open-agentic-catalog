@@ -22,6 +22,8 @@ The four SDK unit suites share small finite generated corpora of Unicode, reserv
 
 All four SDK checks also read the six [reviewed upstream resource cases](../../internal/adapter/testdata/upstream/README.md) through actual HTTP and typed decoders. The existing Catalog fixture creates a separate memory-backed instance, validates and independently reviews the inputs, then releases them. Expected native fields, Unicode Markdown, package counts and retained Plugin documents come from source before admission. Each consumer checks exact record identity and foreign-tenant refusal. The Go SDK uses its maintained client; Python, TypeScript and Rust use their installed wheel/sdist, npm and extracted-crate consumers. These are functional metadata checks, not resource installation or execution. The input tree is copied only into owned test staging and does not enter SDK packages.
 
+The fixture also authors two dependencies on its Plugin Listing. One names the released MCP Server version, and one names a draft with no release. The Go, Python, TypeScript and Rust consumers exercise relationship navigation and private Listing follows over HTTP. Across the four suites, checks cover cursor continuation, incoming references, withdrawal impact, acknowledgement, stale observations and retirement.
+
 ## Run the maintained targets
 
 For all four SDKs, install their prerequisites below, then run each target separately:

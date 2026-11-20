@@ -3,6 +3,65 @@ const vscode = require("vscode");
 const assert = require("node:assert/strict");
 const { readFile } = require("node:fs/promises");
 
+// The same reader can bookmark a release in the editor and follow its Listing
+// on the server. Saving or removing the former must not acknowledge the latter.
+async function checkBookmarkAndFollow(api, origin, expected) {
+  const items = origin + "/api/v1/personal/items";
+  const headers = {
+    Authorization: "Bearer reader",
+    "Content-Type": "application/json",
+  };
+  const saved = await fetch(items, {
+    method: "POST",
+    signal: AbortSignal.timeout(5000),
+    redirect: "error",
+    headers: { ...headers, "Idempotency-Key": "vscode-independent-follow" },
+    body: JSON.stringify({
+      type: "follow",
+      label: "Server follow",
+      listingId: expected.listingId,
+    }),
+  });
+  assert.equal(saved.status, 201);
+  const { id } = await saved.json();
+  const resolve = async () => {
+    const reply = await fetch(items + "/" + id + "/resolve", {
+      method: "POST",
+      headers,
+      body: "{}",
+      redirect: "error",
+      signal: AbortSignal.timeout(5000),
+    });
+    assert.equal(reply.status, 200);
+    assert.deepEqual(await reply.json(), {
+      status: "available",
+      change: "unacknowledged",
+      current: { releaseId: expected.releaseId, revision: 1 },
+    });
+  };
+  await resolve();
+  assert.deepEqual(api.browsing().bookmarks, []);
+  await api.saveBookmark();
+  assert.deepEqual(api.browsing().bookmarks, [
+    { releaseId: expected.releaseId },
+  ]);
+  await resolve();
+  await api.removeBookmark(0);
+  assert.deepEqual(api.browsing().bookmarks, []);
+  await resolve();
+  const library = await fetch(items + "?limit=2", {
+    headers,
+    redirect: "error",
+    signal: AbortSignal.timeout(5000),
+  });
+  assert.equal(library.status, 200);
+  const page = await library.json();
+  assert.equal(page.nextCursor, undefined);
+  assert.equal(page.items.length, 1);
+  assert.equal(page.items[0].id, id);
+  assert.equal(page.items[0].revision, 1);
+}
+
 exports.run = async (api) => {
   const corpus = JSON.parse(
     await readFile(process.env.CATALOG_VSCODE_CORPUS, "utf8"),
@@ -87,6 +146,8 @@ exports.run = async (api) => {
       assert.equal(item.kind, expected.kind);
       assert.equal(item.releaseId, expected.releaseId);
       const detail = await api.detail(item.key);
+      if (expected.name === "context7-registry")
+        await checkBookmarkAndFollow(api, corpus.origin, expected);
       if (expected.data) {
         const document = await api.document(0);
         assert.deepEqual(

@@ -18,6 +18,8 @@ from catalog_sdk.generated.models.adopt_resource_version import AdoptResourceVer
 from catalog_sdk.generated.api.identity_api import IdentityApi
 from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
 from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
+from catalog_sdk.generated.api.personal_workspace_api import PersonalWorkspaceApi
+from catalog_sdk.generated.models.personal_input import PersonalInput
 from catalog_sdk.generated.api.jobs_api import JobsApi
 from catalog_sdk.generated.models.create_namespace import CreateNamespace
 from catalog_sdk.generated.models.patch_namespace import PatchNamespace
@@ -95,7 +97,30 @@ async def qualify_reviewed_corpus():
                 assert {d["path"]: d["content"] for d in docs} == expected["documents"]
             hidden = await CatalogDiscoveryApi(other).get_catalog_record_with_http_info(UUID(expected["releaseId"]))
             assert hidden.status_code == 404
-    print("Python installed SDK: six reviewed upstream cases, exact native content and tenant denial passed")
+        cases = {case["name"]: case for case in corpus["cases"]}
+        source, target = cases["context7-plugin"], cases["context7-registry"]
+        outgoing = await api.list_release_relationships_with_http_info(view="outgoing", release_id=UUID(source["releaseId"]))
+        assert outgoing.status_code == 200
+        draft, linked = outgoing.data.items
+        assert draft.declaration.target_identifier == "fixture:unreleased-dependency" and draft.related is None
+        assert linked.declaration.target_version == "4.0.3" and str(linked.related.release_id) == target["releaseId"]
+        hidden = await CatalogDiscoveryApi(other).list_release_relationships_with_http_info(view="outgoing", release_id=UUID(source["releaseId"]))
+        assert hidden.status_code == 404
+
+    async with Client(Config(origin=corpus["origin"], allow_loopback_http=True, token="follower")) as owner:
+        library = PersonalWorkspaceApi(owner)
+        follow = PersonalInput(type="follow", label="Python SDK follow", listingId=UUID(target["listingId"]))
+        saved = await library.create_personal_item_with_http_info("python-follow", follow)
+        assert saved.status_code == 201
+        resolution = await library.resolve_personal_item_with_http_info(saved.data.id, {})
+        assert resolution.status_code == 200 and resolution.data.change == "unacknowledged"
+        observed = resolution.data.current
+        assert str(observed.release_id) == target["releaseId"] and observed.revision == 1
+        acknowledged = await library.update_personal_item_with_http_info(saved.data.id, "python-ack", saved.headers["ETag"], follow.model_copy(update={"observed": observed}))
+        assert acknowledged.status_code == 200 and acknowledged.data.revision == 2
+        current = await library.resolve_personal_item_with_http_info(saved.data.id, {})
+        assert current.status_code == 200 and current.data.change == "unchanged" and current.data.current == observed
+    print("Python installed SDK: reviewed evidence, tenant isolation, release relationships and follow acknowledgement passed")
 
 
 async def qualify_private_resources(admin, namespace_id):

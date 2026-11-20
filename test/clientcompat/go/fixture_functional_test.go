@@ -26,6 +26,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/feedback"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jobs"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/personal"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/authn"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
@@ -86,10 +87,11 @@ func newFixtureWithFederation(t *testing.T, external catalog.ExternalRepresentat
 	}
 	if external != nil {
 		users["scoped"] = config.DevelopmentUser{Subject: "scoped", TenantID: tenant}
+		users["follower"] = config.DevelopmentUser{Subject: "follower", TenantID: tenant, RoleTemplates: []string{"reader", "library_member"}}
 	}
 	seeds := make([]identity.Seed, 0, len(users))
 	for _, u := range users {
-		seeds = append(seeds, identity.Seed{TenantID: u.TenantID, Issuer: authn.DevelopmentIssuer, Subject: u.Subject, ActorType: identity.ActorHuman, Roles: u.Roles})
+		seeds = append(seeds, identity.Seed{TenantID: u.TenantID, Issuer: authn.DevelopmentIssuer, Subject: u.Subject, ActorType: identity.ActorHuman, Roles: u.Roles, RoleTemplates: u.RoleTemplates})
 	}
 	is, err := identity.NewMemoryStore(seeds)
 	must(t, err)
@@ -112,7 +114,7 @@ func newFixtureWithFederation(t *testing.T, external catalog.ExternalRepresentat
 	must(t, err)
 	feedbackService, err := feedback.NewService(feedback.NewMemoryStore(repo, repo), repo, c, id.Generator{})
 	must(t, err)
-	h, err := httpserver.New(httpserver.Dependencies{CollectionStore: collections.NewMemoryStore(repo), RatingsStore: ratings.NewMemoryStore(repo), Feedback: feedbackService, Catalog: service, Identity: ids, Federation: federationService, Jobs: jobService, Authenticator: auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: responseLimit, RequestTimeout: time.Second, CursorKey: key[:], Now: c.Now})
+	h, err := httpserver.New(httpserver.Dependencies{PersonalStore: personal.NewMemoryStore(repo), CollectionStore: collections.NewMemoryStore(repo), RatingsStore: ratings.NewMemoryStore(repo), Feedback: feedbackService, Catalog: service, Identity: ids, Federation: federationService, Jobs: jobService, Authenticator: auth, Idempotency: idempotency.NewMemoryStore(), Logger: slog.New(slog.DiscardHandler), MaxBodyBytes: responseLimit, RequestTimeout: time.Second, CursorKey: key[:], Now: c.Now})
 	must(t, err)
 	server := httptest.NewServer(h.Handler())
 	t.Cleanup(server.Close)

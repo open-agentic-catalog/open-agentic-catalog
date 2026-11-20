@@ -29,6 +29,7 @@ type reviewedCase struct {
 	Kind           catalog.Kind      `json:"kind"`
 	Identifier     string            `json:"identifier"`
 	ReleaseID      string            `json:"releaseId"`
+	ListingID      string            `json:"listingId"`
 	Representation map[string]any    `json:"representation"`
 	Data           any               `json:"data,omitempty"`
 	Text           string            `json:"text,omitempty"`
@@ -172,7 +173,17 @@ func newReviewedCorpus(t *testing.T) (*fixture, reviewedCorpus) {
 		}
 		listing, listingErr := f.service.CreateListing(actor, catalog.CreateListingInput{NamespaceID: ns.ID, ResourceID: resource.ID})
 		must(t, listingErr)
-		listing, _, err = f.service.CreateListingRevision(actor, listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, DisplayName: "Reviewed " + tc.name, Description: "Inert upstream metadata", PublisherID: pub.ID, Visibility: catalog.VisibilityTenant, Tags: []string{"reviewed-upstream"}, RepresentativeQueries: []string{"find reviewed metadata", "inspect upstream definition"}}, listing.Revision)
+		metadata := catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, DisplayName: "Reviewed " + tc.name, Description: "Inert upstream metadata", PublisherID: pub.ID, Visibility: catalog.VisibilityTenant, Tags: []string{"reviewed-upstream"}, RepresentativeQueries: []string{"find reviewed metadata", "inspect upstream definition"}}
+		if tc.name == "context7-plugin" {
+			// These belong to our test Listing. The upstream manifest is kept verbatim.
+			draft, createErr := f.service.CreateResource(actor, catalog.CreateResourceInput{NamespaceID: ns.ID, Kind: catalog.KindMCPServer, CanonicalIdentifier: "fixture:unreleased-dependency"})
+			must(t, createErr)
+			metadata.Relationships = []catalog.Relationship{
+				{Type: "depends_on", TargetIdentifier: draft.CanonicalIdentifier},
+				{Type: "depends_on", TargetIdentifier: "urn:air:catalog.example.com:reviewed:context7-registry", TargetVersion: "4.0.3"},
+			}
+		}
+		listing, _, err = f.service.CreateListingRevision(actor, listing.ID, metadata, listing.Revision)
 		must(t, err)
 		submission, submitErr := f.service.Submit(actor, listing.ID)
 		must(t, submitErr)
@@ -181,6 +192,7 @@ func newReviewedCorpus(t *testing.T) (*fixture, reviewedCorpus) {
 		_, release, _, publishErr := f.service.Publish(actor, listing.ID, catalog.PublishInput{SubmissionID: submission.ID}, listing.Revision)
 		must(t, publishErr)
 		expected.ReleaseID = release.ID
+		expected.ListingID = listing.ID
 		result.Cases = append(result.Cases, expected)
 	}
 	return f, result
