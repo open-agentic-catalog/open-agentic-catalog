@@ -281,7 +281,7 @@ For a subject-only change, keep the realm. An administrator in that realm can pr
 11. Verify an allowed read and an out-of-scope refusal using each representative new identity.
 12. Retire the old identity path only after the new administrator and required service clients work.
 
-Membership histories and private ownership remain bound to their retained IDs. The new identity cannot inherit old bookmarks or saved searches. No identity merge or automatic transfer is available. Assignment and group-member writes require the administrator's authenticated realm. A new-realm administrator cannot revoke old-realm assignments; use the documented [membership lifecycle and realm controls](database-roles.mdx#tenant-membership-administration).
+Membership histories and private ownership remain bound to their retained IDs. The old identity retains ownership of its bookmarks, Listing follows and saved searches. No identity merge or automatic transfer is available. Assignment and group-member writes require the administrator's authenticated realm. A new-realm administrator cannot revoke old-realm assignments; use the documented [membership lifecycle and realm controls](database-roles.mdx#tenant-membership-administration).
 
 Use a separate [CLI login file](../reference/commands.md#human-cli-login) for the new issuer and account. Keep the old file separate from new credentials. Fresh UI sign-in is required after an issuer or client-ID change; replacing files alone does not update running clients.
 

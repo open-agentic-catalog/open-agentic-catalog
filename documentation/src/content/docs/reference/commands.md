@@ -352,7 +352,7 @@ The response retains one-sided and multiple occurrences, missing versus explicit
 
 ## Back up and restore your private library
 
-Use `catalogctl personal` to retain your release bookmarks, followed Listings and named searches in a private file. This workflow uses the existing personal-item API. It does not require a database connection, an administrator role or a running UI.
+Use `catalogctl personal` to retain your local and external resource bookmarks, followed Listings and named searches in a private file. This workflow uses the existing personal-item API. It does not require a database connection, an administrator role or a running UI.
 
 Build or install [the CLI](#obtain-and-invoke-the-binaries). Export and restore require an active human membership with `library.own`. With OAuth scope enforcement, export also requires `catalog.read`; restore requires `personal.write`. Configure your [human CLI login](#human-cli-login), or provide an explicit bearer-token file. The examples use a login file; remove inherited bearer environment variables before using it.
 

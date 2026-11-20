@@ -11,14 +11,16 @@ The Catalog UI with sample data. Read the [online manual](https://open-agentic-c
 ## Features
 
 - Author and version resources, import and export [JSON drafts](documentation/src/content/docs/guides/draft-transfer.mdx), and submit Listings for review and publication. Authors can [inspect and renew stale validation evidence](documentation/src/content/docs/guides/resource-authoring.mdx#find-validation-evidence-needing-attention).
+- Review [changes to declared capabilities and connections](documentation/src/content/docs/guides/resource-authoring.mdx#read-capability-and-connection-changes) between two A2A Agent Cards or two MCP Server Cards.
 - Search published resources with filters, facets and [optional hybrid retrieval](documentation/src/content/docs/operations/hybrid-search.mdx). In private discovery, filter local releases by [capabilities declared in Agent and MCP Server Cards](documentation/src/content/docs/guides/search-cookbook.mdx#filter-private-discovery-by-declared-capabilities).
+- [Follow relationships](documentation/src/content/docs/guides/resource-authoring.mdx#follow-a-released-relationship) between readable local releases. Before withdrawing a release, [inspect the Listings that declare a dependency on it](documentation/src/content/docs/guides/publishing.mdx#inspect-declared-dependencies).
 - Discover and synchronize metadata from [administrator-configured Catalogs](documentation/src/content/docs/guides/two-catalog-federation.mdx).
 - Connect assistants and IDEs to the read-only [Catalog MCP server](documentation/src/content/docs/guides/mcp-server.mdx), or [search an ARD publication over MCP](documentation/src/content/docs/guides/mcp-server.mdx#search-an-ard-publication-over-mcp) when its discovery host enables it.
 - Browse and inspect releases with the optional [VS Code client](extensions/vscode/README.md).
 - Build API clients with the [Go, Python, TypeScript and Rust SDKs](sdk/README.md), or try the optional [local LangGraph discovery assistant](examples/langgraph/README.md).
 - Manage tenant and namespace access, with audit records for changes.
 - Curate [shared collections](documentation/src/content/docs/guides/concepts.md#curate-a-shared-collection) of local Listings. Search the released names and descriptions, and narrow the results by resource kind.
-- Save resources and searches, submit version-specific ratings and send private feedback through the [Catalog UI](documentation/src/content/docs/guides/catalog-ui.mdx).
+- [Save a bookmark or search, or follow a local Listing](documentation/src/content/docs/guides/catalog-ui.mdx#save-resources-and-searches). A follow lets you check whether the current release has changed since you last acknowledged it. The [Catalog UI](documentation/src/content/docs/guides/catalog-ui.mdx) also supports version-specific ratings and private feedback.
 - Back up and restore your private bookmarks, followed Listings and saved searches with [catalogctl](documentation/src/content/docs/reference/commands.md#back-up-and-restore-your-private-library).
 - Observe the service with built-in Prometheus metrics; optionally enable OpenTelemetry tracing and signed webhooks.
 

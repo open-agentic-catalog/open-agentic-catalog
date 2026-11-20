@@ -217,8 +217,8 @@ Only point the local launcher at an owned development Catalog using the matching
 | `make ui-coverage-100`      | Diagnose the exact 100% frontend target; residual defensive/fallback branches remain uncovered.                                              |
 | `make ui-dev`               | Build and launch the local client on loopback port 4180.                                                                                     |
 | `make ui-browser-install`   | Download the pinned Playwright Chromium browser once.                                                                                        |
-| `make ui-engine-install` | Install the optional pinned Playwright Firefox and WebKit builds. |
-| `make test-ui-engine UI_BROWSER_ENGINE=firefox` | Use `firefox` or `webkit` to qualify selected local tasks and packaged OIDC on Ubuntu 24.04 x86-64. See [prerequisites and scope](../documentation/src/content/docs/contributing/testing.md#qualify-firefox-and-webkit). |
+| `make ui-engine-install`    | Install the pinned Playwright Firefox and WebKit builds.                                                                                     |
+| `make test-ui-engine`       | Run selected journeys and packaged OIDC with `UI_BROWSER_ENGINE=firefox` or `webkit` on Ubuntu 24.04 x86-64.                                 |
 | `make test-ui`              | Run the complete local UI gate: static checks, client/fixture and Go host tests, an isolated build and real-browser regressions.             |
 | `make ui-container-inspect` | Inspect an existing `UI_IMAGE`: static host, runtime settings, licenses and frontend build hashes.                                           |
 | `make ui-sbom`              | Generate an image-bound SPDX inventory of host Go and locked production JavaScript dependencies.                                             |
@@ -249,6 +249,8 @@ After an OpenAPI change, run `npm run generate` in this directory and review the
 ### Repeatable browser tests
 
 The [UI test strategy and workflow matrix](tests/README.md) maps local journeys and packaged workflows to their assertions and test boundaries. A classified API operation or successful page load is not complete workflow coverage. The main suite runs Chromium against isolated processes; `make test-ui-compose` and `make test-ui-oidc` add the packaged checks below.
+
+See [Firefox and WebKit prerequisites and test scope](../documentation/src/content/docs/contributing/testing.md#qualify-firefox-and-webkit) before running either engine locally.
 
 Use the separate `make ui-performance` target for production asset/work budgets and report-only browser timings. `UI_PERFORMANCE_TIMEOUT_SCALE` defaults to `3` and accepts integers `1` through `10`; `make ui-performance UI_PERFORMANCE_TIMEOUT_SCALE=6` doubles the default execution deadlines for slower runners. See [production performance measurements](tests/README.md#production-performance-measurements) for the fixture, reports and limits.
 

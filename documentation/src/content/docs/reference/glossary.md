@@ -67,7 +67,7 @@ Authentication establishes the caller's identity; authorization decides which Ca
 
 ### CatalogListing
 
-The stable identity of a listing in a Catalog namespace. Its presentation is recorded in immutable ListingRevisions, separately from resource content. A ListingRelease selects an approved combination for governed discovery. See [the domain model](../architecture/domain.mdx).
+The stable identity of a listing in a Catalog namespace. Its presentation is recorded in immutable ListingRevisions, separately from resource content. A ListingRelease selects an approved combination for governed discovery. [Following a local Listing](../guides/catalog-ui.mdx#save-resources-and-searches) lets a reader check for a new current release under the same Listing ID. See [the domain model](../architecture/domain.mdx).
 
 ### CloudEvents
 
