@@ -71,15 +71,27 @@ def run():
         metadata_path = directory / (kind + ".json")
         metadata = json.loads(metadata_path.read_bytes())
         if kind != "mtls":
-            replacement = directory / (kind + ".next")
+            previous = (directory / metadata["secretFile"]).read_text(encoding="ascii")
+            credential_header = {"Authorization": "Bearer " + previous} if kind == "bearer" else {"X-Api-Key": previous}
+            replacement = directory / (kind + "-two.token")
             replacement.write_text(secrets.token_hex(32), encoding="ascii")
             replacement.chmod(0o444)
-            replacement.replace(directory / (kind + ".token"))
+            _, headers = owned.api.request("GET", path)
+            staged, _ = mutate(owned.api, "POST", path + ":test", {}, etag=header(headers, "ETag"))
+            assert staged["status"] == "succeeded" and staged["credentialRevision"] == "one", "staging changed the active binding"
+            expected = fixture / ("accepted-" + kind + ".next")
+            expected.write_bytes(replacement.read_bytes())
+            expected.chmod(0o444)
+            expected.replace(fixture / ("accepted-" + kind + ".token"))
+            origin.request("GET", endpoint, expected=(401,), headers=credential_header)
+            metadata["secretFile"] = replacement.name
         else:
             metadata["certificateFile"], metadata["privateKeyFile"] = "client-two.pem", "client-two-key.pem"
         metadata["revision"] = "two"
-        write_document(metadata_path, metadata)
-        metadata_path.chmod(0o444)
+        staged_path = directory / (kind + ".next.json")
+        write_document(staged_path, metadata)
+        staged_path.chmod(0o444)
+        staged_path.replace(metadata_path)
         _, headers = owned.api.request("GET", path)
         result, headers = mutate(owned.api, "POST", path + ":test", {}, etag=header(headers, "ETag"))
         assert result["status"] == "succeeded" and result["credentialRevision"] == "two", "mounted rotation required a restart"

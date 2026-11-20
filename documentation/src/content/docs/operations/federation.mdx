@@ -48,6 +48,55 @@ For a private network, use exact origins, bounded permitted private ranges and t
 
 Authenticate to B's control API in the intended tenant with Source administrator authority. The exact Source administrator template supplies source inspection, management, synchronization, evidence and family-specific Job permissions. When OAuth ceilings are enabled, source reads need `sources.read`, source commands need `sources.manage`, and Job reads need `catalog.read`. Ordinary Catalog Search needs `federation.discover` and `catalog.read` for external results. See [access management](../guides/access-management.mdx).
 
+### Connect an authenticated upstream Catalog
+
+Start with one known tenant-visible release on A. Write down its identifier and version, and keep one unpublished draft as a control. Use the host on which A activated its **authenticated** snapshot.
+
+1. **Give B a reader on A.** Register a machine client with A's issuer. Obtain a signed access token for A's API audience using the issuer's client credentials flow. Provision its actual `sub` as a service member in A's tenant. The `service_client` template establishes membership. Assign a tenant-wide role granting `discovery.read`. If A enforces OAuth scopes, the issued token must also include `catalog.read`. The [two-Catalog walkthrough](../guides/two-catalog-federation.mdx#give-bs-source-a-credential-for-a) shows the commands.
+2. **Check A directly.** From a client that trusts A's TLS certificate, request `GET /.well-known/ard.json` on that host with the service token. Use a [private curl header file](oidc-keycloak.md#prepare-private-http-credentials) and add `--cacert "$CATALOG_A_CA_FILE"` for a private CA. Confirm the release identifier and version in the manifest. On an enabled authenticated host, a missing or invalid token receives 401, and an admitted member lacking the required permission or scope receives 403. A reader admitted to a host without an active snapshot receives 404. The process obtaining the token needs its own trust for the issuer.
+3. **Install the binding on B.** Create a protected directory with two files: `catalog-a-reader.json` and the bare token file it names. Use B's tenant UUID, A's exact discovery origin, and a new revision in the metadata. For example:
+
+   ```json
+   {
+     "schemaVersion": 1,
+     "tenantId": "00000000-0000-7000-8000-000000000002",
+     "origin": "https://catalog-a.example.com",
+     "revision": "a-reader-01",
+     "type": "bearer",
+     "secretFile": "a-reader-01.token"
+   }
+   ```
+
+   Keep the issuer client secret with the process that acquires and renews the access token. B needs only the access token. For an anonymous upstream, omit the binding and leave the resolver disabled if no other Source needs it. The resolver also supports an API key or mTLS for a peer that accepts that method. Each binding selects one method.
+
+4. **Configure B's API and worker.** In Compose, set `CATALOG_COMPOSE_FEDERATION_CREDENTIALS_DIRECTORY` to the host directory, `CATALOG_CREDENTIAL_RESOLUTION_ENABLED=true`, and `CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY=/etc/open-agentic-catalog/federation/credentials`. Select the approved policy and CA directory with `CATALOG_COMPOSE_FEDERATION_POLICY_FILE` and `CATALOG_COMPOSE_FEDERATION_TRUST_DIRECTORY`. Recreate the affected services to load changed startup settings.
+
+   For Helm, create an ordinary Secret in B's release namespace with the two files as keys. Reference it by name in your values, alongside the approved policy and private CA ConfigMaps:
+
+   ```yaml
+   secrets:
+     federationCredentials:
+       name: catalog-a-reader
+   federation:
+     policy:
+       existingConfigMap: catalog-federation-policy
+       key: policy.json
+     trustBundleConfigMap: catalog-federation-trust
+   configEnv:
+     CATALOG_CREDENTIAL_RESOLUTION_ENABLED: "true"
+     CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY: /etc/open-agentic-catalog/federation/credentials
+   ```
+
+   Apply the values with your normal release procedure. The chart mounts the complete Secret directory read-only in the API and worker. Keep the files readable by their non-root user. Keep token values out of Helm values and shell arguments.
+
+   On B, both Compose and Helm mount federation CA files under `/etc/open-agentic-catalog/federation/trust`. Set the private profile's `trustBundleFile` to the full path, for example `/etc/open-agentic-catalog/federation/trust/catalog-a-ca.pem`. Use the filename from the host trust directory or the key from the trust ConfigMap.
+
+5. **Verify from B.** [Prepare B's administrator request](#set-the-request-inputs), then [inspect and connect A](#inspect-and-connect-a) using binding name `catalog-a-reader`. [Test the Source and synchronize](#test-synchronize-and-inspect-the-result). Check the credential revision on the test and the complete snapshot. As a B reader with tenant-wide `federation.discover` and any required `catalog.read` scope, search indexed results for the known identifier. Match its version and B's Source ID for A. Confirm the draft stays absent. Replication in the other direction requires a separately authorized Source on A.
+
+**Renewal.** Obtain a fresh token before expiry. Stage a new token filename and atomically publish metadata selecting it with a never-reused revision. On Kubernetes, update the complete Secret together and allow time for both Pod projections. The resolver rereads the files on the next request. Retest, synchronize, and check the new revision and complete snapshot without restarting either process. Issuing a fresh JWT does not itself revoke an earlier token.
+
+**If A refuses the credential**, B can return `503 DEPENDENCY_UNAVAILABLE` on a Source test. Read the `source.tested` audit for the attempt. A local binding refusal can record `transport_error` without an HTTP response. An upstream refusal records `http_error`, the HTTP class and resolved credential revision. Check A directly for the exact HTTP status. A failed sync leaves the last complete inventory readable on B. Pause the Source on B to exclude it from current discovery while you investigate. After restoring access, start a new sync and follow its Job. Earlier terminal Jobs keep their recorded outcomes.
+
 ## Manage sources in the UI
 
 **Synchronization** controls scheduling. **Manual synchronization** starts on an explicit request. **Automatic source updates** schedules the same governed ingestion path. Neither provides a source-change approval queue or local publication approval.
@@ -237,15 +286,14 @@ For a public-origin source, omit `networkProfile`. For an anonymous upstream, om
 
 Every mutation below uses `Authorization: Bearer <B access token>`, `Content-Type: application/json` and a distinct `Idempotency-Key`. Keep response bodies and headers. Existing-source commands also require the current source ETag in `If-Match` where shown. Reuse the exact key, body and ETag only when retrying the same uncertain command. See [request and replay rules](../reference/api-conventions.md#request-rules).
 
-Prepare B's private curl header file through [protected credential conversion](oidc-keycloak.md#prepare-private-http-credentials). Set `CATALOG_B_HEADERS_FILE` to that file path and `CATALOG_B_API_URL` to B's API origin. The file contains an Authorization header, not login JSON or a bare token. Create a private working directory under ignored output:
+Prepare B's private curl header file through [protected credential conversion](oidc-keycloak.md#prepare-private-http-credentials). Set `CATALOG_B_HEADERS_FILE` to that file path and `CATALOG_B_API_URL` to B's API origin. The file contains an Authorization header, not login JSON or a bare token. Create a private temporary directory for request files:
 
 ```sh
 umask 077
-mkdir -p output/federation
-FEDERATION_REQUEST_DIRECTORY="$(mktemp -d output/federation/source.XXXXXXXX)"
+FEDERATION_REQUEST_DIRECTORY="$(mktemp -d)"
 ```
 
-Save the inspection body below as `$FEDERATION_REQUEST_DIRECTORY/inspection-request.json`. Keep this shell open for later commands. Set `FEDERATION_COMMAND_KEY` to a new key for this command. Run:
+If B uses a private CA, set `CURL_CA_BUNDLE` to the trusted CA file and export it before running curl. Save the inspection body below as `$FEDERATION_REQUEST_DIRECTORY/inspection-request.json`. Keep this shell open for later commands. Set `FEDERATION_COMMAND_KEY` to a new key for this command. Run:
 
 ```sh
 curl --fail-with-body --silent --show-error \
@@ -311,7 +359,7 @@ The `201` response is the source object itself. Save its `id`, `endpoint`, `prof
 
 `existing: true` means the request reused an admitted Job for that source revision. Do not request synchronization again simply because the Job in the first response is still running. Inspect `queued`, `running` and `waiting` as progress states. Treat `failed`, `cancelled` and `dead_letter` as unsuccessful terminal outcomes.
 
-For a succeeded source Job, read `result.snapshotId`. Fetch `GET /api/v1/federation/snapshots/{snapshotId}`. Check its `sourceId`, `sourceRevision`, `state`, `enumerationComplete`, `withdrawalAuthority`, counts and retrieval evidence. A complete run uses `state: "complete"` and `enumerationComplete: true`.
+For a succeeded source Job, read `result.snapshotId`. Fetch `GET /api/v1/federation/snapshots/{snapshotId}`. Check its `sourceId`, `sourceRevision`, resolved `credentialRevision` for an authenticated Source, `state`, `enumerationComplete`, `withdrawalAuthority`, counts and retrieval evidence. A complete run uses `state: "complete"` and `enumerationComplete: true`.
 
 Read the source again. Confirm `lastCompleteSnapshotId` identifies the complete snapshot. List attempt summaries through `GET /api/v1/federation/sources/{sourceId}/snapshots`; follow `nextCursor` rather than assuming the first page contains all attempts.
 

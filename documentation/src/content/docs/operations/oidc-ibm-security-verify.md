@@ -99,7 +99,7 @@ The ID token must name the web client; the access token must name the Catalog AP
 
 Use the ordinary code response in the callback query. Policies that require PAR, signed request objects or JARM do not fit the built-in clients. Neither client supports encrypted ID tokens, private-key client assertions or mTLS client authentication. Catalog does not verify DPoP or certificate-bound access-token proofs. Do not rely on those proof policies at this API.
 
-Some policies require extra `audience`, `resource` or other provider-specific parameters. The built-in clients cannot send them. Use an approved external token-acquisition client if your policy requires them. Deliver its API token through a protected file, as described under [automation API access](sign-in.md#give-automation-api-access). That file does not establish a built-in browser session or a human CLI login file.
+Some policies require extra `audience`, `resource` or other provider-specific parameters. The UI and CLI rely on issuer registration. VS Code sends its configured `audience` but offers no general provider-specific parameter map. Use an approved external token-acquisition client if your policy requires them. Deliver its API token through a protected file, as described under [automation API access](sign-in.md#give-automation-api-access). That file does not establish a built-in browser session or a human CLI login file.
 
 ## Provision the matching Catalog membership
 

@@ -24,6 +24,7 @@ import (
 // where they are mounted read-only. The host journey atomically replaces metadata to exercise
 // the real just-in-time resolver, never a production configuration shortcut.
 func generateCredentials(directory string, ca *x509.Certificate, caKey ed25519.PrivateKey) error {
+	root := directory
 	directory = filepath.Join(directory, "credentials")
 	if err := makeFixtureDirectory(directory); err != nil {
 		return err
@@ -63,7 +64,11 @@ func generateCredentials(directory string, ca *x509.Certificate, caKey ed25519.P
 			if _, err := rand.Read(secret); err != nil {
 				return err
 			}
-			if err := writeFixtureFile(filepath.Join(directory, kind+".token"), []byte(hex.EncodeToString(secret))); err != nil {
+			value := []byte(hex.EncodeToString(secret))
+			if err := writeFixtureFile(filepath.Join(root, "accepted-"+kind+".token"), value); err != nil {
+				return err
+			}
+			if err := writeFixtureFile(filepath.Join(directory, kind+".token"), value); err != nil {
 				return err
 			}
 			metadata["secretFile"] = kind + ".token"
@@ -103,7 +108,7 @@ func credentialManifest(directory string) http.HandlerFunc {
 		allowed := false
 		switch kind {
 		case "bearer", "api_key":
-			raw, err := os.ReadFile(filepath.Join(directory, "credentials", kind+".token")) // #nosec G304 G703 -- exact bearer/api_key switch, owned fixture leaf.
+			raw, err := os.ReadFile(filepath.Join(directory, "accepted-"+kind+".token")) // #nosec G304 G703 -- exact bearer/api_key switch, receiver-owned leaf outside the resolver mount.
 			got := r.Header.Get("X-Api-Key")
 			if kind == "bearer" {
 				got = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")

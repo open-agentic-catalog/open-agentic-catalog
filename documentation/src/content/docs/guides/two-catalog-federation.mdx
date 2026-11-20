@@ -9,7 +9,7 @@ This tutorial connects two independent Catalogs. A publishes an Agent; B synchro
 
 <FederationPeers />
 
-The baseline uses indexed synchronization only. B initiates HTTPS requests to A; metadata flows from A to B. Live queries, referrals, reciprocal federation and local adoption remain explicit follow-ups.
+B initiates HTTPS requests to A and indexes the published metadata locally. If you already operate both Catalogs, use the [authenticated federation runbook](../operations/federation.mdx#connect-an-authenticated-upstream-catalog) with your own issuer, hosts and deployment settings.
 
 ## Prepare the owned environment
 
@@ -57,7 +57,7 @@ Use separate browser profiles for each human login. Verify **My access** after e
 | A ordinary Reader | `a/reader-login.json`, derived `a/reader.headers` | Reader; local release access, not source administration |
 | B administrator acting as Source Administrator | `b/admin-login.json`, derived `b/admin.headers` | Source inspection, management, synchronization, retained reads and Job reads |
 | B ordinary Reader | `b/reader-login.json`, derived `b/reader.headers` | Reader plus tenant Discovery reader |
-| B's upstream caller on A | `catalog-source-b-to-a` service identity | Service membership plus tenant Discovery reader on A; no human UI session |
+| B's upstream caller on A | `catalog-source-b-to-a` service identity | Service membership with tenant-wide `discovery.read` on A |
 
 The main Keycloak walkthrough sets `auth.enforceScopes: false`; signature/issuer/audience verification and Catalog permissions remain enforced. If you enable [OAuth scope ceilings](../operations/oidc-keycloak.md#enable-oauth-scope-enforcement), request the corresponding scopes before deriving header files. Reads require `catalog.read`; authoring uses `catalog.write`, decisions `catalog.review`, releases/snapshots `catalog.publish`, access administration `tenant.admin`, and Publisher commands `publishers.manage`. Source commands use `sources.manage`; retained source/evidence reads use `sources.read`.
 
@@ -457,12 +457,14 @@ PY
 api source-membership POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
   /api/v1/role-assignments "$FEDERATION_RESULTS/source-membership-request.json" '' 201
 SOURCE_MEMBERSHIP_ID=$(field source-membership membershipId)
-python3 - "$FEDERATION_RESULTS/a-roles.json" "$SOURCE_MEMBERSHIP_ID" \
+printf '%s\n' '{"name":"Upstream publication reader","permissions":["discovery.read"],"reason":"Allow B to read published metadata"}' \
+  > "$FEDERATION_RESULTS/source-role-request.json"
+api source-role POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
+  /api/v1/access/roles "$FEDERATION_RESULTS/source-role-request.json" '' 201
+python3 - "$(field source-role id)" "$SOURCE_MEMBERSHIP_ID" \
   "$FEDERATION_RESULTS/source-discovery-request.json" <<'PY'
 import json, sys
-role = next(r for r in json.load(open(sys.argv[1]))["items"]
-            if r.get("builtin") and r.get("key") == "discovery_reader" and r["state"] == "active")
-json.dump({"roleDefinitionId": role["id"], "membershipId": sys.argv[2],
+json.dump({"roleDefinitionId": sys.argv[1], "membershipId": sys.argv[2],
            "reason": "Read A authenticated discovery for B"}, open(sys.argv[3], "w"))
 PY
 api source-discovery POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIGIN" \
@@ -470,6 +472,14 @@ api source-discovery POST "$CATALOG_TUTORIAL_DIRECTORY/a/admin.headers" "$A_ORIG
 api source-self GET "$CATALOG_TUTORIAL_DIRECTORY/b/upstream-a.headers" "$A_ORIGIN" /api/v1/me '' '' 200
 test "$(field source-self subject)" = "$SOURCE_SUBJECT"
 test "$(field source-self actorType)" = service
+test "$(field source-self tenantId)" = "$(field a-admin-self tenantId)"
+python3 - "$FEDERATION_RESULTS/source-self.json" <<'PY'
+import json, sys
+access = json.load(open(sys.argv[1]))
+assert access["permissions"] == ["discovery.read"]
+if access["scopeEnforcement"]:
+    assert "catalog.read" in access["scopes"]
+PY
 api source-manifest GET "$CATALOG_TUTORIAL_DIRECTORY/b/upstream-a.headers" "$A_ORIGIN" \
   /.well-known/ard.json '' '' 200
 ```
@@ -899,7 +909,7 @@ Removal marks retained participation `source_removed`; it does not erase histori
 - **Configure B to A reciprocally:** Inspect/register B as a separate source on A. A's default public policy is disabled; prepare its exact private route/trust/credential resolver and recreate A runtimes before that optional workflow. Do not reuse the A-directed token or bypass outbound policy.
 - **Add other resource kinds:** Use supported, tested delivery forms and their own review/publication. Curated package-only Skills are excluded from ARD/AI Catalog snapshots with `PUBLIC_DELIVERY_FORM_REQUIRED`, including authenticated snapshots. `make demo-up`/`demoArchives` are development inputs and do not load this OIDC Catalog.
 
-The [search cookbook](search-cookbook.mdx) covers local/indexed comparisons and separately prepared optional live/hybrid cases. The [LangGraph branch](../../../../../examples/langgraph/README.md#use-a-human-oidc-login) can read A's local Agent; it does not inspect B's federated observations. Separate peer/OIDC harness passes do not establish that this combined tutorial was followed.
+Use the [search cookbook](search-cookbook.mdx) to compare local and indexed results. The [LangGraph example](../../../../../examples/langgraph/README.md#use-a-human-oidc-login) can read A's local Agent.
 
 ## Clean up only this project
 

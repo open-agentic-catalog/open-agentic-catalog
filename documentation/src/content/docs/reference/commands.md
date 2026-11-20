@@ -156,17 +156,17 @@ catalogctl auth login \
   --client-id catalog-cli \
   --base-url https://catalog.example.com \
   --file "$HOME/.catalog-login/work.json" \
-  --scope offline_access
+  --scope catalog.read
 ```
 
-Open the URL printed to stderr. The command writes only local status JSON to stdout. `openid` is automatic. Repeat `--scope` for additional API [scopes](glossary.md#scope); scopes do not configure the API audience. Request `offline_access` only when the issuer supports refresh. The issuer may refuse it or issue no refresh token. Keycloak also requires the user's `offline_access` realm role and the corresponding client scope. See [Keycloak offline access](https://www.keycloak.org/docs/latest/server_admin/#_offline-access). This issuer permission grants no Catalog permissions.
+Open the URL printed to stderr. The command writes only local status JSON to stdout. `openid` is automatic. Repeat `--scope` for additional API [scopes](glossary.md#scope); scopes do not configure the API audience. For local Search under scope enforcement, request `catalog.read`. Add a separate `--scope offline_access` only when the issuer supports refresh. The issuer may refuse it or issue no refresh token. Keycloak also requires the user's `offline_access` realm role and the corresponding client scope. See [Keycloak offline access](https://www.keycloak.org/docs/latest/server_admin/#_offline-access). This issuer permission grants no Catalog permissions.
 
 Clear inherited manual bearer inputs, then select the saved credentials explicitly:
 
 ```sh
 unset CATALOG_REMOTE_TOKEN CATALOG_REMOTE_TOKEN_FILE
 catalogctl remote search --base-url https://catalog.example.com \
-  --login-file "$HOME/.catalog-login/work.json" --text "order processing"
+  --login-file "$HOME/.catalog-login/work.json" --origin local --text "order processing"
 catalogctl auth status --file "$HOME/.catalog-login/work.json"
 catalogctl auth logout --file "$HOME/.catalog-login/work.json"
 ```
@@ -187,7 +187,7 @@ Status and logout accept only `--file` and `--timeout`, apart from help. Their J
 
 The private file binds the issuer, client, API origin, subject, tenant and membership. The CLI accepts an owned `0700` directory and owned `0600` regular files. It refuses symlinks and hard-linked credential files. Do not edit or commit this file. A persistent `.lock` file protects concurrent reads, refreshes and logout. Login requires a new file. Log out before you switch identity. Status and logout wait for an active login or refresh to release its lock. Logout deletes local credentials; it does not revoke issuer grants or browser sessions. Status makes no network request and cannot confirm current issuer or Catalog access.
 
-Use `--issuer-ca-file PATH` for private issuer roots and `--ca-file PATH` for private API roots. These trust inputs are separate. Supply the issuer roots again with `--login-file` when refresh needs them. Issuer discovery, token and key endpoints must remain on the selected issuer origin. Redirects are refused. HTTPS is required, except for literal loopback IPs. No global TLS bypass is available.
+For a private API CA, supply `--ca-file PATH` on login and each remote command, or set `CATALOG_REMOTE_CA_FILE`. For a private issuer CA, supply `--issuer-ca-file PATH` on login and on commands that may refresh the token. The login file does not store CA paths. Issuer discovery, token and key endpoints must remain on the selected issuer origin. Redirects are refused. HTTPS is required, except for literal loopback IPs. No global TLS bypass is available.
 
 Use the exact issuer URL, including a trailing slash when present. The CLI preserves it in callback checks, token verification and saved credentials. Discovery removes the terminal slash only when it constructs the metadata request path, as specified by [OIDC Discovery](https://openid.net/specs/openid-connect-discovery-1_0.html#ProviderConfigurationRequest). The API origin remains path-free and has no trailing slash. See [Auth0 CLI setup](../operations/oidc-auth0.md#register-the-human-cli-application) for its separate default-audience requirement.
 
@@ -493,7 +493,7 @@ Keep the original progress file. If any outcome remains `inflight` or `uncertain
 
 ## Read an anonymous publication
 
-Use `catalogctl discovery` to inspect one active anonymous publication without sign-in or a UI. Ask the operator for its API origin, including any nondefault port. Omit paths, a trailing slash, query, fragment and embedded credentials. Its hostname selects the publication; the browser UI URL can differ. See [discovery host configuration](configuration.mdx#discovery-host-configuration).
+Use `catalogctl discovery` to inspect one active anonymous publication without sign-in or a UI. Ask the operator for the discovery origin of that publication, including any nondefault port. Its hostname selects the publication and can differ from the private API or UI hostname. Omit paths, a trailing slash, query, fragment and embedded credentials. See [discovery host configuration](configuration.mdx#discovery-host-configuration).
 
 ```sh
 ./bin/catalogctl discovery manifest --base-url https://catalog.example.com

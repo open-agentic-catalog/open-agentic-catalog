@@ -57,7 +57,11 @@ func kubernetesPeerRoutes(primary, secondary string) (map[string]string, error) 
 	if !valid.MatchString(primary) || !valid.MatchString(secondary) || primary == secondary {
 		return nil, errors.New("peer namespaces must be distinct DNS labels")
 	}
-	return map[string]string{"peer-a." + primary + ".svc.cluster.local:8443": "catalog." + secondary + ".svc.cluster.local:8080", "peer-b." + primary + ".svc.cluster.local:8443": "catalog." + primary + ".svc.cluster.local:8080"}, nil
+	return map[string]string{
+		"peer-a." + primary + ".svc.cluster.local:8443":         "catalog." + secondary + ".svc.cluster.local:8080",
+		"peer-private-a." + primary + ".svc.cluster.local:8443": "catalog." + secondary + ".svc.cluster.local:8080",
+		"peer-b." + primary + ".svc.cluster.local:8443":         "catalog." + primary + ".svc.cluster.local:8080",
+	}, nil
 }
 
 func routedPeerHandler(transport http.RoundTripper, routes map[string]string) http.Handler {

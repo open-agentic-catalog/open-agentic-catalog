@@ -107,7 +107,7 @@ Catalog is an OAuth resource server with selected OIDC clients. An OIDC provider
 - Only a whitespace-separated string `scope` supplies the optional OAuth ceiling. Catalog does not read `scp`, scope arrays or provider `permissions` claims.
 - Browser and human CLI login require the ID token's `sub` to equal the access-token subject returned by `/api/v1/me`. There is no configurable `oid`, email or username substitution.
 - The UI and CLI confine issuer HTTP requests to the configured origin, including discovery, token and signing-key requests. Authorization endpoints must also use that origin.
-- Built-in login sends standard code/PKCE parameters and configured scopes. It has no extra `audience`, `resource`, `organization` or provider-specific parameter setting.
+- The UI and CLI send code/PKCE parameters and configured scopes. Select their API audience through issuer registration. The VS Code native client sends its configured `audience` in the authorization request.
 - The configured issuer must match discovery metadata and signed tokens exactly, including any trailing slash. API, browser and human CLI inputs preserve it.
 
 An origin consists of scheme, host and port. Different paths can share an origin. Do not append query parameters to the configured issuer or replace it with a login endpoint.
@@ -158,6 +158,8 @@ Additional scopes only constrain access when Catalog enforces them. Provision th
 The CLI validates the ID token, then checks API acceptance and subject agreement through `/api/v1/me`. Saved credentials stay in a caller-selected private file. They have no effect on UI sessions. Follow the [CLI login procedure](../reference/commands.md#human-cli-login) for trust files, refresh, logout and limits.
 
 ## Give automation API access
+
+For a worked request, see [verify your first authenticated read](../guides/integrating.mdx#verify-your-first-authenticated-read). For a Catalog importing from another Catalog, follow [connect an authenticated upstream](federation.mdx#connect-an-authenticated-upstream-catalog).
 
 Obtain an API-audience access token through the issuer's supported service-account flow. Bind its exact subject to a Catalog service membership and grant only required permissions. In shared mode, arrange the exact organization claim too. A service identity does not need the browser client, ID token or UI cookie keys.
 

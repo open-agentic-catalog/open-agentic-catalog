@@ -39,6 +39,7 @@ export function mcpRealm(base, origin) {
   });
   return {
     ...base,
+    attributes: { ...base.attributes, CreateDefaultClientScopes: "false" },
     // Explicit realm scopes replace Keycloak defaults. Retain the basic
     // access-token subject mapper required for human membership resolution.
     clientScopes: [

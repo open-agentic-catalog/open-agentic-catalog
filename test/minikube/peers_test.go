@@ -56,8 +56,15 @@ func TestIndependentCatalogNamespaceAndInputs(t *testing.T) {
 			t.Fatal("peer values select wrong origin or retry budget")
 		}
 		var hosts []map[string]string
-		if json.Unmarshal([]byte(values.Config["CATALOG_DISCOVERY_HOSTS"]), &hosts) != nil || len(hosts) != 2 {
+		want := 2
+		if side == "a" {
+			want = 3
+		}
+		if json.Unmarshal([]byte(values.Config["CATALOG_DISCOVERY_HOSTS"]), &hosts) != nil || len(hosts) != want {
 			t.Fatal("peer discovery hosts missing")
+		}
+		if side == "a" && (hosts[2]["host"] != peerHost("private-a") || hosts[2]["mode"] != "authenticated") {
+			t.Fatal("private upstream route lost its authentication requirement")
 		}
 		if hosts[0]["host"] != peerHost(side) || hosts[0]["mode"] != "anonymous" || hosts[1]["host"] != "catalog."+h.catalogNamespace()+".svc.cluster.local" || hosts[1]["mode"] != "authenticated" {
 			t.Fatal("peer publication and authenticated discovery audiences differ")

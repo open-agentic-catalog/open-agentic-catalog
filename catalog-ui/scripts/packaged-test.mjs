@@ -31,6 +31,7 @@ import { waitForPackagedReadiness } from "./packaged-readiness.mjs";
 import { collectReadinessEvidence } from "./packaged-readiness-evidence.mjs";
 import { waitForStableNetwork } from "./network-readiness.mjs";
 import {
+  browserReaderSubject,
   humanRealm,
   namespaceReadControl,
   ratingsRealm,
@@ -81,6 +82,8 @@ const coverage = process.argv[3] === "--coverage";
 const mcp = process.argv[3] === "--mcp";
 const publisherDNSOnly = process.argv[3] === "--publisher-dns";
 const localPasswords = process.argv[3] === "--local-passwords";
+const packagedCLI =
+  mode === "oidc" && !mcp && !coverage && !engine && !localPasswords;
 if (
   (engine && (mode !== "oidc" || !process.env.CATALOG_UI_ENGINE_OUTPUT)) ||
   (mcp && mode !== "oidc") ||
@@ -1261,7 +1264,7 @@ try {
         "--no-proxy-server",
       ],
     });
-  if (mode === "oidc" && !mcp && !coverage && !engine) {
+  if (packagedCLI) {
     phase = "cli-network-readiness";
     await waitForStableNetwork({ interrupted: () => interrupted });
     phase = "cli-human-oidc";
@@ -3043,6 +3046,36 @@ try {
           id: expect.stringMatching(/^[0-9a-f-]{36}$/),
           etag: '"rev-1"',
         });
+        let readerMembership;
+        if (packagedCLI) {
+          // Give the previously refused human an ordinary Reader grant through the real admin session.
+          readerMembership = await page.evaluate(
+            async ({ prefix, subject }) => {
+              const response = await fetch(
+                prefix + "/_catalog/api/v1/role-assignments",
+                {
+                  method: "POST",
+                  headers: {
+                    "X-Catalog-Request": "1",
+                    "Content-Type": "application/json",
+                    "Idempotency-Key": crypto.randomUUID(),
+                  },
+                  body: JSON.stringify({
+                    subject,
+                    actorType: "human",
+                    role: "reader",
+                    reason: "Qualify a native reader login",
+                  }),
+                },
+              );
+              if (response.status !== 201)
+                throw new Error("Reader grant was refused");
+              return (await response.json()).membershipId;
+            },
+            { prefix: basePath, subject: browserReaderSubject },
+          );
+          expect(readerMembership).toMatch(/^[0-9a-f-]{36}$/);
+        }
         await collector.finish();
         await browser.close();
         config.auth.enforceScopes = true;
@@ -3052,6 +3085,36 @@ try {
         apiPort = await publishedPort("api");
         await ready(`http://127.0.0.1:${apiPort}/readyz`);
         await openBrowser();
+        if (packagedCLI) {
+          const item = initialSeedReport.items.find(
+            (entry) => entry.key === "order-agent" && entry.releaseId,
+          );
+          if (!item) throw new Error("Missing seeded Agent release");
+          for (const scoped of [true, false]) {
+            const membership = await cliOIDCJourney({
+              command,
+              browser,
+              image,
+              directory: privateDirectory,
+              certificate: join(directory, "server.pem"),
+              issuer,
+              apiOrigin: `http://127.0.0.1:${apiPort}`,
+              username: "unregistered-human",
+              password,
+              subject: browserReaderSubject,
+              project,
+              searchCase: { scoped, item, tenant },
+              onPhase: (next) => {
+                phase = next;
+              },
+            });
+            expect(membership).toBe(readerMembership);
+          }
+          console.log(
+            "Reader PKCE logins verified the granted membership, exact release and missing-scope refusal",
+          );
+          phase = "oidc-scope-ceiling";
+        }
         await page.goto(origin + basePath + "/catalog");
         await signIn();
         await expect(page.getByTitle("Account", { exact: true })).toBeVisible();

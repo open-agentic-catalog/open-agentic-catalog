@@ -100,7 +100,7 @@ func (h *harness) waitVaultInputs() error {
 	defer cancel()
 	return waitTopology(ctx, func() (bool, error) { return h.vaultInputsReady(ctx) })
 }
-func (h *harness) vaultRuntimePods() ([]podIdentity, error) {
+func (h *harness) credentialRuntimePods() ([]podIdentity, error) {
 	var result []podIdentity
 	for _, role := range []string{"api", "worker"} {
 		pods, err := h.pods(role)
@@ -108,14 +108,14 @@ func (h *harness) vaultRuntimePods() ([]podIdentity, error) {
 			return nil, err
 		}
 		if len(pods) != 1 || !pods[0].Ready || pods[0].Restarts != 0 {
-			return nil, errors.New("vault scenario requires ready unrestarted runtimes")
+			return nil, errors.New("credential check requires ready unrestarted runtimes")
 		}
 		result = append(result, pods...)
 	}
 	return result, nil
 }
-func (h *harness) vaultUnchanged(before []podIdentity) error {
-	after, err := h.vaultRuntimePods()
+func (h *harness) credentialPodsUnchanged(before []podIdentity) error {
+	after, err := h.credentialRuntimePods()
 	if err != nil {
 		return err
 	}
@@ -124,7 +124,7 @@ func (h *harness) vaultUnchanged(before []podIdentity) error {
 	}
 	return nil
 }
-func (h *harness) patchVaultFixtureSecret(name string, data map[string]string) error {
+func (h *harness) patchFixtureSecret(name string, data map[string]string) error {
 	encoded := map[string]string{}
 	for key, value := range data {
 		encoded[key] = base64.StdEncoding.EncodeToString([]byte(value))
@@ -152,7 +152,7 @@ func (h *harness) verifyVaultLifecycle(baseURL string, initialSmoke []byte) erro
 	if err := h.verifyVaultDenials(); err != nil {
 		return err
 	}
-	before, err := h.vaultRuntimePods()
+	before, err := h.credentialRuntimePods()
 	if err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func (h *harness) verifyVaultLifecycle(baseURL string, initialSmoke []byte) erro
 	if err != nil {
 		return err
 	}
-	before, err = h.vaultRuntimePods()
+	before, err = h.credentialRuntimePods()
 	if err != nil {
 		return err
 	}
@@ -176,7 +176,7 @@ func (h *harness) verifyVaultLifecycle(baseURL string, initialSmoke []byte) erro
 	if err := h.requireFreshVaultInputs(vaultStartupInputs...); err != nil {
 		return err
 	}
-	if err := h.vaultUnchanged(before); err != nil {
+	if err := h.credentialPodsUnchanged(before); err != nil {
 		return err
 	}
 	replayed, err := h.runSmoke(baseURL, "minikube-"+h.suffix)

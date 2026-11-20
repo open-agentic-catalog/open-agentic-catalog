@@ -210,7 +210,9 @@ it("bounds filter text in Unicode code points before sending a request", async (
   );
   render(<Collections {...w.props} id="one" />);
   await screen.findByText(/No currently readable entries\./);
-  const calls = w.get.mock.calls.length;
+  const memberReads = () =>
+    w.get.mock.calls.filter(([path]) => String(path).endsWith("/members"));
+  expect(memberReads()).toHaveLength(1);
   fireEvent.change(
     screen.getByRole("searchbox", { name: /Search collection entries/ }),
     { target: { value: "📚".repeat(257) } },
@@ -222,15 +224,16 @@ it("bounds filter text in Unicode code points before sending a request", async (
       .getByRole("searchbox", { name: /Search collection entries/ })
       .getAttribute("aria-describedby"),
   ).toBe(error.id);
-  expect(w.get).toHaveBeenCalledTimes(calls);
+  expect(memberReads()).toHaveLength(1);
   fireEvent.change(
     screen.getByRole("searchbox", { name: /Search collection entries/ }),
     { target: { value: "📚".repeat(256) } },
   );
   fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
   await waitFor(() =>
-    expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({
+    expect(memberReads().at(-1)?.[1]).toMatchObject({
       params: { query: { text: "📚".repeat(256) } },
     }),
   );
+  expect(memberReads()).toHaveLength(2);
 });

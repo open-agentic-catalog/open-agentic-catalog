@@ -173,6 +173,47 @@ func TestDefaultRenderContract(t *testing.T) {
 }
 
 func TestSharedAndOptionalProfiles(t *testing.T) {
+	t.Run("only enabled API and worker mount the source credential directory", func(t *testing.T) {
+		for _, enabled := range []bool{false, true} {
+			args := []string{"--values", chartPath(t, "ci", "ui-values.yaml")}
+			if enabled {
+				args = append(args, "--values", chartPath(t, "ci", "optional-values.yaml"))
+			}
+			objects := renderChart(t, args...)
+			for _, role := range []string{"api", "worker", "ui", "migration"} {
+				kind := "Deployment"
+				if role == "migration" {
+					kind = "Job"
+				}
+				pod := mapAt(t, oneObject(t, objects, kind, role), "spec", "template", "spec")
+				want := enabled && (role == "api" || role == "worker")
+				volume, mount := false, false
+				for _, raw := range sliceAt(t, pod, "volumes") {
+					v := asMap(t, raw)
+					if v["name"] == "federation-credentials" {
+						volume = true
+						if stringAt(t, v, "secret", "secretName") != "catalog-federation-credentials" {
+							t.Fatal("incorrect source Secret", role)
+						}
+					}
+				}
+				for _, c := range sliceAt(t, pod, "containers") {
+					for _, raw := range sliceAt(t, c, "volumeMounts") {
+						m := asMap(t, raw)
+						if m["name"] == "federation-credentials" {
+							mount = true
+							if m["mountPath"] != "/etc/open-agentic-catalog/federation/credentials" || m["readOnly"] != true || m["subPath"] != nil || m["subPathExpr"] != nil {
+								t.Fatal("source Secret must project the complete read-only directory", role)
+							}
+						}
+					}
+				}
+				if volume != want || mount != want {
+					t.Fatalf("%s: volume %v, mount %v, want %v", role, volume, mount, want)
+				}
+			}
+		}
+	})
 	t.Run("shared tenancy and external identities", func(t *testing.T) {
 		objects := renderChart(t, "--values", chartPath(t, "ci", "shared-values.yaml"))
 		for _, resource := range objects {

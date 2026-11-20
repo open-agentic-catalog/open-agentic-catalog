@@ -20,8 +20,12 @@ export async function cliOIDCJourney({
   project,
   onPhase,
   loginOnly = false,
+  searchCase,
 }) {
-  const privateFiles = join(directory, "cli-auth");
+  const privateFiles = join(
+    directory,
+    searchCase ? `cli-read-${searchCase.scoped}` : "cli-auth",
+  );
   await mkdir(privateFiles, { mode: 0o700 });
   const { uid, gid } = userInfo();
   const container = project + "-cli-auth";
@@ -79,7 +83,13 @@ export async function cliOIDCJourney({
         "--issuer-ca-file",
         "/issuer.pem",
         ...(apiOrigin.startsWith("https:") ? ["--ca-file", "/issuer.pem"] : []),
-        ...(loginOnly ? [] : ["--scope", "offline_access"]),
+        ...(searchCase
+          ? searchCase.scoped
+            ? ["--scope", "catalog.read"]
+            : []
+          : loginOnly
+            ? []
+            : ["--scope", "offline_access"]),
         "--listen",
         "127.0.0.1:" + callbackPort,
         "--timeout",
@@ -130,7 +140,9 @@ export async function cliOIDCJourney({
     await page.getByLabel("Username or email").fill(username);
     await page.getByLabel("Password", { exact: true }).fill(password);
     onPhase("cli-loopback-callback");
-    await page.getByRole("button", { name: "Sign In", exact: true }).click();
+    await page
+      .getByRole("button", { name: "Sign In", exact: true })
+      .press("Enter");
     await expect(
       page.getByText("Login response received. Return to the terminal.", {
         exact: true,
@@ -147,10 +159,68 @@ export async function cliOIDCJourney({
       original.subject !== subject ||
       original.apiOrigin !== apiOrigin ||
       original.issuer !== issuer ||
-      (!loginOnly && !original.refreshToken) ||
+      (!loginOnly && !searchCase && !original.refreshToken) ||
       ((await stat(path)).mode & 0o777) !== 0o600
     )
       throw new Error("CLI credentials have an invalid binding or file mode");
+    if (searchCase) {
+      onPhase(searchCase.scoped ? "cli-scoped-search" : "cli-unscoped-search");
+      // This fixture uses the packaged API's published loopback port.
+      const response = await fetch(new URL("/api/v1/me", apiOrigin), {
+        headers: { Authorization: `Bearer ${original.accessToken}` },
+        redirect: "error",
+        signal: AbortSignal.timeout(15000),
+      });
+      expect(response.status).toBe(200);
+      const me = await response.json();
+      expect(me.subject).toBe(subject);
+      expect(me.actorType).toBe("human");
+      expect(me.tenantId).toBe(searchCase.tenant);
+      expect(me.membershipId).toMatch(/^[0-9a-f-]{36}$/);
+      expect(me.membershipId).toBe(original.membershipId);
+      expect(me.permissions).toContain("resource.read");
+      expect(me.permissions).not.toContain("access.manage");
+      expect(me.scopeEnforcement).toBe(true);
+      expect(me.scopes.includes("catalog.read")).toBe(searchCase.scoped);
+      const args = [
+        ...base,
+        "remote",
+        "search",
+        "--base-url",
+        apiOrigin,
+        "--login-file",
+        file,
+        "--origin",
+        "local",
+        "--text",
+        "order",
+      ];
+      if (searchCase.scoped) {
+        const { data } = JSON.parse(await command(args));
+        expect(data.partial).toBe(false);
+        expect(
+          data.items.some(
+            (item) =>
+              item.identifier === searchCase.item.identifier &&
+              item.local?.release.id === searchCase.item.releaseId,
+          ),
+        ).toBe(true);
+      } else {
+        let denied = false;
+        await expect(
+          command(args, 30, false, (message) => {
+            denied =
+              /"status"\s*:\s*403\b/.test(message) &&
+              /"code"\s*:\s*"FORBIDDEN"/.test(message) &&
+              /"detail"\s*:\s*"OAuth scope catalog\.read is required"/.test(
+                message,
+              );
+          }),
+        ).rejects.toThrow();
+        expect(denied).toBe(true);
+      }
+      return me.membershipId;
+    }
     const remote = [
       ...base,
       "remote",

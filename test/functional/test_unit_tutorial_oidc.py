@@ -131,7 +131,12 @@ class TutorialOIDCTests(unittest.TestCase):
             root = Path(temporary)
             (root / "a").mkdir(mode=0o700)
             original = root / "catalog-realm.json"
-            before = b'{"realm":"catalog","clients":[{"clientId":"existing"}]}\n'
+            clients = [
+                {"clientId": "existing"},
+                f.prepare.client("catalog-automation-a", "open-agentic-catalog", secret="fixture", service=True),
+                f.prepare.client("catalog-source-b-to-a", "open-agentic-catalog", secret="fixture", service=True),
+            ]
+            before = json.dumps({"realm": "catalog", "clients": clients}).encode()
             original.write_bytes(before)
             original.chmod(0o444)
             original_mount = {"type": "bind", "source": str(original), "target": "/opt/keycloak/data/import/catalog-realm.json", "read_only": True}
@@ -143,9 +148,13 @@ class TutorialOIDCTests(unittest.TestCase):
             selected = root / "qualification-realm.json"
             realm = json.loads(selected.read_text())
             self.assertEqual(realm["clients"][0], {"clientId": "existing"})
-            self.assertEqual(len(realm["clients"]), 2)
-            self.assertEqual(realm["clients"][1]["clientId"], "catalog-reviewer-qualification")
-            self.assertEqual(realm["clients"][1]["secret"], (root / "a/reviewer-client-secret").read_text())
+            self.assertEqual(len(realm["clients"]), 4)
+            admin, source, reviewer = realm["clients"][1:]
+            self.assertEqual(admin["defaultClientScopes"], [*clients[1]["defaultClientScopes"], "catalog.write", "catalog.publish", "publishers.manage", "tenant.admin"])
+            self.assertEqual(source, clients[2])
+            self.assertEqual(reviewer["clientId"], "catalog-reviewer-qualification")
+            self.assertEqual(reviewer["defaultClientScopes"], ["basic", "catalog.read", "catalog.review"])
+            self.assertEqual(reviewer["secret"], (root / "a/reviewer-client-secret").read_text())
             self.assertEqual(selected.stat().st_mode & 0o777, 0o444)
             self.assertEqual((root / "a/reviewer-client-secret").stat().st_mode & 0o777, 0o600)
             self.assertEqual(config["services"]["identity"]["volumes"][0], {"type": "bind", "source": str(selected), "target": "/opt/keycloak/data/import/catalog-realm.json", "read_only": True})
