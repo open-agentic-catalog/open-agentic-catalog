@@ -32,7 +32,7 @@ def snake(name):
 
 class ContractUnits(unittest.TestCase):
     def test_declared_mcp_tools_preserve_opt_in_and_exact_match_evidence(self):
-        for wire in ({"text": "pdf tables", "includeMcpTools": True, "origins": ["local"]}, {"includeMcpTools": False}, {}):
+        for wire in ({"nativeCapabilities": {"agentStreaming": False, "agentSkillIds": ["resolve-invoices"], "agentSkillTags": ["finance, billing "]}, "origins": ["local"]}, {"nativeCapabilities": {"mcpTransports": ["sse"], "mcpProtocolVersions": ["2026-07-28"]}, "origins": ["local"]}, {"text": "pdf tables", "includeMcpTools": True, "origins": ["local"]}, {"includeMcpTools": False}, {}):
             with self.subTest(wire=wire):
                 self.assertEqual(models.CatalogSearch.from_dict(wire).to_dict(), wire)
         wire = {"representationId": "00000000-0000-7000-8000-000000000001", "contentDigest": "sha256:" + "a" * 64, "matchedToolCount": 1, "tools": [{"name": "extract_pdf_tables", "descriptionTruncated": False}], "truncated": False}

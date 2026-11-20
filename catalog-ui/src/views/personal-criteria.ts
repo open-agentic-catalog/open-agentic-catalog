@@ -1,4 +1,5 @@
 // Saved criteria retain exact values; validating or editing them never executes discovery.
+import { checkedNative, nativeDraft, nativeKind } from "./native-capabilities";
 import { isCatalogOrder } from "./catalog-order";
 import type { components } from "../api/schema";
 import { object } from "../api/values";
@@ -6,6 +7,7 @@ import { InputError, trimGoWhitespace } from "./input-validation";
 
 export type PersonalCriteria = components["schemas"]["PersonalCriteria"];
 const fields = [
+  "nativeCapabilities",
   "includeMcpTools",
   "agentProtocol",
   "order",
@@ -28,6 +30,8 @@ export function criteriaDraft(value: unknown): PersonalCriteria {
     throw new Error(
       "Enter valid supported criteria. Only saved search fields are accepted.",
     );
+  if (value.nativeCapabilities !== undefined)
+    nativeDraft(value.nativeCapabilities);
   if (
     value.includeMcpTools !== undefined &&
     typeof value.includeMcpTools !== "boolean"
@@ -105,6 +109,28 @@ export function checkedCriteria(value: unknown, prefix = ""): PersonalCriteria {
         `${field} must fit ${maximum} ${bytes ? "UTF-8 bytes" : "characters"} without NUL or malformed Unicode.`,
       );
   };
+  if (criteria.nativeCapabilities !== undefined) {
+    try {
+      const native = checkedNative(criteria.nativeCapabilities);
+      const kind = nativeKind(native);
+      if (
+        criteria.origins?.length !== 1 ||
+        criteria.origins[0] !== "local" ||
+        (criteria.kinds?.length &&
+          (criteria.kinds.length !== 1 || criteria.kinds[0] !== kind)) ||
+        (kind === "agent" && criteria.includeMcpTools) ||
+        (kind === "mcp_server" && criteria.agentProtocol)
+      )
+        throw new Error(
+          "Declared capabilities require Local Catalog alone and compatible kind and content filters.",
+        );
+    } catch (cause) {
+      fail(
+        "nativeCapabilities",
+        cause instanceof Error ? cause.message : "Check declared capabilities.",
+      );
+    }
+  }
   text("text", 500, true);
   text("publisher", 256, true);
   text("license", 256);

@@ -507,7 +507,7 @@ KUBECONFORM_VERSION := v0.8.0
 KUBECONFORM_IMAGE := ghcr.io/yannh/kubeconform:$(KUBECONFORM_VERSION)@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e
 HELM_CHART := deployments/helm/open-agentic-catalog
 HELM_KUBE_VERSION := 1.34.0
-HELM_CHECK_VALUES := $(HELM_CHART)/ci/shared-values.yaml $(HELM_CHART)/ci/optional-values.yaml $(HELM_CHART)/ci/ambiguous-values.yaml $(HELM_CHART)/ci/ui-values.yaml $(HELM_CHART)/ci/mcp-values.yaml $(HELM_CHART)/ci/semantic-values.yaml $(HELM_CHART)/ci/pgbouncer.yaml $(HELM_CHART)/ci/payload-values.yaml
+HELM_CHECK_VALUES := $(HELM_CHART)/ci/shared-values.yaml $(HELM_CHART)/ci/optional-values.yaml $(HELM_CHART)/ci/ambiguous-values.yaml $(HELM_CHART)/ci/ui-values.yaml $(HELM_CHART)/ci/mcp-values.yaml $(HELM_CHART)/ci/ard-mcp-values.yaml $(HELM_CHART)/ci/semantic-values.yaml $(HELM_CHART)/ci/pgbouncer.yaml $(HELM_CHART)/ci/payload-values.yaml
 MINIKUBE_VERSION := v1.39.0
 MINIKUBE_KUBERNETES_VERSION := v1.37.1
 MINIKUBE_DRIVER := docker
@@ -1899,7 +1899,7 @@ container-sync-check: ## Verify compatibility files match the canonical containe
 	@cmp -s .containerignore .dockerignore || { printf '%s\n' '.containerignore and .dockerignore differ.' >&2; exit 1; }
 
 container-check: container-sync-check ## Verify compatibility files and lint every Containerfile
-	$(HADOLINT) "$(CONTAINERFILE)" "$(FUNCTIONAL_CONTAINERFILE)" catalog-ui/Containerfile test/ci/Containerfile.act test/interoperability/Containerfile test/embeddings/Containerfile test/interoperability/mcp/Containerfile test/interoperability/a2a/Containerfile test/interoperability/adk/Containerfile test/interoperability/skills/Containerfile test/interoperability/plugins/Containerfile test/interoperability/agntcy/router/Containerfile test/interoperability/gateway/Containerfile.auth test/interoperability/ans/Containerfile test/interoperability/ard-registry/Containerfile test/interoperability/agentfield/Containerfile test/mcp-scanner/Containerfile
+	$(HADOLINT) "$(CONTAINERFILE)" "$(FUNCTIONAL_CONTAINERFILE)" catalog-ui/Containerfile test/ci/Containerfile.act test/interoperability/Containerfile test/embeddings/Containerfile test/interoperability/mcp/Containerfile test/interoperability/a2a/Containerfile test/interoperability/adk/Containerfile test/interoperability/skills/Containerfile test/interoperability/plugins/Containerfile test/interoperability/agntcy/router/Containerfile test/interoperability/gateway/Containerfile.auth test/interoperability/ans/Containerfile test/interoperability/ard-registry/Containerfile test/interoperability/agentfield/Containerfile test/mcp-scanner/Containerfile examples/tutorials/local-oidc/Containerfile test/interoperability/mcp/catalog/Containerfile
 
 container-build: container-sync-check ## Build the minimal OCI runtime image with Docker or Podman
 	@case "$(CONTAINER_PLATFORM)" in linux/amd64|linux/arm64) ;; *) printf 'CONTAINER_PLATFORM must be linux/amd64 or linux/arm64, got %s\n' "$(CONTAINER_PLATFORM)" >&2; exit 2 ;; esac

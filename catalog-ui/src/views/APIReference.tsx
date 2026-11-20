@@ -348,7 +348,7 @@ function Reference({
     let observer: IntersectionObserver | undefined;
     let margin = "";
     const connect = () => {
-      const rootMargin = `-${(parseFloat(getComputedStyle(endpoints.current!).getPropertyValue("--header-height")) || 56) + 16}px 0px -25% 0px`;
+      const rootMargin = `-${(Number.parseFloat(getComputedStyle(endpoints.current!).getPropertyValue("--header-height")) || 56) + 16}px 0px -25% 0px`;
       if (margin === rootMargin) return;
       margin = rootMargin;
       observer?.disconnect();

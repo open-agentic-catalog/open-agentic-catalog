@@ -238,7 +238,7 @@ Inspect the native card before use; discovery does not authorize invocation.
 
 Local entries need a matching value. Sparse live results can omit optional native members or the card itself. Disclosed contradictions, invalid selected shapes and peer refusals produce a partial outcome; healthy local results remain available. The original filters are forwarded to peers without removal.
 
-Inspection reuses the 16 MiB ARD document ceiling across local inline data. Live responses retain their configured byte limit and 8 MiB hard ceiling. Each native document is decoded once per query; filters, ranking and facets reuse the result. Cancellation and bounds stop work without truncating successful facet counts. These paths do not add filters to authenticated Control Search or the UI.
+Inspection reuses the 16 MiB ARD document ceiling across local inline data. Live responses retain their configured byte limit and 8 MiB hard ceiling. Each native document is decoded once per query; filters, ranking and facets reuse the result. Cancellation and bounds stop work without truncating successful facet counts. These ARD paths are separate from the authenticated [private capability filters](../guides/search-cookbook.mdx#filter-private-discovery-by-declared-capabilities). Private Control Search and Explore use the currently released validated primary card under current content-read permission, including retained blobs; ARD continues to use immutable audience-scoped publication data.
 
 ### Trust checks
 
@@ -263,7 +263,7 @@ A structurally valid entry or an approved publication does not prove that you ca
 The Catalog does not implement these discovery features:
 
 - DNS discovery or Agentmap discovery.
-- MCP or A2A interfaces for Registry Search.
+- An A2A interface for Registry Search.
 - Remote pagination that guarantees all pages describe the same source state.
 - The proposed `GET /agents/{identifier}` endpoint.
 
@@ -343,7 +343,7 @@ The MCP runtime protocol defines how hosts, clients and servers exchange JSON-RP
 
 The Catalog does not connect to resource MCP servers or invoke their tools. A client or gateway performs those actions after the user and its policies permit them.
 
-The optional [Catalog MCP server](../guides/mcp-server.mdx) exposes read-only Control metadata through `catalogctl mcp serve` over stdio or the API's stateless `/mcp` HTTP route. It is separate from the proposed ARD Registry wrapper. Neither transport connects to cataloged MCP servers or executes resources.
+The optional [Catalog MCP server](../guides/mcp-server.mdx) exposes read-only Control metadata through `catalogctl mcp serve` over stdio or the API's stateless `/mcp` HTTP route. The separate default-off `/ard/v1/mcp` endpoint searches a selected host's ARD publication with one `search` tool and the same nested REST request and complete ARD response. Its host-specific activation and audience rules are described in [ARD publication MCP](../guides/mcp-server.mdx#search-an-ard-publication-over-mcp). Neither interface connects to cataloged MCP servers or executes resources.
 
 ## Agent Skills
 

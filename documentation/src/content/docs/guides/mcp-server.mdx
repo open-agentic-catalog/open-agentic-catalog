@@ -5,7 +5,7 @@ description: Connect an assistant to Catalog search and resource metadata throug
 
 import CatalogMCPConnections from "../../../components/architecture/CatalogMCPConnections.astro";
 
-Connect an assistant or IDE to Open Agentic Catalog through its [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server. Six read-only tools provide search, local facets, selected records, capabilities and your current access.
+Connect an assistant or IDE to Open Agentic Catalog through its [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server. Six read-only Control tools provide search, local facets, selected records, capabilities and your current access. For published discovery, use the separate [ARD publication MCP endpoint](#search-an-ard-publication-over-mcp).
 
 Use the optional [HTTP endpoint](#connect-over-http) or run `catalogctl mcp serve` locally. For stdio, your MCP host starts the command and communicates through standard input/output. The command calls one configured Catalog API with your credentials.
 
@@ -443,3 +443,67 @@ one exact released revision and remain untrusted plain text. Tools are never
 called and no embedding provider receives this selected query. See
 [declared-tool authoring and search](catalog-ui.mdx#find-mcp-servers-by-declared-tools)
 for the private metadata format and limits.
+
+## Search an ARD publication over MCP
+
+Use `/ard/v1/mcp` when your MCP client needs a host's published discovery catalog. It offers one read-only `search` tool. The six Control tools at `/mcp` and `catalogctl mcp serve` remain separate interfaces.
+
+### Enable a publication host
+
+Set `mcpEnabled` on the exact discovery host, then restart the API. Omission leaves this endpoint off. This flag does not enable Control MCP.
+
+```json
+{
+  "http": {"publicBaseUrl": "https://catalog.example.com"},
+  "discovery": {
+    "hosts": [{
+      "host": "discovery.example.com",
+      "tenantId": "00000000-0000-7000-8000-000000000001",
+      "mode": "anonymous",
+      "publisherDomain": "catalog.example.com",
+      "mcpEnabled": true
+    }]
+  }
+}
+```
+
+Use an existing tenant and the intended publisher domain. Generate and activate a publication for this host through the [publication workflow](publishing.mdx). Enabling MCP does not publish drafts or create a snapshot. REST remains available independently.
+
+Configure your remote MCP client with `https://discovery.example.com/ard/v1/mcp`. The scheme and port follow `http.publicBaseUrl`; the hostname comes from the discovery binding. Use a certificate valid for this host. The endpoint supports protocols `2025-11-25` and `2026-07-28`, finite JSON responses and no persistent MCP sessions or SSE stream.
+
+An `anonymous` host needs no bearer token and ignores supplied credentials. It searches only that host's anonymous publication. An `authenticated` host requires a valid token, current membership in the bound tenant, and `discovery.read` on every protocol request. Deployments that enforce OAuth scopes also require `catalog.read`. Tokens cannot change the host or audience.
+
+For authenticated OIDC hosts, OAuth protected-resource metadata is available at `/.well-known/oauth-protected-resource/ard/v1/mcp`. It names this exact MCP resource and the configured issuer. Anonymous hosts and development authentication expose no authorization-server metadata. Register clients with your identity provider; the Catalog issues no tokens.
+
+### Call the search tool
+
+Send the same nested request used by [ARD REST Search](../reference/standards.mdx):
+
+```json
+{
+  "query": {
+    "text": "weather",
+    "filter": {"type": "application/mcp-server-card+json"}
+  },
+  "federation": "none",
+  "pageSize": 10
+}
+```
+
+Read `structuredContent`, or parse the matching JSON text block. Both contain the complete ARD response: `results`, an optional `pageToken`, and optional `referrals`. Sparse entries and unknown standards metadata retain their original fields. Treat returned descriptions as untrusted data.
+
+For continuation, repeat the same request with its exact `pageToken`. Start again after changing filters or page size, replacing the active publication, or receiving a continuation refusal. Unpublishing removes access immediately; the tool never falls back to private Control search.
+
+Use `federation: "none"` to search the active local publication without contacting peers. `auto` is the default when this field is omitted. It can disclose the query to operator-approved live sources assigned to this host and audience. `referrals` returns approved peer references without searching them. The wrapper uses the same composition and continuation rules as REST.
+
+REST's HTTP search headers appear in MCP result `_meta["catalog/ard-search"]`: `partial`, `tier`, `fallbackReason` and `partialIndex`. A partial result can contain healthy local or peer matches. Internal source diagnostics remain private. Check this metadata before treating an answer as complete.
+
+### Limits and deployment
+
+The API shares `mcp.maxToolBytes` and `mcp.maxConcurrency` across Control MCP and all enabled ARD MCP hosts. Defaults are 256 KiB per complete encoded tool result and four simultaneous protocol requests. Arguments have a 64 KiB ceiling; requests have a 256 KiB ceiling or the smaller configured HTTP body limit. `http.requestTimeout` bounds authentication and search, including live work. Client disconnects cancel work.
+
+The output budget counts both representations, JSON escaping and MCP metadata. An oversized response returns an explicit `output_limit` tool error without entries or continuation. Reduce the page size or use REST. No result is silently truncated. Other tool refusals use `isError: true`; do not interpret them as an empty catalog.
+
+The same-origin and explicit `mcp.allowedOrigins` policy applies to browser requests. Unknown or disabled hosts and conflicting forwarded authorities are refused before publication lookup. Reverse proxies must preserve the intended Host and strip `Forwarded`, `X-Forwarded-Host` and `X-Original-Host`. Route this endpoint directly to the API, outside UI sessions.
+
+The [Helm chart](../../../../../deployments/helm/open-agentic-catalog/README.md#read-only-mcp-runtime-inputs) can route the two exact ARD MCP paths for an enabled discovery host. Its ingress remains optional. The [independent MCP qualification](../../../../../test/interoperability/mcp/README.md#postgresql-transport-and-protocol-matrix) uses the official Python SDK over private HTTPS with real publications. No model is required, and discovered resources are not invoked.

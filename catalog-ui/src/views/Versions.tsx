@@ -839,7 +839,7 @@ function RevisionContent(props: WorkspaceProps & { bundle: RevisionBundle }) {
           props.bundle.namespaceId,
           "resource.validate",
         )}
-        description="Run validation again under the current policy. Earlier reviews keep their original evidence. If a submission is pending, an independent reviewer must request changes or reject it before you can submit new evidence. Blocked external checks can withdraw entire active discovery snapshots containing this revision, even when content is temporarily unavailable."
+        description="Run validation again under the current policy. Earlier reviews keep their original evidence. If a submission is pending, an independent reviewer must request changes or reject it before you can submit new evidence. Blocked external checks can withdraw entire active discovery snapshots containing this revision, even when content is temporarily unavailable. Expiry alone does not withdraw snapshots, and successful renewal does not automatically restore or activate publication."
         allowed={
           !namespace.busy &&
           !namespace.error &&
@@ -869,6 +869,16 @@ function RevisionContent(props: WorkspaceProps & { bundle: RevisionBundle }) {
                 label: "Precondition",
                 value:
                   "No If-Match; validate this exact retained revision under current policy",
+              },
+              {
+                label: "Review consequence",
+                value:
+                  "A new validation run can make a pending review stale. Earlier reviews retain their original evidence.",
+              },
+              {
+                label: "Publication consequence",
+                value:
+                  "A blocked external check can withdraw entire affected discovery snapshots. Successful renewal does not automatically approve, publish or restore discovery.",
               },
             ],
             run: async (key) => {

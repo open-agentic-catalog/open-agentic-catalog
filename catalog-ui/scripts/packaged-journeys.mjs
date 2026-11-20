@@ -2870,6 +2870,15 @@ export async function packagedJourneys({
     link,
     command,
   });
+  phase("compose-validation-maintenance");
+  await validationMaintenanceJourney({
+    page,
+    origin,
+    visit,
+    login,
+    button,
+    command,
+  });
   phase("compose-independent-publication");
   await publicationJourney({
     page,
@@ -4238,11 +4247,46 @@ async function declaredMCPToolsJourney({
   await page
     .getByRole("checkbox", { name: "Include declared MCP tools", exact: true })
     .check();
+  await page.getByText("MCP server declarations", { exact: true }).click();
+  await button("Add transport").click();
+  await page
+    .getByRole("textbox", { name: "Transport 1", exact: true })
+    .fill("streamable-http");
+  await button("Add protocol version").click();
+  await page
+    .getByRole("textbox", { name: "Protocol version 1", exact: true })
+    .fill("2025-11-25");
   await button("Apply filters").click();
   await expect(page.locator("article.resource-card")).toHaveCount(1);
   await expect(page.locator("article.resource-card")).toContainText(
     "extract_packaged_pdf_tables",
   );
+  const selected = await request("POST", "/api/v1/catalog/search", {
+    ...query,
+    includeMcpTools: true,
+    nativeCapabilities: {
+      mcpTransports: ["streamable-http"],
+      mcpProtocolVersions: ["2025-11-25"],
+    },
+  });
+  expect(selected.status).toBe(200);
+  expect(selected.data.durableTotal).toBe(1);
+  expect(selected.data.items[0].local.release.id).toBe(
+    published.data.release.id,
+  );
+  const facets = await request("POST", "/api/v1/catalog/explore", {
+    query: {
+      text: query.text,
+      includeMcpTools: true,
+      nativeCapabilities: {
+        mcpTransports: ["streamable-http"],
+        mcpProtocolVersions: ["2025-11-25"],
+      },
+    },
+    facets: [{ field: "kind" }],
+  });
+  expect(facets.status).toBe(200);
+  expect(facets.data.matched).toBe(1);
   await button("Inspect released declaration").click();
   await expect(page.getByRole("dialog")).toContainText("Declared MCP tools");
   await page
@@ -4259,6 +4303,91 @@ async function declaredMCPToolsJourney({
 }
 
 // Join the real packaged UI/API and PostgreSQL through ordinary user controls.
+/** Prepare owned blocked metadata, then inspect and renew through the shipped UI. */
+async function validationMaintenanceJourney({
+  page,
+  origin,
+  visit,
+  login,
+  button,
+  command,
+}) {
+  await login("local-contributor");
+  const fixture = await page.evaluate(async (endpoint) => {
+    const headers = { "X-Catalog-Request": "1" };
+    const records = await fetch(
+      endpoint + "/api/v1/catalog/resources?limit=100",
+      { headers },
+    );
+    if (!records.ok) throw new Error("Maintenance fixture Catalog read failed");
+    const record = (await records.json()).items.find(
+      (item) => item.resource.kind === "agent",
+    );
+    if (!record) throw new Error("Maintenance fixture requires an Agent");
+    const key = crypto.randomUUID();
+    const reply = await fetch(
+      endpoint + `/api/v1/resources/${record.resource.id}/versions`,
+      {
+        method: "POST",
+        headers: {
+          ...headers,
+          "Content-Type": "application/json",
+          "Idempotency-Key": key,
+        },
+        body: JSON.stringify({
+          version: "maintenance-" + key,
+          representations: [
+            {
+              role: "primary",
+              mediaType: "application/a2a-agent-card+json",
+              data: { name: "Incomplete maintenance fixture" },
+            },
+          ],
+        }),
+      },
+    );
+    if (reply.status !== 201)
+      throw new Error("Maintenance fixture version creation failed");
+    return await reply.json();
+  }, origin + "/_catalog");
+  expect(fixture.evidence.state).toBe("blocked");
+  await visit("/validation-maintenance");
+  await page
+    .getByRole("combobox", { name: "Evidence condition" })
+    .selectOption("blocked");
+  await button("Apply filters").click();
+  const row = page.getByRole("row").filter({ hasText: fixture.evidence.id });
+  await expect(row).toBeVisible();
+  await row.getByRole("link", { name: "Inspect evidence and renewal" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Version revision", exact: true }),
+  ).toBeVisible();
+  const validated = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith(
+        `/api/v1/version-revisions/${fixture.revision.id}:validate`,
+      ),
+  );
+  await command("Revalidate revision");
+  const response = await validated;
+  expect(response.status()).toBe(201);
+  const fresh = await response.json();
+  expect(fresh.revision.id).toBe(fixture.revision.id);
+  expect(fresh.revision.contentSetDigest).toBe(
+    fixture.revision.contentSetDigest,
+  );
+  expect(fresh.evidence.id).not.toBe(fixture.evidence.id);
+  expect(fresh.evidence.state).toBe("blocked");
+  await visit("/validation-maintenance");
+  await expect(
+    page.getByRole("row").filter({ hasText: fresh.evidence.id }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("row").filter({ hasText: fixture.evidence.id }),
+  ).toHaveCount(0);
+}
+
 async function sharedCollectionsJourney({
   page,
   origin,
@@ -4306,6 +4435,51 @@ async function sharedCollectionsJourney({
   await expect(link(record.listingRevision.displayName)).toBeVisible();
   await expect(button("Remove from collection")).toHaveCount(0);
   await expect(button("Delete collection")).toHaveCount(0);
+  const search = page.getByRole("searchbox", {
+    name: /Search collection entries/,
+  });
+  const kindLabel = {
+    agent: "Agents",
+    mcp_server: "MCP Servers",
+    skill: "Skills",
+    plugin: "Plugins",
+  }[record.resource.kind];
+  expect(kindLabel).toBeTruthy();
+  const collectionId = new URL(collectionURL).pathname.split("/").at(-1);
+  const memberReply = (text) =>
+    page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" &&
+        url.pathname.endsWith(`/api/v1/collections/${collectionId}/members`) &&
+        url.searchParams.get("text") === text
+      );
+    });
+  await search.fill(record.listingRevision.displayName);
+  await page.getByRole("checkbox", { name: kindLabel, exact: true }).check();
+  let received = memberReply(record.listingRevision.displayName);
+  await button("Apply filters").click();
+  let filtered = await received;
+  expect(filtered.status()).toBe(200);
+  expect((await filtered.json()).items.map((item) => item.listing.id)).toEqual([
+    record.listing.id,
+  ]);
+  await expect(page.locator(".resource-card")).toHaveCount(1);
+  await search.fill("collection-filter-no-match");
+  received = memberReply("collection-filter-no-match");
+  await button("Apply filters").click();
+  filtered = await received;
+  expect(filtered.status()).toBe(200);
+  expect((await filtered.json()).items).toEqual([]);
+  await expect(
+    page.getByText(/No currently readable entries match these filters/),
+  ).toBeVisible();
+  await expect(page.locator(".resource-card")).toHaveCount(0);
+  received = memberReply(null);
+  await button("Clear filters").click();
+  expect((await received).status()).toBe(200);
+  await expect(page.locator(".resource-card")).toHaveCount(1);
+
   await login("local-contributor");
   await page.goto(collectionURL);
   await command("Remove from collection");

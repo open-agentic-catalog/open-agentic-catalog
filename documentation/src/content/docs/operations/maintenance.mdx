@@ -18,7 +18,9 @@ Before changing the deployment, identify these inputs:
 
 Validate the role-specific configuration with `catalogctl config validate`. Validation does not prove network access or database privileges.
 
-Keep API and worker stopped. Run `catalogctl migrate plan` as the dedicated owner. Review the embedded versions and checksums. Apply migrations with both exact runtime role names.
+For a fresh Helm installation, the pre-install Job creates the schema and configures runtime database permissions before the API and worker start. No separate migration command or runtime drain is needed. Follow the [Helm installation procedure](../../../../../deployments/helm/open-agentic-catalog/README.md#install-or-upgrade) with the prepared deployment inputs. Local `make compose-up` also handles database setup automatically.
+
+When deploying the binaries directly, run `catalogctl migrate plan` as the dedicated owner before starting API or worker processes. Review the embedded versions and checksums. Apply migrations with both exact runtime role names.
 
 Require both manifest reports to be compliant before starting either runtime. Follow [database roles](database-roles.mdx) for provisioning; never substitute an administrator DSN for a runtime role to get past a startup refusal. Production identity provisioning uses the operator command, not the development `bootstrap` shortcut.
 

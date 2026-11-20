@@ -1,3 +1,4 @@
+import { trimGoWhitespace } from "./input-validation";
 import { controlIcons } from "../shell/Icon";
 import {
   lazy,
@@ -356,10 +357,8 @@ export default function PluginAuthoring({
       document.getElementById(`${value.editorID}-url`)?.focus();
     }
   }, [preparation.preparing, value.editorID]);
-  const catalogVersion = version?.replace(
-    /^\p{White_Space}+|\p{White_Space}+$/gu,
-    "",
-  );
+  const catalogVersion =
+    version === undefined ? undefined : trimGoWhitespace(version);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState(false);
   const change = (patch: Partial<PluginPreparation>) =>

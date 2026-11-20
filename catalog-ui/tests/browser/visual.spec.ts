@@ -151,7 +151,6 @@ test("visual: Operations summaries use readable bars and exact tables", async ({
   page,
   catalog,
 }) => {
-  await page.clock.setFixedTime(new Date("2026-10-25T12:00:00Z"));
   const tenant = (
     await catalog.admin<{ tenantId: string }>("GET", "/api/v1/overview/sources")
   ).data.tenantId;
@@ -197,6 +196,10 @@ test("visual: Operations summaries use readable bars and exact tables", async ({
   );
   await page.setViewportSize({ width: 1440, height: 3000 });
   await login(page, catalog, "local-admin", "/overview?view=operations");
+  // Sign in against the real server clock, then remount the chart panels at
+  // the visual clock. An old screenshot date must not invalidate the session.
+  await page.clock.setFixedTime(new Date("2026-10-25T12:00:00Z"));
+  await page.getByRole("button", { name: "Refresh", exact: true }).click();
   const grid = page.locator(".overview-grid");
   await expect(grid.getByText("Example source")).toBeVisible();
   await expect(grid.getByText(/^Loaded/)).toBeVisible();
@@ -1045,7 +1048,6 @@ test.describe("enabled webhook overview", () => {
     page,
     catalog,
   }) => {
-    await page.clock.setFixedTime(new Date("2026-10-25T12:00:00Z"));
     const tenant = (
       await catalog.admin<{ tenantId: string }>("GET", "/api/v1/me")
     ).data.tenantId;
@@ -1065,6 +1067,8 @@ test.describe("enabled webhook overview", () => {
     );
     await page.setViewportSize({ width: 1440, height: 2200 });
     await login(page, catalog, "local-template-webhook-admin", "/overview");
+    await page.clock.setFixedTime(new Date("2026-10-25T12:00:00Z"));
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
     const grid = page.locator(".overview-grid");
     await expect(
       grid.getByText("Publication receiver", { exact: true }),

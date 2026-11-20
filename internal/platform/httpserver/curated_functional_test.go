@@ -235,6 +235,37 @@ func TestHTTPSharedCollectionMemberLifecycleAndCursor(t *testing.T) {
 	if len(page.Items) != 1 || page.Items[0].Listing.ID != ordered[0] || page.NextCursor == "" {
 		t.Fatal("missing page", page)
 	}
+
+	// Filters use released name/description only, with canonical set bindings.
+	filteredPath := path + "/members?limit=1&text=COLLECTION%20fixture&kinds=skill,skill"
+	filtered := requestJSON(t, server.URL, "GET", filteredPath, "reader", "", "", nil)
+	requireStatus(t, filtered, 200)
+	requireControlSchema(t, "CollectionMemberPage", filtered.body)
+	var filteredPage cursorPage[catalog.CatalogSummary]
+	decodeResult(t, filtered, &filteredPage)
+	if len(filteredPage.Items) != 1 || filteredPage.Items[0].Listing.ID != ordered[0] || filteredPage.NextCursor == "" {
+		t.Fatal("filtered first page", filteredPage)
+	}
+	same := requestJSON(t, server.URL, "GET", path+"/members?limit=1&text=collection+fixture&kinds=skill&cursor="+url.QueryEscape(filteredPage.NextCursor), "reader", "", "", nil)
+	requireStatus(t, same, 200)
+	var samePage cursorPage[catalog.CatalogSummary]
+	decodeResult(t, same, &samePage)
+	if len(samePage.Items) != 1 || samePage.Items[0].Listing.ID != ordered[1] || samePage.NextCursor != "" {
+		t.Fatal("filtered continuation", samePage)
+	}
+	for _, query := range []string{"text=missing", "text=COLLECTION&kinds=agent", "text=collect", "text=%25_*"} {
+		reply := requestJSON(t, server.URL, "GET", path+"/members?"+query, "reader", "", "", nil)
+		requireStatus(t, reply, 200)
+		var empty cursorPage[catalog.CatalogSummary]
+		decodeResult(t, reply, &empty)
+		if len(empty.Items) != 0 || empty.NextCursor != "" {
+			t.Fatal("nonmatch disclosed members", query, empty)
+		}
+	}
+	for _, query := range []string{"text=x&text=y", "kinds=skill&kinds=agent", "kinds[]=skill", "kinds=skill,", "kinds=unknown", "text=%FF", "text=%00", "text=" + strings.Repeat("a", 257), "text=other&limit=1&kinds=skill&cursor=" + url.QueryEscape(filteredPage.NextCursor)} {
+		reply := requestJSON(t, server.URL, "GET", path+"/members?"+query, "reader", "", "", nil)
+		requireControlProblem(t, reply, 400, catalog.CodeInvalidArgument)
+	}
 	continuation := path + "/members?limit=1&cursor=" + url.QueryEscape(page.NextCursor)
 	second := requestJSON(t, server.URL, "GET", continuation, "reader", "", "", nil)
 	requireStatus(t, second, 200)
@@ -283,6 +314,14 @@ func TestHTTPSharedCollectionMemberLifecycleAndCursor(t *testing.T) {
 	}
 	// The source remains a normal current Catalog entry after curation removal.
 	requireStatus(t, requestJSON(t, server.URL, "GET", "/api/v1/catalog/resources/"+page.Items[0].Release.ID, "reader", "", "", nil), 200)
+	filteredOtherPath := "/api/v1/collections/" + otherReceipt.ID + "/members?limit=1&text=collection+fixture&kinds=skill"
+	beforePolicyChange := requestJSON(t, server.URL, "GET", filteredOtherPath, "contributor", "", "", nil)
+	requireStatus(t, beforePolicyChange, 200)
+	var policyPage cursorPage[catalog.CatalogSummary]
+	decodeResult(t, beforePolicyChange, &policyPage)
+	if len(policyPage.Items) != 1 || policyPage.NextCursor == "" {
+		t.Fatal("filtered policy control lacks a continuation", policyPage)
+	}
 	// Restrict the original curator to its owner namespace after successful adds.
 	grant := requestJSON(t, server.URL, "POST", "/api/v1/role-assignments", "admin", "collection-scoped-manager", "", map[string]any{"subject": "contributor", "actorType": "human", "role": "contributor", "namespaceId": owner.ID, "reason": "Qualify owner scope without target read"})
 	requireStatus(t, grant, 201)
@@ -299,6 +338,14 @@ func TestHTTPSharedCollectionMemberLifecycleAndCursor(t *testing.T) {
 	}
 	if removedGlobals == 0 {
 		t.Fatal("scope restriction fixture did not revoke a global assignment")
+	}
+	requireControlProblem(t, requestJSON(t, server.URL, "GET", filteredOtherPath+"&cursor="+url.QueryEscape(policyPage.NextCursor), "contributor", "", "", nil), 400, catalog.CodeInvalidArgument)
+	filteredHidden := requestJSON(t, server.URL, "GET", filteredOtherPath, "contributor", "", "", nil)
+	requireStatus(t, filteredHidden, 200)
+	var filteredHiddenPage cursorPage[catalog.CatalogSummary]
+	decodeResult(t, filteredHidden, &filteredHiddenPage)
+	if len(filteredHiddenPage.Items) != 0 || filteredHiddenPage.NextCursor != "" {
+		t.Fatal("filtered continuation or fresh read disclosed revoked targets", filteredHiddenPage)
 	}
 	hidden := requestJSON(t, server.URL, "GET", path+"/members", "contributor", "", "", nil)
 	requireStatus(t, hidden, 200)

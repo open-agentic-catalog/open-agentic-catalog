@@ -447,3 +447,14 @@ func TestDeclaredMCPToolProjectionRejectsMalformedEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestControlMCPRejectsUnadvertisedPrivateNativeSelectors(t *testing.T) {
+	for _, raw := range []string{`{"nativeCapabilities":{"agentStreaming":false},"origins":["local"]}`, `{"nativeCapabilities":{"agentSkillIds":["invoice"]},"origins":["local"]}`} {
+		if _, err := toolRequest("catalog_control_search", json.RawMessage(raw)); err == nil {
+			t.Fatal("unadvertised selector could be silently lost")
+		}
+	}
+	if _, err := toolRequest("catalog_control_explore", json.RawMessage(`{"query":{"nativeCapabilities":{"agentStreaming":false}},"facets":[{"field":"kind"}]}`)); err == nil {
+		t.Fatal("unadvertised Explore selector accepted")
+	}
+}

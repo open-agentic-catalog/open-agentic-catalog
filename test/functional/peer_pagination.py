@@ -37,7 +37,7 @@ def cursor_clock(token, previous_headers, failed_date):
         values = {"responseDeltaSeconds": failed_date - previous_date,
                   "cursorExpiryMinusResponseDateSeconds": expiry - failed_date}
         return values if all(-86400 <= value <= 86400 for value in values.values()) else None
-    except (AttributeError, UnicodeError, ValueError, ClientFailure):
+    except (AttributeError, ValueError, ClientFailure):
         return None
 
 

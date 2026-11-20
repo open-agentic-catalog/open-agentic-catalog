@@ -22,7 +22,7 @@ def failed_stage(raw, checkpoint=None):
     """Project only a closed stage from a failed child, never its payload."""
     try:
         value = json.loads(raw)
-    except (ValueError, UnicodeError):
+    except ValueError:
         return
     if valid_failure(value):
         if checkpoint is not None:

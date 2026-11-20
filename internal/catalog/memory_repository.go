@@ -1586,6 +1586,10 @@ func (m *MemoryRepository) SearchCatalog(ctx context.Context, tenantID string, r
 	if err != nil {
 		return CatalogSearchRepositoryPage{}, err
 	}
+	records, err = m.nativeCapabilityRecordsLocked(ctx, tenantID, records, request.Query)
+	if err != nil {
+		return CatalogSearchRepositoryPage{}, err
+	}
 	records, err = m.mcpToolRecordsLocked(ctx, tenantID, records, request.Query)
 	if err != nil {
 		return CatalogSearchRepositoryPage{}, err
@@ -1639,6 +1643,10 @@ func (m *MemoryRepository) ExploreCatalog(ctx context.Context, tenantID string, 
 		return ExploreResponse{}, err
 	}
 	records, err = m.agentProtocolRecordsLocked(ctx, tenantID, records, query.AgentProtocol)
+	if err != nil {
+		return ExploreResponse{}, err
+	}
+	records, err = m.nativeCapabilityRecordsLocked(ctx, tenantID, records, query)
 	if err != nil {
 		return ExploreResponse{}, err
 	}

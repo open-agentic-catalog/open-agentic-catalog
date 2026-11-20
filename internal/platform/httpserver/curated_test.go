@@ -192,7 +192,7 @@ func TestCollectionHandlerMemberCursorBindsBothRevisions(t *testing.T) {
 	}
 	cursor := page.NextCursor
 	w = httptest.NewRecorder()
-	s.handleCollectionMembers(w, request("GET", path+"&cursor="+url.QueryEscape(cursor), ""))
+	s.handleCollectionMembers(w, request("GET", path+"&text=%20%09&kinds=&cursor="+url.QueryEscape(cursor), ""))
 	page = cursorPage[catalog.CatalogSummary]{}
 	if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil || w.Code != 200 || len(page.Items) != 1 || page.Items[0].Listing.ID != second.Listing.ID || page.NextCursor != "" {
 		t.Fatalf("member continuation=%+v status=%d err=%v", page, w.Code, err)
@@ -451,5 +451,63 @@ func TestCollectionHandlerFailedSavesHaveNoSuccessReceipt(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestCollectionMemberFiltersBindNormalizedSelection(t *testing.T) {
+	parent := collectionHandlerItem()
+	first := controlReadFixture(t).record.Summary()
+	second := first
+	second.Listing.ID = projectionNext
+	selected := 0
+	store := collectionHandlerStore{members: func(_ context.Context, _ identity.Actor, _ string, q collections.MemberRequest) (collections.MemberPage, error) {
+		out := collections.MemberPage{Collection: parent, Generation: "7", Items: []catalog.CatalogSummary{}}
+		if q.Limit == 0 {
+			if q.Text != "" || len(q.Kinds) != 0 {
+				t.Fatal("probe included client criteria", q)
+			}
+			return out, nil
+		}
+		selected++
+		if q.Text != "invoice café" || !reflect.DeepEqual(q.Kinds, []catalog.Kind{catalog.KindAgent, catalog.KindSkill}) || q.Limit != 2 || q.Revision != parent.Revision || q.Generation != "7" {
+			t.Fatal("lost normalized filters or exact selection binding", q)
+		}
+		if q.AfterID == "" {
+			out.Items = []catalog.CatalogSummary{first, second}
+		} else {
+			if q.AfterID != first.Listing.ID {
+				t.Fatal(q)
+			}
+			out.Items = []catalog.CatalogSummary{second}
+		}
+		return out, nil
+	}}
+	s, request := collectionHandlerFixture(t, store)
+	base := "/api/v1/collections/" + parent.ID + "/members?limit=1&text=" + url.QueryEscape(" INVOICE\u2003café ") + "&kinds=skill,agent,skill"
+	w := httptest.NewRecorder()
+	s.handleCollectionMembers(w, request("GET", base, ""))
+	var page cursorPage[catalog.CatalogSummary]
+	if err := json.Unmarshal(w.Body.Bytes(), &page); err != nil || w.Code != 200 || page.NextCursor == "" {
+		t.Fatal(w.Code, w.Body.String(), err)
+	}
+	cursor := url.QueryEscape(page.NextCursor)
+	canonical := "/api/v1/collections/" + parent.ID + "/members?limit=1&text=" + url.QueryEscape("invoice café") + "&kinds=agent,skill&cursor=" + cursor
+	w = httptest.NewRecorder()
+	s.handleCollectionMembers(w, request("GET", canonical, ""))
+	if w.Code != 200 || selected != 2 {
+		t.Fatal("equivalent filters refused", w.Code, w.Body.String(), selected)
+	}
+	for _, query := range []string{
+		"limit=1&text=other&kinds=agent,skill&cursor=" + cursor,
+		"limit=1&text=invoice+caf%C3%A9&kinds=plugin&cursor=" + cursor,
+		"limit=2&text=invoice+caf%C3%A9&kinds=agent,skill&cursor=" + cursor,
+		"text=a&text=b", "kinds=agent&kinds=skill", "kinds[]=agent", "kinds=%5B%22agent%22%5D", "kinds=agent,", "kinds=AGENT", "kinds=agent,skill,plugin,mcp_server,agent", "text=%FF", "text=%00", "text=" + strings.Repeat("x", 257), "filter=all",
+	} {
+		w = httptest.NewRecorder()
+		s.handleCollectionMembers(w, request("GET", "/api/v1/collections/"+parent.ID+"/members?"+query, ""))
+		requireProjectionProblem(t, w, 400, catalog.CodeInvalidArgument)
+		if selected != 2 {
+			t.Fatal("invalid filter/cursor reached selection", query, selected)
+		}
 	}
 }

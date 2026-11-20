@@ -33,6 +33,15 @@ it.each([
   expect(() => canonicalResourceIdentifier(value)).toThrow();
 });
 
+it("rejects oversized identifiers containing long interior whitespace without trimming their contents", () => {
+  expect(() => canonicalResourceIdentifier(`a${" ".repeat(32_768)}b`)).toThrow(
+    /Canonical identifier needs 1 to 512 characters without NUL/,
+  );
+  expect(canonicalResourceIdentifier(`\u0085a${" ".repeat(510)}b\u0085`)).toBe(
+    `a${" ".repeat(510)}b`,
+  );
+});
+
 it("builds terminal-only and namespaced AIR identifiers with preserved segment case", () => {
   expect(
     buildAIRIdentifier({

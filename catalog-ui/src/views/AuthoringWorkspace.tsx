@@ -25,7 +25,7 @@ import {
 import { NamespaceChoice } from "./NamespaceChoice";
 import { ResourceIdentity } from "./ResourceIdentity";
 import { canonicalResourceIdentifier } from "./resource-identity";
-import { characterText } from "./input-validation";
+import { characterText, trimGoWhitespace } from "./input-validation";
 import { object } from "../api/values";
 import { useNamespaceAccessState } from "./namespace-access";
 import { Field, ReadState, useUnsaved, type WorkspaceProps } from "./workspace";
@@ -109,10 +109,7 @@ export function AuthoringWorkspace(
   const validation = useRef<ActionValidation>(null);
   const [labelTouched, setLabelTouched] = useState(false);
   const touchLabel = () => setLabelTouched(true);
-  const trimmedLabel = label.replace(
-    /^\p{White_Space}+|\p{White_Space}+$/gu,
-    "",
-  );
+  const trimmedLabel = trimGoWhitespace(label);
   let labelError = "";
   try {
     if (!trimmedLabel) throw new Error("Enter a version label.");
@@ -170,7 +167,7 @@ export function AuthoringWorkspace(
     if (!namespaceId)
       throw new Error("Choose a Namespace or enter its exact ID.");
     const supplied = characterText(
-      identifier.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, ""),
+      trimGoWhitespace(identifier),
       "Canonical identifier",
       512,
       1,
@@ -412,7 +409,7 @@ export function AuthoringWorkspace(
           );
           const tenantId = props.access.tenantId;
           const versionLabel = characterText(
-            label.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, ""),
+            trimGoWhitespace(label),
             "Version label",
             128,
             contentSave ? 1 : 0,
@@ -425,7 +422,7 @@ export function AuthoringWorkspace(
             contentSave && !listingOnly
               ? {
                   version: characterText(
-                    label.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, ""),
+                    trimGoWhitespace(label),
                     "Version label",
                     128,
                     1,

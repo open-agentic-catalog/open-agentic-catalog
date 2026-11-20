@@ -224,6 +224,46 @@ for (const location of ["root", "subpath"]) {
       )
         writes.push(request.postData() ?? "");
     });
+    const search = page.getByRole("searchbox", {
+      name: /Search collection entries/,
+    });
+    let memberReads = 0;
+    page.on("request", (request) => {
+      if (
+        request.method() === "GET" &&
+        new URL(request.url()).pathname ===
+          `${catalog.basePath}/_catalog${path}/members`
+      )
+        memberReads++;
+    });
+    async function applyFilters(text: string, kinds: string[]) {
+      const reply = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          response.request().method() === "GET" &&
+          url.pathname === `${catalog.basePath}/_catalog${path}/members` &&
+          url.searchParams.get("text") === text &&
+          url.searchParams.getAll("kinds").length === 1 &&
+          url.searchParams.get("kinds")?.split(",").sort().join(",") ===
+            [...kinds].sort().join(",")
+        );
+      });
+      await search.fill(text);
+      await page
+        .getByRole("button", { name: "Apply filters", exact: true })
+        .click();
+      expect((await reply).status()).toBe(200);
+      await expect(
+        page.getByRole("button", { name: "Apply filters", exact: true }),
+      ).toBeEnabled();
+    }
+    const beforeEdits = memberReads;
+    await search.fill("paged agent");
+    await page.getByRole("checkbox", { name: "Agents", exact: true }).check();
+    expect(memberReads).toBe(beforeEdits);
+    await applyFilters("paged agent", ["agent"]);
+    await expect(cards).toHaveCount(20);
+    await search.fill("do not apply this edit");
     await page.getByRole("button", { name: "Next page", exact: true }).click();
     await expect(cards).toHaveCount(1);
     await expect(links).toHaveAttribute(
@@ -233,6 +273,21 @@ for (const location of ["root", "subpath"]) {
     await expect(name).toHaveValue("Keep this unsent metadata edit");
     await page.getByRole("button", { name: "First page", exact: true }).click();
     await expect(cards).toHaveCount(20);
+    const refreshed = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === "GET" &&
+        url.pathname === `${catalog.basePath}/_catalog${path}/members` &&
+        url.searchParams.get("text") === "paged agent" &&
+        !url.searchParams.has("cursor")
+      );
+    });
+    await page
+      .getByRole("button", { name: "Refresh current entries", exact: true })
+      .click();
+    expect((await refreshed).status()).toBe(200);
+    await expect(cards).toHaveCount(20);
+    await expect(search).toHaveValue("do not apply this edit");
     const retired = required(selected[0]);
     const release = await catalog.admin(
       "GET",
@@ -277,6 +332,66 @@ for (const location of ["root", "subpath"]) {
       page.getByRole("button", { name: "Next page", exact: true }),
     ).toHaveCount(0);
     await expect(name).toHaveValue("Keep this unsent metadata edit");
+    await expect(search).toHaveValue("do not apply this edit");
+    await applyFilters("20", ["agent"]);
+    await expect(cards).toHaveCount(1);
+    await expect(links).toHaveAttribute(
+      "href",
+      `${catalog.basePath}/catalog/${required(selected[20]).release.id}`,
+    );
+    await page.getByRole("checkbox", { name: "Agents", exact: true }).uncheck();
+    await page
+      .getByRole("checkbox", { name: "MCP Servers", exact: true })
+      .check();
+    await applyFilters("20", ["mcp_server"]);
+    await expect(
+      page.getByText("No currently readable entries match these filters.", {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(cards).toHaveCount(0);
+    await page.getByRole("checkbox", { name: "Agents", exact: true }).check();
+    await applyFilters("20", ["agent", "mcp_server"]);
+    await expect(cards).toHaveCount(1);
+    await applyFilters("no-match", ["agent", "mcp_server"]);
+    await expect(cards).toHaveCount(0);
+    await expect(
+      page.getByText(/No currently readable entries match these filters/),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Clear filters", exact: true })
+      .click();
+    await expect(cards).toHaveCount(20);
+    await expect(search).toHaveValue("");
+    await expect(name).toHaveValue("Keep this unsent metadata edit");
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.emulateMedia({ colorScheme: "dark" });
+    await doubleText(page);
+    const filterForm = page.getByRole("form", {
+      name: "Filter collection entries",
+    });
+    await filterForm.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= innerWidth + 1,
+        ),
+      )
+      .toBe(true);
+    await search.focus();
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("button", { name: /About search collection entries/i }),
+    ).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("checkbox", { name: "Agents", exact: true }),
+    ).toBeFocused();
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await test.info().attach("collection-filters-narrow", {
+      body: await page.screenshot(),
+      contentType: "image/png",
+    });
     expect(writes).toEqual([]);
     const current = await catalog.admin<{ name: string; revision: number }>(
       "GET",
@@ -374,6 +489,46 @@ for (const location of ["root", "subpath"]) {
       `${catalog.origin}${catalog.basePath}/collections/${collectionId}`,
     );
     await expect(page.locator(".resource-card")).toHaveCount(4);
+    for (const [kind, label] of [
+      ["agent", "Agents"],
+      ["mcp_server", "MCP Servers"],
+      ["skill", "Skills"],
+      ["plugin", "Plugins"],
+    ] as const) {
+      const target = required(
+        selected.find((item) => item.resource.kind === kind),
+      );
+      await page
+        .getByRole("searchbox", { name: /Search collection entries/ })
+        .fill(target.listingRevision.displayName);
+      await page.getByRole("checkbox", { name: label, exact: true }).check();
+      const reply = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          response.request().method() === "GET" &&
+          url.pathname ===
+            `${catalog.basePath}/_catalog/api/v1/collections/${collectionId}/members` &&
+          url.searchParams.get("text") === target.listingRevision.displayName &&
+          url.searchParams.get("kinds") === kind
+        );
+      });
+      await page
+        .getByRole("button", { name: "Apply filters", exact: true })
+        .click();
+      expect((await reply).status()).toBe(200);
+      await expect(page.locator(".resource-card")).toHaveCount(1);
+      await expect(
+        page.locator(".resource-card").getByRole("link"),
+      ).toHaveAttribute(
+        "href",
+        `${catalog.basePath}/catalog/${target.release.id}`,
+      );
+      await page
+        .getByRole("button", { name: "Clear filters", exact: true })
+        .click();
+      await expect(page.locator(".resource-card")).toHaveCount(4);
+    }
+
     const toolbar = await page
       .getByRole("button", { name: "Refresh current entries", exact: true })
       .boundingBox();
@@ -712,6 +867,17 @@ for (const location of ["root", "subpath"]) {
         exact: true,
       }),
     ).toBeVisible();
+    let releaseMemberRead!: () => void;
+    let memberReadPaused!: () => void;
+    const memberReadGate = new Promise<void>((resolve) => {
+      releaseMemberRead = resolve;
+    });
+    const memberReadStarted = new Promise<void>((resolve) => {
+      memberReadPaused = resolve;
+    });
+    const memberReadRoute = (url: URL) =>
+      url.origin === catalog.origin &&
+      url.pathname === `${catalog.basePath}/_catalog${collectionPath}/members`;
     await catalog.admin(
       "POST",
       `/api/v1/access/assignments/${targetGrant.assignment.data.id}:revoke`,
@@ -721,8 +887,48 @@ for (const location of ["root", "subpath"]) {
       },
       targetGrant.assignment.etag,
     );
-    await page.reload();
-    await expect(page.locator(".resource-card")).toHaveCount(0);
+    await page.route(
+      memberReadRoute,
+      async (route) => {
+        memberReadPaused();
+        await memberReadGate;
+        await route.continue();
+      },
+      { times: 1 },
+    );
+    const currentEntries = page.locator(".workspace-panel").filter({
+      has: page.getByRole("heading", { name: "Current entries", exact: true }),
+    });
+    const emptyEntries = currentEntries.getByText(
+      /^No currently readable entries\./,
+    );
+    try {
+      await page
+        .getByRole("button", { name: "Refresh current entries", exact: true })
+        .click();
+      await memberReadStarted;
+      // Zero cards also matches a pending read, not just current target denial.
+      await expect(page.locator(".resource-card")).toHaveCount(0);
+      await expect(
+        currentEntries.getByRole("status").filter({ hasText: "Loading..." }),
+      ).toBeVisible();
+      await expect(emptyEntries).toHaveCount(0);
+      const refreshed = page.waitForResponse(
+        (reply) =>
+          reply.request().method() === "GET" &&
+          memberReadRoute(new URL(reply.url())),
+      );
+      releaseMemberRead();
+      const response = await refreshed;
+      expect(response.status()).toBe(200);
+      expect(await response.json()).toMatchObject({ items: [] });
+      // Preserve collection authority until the actual empty page is rendered.
+      await expect(emptyEntries).toBeVisible();
+      await expect(page.locator(".resource-card")).toHaveCount(0);
+    } finally {
+      releaseMemberRead();
+      await page.unroute(memberReadRoute);
+    }
     await expect(
       page.getByRole("heading", { name, exact: true }),
     ).toBeVisible();

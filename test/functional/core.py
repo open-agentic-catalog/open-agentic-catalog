@@ -460,7 +460,7 @@ def review_journey(api, reviewer, seed):
     path = "/api/v1/catalog-listings/" + seed["listing"]["id"]
     body = {name: seed["listingRevision"][name] for name in ("versionRevisionId", "displayName", "description", "publisherId", "visibility")}
     for action, state in (("request-changes", "changes_required"), ("reject", "rejected")):
-        listing, headers = api.request("GET", path)
+        _, headers = api.request("GET", path)
         body["description"] = "Owned " + action + " review"
         mutate(api, "POST", path + "/revisions", body, 201, header(headers, "ETag"))
         submission, headers = mutate(api, "POST", path + "/submissions", {}, 201)

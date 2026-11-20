@@ -1,6 +1,6 @@
 import { expect, type Locator } from "@playwright/test";
 
-// Resolve only the observed native-modal overlap indeterminates using actual
+// Resolve only specifically reviewed overlap indeterminates using actual
 // painted text rectangles and independently calculated opaque-color contrast.
 // Every other incomplete rule/failure remains a failure; no axe rule is disabled.
 export async function paintedContrast(target: Locator) {

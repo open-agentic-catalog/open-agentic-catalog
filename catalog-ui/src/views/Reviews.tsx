@@ -229,7 +229,9 @@ function ReviewQueue(props: WorkspaceProps) {
           />
         </Field>
         <div className="workspace-actions">
-          <button disabled={page.busy}>Apply review filters</button>
+          <button type="submit" disabled={page.busy}>
+            Apply review filters
+          </button>
           <button
             type="button"
             disabled={page.busy}
@@ -290,7 +292,9 @@ function ReviewQueue(props: WorkspaceProps) {
           />
         </Field>
         <div className="workspace-actions">
-          <button disabled={!submissionId.trim()}>Open submission</button>
+          <button type="submit" disabled={!submissionId.trim()}>
+            Open submission
+          </button>
         </div>
       </form>
       <ReadState {...page} refresh={reset} />

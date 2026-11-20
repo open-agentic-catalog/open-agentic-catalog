@@ -31,6 +31,7 @@ from catalog_sdk.generated.models.create_listing import CreateListing
 from catalog_sdk.generated.models.create_listing_revision import CreateListingRevision
 from catalog_sdk.generated.models.publish_listing import PublishListing
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
+from catalog_sdk.generated.models.catalog_explore import CatalogExplore
 from catalog_sdk.generated.models.audit_details_v1 import AuditDetailsV1
 
 
@@ -139,6 +140,22 @@ async def qualify_private_resources(admin, namespace_id):
     assert page.status_code == 200 and {str(item.id) for item in page.data.items} == retained
 
 
+async def qualify_validation_maintenance(origin, admin, namespace_id):
+    """Read actual blocked evidence through the generated maintenance binding."""
+    api = CatalogLifecycleApi(admin)
+    resource = await api.create_resource_with_http_info("python-maintenance-resource", CreateResource(namespaceId=namespace_id, kind=ResourceKind("agent"), canonicalIdentifier="urn:air:catalog.example.com:python:maintenance"))
+    assert resource.status_code == 201
+    created = await api.create_resource_version_with_http_info(resource_id=resource.data.id, idempotency_key="python-maintenance-version", create_version=CreateVersion(version="79.0.0", representations=[RepresentationInput(role="primary", mediaType="application/a2a-agent-card+json", data={"name": "Incomplete maintenance fixture"})]))
+    assert created.status_code == 201 and created.data.evidence.state == "blocked"
+    page = await api.list_validation_maintenance_with_http_info(state="blocked", horizon_hours=24, limit=100)
+    assert page.status_code == 200 and page.headers["Cache-Control"] == "no-store"
+    row = next(item for item in page.data.items if item.revision_id == created.data.revision.id)
+    assert row.evidence_id == created.data.evidence.id and row.conditions == ["blocked"] and not row.applicable and row.expires_at is None
+    reader = Client(Config(origin=origin, allow_loopback_http=True, token="reader"))
+    denied = await CatalogLifecycleApi(reader).list_validation_maintenance_with_http_info(state="blocked", horizon_hours=24)
+    assert denied.status_code == 200 and not denied.data.items
+
+
 async def qualify_published_discovery(origin, admin, namespace_id, resource, version, native):
     """Exercise nonempty generated response models through the installed package."""
     identity = IdentityApi(admin)
@@ -225,6 +242,12 @@ async def qualify_published_discovery(origin, admin, namespace_id, resource, ver
                 assert page.status_code == 200 and len(page.data.items) == 1 and not page.data.next_cursor
                 assert page.data.items[0].listing.id == listing.data.id and page.data.items[0].release.id == published.data.release.id
                 assert page.headers["Cache-Control"] == "no-store" and "ETag" not in page.headers
+                selected = await reads.list_collection_members_with_http_info(created.data.id, text="SDK", kinds=["agent", "skill"])
+                assert selected.status_code == 200 and [item.listing.id for item in selected.data.items] == [listing.data.id]
+                excluded = await reads.list_collection_members_with_http_info(created.data.id, text="collection-filter-no-match", kinds=["agent", "skill"])
+                assert excluded.status_code == 200 and not excluded.data.items and not excluded.data.next_cursor
+                wrong_kind = await reads.list_collection_members_with_http_info(created.data.id, kinds=["mcp_server", "plugin"])
+                assert wrong_kind.status_code == 200 and not wrong_kind.data.items
                 updated = await collections.update_collection_with_http_info(created.data.id, "python-update-collection", metadata.headers["ETag"], UpdateCollection(name="Updated Python collection", description=""))
                 assert updated.status_code == 200 and updated.data.revision == 3
                 stale = await collections.update_collection_with_http_info(created.data.id, "python-stale-collection", metadata.headers["ETag"], UpdateCollection(name="Stale"))
@@ -247,6 +270,13 @@ async def qualify_published_discovery(origin, admin, namespace_id, resource, ver
         identities[str(published.data.release.id)] = (identifier, visibility)
     reader = Client(Config(origin=origin, allow_loopback_http=True, token="reader"))
     discovery = CatalogDiscoveryApi(reader)
+    for native, count in (({"agentDefaultInputModes": ["application/json"]}, len(releases)), ({"agentSkillIds": ["not-declared-sdk-sentinel", "python"], "agentSkillTags": ["sdk"], "agentDefaultOutputModes": ["application/json"]}, len(releases)), ({"agentStreaming": False}, 0), ({"agentSkillIds": ["not-declared-sdk-sentinel"]}, 0)):
+        selected = await discovery.search_catalog_with_http_info(catalog_search=CatalogSearch.from_dict({"origins": ["local"], "nativeCapabilities": native, "tags": ["python-sdk"]}))
+        assert selected.status_code == 200 and selected.data.durable_total == count
+        assert len(selected.data.items) == count
+        assert {item.to_dict()["local"]["release"]["id"] for item in selected.data.items} == (releases if count else set())
+        explored = await discovery.explore_catalog_with_http_info(catalog_explore=CatalogExplore.from_dict({"query": {"nativeCapabilities": native, "tags": ["python-sdk"]}, "facets": [{"field": "kind"}]}))
+        assert explored.status_code == 200 and explored.data.matched == count
     unmatched = await discovery.search_catalog_with_http_info(catalog_search=CatalogSearch(agentProtocol="HTTP+JSON", origins=["local"], tags=["python-sdk"]))
     assert unmatched.status_code == 200 and unmatched.data.durable_total == 0 and unmatched.data.items == []
     cursor = None
@@ -388,6 +418,7 @@ async def main(origin):
     assert refused.status_code == 401
     await qualify_published_discovery(origin, admin, ns.data.id, resources[0], version, native)
     await qualify_reviewed_corpus()
+    await qualify_validation_maintenance(origin, admin, ns.data.id)
     print("Python Catalog workflow passed: four kinds, native evidence, governed publication, Search/Browse/audit pages, replay/conflict, current-permission replay refusal, denied-write readback and private Jobs")
 
 

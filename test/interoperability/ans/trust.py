@@ -419,7 +419,7 @@ def exercise(phase, api, peer, state, settings):
         before = len(evidence(peer))
         pending = enqueue(api, state)
         wait_for("first evidence request started", lambda: len(evidence(peer)) > before)
-        source, headers = api.call(lifecycle.PREFIX + "sources/" + state["source_id"])
+        _, headers = api.call(lifecycle.PREFIX + "sources/" + state["source_id"])
         api.call(lifecycle.PREFIX + "sources/" + state["source_id"] + ":pause", {"reason": "Qualify source fence during acquisition"}, etag=headers["etag"])
         final = completed(api, state, pending["id"], success=False)
         assert final["failureClass"] == "policy_denied" and len(evidence(peer)) == before + 1, final

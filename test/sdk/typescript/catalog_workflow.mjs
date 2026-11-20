@@ -397,6 +397,46 @@ for (let index = 0; index < 2; index++) {
     assert.equal(page.data.items.length, 1);
     assert.equal(page.data.items[0].listing.id, listing.data.id);
     assert.equal(page.data.items[0].release.id, published.data.release.id);
+    const selected = await reader.api.GET(
+      "/api/v1/collections/{collectionId}/members",
+      {
+        params: {
+          path: { collectionId: created.data.id },
+          query: { text: "SDK", kinds: ["agent", "skill"] },
+        },
+      },
+    );
+    assert.equal(selected.response.status, 200);
+    assert.deepEqual(
+      selected.data.items.map((item) => item.listing.id),
+      [listing.data.id],
+    );
+    const excluded = await reader.api.GET(
+      "/api/v1/collections/{collectionId}/members",
+      {
+        params: {
+          path: { collectionId: created.data.id },
+          query: {
+            text: "collection-filter-no-match",
+            kinds: ["agent", "skill"],
+          },
+        },
+      },
+    );
+    assert.equal(excluded.response.status, 200);
+    assert.deepEqual(excluded.data.items, []);
+    const wrongKind = await reader.api.GET(
+      "/api/v1/collections/{collectionId}/members",
+      {
+        params: {
+          path: { collectionId: created.data.id },
+          query: { kinds: ["mcp_server", "plugin"] },
+        },
+      },
+    );
+    assert.equal(wrongKind.response.status, 200);
+    assert.deepEqual(wrongKind.data.items, []);
+
     assert.equal(page.data.nextCursor, undefined);
     assert.equal(page.response.headers.get("Cache-Control"), "no-store");
     assert.equal(page.response.headers.get("ETag"), null);
@@ -523,6 +563,35 @@ for (let index = 0; index < 2; index++) {
   });
 }
 const other = createCatalogClient({ ...options, token: "other" });
+for (const [nativeCapabilities, count] of [
+  [{ agentDefaultInputModes: ["application/json"] }, releases.size],
+  [
+    {
+      agentSkillIds: ["not-declared-sdk-sentinel", "ts"],
+      agentSkillTags: ["sdk"],
+      agentDefaultOutputModes: ["application/json"],
+    },
+    releases.size,
+  ],
+  [{ agentStreaming: false }, 0],
+  [{ agentSkillIds: ["not-declared-sdk-sentinel"] }, 0],
+]) {
+  const selected = await reader.api.POST("/api/v1/catalog/search", {
+    body: { nativeCapabilities, origins: ["local"] },
+  });
+  assert.equal(selected.response.status, 200);
+  assert.equal(selected.data.durableTotal, count);
+  assert.equal(selected.data.items.length, count);
+  assert.deepEqual(
+    new Set(selected.data.items.map((item) => item.local.release.id)),
+    count ? new Set(releases.keys()) : new Set(),
+  );
+  const explored = await reader.api.POST("/api/v1/catalog/explore", {
+    body: { query: { nativeCapabilities }, facets: [{ field: "kind" }] },
+  });
+  assert.equal(explored.response.status, 200);
+  assert.equal(explored.data.matched, count);
+}
 const unmatchedProtocol = await reader.api.POST("/api/v1/catalog/search", {
   body: { agentProtocol: "HTTP+JSON", origins: ["local"] },
 });
@@ -733,3 +802,58 @@ for (const expected of corpus.cases) {
 console.log(
   "Installed JavaScript SDK: six reviewed upstream cases, exact native content and tenant denial passed",
 );
+
+// The installed binding reads actual current evidence without invoking validation.
+const maintenanceResource = await admin.api.POST("/api/v1/resources", {
+  params: { header: { "Idempotency-Key": "ts-maintenance-resource" } },
+  body: {
+    namespaceId: id,
+    kind: "agent",
+    canonicalIdentifier: "urn:air:catalog.example.com:typescript:maintenance",
+  },
+});
+assert.equal(maintenanceResource.response.status, 201);
+const maintenanceVersion = await admin.api.POST(
+  "/api/v1/resources/{resourceId}/versions",
+  {
+    params: {
+      path: { resourceId: maintenanceResource.data.id },
+      header: { "Idempotency-Key": "ts-maintenance-version" },
+    },
+    body: {
+      version: "79.0.0",
+      representations: [
+        {
+          role: "primary",
+          mediaType: "application/a2a-agent-card+json",
+          data: { name: "Incomplete maintenance fixture" },
+        },
+      ],
+    },
+  },
+);
+assert.equal(maintenanceVersion.response.status, 201);
+assert.equal(maintenanceVersion.data.evidence.state, "blocked");
+const maintenance = await admin.api.GET("/api/v1/validation-maintenance", {
+  params: { query: { state: "blocked", horizonHours: 24, limit: 100 } },
+});
+assert.equal(maintenance.response.status, 200);
+assert.equal(maintenance.response.headers.get("Cache-Control"), "no-store");
+const maintenanceRow = maintenance.data.items.find(
+  (row) => row.revisionId === maintenanceVersion.data.revision.id,
+);
+assert.equal(maintenanceRow.evidenceId, maintenanceVersion.data.evidence.id);
+assert.deepEqual(maintenanceRow.conditions, ["blocked"]);
+assert.equal(maintenanceRow.expiresAt, undefined);
+assert.equal(maintenanceRow.applicable, false);
+const maintenanceDenied = await reader.api.GET(
+  "/api/v1/validation-maintenance",
+  { params: { query: { state: "blocked", horizonHours: 24 } } },
+);
+assert.equal(maintenanceDenied.response.status, 200);
+assert.deepEqual(maintenanceDenied.data.items, []);
+const maintenanceBad = await admin.api.GET("/api/v1/validation-maintenance", {
+  params: { query: { horizonHours: 169 } },
+});
+assert.equal(maintenanceBad.response.status, 400);
+assert.equal(maintenanceBad.error.code, "INVALID_ARGUMENT");

@@ -170,6 +170,7 @@ test("declared discovery filters preserve exact values, paging and local-only sc
     "A BOM is an opaque binding, not Go whitespace",
   );
   for (const input of [
+    { nativeCapabilities: { agentStreaming: false }, origins: ["local"] },
     { agentProtocol: " " },
     { agentProtocol: "\u0085" },
     { agentProtocol: "x".repeat(257) },

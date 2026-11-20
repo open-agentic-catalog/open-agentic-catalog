@@ -55,6 +55,7 @@ export type FilterValues = {
       | "namespaceId"
       | "agentProtocol"
       | "includeMcpTools"
+      | "nativeCapabilities"
   ]?: SearchQuery[K] | undefined;
 };
 
@@ -65,6 +66,7 @@ export function applyFilters(
 ): SearchQuery {
   const {
     cursor: _cursor,
+    nativeCapabilities: _nativeCapabilities,
     agentProtocol: _agentProtocol,
     includeMcpTools: _includeMcpTools,
     origins: _origins,
@@ -81,7 +83,13 @@ export function applyFilters(
     ...rest,
     ...(filters.includeMcpTools ? { includeMcpTools: true } : {}),
     ...(filters.agentProtocol ? { agentProtocol: filters.agentProtocol } : {}),
-    ...(filters.namespaceId || filters.agentProtocol || filters.includeMcpTools
+    ...(filters.nativeCapabilities
+      ? { nativeCapabilities: structuredClone(filters.nativeCapabilities) }
+      : {}),
+    ...(filters.namespaceId ||
+    filters.agentProtocol ||
+    filters.includeMcpTools ||
+    filters.nativeCapabilities
       ? {
           ...(filters.namespaceId ? { namespaceId: filters.namespaceId } : {}),
           origins: ["local"] as const,

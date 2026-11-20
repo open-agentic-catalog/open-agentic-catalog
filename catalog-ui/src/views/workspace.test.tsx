@@ -637,10 +637,10 @@ it("wires shared loading/error, paging, field help and reason controls without h
     </>,
   );
   expect(
-    screen.queryByRole("heading", { name: "Panel", level: 1 }),
+    screen.getByRole("heading", { name: "Panel", level: 1 }),
   ).not.toBeNull();
-  expect(screen.queryByText("Description")).not.toBeNull();
-  expect(screen.queryByText("Actions")).not.toBeNull();
+  expect(screen.getByText("Description")).not.toBeNull();
+  expect(screen.getByText("Actions")).not.toBeNull();
   expect(screen.getByRole("status").textContent).toBe("Loading...");
   fireEvent.click(screen.getByRole("button", { name: "Reload" }));
   expect(refresh).toHaveBeenCalledOnce();

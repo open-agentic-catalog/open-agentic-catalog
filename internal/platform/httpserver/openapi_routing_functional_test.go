@@ -126,7 +126,7 @@ func TestEveryDocumentedOperationIsRouted(t *testing.T) {
 					key = "route-contract"
 				}
 				result := requestJSON(t, server.URL, method, path, "admin", key, `"rev-1"`, body)
-				if path == "/mcp" && (method == http.MethodGet || method == http.MethodDelete) {
+				if (path == "/mcp" || path == ardMCPPath) && (method == http.MethodGet || method == http.MethodDelete) {
 					if result.status != http.StatusMethodNotAllowed || result.header.Get("Allow") != "POST, OPTIONS" {
 						t.Fatalf("documented MCP method refusal changed: status=%d headers=%v", result.status, result.header)
 					}
@@ -388,6 +388,9 @@ func newContractHTTPServer(t *testing.T) *httptest.Server {
 		d.Capabilities.ServiceActivity = CapabilityEnabled
 		d.MCP = config.Defaults().MCP
 		d.MCP.Enabled = true
+		for i := range d.DiscoveryHosts {
+			d.DiscoveryHosts[i].MCPEnabled = true
+		}
 		d.PublicBaseURL = "https://catalog.example.com"
 		d.AuthIssuer = "https://issuer.example.com"
 	})

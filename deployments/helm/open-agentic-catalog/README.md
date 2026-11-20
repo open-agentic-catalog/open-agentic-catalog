@@ -52,11 +52,11 @@ See the [deployment guide](../../../documentation/src/content/docs/operations/de
 
 ## Install or upgrade
 
-The current schema runs through migration 000053 with exact privilege manifest v30. Documentation contract tests compare these values with embedded migrations and manifest code.
+For a fresh installation, the chart's pre-install Job creates the Catalog schema and configures runtime database permissions automatically. Supply the database, roles, Secrets and configuration listed above. No separate migration command or runtime drain is needed.
 
-When crossing migration 000039, keep API and worker Deployments at zero after migration and grant reconciliation. Run the [bounded search-projection repair](../../../documentation/src/content/docs/operations/search-projection-repair.mdx) for every tenant before starting the upgraded workloads. The migration hook does not perform this repair.
+The current schema runs through migration 000054 with exact privilege manifest v31. Documentation contract tests compare these values with embedded migrations and manifest code.
 
-Create the namespace and deployment-owned Secrets and ConfigMaps first. Plan the forward-only database change with `catalogctl migrate plan` from the exact release image, then install or upgrade with a timeout longer than `migration.activeDeadlineSeconds` plus image-pull and scheduling time.
+Create the namespace and deployment-owned Secrets and ConfigMaps first. For an existing database, review the pending changes with `catalogctl migrate plan` from the exact release image. Install or upgrade with a timeout longer than `migration.activeDeadlineSeconds` plus image-pull and scheduling time.
 
 ```sh
 make helm-deploy-check HELM_CONTEXT=my-cluster HELM_NAMESPACE=open-agentic-catalog \
@@ -74,7 +74,9 @@ Migrations are forward-only, so do not treat Helm rollback or `--atomic` as a da
 
 Use the [migration guide](../../../migrations/README.md) for the current schema and exact privilege-manifest requirements.
 
-The coordinator validates the selected target, stops API then worker and waits for all old Pods to disappear before invoking Helm. It restores replica intent from target values on a retry, even when live Deployments are already at zero. Suspend external reconciliation/autoscaling and serialize deployment operations first. Use the selected image's `migrate plan` and [migration requirements](../../../migrations/README.md) for current schema/checksum/repair information.
+For an existing deployment, the coordinator validates the selected target, stops API then worker and waits for all old Pods to disappear before invoking Helm. It restores replica intent from target values on a retry, even when live Deployments are already at zero. Suspend external reconciliation/autoscaling and serialize deployment operations first. Use the selected image's `migrate plan` and [migration requirements](../../../migrations/README.md) for current schema/checksum/repair information.
+
+An existing database crossing migration 000039 requires [bounded search-projection repair](../../../documentation/src/content/docs/operations/search-projection-repair.mdx) for every tenant before workloads restart. Keep API and worker Deployments at zero after migration and grant reconciliation. The migration hook does not perform this repair. Fresh installations have no retained observations to repair.
 
 Pause the external HPA's recreator. Remove every HPA that targets the API or worker Deployment. Inactive HPAs still block deployment. Restore the reviewed HPA only after target readiness and authorized data readback. See the [external autoscaler handoff](../../../documentation/src/content/docs/operations/maintenance.mdx#hand-off-an-external-autoscaler).
 
@@ -442,11 +444,15 @@ configEnv:
   CATALOG_MCP_ALLOWED_ORIGINS: '["https://assistant.example.com"]'
 ```
 
-Provide the TLS Secret and an ingress controller in your deployment. The chart installs neither. Set the ingress host to the HTTPS public origin without a port, path, query or credentials. The chart rejects a disabled MCP endpoint, mismatched host, missing TLS Secret name, and rewrite or configuration-snippet annotations.
+Provide the TLS Secret and an ingress controller in your deployment. The chart installs neither. Set the ingress host to the HTTPS public origin without a port, path, query or credentials. The chart rejects a host with neither interface enabled, missing TLS Secret name, and rewrite or configuration-snippet annotations.
+
+For ARD publication MCP, supply the full `CATALOG_DISCOVERY_HOSTS` array with `mcpEnabled: true` on the intended anonymous or authenticated host. Set `api.ingress.host` to that host. Control MCP can stay disabled. The chart routes `/ard/v1/mcp` and `/.well-known/oauth-protected-resource/ard/v1/mcp` with `Exact` paths. When the same host enables both interfaces, it routes all four paths. Global MCP limits apply to both. A matching TLS certificate, existing tenant and active publication are still required.
+
+ARD discovery rejects forwarded authority fields. Preserve Host and strip `Forwarded`, `X-Forwarded-Host` and `X-Original-Host` before proxying. This ingress supplies routing, not trusted-proxy configuration. See [ARD MCP setup](../../../documentation/src/content/docs/guides/mcp-server.mdx#search-an-ard-publication-over-mcp).
 
 An external cert-manager Certificate can manage `api.ingress.tlsSecretName`. Keep its Issuer, Certificate and controllers outside this release. Verify both Secret keys before starting the consumer and check renewal through a fresh TLS connection. See [MCP ingress certificates](../../../documentation/src/content/docs/operations/deployment.mdx#optional-mcp-ingress-certificates) for local setup, independent client trust, manual renewal, issuer recovery and scoped cleanup.
 
-Both `/mcp` and `/.well-known/oauth-protected-resource/mcp` use `Exact` paths. No Control API, worker operations or UI route is added. Preserve Host, Origin, Authorization and MCP headers. Do not strip or rewrite either path. Configure edge rate limits and TLS policy in your controller. If you already manage ingress, leave this option disabled and route these two paths there.
+For Control MCP, both `/mcp` and `/.well-known/oauth-protected-resource/mcp` use `Exact` paths. No Control API, worker operations or UI route is added. Preserve Host, Origin, Authorization and MCP headers. Do not strip or rewrite either path. Configure edge rate limits and TLS policy in your controller. If you already manage ingress, leave this option disabled and route these two paths there.
 
 If your policies isolate the API, permit controller traffic to its TCP port 8080. Preserve required API access to DNS, PostgreSQL and the configured issuer. This option does not create backend network policies.
 

@@ -141,11 +141,15 @@ func (t issuerTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 func provider(ctx context.Context, o Options) (*oidc.Provider, oauth2.Config, context.Context, func(), error) {
 	origin, err := issuerOrigin(o.Issuer)
 	if err != nil {
-		return nil, oauth2.Config{}, ctx, func() {}, err
+		return nil, oauth2.Config{}, ctx, func() {
+			// No issuer session was created, so cleanup has nothing to close.
+		}, err
 	}
 	s, err := controlclient.New(ctx, controlclient.Options{BaseURL: origin, Token: "unused", CAFile: o.IssuerCAFile, Timeout: exchangeTimeout})
 	if err != nil {
-		return nil, oauth2.Config{}, ctx, func() {}, safeerr.New("auth: cannot configure issuer TLS trust")
+		return nil, oauth2.Config{}, ctx, func() {
+			// Session construction failed before ownership could pass to the caller.
+		}, safeerr.New("auth: cannot configure issuer TLS trust")
 	}
 	client := *s.Client
 	client.Transport = issuerTransport{s.Client.Transport, origin}
@@ -153,7 +157,9 @@ func provider(ctx context.Context, o Options) (*oidc.Provider, oauth2.Config, co
 	p, err := oidc.NewProvider(ctx, o.Issuer)
 	if err != nil {
 		s.Close()
-		return nil, oauth2.Config{}, ctx, func() {}, safeerr.New("auth: issuer discovery failed")
+		return nil, oauth2.Config{}, ctx, func() {
+			// Discovery failure already closed the issuer session above.
+		}, safeerr.New("auth: issuer discovery failed")
 	}
 	ep := p.Endpoint()
 	ep.AuthStyle = oauth2.AuthStyleInParams // Public client: no secret and no credential-probing retry.
@@ -161,7 +167,9 @@ func provider(ctx context.Context, o Options) (*oidc.Provider, oauth2.Config, co
 		u, e := url.Parse(raw)
 		if e != nil || u.Scheme+"://"+u.Host != origin || u.User != nil || u.Fragment != "" || u.Opaque != "" {
 			s.Close()
-			return nil, oauth2.Config{}, ctx, func() {}, safeerr.New("auth: issuer endpoint is outside the configured origin")
+			return nil, oauth2.Config{}, ctx, func() {
+				// Endpoint rejection already closed the issuer session above.
+			}, safeerr.New("auth: issuer endpoint is outside the configured origin")
 		}
 	}
 	return p, oauth2.Config{ClientID: o.ClientID, Endpoint: ep, Scopes: append([]string{oidc.ScopeOpenID}, o.Scopes...)}, ctx, s.Close, nil

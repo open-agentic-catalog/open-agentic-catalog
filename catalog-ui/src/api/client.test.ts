@@ -611,3 +611,30 @@ it("fences a UI status response decoded after an identity change", async () => {
   finish({});
   await expect(pending).rejects.toMatchObject({ name: "AbortError" });
 });
+
+it("serializes collection kind arrays as one CSV query parameter", async () => {
+  vi.stubGlobal("location", new URL("http://127.0.0.1:4180"));
+  let sent: URL | undefined;
+  vi.stubGlobal("fetch", async (request: Request) => {
+    sent = new URL(request.url);
+    return new Response('{"items":[]}', {
+      headers: { "Content-Type": "application/json" },
+    });
+  });
+  const client = makeAPI({
+    basePath: "/catalog",
+    authMode: "development",
+    documentationUrl: "",
+  });
+  await client.api.GET("/api/v1/collections/{collectionId}/members", {
+    params: {
+      path: { collectionId: "one" },
+      query: { text: "invoice café", kinds: ["agent", "mcp_server"] },
+    },
+  });
+  expect(sent?.pathname).toBe(
+    "/catalog/_catalog/api/v1/collections/one/members",
+  );
+  expect(sent?.searchParams.getAll("kinds")).toEqual(["agent,mcp_server"]);
+  expect(sent?.searchParams.get("text")).toBe("invoice café");
+});

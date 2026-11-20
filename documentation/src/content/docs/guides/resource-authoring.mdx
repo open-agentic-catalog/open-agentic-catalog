@@ -60,6 +60,31 @@ Changed bytes require a new VersionRevision while the Version remains unsealed. 
 
 Saving metadata does not deploy or invoke the server. Validation, independent review, release and snapshot activation remain [separate steps](publishing.mdx).
 
+## Find validation evidence needing attention
+
+Open **Authoring > Validation maintenance** to find current revisions before review or publication is interrupted. Select an **Evidence condition** and an **Expiry horizon**, then **Apply filters**. Editing these controls alone does not send a request. **Refresh from first page** refreshes the applied selection and preserves pending filter edits.
+
+The list includes exact revisions referenced by a Version's current candidate or sealed pointer, a Listing's current candidate, or a current published/deprecated release. The same revision appears once when several current pointers reference it. The Catalog permits one Listing per Resource in its canonical Namespace. Older revisions without one of those current references are omitted. A sealed revision remains current for its Version label even when a newer Version exists.
+
+| Condition | Meaning |
+| --- | --- |
+| Expiring | External evidence expires after the observation time and at or before the end of the selected horizon. It can still be applicable at that observation. |
+| Expired | External evidence expires at or before the observation time. Equality counts as expired. |
+| Blocked | The latest retained validation run reports blocking findings. An earlier complete run cannot replace it. |
+| Policy stale | The retained validation policy or outbound delivery policy differs from the current deployment policy. |
+
+Conditions can overlap. **All evidence needing attention** selects their union. For example, with an observation at noon and a 24-hour horizon, expiry at noon is expired; expiry at noon tomorrow is expiring; expiry one microsecond later is outside that horizon. Deterministic validation over immutable bytes has no time expiry. The list always uses the highest retained run number, including when a later run has an earlier timestamp.
+
+Pages default to 20 entries and permit at most 100. The horizon defaults to 24 hours and permits 1 to 168 whole hours. Each response shows its observation time. Continuations keep that time, horizon, condition and page size, but reread current evidence and references. Entries can enter or leave the selection between pages. Refresh from the first page for a current traversal; this is not a frozen inventory. Changed access or deployment policy refuses an old continuation.
+
+Reading the list requires `resource.read`, `resource.read_content` and `resource.validate` in the same canonical Namespace, plus `catalog.read` when OAuth scopes are enforced. Grants in different Namespaces do not combine. The list returns revision and evidence identities, conditions and relevant dates, without native documents, findings, delivery URLs, publication hosts or submission details. It performs no remote fetch or renewal. Human and service memberships use the same API admission.
+
+Choose **Inspect evidence and renewal** to read the exact revision through the existing audited content read. Review its findings before choosing **Revalidate revision** and confirming the command. Renewal retains its existing `resource.validate` admission and `catalog.write` scope; the inventory adds no requirement to that command. Identical external bytes produce another evidence run without rewriting content or earlier reviews. Changed bytes require a new revision, or a new Version label when sealed.
+
+Expiry alone does not withdraw an active snapshot. An explicit blocked external check can withdraw entire affected snapshots, and a new run can make a pending review stale. Successful renewal does not automatically approve, publish, activate or restore discovery. Inspect the current review and publication state before continuing those workflows.
+
+Missing, inconsistent or unsupported selected evidence fails the page instead of producing ordinary maintenance rows. The current retained validation profile is the only supported format; an unsupported predecessor profile requires operator investigation, not a promise that renewal will repair it. Trust and legal rights remain independently unassessed.
+
 ## Author in the UI
 
 A star (`*`) marks required fields. The form also checks fields when you continue or save. Conditional fields become required when you select their input path.

@@ -11,7 +11,7 @@ def proxy_progress(phase, method, content, status):
         return None
     try:
         body = json.loads(content)
-    except (ValueError, UnicodeError):
+    except ValueError:
         return None
     if isinstance(body, dict) and body.get("method") == "tools/call":
         return {"phase": phase, "method": "tools/call", "httpStatus": status}
@@ -25,7 +25,7 @@ def token_times(token):
     payload = token.split(".")[1]
     try:
         claims = json.loads(base64.b64decode(payload + "=" * (-len(payload) % 4), altchars=b"-_", validate=True))
-    except (ValueError, UnicodeError):
+    except ValueError:
         return {}
     if not isinstance(claims, dict):
         return {}

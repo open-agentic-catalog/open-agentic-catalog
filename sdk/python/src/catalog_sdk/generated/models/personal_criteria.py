@@ -32,6 +32,9 @@ else:
     from typing_extensions import Annotated
     from uuid import UUID
     from catalog_sdk.generated.models.catalog_search_order import CatalogSearchOrder
+    from catalog_sdk.generated.models.native_capabilities_filter import (
+        NativeCapabilitiesFilter,
+    )
     from catalog_sdk.generated.models.resource_kind import ResourceKind
     from catalog_sdk.generated.models.visibility import Visibility
     from typing import Optional, Set
@@ -48,6 +51,9 @@ else:
         ] = Field(
             default=None,
             description="Select local, indexed or transient live provenance. Omission preserves existing participation. With namespaceId, omit origins or select local alone. License and category filters apply across selected origins. Local releases shadow matching indexed identities only when local participates. Live-only search can continue a verified bounded live window and reports zero durableTotal.",
+        )
+        native_capabilities: Optional[NativeCapabilitiesFilter] = Field(
+            default=None, alias="nativeCapabilities"
         )
         include_mcp_tools: Optional[StrictBool] = Field(
             default=None,
@@ -99,6 +105,7 @@ else:
         additional_properties: Dict[str, Any] = {}
         __properties: ClassVar[List[str]] = [
             "origins",
+            "nativeCapabilities",
             "includeMcpTools",
             "agentProtocol",
             "order",
@@ -211,6 +218,9 @@ else:
                 exclude=excluded_fields,
                 exclude_none=True,
             )
+            # override the default output from pydantic by calling `to_dict()` of native_capabilities
+            if self.native_capabilities:
+                _dict["nativeCapabilities"] = self.native_capabilities.to_dict()
             # puts key-value pairs in additional_properties in the top level
             if self.additional_properties is not None:
                 for _key, _value in self.additional_properties.items():
@@ -230,6 +240,11 @@ else:
             _obj = cls.model_validate(
                 {
                     "origins": obj.get("origins"),
+                    "nativeCapabilities": NativeCapabilitiesFilter.from_dict(
+                        obj["nativeCapabilities"]
+                    )
+                    if obj.get("nativeCapabilities") is not None
+                    else None,
                     "includeMcpTools": obj.get("includeMcpTools"),
                     "agentProtocol": obj.get("agentProtocol"),
                     "order": obj.get("order"),

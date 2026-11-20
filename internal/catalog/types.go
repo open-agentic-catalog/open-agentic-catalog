@@ -476,20 +476,21 @@ const (
 )
 
 type SearchQuery struct {
-	IncludeMCPTools bool               `json:"includeMcpTools,omitempty"`
-	AgentProtocol   string             `json:"agentProtocol,omitempty"`
-	Order           SearchOrder        `json:"order,omitempty"`
-	Origins         []SearchResultType `json:"origins,omitempty"`
-	NamespaceID     string             `json:"namespaceId,omitempty"`
-	Text            string             `json:"text"`
-	Kinds           []Kind             `json:"kinds,omitempty"`
-	Tags            []string           `json:"tags,omitempty"`
-	Categories      []string           `json:"categories,omitempty"`
-	License         string             `json:"license,omitempty"`
-	Publisher       string             `json:"publisher,omitempty"`
-	Visibility      Visibility         `json:"visibility,omitempty"`
-	Limit           int                `json:"limit,omitempty"`
-	Cursor          string             `json:"cursor,omitempty"`
+	NativeCapabilities *NativeCapabilitiesFilter `json:"nativeCapabilities,omitempty"`
+	IncludeMCPTools    bool                      `json:"includeMcpTools,omitempty"`
+	AgentProtocol      string                    `json:"agentProtocol,omitempty"`
+	Order              SearchOrder               `json:"order,omitempty"`
+	Origins            []SearchResultType        `json:"origins,omitempty"`
+	NamespaceID        string                    `json:"namespaceId,omitempty"`
+	Text               string                    `json:"text"`
+	Kinds              []Kind                    `json:"kinds,omitempty"`
+	Tags               []string                  `json:"tags,omitempty"`
+	Categories         []string                  `json:"categories,omitempty"`
+	License            string                    `json:"license,omitempty"`
+	Publisher          string                    `json:"publisher,omitempty"`
+	Visibility         Visibility                `json:"visibility,omitempty"`
+	Limit              int                       `json:"limit,omitempty"`
+	Cursor             string                    `json:"cursor,omitempty"`
 }
 
 type CatalogSearchPosition struct {

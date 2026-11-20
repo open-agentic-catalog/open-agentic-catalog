@@ -1,3 +1,4 @@
+import { trimGoWhitespace } from "./input-validation";
 import { useEffect, useRef, useState } from "react";
 import { Field } from "./workspace";
 import {
@@ -31,7 +32,7 @@ export function ResourceIdentity({
   const control = useRef<HTMLInputElement>(null);
   let validation = "";
   try {
-    if (!value.replace(/^\p{White_Space}+|\p{White_Space}+$/gu, ""))
+    if (!trimGoWhitespace(value))
       throw new Error("Enter a canonical resource identifier.");
     canonicalResourceIdentifier(value);
   } catch (cause) {

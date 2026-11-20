@@ -90,6 +90,46 @@
       "gaps": []
     },
     {
+      "id": "ard-publication-mcp",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:callARDPublicationMCP",
+        "http:preflightARDPublicationMCP",
+        "http:refuseARDPublicationMCPStream",
+        "http:refuseARDPublicationMCPSessionDeletion",
+        "http:getARDMCPOAuthMetadata",
+        "http:headARDMCPOAuthMetadata",
+        "http:preflightARDPublicationMCPOAuthMetadata"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/ard_mcp_functional_test.go",
+          "symbol": "TestARDMCPHTTPBothProtocolsBehindExactHostProxy"
+        },
+        {
+          "path": "internal/platform/httpserver/ard_mcp_functional_test.go",
+          "symbol": "TestARDMCPHTTPCurrentHostAuthorityAndMetadata"
+        },
+        {
+          "path": "internal/platform/httpserver/ard_mcp_functional_test.go",
+          "symbol": "TestARDMCPHTTPDeadlinesReachAuthenticationAndSearch"
+        },
+        {
+          "path": "internal/platform/httpserver/ard_mcp_functional_test.go",
+          "symbol": "TestARDMCPHTTPSharedConcurrencyAndCancellation"
+        },
+        {
+          "path": "test/interoperability/mcp/catalog_matrix.py"
+        }
+      ],
+      "reason": "Owned HTTP fixtures qualify transport and current host authority. The separately selected test-interoperability-mcp-catalog campaign uses an unchanged independent SDK and real PostgreSQL publications over verified private HTTPS. This is not packaged Compose operation coverage.",
+      "success": "Single static search tool, complete structured/text ARD responses, host/audience isolation, continuation, approved live/referrals and endpoint-specific OAuth metadata for both protocols.",
+      "rejection": "Disabled/unknown/conflicting hosts, invalid tokens or scopes, closed arguments, output bounds and obsolete generation cursors cannot fall back to Control.",
+      "recovery": "Current grant revocation and unpublication remove access. Deadlines and client cancellation reach application reads and release finite concurrency slots.",
+      "gaps": []
+    },
+    {
       "id": "human-resource-ratings",
       "disposition": "lower-level-only",
       "status": "covered",
@@ -2126,8 +2166,8 @@
         }
       ],
       "reason": "Namespace-owned curation composes owner and target scopes without changing source governance.",
-      "success": "Create, list, read, edit and delete collections; add, page and remove current local members.",
-      "rejection": "Reader mutation, tenant crossing, strict bodies, stale revisions and invalid member continuations refuse.",
+      "success": "Create, list, read, edit and delete collections; add, page, text/kind-filter and remove current local members. Filters select readable released metadata before pagination.",
+      "rejection": "Reader mutation, tenant crossing, strict bodies, invalid query serialization, stale revisions and substituted member filter/cursor bindings refuse.",
       "recovery": "Exact create/delete/member-removal retries replay retained receipts without repeating mutations.",
       "gaps": []
     },
@@ -2159,6 +2199,37 @@
       "success": "Append selected different version to an exact prior adoption without changing Resource, Listing candidate or publication.",
       "rejection": "Refuse current permission/scope loss, duplicate versions, changed idempotency input and invalid occurrence references.",
       "recovery": "Replay the exact committed command under current authority without another Version or native fetch; browser confirmation opens the retained revision.",
+      "gaps": []
+    },
+    {
+      "id": "validation-maintenance",
+      "disposition": "lower-level-only",
+      "status": "covered",
+      "surfaces": [
+        "http:listValidationMaintenance"
+      ],
+      "evidence": [
+        {
+          "path": "internal/platform/httpserver/validation_maintenance_functional_test.go",
+          "symbol": "TestHTTPValidationMaintenanceExplicitRenewalAndPrivateScope"
+        },
+        {
+          "path": "internal/platform/httpserver/validation_maintenance_functional_test.go",
+          "symbol": "TestHTTPValidationMaintenanceAuthenticationAndOAuthCeiling"
+        },
+        {
+          "path": "internal/platform/database/validation_maintenance_integration_test.go",
+          "symbol": "TestPostgresValidationMaintenanceBoundariesCurrentScopeAndPermissions"
+        },
+        {
+          "path": "internal/platform/database/validation_maintenance_integration_test.go",
+          "symbol": "TestPostgresValidationMaintenanceBindingSelectionLimit"
+        }
+      ],
+      "reason": "A current-revision metadata inventory reuses existing evidence policy and explicit validation, with no automatic fetch or renewal.",
+      "success": "Find exact current evidence before SQL limits, deduplicate current references, preserve fixed observation time and inspect/renew through the existing command.",
+      "rejection": "Independent permission intersections, tenant boundaries, invalid filters/horizons, stale authorization and substituted continuation refuse. Selected integrity failures disclose no partial page.",
+      "recovery": "Explicit first-page refresh rereads the moving population; exact renewal replay retains one evidence run and unchanged content.",
       "gaps": []
     }
   ]

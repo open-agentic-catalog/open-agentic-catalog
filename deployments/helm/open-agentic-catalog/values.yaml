@@ -119,8 +119,8 @@ podDNSOptions: []
 terminationGracePeriodSeconds: 40
 
 api:
-  # Optional TLS ingress for HTTP MCP only. Requires CATALOG_MCP_ENABLED=true.
-  # The host must match CATALOG_PUBLIC_BASE_URL. No rewrite annotations.
+  # Optional TLS ingress for Control MCP and/or an enabled ARD MCP discovery host.
+  # Control uses CATALOG_PUBLIC_BASE_URL; ARD uses the exact discovery host. No rewrites.
   ingress:
     enabled: false
     className: ""

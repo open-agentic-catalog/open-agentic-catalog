@@ -149,7 +149,11 @@ func (c Config) validateApplication(role Role) error {
 		if err := c.validateHTTP(); err != nil {
 			return err
 		}
-		if err := c.MCP.Validate(c.Environment == "production"); err != nil {
+		transport := c.MCP
+		for _, host := range c.Discovery.Hosts {
+			transport.Enabled = transport.Enabled || host.MCPEnabled
+		}
+		if err := transport.Validate(c.Environment == "production"); err != nil {
 			return err
 		}
 		if err := c.validateAuth(); err != nil {
@@ -429,6 +433,9 @@ func (c Config) validateDiscovery() error {
 		seen[mapping.Host] = struct{}{}
 		if mapping.Mode != "disabled" && mapping.Mode != "anonymous" && mapping.Mode != "authenticated" {
 			return safeerr.New("config: discovery host mode must be disabled, anonymous, or authenticated")
+		}
+		if mapping.MCPEnabled && mapping.Mode == "disabled" {
+			return safeerr.New("config: discovery MCP requires an enabled discovery host")
 		}
 		if !identity.ValidTenantID(mapping.TenantID) || !validDNSName(mapping.PublisherDomain) {
 			return safeerr.New("config: each discovery host requires a tenant UUID and canonical publisher domain")

@@ -327,6 +327,7 @@
   }
   .api-definition-index {
     position: static;
-    max-height: 45dvh;
+    max-height: none;
+    overflow-y: visible;
   }
 }

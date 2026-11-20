@@ -1,11 +1,18 @@
 {{- if .Values.api.ingress.enabled }}
 {{- $ingress := .Values.api.ingress -}}
 {{- $public := urlParse .Values.configEnv.CATALOG_PUBLIC_BASE_URL -}}
-{{- if ne (default "false" .Values.configEnv.CATALOG_MCP_ENABLED) "true" -}}
-{{- fail "api.ingress requires CATALOG_MCP_ENABLED=true" -}}
+{{- $control := and (eq (default "false" .Values.configEnv.CATALOG_MCP_ENABLED) "true") (eq $public.host $ingress.host) -}}
+{{- $ard := false -}}
+{{- range (default "[]" .Values.configEnv.CATALOG_DISCOVERY_HOSTS | fromJsonArray) -}}
+{{- if and (eq .host $ingress.host) (.mcpEnabled) (or (eq .mode "anonymous") (eq .mode "authenticated")) -}}
+{{- $ard = true -}}
 {{- end -}}
-{{- if or (ne $public.scheme "https") (ne $public.host $ingress.host) (and $public.path (ne $public.path "/")) $public.query $public.fragment $public.userinfo -}}
-{{- fail "api.ingress.host must match the HTTPS CATALOG_PUBLIC_BASE_URL origin without a port" -}}
+{{- end -}}
+{{- if not (or $control $ard) -}}
+{{- fail "api.ingress requires Control MCP on its public origin or ARD MCP on an exact enabled discovery host" -}}
+{{- end -}}
+{{- if or (ne $public.scheme "https") (contains ":" $public.host) (and $public.path (ne $public.path "/")) $public.query $public.fragment $public.userinfo -}}
+{{- fail "api.ingress requires an HTTPS public origin without a port, query or user information" -}}
 {{- end -}}
 {{- range $key, $value := $ingress.annotations -}}
 {{- if or (contains "rewrite" (lower $key)) (contains "snippet" (lower $key)) -}}
@@ -31,7 +38,10 @@ spec:
     - host: {{ $ingress.host | quote }}
       http:
         paths:
-          {{- range list "/mcp" "/.well-known/oauth-protected-resource/mcp" }}
+          {{- $paths := list -}}
+          {{- if $control }}{{ $paths = concat $paths (list "/mcp" "/.well-known/oauth-protected-resource/mcp") }}{{ end -}}
+          {{- if $ard }}{{ $paths = concat $paths (list "/ard/v1/mcp" "/.well-known/oauth-protected-resource/ard/v1/mcp") }}{{ end -}}
+          {{- range $paths }}
           - path: {{ . | quote }}
             pathType: Exact
             backend:

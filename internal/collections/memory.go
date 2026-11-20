@@ -122,6 +122,11 @@ func (m *MemoryStore) Members(ctx context.Context, a identity.Actor, id string, 
 	if q.Limit < 0 || q.Limit > 101 {
 		return MemberPage{}, catalog.E(catalog.CodeInvalidArgument, "collection member page is invalid")
 	}
+	var err error
+	q.Text, q.Kinds, err = NormalizeMemberFilters(q.Text, q.Kinds)
+	if err != nil {
+		return MemberPage{}, err
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	item, err := m.get(ctx, a, id)
@@ -142,7 +147,7 @@ func (m *MemoryStore) Members(ctx context.Context, a identity.Actor, id string, 
 	out := MemberPage{Collection: item, Generation: generation, Items: []catalog.CatalogSummary{}}
 	sort.Slice(records, func(i, j int) bool { return records[i].Listing.ID < records[j].Listing.ID })
 	for _, r := range records {
-		if r.Listing.ID > q.AfterID && len(out.Items) < q.Limit {
+		if r.Listing.ID > q.AfterID && matchesMember(r, q) && len(out.Items) < q.Limit {
 			out.Items = append(out.Items, r)
 		}
 	}

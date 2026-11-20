@@ -101,9 +101,11 @@ export function roleRefusalReadback({ status, document, etag, date }) {
   const updated =
     typeof document?.updatedAt === "string" && document.updatedAt.length <= 64
       ? Date.parse(document.updatedAt)
-      : NaN;
+      : Number.NaN;
   const received =
-    typeof date === "string" && date.length <= 64 ? Date.parse(date) : NaN;
+    typeof date === "string" && date.length <= 64
+      ? Date.parse(date)
+      : Number.NaN;
   const success = status === 200;
   return {
     readSucceeded: success,

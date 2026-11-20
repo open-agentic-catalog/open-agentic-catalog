@@ -29,12 +29,14 @@ LINTER_PINS = "test/ci/pins.json"
 PYTHON_POLICIES = ("ruff.toml", "pyproject.toml", "uv.lock")
 MARKDOWN_POLICY = ".markdownlint.json"
 # These selections follow shell-check, python-lint, docs-check and container-check.
-SHELL_FILES = {"test/functional/housekeeping.sh", "test/functional/restore.sh",
+SHELL_FILES = {"test/functional/housekeeping.sh", "test/functional/restore.sh", "test/functional/pitr_archive.sh",
                "deployments/container/licenses.sh", "test/hooks/pre-commit"}
 CONTAINER_FILES = {"Containerfile", "test/functional/Containerfile", "catalog-ui/Containerfile", "test/interoperability/adk/Containerfile", "test/interoperability/agentfield/Containerfile",
                    "test/interoperability/Containerfile", "test/embeddings/Containerfile",
+                   "test/ci/Containerfile.act", "test/mcp-scanner/Containerfile",
+                   "examples/tutorials/local-oidc/Containerfile",
                    *(f"test/interoperability/{name}/Containerfile" for name in
-                     ("mcp", "a2a", "skills", "plugins", "agntcy/router", "ans")),
+                     ("mcp", "mcp/catalog", "a2a", "skills", "plugins", "agntcy/router", "ans", "ard-registry")),
                    "test/interoperability/gateway/Containerfile.auth"}
 MARKDOWN_EXCLUDES = ("schemas/upstream/", "samples/upstream/", "specs/", "output/", ".tools/",
                      "internal/adapter/testdata/upstream/openai/", "internal/adapter/testdata/upstream/huggingface/",
@@ -43,7 +45,8 @@ MARKDOWN_EXCLUDES = ("schemas/upstream/", "samples/upstream/", "specs/", "output
                      "catalog-ui/dist/", "test/clientcompat/go/generated/", "sdk/rust/target/",
                      "test/sdk/rust/consumer/target/", "examples/rust-catalog-report/target/",
                      "extensions/vscode/dist/")
-PYTHON_ROOTS = ("test/", "extensions/vscode/tooling/", "examples/langgraph/", "examples/tutorials/local-oidc/")
+PYTHON_ROOTS = ("test/", "extensions/vscode/tooling/", "examples/langgraph/", "examples/tutorials/local-oidc/",
+                "examples/mcp-scanner/")
 TOOL_PATHS = {"ruff": ".tools/dev/bin/ruff", "shellcheck": ".tools/ci/bin/shellcheck",
               "hadolint": ".tools/ci/bin/hadolint", "actionlint": ".tools/ci/bin/actionlint",
               "markdownlint": ".tools/ci/markdown/node_modules/.bin/markdownlint"}
@@ -279,7 +282,7 @@ class Checks:
             needed = set(groups) | ({"shellcheck"} if "actionlint" in groups else set())
             if any(not isinstance(pins.get(tool), str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", pins[tool]) for tool in needed):
                 raise ValueError("invalid tool pin")
-        except (ValueError, KeyError, TypeError, AttributeError, RecursionError, UnicodeError):
+        except (ValueError, KeyError, TypeError, AttributeError, RecursionError):
             raise Failure("staged linter pins or Python policies are invalid or inconsistent") from None
 
         with tempfile.TemporaryDirectory(prefix="catalog-staged-lint-") as temporary:
@@ -307,7 +310,7 @@ class Checks:
                     config = json.loads(raw)
                     if not isinstance(config, dict) or "extends" in config:
                         raise ValueError("external Markdown policy")
-                except (ValueError, UnicodeError):
+                except ValueError:
                     raise Failure("staged Markdown policy must be a self-contained JSON object") from None
                 (policy / "markdown.json").write_bytes(raw)
             for tool, names in groups.items():
@@ -382,7 +385,7 @@ class Checks:
             # or an arbitrary scanner message (even with scanner redaction on).
             try:
                 findings = json.loads(result.stdout)
-            except (ValueError, UnicodeError):
+            except ValueError:
                 findings = None
             if result.returncode != 1 or not isinstance(findings, list) or not findings:
                 raise Failure("secret scanner failed; check installation/configuration and retry")

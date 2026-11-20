@@ -353,6 +353,7 @@ def hook(config_path):
             path = evidence / (identity + ".result.json")
             # Claim first: a repeated native invocation must not overwrite evidence.
             with (evidence / (identity + ".claim")).open("xb"):
+                # Exclusive creation reserves this mutant; no file contents are needed.
                 pass
             record = dict(file=name, sourceSHA256=sha(source), mutantSHA256=sha(mutant),
                           diffSHA256=sha(diff), status="unassessed", failedTests=[])

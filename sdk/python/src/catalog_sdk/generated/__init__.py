@@ -276,6 +276,8 @@ __all__ = [
     "Namespace",
     "NamespaceAccess",
     "NamespacePage",
+    "NativeCapabilitiesFilter",
+    "NativeCapabilitiesFilterNot",
     "NestingPolicy",
     "OCIHandoffReference",
     "Observation",
@@ -430,6 +432,8 @@ __all__ = [
     "TrustSummary",
     "UpdateCollection",
     "UpdateSource",
+    "ValidationMaintenanceItem",
+    "ValidationMaintenancePage",
     "VersionAdoptionTarget",
     "VersionEvidenceEnvelope",
     "VersionRevision",
@@ -1087,6 +1091,12 @@ from catalog_sdk.generated.models.namespace_access import (
     NamespaceAccess as NamespaceAccess,
 )
 from catalog_sdk.generated.models.namespace_page import NamespacePage as NamespacePage
+from catalog_sdk.generated.models.native_capabilities_filter import (
+    NativeCapabilitiesFilter as NativeCapabilitiesFilter,
+)
+from catalog_sdk.generated.models.native_capabilities_filter_not import (
+    NativeCapabilitiesFilterNot as NativeCapabilitiesFilterNot,
+)
 from catalog_sdk.generated.models.nesting_policy import NestingPolicy as NestingPolicy
 from catalog_sdk.generated.models.oci_handoff_reference import (
     OCIHandoffReference as OCIHandoffReference,
@@ -1479,6 +1489,12 @@ from catalog_sdk.generated.models.update_collection import (
     UpdateCollection as UpdateCollection,
 )
 from catalog_sdk.generated.models.update_source import UpdateSource as UpdateSource
+from catalog_sdk.generated.models.validation_maintenance_item import (
+    ValidationMaintenanceItem as ValidationMaintenanceItem,
+)
+from catalog_sdk.generated.models.validation_maintenance_page import (
+    ValidationMaintenancePage as ValidationMaintenancePage,
+)
 from catalog_sdk.generated.models.version_adoption_target import (
     VersionAdoptionTarget as VersionAdoptionTarget,
 )

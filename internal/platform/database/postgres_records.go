@@ -298,7 +298,7 @@ func searchCatalogTx(ctx context.Context, tx pgx.Tx, tenantID string, request ca
 	// This is not simple-protocol interpolation or a session-wide setting.
 	pageParameters := append([]any{pgx.QueryExecModeExec}, parameters...)
 	pageParameters = append(pageParameters, afterPresent, afterScore, afterName, afterID, limit+1)
-	pageSQL, parameters = agentProtocolQuery(pageSQL, pageParameters[1:], request.Query)
+	pageSQL, parameters = localCardQuery(pageSQL, pageParameters[1:], request.Query)
 	pageParameters = append([]any{pgx.QueryExecModeExec}, parameters...)
 	rows, err := tx.Query(ctx, collectionStatement(ctx, pageSQL), pageParameters...)
 	if err != nil {

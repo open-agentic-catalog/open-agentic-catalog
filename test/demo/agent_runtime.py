@@ -41,7 +41,7 @@ def guard(app):
                     break
             try:
                 payload = json.loads(data)
-            except (ValueError, UnicodeError):
+            except ValueError:
                 return await reply(send, 400)
             if not isinstance(payload, dict) or payload.get('method') not in ('SendMessage', 'GetTask'):
                 return await reply(send, 403)

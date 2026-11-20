@@ -3666,3 +3666,56 @@ it("shows MCP scope for an API-authored saved tool search with implicit kinds wi
     screen.getByRole("checkbox", { name: /^MCP Servers$/ }),
   ).toHaveProperty("checked", true);
 });
+
+it("removes one native field at a time without dropping other filters or broadening origins", async () => {
+  const { props, post } = screenWorkspace();
+  post.mockResolvedValue(reply({ ...results, nextCursor: "continuation" }));
+  render(<Catalog {...props} />);
+  await screen.findByRole("button", { name: "Local helper" });
+  click(/Filters/);
+  fireEvent.click(screen.getByText("Agent declarations", { exact: true }));
+  click("Add skill id");
+  change("Skill ID 1", "invoice, exact ");
+  change("Agent streaming declaration", "false");
+  await activate(screen.getByRole("button", { name: "Apply filters" }));
+  const applied = within(screen.getByRole("group", { name: "Applied search" }));
+  const streaming = await applied.findByRole("button", {
+    name: "Remove declared capability Agent streaming",
+  });
+  expect(streaming.textContent).toContain("false");
+  expect(post.mock.calls.at(-1)?.[1]).toMatchObject({
+    body: {
+      nativeCapabilities: {
+        agentSkillIds: ["invoice, exact "],
+        agentStreaming: false,
+      },
+      origins: ["local"],
+    },
+  });
+  await activate(streaming);
+  await waitFor(() =>
+    expect(post.mock.calls.at(-1)?.[1]).toMatchObject({
+      body: {
+        nativeCapabilities: { agentSkillIds: ["invoice, exact "] },
+        origins: ["local"],
+      },
+    }),
+  );
+  expect(post.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+    "body.nativeCapabilities.agentStreaming",
+  );
+  await activate(
+    applied.getByRole("button", {
+      name: "Remove declared capability Agent skill IDs",
+    }),
+  );
+  await waitFor(() =>
+    expect(post.mock.calls.at(-1)?.[1]).not.toHaveProperty(
+      "body.nativeCapabilities",
+    ),
+  );
+  expect(post.mock.calls.at(-1)?.[1]).toMatchObject({
+    body: { origins: ["local"] },
+  });
+  expect(post.mock.calls.at(-1)?.[1]).not.toHaveProperty("body.cursor");
+});

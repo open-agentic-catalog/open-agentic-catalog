@@ -35,6 +35,7 @@ func detached(i Item) Item {
 	}
 	if i.Search != nil {
 		q := *i.Search
+		q.NativeCapabilities = i.Search.NativeCapabilities.Clone()
 		q.Origins = slices.Clone(q.Origins)
 		q.Kinds = slices.Clone(q.Kinds)
 		q.Tags = slices.Clone(q.Tags)

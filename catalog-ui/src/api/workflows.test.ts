@@ -8,6 +8,7 @@ import type { operations } from "./schema";
 // screen. Equivalent capabilities identify a different route used by the UI.
 // Keep every API operation explicitly classified.
 const workflows = {
+  listValidationMaintenance: "screen:validation-maintenance",
   listCollections: "screen:collections",
   createCollection: "screen:collections",
   getCollection: "screen:collections",
@@ -46,6 +47,14 @@ const workflows = {
   resolvePersonalItem: "screen:saved-items",
   getTenantSettings: "screen:settings",
   setTenantSettings: "screen:settings",
+  callARDPublicationMCP: "transport:ard-publication-mcp",
+  preflightARDPublicationMCP: "transport:ard-publication-mcp",
+  refuseARDPublicationMCPStream: "transport:ard-publication-mcp",
+  refuseARDPublicationMCPSessionDeletion: "transport:ard-publication-mcp",
+  getARDMCPOAuthMetadata: "transport:ard-publication-mcp-oauth",
+  headARDMCPOAuthMetadata: "transport:ard-publication-mcp-oauth",
+  preflightARDPublicationMCPOAuthMetadata:
+    "transport:ard-publication-mcp-oauth",
   callCatalogMCP: "transport:catalog-mcp",
   preflightCatalogMCP: "transport:catalog-mcp",
   refuseCatalogMCPStream: "transport:catalog-mcp",
@@ -234,6 +243,16 @@ it("keeps equivalent capabilities, supporting reads and nonproduct endpoints out
       ([, workflow]) => !workflow.startsWith("screen:"),
     ),
   ).toEqual([
+    ["callARDPublicationMCP", "transport:ard-publication-mcp"],
+    ["preflightARDPublicationMCP", "transport:ard-publication-mcp"],
+    ["refuseARDPublicationMCPStream", "transport:ard-publication-mcp"],
+    ["refuseARDPublicationMCPSessionDeletion", "transport:ard-publication-mcp"],
+    ["getARDMCPOAuthMetadata", "transport:ard-publication-mcp-oauth"],
+    ["headARDMCPOAuthMetadata", "transport:ard-publication-mcp-oauth"],
+    [
+      "preflightARDPublicationMCPOAuthMetadata",
+      "transport:ard-publication-mcp-oauth",
+    ],
     ["callCatalogMCP", "transport:catalog-mcp"],
     ["preflightCatalogMCP", "transport:catalog-mcp"],
     ["refuseCatalogMCPStream", "transport:catalog-mcp"],

@@ -107,6 +107,7 @@ type DiscoveryHost struct {
 	Mode            DiscoveryMode
 	PublisherDomain string
 	Publication     *publication.Manager
+	MCPEnabled      bool
 }
 
 var revisionETag = regexp.MustCompile(`^"rev-([1-9][0-9]*)"$`)
@@ -115,6 +116,7 @@ var revisionETag = regexp.MustCompile(`^"rev-([1-9][0-9]*)"$`)
 // authorization and lifecycle behavior remain in the injected services.
 type Server struct {
 	mcp                  *mcpHTTP
+	ardMCP               map[string]*mcpHTTP
 	tenantSettings       *tenantsettings.Service
 	ratings              *ratings.Service
 	artwork              *artwork.Service
@@ -199,6 +201,7 @@ func New(dependencies Dependencies) (*Server, error) {
 		return nil, errors.New("HTTP server discovery-host dependencies exceed the 64-host bound")
 	}
 	discovery := make(map[string]DiscoveryHost, len(dependencies.DiscoveryHosts))
+	anyMCP := dependencies.MCP.Enabled
 	for _, binding := range dependencies.DiscoveryHosts {
 		host, ok := normalizeDiscoveryHost(binding.Host)
 		if !ok || host != binding.Host || !identity.ValidTenantID(binding.TenantID) || binding.PublisherDomain == "" || binding.Mode != DiscoveryDisabled && binding.Mode != DiscoveryAnonymous && binding.Mode != DiscoveryAuthenticated || binding.Mode != DiscoveryDisabled && binding.Publication == nil {
@@ -207,6 +210,10 @@ func New(dependencies Dependencies) (*Server, error) {
 		if _, exists := discovery[host]; exists {
 			return nil, errors.New("HTTP server discovery-host dependencies contain a duplicate host")
 		}
+		if binding.MCPEnabled && binding.Mode == DiscoveryDisabled {
+			return nil, errors.New("discovery MCP requires an enabled host")
+		}
+		anyMCP = anyMCP || binding.MCPEnabled
 		discovery[host] = binding
 	}
 	server := &Server{tenantSettings: dependencies.TenantSettings, artwork: dependencies.Artwork, mediaPolicyDigest: dependencies.MediaPolicyDigest, process: dependencies.Process, role: dependencies.Role, feedback: dependencies.Feedback, catalog: dependencies.Catalog, catalogSearch: catalogSearch, identity: dependencies.Identity, federation: dependencies.Federation, jobs: dependencies.Jobs, webhooks: dependencies.Webhooks, capabilities: capabilities, authenticator: dependencies.Authenticator, publicationOverview: dependencies.PublicationOverview, discovery: discovery, maxBodyBytes: dependencies.MaxBodyBytes, requestTimeout: dependencies.RequestTimeout, serviceVersion: dependencies.ServiceVersion, commit: dependencies.Commit, sourceState: buildinfo.State(dependencies.SourceState), ardProfile: dependencies.ARDProfile, aiCatalogProfile: dependencies.AICatalogProfile, profileBundleDigest: dependencies.ProfileBundleDigest, profileArtifactCount: dependencies.ProfileArtifactCount, enforceOAuthScopes: dependencies.EnforceOAuthScopes, readiness: dependencies.Readiness, logger: dependencies.Logger, cursorKey: append([]byte(nil), dependencies.CursorKey...), now: dependencies.Now, observability: dependencies.Observability}
@@ -228,8 +235,10 @@ func New(dependencies Dependencies) (*Server, error) {
 			return nil, err
 		}
 	}
-	if dependencies.MCP.Enabled {
-		if err := dependencies.MCP.Validate(false); err != nil {
+	if anyMCP {
+		transport := dependencies.MCP
+		transport.Enabled = true
+		if err := transport.Validate(false); err != nil {
 			return nil, err
 		}
 		public := strings.TrimSuffix(dependencies.PublicBaseURL, "/")
@@ -241,7 +250,21 @@ func New(dependencies Dependencies) (*Server, error) {
 			return nil, errors.New("MCP public origin is invalid")
 		}
 		bodyLimit := min(dependencies.MaxBodyBytes, int64(catalogmcp.MaxFrameBytes))
-		server.mcp = &mcpHTTP{reader: server, authenticator: dependencies.Authenticator, settings: dependencies.MCP, publicOrigin: public, issuer: dependencies.AuthIssuer, version: dependencies.ServiceVersion, enforceScopes: dependencies.EnforceOAuthScopes, timeout: dependencies.RequestTimeout, maxBody: bodyLimit, slots: make(chan struct{}, dependencies.MCP.MaxConcurrency), logger: dependencies.Logger, metrics: server.observability}
+		slots := make(chan struct{}, transport.MaxConcurrency)
+		if dependencies.MCP.Enabled {
+			server.mcp = &mcpHTTP{reader: server, authenticator: dependencies.Authenticator, settings: transport, publicOrigin: public, issuer: dependencies.AuthIssuer, version: dependencies.ServiceVersion, enforceScopes: dependencies.EnforceOAuthScopes, timeout: dependencies.RequestTimeout, maxBody: bodyLimit, slots: slots, logger: dependencies.Logger, metrics: server.observability}
+		}
+		server.ardMCP = make(map[string]*mcpHTTP)
+		for host, binding := range discovery {
+			if !binding.MCPEnabled {
+				continue
+			}
+			issuer := dependencies.AuthIssuer
+			if binding.Mode == DiscoveryAnonymous {
+				issuer = ""
+			}
+			server.ardMCP[host] = &mcpHTTP{discovery: &ardMCPBinding{server, binding}, authenticator: dependencies.Authenticator, settings: transport, publicOrigin: discoveryMCPOrigin(public, host), issuer: issuer, version: dependencies.ServiceVersion, enforceScopes: dependencies.EnforceOAuthScopes, timeout: dependencies.RequestTimeout, maxBody: bodyLimit, slots: slots, logger: dependencies.Logger, metrics: server.observability}
+		}
 	}
 	router := http.NewServeMux()
 	server.routes(router)
@@ -326,8 +349,11 @@ func (s *Server) routes(router *http.ServeMux) {
 		router.Handle("/mcp", s.mcp)
 		router.Handle(mcpMetadataPath, s.mcp)
 	}
+	router.Handle("/ard/v1/mcp", http.HandlerFunc(s.handleARDMCP))
+	router.Handle("/.well-known/oauth-protected-resource/ard/v1/mcp", http.HandlerFunc(s.handleARDMCP))
 	s.collectionRoutes(router)
 	s.personalRoutes(router)
+	router.HandleFunc("GET /api/v1/validation-maintenance", s.withQueryParameters(s.handleValidationMaintenance, "state", "horizonHours", "limit", "cursor"))
 	s.feedbackRoutes(router)
 	s.ratingsRoutes(router)
 	router.HandleFunc("GET /api/v1/tenant-settings", s.withQueryParameters(s.handleTenantSettings))

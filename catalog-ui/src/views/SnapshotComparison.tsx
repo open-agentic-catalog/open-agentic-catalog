@@ -81,6 +81,7 @@ export function SnapshotComparison(
               comparison.
             </p>
             <button
+              type="submit"
               disabled={
                 !baseline.trim() ||
                 baseline.trim().toLowerCase() === props.snapshotId

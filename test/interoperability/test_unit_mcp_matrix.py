@@ -16,6 +16,7 @@ import peer_runner
 
 def client_report():
     return dict(client="mcp@2.3.0", noSessions=True, peerSafe=True, childrenExited=True,
+                ard=[dict(protocol=version, cases=dict.fromkeys(matrix.ARD_CASES, True)) for version in ("2025-11-25", "2026-07-28")],
                 matrix=[dict(transport=transport, protocol=version, cases=dict.fromkeys(matrix.CASES, True), replicas=[8080, 8081])
                         for transport, version in sorted(matrix.COMBINATIONS)])
 
@@ -36,6 +37,11 @@ class Admission(unittest.TestCase):
                        lambda rows: rows[0].update(replicas=[8080])):
             changed = copy.deepcopy(expected)
             mutate(changed["matrix"])
+            invalid.append(changed)
+        for mutate in (lambda rows: rows.pop(), lambda rows: rows[0]["cases"].pop("unpublication"),
+                       lambda rows: rows[0]["cases"].update(inventory=False)):
+            changed = copy.deepcopy(expected)
+            mutate(changed["ard"])
             invalid.append(changed)
         for data in invalid:
             with self.subTest(data=data), self.assertRaises(AssertionError):

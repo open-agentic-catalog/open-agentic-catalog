@@ -253,7 +253,7 @@ function SourceList(props: WorkspaceProps) {
           </select>
         </Field>
         <div className="workspace-actions">
-          <button>Apply source filters</button>
+          <button type="submit">Apply source filters</button>
           <button
             type="button"
             onClick={() => {

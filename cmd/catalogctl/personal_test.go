@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/personal"
 )
 
@@ -275,6 +276,30 @@ func TestPersonalExportPrivatePublication(t *testing.T) {
 	for _, n := range []int{1, 2, 3} {
 		if _, err := personalSelection(3, false, []int{n}); err != nil {
 			t.Fatal(fmt.Sprintf("valid selection %d", n), err)
+		}
+	}
+}
+
+func TestPersonalFileNativeCriteriaRoundTrip(t *testing.T) {
+	streaming := false
+	for _, native := range []*catalog.NativeCapabilitiesFilter{
+		{AgentStreaming: &streaming, AgentSkillIDs: []string{"invoice, literal "}, AgentSkillTags: []string{"Finance", "finance"}},
+		{MCPTransports: []string{"sse", "streamable-http"}, MCPProtocolVersions: []string{"2026-07-28"}},
+	} {
+		file := personalTestFile()
+		file.Items[0].Search.Origins = []catalog.SearchResultType{catalog.SearchResultLocal}
+		file.Items[0].Search.NativeCapabilities = native
+		raw := personalTestBytes(t, file)
+		got, err := decodePersonalFile(raw)
+		if err != nil || !reflect.DeepEqual(got, file) {
+			t.Fatal("portable native criteria changed", err)
+		}
+		if !bytes.Equal(personalTestBytes(t, got), raw) {
+			t.Fatal("native backup re-encoding changed intent")
+		}
+		file.Items[0].Search.Origins = nil
+		if _, err := decodePersonalFile(personalTestBytes(t, file)); err == nil {
+			t.Fatal("native backup accepted a broadened origin")
 		}
 	}
 }

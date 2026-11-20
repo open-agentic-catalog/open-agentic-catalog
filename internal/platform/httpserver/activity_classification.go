@@ -10,13 +10,13 @@ import (
 // activityFamily accepts only the matched ServeMux pattern, never a raw URL.
 // Worker operations do not call this API-listener classifier.
 func activityFamily(method, pattern string) observability.HTTPFamily {
-	if pattern == "/mcp" {
+	if pattern == "/mcp" || pattern == ardMCPPath {
 		if method == http.MethodPost || method == http.MethodOptions {
 			return observability.FamilyHTTPMCP
 		}
 		return observability.FamilyAuxiliary
 	}
-	if pattern == mcpMetadataPath {
+	if pattern == mcpMetadataPath || pattern == ardMCPMetadataPath {
 		if method == http.MethodGet || method == http.MethodHead || method == http.MethodOptions {
 			return observability.FamilyHTTPMCP
 		}

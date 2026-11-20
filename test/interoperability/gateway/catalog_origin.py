@@ -54,6 +54,7 @@ class Handler(BaseHTTPRequestHandler):
         self.connection.settimeout(8)
 
     def log_message(self, *_):
+        # Suppress raw request logging; the harness records bounded outcomes.
         pass
 
 

@@ -19,6 +19,7 @@ import mcp_tools as tools
 from mcp_stdio import setup
 
 COMBINATIONS = {(transport, version) for transport in ("stdio", "http") for version in ("2025-11-25", "2026-07-28")}
+ARD_CASES = {"inventory", "publication-pages", "rest-equivalence", "closed-arguments", "host-admission", "live-partial", "referrals", "unpublication", "safety-withdrawal"}
 CASES = {"inventory", "local-pages", "filters", "indexed", "exact-release", "explore-access", "empty-sparse",
          "closed-arguments", "live", "partial", "replica-continuation", "restart-continuation", "stale-cursor"}
 
@@ -27,7 +28,7 @@ def validate_result(result, secrets):
     assert result.code == 0 and not result.stderr.strip(), "independent matrix client failed"
     assert not any(secret in result.stdout + result.stderr for secret in secrets), "matrix credential exposure"
     data = json.loads(result.stdout)
-    assert set(data) == {"client", "matrix", "noSessions", "peerSafe", "childrenExited"}
+    assert set(data) == {"client", "matrix", "ard", "noSessions", "peerSafe", "childrenExited"}
     assert data["client"] == "mcp@2.3.0" and data["noSessions"] is True and data["peerSafe"] is True and data["childrenExited"] is True
     rows = data["matrix"]
     assert len(rows) == 4 and {(r["transport"], r["protocol"]) for r in rows} == COMBINATIONS
@@ -35,6 +36,10 @@ def validate_result(result, secrets):
         assert set(row) == {"transport", "protocol", "cases", "replicas"}
         assert set(row["cases"]) == CASES and all(value is True for value in row["cases"].values())
         assert set(row["replicas"]) == {8080, 8081}
+    assert len(data["ard"]) == 2 and {r["protocol"] for r in data["ard"]} == {"2025-11-25", "2026-07-28"}
+    for row in data["ard"]:
+        assert set(row) == {"protocol", "cases"}
+        assert set(row["cases"]) == ARD_CASES and all(value is True for value in row["cases"].values())
     return data
 
 
@@ -154,6 +159,7 @@ def check():
         settings.update(profile="postgres", database=json.loads((ROOT / "config/postgres.json").read_text())["database"])
         settings["http"]["publicBaseUrl"] = "https://127.0.0.1:9555"
         settings["mcp"]["enabled"] = True
+        settings["discovery"]["hosts"][0]["mcpEnabled"] = True
         settings["discovery"]["hosts"].append(dict(settings["discovery"]["hosts"][0], host="localhost", mode="authenticated"))
         settings["demoArchives"] = dict(origin="https://127.0.0.1:9443", trustBundleFile="/private/ca.pem", allowlistFile="/private/allowlist.json")
         settings["federation"]["policyFile"] = "/catalog/policy.json"
@@ -208,6 +214,9 @@ def check():
             connected, _ = catalog.request("/api/v1/federation/sources", dict(inspectionId=inspection["id"], displayName="Owned " + path, retrievalMode="live", updateMode="manual_review", networkProfile="stdio-owned", scope={"publishers": ["catalog.example.com"]}, live=dict(enabled=True, queryPrivacyAcknowledged=True, federationMode="none"), discoveryAssignments=[dict(host="localhost", audience="authenticated")], reason="Independent MCP live qualification"), status=201)
             live.append(connected["id"])
         (peer / "outage").touch(mode=0o600)
+        for host in ("127.0.0.1", "localhost"):
+            candidate, _ = catalog.request("/api/v1/publication/snapshots", dict(host=host), status=201)
+            catalog.request("/api/v1/publication/snapshots/" + candidate["id"] + ":activate", dict(host=host, reason="Qualify ARD publication MCP"), etag=candidate["etag"])
         expected = json.loads((base / "expected.json").read_text())
         catalog.write("expected.json", json.dumps(dict(expected, liveSources=live)))
         # No test-only replica has a divergent token, policy, or cursor key.
@@ -269,4 +278,4 @@ def check():
     assert report["cleanup"] and report["phase"] == "validated"
     report.update(success=True, phase="complete")
     (directory / "report.json").write_text(json.dumps(report, indent=2) + "\n")
-    print("Passed all four independent MCP transport/protocol combinations with PostgreSQL replicas, restart and cleanup.")
+    print("Passed four Control and two ARD publication MCP protocol/transport rows with PostgreSQL, restart, withdrawal and cleanup.")

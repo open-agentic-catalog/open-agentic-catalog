@@ -149,7 +149,7 @@ func (h *mcpHTTP) origin(w http.ResponseWriter, r *http.Request) bool {
 func (h *mcpHTTP) preflight(w http.ResponseWriter, r *http.Request) bool {
 	method := r.Header.Get("Access-Control-Request-Method")
 	allowedMethod := method == http.MethodPost
-	if r.URL.Path == mcpMetadataPath {
+	if r.URL.Path == h.metadataEndpoint() {
 		allowedMethod = method == http.MethodGet || method == http.MethodHead
 	}
 	if r.Header.Get("Origin") == "" || !allowedMethod {

@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/v1/validation-maintenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find current validation evidence needing attention
+         * @description Requires a current human or service membership and the intersection of resource.read, resource.read_content and resource.validate in the canonical namespace before SQL limits. OAuth ceiling when enforced: catalog.read. This read does not fetch, validate, mutate or disclose native documents, findings, delivery URLs, publication hosts or submission details. Selects exact revisions reached by Version candidate/sealed pointers, Listing candidates or eligible current releases, once each. Uses the highest validation run number, never timestamp ordering. Conditions may overlap. The observation time is fixed across continuation; current evidence and pointers are reread on each page. This is a moving inventory, not a frozen snapshot. Refresh from page one for a current traversal. Cursors bind current authorization, deployment policies, filters, horizon and page size. Expiry alone does not withdraw snapshots; renewal is a separate explicit command and never automatically restores publication. Missing, corrupt or unsupported selected evidence fails the entire read. Responses are no-store.
+         */
+        get: operations["listValidationMaintenance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/collections": {
         parameters: {
             query?: never;
@@ -64,8 +84,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Browse currently readable collection members
-         * @description Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision and release generation. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
+         * Search and browse currently readable collection members
+         * @description Requires a current human or service membership and collection.read in the owner namespace. Also requires resource.read in each target canonical namespace; membership grants no target authority. Selects only current published/deprecated releases of undeleted Resources before pagination. Cursors bind current policy, parent revision, release generation, normalized filters and page size. Text matches all whole-word Unicode letter/number tokens across released display name and description, case-insensitively, without stemming, prefix, substring or wildcard matching. Punctuation separates tokens; punctuation-only text matches nothing. Text uses at most 256 Unicode code points before normalization; whitespace-only text and empty kinds retain browsing. Kinds combine with OR; text and kinds combine with AND. Results retain Listing-ID order, without ranking or counts. Tags, identifiers and candidate metadata are not searched. No hidden placeholders or counts. Responses are no-store; a metadata ETag cannot validate this page. OAuth ceiling when enforced: catalog.read.
          */
         get: operations["listCollectionMembers"];
         put?: never;
@@ -213,6 +233,54 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/ard/v1/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Refuse a standalone MCP stream */
+        get: operations["refuseARDPublicationMCPStream"];
+        put?: never;
+        /**
+         * Search the active host-bound ARD publication through MCP
+         * @description Enabled only by mcpEnabled on the exact discovery host; defaults off independently of Control MCP. One static search tool accepts the nested ARD Search request and reuses REST publication/federation semantics. Anonymous hosts ignore supplied credentials and use only the anonymous snapshot. Authenticated hosts require current tenant discovery.read and catalog.read when OAuth scopes are enforced on every protocol request. Unknown, disabled, forwarded or conflicting authorities fail before publication lookup. No Control fallback. Supports stateless 2026-07-28 discovery and the 2025-11-25 handshake with finite JSON replies, no sessions or SSE. Input is at most the API body limit or 262144 bytes; arguments are at most 65536 bytes. Shared MCP concurrency and result budgets apply. structuredContent and JSON text contain the same complete ARDSearchResponse; oversized output is an explicit tool refusal, never truncation. The catalog/ard-search result metadata carries HTTP-equivalent partial, tier, fallbackReason and partialIndex signals. Search diagnostics and current authorization retain the shared REST application boundary. No resource or attestation URL is fetched. Tool schemas and static instructions confer no approval, trust, installation or execution permission.
+         */
+        post: operations["callARDPublicationMCP"];
+        /** Refuse deletion because MCP has no retained sessions */
+        delete: operations["refuseARDPublicationMCPSessionDeletion"];
+        /**
+         * Check an exact MCP browser origin
+         * @description Requires an approved Origin, POST request method and an admitted header set. Disabled routes return 404. Does not enable cookie authentication or global API CORS.
+         */
+        options: operations["preflightARDPublicationMCP"];
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/.well-known/oauth-protected-resource/ard/v1/mcp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Discover the ARD MCP OAuth resource and operator issuer
+         * @description Readable without credentials for an enabled authenticated discovery host with a configured OIDC issuer. The resource is the configured discovery origin plus /ard/v1/mcp. Anonymous hosts, development authentication, disabled endpoints and unknown hosts return 404. No publication lookup occurs.
+         */
+        get: operations["getARDMCPOAuthMetadata"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        /** Check an exact metadata browser origin */
+        options: operations["preflightARDPublicationMCPOAuthMetadata"];
+        /** Check MCP OAuth metadata availability */
+        head: operations["headARDMCPOAuthMetadata"];
         patch?: never;
         trace?: never;
     };
@@ -4233,6 +4301,7 @@ export interface components {
         });
         /** @description Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search. */
         PersonalCriteria: {
+            nativeCapabilities?: components["schemas"]["NativeCapabilitiesFilter"];
             /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
             includeMcpTools?: boolean;
             /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
@@ -4253,7 +4322,7 @@ export interface components {
             /** @description Source-aware selector matched against the Catalog Publisher UUID for local releases and the normalized AIR publisher component for indexed or live entries. Excludes NUL and is limited to 256 UTF-8 bytes. */
             publisher?: string;
             visibility?: components["schemas"]["Visibility"];
-        } & (unknown & unknown & (unknown | {
+        } & (unknown & unknown & unknown & (unknown | {
             origins?: "local"[];
         }));
         PersonalInput: {
@@ -4319,6 +4388,35 @@ export interface components {
                 origin?: "foreign";
             };
         });
+        ValidationMaintenanceItem: {
+            revisionId: components["schemas"]["UUID"];
+            resourceId: components["schemas"]["UUID"];
+            namespaceId: components["schemas"]["UUID"];
+            kind: components["schemas"]["ResourceKind"];
+            canonicalIdentifier: string;
+            versionId: components["schemas"]["UUID"];
+            version: string;
+            revisionNumber: number;
+            evidenceId: components["schemas"]["UUID"];
+            /** @enum {string} */
+            evidenceState: "complete" | "blocked";
+            validationProfile: string;
+            policyVersion: string;
+            /** Format: date-time */
+            validatedAt: string;
+            /** Format: date-time */
+            expiresAt?: string;
+            /** @description Applicability at the fixed observation time, not later publication eligibility, approval or trust. */
+            applicable: boolean;
+            conditions: ("blocked" | "stale" | "expired" | "expiring")[];
+        };
+        ValidationMaintenancePage: {
+            items: components["schemas"]["ValidationMaintenanceItem"][];
+            /** Format: date-time */
+            observedAt: string;
+            horizonHours: number;
+            nextCursor?: string;
+        };
         PersonalWorkItem: {
             id: string;
             /** @enum {string} */
@@ -6548,7 +6646,25 @@ export interface components {
          * @enum {string}
          */
         CatalogSearchOrder: "name_asc" | "name_desc" | "kind_asc" | "kind_desc" | "publisher_asc" | "publisher_desc";
+        /** @description Exact private declarations from one current released validated primary card, under current resource.read and resource.read_content authority. OR within arrays, AND across fields; separate skill or remote members may satisfy separate fields. No tuple compatibility, media-type normalization, inference or endpoint request. Search and saved criteria require explicit origins [local]; Explore is local. Select one card kind only. At most 64 string values total and 8192 bytes of Go-encoded JSON, including escaping. Omission preserves ordinary discovery. Missing/null native streaming does not match explicit false. */
+        NativeCapabilitiesFilter: {
+            /** @description Declared Agent skill IDs. Values are exact case-sensitive literals. */
+            agentSkillIds?: string[];
+            /** @description Declared Agent skill tags, distinct from Listing tags. Values are exact case-sensitive literals. */
+            agentSkillTags?: string[];
+            /** @description Card default input media types, not effective modes of a selected skill. Values are exact case-sensitive literals. */
+            agentDefaultInputModes?: string[];
+            /** @description Card default output media types, not effective modes of a selected skill. Values are exact case-sensitive literals. */
+            agentDefaultOutputModes?: string[];
+            /** @description Explicit declared streaming value; omission, false and true are distinct. */
+            agentStreaming?: boolean;
+            /** @description Declared MCP Server Card remote transport types. Values are exact case-sensitive literals. */
+            mcpTransports?: string[];
+            /** @description Declared remote MCP protocol versions, without protocol negotiation. Values are exact case-sensitive literals. */
+            mcpProtocolVersions?: string[];
+        };
         CatalogSearch: {
+            nativeCapabilities?: components["schemas"]["NativeCapabilitiesFilter"];
             /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
             includeMcpTools?: boolean;
             /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
@@ -6572,7 +6688,7 @@ export interface components {
             limit?: number;
             /** @description Opaque expiring continuation cursor bound to the principal, permissions, normalized query, core SearchProfile, and durable local and indexed generations. Core live continuation replays an unchanged bounded window of at most 50 candidates with a fixed 15-minute expiry. Changed evidence requires restart; temporary replay failure permits retrying the same cursor. Hybrid Search preserves the precise durable ranking before a separate live tail. Live-only Search binds the live window without durable generation or embedding work. */
             cursor?: string;
-        } & (unknown & unknown & (unknown | {
+        } & (unknown & unknown & unknown & (unknown | {
             origins?: "local"[];
         }));
         CatalogExplore: {
@@ -6585,6 +6701,7 @@ export interface components {
             }[];
         };
         CatalogExploreQuery: {
+            nativeCapabilities?: components["schemas"]["NativeCapabilitiesFilter"];
             /** @description Omission or false preserves ordinary Search. Explicit local MCP lexical search over ordinary listing fields and private declared tool names/descriptions. Requires nonblank text and local-only origins (Explore is intrinsically local). Current content-read permission gates tool contributions before counts, ranking and paging. Each tool must match all terms; the server score is the best listing or tool score, never the sum of tools. No embedding or endpoint call. */
             includeMcpTools?: boolean;
             /** @description Exact, case-sensitive protocolBinding declared by any interface in the released validated primary A2A Agent Card. Empty means no predicate. Nonempty Search and saved criteria require explicit origins [local]; Browse and Explore are intrinsically local. Requires current resource.read_content as well as resource.read before matching, totals, facets and paging. Supporting cards, drafts and external origins do not contribute. Literal spelling is preserved. No endpoint request is added and a declaration does not establish protocol compatibility. */
@@ -6600,7 +6717,7 @@ export interface components {
             /** @description Catalog Publisher UUID. Explore covers local governed releases only. */
             publisher?: string;
             visibility?: components["schemas"]["Visibility"];
-        } & unknown;
+        } & (unknown & unknown);
         CatalogFacetBucket: {
             value: string;
             count: number;
@@ -8683,6 +8800,36 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listValidationMaintenance: {
+        parameters: {
+            query?: {
+                /** @description Attention is the union of all four conditions. Stale means current validation or outbound policy no longer applies. Unsupported retained profiles fail rather than becoming repairable rows. */
+                state?: "attention" | "expiring" | "expired" | "blocked" | "stale";
+                /** @description Expiring includes expiry after observation and at or before observation plus this horizon. Expired includes equality with observation. Immutable deterministic evidence has no time expiry. */
+                horizonHours?: number;
+                limit?: number;
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current authorized maintenance page */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ValidationMaintenancePage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     listCollections: {
         parameters: {
             query?: {
@@ -8838,6 +8985,10 @@ export interface operations {
         parameters: {
             query?: {
                 limit?: number;
+                /** @description Optional text, up to 256 code points. Whitespace is collapsed and case normalized; controls other than whitespace are rejected. */
+                text?: string;
+                /** @description One comma-separated array, for example agent,mcp_server. Up to four values; duplicates are removed and order is canonicalized. An empty scalar value selects all kinds; typed clients should omit the optional array to clear it. Repeated parameters, JSON arrays and empty array elements are rejected. */
+                kinds?: components["schemas"]["ResourceKind"][];
                 /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
                 cursor?: components["parameters"]["Cursor"];
             };
@@ -9195,6 +9346,160 @@ export interface operations {
                 };
             };
             default: components["responses"]["Problem"];
+        };
+    };
+    refuseARDPublicationMCPStream: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+            405: components["responses"]["MCPError"];
+        };
+    };
+    callARDPublicationMCP: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Required except for legacy initialize. Supported versions are 2026-07-28 and 2025-11-25. */
+                "MCP-Protocol-Version"?: string;
+                /** @description Required matching method for the modern protocol. */
+                "MCP-Method"?: string;
+                /** @description Required matching tool name for modern tools/call. */
+                "MCP-Name"?: string;
+                /** @description If present must exactly match the public origin or an explicit MCP allowed origin. */
+                Origin?: string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MCPRequest"];
+            };
+        };
+        responses: {
+            200: components["responses"]["MCPReply"];
+            /** @description Accepted legacy initialized notification; empty body and no session ID. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["MCPError"];
+            401: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+            413: components["responses"]["MCPError"];
+            415: components["responses"]["MCPError"];
+            500: components["responses"]["MCPError"];
+            503: components["responses"]["MCPError"];
+        };
+    };
+    refuseARDPublicationMCPSessionDeletion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            400: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+            405: components["responses"]["MCPError"];
+        };
+    };
+    preflightARDPublicationMCP: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved credential-free preflight. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+        };
+    };
+    getARDMCPOAuthMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description RFC 9728 protected resource metadata. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MCPOAuthMetadata"];
+                };
+            };
+            400: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+        };
+    };
+    preflightARDPublicationMCPOAuthMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Approved credential-free metadata preflight for GET or HEAD. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            400: components["responses"]["MCPError"];
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
+        };
+    };
+    headARDMCPOAuthMetadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Metadata is available; empty body. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            403: components["responses"]["MCPError"];
+            404: components["responses"]["MCPError"];
         };
     };
     refuseCatalogMCPStream: {

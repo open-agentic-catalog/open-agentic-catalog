@@ -608,12 +608,48 @@ async fn workflow(origin: &str) {
             assert_eq!(replayed.headers["idempotency-replayed"], "true");
             assert_eq!(added.raw_body, replayed.raw_body);
             let page = reader
-                .list_collection_members(&collection_id, Some(1), None::<&str>)
+                .list_collection_members(&collection_id, Some(1), None::<&str>, None, None::<&str>)
                 .await
                 .unwrap();
             assert_eq!(page.status, 200);
             assert_eq!(page.headers["cache-control"], "no-store");
             assert!(!page.headers.contains_key("etag"));
+            let selected = reader
+                .list_collection_members(
+                    &collection_id,
+                    Some(1),
+                    Some("SDK"),
+                    Some(vec![ResourceKind::Agent, ResourceKind::Skill]),
+                    None::<&str>,
+                )
+                .await
+                .unwrap();
+            let selected = selected.data.unwrap();
+            assert_eq!(selected.items.len(), 1);
+            assert_eq!(selected.items[0].listing.id.to_string(), listing_id);
+            let excluded = reader
+                .list_collection_members(
+                    &collection_id,
+                    Some(1),
+                    Some("collection-filter-no-match"),
+                    Some(vec![ResourceKind::Agent, ResourceKind::Skill]),
+                    None::<&str>,
+                )
+                .await
+                .unwrap();
+            assert!(excluded.data.unwrap().items.is_empty());
+            let wrong_kind = reader
+                .list_collection_members(
+                    &collection_id,
+                    Some(1),
+                    None::<&str>,
+                    Some(vec![ResourceKind::McpServer, ResourceKind::Plugin]),
+                    None::<&str>,
+                )
+                .await
+                .unwrap();
+            assert!(wrong_kind.data.unwrap().items.is_empty());
+
             let page = page.data.unwrap();
             assert!(page.next_cursor.is_none());
             assert_eq!(page.items.len(), 1);
@@ -693,7 +729,13 @@ async fn workflow(origin: &str) {
             assert_eq!(removed.status, 200);
             assert_eq!(removed.data.as_ref().unwrap().revision, 4);
             let empty = reader
-                .list_collection_members(&collection_id, Some(100), None::<&str>)
+                .list_collection_members(
+                    &collection_id,
+                    Some(100),
+                    None::<&str>,
+                    None,
+                    None::<&str>,
+                )
                 .await
                 .unwrap();
             assert_eq!(empty.status, 200);
@@ -728,6 +770,51 @@ async fn workflow(origin: &str) {
                 .unwrap()
                 .to_owned(),
         );
+    }
+    for (native, count) in [
+        (
+            json!({"agentDefaultInputModes":["application/json"]}),
+            releases.len(),
+        ),
+        (
+            json!({"agentSkillIds":["not-declared-sdk-sentinel","rust"],"agentSkillTags":["sdk"],"agentDefaultOutputModes":["application/json"]}),
+            releases.len(),
+        ),
+        (json!({"agentStreaming":false}), 0),
+        (json!({"agentSkillIds":["not-declared-sdk-sentinel"]}), 0),
+    ] {
+        let selected = data(
+            reader
+                .search_catalog(typed(
+                    json!({"origins":["local"],"nativeCapabilities":native.clone(),"tags":["rust-sdk"]}),
+                ))
+                .await
+                .unwrap(),
+            200,
+        );
+        assert_eq!(selected["durableTotal"], count);
+        let mut actual: Vec<_> = selected["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["local"]["release"]["id"].as_str().unwrap().to_owned())
+            .collect();
+        let mut expected = if count > 0 {
+            releases.clone()
+        } else {
+            Vec::new()
+        };
+        actual.sort();
+        expected.sort();
+        assert_eq!(actual, expected);
+        let explored = data(
+            reader
+                .explore_catalog(typed(json!({"query":{"nativeCapabilities":native,"tags":["rust-sdk"]},"facets":[{"field":"kind"}]})))
+                .await
+                .unwrap(),
+            200,
+        );
+        assert_eq!(explored["matched"], count);
     }
     let unmatched_protocol = data(
         reader
@@ -862,9 +949,54 @@ async fn workflow(origin: &str) {
     .unwrap();
     assert_ne!(audit["items"][0]["id"], second["items"][0]["id"]);
     qualify_reviewed_corpus().await;
+    qualify_validation_maintenance(&admin, &reader, ns).await;
     println!(
         "Rust Catalog workflow passed: four kinds, exact evidence, governed publication, Search/Browse/audit continuation, replay/conflicts, current authorization, tenant isolation and private Jobs"
     );
+}
+
+// Native generated requests decode real maintenance metadata and permission denial.
+async fn qualify_validation_maintenance(admin: &Client, reader: &Client, namespace: &str) {
+    let resource = data(admin.create_resource("rust-maintenance-resource", typed(json!({"namespaceId":namespace,"kind":"agent","canonicalIdentifier":"urn:air:catalog.example.com:rust:maintenance"}))).await.unwrap(), 201);
+    let created = data(admin.create_resource_version(resource["id"].as_str().unwrap(), "rust-maintenance-version", typed(json!({"version":"79.0.0","representations":[{"role":"primary","mediaType":"application/a2a-agent-card+json","data":{"name":"Incomplete maintenance fixture"}}]}))).await.unwrap(), 201);
+    assert_eq!(created["evidence"]["state"], "blocked");
+    let reply = admin
+        .list_validation_maintenance(
+            Some(ListValidationMaintenanceState::Blocked),
+            Some(24),
+            Some(100),
+            None::<&str>,
+        )
+        .await
+        .unwrap();
+    assert_eq!(reply.status, 200);
+    assert_eq!(reply.headers["cache-control"], "no-store");
+    let page = reply.data.unwrap();
+    let row = page
+        .items
+        .iter()
+        .find(|row| row.revision_id.to_string() == created["revision"]["id"].as_str().unwrap())
+        .unwrap();
+    assert_eq!(
+        row.evidence_id.to_string(),
+        created["evidence"]["id"].as_str().unwrap()
+    );
+    assert!(row.expires_at.is_none());
+    assert!(!row.applicable);
+    assert_eq!(
+        serde_json::to_value(&row.conditions).unwrap(),
+        json!(["blocked"])
+    );
+    let denied = reader
+        .list_validation_maintenance(
+            Some(ListValidationMaintenanceState::Blocked),
+            Some(24),
+            None,
+            None::<&str>,
+        )
+        .await
+        .unwrap();
+    assert!(denied.data.unwrap().items.is_empty());
 }
 
 // The shared fixture supplies source expectations before Catalog admission.

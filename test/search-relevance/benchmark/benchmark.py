@@ -311,7 +311,7 @@ def main():
     parser.add_argument("--uv", default="uv")
     parser.add_argument("--python", default="python3")
     args = parser.parse_args()
-    manifest, profiles, documents, queries = load_benchmark_inputs()
+    _, profiles, documents, queries = load_benchmark_inputs()
     if args.action == "check":
         print(f"Benchmark input check passed: {len(documents)} documents, {len(queries)} queries, {len(profiles)} profiles.")
     elif args.action == "install":
