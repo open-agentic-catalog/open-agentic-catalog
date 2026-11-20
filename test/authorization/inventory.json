@@ -4909,6 +4909,20 @@
     {
       "package": "personal",
       "receiver": "Service",
+      "method": "SaveObserved",
+      "source": "internal/personal/service.go",
+      "policy": "personal"
+    },
+    {
+      "package": "personal",
+      "receiver": "Service",
+      "method": "ResolveFollow",
+      "source": "internal/personal/follow.go",
+      "policy": "personal"
+    },
+    {
+      "package": "personal",
+      "receiver": "Service",
       "method": "Get",
       "source": "internal/personal/service.go",
       "policy": "personal"
@@ -5239,6 +5253,18 @@
       "method": "ValidationMaintenancePolicy",
       "source": "internal/catalog/validation_maintenance.go",
       "policy": "internal"
+    },
+    {
+      "calls": [
+        "CurrentListingRelease",
+        "GetListing"
+      ],
+      "method": "CurrentListingRelease",
+      "package": "catalog",
+      "receiver": "Service",
+      "roleConstants": [],
+      "source": "internal/catalog/current_listing.go",
+      "policy": "content"
     },
     {
       "calls": [

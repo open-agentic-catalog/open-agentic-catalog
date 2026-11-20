@@ -1,5 +1,7 @@
 # Reviewed visual baselines
 
+The API reference now lists 219 operations and 476 definitions. On local Catalog records, the relationship sections and Follow Listing control shift the assessment, consumer handoff and MCP client controls vertically. The light desktop and narrow dark captures show the full sections at their new positions.
+
 Release-withdrawal preview updates only `api-endpoints-light.png` and `api-definitions-light.png` for the added operation and its two response definitions. Reviewed differences contain only those contract totals. Layout and controls are unchanged.
 
 Source-snapshot comparison updates only `api-endpoints-light.png` and `api-definitions-light.png` for 199 operations and 455 definitions. Reviewed diffs contain only those contract totals; layout, controls and dark references remain unchanged.

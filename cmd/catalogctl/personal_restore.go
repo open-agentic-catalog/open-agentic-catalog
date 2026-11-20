@@ -153,8 +153,11 @@ func decodePersonalRestore(raw []byte, file personalFile, input []byte, selected
 				return personalRestoreState{}, fail
 			}
 			switch step.State {
-			case "acknowledged":
-				if step.Failure != nil || !validImportID(step.Ack.ID) || step.Ack.ETag != `"rev-1"` || !personalRequestIDPattern.MatchString(step.RequestID) || !reflect.DeepEqual(step.Ack, importAcknowledgement{ID: step.Ack.ID, ETag: `"rev-1"`}) {
+			case "acknowledged", "already-followed":
+				if (step.State == "already-followed" && file.Items[i].Type != "follow") || !personalAckMatchesSelection(r.Steps, file.Items, i, step.Ack.ID, step.State == "already-followed") {
+					return personalRestoreState{}, fail
+				}
+				if step.Failure != nil || !validImportID(step.Ack.ID) || (!strongImportETag(step.Ack.ETag) || step.State == "acknowledged" && step.Ack.ETag != `"rev-1"`) || !personalRequestIDPattern.MatchString(step.RequestID) || !reflect.DeepEqual(step.Ack, importAcknowledgement{ID: step.Ack.ID, ETag: step.Ack.ETag}) {
 					return personalRestoreState{}, fail
 				}
 			case "inflight", "uncertain", "failed":
@@ -168,7 +171,7 @@ func decodePersonalRestore(raw []byte, file personalFile, input []byte, selected
 				return personalRestoreState{}, fail
 			}
 		}
-		stopped = step.State != "acknowledged"
+		stopped = step.State != "acknowledged" && step.State != "already-followed"
 	}
 	return r, nil
 }
@@ -213,7 +216,7 @@ func restorePersonal(ctx context.Context, options remoteOptions, file personalFi
 	defer func() { report = personalRestoreProgress(receipt, status) }()
 	for i := range receipt.Steps {
 		step := &receipt.Steps[i]
-		if step.State == "acknowledged" || step.State == "skipped" {
+		if step.State == "acknowledged" || step.State == "already-followed" || step.State == "skipped" {
 			continue
 		}
 		if step.State != "ready" && (step.State == "failed" || !importReplayAllowed(step.FirstAttempt, time.Now())) {
@@ -226,7 +229,7 @@ func restorePersonal(ctx context.Context, options remoteOptions, file personalFi
 		if principal != current {
 			return report, safeerr.New("personal: human identity changed; no further save was sent")
 		}
-		if err = savePersonalItem(ctx, session, options, state, &receipt, i, file.Items[i]); err != nil {
+		if err = savePersonalItem(ctx, session, options, state, &receipt, i, file.Items); err != nil {
 			return report, err
 		}
 	}
@@ -235,7 +238,8 @@ func restorePersonal(ctx context.Context, options remoteOptions, file personalFi
 }
 
 // savePersonalItem persists inflight before one request and preserves uncertainty after lost or invalid replies.
-func savePersonalItem(ctx context.Context, session *remoteSession, options remoteOptions, state *importStateFile, receipt *personalRestoreState, index int, input personal.Input) error {
+func savePersonalItem(ctx context.Context, session *remoteSession, options remoteOptions, state *importStateFile, receipt *personalRestoreState, index int, inputs []personal.Input) error {
+	input := inputs[index]
 	step := &receipt.Steps[index]
 	body, err := json.Marshal(input)
 	if err != nil || len(body) > personal.MaxBodyBytes {
@@ -253,20 +257,20 @@ func savePersonalItem(ctx context.Context, session *remoteSession, options remot
 	}
 	request := options
 	request.path, request.body, request.expectedStatus, request.idempotencyKey = personalSavePath, body, http.StatusCreated, step.Key
+	if input.Type == "follow" {
+		request.alternateStatus = http.StatusOK
+	}
 	response, err := exchangeRemote(ctx, session.client, request, session.origin, session.token)
 	var ack struct {
 		ID       string `json:"id"`
 		Revision int64  `json:"revision"`
 	}
-	if err == nil && (importResponse(response.Data, &ack) != nil || !validImportID(ack.ID) || ack.Revision != 1 || response.Meta.ETag != `"rev-1"` || !personalRequestIDPattern.MatchString(response.Meta.RequestID)) {
+	existing := input.Type == "follow" && response.Status == http.StatusOK
+	if err == nil && (importResponse(response.Data, &ack) != nil || !validImportID(ack.ID) || ack.Revision < 1 || !existing && ack.Revision != 1 || !importETag(response.Meta.ETag, ack.Revision) || !personalRequestIDPattern.MatchString(response.Meta.RequestID)) {
 		err = safeerr.New("personal: save response could not be verified")
 	}
-	if err == nil {
-		for i, previous := range receipt.Steps {
-			if i != index && previous.State == "acknowledged" && previous.Ack.ID == ack.ID {
-				err = safeerr.New("personal: save response reused another acknowledged item identity")
-			}
-		}
+	if err == nil && !personalAckMatchesSelection(receipt.Steps, inputs, index, ack.ID, existing) {
+		err = safeerr.New("personal: save response reused another item's identity")
 	}
 	if err != nil {
 		step.State = "uncertain"
@@ -287,7 +291,22 @@ func savePersonalItem(ctx context.Context, session *remoteSession, options remot
 		return safeerr.New("personal: save was not acknowledged; inspect per-item progress before explicit recovery")
 	}
 	step.State, step.RequestID = "acknowledged", response.Meta.RequestID
+	if existing {
+		step.State = "already-followed"
+	}
 	step.Failure = nil
 	step.Ack = importAcknowledgement{ID: ack.ID, ETag: response.Meta.ETag}
 	return savePersonalRestore(state, *receipt)
+}
+
+// Only a duplicate follow may refer to an item already acknowledged in this restore.
+func personalAckMatchesSelection(steps []personalRestoreStep, inputs []personal.Input, index int, id string, existing bool) bool {
+	for i, step := range steps[:index] {
+		if (step.State == "acknowledged" || step.State == "already-followed") && strings.EqualFold(step.Ack.ID, id) {
+			if !existing || inputs[i].Type != "follow" || !strings.EqualFold(string(inputs[i].ListingID), string(inputs[index].ListingID)) {
+				return false
+			}
+		}
+	}
+	return true
 }

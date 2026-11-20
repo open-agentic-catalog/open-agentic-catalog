@@ -383,9 +383,8 @@ SELECT table_record.relname,constraint_record.conname,constraint_record.contype,
 	}
 
 	digest := sha256.Sum256([]byte(inventory.String()))
-	// PostgreSQL 18 through migration 000054: includes NOT NULL constraints
-	// for the two generated private native-capability projections.
-	if hex.EncodeToString(digest[:]) != "5b108bdc3b78e4aee78ac85d88c45a0fdeab88af672101083b5e142ea742abbf" {
+	// PostgreSQL 18 through migration 000055, including the private follow input shape.
+	if hex.EncodeToString(digest[:]) != "e259bb8d8208074191eef5bc82e16f6547bdbd03900e41dc0b83f2d489844040" {
 		return fmt.Errorf("catalog constraint inventory or definition drifted (observed digest %x)", digest)
 	}
 	return nil

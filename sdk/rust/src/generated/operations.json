@@ -443,6 +443,7 @@
     "response_kind": "json",
     "response_media_type": "application/json",
     "response_statuses": [
+      "200",
       "201"
     ],
     "source_json_pointer": "/paths/~1api~1v1~1personal~1items/post",

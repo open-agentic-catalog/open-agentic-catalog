@@ -305,22 +305,11 @@ __all__ = [
     "PermissionKey",
     "PersonalCriteria",
     "PersonalInput",
-    "PersonalInputOneOf",
-    "PersonalInputOneOf1",
     "PersonalItem",
     "PersonalPage",
     "PersonalReceipt",
     "PersonalReference",
-    "PersonalReferenceOneOf",
-    "PersonalReferenceOneOf1",
-    "PersonalReferenceOneOf1Not",
-    "PersonalReferenceOneOfNot",
     "PersonalResolution",
-    "PersonalResolutionOneOf",
-    "PersonalResolutionOneOf1",
-    "PersonalResolutionOneOf1Reference",
-    "PersonalResolutionOneOf2",
-    "PersonalResolutionOneOfNot",
     "PersonalWorkItem",
     "PersonalWorkPage",
     "PluginInspection",
@@ -365,6 +354,7 @@ __all__ = [
     "ReindexCatalogRequest",
     "RelatedRelease",
     "Relationship",
+    "ReleaseObservation",
     "ReleaseOverview",
     "ReleaseRelationshipPage",
     "ReleaseTransition",
@@ -1171,12 +1161,6 @@ from catalog_sdk.generated.models.personal_criteria import (
     PersonalCriteria as PersonalCriteria,
 )
 from catalog_sdk.generated.models.personal_input import PersonalInput as PersonalInput
-from catalog_sdk.generated.models.personal_input_one_of import (
-    PersonalInputOneOf as PersonalInputOneOf,
-)
-from catalog_sdk.generated.models.personal_input_one_of1 import (
-    PersonalInputOneOf1 as PersonalInputOneOf1,
-)
 from catalog_sdk.generated.models.personal_item import PersonalItem as PersonalItem
 from catalog_sdk.generated.models.personal_page import PersonalPage as PersonalPage
 from catalog_sdk.generated.models.personal_receipt import (
@@ -1185,35 +1169,8 @@ from catalog_sdk.generated.models.personal_receipt import (
 from catalog_sdk.generated.models.personal_reference import (
     PersonalReference as PersonalReference,
 )
-from catalog_sdk.generated.models.personal_reference_one_of import (
-    PersonalReferenceOneOf as PersonalReferenceOneOf,
-)
-from catalog_sdk.generated.models.personal_reference_one_of1 import (
-    PersonalReferenceOneOf1 as PersonalReferenceOneOf1,
-)
-from catalog_sdk.generated.models.personal_reference_one_of1_not import (
-    PersonalReferenceOneOf1Not as PersonalReferenceOneOf1Not,
-)
-from catalog_sdk.generated.models.personal_reference_one_of_not import (
-    PersonalReferenceOneOfNot as PersonalReferenceOneOfNot,
-)
 from catalog_sdk.generated.models.personal_resolution import (
     PersonalResolution as PersonalResolution,
-)
-from catalog_sdk.generated.models.personal_resolution_one_of import (
-    PersonalResolutionOneOf as PersonalResolutionOneOf,
-)
-from catalog_sdk.generated.models.personal_resolution_one_of1 import (
-    PersonalResolutionOneOf1 as PersonalResolutionOneOf1,
-)
-from catalog_sdk.generated.models.personal_resolution_one_of1_reference import (
-    PersonalResolutionOneOf1Reference as PersonalResolutionOneOf1Reference,
-)
-from catalog_sdk.generated.models.personal_resolution_one_of2 import (
-    PersonalResolutionOneOf2 as PersonalResolutionOneOf2,
-)
-from catalog_sdk.generated.models.personal_resolution_one_of_not import (
-    PersonalResolutionOneOfNot as PersonalResolutionOneOfNot,
 )
 from catalog_sdk.generated.models.personal_work_item import (
     PersonalWorkItem as PersonalWorkItem,
@@ -1319,6 +1276,9 @@ from catalog_sdk.generated.models.related_release import (
     RelatedRelease as RelatedRelease,
 )
 from catalog_sdk.generated.models.relationship import Relationship as Relationship
+from catalog_sdk.generated.models.release_observation import (
+    ReleaseObservation as ReleaseObservation,
+)
 from catalog_sdk.generated.models.release_overview import (
     ReleaseOverview as ReleaseOverview,
 )

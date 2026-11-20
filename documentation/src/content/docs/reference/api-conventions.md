@@ -105,7 +105,7 @@ Built-in roles are exact permission templates, not a role-name hierarchy. Custom
 | `source_admin` | Federation source management, inspection, synchronization/evidence, federation participation and source-family Job controls. |
 | `security_reviewer` | Audit reads and bounded exports. |
 | `webhook_admin` | Webhook management, tests, rotation and evidence. |
-| `library_member` | A human member's own saved references and named searches; current target and search-execution authority still applies. |
+| `library_member` | A human member's own bookmarks, followed Listings and named searches; current target and search-execution authority still applies. |
 | `feedback_member` | Human own-feedback workflows, with current item-read authority where required. |
 | `tenant_admin` | All supported permissions, including protected direct tenant-level `access.manage`. |
 | `service_client` | Inert identity template; no implied permission. |
@@ -117,7 +117,7 @@ A new assignment grants exactly its selected template. Explicit development and 
 | `catalog.read` | Catalog and namespace reads, Search, Explore, reviews, releases, ratings and publication reads. |
 | `ratings.write` | Human submission or withdrawal of the caller's own version-specific rating. Rating reads use `catalog.read`; moderation and sharing administration use `tenant.admin`. See [ratings permissions](../guides/ratings.mdx#before-you-start). |
 | `feedback.write` | Human `feedback.own` submissions and own feedback edits/withdrawal; no resource authoring rights. Reads use `catalog.read`; administrator inbox/actions use `tenant.admin`. |
-| `personal.write` | Human `library.own` saves, updates and removals. Reads and exact-reference checks use `catalog.read`. This scope grants no resource authoring or tenant administration. |
+| `personal.write` | Human `library.own` saves, updates and removals. Reads, bookmark checks and follow checks use `catalog.read`. This scope grants no resource authoring or tenant administration. |
 | `catalog.write` | Resource, version, listing, submission, validation, and explicit observation-adoption writes. |
 | `catalog.review` | Review decisions. |
 | `catalog.publish` | Listing release and publication commands. |
@@ -508,6 +508,21 @@ Writes require `Idempotency-Key`; changes require the current ETag. A replay ack
 `GET /api/v1/me/work?queue=drafts` selects caller-owned work. The other queue values are `submitted`, `changes_required` and `approved`. The latter excludes an exact submission with any retained release. Each continuation binds the actor, current policy, queue and page size. Work selection requires current per-field Resource permissions without granting audit access.
 
 `/api/v1/personal/items` supports owner-only paged reads and explicit creation. Exact item routes support GET, PATCH and DELETE. Commands require `Idempotency-Key`; PATCH and DELETE also require `If-Match`. Receipts contain only item ID and revision. `POST /api/v1/personal/items/{itemId}/resolve` accepts `{}` and performs a read without idempotency or network discovery. An unavailable exact target returns `status: unavailable`, without changing the saved identity. A saved search cannot be resolved or executed through this route.
+
+To follow a local Listing, send this body to `POST /api/v1/personal/items`. Use the Listing ID, release ID and release revision from the local record the reader inspected.
+
+```json
+{
+  "type": "follow",
+  "label": "Order processing",
+  "listingId": "00000000-0000-7000-8000-000000000001",
+  "observed": { "releaseId": "00000000-0000-7000-8000-000000000002", "revision": 3 }
+}
+```
+
+Creation returns HTTP 201. Retrying the same command key replays its receipt under current permissions. A new command key for an existing follow returns HTTP 200 with the existing item ID and revision. Its label and acknowledgement stay unchanged. During restore, omit `observed` to create a follow with no acknowledgement.
+
+Resolve the item with `POST /api/v1/personal/items/{itemId}/resolve` and an empty JSON object. An available follow returns `current` and a `change` value of `changed`, `unchanged` or `unacknowledged`. An unavailable follow returns only `{"status":"unavailable"}`. To acknowledge, send the returned `current` as `observed` in a PATCH with the same Listing ID, the owner label, a new command key and the saved item's ETag. If the item or release has changed, HTTP 412 requires a fresh read before another acknowledgement.
 
 The `library.own` permission requires a human membership. When scope enforcement is enabled, reads and resolve require `catalog.read`; mutations require `personal.write`. Entries belong to tenant, membership and realm; callers cannot supply an owner. Owner management survives target access loss, but saving a changed reference requires current target admission. See [library limits and consent](../guides/catalog-ui.mdx#save-resources-and-searches).
 

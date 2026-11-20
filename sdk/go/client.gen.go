@@ -2080,25 +2080,25 @@ func (e FederationSnapshotState) Valid() bool {
 
 // Defines values for FederationSnapshotEntryChangeChange.
 const (
-	Absent    FederationSnapshotEntryChangeChange = "absent"
-	Added     FederationSnapshotEntryChangeChange = "added"
-	Changed   FederationSnapshotEntryChangeChange = "changed"
-	Multiple  FederationSnapshotEntryChangeChange = "multiple"
-	Unchanged FederationSnapshotEntryChangeChange = "unchanged"
+	FederationSnapshotEntryChangeChangeAbsent    FederationSnapshotEntryChangeChange = "absent"
+	FederationSnapshotEntryChangeChangeAdded     FederationSnapshotEntryChangeChange = "added"
+	FederationSnapshotEntryChangeChangeChanged   FederationSnapshotEntryChangeChange = "changed"
+	FederationSnapshotEntryChangeChangeMultiple  FederationSnapshotEntryChangeChange = "multiple"
+	FederationSnapshotEntryChangeChangeUnchanged FederationSnapshotEntryChangeChange = "unchanged"
 )
 
 // Valid indicates whether the value is a known member of the FederationSnapshotEntryChangeChange enum.
 func (e FederationSnapshotEntryChangeChange) Valid() bool {
 	switch e {
-	case Absent:
+	case FederationSnapshotEntryChangeChangeAbsent:
 		return true
-	case Added:
+	case FederationSnapshotEntryChangeChangeAdded:
 		return true
-	case Changed:
+	case FederationSnapshotEntryChangeChangeChanged:
 		return true
-	case Multiple:
+	case FederationSnapshotEntryChangeChangeMultiple:
 		return true
-	case Unchanged:
+	case FederationSnapshotEntryChangeChangeUnchanged:
 		return true
 	default:
 		return false
@@ -3061,6 +3061,7 @@ func (e PersonalCriteria1Origins) Valid() bool {
 
 // Defines values for PersonalInputType.
 const (
+	PersonalInputTypeFollow   PersonalInputType = "follow"
 	PersonalInputTypeResource PersonalInputType = "resource"
 	PersonalInputTypeSearch   PersonalInputType = "search"
 )
@@ -3068,6 +3069,8 @@ const (
 // Valid indicates whether the value is a known member of the PersonalInputType enum.
 func (e PersonalInputType) Valid() bool {
 	switch e {
+	case PersonalInputTypeFollow:
+		return true
 	case PersonalInputTypeResource:
 		return true
 	case PersonalInputTypeSearch:
@@ -3079,6 +3082,7 @@ func (e PersonalInputType) Valid() bool {
 
 // Defines values for PersonalItemType.
 const (
+	PersonalItemTypeFollow   PersonalItemType = "follow"
 	PersonalItemTypeResource PersonalItemType = "resource"
 	PersonalItemTypeSearch   PersonalItemType = "search"
 )
@@ -3086,6 +3090,8 @@ const (
 // Valid indicates whether the value is a known member of the PersonalItemType enum.
 func (e PersonalItemType) Valid() bool {
 	switch e {
+	case PersonalItemTypeFollow:
+		return true
 	case PersonalItemTypeResource:
 		return true
 	case PersonalItemTypeSearch:
@@ -3107,6 +3113,27 @@ func (e PersonalReferenceOrigin) Valid() bool {
 	case PersonalReferenceOriginForeign:
 		return true
 	case PersonalReferenceOriginLocal:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PersonalResolutionChange.
+const (
+	PersonalResolutionChangeChanged        PersonalResolutionChange = "changed"
+	PersonalResolutionChangeUnacknowledged PersonalResolutionChange = "unacknowledged"
+	PersonalResolutionChangeUnchanged      PersonalResolutionChange = "unchanged"
+)
+
+// Valid indicates whether the value is a known member of the PersonalResolutionChange enum.
+func (e PersonalResolutionChange) Valid() bool {
+	switch e {
+	case PersonalResolutionChangeChanged:
+		return true
+	case PersonalResolutionChangeUnacknowledged:
+		return true
+	case PersonalResolutionChangeUnchanged:
 		return true
 	default:
 		return false
@@ -5347,6 +5374,7 @@ func (e ListObservationsParamsFreshness) Valid() bool {
 
 // Defines values for ListPersonalItemsParamsType.
 const (
+	ListPersonalItemsParamsTypeFollow   ListPersonalItemsParamsType = "follow"
 	ListPersonalItemsParamsTypeResource ListPersonalItemsParamsType = "resource"
 	ListPersonalItemsParamsTypeSearch   ListPersonalItemsParamsType = "search"
 )
@@ -5354,6 +5382,8 @@ const (
 // Valid indicates whether the value is a known member of the ListPersonalItemsParamsType enum.
 func (e ListPersonalItemsParamsType) Valid() bool {
 	switch e {
+	case ListPersonalItemsParamsTypeFollow:
+		return true
 	case ListPersonalItemsParamsTypeResource:
 		return true
 	case ListPersonalItemsParamsTypeSearch:
@@ -8553,33 +8583,27 @@ type PersonalCriteria1Origins string
 
 // PersonalInput defines model for PersonalInput.
 type PersonalInput struct {
-	Label     string             `json:"label"`
-	Reference *PersonalReference `json:"reference,omitempty"`
+	Label     string `json:"label"`
+	ListingId *UUID  `json:"listingId,omitempty"`
+
+	// Observed Exact current release shown to the human. Omit on restore or rename.
+	Observed  *ReleaseObservation `json:"observed,omitempty"`
+	Reference *PersonalReference  `json:"reference,omitempty"`
 
 	// Search Private criteria only. Saving and opening never execute a Search. Current disclosure, live and embedding consent apply to the later explicit Search.
 	Search *PersonalCriteria `json:"search,omitempty"`
 	Type   PersonalInputType `json:"type"`
-	union  json.RawMessage
 }
 
 // PersonalInputType defines model for PersonalInput.Type.
 type PersonalInputType string
-
-// PersonalInput0 defines model for PersonalInput.0.
-type PersonalInput0 struct {
-	Type interface{} `json:"type,omitempty"`
-}
-
-// PersonalInput1 defines model for PersonalInput.1.
-type PersonalInput1 struct {
-	Type interface{} `json:"type,omitempty"`
-}
 
 // PersonalItem defines model for PersonalItem.
 type PersonalItem struct {
 	CreatedAt time.Time          `json:"createdAt"`
 	Id        UUID               `json:"id"`
 	Label     string             `json:"label"`
+	ListingId *UUID              `json:"listingId,omitempty"`
 	Reference *PersonalReference `json:"reference,omitempty"`
 	Revision  int                `json:"revision"`
 
@@ -8587,21 +8611,10 @@ type PersonalItem struct {
 	Search    *PersonalCriteria `json:"search,omitempty"`
 	Type      PersonalItemType  `json:"type"`
 	UpdatedAt time.Time         `json:"updatedAt"`
-	union     json.RawMessage
 }
 
 // PersonalItemType defines model for PersonalItem.Type.
 type PersonalItemType string
-
-// PersonalItem0 defines model for PersonalItem.0.
-type PersonalItem0 struct {
-	Type interface{} `json:"type,omitempty"`
-}
-
-// PersonalItem1 defines model for PersonalItem.1.
-type PersonalItem1 struct {
-	Type interface{} `json:"type,omitempty"`
-}
 
 // PersonalPage defines model for PersonalPage.
 type PersonalPage struct {
@@ -8626,53 +8639,25 @@ type PersonalReference struct {
 	Version                *string                 `json:"version,omitempty"`
 	VersionPresent         *bool                   `json:"versionPresent,omitempty"`
 	VersionRevisionId      *UUID                   `json:"versionRevisionId,omitempty"`
-	union                  json.RawMessage
 }
 
 // PersonalReferenceOrigin defines model for PersonalReference.Origin.
 type PersonalReferenceOrigin string
 
-// PersonalReference0 defines model for PersonalReference.0.
-type PersonalReference0 struct {
-	Origin interface{} `json:"origin,omitempty"`
-}
-
-// PersonalReference1 defines model for PersonalReference.1.
-type PersonalReference1 struct {
-	Origin interface{} `json:"origin,omitempty"`
-}
-
 // PersonalResolution defines model for PersonalResolution.
 type PersonalResolution struct {
-	Indexed   *CatalogSearchResult     `json:"indexed,omitempty"`
-	Reference *PersonalReference       `json:"reference,omitempty"`
-	Status    PersonalResolutionStatus `json:"status"`
-	union     json.RawMessage
+	Change    *PersonalResolutionChange `json:"change,omitempty"`
+	Current   *ReleaseObservation       `json:"current,omitempty"`
+	Indexed   *CatalogSearchResult      `json:"indexed,omitempty"`
+	Reference *PersonalReference        `json:"reference,omitempty"`
+	Status    PersonalResolutionStatus  `json:"status"`
 }
+
+// PersonalResolutionChange defines model for PersonalResolution.Change.
+type PersonalResolutionChange string
 
 // PersonalResolutionStatus defines model for PersonalResolution.Status.
 type PersonalResolutionStatus string
-
-// PersonalResolution0 defines model for PersonalResolution.0.
-type PersonalResolution0 struct {
-	Status interface{} `json:"status,omitempty"`
-}
-
-// PersonalResolution1 defines model for PersonalResolution.1.
-type PersonalResolution1 struct {
-	Reference struct {
-		Origin interface{} `json:"origin,omitempty"`
-	} `json:"reference"`
-	Status interface{} `json:"status,omitempty"`
-}
-
-// PersonalResolution2 defines model for PersonalResolution.2.
-type PersonalResolution2 struct {
-	Reference struct {
-		Origin interface{} `json:"origin,omitempty"`
-	} `json:"reference"`
-	Status interface{} `json:"status,omitempty"`
-}
 
 // PersonalWorkItem defines model for PersonalWorkItem.
 type PersonalWorkItem struct {
@@ -9163,6 +9148,12 @@ type Relationship struct {
 
 // RelationshipType defines model for Relationship.Type.
 type RelationshipType string
+
+// ReleaseObservation defines model for ReleaseObservation.
+type ReleaseObservation struct {
+	ReleaseId UUID  `json:"releaseId"`
+	Revision  int64 `json:"revision"`
+}
 
 // ReleaseOverview Independent current published and deprecated Listing counts. Neither count represents distinct Resources.
 type ReleaseOverview struct {
@@ -16466,679 +16457,6 @@ func (t *PersonalCriteria) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsPersonalInput0 returns the union data inside the PersonalInput as a PersonalInput0
-func (t PersonalInput) AsPersonalInput0() (PersonalInput0, error) {
-	var body PersonalInput0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPersonalInput0 overwrites any union data inside the PersonalInput as the provided PersonalInput0
-func (t *PersonalInput) FromPersonalInput0(v PersonalInput0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePersonalInput0 performs a merge with any union data inside the PersonalInput, using the provided PersonalInput0
-func (t *PersonalInput) MergePersonalInput0(v PersonalInput0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsPersonalInput1 returns the union data inside the PersonalInput as a PersonalInput1
-func (t PersonalInput) AsPersonalInput1() (PersonalInput1, error) {
-	var body PersonalInput1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPersonalInput1 overwrites any union data inside the PersonalInput as the provided PersonalInput1
-func (t *PersonalInput) FromPersonalInput1(v PersonalInput1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePersonalInput1 performs a merge with any union data inside the PersonalInput, using the provided PersonalInput1
-func (t *PersonalInput) MergePersonalInput1(v PersonalInput1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t PersonalInput) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	object["label"], err = json.Marshal(t.Label)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'label': %w", err)
-	}
-
-	if t.Reference != nil {
-		object["reference"], err = json.Marshal(t.Reference)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'reference': %w", err)
-		}
-	}
-
-	if t.Search != nil {
-		object["search"], err = json.Marshal(t.Search)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'search': %w", err)
-		}
-	}
-
-	object["type"], err = json.Marshal(t.Type)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'type': %w", err)
-	}
-
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *PersonalInput) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["label"]; found {
-		err = json.Unmarshal(raw, &t.Label)
-		if err != nil {
-			return fmt.Errorf("error reading 'label': %w", err)
-		}
-	}
-
-	if raw, found := object["reference"]; found {
-		err = json.Unmarshal(raw, &t.Reference)
-		if err != nil {
-			return fmt.Errorf("error reading 'reference': %w", err)
-		}
-	}
-
-	if raw, found := object["search"]; found {
-		err = json.Unmarshal(raw, &t.Search)
-		if err != nil {
-			return fmt.Errorf("error reading 'search': %w", err)
-		}
-	}
-
-	if raw, found := object["type"]; found {
-		err = json.Unmarshal(raw, &t.Type)
-		if err != nil {
-			return fmt.Errorf("error reading 'type': %w", err)
-		}
-	}
-
-	return err
-}
-
-// AsPersonalItem0 returns the union data inside the PersonalItem as a PersonalItem0
-func (t PersonalItem) AsPersonalItem0() (PersonalItem0, error) {
-	var body PersonalItem0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPersonalItem0 overwrites any union data inside the PersonalItem as the provided PersonalItem0
-func (t *PersonalItem) FromPersonalItem0(v PersonalItem0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePersonalItem0 performs a merge with any union data inside the PersonalItem, using the provided PersonalItem0
-func (t *PersonalItem) MergePersonalItem0(v PersonalItem0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsPersonalItem1 returns the union data inside the PersonalItem as a PersonalItem1
-func (t PersonalItem) AsPersonalItem1() (PersonalItem1, error) {
-	var body PersonalItem1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPersonalItem1 overwrites any union data inside the PersonalItem as the provided PersonalItem1
-func (t *PersonalItem) FromPersonalItem1(v PersonalItem1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePersonalItem1 performs a merge with any union data inside the PersonalItem, using the provided PersonalItem1
-func (t *PersonalItem) MergePersonalItem1(v PersonalItem1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t PersonalItem) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	object["createdAt"], err = json.Marshal(t.CreatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'createdAt': %w", err)
-	}
-
-	object["id"], err = json.Marshal(t.Id)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'id': %w", err)
-	}
-
-	object["label"], err = json.Marshal(t.Label)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'label': %w", err)
-	}
-
-	if t.Reference != nil {
-		object["reference"], err = json.Marshal(t.Reference)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'reference': %w", err)
-		}
-	}
-
-	object["revision"], err = json.Marshal(t.Revision)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'revision': %w", err)
-	}
-
-	if t.Search != nil {
-		object["search"], err = json.Marshal(t.Search)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'search': %w", err)
-		}
-	}
-
-	object["type"], err = json.Marshal(t.Type)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'type': %w", err)
-	}
-
-	object["updatedAt"], err = json.Marshal(t.UpdatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'updatedAt': %w", err)
-	}
-
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *PersonalItem) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["createdAt"]; found {
-		err = json.Unmarshal(raw, &t.CreatedAt)
-		if err != nil {
-			return fmt.Errorf("error reading 'createdAt': %w", err)
-		}
-	}
-
-	if raw, found := object["id"]; found {
-		err = json.Unmarshal(raw, &t.Id)
-		if err != nil {
-			return fmt.Errorf("error reading 'id': %w", err)
-		}
-	}
-
-	if raw, found := object["label"]; found {
-		err = json.Unmarshal(raw, &t.Label)
-		if err != nil {
-			return fmt.Errorf("error reading 'label': %w", err)
-		}
-	}
-
-	if raw, found := object["reference"]; found {
-		err = json.Unmarshal(raw, &t.Reference)
-		if err != nil {
-			return fmt.Errorf("error reading 'reference': %w", err)
-		}
-	}
-
-	if raw, found := object["revision"]; found {
-		err = json.Unmarshal(raw, &t.Revision)
-		if err != nil {
-			return fmt.Errorf("error reading 'revision': %w", err)
-		}
-	}
-
-	if raw, found := object["search"]; found {
-		err = json.Unmarshal(raw, &t.Search)
-		if err != nil {
-			return fmt.Errorf("error reading 'search': %w", err)
-		}
-	}
-
-	if raw, found := object["type"]; found {
-		err = json.Unmarshal(raw, &t.Type)
-		if err != nil {
-			return fmt.Errorf("error reading 'type': %w", err)
-		}
-	}
-
-	if raw, found := object["updatedAt"]; found {
-		err = json.Unmarshal(raw, &t.UpdatedAt)
-		if err != nil {
-			return fmt.Errorf("error reading 'updatedAt': %w", err)
-		}
-	}
-
-	return err
-}
-
-// AsPersonalReference0 returns the union data inside the PersonalReference as a PersonalReference0
-func (t PersonalReference) AsPersonalReference0() (PersonalReference0, error) {
-	var body PersonalReference0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPersonalReference0 overwrites any union data inside the PersonalReference as the provided PersonalReference0
-func (t *PersonalReference) FromPersonalReference0(v PersonalReference0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePersonalReference0 performs a merge with any union data inside the PersonalReference, using the provided PersonalReference0
-func (t *PersonalReference) MergePersonalReference0(v PersonalReference0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsPersonalReference1 returns the union data inside the PersonalReference as a PersonalReference1
-func (t PersonalReference) AsPersonalReference1() (PersonalReference1, error) {
-	var body PersonalReference1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPersonalReference1 overwrites any union data inside the PersonalReference as the provided PersonalReference1
-func (t *PersonalReference) FromPersonalReference1(v PersonalReference1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePersonalReference1 performs a merge with any union data inside the PersonalReference, using the provided PersonalReference1
-func (t *PersonalReference) MergePersonalReference1(v PersonalReference1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t PersonalReference) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if t.Identifier != nil {
-		object["identifier"], err = json.Marshal(t.Identifier)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'identifier': %w", err)
-		}
-	}
-
-	if t.Kind != nil {
-		object["kind"], err = json.Marshal(t.Kind)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'kind': %w", err)
-		}
-	}
-
-	object["origin"], err = json.Marshal(t.Origin)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'origin': %w", err)
-	}
-
-	if t.PresentationGeneration != nil {
-		object["presentationGeneration"], err = json.Marshal(t.PresentationGeneration)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'presentationGeneration': %w", err)
-		}
-	}
-
-	if t.ReleaseId != nil {
-		object["releaseId"], err = json.Marshal(t.ReleaseId)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'releaseId': %w", err)
-		}
-	}
-
-	if t.SourceId != nil {
-		object["sourceId"], err = json.Marshal(t.SourceId)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'sourceId': %w", err)
-		}
-	}
-
-	if t.Version != nil {
-		object["version"], err = json.Marshal(t.Version)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'version': %w", err)
-		}
-	}
-
-	if t.VersionPresent != nil {
-		object["versionPresent"], err = json.Marshal(t.VersionPresent)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'versionPresent': %w", err)
-		}
-	}
-
-	if t.VersionRevisionId != nil {
-		object["versionRevisionId"], err = json.Marshal(t.VersionRevisionId)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'versionRevisionId': %w", err)
-		}
-	}
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *PersonalReference) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["identifier"]; found {
-		err = json.Unmarshal(raw, &t.Identifier)
-		if err != nil {
-			return fmt.Errorf("error reading 'identifier': %w", err)
-		}
-	}
-
-	if raw, found := object["kind"]; found {
-		err = json.Unmarshal(raw, &t.Kind)
-		if err != nil {
-			return fmt.Errorf("error reading 'kind': %w", err)
-		}
-	}
-
-	if raw, found := object["origin"]; found {
-		err = json.Unmarshal(raw, &t.Origin)
-		if err != nil {
-			return fmt.Errorf("error reading 'origin': %w", err)
-		}
-	}
-
-	if raw, found := object["presentationGeneration"]; found {
-		err = json.Unmarshal(raw, &t.PresentationGeneration)
-		if err != nil {
-			return fmt.Errorf("error reading 'presentationGeneration': %w", err)
-		}
-	}
-
-	if raw, found := object["releaseId"]; found {
-		err = json.Unmarshal(raw, &t.ReleaseId)
-		if err != nil {
-			return fmt.Errorf("error reading 'releaseId': %w", err)
-		}
-	}
-
-	if raw, found := object["sourceId"]; found {
-		err = json.Unmarshal(raw, &t.SourceId)
-		if err != nil {
-			return fmt.Errorf("error reading 'sourceId': %w", err)
-		}
-	}
-
-	if raw, found := object["version"]; found {
-		err = json.Unmarshal(raw, &t.Version)
-		if err != nil {
-			return fmt.Errorf("error reading 'version': %w", err)
-		}
-	}
-
-	if raw, found := object["versionPresent"]; found {
-		err = json.Unmarshal(raw, &t.VersionPresent)
-		if err != nil {
-			return fmt.Errorf("error reading 'versionPresent': %w", err)
-		}
-	}
-
-	if raw, found := object["versionRevisionId"]; found {
-		err = json.Unmarshal(raw, &t.VersionRevisionId)
-		if err != nil {
-			return fmt.Errorf("error reading 'versionRevisionId': %w", err)
-		}
-	}
-
-	return err
-}
-
-// AsPersonalResolution0 returns the union data inside the PersonalResolution as a PersonalResolution0
-func (t PersonalResolution) AsPersonalResolution0() (PersonalResolution0, error) {
-	var body PersonalResolution0
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPersonalResolution0 overwrites any union data inside the PersonalResolution as the provided PersonalResolution0
-func (t *PersonalResolution) FromPersonalResolution0(v PersonalResolution0) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePersonalResolution0 performs a merge with any union data inside the PersonalResolution, using the provided PersonalResolution0
-func (t *PersonalResolution) MergePersonalResolution0(v PersonalResolution0) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsPersonalResolution1 returns the union data inside the PersonalResolution as a PersonalResolution1
-func (t PersonalResolution) AsPersonalResolution1() (PersonalResolution1, error) {
-	var body PersonalResolution1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPersonalResolution1 overwrites any union data inside the PersonalResolution as the provided PersonalResolution1
-func (t *PersonalResolution) FromPersonalResolution1(v PersonalResolution1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePersonalResolution1 performs a merge with any union data inside the PersonalResolution, using the provided PersonalResolution1
-func (t *PersonalResolution) MergePersonalResolution1(v PersonalResolution1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsPersonalResolution2 returns the union data inside the PersonalResolution as a PersonalResolution2
-func (t PersonalResolution) AsPersonalResolution2() (PersonalResolution2, error) {
-	var body PersonalResolution2
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromPersonalResolution2 overwrites any union data inside the PersonalResolution as the provided PersonalResolution2
-func (t *PersonalResolution) FromPersonalResolution2(v PersonalResolution2) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergePersonalResolution2 performs a merge with any union data inside the PersonalResolution, using the provided PersonalResolution2
-func (t *PersonalResolution) MergePersonalResolution2(v PersonalResolution2) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t PersonalResolution) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	if err != nil {
-		return nil, err
-	}
-	object := make(map[string]json.RawMessage)
-	if t.union != nil {
-		err = json.Unmarshal(b, &object)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if t.Indexed != nil {
-		object["indexed"], err = json.Marshal(t.Indexed)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'indexed': %w", err)
-		}
-	}
-
-	if t.Reference != nil {
-		object["reference"], err = json.Marshal(t.Reference)
-		if err != nil {
-			return nil, fmt.Errorf("error marshaling 'reference': %w", err)
-		}
-	}
-
-	object["status"], err = json.Marshal(t.Status)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'status': %w", err)
-	}
-
-	b, err = json.Marshal(object)
-	return b, err
-}
-
-func (t *PersonalResolution) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	if err != nil {
-		return err
-	}
-	object := make(map[string]json.RawMessage)
-	err = json.Unmarshal(b, &object)
-	if err != nil {
-		return err
-	}
-
-	if raw, found := object["indexed"]; found {
-		err = json.Unmarshal(raw, &t.Indexed)
-		if err != nil {
-			return fmt.Errorf("error reading 'indexed': %w", err)
-		}
-	}
-
-	if raw, found := object["reference"]; found {
-		err = json.Unmarshal(raw, &t.Reference)
-		if err != nil {
-			return fmt.Errorf("error reading 'reference': %w", err)
-		}
-	}
-
-	if raw, found := object["status"]; found {
-		err = json.Unmarshal(raw, &t.Status)
-		if err != nil {
-			return fmt.Errorf("error reading 'status': %w", err)
-		}
-	}
-
-	return err
-}
-
 // AsRepresentationInput0 returns the union data inside the RepresentationInput as a RepresentationInput0
 func (t RepresentationInput) AsRepresentationInput0() (RepresentationInput0, error) {
 	var body RepresentationInput0
@@ -19934,25 +19252,25 @@ type ClientInterface interface {
 	// Corresponds with GET /api/v1/overview/webhook-endpoints (the `GetWebhookEndpointOverview` operationId).
 	GetWebhookEndpointOverview(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ListPersonalItems List my saved resources and searches
+	// ListPersonalItems List my release bookmarks, followed Listings and saved searches
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 	//
 	// Corresponds with GET /api/v1/personal/items (the `ListPersonalItems` operationId).
 	ListPersonalItems(ctx context.Context, params *ListPersonalItemsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreatePersonalItemWithBody Save a resource or named search
+	// CreatePersonalItemWithBody Save a resource, named search or Listing follow
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/personal/items (the `CreatePersonalItem` operationId).
 	CreatePersonalItemWithBody(ctx context.Context, params *CreatePersonalItemParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreatePersonalItem Save a resource or named search
+	// CreatePersonalItem Save a resource, named search or Listing follow
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -19968,14 +19286,14 @@ type ClientInterface interface {
 
 	// GetPersonalItem Read my saved item
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 	//
 	// Corresponds with GET /api/v1/personal/items/{itemId} (the `GetPersonalItem` operationId).
 	GetPersonalItem(ctx context.Context, itemId UUID, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdatePersonalItemWithBody Update my saved item
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -19984,25 +19302,25 @@ type ClientInterface interface {
 
 	// UpdatePersonalItem Update my saved item
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 	//
 	// Takes a body of the `application/json` content type.
 	//
 	// Corresponds with PATCH /api/v1/personal/items/{itemId} (the `UpdatePersonalItem` operationId).
 	UpdatePersonalItem(ctx context.Context, itemId UUID, params *UpdatePersonalItemParams, body UpdatePersonalItemJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ResolvePersonalItemWithBody Resolve an exact saved resource without live discovery
+	// ResolvePersonalItemWithBody Check a bookmark or the current release of a followed local Listing
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /api/v1/personal/items/{itemId}/resolve (the `ResolvePersonalItem` operationId).
 	ResolvePersonalItemWithBody(ctx context.Context, itemId UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// ResolvePersonalItem Resolve an exact saved resource without live discovery
+	// ResolvePersonalItem Check a bookmark or the current release of a followed local Listing
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -24378,9 +23696,9 @@ func (c *Client) GetWebhookEndpointOverview(ctx context.Context, reqEditors ...R
 	return c.Client.Do(req)
 }
 
-// ListPersonalItems List my saved resources and searches
+// ListPersonalItems List my release bookmarks, followed Listings and saved searches
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 //
 // Corresponds with GET /api/v1/personal/items (the `ListPersonalItems` operationId).
 func (c *Client) ListPersonalItems(ctx context.Context, params *ListPersonalItemsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -24395,9 +23713,9 @@ func (c *Client) ListPersonalItems(ctx context.Context, params *ListPersonalItem
 	return c.Client.Do(req)
 }
 
-// CreatePersonalItemWithBody Save a resource or named search
+// CreatePersonalItemWithBody Save a resource, named search or Listing follow
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 //
 // Takes any type of body and a specified content type.
 //
@@ -24414,9 +23732,9 @@ func (c *Client) CreatePersonalItemWithBody(ctx context.Context, params *CreateP
 	return c.Client.Do(req)
 }
 
-// CreatePersonalItem Save a resource or named search
+// CreatePersonalItem Save a resource, named search or Listing follow
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -24452,7 +23770,7 @@ func (c *Client) DeletePersonalItem(ctx context.Context, itemId UUID, params *De
 
 // GetPersonalItem Read my saved item
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 //
 // Corresponds with GET /api/v1/personal/items/{itemId} (the `GetPersonalItem` operationId).
 func (c *Client) GetPersonalItem(ctx context.Context, itemId UUID, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -24469,7 +23787,7 @@ func (c *Client) GetPersonalItem(ctx context.Context, itemId UUID, reqEditors ..
 
 // UpdatePersonalItemWithBody Update my saved item
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 //
 // Takes any type of body and a specified content type.
 //
@@ -24488,7 +23806,7 @@ func (c *Client) UpdatePersonalItemWithBody(ctx context.Context, itemId UUID, pa
 
 // UpdatePersonalItem Update my saved item
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -24505,9 +23823,9 @@ func (c *Client) UpdatePersonalItem(ctx context.Context, itemId UUID, params *Up
 	return c.Client.Do(req)
 }
 
-// ResolvePersonalItemWithBody Resolve an exact saved resource without live discovery
+// ResolvePersonalItemWithBody Check a bookmark or the current release of a followed local Listing
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 //
 // Takes any type of body and a specified content type.
 //
@@ -24524,9 +23842,9 @@ func (c *Client) ResolvePersonalItemWithBody(ctx context.Context, itemId UUID, c
 	return c.Client.Do(req)
 }
 
-// ResolvePersonalItem Resolve an exact saved resource without live discovery
+// ResolvePersonalItem Check a bookmark or the current release of a followed local Listing
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -41139,27 +40457,27 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /api/v1/overview/webhook-endpoints (the `GetWebhookEndpointOverview` operationId).
 	GetWebhookEndpointOverviewWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWebhookEndpointOverviewResponse, error)
 
-	// ListPersonalItemsWithResponse List my saved resources and searches
+	// ListPersonalItemsWithResponse List my release bookmarks, followed Listings and saved searches
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with GET /api/v1/personal/items (the `ListPersonalItems` operationId).
 	ListPersonalItemsWithResponse(ctx context.Context, params *ListPersonalItemsParams, reqEditors ...RequestEditorFn) (*ListPersonalItemsResponse, error)
 
-	// CreatePersonalItemWithBodyWithResponse Save a resource or named search
+	// CreatePersonalItemWithBodyWithResponse Save a resource, named search or Listing follow
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/personal/items (the `CreatePersonalItem` operationId).
 	CreatePersonalItemWithBodyWithResponse(ctx context.Context, params *CreatePersonalItemParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePersonalItemResponse, error)
 
-	// CreatePersonalItemWithResponse Save a resource or named search
+	// CreatePersonalItemWithResponse Save a resource, named search or Listing follow
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -41177,7 +40495,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetPersonalItemWithResponse Read my saved item
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -41186,7 +40504,7 @@ type ClientWithResponsesInterface interface {
 
 	// UpdatePersonalItemWithBodyWithResponse Update my saved item
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -41195,25 +40513,25 @@ type ClientWithResponsesInterface interface {
 
 	// UpdatePersonalItemWithResponse Update my saved item
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with PATCH /api/v1/personal/items/{itemId} (the `UpdatePersonalItem` operationId).
 	UpdatePersonalItemWithResponse(ctx context.Context, itemId UUID, params *UpdatePersonalItemParams, body UpdatePersonalItemJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdatePersonalItemResponse, error)
 
-	// ResolvePersonalItemWithBodyWithResponse Resolve an exact saved resource without live discovery
+	// ResolvePersonalItemWithBodyWithResponse Check a bookmark or the current release of a followed local Listing
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /api/v1/personal/items/{itemId}/resolve (the `ResolvePersonalItem` operationId).
 	ResolvePersonalItemWithBodyWithResponse(ctx context.Context, itemId UUID, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ResolvePersonalItemResponse, error)
 
-	// ResolvePersonalItemWithResponse Resolve an exact saved resource without live discovery
+	// ResolvePersonalItemWithResponse Check a bookmark or the current release of a followed local Listing
 	//
-	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+	// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -51151,6 +50469,13 @@ func (r ListPersonalItemsResponse) ContentType() string {
 	return ""
 }
 
+// CreatePersonalItemResponse200Headers the declared response headers of an HTTP 200 response for CreatePersonalItem
+type CreatePersonalItemResponse200Headers struct {
+	CacheControl        *string
+	ETag                *string
+	IdempotencyReplayed *string
+}
+
 // CreatePersonalItemResponse201Headers the declared response headers of an HTTP 201 response for CreatePersonalItem
 type CreatePersonalItemResponse201Headers struct {
 	CacheControl        *string
@@ -51168,14 +50493,23 @@ type CreatePersonalItemResponseDefaultHeaders struct {
 type CreatePersonalItemResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PersonalReceipt
 	// JSON201 the response for an HTTP 201 `application/json` response
 	JSON201 *PersonalReceipt
 	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
 	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *CreatePersonalItemResponse200Headers
 	// Headers201 the parsed response headers for an HTTP 201 response
 	Headers201 *CreatePersonalItemResponse201Headers
 	// HeadersDefault the parsed response headers for an HTTP default response
 	HeadersDefault *CreatePersonalItemResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CreatePersonalItemResponse) GetJSON200() *PersonalReceipt {
+	return r.JSON200
 }
 
 // GetJSON201 returns the response for an HTTP 201 `application/json` response
@@ -60172,9 +59506,9 @@ func (c *ClientWithResponses) GetWebhookEndpointOverviewWithResponse(ctx context
 	return ParseGetWebhookEndpointOverviewResponse(rsp)
 }
 
-// ListPersonalItemsWithResponse List my saved resources and searches
+// ListPersonalItemsWithResponse List my release bookmarks, followed Listings and saved searches
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -60187,9 +59521,9 @@ func (c *ClientWithResponses) ListPersonalItemsWithResponse(ctx context.Context,
 	return ParseListPersonalItemsResponse(rsp)
 }
 
-// CreatePersonalItemWithBodyWithResponse Save a resource or named search
+// CreatePersonalItemWithBodyWithResponse Save a resource, named search or Listing follow
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -60202,9 +59536,9 @@ func (c *ClientWithResponses) CreatePersonalItemWithBodyWithResponse(ctx context
 	return ParseCreatePersonalItemResponse(rsp)
 }
 
-// CreatePersonalItemWithResponse Save a resource or named search
+// CreatePersonalItemWithResponse Save a resource, named search or Listing follow
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -60234,7 +59568,7 @@ func (c *ClientWithResponses) DeletePersonalItemWithResponse(ctx context.Context
 
 // GetPersonalItemWithResponse Read my saved item
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -60249,7 +59583,7 @@ func (c *ClientWithResponses) GetPersonalItemWithResponse(ctx context.Context, i
 
 // UpdatePersonalItemWithBodyWithResponse Update my saved item
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -60264,7 +59598,7 @@ func (c *ClientWithResponses) UpdatePersonalItemWithBodyWithResponse(ctx context
 
 // UpdatePersonalItemWithResponse Update my saved item
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -60277,9 +59611,9 @@ func (c *ClientWithResponses) UpdatePersonalItemWithResponse(ctx context.Context
 	return ParseUpdatePersonalItemResponse(rsp)
 }
 
-// ResolvePersonalItemWithBodyWithResponse Resolve an exact saved resource without live discovery
+// ResolvePersonalItemWithBodyWithResponse Check a bookmark or the current release of a followed local Listing
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -60292,9 +59626,9 @@ func (c *ClientWithResponses) ResolvePersonalItemWithBodyWithResponse(ctx contex
 	return ParseResolvePersonalItemResponse(rsp)
 }
 
-// ResolvePersonalItemWithResponse Resolve an exact saved resource without live discovery
+// ResolvePersonalItemWithResponse Check a bookmark or the current release of a followed local Listing
 //
-// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -73114,6 +72448,13 @@ func ParseCreatePersonalItemResponse(rsp *http.Response) (result *CreatePersonal
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PersonalReceipt
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
 		var dest PersonalReceipt
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -73131,6 +72472,30 @@ func ParseCreatePersonalItemResponse(rsp *http.Response) (result *CreatePersonal
 	}
 
 	switch {
+	case rsp.StatusCode == 200:
+		var headers CreatePersonalItemResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		if values := rsp.Header.Values("ETag"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "ETag", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.ETag = &value
+		}
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		response.Headers200 = &headers
 	case rsp.StatusCode == 201:
 		var headers CreatePersonalItemResponse201Headers
 		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {

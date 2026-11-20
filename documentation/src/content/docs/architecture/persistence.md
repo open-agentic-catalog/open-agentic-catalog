@@ -42,7 +42,7 @@ Unified Catalog Search uses one tenant-scoped, read-only PostgreSQL [repeatable-
 
 The stored `representations.agent_protocol_bindings` and `document_blobs.agent_protocol_bindings` arrays derive literal interface bindings from retained A2A bytes. Discovery joins these only through the released primary validated representation and current content authority. These are rebuildable derived data, not a replacement for immutable evidence.
 
-Migrations 000001-000054 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v31. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
+Migrations 000001-000055 are immutable historical steps. Later migrations replace earlier pre-release formats; descriptions below do not imply continued acceptance of those formats. The current runtime uses exact runtime privilege manifest v31. Optional semantic tables have a separate checksum ledger and explicit schema-owner setup. Core migrations remain independent of pgvector. Enabled runtimes validate semantic tables and exact grants but never install extensions or execute data definition language (DDL). See [hybrid-search storage and recovery](../operations/hybrid-search.mdx).
 
 ### 000001 - Catalog foundation
 
@@ -399,3 +399,7 @@ Migration 000053 adds a partial B-tree index on tenant, adoption Source ID and R
 ### 000054 - Private native capability projections
 
 Migration 000054 adds stored generated `native_capabilities` JSONB on representations and document blobs. A bounded pure function extracts the selected Agent or MCP Server Card declarations without changing retained bytes, digests or revisions. Missing streaming differs from false; malformed or over-limit selected evidence is unavailable. Search checks current content permission and released primary-card/profile identity before selection, ranking, totals, facets and hydration. Manifest v31 grants only the API projection reads and function execution. Drain runtimes and budget for both table rewrites before owner migration and exact privilege reconciliation. Logical restore recomputes these fields from retained content. No semantic reindex or external-observation repair applies; keep runtimes stopped on migration failure and retry forward after resolving its cause.
+
+### 000055 - Private Listing follows
+
+The personal library accepts one follow per owner and local Listing. Its optional private acknowledgement stores the observed release ID and disposition revision. A partial unique index enforces the owner/Listing pair. Existing owner RLS, quotas and exact runtime grants apply.

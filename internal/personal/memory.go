@@ -25,6 +25,11 @@ func ownerKey(a identity.Actor) string { return a.TenantID + "/" + a.RealmID + "
 
 // Detach all reference and criteria fields before returning or retaining them.
 func detached(i Item) Item {
+	i.checkedCurrent = nil
+	if i.Acknowledged != nil {
+		o := *i.Acknowledged
+		i.Acknowledged = &o
+	}
 	if i.Reference != nil {
 		r := *i.Reference
 		if r.VersionPresent != nil {
@@ -121,7 +126,10 @@ func ValidateSave(old, item Item, expected int64, remove bool, e audit.Record, a
 			return catalog.E(catalog.CodeInvalidArgument, "saved item removal is invalid")
 		}
 	}
-	if err := Validate(item.Input); err != nil {
+	if expected > 0 && item.ListingID != old.ListingID {
+		return catalog.E(catalog.CodeInvalidArgument, "a followed Listing cannot be replaced")
+	}
+	if err := (RetainedInput{item.Input, item.Acknowledged}).Validate(); err != nil {
 		return err
 	}
 	if err := audit.ValidateNewRecord(e); err != nil {
@@ -163,6 +171,19 @@ func (m *MemoryStore) Save(ctx context.Context, a identity.Actor, item Item, exp
 	old := items[item.ID]
 	if err := ValidateSave(old, item, expected, remove, e, a); err != nil {
 		return Item{}, err
+	}
+	if !remove && item.Type == "follow" {
+		if expected == 0 {
+			for _, other := range items {
+				if other.ListingID == item.ListingID {
+					other.Existing = true
+					return detached(other), nil
+				}
+			}
+		}
+		if item.checkedCurrent != nil && item.Acknowledged != nil && *item.checkedCurrent != *item.Acknowledged {
+			return Item{}, catalog.E(catalog.CodePreconditionFailed, "current release changed; refresh the follow")
+		}
 	}
 	if expected == 0 && len(items) >= MaxItems {
 		return Item{}, catalog.E(catalog.CodeConflict, "saved library contains 200 items; remove one first")

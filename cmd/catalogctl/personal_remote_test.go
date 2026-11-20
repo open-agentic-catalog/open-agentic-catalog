@@ -186,7 +186,7 @@ func TestPersonalSaveDurabilityAndConservativeRecovery(t *testing.T) {
 				return personalUnitReply(t, 201, map[string]any{"id": importTestPrincipal.RealmID, "revision": 1}), nil
 			})}
 			session := &remoteSession{client: client, origin: file.Origin, token: "unit"}
-			err = savePersonalItem(t.Context(), session, remoteOptions{}, state, &receipt, 0, file.Items[0])
+			err = savePersonalItem(t.Context(), session, remoteOptions{}, state, &receipt, 0, file.Items)
 			want := "uncertain"
 			if fault == "success" {
 				want = "acknowledged"
@@ -202,19 +202,19 @@ func TestPersonalSaveDurabilityAndConservativeRecovery(t *testing.T) {
 				t.Fatal("persisted recovery invalid", err)
 			}
 			if want == "uncertain" {
-				if err := savePersonalItem(t.Context(), session, remoteOptions{}, state, &progress, 0, file.Items[0]); err != nil || calls != 2 || progress.Steps[0].State != "acknowledged" {
+				if err := savePersonalItem(t.Context(), session, remoteOptions{}, state, &progress, 0, file.Items); err != nil || calls != 2 || progress.Steps[0].State != "acknowledged" {
 					t.Fatal("same-command recovery failed", err)
 				}
 			}
 			if want == "failed" || want == "acknowledged" {
-				if err := savePersonalItem(t.Context(), session, remoteOptions{}, state, &progress, 0, file.Items[0]); err == nil || calls != 1 {
+				if err := savePersonalItem(t.Context(), session, remoteOptions{}, state, &progress, 0, file.Items); err == nil || calls != 1 {
 					t.Fatal("terminal save repeated")
 				}
 			}
 			for _, first := range []time.Time{{}, time.Now().Add(time.Hour), time.Now().Add(-24 * time.Hour), time.Now().Add(-23*time.Hour - 59*time.Minute)} {
 				progress.Steps[0].State, progress.Steps[0].FirstAttempt = "uncertain", first
 				count := calls
-				if err := savePersonalItem(t.Context(), session, remoteOptions{}, state, &progress, 0, file.Items[0]); err == nil || calls != count || !progress.Steps[0].FirstAttempt.Equal(first) {
+				if err := savePersonalItem(t.Context(), session, remoteOptions{}, state, &progress, 0, file.Items); err == nil || calls != count || !progress.Steps[0].FirstAttempt.Equal(first) {
 					t.Fatal("unsafe replay sent or chronology refreshed")
 				}
 			}
@@ -326,7 +326,7 @@ func TestPersonalSaveRejectsUnverifiableAcknowledgements(t *testing.T) {
 				}
 				return reply, nil
 			})}
-			err = savePersonalItem(t.Context(), &remoteSession{client: client, origin: file.Origin, token: "unit"}, remoteOptions{}, state, &receipt, 2, file.Items[2])
+			err = savePersonalItem(t.Context(), &remoteSession{client: client, origin: file.Origin, token: "unit"}, remoteOptions{}, state, &receipt, 2, file.Items)
 			if (err == nil) != (fault == "valid") || calls != 1 {
 				t.Fatal("incorrect acknowledgement admission or implicit retry", err, calls)
 			}
@@ -373,7 +373,7 @@ func TestPersonalSaveRequiresDurableIntentBeforeSending(t *testing.T) {
 		t.Fatal("mutation sent without durably recording its original command")
 		return nil, io.ErrUnexpectedEOF
 	})}
-	if err := savePersonalItem(t.Context(), &remoteSession{client: client, origin: file.Origin, token: "unit"}, remoteOptions{}, state, &receipt, 0, file.Items[0]); err == nil {
+	if err := savePersonalItem(t.Context(), &remoteSession{client: client, origin: file.Origin, token: "unit"}, remoteOptions{}, state, &receipt, 0, file.Items); err == nil {
 		t.Fatal("failed intent persistence was accepted")
 	}
 	root, err := os.OpenRoot(state.root.Name())
@@ -462,5 +462,26 @@ func TestPersonalProgressValidatesAttemptedStates(t *testing.T) {
 				})
 			}
 		})
+	}
+}
+
+func TestPersonalFollowRestoreRepeatedIdentityBindsTheSameListing(t *testing.T) {
+	original := personal.Input{Type: "follow", Label: "first", ListingID: "00000000-0000-7000-8000-00000000000a"}
+	renamed := personal.Input{Type: "follow", Label: "second", ListingID: "00000000-0000-7000-8000-00000000000A"}
+	steps := make([]personalRestoreStep, 2)
+	steps[0].State = "acknowledged"
+	steps[0].Ack.ID = "00000000-0000-7000-8000-0000000000af"
+	for _, tc := range []struct {
+		previous       personal.Input
+		existing, want bool
+	}{
+		{original, true, true}, {original, false, false}, {personal.Input{Type: "follow", ListingID: "00000000-0000-7000-8000-00000000000b"}, true, false}, {personal.Input{Type: "search"}, true, false},
+	} {
+		for _, id := range []string{steps[0].Ack.ID, strings.ToUpper(steps[0].Ack.ID)} {
+			got := personalAckMatchesSelection(steps, []personal.Input{tc.previous, renamed}, 1, id, tc.existing)
+			if got != tc.want {
+				t.Fatalf("previous %s, receipt %s, duplicate %t, accepted %t", tc.previous.Type, id, tc.existing, got)
+			}
+		}
 	}
 }

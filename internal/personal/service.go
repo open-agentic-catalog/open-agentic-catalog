@@ -49,11 +49,20 @@ func Validate(in Input) error {
 	if err := ValidateLabel(in.Label); err != nil {
 		return err
 	}
+	if in.Type == "follow" {
+		if identity.ValidTenantID(string(in.ListingID)) && in.Reference == nil && in.Search == nil {
+			return nil
+		}
+		return catalog.E(catalog.CodeInvalidArgument, "follow requires one local Listing ID")
+	}
+	if in.ListingID != "" {
+		return catalog.E(catalog.CodeInvalidArgument, "only follows select a Listing ID")
+	}
 	if in.Type == "search" && in.Search != nil && in.Reference == nil {
 		return catalog.ValidateSavedSearch(in.Search.Query())
 	}
 	if in.Type != "resource" || in.Reference == nil || in.Search != nil {
-		return catalog.E(catalog.CodeInvalidArgument, "select one saved resource or search")
+		return catalog.E(catalog.CodeInvalidArgument, "select a resource bookmark, a Listing follow or a saved search")
 	}
 	r := *in.Reference
 	if r.Origin == "local" && r.Kind == "" && identity.ValidTenantID(r.ReleaseID) && identity.ValidTenantID(r.VersionRevisionID) && r.SourceID == "" && r.PresentationGeneration == 0 && r.Identifier == "" && r.VersionPresent == nil && r.Version == "" {
@@ -82,7 +91,7 @@ func (s *Service) List(ctx context.Context, q ListRequest) ([]Item, error) {
 	if err != nil {
 		return nil, err
 	}
-	if q.Type != "" && q.Type != "resource" && q.Type != "search" || q.Limit < 1 || q.Limit > 100 || q.AfterID != "" && !identity.ValidTenantID(q.AfterID) {
+	if q.Type != "" && q.Type != "resource" && q.Type != "search" && q.Type != "follow" || q.Limit < 1 || q.Limit > 100 || q.AfterID != "" && !identity.ValidTenantID(q.AfterID) {
 		return nil, catalog.E(catalog.CodeInvalidArgument, "saved item page is invalid")
 	}
 	if q.Label != nil {
@@ -94,6 +103,9 @@ func (s *Service) List(ctx context.Context, q ListRequest) ([]Item, error) {
 	return s.store.List(ctx, a, q)
 }
 func (s *Service) Save(ctx context.Context, id string, expected int64, in Input, remove bool) (Item, error) {
+	return s.SaveObserved(ctx, id, expected, in, remove, nil)
+}
+func (s *Service) SaveObserved(ctx context.Context, id string, expected int64, in Input, remove bool, observed *catalog.ReleaseObservation) (Item, error) {
 	ctx = identity.WithPermissionContext(ctx)
 	a, err := Actor(ctx)
 	if err != nil {
@@ -111,9 +123,29 @@ func (s *Service) Save(ctx context.Context, id string, expected int64, in Input,
 	} else if expected != 0 || remove {
 		return Item{}, catalog.E(catalog.CodeInvalidArgument, "saved item command is invalid")
 	}
+	var current *catalog.ReleaseObservation
+	if observed != nil && (in.Type != "follow" || remove || !validObservation(*observed)) {
+		return Item{}, catalog.E(catalog.CodeInvalidArgument, "only a follow accepts a valid current observation")
+	}
 	if !remove {
+		in.ListingID = ListingID(strings.ToLower(string(in.ListingID)))
+		if expected > 0 && old.ListingID != in.ListingID {
+			return Item{}, catalog.E(catalog.CodeInvalidArgument, "a followed Listing cannot be replaced")
+		}
+		if observed != nil {
+			displayed := *observed
+			displayed.ReleaseID = strings.ToLower(displayed.ReleaseID)
+			observed = &displayed
+		}
 		if err := Validate(in); err != nil {
 			return Item{}, err
+		}
+		if in.Type == "follow" && (expected == 0 || observed != nil) {
+			value, err := s.current(ctx, string(in.ListingID))
+			if err != nil {
+				return Item{}, err
+			}
+			current = &value
 		}
 		bytes, err := json.Marshal(in)
 		if err != nil || len(bytes) > MaxBodyBytes {
@@ -139,6 +171,11 @@ func (s *Service) Save(ctx context.Context, id string, expected int64, in Input,
 		action = "personal.item.updated"
 	}
 	item := Item{Input: in, ID: id, Revision: expected + 1, CreatedAt: old.CreatedAt, UpdatedAt: now}
+	item.Acknowledged = old.Acknowledged
+	item.checkedCurrent = current
+	if observed != nil {
+		item.Acknowledged = observed
+	}
 	if expected == 0 {
 		item.CreatedAt = now
 	}

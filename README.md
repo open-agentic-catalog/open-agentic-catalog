@@ -19,7 +19,7 @@ The Catalog UI with sample data. Read the [online manual](https://open-agentic-c
 - Manage tenant and namespace access, with audit records for changes.
 - Curate [shared collections](documentation/src/content/docs/guides/concepts.md#curate-a-shared-collection) of local Listings. Search the released names and descriptions, and narrow the results by resource kind.
 - Save resources and searches, submit version-specific ratings and send private feedback through the [Catalog UI](documentation/src/content/docs/guides/catalog-ui.mdx).
-- Back up and restore your private bookmarks and saved searches with [catalogctl](documentation/src/content/docs/reference/commands.md#back-up-and-restore-your-private-library).
+- Back up and restore your private bookmarks, followed Listings and saved searches with [catalogctl](documentation/src/content/docs/reference/commands.md#back-up-and-restore-your-private-library).
 - Observe the service with built-in Prometheus metrics; optionally enable OpenTelemetry tracing and signed webhooks.
 
 See [concepts and lifecycle](documentation/src/content/docs/guides/concepts.md) and [supported standards and formats](documentation/src/content/docs/reference/standards.mdx) for details.

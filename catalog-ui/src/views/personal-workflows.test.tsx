@@ -101,7 +101,7 @@ it.each(["   ", "bad\u007flabel"])(
     w.get.mockResolvedValue(etagReply({ items: [] }));
     render(<PersonalLibrary {...w.props} />);
     await screen.findByText(
-      "Your library is empty. Save a resource from Catalog or create a named search.",
+      "Your library is empty. Bookmark a resource, follow a local Listing or save a named search.",
     );
     change("Exact saved label", label);
     fireEvent.click(

@@ -13,6 +13,9 @@ type personalAuthority struct {
 	federation *federation.Manager
 }
 
+func (a personalAuthority) CurrentListingRelease(ctx context.Context, id string) (catalog.ReleaseObservation, error) {
+	return a.local.CurrentListingRelease(ctx, id)
+}
 func (a personalAuthority) Admit(ctx context.Context, ref personal.Reference) error {
 	if ref.Origin == "local" {
 		r, err := a.local.GetCatalogRecord(ctx, ref.ReleaseID)
@@ -129,7 +132,10 @@ func (s *Server) handlePersonalSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	var input personal.Input
+	var input struct {
+		personal.Input
+		Observed *catalog.ReleaseObservation `json:"observed,omitempty"`
+	}
 	remove := r.Method == http.MethodDelete
 	if remove && (r.ContentLength != 0 || len(r.TransferEncoding) > 0) {
 		s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "saved item removal does not accept a body"))
@@ -141,13 +147,13 @@ func (s *Server) handlePersonalSave(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	item, err := s.personal.Save(r.Context(), id, expected, input, remove)
+	item, err := s.personal.SaveObserved(r.Context(), id, expected, input.Input, remove, input.Observed)
 	if err != nil {
 		s.fail(w, r, err)
 		return
 	}
 	status := 200
-	if id == "" {
+	if id == "" && !item.Existing {
 		status = 201
 	}
 	setETag(w, item.Revision)
@@ -167,8 +173,18 @@ func (s *Server) handlePersonalResolve(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	if item.Type == "follow" {
+		resolution, err := s.personal.ResolveFollow(r.Context(), item.ID)
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		s.respondJSON(w, r, 200, resolution)
+		return
+	}
 	if item.Reference == nil {
-		s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "only saved resources can be resolved"))
+		s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "only resource bookmarks and Listing follows can be resolved"))
 		return
 	}
 	ref := *item.Reference

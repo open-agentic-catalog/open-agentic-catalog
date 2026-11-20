@@ -316,12 +316,15 @@ pub enum ListPersonalItemsType {
     Resource,
     #[serde(rename = "search")]
     Search,
+    #[serde(rename = "follow")]
+    Follow,
 }
 impl ListPersonalItemsType {
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Resource => "resource",
             Self::Search => "search",
+            Self::Follow => "follow",
         }
     }
 }
@@ -4034,9 +4037,9 @@ impl Client {
             }))
         }
     }
-    /// Save a resource or named search
+    /// Save a resource, named search or Listing follow
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
     ///
     /// `POST /api/v1/personal/items`
     pub async fn create_personal_item(
@@ -4058,7 +4061,7 @@ impl Client {
         let body_bytes = response.body.clone();
         let raw_body = body_bytes;
         let body_text = String::from_utf8_lossy(&raw_body).into_owned();
-        if false || status_code == 201u16 {
+        if false || status_code == 200u16 || status_code == 201u16 {
             match serde_json::from_slice(&raw_body) {
                 Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
                 Err(e) => Err(ApiOpError::api(ApiError {
@@ -4079,7 +4082,7 @@ impl Client {
                 typed: None,
                 parse_error: Some(format!(
                     "unexpected successful status {}; generated return type selects `{}`",
-                    status_code, "201",
+                    status_code, "200, 201",
                 )),
             }))
         } else {
@@ -8035,7 +8038,7 @@ impl Client {
     }
     /// Read my saved item
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
     ///
     /// `GET /api/v1/personal/items/{itemId}`
     pub async fn get_personal_item(
@@ -13162,9 +13165,9 @@ impl Client {
             }))
         }
     }
-    /// List my saved resources and searches
+    /// List my release bookmarks, followed Listings and saved searches
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
     ///
     /// `GET /api/v1/personal/items`
     pub async fn list_personal_items(
@@ -17322,9 +17325,9 @@ impl Client {
             }))
         }
     }
-    /// Resolve an exact saved resource without live discovery
+    /// Check a bookmark or the current release of a followed local Listing
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
     ///
     /// `POST /api/v1/personal/items/{itemId}/resolve`
     pub async fn resolve_personal_item(
@@ -19780,7 +19783,7 @@ impl Client {
     }
     /// Update my saved item
     ///
-    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+    /// Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
     ///
     /// `PATCH /api/v1/personal/items/{itemId}`
     pub async fn update_personal_item(

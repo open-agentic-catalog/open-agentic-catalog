@@ -311,6 +311,7 @@ type Repository interface {
 	// CreateListing inserts a stable listing with its transition evidence.
 	CreateListing(context.Context, CreateListingParams) (CatalogListing, error)
 	// GetListing looks up a listing by tenant ID and listing ID.
+	CurrentListingRelease(context.Context, string, string) (ReleaseObservation, error)
 	GetListing(context.Context, string, string) (CatalogListing, error)
 	// CreateListingRevision appends content and advances the listing's current revision.
 	CreateListingRevision(context.Context, CreateListingRevisionParams) (CatalogListing, ListingRevision, error)

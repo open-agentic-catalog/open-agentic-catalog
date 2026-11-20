@@ -112,7 +112,7 @@ Keep domain behavior in its owning package and infrastructure details at the edg
 | `internal/ratings/` | Human version-specific opinions, private consent, aggregate arithmetic, moderation and optional publisher summaries; no trust or installation authority. |
 | `internal/feedback/` | Private human submissions, administrator responses, immutable item context and safe text clearing. |
 | `internal/collections/` | Namespace-owned shared local Listing references, finite quotas and audited curation; no source access or publication authority. |
-| `internal/personal/` | Human-owned private saved resource references and named search criteria, finite quotas and audited commands; no authority over saved targets or private record cache. |
+| `internal/personal/` | Human-owned release bookmarks, local Listing follows and named search criteria, finite quotas and audited commands; no authority over saved targets or private record cache. |
 | `internal/identity/` | Actors, roles, namespace grants, and authorization context. |
 | `internal/adapter/` | Native Agent, MCP Server, Skill, and Plugin representation adapters. |
 | `internal/safeerr/` | Reviewed diagnostic messages, fixed operation stages and the fatal owned-panic classification; no logging or infrastructure dependencies. |

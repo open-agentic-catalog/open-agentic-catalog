@@ -38,6 +38,9 @@ func (s personalHandlerStore) Save(ctx context.Context, actor identity.Actor, it
 
 type personalHandlerAuthority struct{}
 
+func (personalHandlerAuthority) CurrentListingRelease(context.Context, string) (catalog.ReleaseObservation, error) {
+	return catalog.ReleaseObservation{}, catalog.E(catalog.CodeNotFound, "no Listing fixture")
+}
 func (personalHandlerAuthority) Admit(context.Context, personal.Reference) error {
 	return catalog.E(catalog.CodeForbidden, "resource authority is not selected by these handler tests")
 }

@@ -110,9 +110,13 @@ class Operators:
              "reference": {"origin": "local", "releaseId": record["release"]["id"],
                            "versionRevisionId": record["versionRevision"]["id"]}},
         ]
+        follow = {"type": "follow", "listingId": record["listing"]["id"], "label": "Private follow " + self.suffix}
+        observed = {"releaseId": record["release"]["id"], "revision": record["release"]["revision"]}
+        items.append(follow)
         original = []
         for item in items:
-            saved, headers = mutate(reader, "POST", "/api/v1/personal/items", item, 201)
+            body = {**item, "observed": observed} if item["type"] == "follow" else item
+            saved, headers = mutate(reader, "POST", "/api/v1/personal/items", body, 201)
             original.append((saved["id"], header(headers, "ETag")))
 
         def invoke(action, *args, token="local-reader"):
@@ -150,6 +154,20 @@ class Operators:
             assert all(actual.get(key) == value for key, value in expected.items()), "personal restore changed stored intent"
             assert actual["revision"] == 1 and row["id"] not in {value[0] for value in original}, "personal restore reused old identity"
             audit_once(self.api, "personal.item.created", "personal_item", row["id"])
+            if expected["type"] == "follow":
+                resolution, _ = reader.request("POST", path + "/resolve", {})
+                assert resolution == {"status": "available", "current": observed, "change": "unacknowledged"}, "restore marked a release as seen"
+                renamed = {**follow, "label": "Owner renamed " + self.suffix, "observed": observed}
+                _, headers = mutate(reader, "PATCH", path, renamed, 200, header(headers, "ETag"))
+                duplicate_args = ("--file", backup + "/library.json", "--state-file", state + ".duplicate", "--confirm", "--create", str(row["index"]))
+                duplicate = invoke("apply", *duplicate_args)
+                result = duplicate["items"][row["index"] - 1]
+                assert result["state"] == "already-followed" and result["id"] == row["id"], "duplicate follow was not reported"
+                assert invoke("resume", *duplicate_args) == duplicate, "completed duplicate restore changed"
+                retained, _ = reader.request("GET", path)
+                assert retained["label"] == renamed["label"] and retained["revision"] == 2, "duplicate overwrote follow"
+                resolution, _ = reader.request("POST", path + "/resolve", {})
+                assert resolution["change"] == "unchanged", "duplicate cleared the acknowledgement"
             mutate(reader, "DELETE", path, None, 200, header(headers, "ETag"))
 
     def anonymous_reads(self):

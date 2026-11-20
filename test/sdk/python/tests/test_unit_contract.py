@@ -31,6 +31,23 @@ def snake(name):
 
 
 class ContractUnits(unittest.TestCase):
+    def test_personal_library_round_trips_mixed_items_and_follow_observations(self):
+        from catalog_sdk.generated.models.personal_input import PersonalInput
+        from catalog_sdk.generated.models.personal_page import PersonalPage
+        from catalog_sdk.generated.models.personal_resolution import PersonalResolution
+
+        uid = "00000000-0000-7000-8000-000000000001"
+        observed = {"releaseId": uid, "revision": 2}
+        bookmark = {"type": "resource", "label": "bookmark", "reference": {"origin": "local", "releaseId": uid, "versionRevisionId": uid}}
+        search = {"type": "search", "label": "search", "search": {"text": "testing"}}
+        follow = {"type": "follow", "label": "follow", "listingId": uid}
+        command = {**follow, "observed": observed}
+        self.assertEqual(json.loads(PersonalInput.from_dict(command).to_json()), command)
+        page = {"items": [{**item, "id": uid, "revision": 1, "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"} for item in [bookmark, search, follow]]}
+        self.assertEqual(json.loads(PersonalPage.from_dict(page).to_json()), page)
+        for resolution in ({"status": "available", "current": observed, "change": "changed"}, {"status": "unavailable"}):
+            self.assertEqual(json.loads(PersonalResolution.from_dict(resolution).to_json()), resolution)
+
     def test_outgoing_relationships_preserve_text_without_a_current_destination(self):
         declaration = {"type": "depends_on", "targetIdentifier": "opaque:tools", "targetVersion": "1.0"}
         destination = {"releaseId": "00000000-0000-7000-8000-000000000101",

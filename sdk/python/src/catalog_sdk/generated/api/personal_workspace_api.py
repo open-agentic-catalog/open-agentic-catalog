@@ -68,9 +68,9 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> PersonalReceipt:
-        """Save a resource or named search
+        """Save a resource, named search or Listing follow
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 
         :param idempotency_key: Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. (required)
         :type idempotency_key: str
@@ -102,6 +102,7 @@ class PersonalWorkspaceApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             "201": "PersonalReceipt",
+            "200": "PersonalReceipt",
             "default": "Problem",
         }
         response_data = await self.api_client.call_api(
@@ -138,9 +139,9 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[PersonalReceipt]:
-        """Save a resource or named search
+        """Save a resource, named search or Listing follow
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 
         :param idempotency_key: Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. (required)
         :type idempotency_key: str
@@ -172,6 +173,7 @@ class PersonalWorkspaceApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             "201": "PersonalReceipt",
+            "200": "PersonalReceipt",
             "default": "Problem",
         }
         response_data = await self.api_client.call_api(
@@ -208,9 +210,9 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """Save a resource or named search
+        """Save a resource, named search or Listing follow
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. A follow binds a local Listing. Supply observed to acknowledge the displayed release on creation; omit it when restoring a preference. Duplicate follows preserve the existing label, revision and acknowledgement.
 
         :param idempotency_key: Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. (required)
         :type idempotency_key: str
@@ -242,6 +244,7 @@ class PersonalWorkspaceApi:
 
         _response_types_map: Dict[str, Optional[str]] = {
             "201": "PersonalReceipt",
+            "200": "PersonalReceipt",
             "default": "Problem",
         }
         response_data = await self.api_client.call_api(
@@ -274,7 +277,7 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> PersonalReceipt:
-        """Save a resource or named search (synchronous)
+        """Save a resource, named search or Listing follow (synchronous)
 
         Synchronous variant of :meth:`create_personal_item`. It calls the asynchronous
         method and blocks until it completes.
@@ -316,7 +319,7 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[PersonalReceipt]:
-        """Save a resource or named search (synchronous)
+        """Save a resource, named search or Listing follow (synchronous)
 
         Synchronous variant of :meth:`create_personal_item_with_http_info`. It calls the
         asynchronous method and blocks until it completes.
@@ -358,7 +361,7 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """Save a resource or named search (synchronous)
+        """Save a resource, named search or Listing follow (synchronous)
 
         Synchronous variant of :meth:`create_personal_item_without_preload_content`. It calls
         the asynchronous method and blocks until it completes.
@@ -906,7 +909,7 @@ class PersonalWorkspaceApi:
     ) -> PersonalItem:
         """Read my saved item
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 
         :param item_id: (required)
         :type item_id: UUID
@@ -964,7 +967,7 @@ class PersonalWorkspaceApi:
     ) -> ApiResponse[PersonalItem]:
         """Read my saved item
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 
         :param item_id: (required)
         :type item_id: UUID
@@ -1022,7 +1025,7 @@ class PersonalWorkspaceApi:
     ) -> RESTResponseType:
         """Read my saved item
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 
         :param item_id: (required)
         :type item_id: UUID
@@ -1232,9 +1235,9 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> PersonalPage:
-        """List my saved resources and searches
+        """List my release bookmarks, followed Listings and saved searches
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 
         :param type:
         :type type: str
@@ -1307,9 +1310,9 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[PersonalPage]:
-        """List my saved resources and searches
+        """List my release bookmarks, followed Listings and saved searches
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 
         :param type:
         :type type: str
@@ -1382,9 +1385,9 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """List my saved resources and searches
+        """List my release bookmarks, followed Listings and saved searches
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 
         :param type:
         :type type: str
@@ -1453,7 +1456,7 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> PersonalPage:
-        """List my saved resources and searches (synchronous)
+        """List my release bookmarks, followed Listings and saved searches (synchronous)
 
         Synchronous variant of :meth:`list_personal_items`. It calls the asynchronous
         method and blocks until it completes.
@@ -1496,7 +1499,7 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[PersonalPage]:
-        """List my saved resources and searches (synchronous)
+        """List my release bookmarks, followed Listings and saved searches (synchronous)
 
         Synchronous variant of :meth:`list_personal_items_with_http_info`. It calls the
         asynchronous method and blocks until it completes.
@@ -1539,7 +1542,7 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """List my saved resources and searches (synchronous)
+        """List my release bookmarks, followed Listings and saved searches (synchronous)
 
         Synchronous variant of :meth:`list_personal_items_without_preload_content`. It calls
         the asynchronous method and blocks until it completes.
@@ -2007,9 +2010,9 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> PersonalResolution:
-        """Resolve an exact saved resource without live discovery
+        """Check a bookmark or the current release of a followed local Listing
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 
         :param item_id: (required)
         :type item_id: UUID
@@ -2069,9 +2072,9 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[PersonalResolution]:
-        """Resolve an exact saved resource without live discovery
+        """Check a bookmark or the current release of a followed local Listing
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 
         :param item_id: (required)
         :type item_id: UUID
@@ -2131,9 +2134,9 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """Resolve an exact saved resource without live discovery
+        """Check a bookmark or the current release of a followed local Listing
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Resolve never makes a live request or substitutes a different release/source/generation.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: catalog.read. Responses are no-store. Cursors bind principal, filters and current policy. Bookmarks resolve only their exact saved identity. Follows compare the currently readable local release ID and disposition revision with the last acknowledgement. Unavailable targets return only status. Reads never acknowledge a change or contact a source.
 
         :param item_id: (required)
         :type item_id: UUID
@@ -2189,7 +2192,7 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> PersonalResolution:
-        """Resolve an exact saved resource without live discovery (synchronous)
+        """Check a bookmark or the current release of a followed local Listing (synchronous)
 
         Synchronous variant of :meth:`resolve_personal_item`. It calls the asynchronous
         method and blocks until it completes.
@@ -2223,7 +2226,7 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> ApiResponse[PersonalResolution]:
-        """Resolve an exact saved resource without live discovery (synchronous)
+        """Check a bookmark or the current release of a followed local Listing (synchronous)
 
         Synchronous variant of :meth:`resolve_personal_item_with_http_info`. It calls the
         asynchronous method and blocks until it completes.
@@ -2257,7 +2260,7 @@ class PersonalWorkspaceApi:
         _headers: Optional[Dict[StrictStr, Any]] = None,
         _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
     ) -> RESTResponseType:
-        """Resolve an exact saved resource without live discovery (synchronous)
+        """Check a bookmark or the current release of a followed local Listing (synchronous)
 
         Synchronous variant of :meth:`resolve_personal_item_without_preload_content`. It calls
         the asynchronous method and blocks until it completes.
@@ -2376,7 +2379,7 @@ class PersonalWorkspaceApi:
     ) -> PersonalReceipt:
         """Update my saved item
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 
         :param item_id: (required)
         :type item_id: UUID
@@ -2460,7 +2463,7 @@ class PersonalWorkspaceApi:
     ) -> ApiResponse[PersonalReceipt]:
         """Update my saved item
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 
         :param item_id: (required)
         :type item_id: UUID
@@ -2544,7 +2547,7 @@ class PersonalWorkspaceApi:
     ) -> RESTResponseType:
         """Update my saved item
 
-        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB.
+        Requires an active human membership. Requires library.own and exact tenant/realm/membership ownership; administrators cannot select another owner. Owner reads, rename and removal remain available after target access loss. OAuth scope when enforced: personal.write. Responses are no-store. Mutations require Idempotency-Key; updates and removals also require If-Match. Required audit contains identity/revision only; no public notification is created. At most 200 items per owner, labels up to 120 characters, bodies up to 16 KiB. For a follow, send observed to acknowledge that exact current release or omit it to rename the preference. A stale observation fails with 412.
 
         :param item_id: (required)
         :type item_id: UUID
