@@ -80,7 +80,8 @@ class FormalUnitTests(unittest.TestCase):
             def acquire(argv, **_kwargs):
                 self.assertEqual(argv[:3], ["gh", "release", "download"])
                 (Path(argv[-1]) / "GobraToolsLinux.zip").write_bytes(archive.read_bytes())
-            with patch.object(formal, "run", acquire), patch.object(formal, "verify_tools") as verify:
+            with patch.object(formal, "host"), patch.object(formal, "run", acquire), \
+                    patch.object(formal, "verify_tools") as verify:
                 for bad in (dict(pin, archiveSHA256="0" * 64), dict(pin, files=dict(pin["files"], **{"server/server.jar": "0" * 64}))):
                     config.write_text(json.dumps(bad))
                     with self.assertRaisesRegex(ValueError, "checksum"):
@@ -108,8 +109,13 @@ class FormalUnitTests(unittest.TestCase):
     def test_environment_host_and_bounded_inputs(self):
         with patch.dict(formal.os.environ, JAVA_TOOL_OPTIONS="-bad", JDK_JAVA_OPTIONS="-bad", _JAVA_OPTIONS="-bad", Z3_EXE="wrong"):
             self.assertFalse(set(formal.environment()) & {"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS", "Z3_EXE"})
-        with patch.object(formal.platform, "machine", return_value="aarch64"), self.assertRaises(ValueError):
+        with patch.object(formal.sys, "platform", "linux"), patch.object(formal.platform, "machine", return_value="x86_64"):
             formal.host()
+        for system, machine in (("linux", "aarch64"), ("darwin", "x86_64"), ("darwin", "arm64")):
+            with self.subTest(system=system, machine=machine), \
+                    patch.object(formal.sys, "platform", system), patch.object(formal.platform, "machine", return_value=machine), \
+                    self.assertRaisesRegex(ValueError, "formal tools require Linux amd64"):
+                formal.host()
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory).resolve() / "input"
             with self.assertRaises(ValueError):
