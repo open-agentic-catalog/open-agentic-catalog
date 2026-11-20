@@ -268,7 +268,7 @@ This procedure runs a disposable password-based Catalog on your machine. It uses
 
 ### Prepare tools, names and trust
 
-Run commands from the repository root. Install [Docker Engine](https://docs.docker.com/engine/install/) with [Compose v2](https://docs.docker.com/compose/install/), Python 3.12-3.14, [OpenSSL 3](https://docs.openssl.org/3.0/man1/openssl-req/), curl, Make and the repository's [Go/build prerequisites](../contributing/build-and-release.md). The PostgreSQL image supplies the PostgreSQL 18 operator client used below. Use a browser and, for the desktop steps, [VS Code](https://code.visualstudio.com/download). Image and tool acquisition need network access and disk space. The selected API/worker do not need embeddings or a model.
+Run commands from the repository root. Install [Docker Engine](https://docs.docker.com/engine/install/) with [the Compose plugin](https://docs.docker.com/compose/install/), Python 3.12-3.14, [OpenSSL 3](https://docs.openssl.org/3.0/man1/openssl-req/), curl, Make and the repository's [Go/build prerequisites](../contributing/build-and-release.md). The PostgreSQL image supplies the PostgreSQL 18 operator client used below. Use a browser and, for the desktop steps, [VS Code](https://code.visualstudio.com/download). Image and tool acquisition need network access and disk space. The selected API/worker do not need embeddings or a model.
 
 Keep ports `8443`, `8445`, `8447`, `9443` and `9445` free. Check `docker network ls` and your existing network configuration before selecting the private subnet. The example uses `172.29.245.0/24`, with the TLS frontend at `172.29.245.10`. If it conflicts, pass both `--subnet` and `--frontend-address` to the preparation command. Do not change another project's network.
 

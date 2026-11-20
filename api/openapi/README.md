@@ -4,4 +4,4 @@
 
 Update operations alongside routes, authorization, request/response types and positive/negative contract tests. The worker's separate operations listener is documented in [observability](../../documentation/src/content/docs/operations/observability.mdx), not this product contract.
 
-Run `make api-check` and `make api-contract-check`. After contract changes, also run `make client-go-check`, `make ui-client-check` and `make docs-site-check` to check generated consumers and rendered API documentation. See [API validation](../README.md#validate-a-change) for explicit tool installation and baseline compatibility checks.
+Run `make api-check` and `make api-contract-check`. After contract changes, also run `make client-go-check`, `make ui-client-check` and `make docs-site-check` to check generated consumers and rendered API documentation. Regenerate and test the affected [Go, Python, TypeScript or Rust SDKs](../../test/sdk/README.md) when an operation or schema they consume changes. See [API validation](../README.md#validate-a-change) for tool installation and baseline compatibility checks.

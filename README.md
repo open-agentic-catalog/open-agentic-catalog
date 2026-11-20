@@ -10,13 +10,14 @@ The Catalog UI with sample data. Read the [online manual](https://open-agentic-c
 
 ## Features
 
-- Author and version resources, import and export [JSON drafts](documentation/src/content/docs/guides/draft-transfer.mdx), then review and approve listings for publication.
-- Search published resources with filters and facets, with [optional hybrid keyword/semantic retrieval](documentation/src/content/docs/operations/hybrid-search.mdx).
+- Author and version resources, import and export [JSON drafts](documentation/src/content/docs/guides/draft-transfer.mdx), and submit Listings for review and publication. Authors can [inspect and renew stale validation evidence](documentation/src/content/docs/guides/resource-authoring.mdx#find-validation-evidence-needing-attention).
+- Search published resources with filters, facets and [optional hybrid retrieval](documentation/src/content/docs/operations/hybrid-search.mdx). In private discovery, filter local releases by [capabilities declared in Agent and MCP Server Cards](documentation/src/content/docs/guides/search-cookbook.mdx#filter-private-discovery-by-declared-capabilities).
 - Discover and synchronize metadata from [administrator-configured Catalogs](documentation/src/content/docs/guides/two-catalog-federation.mdx).
-- Connect assistants and IDEs through the read-only [Catalog MCP server](documentation/src/content/docs/guides/mcp-server.mdx).
+- Connect assistants and IDEs to the read-only [Catalog MCP server](documentation/src/content/docs/guides/mcp-server.mdx), or [search an ARD publication over MCP](documentation/src/content/docs/guides/mcp-server.mdx#search-an-ard-publication-over-mcp) when its discovery host enables it.
 - Browse and inspect releases with the optional [VS Code client](extensions/vscode/README.md).
 - Build API clients with the [Go, Python, TypeScript and Rust SDKs](sdk/README.md), or try the optional [local LangGraph discovery assistant](examples/langgraph/README.md).
 - Manage tenant and namespace access, with audit records for changes.
+- Curate [shared collections](documentation/src/content/docs/guides/concepts.md#curate-a-shared-collection) of local Listings. Search the released names and descriptions, and narrow the results by resource kind.
 - Save resources and searches, submit version-specific ratings and send private feedback through the [Catalog UI](documentation/src/content/docs/guides/catalog-ui.mdx).
 - Back up and restore your private bookmarks and saved searches with [catalogctl](documentation/src/content/docs/reference/commands.md#back-up-and-restore-your-private-library).
 - Observe the service with built-in Prometheus metrics; optionally enable OpenTelemetry tracing and signed webhooks.
@@ -25,7 +26,7 @@ See [concepts and lifecycle](documentation/src/content/docs/guides/concepts.md) 
 
 ## Quick start
 
-Use Compose to run PostgreSQL, the API, worker and browser UI together. Install GNU Make, Python 3.12-3.14, Git, curl and Docker with Compose v2 and BuildKit. Host Go and Node.js installations are not required for this startup path.
+Use Compose to run PostgreSQL, the API, worker and browser UI together. Install GNU Make, Python 3.12-3.14, Git, curl and Docker with the `docker compose` plugin and BuildKit. Host Go and Node.js installations are not required for this startup path.
 
 Run these commands from the repository root:
 

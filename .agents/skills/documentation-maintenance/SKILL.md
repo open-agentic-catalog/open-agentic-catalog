@@ -17,7 +17,7 @@ Edit an existing guide or runbook where it owns the procedure. Authored manual p
 
 API and pinned-format projections derive from their original contracts, so update the source rather than a generated copy. Use change planning (`.agents/skills/change-planning/SKILL.md`) for an architecture decision; maintaining an ADR does not create an implementation requirement by itself.
 
-Follow the authoring guide's writing style (`documentation/src/content/docs/contributing/documentation.mdx#writing-style`). Preserve ASCII and one-line paragraphs. Authored manual pages use one frontmatter title without a duplicate H1. Preserve the existing header format in root documents and skills. Verify relative paths and section anchors from the source location.
+Follow the authoring guide's writing style (`documentation/src/content/docs/contributing/documentation.mdx#writing-style`). Preserve ASCII and one-line paragraphs. Authored manual pages use one frontmatter title without a duplicate H1. Preserve the existing header format in root documents and skills. Resolve Markdown links from the file that contains them. Check literal instruction paths from the repository root, including paths in skill files. Verify each section anchor in the destination.
 
 ## Write clear technical documentation
 
@@ -50,7 +50,7 @@ Use one destination per LinkCard and keep comparison tables that need several li
 
 ## Reconcile tracking and evidence
 
-When local `todo/` exists, follow tracker maintenance (`todo/README.md`). The directory is gitignored and optional; do not require or create it for documentation work. Active and deferred work have separate files; completed scope moves in full to `todo/done.md`, preserving IDs, acceptance criteria, links, disposition and unresolved limits. Use unchecked active/deferred items and checked closed items. For partial completion, move only the completed subitems and keep the remaining parent scope explicit. Update the queue and incoming links without duplicating full task definitions. Keep public documentation independent of these local files.
+Use the tracker rules in `AGENTS.md#documentation-and-tracking` when working on local `todo/` files. Follow additional instructions in `todo/README.md` if present. The directory and its README are optional. Active and deferred work have separate files; completed scope moves in full to `todo/done.md`, preserving IDs, acceptance criteria, links, disposition and unresolved limits. Use unchecked active/deferred items and checked closed items. For partial completion, move only the completed subitems and keep the remaining parent scope explicit. Update the queue and incoming links without duplicating full task definitions. Keep public documentation independent of these local files.
 
 If local `continue.md` exists, keep it a concise handoff to the current sequence. It is gitignored and optional. Update `CONTEXT.md` when the runnable boundary changes. Reviewed local notes are optional context; do not record private workspace locations in repository files. Keep raw logs and generated reports under ignored `output/`. If local notes are unavailable, report results in the response without blocking verification. Notes and trackers stay outside the content map, site assets and search. A later passing run does not erase an unexplained earlier failure.
 

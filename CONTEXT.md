@@ -96,7 +96,7 @@ Documentation site -----> independent static reader manual
 | --- | --- |
 | Governance | Four resource kinds, immutable revisions and evidence, independent review, sealed version labels, releases and retained history. |
 | Identity | Development fixtures or signed JWT access tokens, Catalog-owned realms/memberships/grants, suspension and terminal offboarding. |
-| Discovery | Authenticated browse/Search/Explore, published records, ARD and AI Catalog snapshots, Registry Search/Explore/List and publication-authorized documents. |
+| Discovery | Authenticated Control Browse/Search/Explore and published records. Each configured discovery host selects its audience for ARD and AI Catalog publication. Optional public UI browsing and host-scoped ARD Search over MCP each have a separate switch, off by default. |
 | Federation | Administrative inspection, approved topology, indexed/live/hybrid participation, conditional retrieval, synchronization Jobs, provenance and explicit adoption. |
 | Private feedback | Human submissions, own/admin reads, exact item context, one current response and revision-fenced lifecycle. |
 | Operations | Exact runtime roles, migration planning/application, readiness/drain, audit export and isolated restore verification, bounded repair and cleanup. |
@@ -123,7 +123,7 @@ Inspect results, not just exit status: a successful read can return a failed Job
 | Resource | Stable identity and kind. Local authoring and tenant/private release responses preserve bounded opaque identifiers. External discovery publication requires AIR, such as `urn:air:catalog.example.com:default:order-exception-agent`. |
 | ResourceVersion | A version label for a resource, sealed by its first approval. |
 | VersionRevision | An immutable exact content revision with representation identity and digests. |
-| Listing / ListingRevision | The listing identity and immutable presentation revisions: display metadata, visibility, tags, queries and related discovery fields. |
+| Listing / ListingRevision | A Resource can have one stable Listing in its canonical namespace. Its immutable revisions retain presentation metadata, visibility and declared relationships. Its current release can change without changing the Listing ID. |
 | ValidationRun / EvidenceSet | Exact validation findings and retained evidence for the immutable subject. Structural validity and assessment states remain separate. |
 | ReviewSubmission | A frozen bundle of exact content, listing and validation identities presented for an independent decision. |
 | ListingRelease | A published approved bundle selected by a listing, with explicit lifecycle state. |
@@ -225,7 +225,7 @@ Development supplies synthetic `local-admin`, `local-reader`, `local-contributor
 | Surface | Representative routes and purpose |
 | --- | --- |
 | Bootstrap reads | `/api/v1/capabilities`, `/api/v1/me`. |
-| Governance | `/api/v1/resources`, resource versions/revisions, catalog listings/revisions, review submissions and listing releases. |
+| Governance | `/api/v1/resources`, resource and Listing revisions, validation maintenance, review submissions and Listing releases. |
 | Catalog | `GET /api/v1/catalog/resources`, exact published-record reads, `POST /api/v1/catalog/search` and `POST /api/v1/catalog/explore`. |
 | Semantic maintenance | `POST /api/v1/catalog:reindex` returns authorized rebuild work when enabled. |
 | Publication | `/api/v1/publication/snapshots`, snapshot `:activate` and `:rollback`, and `/api/v1/publication:unpublish`. |
@@ -241,11 +241,13 @@ Control objects reject duplicate keys, unknown fields, trailing values, invalid 
 
 Mutations require `Idempotency-Key`; revision-changing operations also require the returned `If-Match` ETag, commonly `"rev-N"`. Reservations bind canonical request, authority and tenant. State, required audit, classified outbox and replay response commit together; replay rechecks current access.
 
-After an uncertain transport outcome, retry with the same key and inputs. Cancellation does not prove rollback, and a new key risks duplicate work. Retain returned ETags rather than inventing them. Follow the Job after asynchronous `202` acceptance.
+After an uncertain transport outcome, retry with the same identity, key, inputs and original preconditions within 24 hours of the reservation. Once a completed reservation expires, reusing its key can start a new command. Check the affected state before another write. Cancellation does not prove rollback. Follow the Job after asynchronous `202` acceptance.
 
-Errors use RFC 9457 problem details, stable codes and `X-Request-ID`: input `400`, identity `401`, permission `403`, hidden/missing resource `404`, lifecycle/replay conflict `409`, revision precondition `412`, domain validation `422`, required work/dependency unavailable `503`. Public errors must conceal internal causes and private existence.
+Control API errors use RFC 9457 problem details, stable codes and `X-Request-ID`: input `400`, identity `401`, permission `403`, hidden/missing resource `404`, lifecycle/replay conflict `409`, revision precondition `412`, domain validation `422`, required work/dependency unavailable `503`. ARD REST uses its pinned error envelope. MCP uses JSON-RPC errors and tool refusals. All three surfaces protect private object existence and internal diagnostics.
 
-`catalogctl remote` uses an explicit API origin and manual bearer credentials or `--login-file`, never runtime SQL authority. `capabilities`, `search`, `record`, `job` and `source-compare` are reads; `source-compare` selects two complete saved source snapshots and returns one bounded membership-comparison page. `reindex` is a Tenant Administrator mutation requiring reason/idempotency key. Responses are bounded JSON. `catalogctl auth login` acquires human credentials through public-client PKCE; explicit login-file selection supports bounded serialized refresh. Online import and all export modes also accept explicit login files through the same provider. Manual bearer inputs remain independent. There is no redirect follow, URL execution or automatic all-page traversal. HTTP requires literal loopback; otherwise use HTTPS. The portable discovery Skill uses only capabilities/search/record.
+`catalogctl remote` uses an explicit API origin and manual bearer credentials or `--login-file`. Its transport refuses redirects and requires HTTPS except on literal loopback. `capabilities`, `search`, `record`, `job`, `trust-result` and `source-compare` are reads. Search returns one page per call. Source comparison reads one page from two complete snapshots of the same Source revision. It shows changes by default and includes unchanged entries with `--view all`. `reindex` requires enabled semantic search, tenant-level `operations.reindex`, a reason and an idempotency key. If OAuth scopes are enforced, it also requires `tenant.admin`. `trust-request` submits a source-bound verification Job under its own authorization checks. Responses are bounded JSON.
+
+`catalogctl auth login` acquires human credentials through public-client PKCE. Selecting a login file explicitly supports bounded, serialized refresh for online commands, including import and export. Batch export preview can follow continuation pages within its page and record limits. The portable discovery Skill uses only `capabilities`, `search` and `record`.
 
 `catalogctl personal export|preview|apply|resume` backs up private human bookmarks and saved searches. Its versioned file binds the exact API origin and tenant, includes at most 200 supported inputs in 4 MiB, and describes observed pages rather than a frozen snapshot. Export bounds enumeration at two 100-item pages and makes no target requests. Offline preview selects explicit create/skip choices; confirmed restore uses normal per-item saves under current owner authority, target admission and quotas. A locked private progress file binds exact input bytes, selection, principal, request bodies and original keys/times. Resume skips acknowledged saves and refuses unsafe uncertain replay after the conservative 23h59m window or with missing/future chronology. UI management remains individual; no bulk endpoint, server-side progress store, cross-Catalog mapping or account migration is implemented. See [private library backup](documentation/src/content/docs/reference/commands.md#back-up-and-restore-your-private-library).
 
@@ -507,7 +509,7 @@ Validation diagnostic limits are startup-configurable: `validation.maxFindings` 
 
 Backend request admission defaults to 2 MiB through `http.maxBodyBytes`/`CATALOG_HTTP_MAX_BODY_BYTES` (1 KiB-64 MiB). Helm and local launchers supply independent UI request/response budgets of 2 MiB/16 MiB, each at most 64 MiB; direct UI JSON requires both fields. Backend overrides do not change UI budgets. Job results use fixed compact schemas for snapshot references or indexing completion counts; observation groups have a fixed 100-contribution preview, with paged occurrence histories and separately authorized full reads. The [payload configuration section](documentation/src/content/docs/reference/configuration.mdx#payload-and-client-limits) covers examples, effective-setting inspection, rollouts and full-object routes; the chart's tested payload overlay changes no defaults.
 
-Precedence: compiled defaults, optional `--config` JSON, explicit environment overrides, role-specific validation. Typed JSON rejects duplicate/unknown members, nulls, trailing values and invalid combinations. Settings are startup-only. Groups cover runtime/HTTP, database, identity, Job retry policy, worker, discovery/publication, federation and optional capabilities.
+Precedence: compiled defaults, optional `--config` JSON, explicit environment overrides, role-specific validation. Typed JSON rejects duplicate/unknown members, nulls, trailing values and invalid combinations. The process loads deployment settings at startup. The [three live tenant settings](#live-tenant-operational-settings) are stored in the Catalog. Their consumers read the effective policy when scheduling a sync or admitting new work. Deployment settings cover runtime/HTTP, database, identity, Job retry policy, worker, discovery/publication, federation and optional capabilities.
 
 | Input | Purpose |
 | --- | --- |
@@ -570,7 +572,7 @@ make compose-up LOCAL_UI=on
 make compose-ps LOCAL_UI=on
 ```
 
-Defaults are loopback API 8080, UI 4180 and PostgreSQL 55432; stop conflicting processes first. Compose builds/recreates selected services, retains its named database volume, migrates/provisions development identities as owner, then starts distinct API and worker identities. Worker operations stay unpublished.
+Defaults are loopback API 8080, UI 4180 and PostgreSQL 55432. Select alternate ports if these are in use. Compose builds/recreates selected services, retains its named database volume, migrates/provisions development identities as owner, then starts distinct API and worker identities. Worker operations stay unpublished.
 
 The UI also serves the manual at `/docs/`. A new database starts without sample resources; load them explicitly or use the authoring UI.
 
@@ -624,7 +626,7 @@ The manual includes conditional deployment guides for [IBM Cloud Code Engine](do
 
 The backend non-root `FROM scratch` image packages both static stripped commands for Linux AMD64/ARM64 using a digest-pinned Go toolchain and embedded fallback public roots. It has no shell/package manager; invoke `catalogctl` directly for operations. The UI image separately packages its host/assets.
 
-Local image builds/inspection, licenses, SPDX SBOMs and chart packaging publish nothing. The application chart supports Kubernetes 1.34+, optional UI, role-specific probes, scoped configuration/Secrets, migration hooks and optional network policy; operators supply PostgreSQL. The separate monitoring chart adds no application readiness dependency, Operator, CRD or cluster-wide RBAC.
+Local image builds/inspection, licenses, SPDX SBOMs and chart packaging publish nothing. The application chart supports Kubernetes 1.34+, optional UI, role-specific probes, scoped configuration/Secrets, migration hooks and optional network policy. Operators supply PostgreSQL, the required roles and Secrets. On a [fresh install](documentation/src/content/docs/operations/maintenance.mdx#first-installation), the pre-install Job applies the schema and runtime grants before starting the API and worker. The separate monitoring chart adds no application readiness dependency, Operator, CRD or cluster-wide RBAC.
 
 The optional [MCP certificate procedure](documentation/src/content/docs/operations/deployment.mdx#optional-mcp-ingress-certificates) uses external cert-manager and an ingress controller. Its owned Minikube scenario checks leaf/key replacement, stable CA trust, issuer failure/recovery and unchanged Pod identities. The Catalog gains no controller dependency or certificate authority.
 
@@ -856,17 +858,17 @@ Backward wall-clock steps can put a fresh cursor beyond its permitted future-exp
 
 | Limit | Current boundary |
 | --- | --- |
-| Dependency advisories | The optional MCP Scanner retains two High advisories in its pinned LiteLLM closure. Native offline qualification does not clear those findings. Fresh scans determine other dependency and image findings; historical clean scans do not establish current security. |
+| Dependency advisories | The last recorded scan of the optional MCP Scanner lock reported two High LiteLLM findings. The scanner fixture has a separate dependency closure from the Catalog runtime. Use a fresh scan of the selected lock or image for current advisory status. |
 | Local wall-clock instability | Backward host/database time steps have been observed; stable-clock expiry and lock qualification remain incomplete. Feature-specific passes do not establish stable clocks. Preserve guards, deadlines and attribution limits. |
 | Native editor qualification | Windows/macOS support is implemented but has no native qualification. Linux desktop and same-machine Remote SSH/browser selections do not qualify other placements, OS associations, production keychains or screen readers. Some earlier credential, bookmark and CDP failures lack confirmed causes. |
-| Web UI qualification | Some lazy-screen, API startup and Plugin module-fetch failures remain unclassified. Separate access and audit failures retain their own scope; passing repeats do not establish their causes. |
+| Web UI qualification | The local Playwright suite and packaged UI/OIDC launcher use Chromium. Firefox and WebKit journeys require separate qualification. See the [UI test matrix](catalog-ui/tests/README.md#workflow-matrix). |
 | Topology qualification | Earlier inspection deadlines and one UI-login transport failure remain unexplained. Independent Catalogs, shared-database replicas and physical replication require separate tests. |
 | Browser and packaged refusals | Group/assignment chronology, audit/readiness, CLI callbacks and reduced-scope startup failures have distinct observations. Do not infer a shared cause from later passing repeats. |
 | Peer and recovery failures | Initial peer HTTP 400 responses, webhook missing-delivery/rotation failures, two recovery interruptions and cancellation-503 attribution remain unresolved where exact predicates are absent. |
 | External interoperability | Pinned local clients and peers qualify selected exchanges only. Pi/pi-ard retains authentication, media-type and formatted-provenance limits. ContextForge prompt forwarding has a private-CA limitation. Native errors and zero-import outcomes are not successful nonempty federation. No hosted compatibility is implied. |
 | Assurance | Automated accessibility does not replace manual zoom or assistive-technology checks. The dark preview has bounded painted-contrast checks for one axe overlap ambiguity. Image metadata checks do not qualify deleted-layer secret detection. Coverage, mutation tests, formal proofs, scanners and API-operation observations measure different scopes. |
 
-Select cleanup deliberately, stop affected producers and follow the [cleanup guide](documentation/src/content/docs/contributing/build-and-release.md#clean-local-builds-and-dependencies). Retained-checkout deletion is not selected for this review. The broad `make verify` aggregate includes disposable cleanup fixtures; it does not clean the retained checkout.
+Select cleanup deliberately, stop affected producers and follow the [cleanup guide](documentation/src/content/docs/contributing/build-and-release.md#clean-local-builds-and-dependencies). The broad `make verify` aggregate includes disposable cleanup fixtures; it does not clean the retained checkout.
 
 Managed icons/screenshots storage and software assessment are unimplemented and fail startup when enabled. General crawling, agent execution, runtime provisioning, public individual comments, feedback notifications, remote SDK publication, legal-hold/privacy automation and external compliance assurance are unavailable. Enabled explicit ANS registration assessments do not establish broad software trust or rights.
 
@@ -955,4 +957,4 @@ The optional [discovery-quality campaign](documentation/src/content/docs/guides/
 
 The [MCP Scanner example](examples/mcp-scanner/README.md) supplies capture validation, a locked YARA runner and private reports outside the Catalog runtime. Its signed receiver supports durable acceptance, explicit local HTTPS mappings, bounded MCP metadata reads and reconciliation. Receiver tests use a scanner executable double.
 
-The native scanner controls and full Compose campaign qualify benign and finding reports, signed worker delivery, restart, reconciliation and metadata-only collection. Application containers remain on an internal bridge without published ports; an owned host relay supplies fixed loopback review listeners. Cleanup stops the receiver and relay and removes only the owned environment. The scanner's pinned LiteLLM advisories remain unresolved. The example supplies no Catalog assessment capability.
+The native scanner controls and full Compose campaign qualify benign and finding reports, signed worker delivery, restart, reconciliation and metadata-only collection. Application containers remain on an internal bridge without published ports; an owned host relay supplies fixed loopback review listeners. Cleanup stops the receiver and relay and removes only the owned environment. The example supplies no Catalog assessment capability.

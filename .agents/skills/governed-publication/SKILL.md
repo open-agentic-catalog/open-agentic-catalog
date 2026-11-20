@@ -21,6 +21,8 @@ Construction, activation and rollback share current bounded eligibility checks. 
 
 Inspect current release eligibility and publisher-domain approval before rollback; retained history is not unconditional authority to reactivate. Safety withdrawal for domain revocation, release transitions or explicitly blocked external revalidation must follow the owning atomic command and preserve history. External-evidence expiry or policy drift has its documented stale-readiness behavior; do not equate it with explicit blocked revalidation or silently rewrite retained snapshots.
 
+For [validation maintenance](../../../documentation/src/content/docs/guides/resource-authoring.mdx#find-validation-evidence-needing-attention), select the highest validation run number for each eligible current revision. Include a row only when the caller has `resource.read`, `resource.read_content` and `resource.validate` in its namespace. Reading the list never fetches content or renews evidence. Renewal uses the existing validation command for the selected immutable revision, with current authorization and an idempotency key.
+
 Keep the transition, required audit, independently classified outbox records and replay result atomic. Preserve evidence attribution and emit withdrawal consequences only for affected active pointers. External retrieval uses the hardened fetcher outside interactive transactions. Use database changes (`.agents/skills/database-changes/SKILL.md`) for persistence/guards/grants, API contract changes (`.agents/skills/api-contract-changes/SKILL.md`) for wire semantics, and durable workflows (`.agents/skills/durable-workflows/SKILL.md`) for generation Jobs rather than introduce another publication orchestrator.
 
 ## Verify evidence and public behavior

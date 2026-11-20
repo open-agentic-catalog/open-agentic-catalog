@@ -332,7 +332,9 @@ The identifier and digest above are examples. Replace them with the exact select
 ./bin/catalogctl remote trust-result --source-id "$SOURCE_ID" --id "$JOB_ID"
 ```
 
-These commands use the existing remote URL, token, CA and timeout inputs. They do not load server configuration or access PostgreSQL. A 202 response means queued work, not successful verification. Result output uses the normal `data`/`meta` envelope. No command polls or retries automatically. See [assessment operations](../operations/federation.mdx#request-an-ans-registration-assessment).
+HTTP 202 acknowledges the request. Use `remote job` to check status. Once the Job succeeds, use `remote trust-result` to read the assessment. Both reads require current `job.read` and `source.read_evidence` permissions. When OAuth scopes are enforced, Job status requires `catalog.read` and the private result requires `sources.read`. The Catalog must record the private read in its audit log before returning evidence.
+
+These commands use the usual remote URL, token, CA and timeout inputs and return the `data`/`meta` envelope. Check again explicitly for progress. These commands do not poll or retry automatically. See [assessment operations](../operations/federation.mdx#request-an-ans-registration-assessment).
 
 ### Compare saved source synchronizations
 

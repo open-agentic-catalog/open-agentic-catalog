@@ -26,9 +26,9 @@ Keep reader procedures in [documentation/](documentation/README.md). Follow the 
 
 ## Verify the changed boundary
 
-Install each gate's required tools explicitly. Run `make validation-tools-install` before the first API lint run and `make workflow-tools-install` before workflow validation, which joins `make check`. Install the pinned [Ruff tool](documentation/src/content/docs/contributing/testing.md#python-linting) for Python checks.
+Install the [shared development tools](documentation/src/content/docs/contributing/build-and-release.md#shared-development-tools) with `make dev-tools-install` for Ruff, yamllint and the Python JSON Schema validator. Run `make validation-tools-install` for API lint and `make workflow-tools-install` for workflow validation. Run each installer separately. See the [testing guide](documentation/src/content/docs/contributing/testing.md#linting-and-source-checks) for the remaining tools required by `make check`.
 
-`verify` and packaged functional workflows also require the pinned [ARD conformance Python prerequisite](documentation/src/content/docs/contributing/testing.md#schema-validation-and-ard-conformance). For Go changes, format the changed files and run focused package tests. Then run:
+For Go changes, format the changed files and run focused package tests. Then run:
 
 ```sh
 make test-unit

@@ -198,7 +198,7 @@ Only explicitly offline targets such as `make vulncheck-offline` promise their d
 
 `make check` is the main source gate. Use the focused targets while editing. Run the aggregate after resolving findings. The tools and their scope are explicit:
 
-Install the `shellcheck`, `markdownlint`, `yamllint`, `hadolint` and Docker Compose CLIs, the pinned [Ruff executable](#python-linting), and the separate [API validation tools](#api-validation). Compose model validation parses configuration without starting containers. The Go analyzer commands select their versions from the Makefile and may acquire pinned modules through the Go toolchain. UI and documentation-site checks use their own locked npm installations.
+Install ShellCheck, markdownlint, Hadolint and the Docker Compose plugin. The [shared development tools](build-and-release.md#shared-development-tools) supply [Ruff](#python-linting) and yamllint. Install the [API validation tools](#api-validation) and actionlint (`make workflow-tools-install`) separately. Compose model validation parses configuration without starting containers. The Go analyzer commands select their versions from the Makefile and may acquire pinned modules through the Go toolchain. UI and documentation-site checks use their own locked npm installations.
 
 | Scope | Targets | Checks |
 | --- | --- | --- |
@@ -1902,7 +1902,7 @@ Review each survivor against the intended contract and existing assertions. Add 
 
 ## PostgreSQL integration environment
 
-`make compose-check` uses Docker Compose v2 by default to parse the development, disposable PostgreSQL, and merged functional models without starting them. It supplies fixed check projects and disables Compose's automatic `.env` loading. The workflow-only `COMPOSE` variable may select a compatible command or wrapper. It does not change the container engine used by image targets.
+`make compose-check` uses `docker compose` by default to parse the development, disposable PostgreSQL, and merged functional models without starting them. It supplies fixed check projects and disables Compose's automatic `.env` loading. The workflow-only `COMPOSE` variable may select a compatible command or wrapper. It does not change the container engine used by image targets.
 
 `make test-integration` creates a unique test-only Compose project from `compose.integration.yaml`. It starts digest-pinned PostgreSQL 18 with a disposable volume and waits for database health. It discovers a dynamically selected loopback port and constructs the test DSN. It then runs the race-enabled integration-tagged Go suite on the host. It removes the project and volume even if the suite or coverage floor fails. Concurrent invocations do not share a fixed project, port, container, network, or volume.
 
