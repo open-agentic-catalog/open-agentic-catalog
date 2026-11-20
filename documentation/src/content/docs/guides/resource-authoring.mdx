@@ -678,6 +678,21 @@ Version, Listing and review detail offer **Choose revisions to compare**. Choose
 
 **Inspect selected documents** reads retained documents only on request. Changing either representation clears the previous documents; select Inspect again to read the new pair. Available exact text retains whitespace and numeric tokens and passes checksum verification. Decoded inline JSON displays a precision limitation; unsupported lossless comparisons are refused. Plugin/Skill manifests and inventories can be inspected, but comparison never fetches or reconstructs their archives.
 
+#### Read capability and connection changes
+
+After you choose **Inspect selected documents**, look for **Declared capability and connection changes**. Both representations must be primary cards that passed validation under the same supported profile. The **Before document** and **After document** sections identify each representation, its profile and its digest. Either side can be inline JSON or a retained artifact. For a card originally retrieved from a URL, the UI reads the Catalog's retained copy and checks its bytes against the artifact ID, response checksum and selected representation digest.
+
+| Cards | What to look for |
+| --- | --- |
+| A2A Agent Cards | A removed or added skill ID, changes to a matched skill's declared media modes, changes to default modes, or an explicit streaming value. Interfaces are compared in order, including binding, protocol version, URL and routing tenant. The first interface is preferred. |
+| MCP Server Cards | A remote added or removed, a change to its declared protocol versions, or a change in remote order. If the same transport and URL template appear more than once, the summary counts occurrences of each combination of transport, URL and declared versions. Remote order does not indicate preference. |
+
+An omitted Agent streaming declaration differs from an explicit `false`. Per-skill modes appear only when declared. Reordering a media list, or repeating a protocol version within a remote, does not change its membership. A Server Card can keep its URL and remove a protocol version. The **Remote connections** group names the removed version. Inspect the original documents to review changes to headers, authentication, variables, descriptions or extensions. Those fields can change even when the summary says **No changes in the selected declarations**. The browser does not contact a declared endpoint or test compatibility.
+
+A duplicate Agent skill ID makes the summary ambiguous. The comparison also has fixed work limits: 2 MiB per document, 64 levels of JSON nesting, 128 entries per selected list, 64 changed fields and 16,384 characters of change text (UTF-16 units). When a summary is unavailable, use the document views below for the evidence they can display.
+
+#### Inspect exact text
+
 **Document changes** highlights removed and added text, including small changes within a JSON line. Select **Next change** or **Previous change** to move keyboard focus to a changed region. With a change focused, use **Alt+Down** or **Alt+Up** to continue in either direction. The summary announces its position. Both selected revision IDs remain above the comparison.
 
 Excerpts mark spaces, tabs, line endings and a leading byte order mark (BOM). These markers help distinguish changes that look identical on screen. The original documents remain below, with their exact text and copy controls. **Format JSON** affects only that original-document display; it does not change the comparison or stored bytes.

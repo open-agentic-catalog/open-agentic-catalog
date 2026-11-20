@@ -18,7 +18,9 @@ The optional public reader at `/discover` is disabled by default. Enable it expl
 
 ## Document comparison limits
 
-Revision comparison uses `diff` (jsdiff) on verified original text. Line differences select blocks; character differences locate edits within each block. It does not use a JSON serializer, ignore whitespace or retrieve external content. The original text view keeps its independent 2 MiB limit per document.
+Exact text comparison uses `diff` (jsdiff) on verified original text. Line differences select blocks; character differences locate edits within each block. It does not use a JSON serializer, ignore whitespace or retrieve external content. The original text view keeps its independent 2 MiB limit per document.
+
+The [declaration summary](../documentation/src/content/docs/guides/resource-authoring.mdx#read-capability-and-connection-changes) compares selected fields from two validated primary A2A Agent Cards or MCP Server Cards. Each side uses its authorized inline data or verified artifact bytes. Both forms share the native JSON limits of 64 container levels and 262,144 structural characters (braces, brackets, colons and commas). The projection caps each selected list at 128 entries and the output at 64 changes and 16,384 UTF-16 code units. MCP order comparison uses at most 128 identifiers per side and preserves duplicate counts. An unavailable summary leaves eligible text navigation available.
 
 Detailed navigation enforces these fixed bounds. Exceeding any bound discards all detailed output and leaves the original view available.
 

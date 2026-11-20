@@ -521,6 +521,9 @@ function ReviewDetail(props: WorkspaceProps) {
               ownerId={detail.data.submission.listingId}
               namespaceId={detail.data.listing.namespaceId}
               fixedAfter={detail.data.submission.listingRevisionId}
+              submittedVersionRevisionId={
+                detail.data.submission.versionRevisionId
+              }
             />
             {!stale && <p>{reviewGuidance[detail.data.submission.state]}</p>}
             <p>
