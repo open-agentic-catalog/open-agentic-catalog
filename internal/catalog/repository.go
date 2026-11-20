@@ -344,6 +344,8 @@ type Repository interface {
 	SearchCatalog(context.Context, string, CatalogSearchRepositoryRequest) (CatalogSearchRepositoryPage, error)
 	// ExploreCatalog computes a tenant's discovery results and requested facets.
 	ExploreCatalog(context.Context, string, SearchQuery, []FacetRequest) (ExploreResponse, error)
+	ListReleaseRelationships(context.Context, string, string, RelationshipPageRequest) (RelationshipSelection, error)
+
 	// GetCatalogRecord resolves an eligible release-backed record by tenant and release ID.
 	GetCatalogRecord(context.Context, string, string) (CatalogRecord, error)
 	// HasPublishedIdentity checks local precedence for a tenant, identifier and

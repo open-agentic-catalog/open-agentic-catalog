@@ -31,6 +31,18 @@ def snake(name):
 
 
 class ContractUnits(unittest.TestCase):
+    def test_outgoing_relationships_preserve_text_without_a_current_destination(self):
+        declaration = {"type": "depends_on", "targetIdentifier": "opaque:tools", "targetVersion": "1.0"}
+        destination = {"releaseId": "00000000-0000-7000-8000-000000000101",
+                       "listingRevisionId": "00000000-0000-7000-8000-000000000201", "displayName": "Tools", "version": "2.0"}
+        wire = {"items": [{"declaration": declaration}, {"declaration": {"type": "bundled_with", "targetIdentifier": "opaque:tools"}, "related": destination}]}
+        page = models.ReleaseRelationshipPage.from_dict(wire)
+        self.assertIsNone(page.items[0].related)
+        self.assertEqual(page.items[0].declaration.target_version, "1.0")
+        self.assertIsNone(page.items[1].declaration.target_version)
+        self.assertEqual(page.items[1].related.version, "2.0")
+        self.assertEqual(json.loads(page.to_json()), wire)
+
     def test_declared_mcp_tools_preserve_opt_in_and_exact_match_evidence(self):
         for wire in ({"nativeCapabilities": {"agentStreaming": False, "agentSkillIds": ["resolve-invoices"], "agentSkillTags": ["finance, billing "]}, "origins": ["local"]}, {"nativeCapabilities": {"mcpTransports": ["sse"], "mcpProtocolVersions": ["2026-07-28"]}, "origins": ["local"]}, {"text": "pdf tables", "includeMcpTools": True, "origins": ["local"]}, {"includeMcpTools": False}, {}):
             with self.subTest(wire=wire):

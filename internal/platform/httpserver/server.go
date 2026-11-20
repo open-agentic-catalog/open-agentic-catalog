@@ -441,6 +441,7 @@ func (s *Server) routes(router *http.ServeMux) {
 	router.HandleFunc("POST /api/v1/review-submissions/{submissionCommand}", s.withQueryParameters(s.dispatchSubmissionCommand))
 	router.HandleFunc("POST /api/v1/catalog-listings/{listingCommand}", s.withQueryParameters(s.dispatchListingCommand))
 	router.HandleFunc("GET /api/v1/listing-releases/{releaseId}", s.withQueryParameters(s.withUUIDPathParameters(s.handleReleaseGet, "releaseId")))
+	router.HandleFunc("GET /api/v1/listing-releases/{releaseId}/relationships", s.withUUIDPathParameters(s.handleReleaseRelationships, "releaseId"))
 	router.HandleFunc("GET /api/v1/listing-releases/{releaseId}/withdrawal-preview", s.withQueryParameters(s.withUUIDPathParameters(s.handleReleaseWithdrawalPreview, "releaseId"), "transition"))
 	router.HandleFunc("POST /api/v1/listing-releases/{releaseCommand}", s.withQueryParameters(s.dispatchReleaseCommand))
 	router.HandleFunc("GET /api/v1/artifacts/{artifactId}/content", s.withQueryParameters(s.handleArtifactGet))

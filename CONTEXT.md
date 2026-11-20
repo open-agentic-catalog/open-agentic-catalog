@@ -123,7 +123,7 @@ Inspect results, not just exit status: a successful read can return a failed Job
 | Resource | Stable identity and kind. Local authoring and tenant/private release responses preserve bounded opaque identifiers. External discovery publication requires AIR, such as `urn:air:catalog.example.com:default:order-exception-agent`. |
 | ResourceVersion | A version label for a resource, sealed by its first approval. |
 | VersionRevision | An immutable exact content revision with representation identity and digests. |
-| Listing / ListingRevision | A Resource can have one stable Listing in its canonical namespace. Its immutable revisions retain presentation metadata, visibility and declared relationships. Its current release can change without changing the Listing ID. |
+| Listing / ListingRevision | A Resource can have one stable Listing in its canonical namespace. Its immutable revisions retain presentation metadata, visibility and declared relationships. Its current release can change without changing the Listing ID. Authorized one-hop relationship reads use sealed revisions for current source and destination links. Withdrawal planning separately selects exact-version and unversioned dependencies. |
 | ValidationRun / EvidenceSet | Exact validation findings and retained evidence for the immutable subject. Structural validity and assessment states remain separate. |
 | ReviewSubmission | A frozen bundle of exact content, listing and validation identities presented for an independent decision. |
 | ListingRelease | A published approved bundle selected by a listing, with explicit lifecycle state. |

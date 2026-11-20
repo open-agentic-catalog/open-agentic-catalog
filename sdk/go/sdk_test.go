@@ -20,6 +20,28 @@ import (
 
 type doerFunc func(*http.Request) (*http.Response, error)
 
+func TestReleasedRelationshipsPreserveUnresolvedExactVersion(t *testing.T) {
+	const release = "00000000-0000-7000-8000-000000000101"
+	var id ReleaseId
+	if err := id.UnmarshalText([]byte(release)); err != nil {
+		t.Fatal(err)
+	}
+	c := unitClient(t, Config{Token: "reader"}, doerFunc(func(r *http.Request) (*http.Response, error) {
+		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/listing-releases/"+release+"/relationships" || r.URL.RawQuery != "view=outgoing" {
+			t.Fatal(r.URL)
+		}
+		return response(`{"items":[{"declaration":{"type":"depends_on","targetIdentifier":"opaque:tools","targetVersion":"1.0"}},{"declaration":{"type":"bundled_with","targetIdentifier":"opaque:tools"},"related":{"releaseId":"00000000-0000-7000-8000-000000000301","listingRevisionId":"00000000-0000-7000-8000-000000000401","displayName":"Tools","version":"2.0"}}]}`, 200, "application/json"), nil
+	}))
+	reply, err := c.ListReleaseRelationshipsWithResponse(t.Context(), id, &ListReleaseRelationshipsParams{View: Outgoing})
+	if err != nil || reply.JSON200 == nil || len(reply.JSON200.Items) != 2 {
+		t.Fatal(reply, err)
+	}
+	missing, current := reply.JSON200.Items[0], reply.JSON200.Items[1]
+	if missing.Related != nil || missing.Declaration.TargetVersion == nil || *missing.Declaration.TargetVersion != "1.0" || current.Declaration.TargetVersion != nil || current.Related == nil || current.Related.Version != "2.0" {
+		t.Fatal(missing, current)
+	}
+}
+
 func TestWithdrawalPreviewIsOneExplicitReadAndDecodesBoundReferences(t *testing.T) {
 	const release = "00000000-0000-7000-8000-000000000101"
 	var identifier ReleaseId

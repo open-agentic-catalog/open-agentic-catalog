@@ -1,3 +1,4 @@
+import { ReleaseRelationships } from "./ReleaseRelationships";
 import { Facts } from "./Facts";
 import { ReleaseState } from "./ReleaseState";
 import { ScrollableTable } from "./ScrollableTable";
@@ -1721,6 +1722,19 @@ function ReleaseActions(
             )}
           </section>
         )}
+        {action !== "deprecate" &&
+          metadataAllowed &&
+          historyAllowed &&
+          !props.stale && (
+            <ReleaseRelationships
+              key={previewSelection}
+              client={props.client}
+              basePath={props.runtime.basePath}
+              onFailure={props.onFailure}
+              releaseId={props.release.id}
+              view="dependencies"
+            />
+          )}
         <Field label="Disposition">
           <select
             required

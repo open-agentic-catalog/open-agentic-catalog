@@ -363,11 +363,14 @@ __all__ = [
     "Reason",
     "ReferralPolicy",
     "ReindexCatalogRequest",
+    "RelatedRelease",
     "Relationship",
     "ReleaseOverview",
+    "ReleaseRelationshipPage",
     "ReleaseTransition",
     "ReleaseWithdrawalPreview",
     "ReleaseWithdrawalSnapshot",
+    "ReleasedRelationship",
     "RemoveSource",
     "Representation",
     "RepresentationInput",
@@ -1312,9 +1315,15 @@ from catalog_sdk.generated.models.referral_policy import (
 from catalog_sdk.generated.models.reindex_catalog_request import (
     ReindexCatalogRequest as ReindexCatalogRequest,
 )
+from catalog_sdk.generated.models.related_release import (
+    RelatedRelease as RelatedRelease,
+)
 from catalog_sdk.generated.models.relationship import Relationship as Relationship
 from catalog_sdk.generated.models.release_overview import (
     ReleaseOverview as ReleaseOverview,
+)
+from catalog_sdk.generated.models.release_relationship_page import (
+    ReleaseRelationshipPage as ReleaseRelationshipPage,
 )
 from catalog_sdk.generated.models.release_transition import (
     ReleaseTransition as ReleaseTransition,
@@ -1324,6 +1333,9 @@ from catalog_sdk.generated.models.release_withdrawal_preview import (
 )
 from catalog_sdk.generated.models.release_withdrawal_snapshot import (
     ReleaseWithdrawalSnapshot as ReleaseWithdrawalSnapshot,
+)
+from catalog_sdk.generated.models.released_relationship import (
+    ReleasedRelationship as ReleasedRelationship,
 )
 from catalog_sdk.generated.models.remove_source import RemoveSource as RemoveSource
 from catalog_sdk.generated.models.representation import Representation as Representation

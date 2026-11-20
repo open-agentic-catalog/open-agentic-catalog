@@ -32,6 +32,9 @@ from catalog_sdk.generated.models.catalog_search_response import CatalogSearchRe
 from catalog_sdk.generated.models.catalog_search_result import CatalogSearchResult
 from catalog_sdk.generated.models.job import Job
 from catalog_sdk.generated.models.reindex_catalog_request import ReindexCatalogRequest
+from catalog_sdk.generated.models.release_relationship_page import (
+    ReleaseRelationshipPage,
+)
 from catalog_sdk.generated.models.resource_kind import ResourceKind
 from catalog_sdk.generated.models.visibility import Visibility
 
@@ -2997,6 +3000,470 @@ class CatalogDiscoveryApi:
         return self.api_client.param_serialize(
             method="GET",
             resource_path="/api/v1/audit-events",
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_release_relationships(
+        self,
+        view: Annotated[
+            StrictStr,
+            Field(description="Direction or version-specific withdrawal impact."),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ReleaseRelationshipPage:
+        """Inspect declared relationships of a local release
+
+        Outgoing and incoming views require a current published or deprecated release. Both ends require independently granted resource.read. Outgoing declarations remain visible when their exact target has no readable current match. Incoming rows name their current source. The dependencies view additionally requires resource.read_history on the selected release, which may be historical. It returns only current depends_on declarations naming its exact version or omitting a version. Results are ordered by source release UUID and declaration order. A changed Catalog generation or authorization invalidates continuation.
+
+        :param view: Direction or version-specific withdrawal impact. (required)
+        :type view: str
+        :param release_id: Listing release identifier. (required)
+        :type release_id: UUID
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_release_relationships_serialize(
+            view=view,
+            release_id=release_id,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ReleaseRelationshipPage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_release_relationships_with_http_info(
+        self,
+        view: Annotated[
+            StrictStr,
+            Field(description="Direction or version-specific withdrawal impact."),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ReleaseRelationshipPage]:
+        """Inspect declared relationships of a local release
+
+        Outgoing and incoming views require a current published or deprecated release. Both ends require independently granted resource.read. Outgoing declarations remain visible when their exact target has no readable current match. Incoming rows name their current source. The dependencies view additionally requires resource.read_history on the selected release, which may be historical. It returns only current depends_on declarations naming its exact version or omitting a version. Results are ordered by source release UUID and declaration order. A changed Catalog generation or authorization invalidates continuation.
+
+        :param view: Direction or version-specific withdrawal impact. (required)
+        :type view: str
+        :param release_id: Listing release identifier. (required)
+        :type release_id: UUID
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_release_relationships_serialize(
+            view=view,
+            release_id=release_id,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ReleaseRelationshipPage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_release_relationships_without_preload_content(
+        self,
+        view: Annotated[
+            StrictStr,
+            Field(description="Direction or version-specific withdrawal impact."),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Inspect declared relationships of a local release
+
+        Outgoing and incoming views require a current published or deprecated release. Both ends require independently granted resource.read. Outgoing declarations remain visible when their exact target has no readable current match. Incoming rows name their current source. The dependencies view additionally requires resource.read_history on the selected release, which may be historical. It returns only current depends_on declarations naming its exact version or omitting a version. Results are ordered by source release UUID and declaration order. A changed Catalog generation or authorization invalidates continuation.
+
+        :param view: Direction or version-specific withdrawal impact. (required)
+        :type view: str
+        :param release_id: Listing release identifier. (required)
+        :type release_id: UUID
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_release_relationships_serialize(
+            view=view,
+            release_id=release_id,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ReleaseRelationshipPage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_release_relationships_sync(
+        self,
+        view: Annotated[
+            StrictStr,
+            Field(description="Direction or version-specific withdrawal impact."),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ReleaseRelationshipPage:
+        """Inspect declared relationships of a local release (synchronous)
+
+        Synchronous variant of :meth:`list_release_relationships`. It calls the asynchronous
+        method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_release_relationships(
+                view=view,
+                release_id=release_id,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_release_relationships_sync_with_http_info(
+        self,
+        view: Annotated[
+            StrictStr,
+            Field(description="Direction or version-specific withdrawal impact."),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ReleaseRelationshipPage]:
+        """Inspect declared relationships of a local release (synchronous)
+
+        Synchronous variant of :meth:`list_release_relationships_with_http_info`. It calls the
+        asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_release_relationships_with_http_info(
+                view=view,
+                release_id=release_id,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_release_relationships_sync_without_preload_content(
+        self,
+        view: Annotated[
+            StrictStr,
+            Field(description="Direction or version-specific withdrawal impact."),
+        ],
+        release_id: Annotated[UUID, Field(description="Listing release identifier.")],
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Inspect declared relationships of a local release (synchronous)
+
+        Synchronous variant of :meth:`list_release_relationships_without_preload_content`. It calls
+        the asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_release_relationships_without_preload_content(
+                view=view,
+                release_id=release_id,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    def _list_release_relationships_serialize(
+        self,
+        view,
+        release_id,
+        limit,
+        cursor,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {}
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        if release_id is not None:
+            _path_params["releaseId"] = release_id
+        # process the query parameters
+        if view is not None:
+            _query_params.append(("view", view))
+
+        if limit is not None:
+            _query_params.append(("limit", limit))
+
+        if cursor is not None:
+            _query_params.append(("cursor", cursor))
+
+        # process the header parameters
+        # process the form parameters
+        # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json", "application/problem+json"]
+            )
+
+        # authentication setting
+        _auth_settings: List[str] = ["bearerAuth"]
+
+        return self.api_client.param_serialize(
+            method="GET",
+            resource_path="/api/v1/listing-releases/{releaseId}/relationships",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

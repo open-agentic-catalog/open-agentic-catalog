@@ -425,6 +425,35 @@ impl AsRef<str> for ListRatingInboxState {
         self.as_str()
     }
 }
+///Allowed values for the `view` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum ListReleaseRelationshipsView {
+    #[serde(rename = "outgoing")]
+    Outgoing,
+    #[serde(rename = "incoming")]
+    Incoming,
+    #[serde(rename = "dependencies")]
+    Dependencies,
+}
+impl ListReleaseRelationshipsView {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Outgoing => "outgoing",
+            Self::Incoming => "incoming",
+            Self::Dependencies => "dependencies",
+        }
+    }
+}
+impl std::fmt::Display for ListReleaseRelationshipsView {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListReleaseRelationshipsView {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
 ///Allowed values for the `state` query parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum ListReviewSubmissionsState {
@@ -1323,6 +1352,11 @@ pub enum ListPublishersApiError {
 ///Typed error responses for `listRatingInbox`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ListRatingInboxApiError {
+    Default(Problem),
+}
+///Typed error responses for `listReleaseRelationships`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum ListReleaseRelationshipsApiError {
     Default(Problem),
 }
 ///Typed error responses for `listResourceListings`. One variant per declared non-2xx response.
@@ -13613,6 +13647,98 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(ListRatingInboxApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Inspect declared relationships of a local release
+    ///
+    /// Outgoing and incoming views require a current published or deprecated release. Both ends require independently granted resource.read. Outgoing declarations remain visible when their exact target has no readable current match. Incoming rows name their current source. The dependencies view additionally requires resource.read_history on the selected release, which may be historical. It returns only current depends_on declarations naming its exact version or omitting a version. Results are ordered by source release UUID and declaration order. A changed Catalog generation or authorization invalidates continuation.
+    ///
+    /// `GET /api/v1/listing-releases/{releaseId}/relationships`
+    pub async fn list_release_relationships(
+        &self,
+        release_id: impl AsRef<str>,
+        view: ListReleaseRelationshipsView,
+        limit: Option<i64>,
+        cursor: Option<impl AsRef<str>>,
+    ) -> Result<Response<ReleaseRelationshipPage>, ApiOpError<ListReleaseRelationshipsApiError>>
+    {
+        let request_url = format!(
+            "{}{}",
+            self.base_url,
+            format!(
+                "/api/v1/listing-releases/{}/relationships",
+                __pct_encode_path_segment(release_id.as_ref())
+            )
+        );
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            query_params.push(("view".to_string(), view.to_string()));
+            if let Some(v) = limit {
+                query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = cursor {
+                query_params.push(("cursor".to_string(), v.as_ref().to_string()));
+            }
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<ListReleaseRelationshipsApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(ListReleaseRelationshipsApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {

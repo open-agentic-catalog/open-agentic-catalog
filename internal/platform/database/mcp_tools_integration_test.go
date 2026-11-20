@@ -96,9 +96,9 @@ func (f *mcpToolFixture) representations(t *testing.T, version, declaration stri
 	}
 	return inputs
 }
-func (f *mcpToolFixture) publish(t *testing.T, listing catalog.CatalogListing, revision catalog.VersionRevision, name string) catalog.ListingRelease {
+func (f *mcpToolFixture) publish(t *testing.T, listing catalog.CatalogListing, revision catalog.VersionRevision, name string, relationships ...catalog.Relationship) catalog.ListingRelease {
 	t.Helper()
-	listing, _, err := f.service.CreateListingRevision(f.author(t), listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, PublisherID: f.publisher, DisplayName: name, Description: "Processes documents", Visibility: catalog.VisibilityTenant, Tags: []string{"documents"}}, listing.Revision)
+	listing, _, err := f.service.CreateListingRevision(f.author(t), listing.ID, catalog.CreateListingRevisionInput{VersionRevisionID: revision.ID, PublisherID: f.publisher, DisplayName: name, Description: "Processes documents", Visibility: catalog.VisibilityTenant, Relationships: relationships, Tags: []string{"documents"}}, listing.Revision)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func (f *mcpToolFixture) publish(t *testing.T, listing catalog.CatalogListing, r
 	}
 	return release
 }
-func (f *mcpToolFixture) seed(t *testing.T, n int, name, declaration string, blob bool) catalog.CatalogRecord {
+func (f *mcpToolFixture) seed(t *testing.T, n int, name, declaration string, blob bool, relationships ...catalog.Relationship) catalog.CatalogRecord {
 	t.Helper()
 	r, err := f.service.CreateResource(f.author(t), catalog.CreateResourceInput{NamespaceID: f.namespace, Kind: catalog.KindMCPServer, CanonicalIdentifier: fmt.Sprintf("urn:air:catalog.example.com:performance:mcp-%d", n)})
 	if err != nil {
@@ -129,7 +129,7 @@ func (f *mcpToolFixture) seed(t *testing.T, n int, name, declaration string, blo
 	if err != nil {
 		t.Fatal(err)
 	}
-	release := f.publish(t, listing, rev, name)
+	release := f.publish(t, listing, rev, name, relationships...)
 	record, err := f.service.GetCatalogRecord(f.author(t), release.ID)
 	if err != nil {
 		t.Fatal(err)

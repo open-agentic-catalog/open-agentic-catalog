@@ -3670,6 +3670,31 @@ paths:
       responses:
         '200': {$ref: '#/components/responses/ListingRelease'}
         default: {$ref: '#/components/responses/Problem'}
+  /api/v1/listing-releases/{releaseId}/relationships:
+    parameters: [{$ref: '#/components/parameters/ReleaseId'}]
+    get:
+      tags: [Catalog discovery]
+      operationId: listReleaseRelationships
+      summary: Inspect declared relationships of a local release
+      description: >-
+        Outgoing and incoming views require a current published or deprecated release. Both ends
+        require independently granted resource.read. Outgoing declarations remain visible when
+        their exact target has no readable current match. Incoming rows name their current source.
+        The dependencies view additionally requires resource.read_history on the selected release,
+        which may be historical. It returns only current depends_on declarations naming its exact
+        version or omitting a version. Results are ordered by source release UUID and declaration
+        order. A changed Catalog generation or authorization invalidates continuation.
+      parameters:
+        - {name: view, in: query, required: true, description: Direction or version-specific withdrawal impact., schema: {type: string, enum: [outgoing, incoming, dependencies]}}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Currently readable declarations. An empty page reveals no count of inaccessible releases.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ReleaseRelationshipPage'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/listing-releases/{releaseId}/withdrawal-preview:
     parameters: [{$ref: '#/components/parameters/ReleaseId'}]
     get:
@@ -11243,6 +11268,31 @@ components:
         type: {type: string, enum: [depends_on, recommended_with, supersedes, bundled_with]}
         targetIdentifier: {type: string, minLength: 1, maxLength: 512}
         targetVersion: {type: string, minLength: 1, maxLength: 128}
+    RelatedRelease:
+      type: object
+      additionalProperties: false
+      required: [releaseId, listingRevisionId, displayName, version]
+      properties:
+        releaseId: {$ref: '#/components/schemas/UUID'}
+        listingRevisionId: {$ref: '#/components/schemas/UUID'}
+        displayName: {type: string, minLength: 1, maxLength: 160}
+        version: {type: string, minLength: 1, maxLength: 128}
+    ReleasedRelationship:
+      type: object
+      additionalProperties: false
+      required: [declaration]
+      properties:
+        declaration: {$ref: '#/components/schemas/Relationship'}
+        related:
+          description: Current source for incoming and dependencies. Current target for outgoing, omitted when no readable release matches.
+          allOf: [{$ref: '#/components/schemas/RelatedRelease'}]
+    ReleaseRelationshipPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/ReleasedRelationship'}}
+        nextCursor: {type: string, minLength: 1, maxLength: 2048}
     PublishListing:
       type: object
       additionalProperties: false

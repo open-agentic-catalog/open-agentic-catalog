@@ -5,7 +5,7 @@ import type { components } from "../api/schema";
 import { Field } from "./workspace";
 
 type Relationship = components["schemas"]["Relationship"];
-const relationshipLabels: Record<Relationship["type"], string> = {
+export const relationshipLabels: Record<Relationship["type"], string> = {
   depends_on: "Depends on",
   recommended_with: "Recommended with",
   supersedes: "Supersedes",

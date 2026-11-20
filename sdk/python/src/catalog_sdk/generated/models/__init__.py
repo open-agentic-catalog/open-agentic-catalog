@@ -519,8 +519,12 @@ from catalog_sdk.generated.models.rating_view import RatingView
 from catalog_sdk.generated.models.reason import Reason
 from catalog_sdk.generated.models.referral_policy import ReferralPolicy
 from catalog_sdk.generated.models.reindex_catalog_request import ReindexCatalogRequest
+from catalog_sdk.generated.models.related_release import RelatedRelease
 from catalog_sdk.generated.models.relationship import Relationship
 from catalog_sdk.generated.models.release_overview import ReleaseOverview
+from catalog_sdk.generated.models.release_relationship_page import (
+    ReleaseRelationshipPage,
+)
 from catalog_sdk.generated.models.release_transition import ReleaseTransition
 from catalog_sdk.generated.models.release_withdrawal_preview import (
     ReleaseWithdrawalPreview,
@@ -528,6 +532,7 @@ from catalog_sdk.generated.models.release_withdrawal_preview import (
 from catalog_sdk.generated.models.release_withdrawal_snapshot import (
     ReleaseWithdrawalSnapshot,
 )
+from catalog_sdk.generated.models.released_relationship import ReleasedRelationship
 from catalog_sdk.generated.models.remove_source import RemoveSource
 from catalog_sdk.generated.models.representation import Representation
 from catalog_sdk.generated.models.representation_input import RepresentationInput

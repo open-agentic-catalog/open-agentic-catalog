@@ -2111,6 +2111,23 @@ impl ReleaseTransitionBuilder {
         self.value
     }
 }
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleaseRelationshipPage {
+    ///Constraint: maxItems=100
+    pub items: Vec<ReleasedRelationship>,
+    ///Constraint: minLength=1, maxLength=2048
+    #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReleasedRelationship {
+    pub declaration: Relationship,
+    ///Current source for incoming and dependencies. Current target for outgoing, omitted when no readable release matches.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub related: Option<RelatedRelease>,
+}
 ///Independent current published and deprecated Listing counts. Neither count represents distinct Resources.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -2148,6 +2165,19 @@ impl AsRef<str> for ReleaseOverviewScope {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct RelatedRelease {
+    ///Constraint: minLength=1, maxLength=160
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+    #[serde(rename = "listingRevisionId")]
+    pub listing_revision_id: UUID,
+    #[serde(rename = "releaseId")]
+    pub release_id: UUID,
+    ///Constraint: minLength=1, maxLength=128
+    pub version: String,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ReindexCatalogRequest {

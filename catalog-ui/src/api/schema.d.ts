@@ -2270,6 +2270,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listing-releases/{releaseId}/relationships": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Listing release identifier. */
+                releaseId: components["parameters"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Inspect declared relationships of a local release
+         * @description Outgoing and incoming views require a current published or deprecated release. Both ends require independently granted resource.read. Outgoing declarations remain visible when their exact target has no readable current match. Incoming rows name their current source. The dependencies view additionally requires resource.read_history on the selected release, which may be historical. It returns only current depends_on declarations naming its exact version or omitting a version. Results are ordered by source release UUID and declaration order. A changed Catalog generation or authorization invalidates continuation.
+         */
+        get: operations["listReleaseRelationships"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/listing-releases/{releaseId}/withdrawal-preview": {
         parameters: {
             query?: never;
@@ -6624,6 +6647,21 @@ export interface components {
             type: "depends_on" | "recommended_with" | "supersedes" | "bundled_with";
             targetIdentifier: string;
             targetVersion?: string;
+        };
+        RelatedRelease: {
+            releaseId: components["schemas"]["UUID"];
+            listingRevisionId: components["schemas"]["UUID"];
+            displayName: string;
+            version: string;
+        };
+        ReleasedRelationship: {
+            declaration: components["schemas"]["Relationship"];
+            /** @description Current source for incoming and dependencies. Current target for outgoing, omitted when no readable release matches. */
+            related?: components["schemas"]["RelatedRelease"];
+        };
+        ReleaseRelationshipPage: {
+            items: components["schemas"]["ReleasedRelationship"][];
+            nextCursor?: string;
         };
         PublishListing: {
             submissionId: components["schemas"]["UUID"];
@@ -12427,6 +12465,37 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: components["responses"]["ListingRelease"];
+            default: components["responses"]["Problem"];
+        };
+    };
+    listReleaseRelationships: {
+        parameters: {
+            query: {
+                /** @description Direction or version-specific withdrawal impact. */
+                view: "outgoing" | "incoming" | "dependencies";
+                /** @description Maximum items in one page. Follow nextCursor with the same page size and filters to continue. */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path: {
+                /** @description Listing release identifier. */
+                releaseId: components["parameters"]["ReleaseId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Currently readable declarations. An empty page reveals no count of inaccessible releases. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReleaseRelationshipPage"];
+                };
+            };
             default: components["responses"]["Problem"];
         };
     };

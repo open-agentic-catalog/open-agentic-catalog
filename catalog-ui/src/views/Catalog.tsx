@@ -1,3 +1,4 @@
+import { ReleaseRelationships } from "./ReleaseRelationships";
 import { AddToCollection } from "./AddToCollection";
 import { DeclaredToolMatch } from "./DeclaredToolMatch";
 import { DraftDownload } from "./DraftDownload";
@@ -2405,6 +2406,29 @@ function RecordContent({
           <p className="muted">No Listing categories supplied.</p>
         )}
       </section>
+      {!compact && (
+        <>
+          {!!listing.relationships?.length && (
+            <ReleaseRelationships
+              key={record.release.id + "-out"}
+              client={client}
+              basePath={basePath}
+              onFailure={onFailure}
+              releaseId={record.release.id}
+              view="outgoing"
+              declarations={listing.relationships}
+            />
+          )}
+          <ReleaseRelationships
+            key={record.release.id}
+            client={client}
+            basePath={basePath}
+            onFailure={onFailure}
+            releaseId={record.release.id}
+            view="incoming"
+          />
+        </>
+      )}
       <LocalAssessment
         evidence={record.evidence}
         compact={compact}

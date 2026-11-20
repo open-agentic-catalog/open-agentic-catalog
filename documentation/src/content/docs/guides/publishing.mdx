@@ -773,6 +773,12 @@ Preview work is bounded to 64 configured tenant hosts, 72 MiB of aggregate retai
 
 If a transition reply is lost, use **Retry same command** with its captured target, body, ETag and idempotency key. A new preview is a separate read, not command recovery. Failed PostgreSQL commands roll back their release change, snapshot withdrawals and transactional evidence together; refreshing impact does not prove that a command committed.
 
+### Inspect declared dependencies
+
+On the same release screen, choose **Check declared dependencies** to see readable local Listings whose current release declares `depends_on` for the selected version. An exact declaration names this version. An unversioned declaration may be affected. Declarations naming another version are excluded.
+
+This separate read uses `GET /api/v1/listing-releases/{releaseId}/relationships?view=dependencies`. It requires `resource.read` and `resource.read_history` on the selected release's namespace and `resource.read` on each source. An empty page only describes the declarations you can read. If this read fails, you can still use the discovery feed preview with its own permissions. Withdrawal neither checks runtime use nor withdraws dependent releases.
+
 ### Unpublish one host
 
 A Publication Administrator can withdraw only the selected host's active snapshot:
