@@ -1,5 +1,6 @@
 """Isolated source-binding and proof-evidence checks; never starts the verifier."""
 
+import hashlib
 import json
 from zipfile import ZipFile
 from pathlib import Path
@@ -65,7 +66,7 @@ class FormalUnitTests(unittest.TestCase):
                 formal.validate(evidence, "Postcondition might not hold", self.pin["gobraCommit"])
 
     def test_installer_checks_archive_and_member_hashes_before_publication(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory() as directory, patch.object(formal, "host"):
             root = Path(directory).resolve()
             area = root / formal.AREA
             area.mkdir(parents=True)
@@ -74,48 +75,67 @@ class FormalUnitTests(unittest.TestCase):
             with ZipFile(archive, "w") as bundle:
                 for name, raw in files.items():
                     bundle.writestr(name, raw)
-            pin = dict(self.pin, archiveSHA256=formal.digest(archive.read_bytes()),
-                       files={name: formal.digest(raw) for name, raw in files.items()})
+            pin = dict(self.pin, archiveSHA256=hashlib.sha256(archive.read_bytes()).hexdigest(),
+                       files={name: hashlib.sha256(raw).hexdigest() for name, raw in files.items()})
             config = area / "tool.json"
             def acquire(argv, **_kwargs):
                 self.assertEqual(argv[:3], ["gh", "release", "download"])
                 (Path(argv[-1]) / "GobraToolsLinux.zip").write_bytes(archive.read_bytes())
-            with patch.object(formal, "host"), patch.object(formal, "run", acquire), \
-                    patch.object(formal, "verify_tools") as verify:
-                for bad in (dict(pin, archiveSHA256="0" * 64), dict(pin, files=dict(pin["files"], **{"server/server.jar": "0" * 64}))):
-                    config.write_text(json.dumps(bad))
-                    with self.assertRaisesRegex(ValueError, "checksum"):
-                        formal.install(root)
-                    self.assertFalse((root / formal.TOOLS).exists())
-                    self.assertFalse(list(area.glob("install-*")))
+            with patch.object(formal, "run", acquire), patch.object(formal, "verify_tools") as verify:
+                bad_hash = "0" * 64
+                cases = [("formal archive checksum mismatch", dict(pin, archiveSHA256=bad_hash))]
+                cases.extend((f"formal member checksum mismatch: {name}", dict(pin, files={**pin["files"], name: bad_hash}))
+                             for name in files)
+                for expected, bad in cases:
+                    with self.subTest(expected=expected):
+                        config.write_text(json.dumps(bad))
+                        with self.assertRaises(ValueError) as failure:
+                            formal.install(root)
+                        self.assertEqual(str(failure.exception), expected)
+                        self.assertFalse((root / formal.TOOLS).exists())
+                        self.assertFalse(list(area.glob("install-*")))
+                        verify.assert_not_called()
                 config.write_text(json.dumps(pin))
                 formal.install(root)
-                self.assertEqual((root / formal.TOOLS / "server/server.jar").read_bytes(), b"jar")
+                for name, raw in files.items():
+                    self.assertEqual((root / formal.TOOLS / name).read_bytes(), raw)
                 verify.assert_called_once()
-                with patch.object(formal, "run", side_effect=AssertionError("must not download")):
+            with patch.object(formal, "run", side_effect=AssertionError("unexpected download or tool execution")):
+                with patch.object(formal, "verify_tools") as verify_cached:
                     formal.install(root)
+                    verify_cached.assert_called_once()
+                solver = root / formal.TOOLS / "z3/bin/z3"
+                solver.write_bytes(b"changed")
+                with self.assertRaisesRegex(ValueError, "formal tool checksum mismatch: z3/bin/z3"):
+                    formal.install(root)
+                self.assertEqual(solver.read_bytes(), b"changed")
 
     def test_tool_inventory_cannot_omit_checks_or_extract_other_paths(self):
         files = self.pin["files"]
         self.assertEqual(formal.tool_files(self.pin), files)
-        for invalid in (None, {}, list(files), {k: v for k, v in files.items() if k != "server/server.jar"},
-                        dict(files, **{"../unexpected": "0" * 64}),
-                        dict(files, **{"server/server.jar": ""}),
-                        dict(files, **{"server/server.jar": 42})):
-            with self.subTest(invalid=invalid), patch.object(formal, "run", side_effect=AssertionError("must not execute")), \
-                    self.assertRaisesRegex(ValueError, "formal tool"):
-                formal.verify_tools(formal.ROOT, dict(self.pin, files=invalid), {})
+        wrong_inventory = (None, {}, list(files), {k: v for k, v in files.items() if k != "server/server.jar"},
+                           {**files, "../unexpected": "0" * 64})
+        wrong_checksums = ({**files, "server/server.jar": ""}, {**files, "server/server.jar": 42})
+        with patch.object(formal, "host"), patch.object(formal, "run", side_effect=AssertionError("must not execute")):
+            for expected, cases in (("formal tool inventory", wrong_inventory), ("invalid formal tool checksum", wrong_checksums)):
+                for invalid in cases:
+                    with self.subTest(invalid=invalid), self.assertRaisesRegex(ValueError, expected):
+                        formal.verify_tools(formal.ROOT, dict(self.pin, files=invalid), {})
 
-    def test_environment_host_and_bounded_inputs(self):
-        with patch.dict(formal.os.environ, JAVA_TOOL_OPTIONS="-bad", JDK_JAVA_OPTIONS="-bad", _JAVA_OPTIONS="-bad", Z3_EXE="wrong"):
-            self.assertFalse(set(formal.environment()) & {"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS", "Z3_EXE"})
+    def test_host_admission(self):
         with patch.object(formal.sys, "platform", "linux"), patch.object(formal.platform, "machine", return_value="x86_64"):
             formal.host()
         for system, machine in (("linux", "aarch64"), ("darwin", "x86_64"), ("darwin", "arm64")):
-            with self.subTest(system=system, machine=machine), \
-                    patch.object(formal.sys, "platform", system), patch.object(formal.platform, "machine", return_value=machine), \
-                    self.assertRaisesRegex(ValueError, "formal tools require Linux amd64"):
-                formal.host()
+            with (patch.object(formal.sys, "platform", system), patch.object(formal.platform, "machine", return_value=machine),
+                  patch.object(formal, "read", side_effect=AssertionError("must refuse before reading tool inputs"))):
+                for action in (formal.install, formal.execute):
+                    with self.subTest(system=system, machine=machine, action=action.__name__), \
+                            self.assertRaisesRegex(ValueError, "formal tools require Linux amd64"):
+                        action()
+
+    def test_environment_and_bounded_inputs(self):
+        with patch.dict(formal.os.environ, JAVA_TOOL_OPTIONS="-bad", JDK_JAVA_OPTIONS="-bad", _JAVA_OPTIONS="-bad", Z3_EXE="wrong"):
+            self.assertFalse(set(formal.environment()) & {"JAVA_TOOL_OPTIONS", "JDK_JAVA_OPTIONS", "_JAVA_OPTIONS", "Z3_EXE"})
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory).resolve() / "input"
             with self.assertRaises(ValueError):

@@ -43,12 +43,14 @@ class FormalBoundaryTests(unittest.TestCase):
         java = root / "java"
         java.write_text('''#!/usr/bin/env python3
 import os, sys, time
+from pathlib import Path
 if sys.argv[1:] == ['-version']:
  print('openjdk version "21.0.12"'); sys.exit()
 mode = os.environ.get('FORMAL_FIXTURE', 'pass')
 if mode == 'timeout':
- if 'FORMAL_STARTED' in os.environ:
-  with open(os.environ['FORMAL_STARTED'], 'w') as f: f.write(str(os.getpid()))
+ marker = Path(__file__).with_name('starting')
+ marker.write_text(str(os.getpid()))
+ marker.rename(marker.with_name('started'))
  time.sleep(10)
 if mode == 'drift':
  with open(os.environ['FORMAL_SOURCE'], 'a') as f: f.write('\\n')
@@ -86,9 +88,13 @@ sys.exit(1)
             common.parent.mkdir(parents=True)
             common.write_bytes((formal.ROOT / "test/interoperability/common.py").read_bytes())
             marker = root / "started"
-            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ["PATH"],
-                       FORMAL_FIXTURE="timeout", FORMAL_STARTED=str(marker))
-            with subprocess.Popen([sys.executable, "-B", str(root / formal.AREA / "run.py"), "check"],
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ["PATH"], FORMAL_FIXTURE="timeout")
+            # Give the synthetic toolchain a supported identity in the child that runs the CLI.
+            entry = ("import runpy, sys\n"
+                     "from unittest.mock import patch\n"
+                     "with patch('sys.platform', 'linux'), patch('platform.machine', return_value='x86_64'):\n"
+                     "    runpy.run_path(sys.argv.pop(1), run_name='__main__')\n")
+            with subprocess.Popen([sys.executable, "-B", "-c", entry, str(root / formal.AREA / "run.py"), "check"],
                                   env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as child:
                 try:
                     deadline = time.monotonic() + 5
@@ -110,16 +116,18 @@ sys.exit(1)
             self.assertEqual(json.loads(reports[0].read_text())["status"], "incomplete")
 
     def test_installed_execution_and_failed_evidence(self):
-        with tempfile.TemporaryDirectory() as directory:
+        with tempfile.TemporaryDirectory() as directory, patch.object(formal, "host"):
             root = Path(directory).resolve()
             source = self.fixture(root)
-            env = dict(PATH=str(root) + os.pathsep + os.environ["PATH"], FORMAL_SOURCE=str(source))
+            env = dict(PATH=str(root) + os.pathsep + os.environ["PATH"], FORMAL_SOURCE=str(source), FORMAL_FIXTURE="pass")
             with patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()):
                 report = formal.execute(root)
                 self.assertEqual(report["status"], "passed")
                 self.assertEqual(len(report["cases"]), 8)
-                for mode in ("empty", "wrong", "drift"):
-                    with self.subTest(mode=mode), patch.dict(os.environ, FORMAL_FIXTURE=mode), self.assertRaises(ValueError):
+                for mode, diagnostic in (("empty", "incomplete or failed formal proof"),
+                                         ("wrong", "negative control failed for an unintended reason"),
+                                         ("drift", "formal input changed during verification")):
+                    with self.subTest(mode=mode), patch.dict(os.environ, FORMAL_FIXTURE=mode), self.assertRaisesRegex(ValueError, diagnostic):
                         formal.execute(root)
                 original = formal.run
                 def bounded(*args, **kwargs):
