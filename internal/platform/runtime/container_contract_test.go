@@ -187,6 +187,7 @@ func TestContainerIgnoreContract(t *testing.T) {
 		"!go.mod",
 		"!go.sum",
 		"!Containerfile",
+		"!Containerfile.ibm",
 		"!LICENSE",
 		"!catalog-ui/",
 		"!catalog-ui/Containerfile",

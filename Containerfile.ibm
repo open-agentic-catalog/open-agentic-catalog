@@ -1,0 +1,99 @@
+# IBM pipeline variant of Containerfile, built only by .sps/containerize.sh.
+# The GitHub workflows and the Makefile keep using Containerfile.
+#
+# Differences from Containerfile:
+#   - Both base images are the IBM central hardened images (pinned by digest),
+#     supplied by .sps/containerize.sh from wxo-security-image-hardening:
+#       CENTRAL_BASE_IMAGE  = BASE_UBI9_GO_TOOLSET   (build stage)
+#       RUNTIME_BASE_IMAGE  = BASE_UBI9_UBI_MINIMAL  (runtime stage, replaces scratch)
+#   - No BuildKit-only syntax, so the build does not need to reach Docker Hub.
+#   - GOTOOLCHAIN=auto: the UBI toolset's Go can be older than go.mod's `go` line,
+#     in which case Go fetches the exact toolchain (checksum-verified via the Go
+#     checksum database) instead of failing.
+#
+# Build from the repository root, for example:
+#   docker build -f Containerfile.ibm \
+#     --build-arg CENTRAL_BASE_IMAGE=... --build-arg RUNTIME_BASE_IMAGE=... .
+ARG CENTRAL_BASE_IMAGE
+ARG RUNTIME_BASE_IMAGE
+
+# ------------------------
+# Stage 1: Build static Go binaries
+# ------------------------
+FROM ${CENTRAL_BASE_IMAGE} AS build
+
+# The build stage is discarded; root lets licenses.sh write /out and /tools.
+USER root
+
+# Not the toolset's default /opt/app-root/src: its GOPATH lives there.
+WORKDIR /src
+
+ENV GOTOOLCHAIN=auto
+
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG SOURCE_STATE=unknown
+
+COPY go.mod go.sum ./
+RUN go mod download && \
+    go mod verify && \
+    GOBIN=/tools go install github.com/google/go-licenses@v1.6.0
+
+COPY api ./api
+COPY cmd ./cmd
+COPY internal ./internal
+COPY migrations ./migrations
+COPY schemas ./schemas
+COPY samples ./samples
+COPY LICENSE ./LICENSE
+COPY deployments/container/licenses.sh /tools/licenses.sh
+
+# licenses.sh reads the Go license files from /usr/local/go. A Go distribution
+# keeps them in GOROOT, but the Red Hat Go package ships neither file. Fall back
+# to golang.org/x/net, an existing verified dependency whose LICENSE and PATENTS
+# are the same Go Authors texts.
+RUN mkdir -p /usr/local/go && \
+    for name in LICENSE PATENTS; do \
+        for dir in "$(go env GOROOT)" "$(go list -m -f '{{.Dir}}' golang.org/x/net)"; do \
+            if [ -f "${dir}/${name}" ]; then cp "${dir}/${name}" /usr/local/go/; break; fi; \
+        done; \
+    done && \
+    test -f /usr/local/go/LICENSE && \
+    CGO_ENABLED=0 GOFLAGS='-tags=netgo,osusergo' sh /tools/licenses.sh
+
+RUN mkdir -p /out && \
+    CGO_ENABLED=0 \
+    go build -mod=readonly -trimpath -buildvcs=false -tags=netgo,osusergo -ldflags="-s -w -buildid= -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.sourceState=${SOURCE_STATE}" -o /out/ ./cmd/catalogd ./cmd/catalogctl && \
+    chmod 0555 /out/catalogd /out/catalogctl
+
+# ------------------------
+# Stage 2: Runtime (central minimal base image)
+# ------------------------
+FROM ${RUNTIME_BASE_IMAGE} AS runtime
+
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG SOURCE_STATE=unknown
+
+LABEL org.opencontainers.image.title="Open Agentic Catalog" \
+      org.opencontainers.image.description="Governed catalog and discovery service for Agents, MCP Servers, Skills, and Plugins" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${COMMIT}" \
+      io.open-agentic-catalog.source-state="${SOURCE_STATE}" \
+      org.opencontainers.image.source="https://github.com/open-agentic-catalog/open-agentic-catalog"
+
+# Public TLS roots are embedded in both binaries. Configuration, private trust,
+# credentials and writable mounts belong to the launcher, not the image.
+COPY --from=build /out/catalogd /usr/local/bin/catalogd
+COPY --from=build /out/catalogctl /usr/local/bin/catalogctl
+COPY --from=build /out/licenses/ /licenses/
+
+WORKDIR /var/lib/open-agentic-catalog
+# Numeric non-root user, same as Containerfile; also valid under OpenShift's random UID.
+USER 65532:65532
+EXPOSE 8080 9090
+# No shell-based health check: launchers select the role's catalogctl probe.
+STOPSIGNAL SIGTERM
+
+ENTRYPOINT ["/usr/local/bin/catalogd"]
+CMD ["api"]

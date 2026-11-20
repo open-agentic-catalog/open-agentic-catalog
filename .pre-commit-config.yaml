@@ -1,0 +1,15 @@
+# IBM detect-secrets pre-commit hook (required by the IBM tekton/code-detect-secrets check).
+# Setup: pip install pre-commit && pre-commit install
+# Preview a scan without committing: pre-commit run detect-secrets --all-files
+#
+# This is separate from the optional native hook installed by `make hooks-install`
+# (test/hooks); that installer refuses to overwrite an existing foreign hook.
+repos:
+  - repo: https://github.com/ibm/detect-secrets
+    # Use a static tag rather than a branch name.
+    rev: 0.13.1+ibm.64.dss
+    hooks:
+      - id: detect-secrets # pragma: whitelist secret
+        # --baseline without --use-all-plugins scans with only the plugins recorded in the baseline.
+        # --use-all-plugins scans with every available plugin.
+        args: [--baseline, .secrets.baseline, --use-all-plugins]
