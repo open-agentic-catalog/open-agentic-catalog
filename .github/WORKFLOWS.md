@@ -15,7 +15,7 @@ Agents do not dispatch hosted jobs, upload project data or publish artifacts. Th
 | [clients.yml](workflows/clients.yml) | Go, Python, TypeScript and Rust SDK checks, the Go webhook receiver, and selected editor and raw Go-generator checks. | Local HTTP/TLS fixtures and installed consumers are functional tests. The TypeScript harness owns its runtime matrix. |
 | [images.yml](workflows/images.yml) | AMD64 backend/UI images on `main`; both architectures on manual runs, plus both Helm packages. | ARM64 is cross-built and inspected. It is not executed. Optional image scans use the same job's images. |
 | [functional.yml](workflows/functional.yml) | One selected PostgreSQL, process, packaged API, browser, local OIDC, backup/restore, federation or webhook receiver suite. | Existing harnesses own disposable services, credentials, ports and cleanup. |
-| [extended.yml](workflows/extended.yml) | Fresh combined application coverage or selected source/dependency security checks. | Combined coverage runs alone. Existing advisory failures remain failures. |
+| [extended.yml](workflows/extended.yml) | Fresh combined application coverage or selected source/dependency security checks. Runs weekly on the default branch with the `source-security` suite. | Combined coverage runs alone. Existing advisory failures remain failures. The weekly run never uploads reports. |
 | [assurance.yml](workflows/assurance.yml) | One focused Go/UI property or mutation check, bounded Go fuzzing, or the existing Job retry arithmetic proof. | A complete mutation measurement can contain survivors. The proof covers one helper, not the service. |
 | [benchmarks.yml](workflows/benchmarks.yml) | Ten samples of each existing Go runtime metrics microbenchmark. | Report-only measurements. No hosted timing threshold, unmatched comparison or application capacity claim. |
 
@@ -81,6 +81,14 @@ Assurance artifacts contain safe property/proof reports and reduced mutation cou
 Disposable harnesses own normal cleanup. Forced cancellation can interrupt cleanup, so do not claim cancellation proves cleanup success. Do not use global Docker prune or retained-stack teardown as a recovery step. A fresh runner's disposal is separate from the harness's cleanup result.
 
 Dependency findings fail the selected scan. The workflows do not suppress findings or update dependencies automatically.
+
+## Weekly source security
+
+The `extended.yml` schedule starts on Mondays at 04:17 UTC. It runs only on the default branch, carries no inputs and always selects the `source-security` suite. It refreshes the Trivy advisory database, then runs `make security` and `make ui-deps-check`. The UI scan runs even when `make security` fails. A cancelled run skips it. The summary lists the outcome of each component, and `not_run` means the component did not execute.
+
+The weekly run checks the Go source, the source tree and the complete UI lockfile. It does not scan exact images, nested toolchains, peer images or published releases. It does not submit an npm registry audit. Source and UI scans retrieve advisory data themselves and do not use the frozen exact-image snapshot. The summary records the commit, the event and the scanner version. Scheduled runs never upload reports.
+
+GitHub can delay or disable scheduled workflows, for example in an inactive repository. The last completed result then shows its own commit and time, and it is not a current assessment. To run the check manually, dispatch `extended.yml` with `suite` set to `source-security`. To re-enable a disabled schedule, enable the workflow in the repository Actions settings. The maintainer owns notifications and hosted verification of the schedule.
 
 ## Build and release behavior
 
