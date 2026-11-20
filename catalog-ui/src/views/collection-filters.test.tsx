@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { expect, it } from "vitest";
 import Collections from "./Collections";
 import { APIError } from "../api/client";
+import { deferred } from "../../tests/unit/fixtures";
 import {
   administrator,
   etagReply,
@@ -50,6 +57,43 @@ const member = {
     activatedAt: stamp,
   },
 };
+
+it.each(["collection metadata", "the member page"] as const)(
+  "loads one member page when %s arrives first",
+  async (first) => {
+    const w = screenWorkspace();
+    const metadata = deferred<void>();
+    const members = deferred<void>();
+    let memberReads = 0;
+    w.get.mockImplementation(async (path) => {
+      if (String(path).endsWith("/members")) {
+        memberReads++;
+        await members.promise;
+        return etagReply({ items: [member] });
+      }
+      if (String(path).includes("namespaces")) return etagReply(namespace);
+      await metadata.promise;
+      return etagReply(collection);
+    });
+    render(<Collections {...w.props} id="one" />);
+    const order =
+      first === "collection metadata"
+        ? [metadata, members]
+        : [members, metadata];
+    for (const response of order) {
+      await act(async () => response.resolve());
+    }
+    const entry = await screen.findByRole("link", { name: "Invoice entry" });
+    expect(entry.getAttribute("href")).toBe("/unit/catalog/release");
+    expect(memberReads).toBe(1);
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Reload collection" }),
+      );
+    });
+    expect(memberReads).toBe(2);
+  },
+);
 
 it("stages criteria, pages and refreshes applied filters, recovers explicitly and preserves metadata drafts", async () => {
   const w = screenWorkspace();
