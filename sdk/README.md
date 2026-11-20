@@ -59,11 +59,11 @@ The [Rust Catalog report](../examples/rust-catalog-report/README.md) is a standa
 3. Run the guide's capabilities read or authenticated Search example to check API access.
 4. Use the integration examples to search, create drafts or read exact bytes.
 
-The language guides' first-request examples read `CATALOG_SDK_ORIGIN` and `CATALOG_SDK_TOKEN` from the consumer process environment. These names belong to those examples; the SDK does not read environment settings automatically. Inject the token through your development tools or deployment. Do not put real tokens in source files or shell history. The token needs an active Catalog membership; see [authentication and membership](../documentation/src/content/docs/guides/integrating.mdx#authenticate-and-establish-membership).
+The language guides' first-request examples read `CATALOG_SDK_ORIGIN` and `CATALOG_SDK_TOKEN` from the consumer process environment. These names belong to those examples; the SDK does not read environment settings automatically. Inject the token through your development tools or deployment. Do not put real tokens in source files or shell history. The token needs an active Catalog membership; see [verify your first authenticated read](../documentation/src/content/docs/guides/integrating.mdx#verify-your-first-authenticated-read) and the [Python service-account example](../documentation/src/content/docs/operations/oidc-keycloak.md#verify-cli-sdk-and-refusal).
 
 For the default local Compose setup, the API origin is `http://127.0.0.1:8080`; port 4180 serves the UI. Each guide shows an explicit loopback HTTP option. Enable it only for the selected local API. Development tokens work only with configured development authentication; they are not production credentials.
 
-ARD manifest reads also require a configured discovery host and an active publication for its audience. Unknown, disabled or inactive hosts return HTTP 404. This is a server response, not a failed SDK connection. See [discovery interfaces](../documentation/src/content/docs/guides/integrating.mdx#choose-a-discovery-interface) for the distinction between ARD discovery and authenticated Control API Search.
+ARD manifest reads also require a configured discovery host and an active publication for its audience. Unknown or disabled hosts return HTTP 404. On an authenticated host, credentials and permissions are checked before a missing snapshot returns 404. This is a server response, not a failed SDK connection. See [discovery interfaces](../documentation/src/content/docs/guides/integrating.mdx#choose-a-discovery-interface) for the distinction between ARD discovery and authenticated Control API Search.
 
 ## Build and verify local packages
 

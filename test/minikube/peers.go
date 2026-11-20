@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 )
 
 const catalogPeerNamespace = namespace + "-peer"
+const peerSourceMaterialName = "catalog-peer-source"
 
 func (h *harness) catalogNamespace() string {
 	if h.catalogScope != "" {
@@ -39,20 +41,32 @@ func configureCatalogPeerValues(values map[string]any, scope string) error {
 	if !ok {
 		return errors.New("missing Catalog peer configuration")
 	}
-	hosts, err := json.Marshal([]map[string]string{
+	hosts := []map[string]string{
 		{"host": peerHost(side), "tenantId": primaryTenantID, "mode": "anonymous", "publisherDomain": "catalog.example.com"},
 		{"host": "catalog." + scope + ".svc.cluster.local", "tenantId": primaryTenantID, "mode": "authenticated", "publisherDomain": "catalog.example.com"},
-	})
+	}
+	if side == "a" {
+		hosts = append(hosts, map[string]string{"host": peerHost("private-a"), "tenantId": primaryTenantID, "mode": "authenticated", "publisherDomain": "catalog.example.com"})
+	} else {
+		secrets, ok := values["secrets"].(map[string]any)
+		if !ok {
+			return errors.New("missing peer Secret references")
+		}
+		secrets["federationCredentials"] = map[string]string{"name": peerSourceMaterialName}
+		config["CATALOG_CREDENTIAL_RESOLUTION_ENABLED"] = "true"
+		config["CATALOG_CREDENTIAL_RESOLUTION_DIRECTORY"] = "/etc/open-agentic-catalog/federation/credentials"
+	}
+	encoded, err := json.Marshal(hosts)
 	if err != nil {
 		return err
 	}
 	config["CATALOG_PUBLIC_BASE_URL"] = peerOrigin(side)
-	config["CATALOG_DISCOVERY_HOSTS"] = string(hosts)
+	config["CATALOG_DISCOVERY_HOSTS"] = string(encoded)
 	return nil
 }
 
 func (h *harness) prepareCatalogPeerTLS() error {
-	material, err := serviceTLSMaterial(time.Now(), "owned-catalog-peers", namespace, []string{"peer-a", "peer-b"}, net.ParseIP("127.0.0.1"))
+	material, err := serviceTLSMaterial(time.Now(), "owned-catalog-peers", namespace, []string{"peer-a", "peer-b", "peer-private-a"}, net.ParseIP("127.0.0.1"))
 	if err == nil {
 		h.peerTLS = material
 	}
@@ -178,7 +192,7 @@ func (h *harness) verifyCatalogPeers(baseURL string) (resultErr error) {
 	if err := peer.verifyServedContract(peerURL); err != nil {
 		return err
 	}
-	for _, side := range []string{"a", "b"} {
+	for _, side := range []string{"a", "b", "private-a"} {
 		if err := h.preparePeerFrontend(side); err != nil {
 			return err
 		}
@@ -194,7 +208,7 @@ func (h *harness) verifyCatalogPeers(baseURL string) (resultErr error) {
 	caPath := filepath.Join(h.temporary, "peer-ca.pem")
 	aConfig := map[string]any{"base": peerURL, "tokens": peer.tokens, "host": peerHost("a"), "authenticatedHost": "catalog." + peer.catalogNamespace() + ".svc.cluster.local"}
 	bConfig := map[string]any{"base": baseURL, "tokens": h.tokens, "host": peerHost("b"), "authenticatedHost": "catalog." + h.catalogNamespace() + ".svc.cluster.local"}
-	config := map[string]any{"a": aConfig, "b": bConfig, "frontend": "https://" + frontend, "ca": caPath, "validator": validator, "state": filepath.Join(h.temporary, "catalog-peers-state.json")}
+	config := map[string]any{"a": aConfig, "b": bConfig, "frontend": "https://" + frontend, "privateHost": peerHost("private-a"), "ca": caPath, "validator": validator, "state": filepath.Join(h.temporary, "catalog-peers-state.json")}
 	if err := os.WriteFile(caPath, []byte(h.peerTLS["ca.pem"]), 0o600); err != nil {
 		return err
 	}
@@ -244,6 +258,9 @@ func (h *harness) verifyCatalogPeers(baseURL string) (resultErr error) {
 	if err := run("replacement"); err != nil {
 		return err
 	}
+	if err := h.verifyPeerCredentialRotation(peer, run); err != nil {
+		return err
+	}
 	for _, role := range []string{"api", "worker"} {
 		pods, err := peer.pods(role)
 		if err != nil {
@@ -269,6 +286,43 @@ func (h *harness) verifyCatalogPeers(baseURL string) (resultErr error) {
 	return nil
 }
 
+func peerCredentialData(revision, token string) map[string]string {
+	metadata := fmt.Sprintf(`{"schemaVersion":1,"tenantId":%q,"type":"bearer","origin":%q,"revision":%q,"secretFile":"bearer.token"}`, primaryTenantID, peerOrigin("private-a"), revision)
+	return map[string]string{"bearer.token": token, "bearer.json": metadata}
+}
+
+func (h *harness) verifyPeerCredentialRotation(upstream *harness, run func(string) error) error {
+	pods, err := h.credentialRuntimePods()
+	if err != nil {
+		return err
+	}
+	for _, pod := range pods {
+		if err := h.attachSourceMetadataProbe(pod.Name); err != nil {
+			return err
+		}
+	}
+	for _, phase := range []string{"authenticated", "refused", "restored"} {
+		signer := upstream.signingKey
+		if phase == "refused" {
+			signer = h.signingKey
+		}
+		token, err := signToken(signer, "oidc-peer-reader", "tenant-one", time.Now().UTC())
+		if err != nil {
+			return err
+		}
+		if err := h.patchFixtureSecret(peerSourceMaterialName, peerCredentialData(phase, token)); err != nil {
+			return err
+		}
+		if err := h.waitMountedSourceRevision(pods, peerOrigin("private-a"), phase); err != nil {
+			return err
+		}
+		if err := run(phase); err != nil {
+			return err
+		}
+	}
+	return h.credentialPodsUnchanged(pods)
+}
+
 type catalogPeerEvidence struct {
 	Phase    string   `json:"phase"`
 	Checks   []string `json:"checks"`
@@ -278,10 +332,17 @@ type catalogPeerEvidence struct {
 
 func decodeCatalogPeerEvidence(raw []byte, phase string) (catalogPeerEvidence, error) {
 	var value catalogPeerEvidence
-	expected := []string{"three-kind-exact-bytes-and-provenance", "private-draft-tenant-and-issuer-denials", "no-implicit-adoption", "one-item-pagination-and-unchanged-sync", "live-query-and-preserved-partial-results", "failed-sync-preserves-complete-snapshot", "same-job-recovery", "update-and-authoritative-withdrawal", "reciprocal-federation-without-reexport"}
-	if phase == "replacement" {
+	var expected []string
+	switch phase {
+	case "lifecycle":
+		expected = []string{"three-kind-exact-bytes-and-provenance", "private-draft-tenant-and-cross-catalog-token-denials", "no-implicit-adoption", "one-item-pagination-and-unchanged-sync", "live-query-and-preserved-partial-results", "failed-sync-preserves-complete-snapshot", "same-job-recovery", "update-and-authoritative-withdrawal", "reciprocal-federation-without-reexport"}
+	case "replacement":
 		expected = []string{"both-catalogs-retain-native-and-synchronized-state-after-replacement"}
-	} else if phase != "lifecycle" {
+	case "authenticated", "restored":
+		expected = []string{"credential-bound-source-test-worker-snapshot-and-index"}
+	case "refused":
+		expected = []string{"refused-credential-preserves-last-complete-snapshot"}
+	default:
 		return value, errors.New("unknown Catalog peer phase")
 	}
 	if jsondoc.Decode(raw, &value) != nil || value.Phase != phase || value.Catalogs != 2 || !slices.Equal(value.Kinds, []string{"agent", "mcp_server", "skill"}) || !slices.Equal(value.Checks, expected) {

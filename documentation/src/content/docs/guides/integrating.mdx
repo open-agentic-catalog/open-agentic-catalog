@@ -182,10 +182,11 @@ The [Python SDK](../../../../../sdk/python/README.md) includes the complete Cont
 Use [the LangGraph example](../../../../../examples/langgraph/README.md) for a complete read-only assistant with this SDK and a local model. Its optional environment keeps framework dependencies separate from the SDK and service images.
 
 ```python
+from pathlib import Path
 from catalog_sdk import Client, Config
 from catalog_sdk.generated.api.service_api import ServiceApi
 
-client = Client(Config(origin="https://catalog.example.com", token="explicit-token"))
+client = Client(Config(origin="https://catalog.example.com", token=Path("/run/secrets/catalog-reader.token").read_text().strip()))
 response = ServiceApi(client).get_capabilities_sync_with_http_info()
 print(response.status_code)
 ```
@@ -409,6 +410,7 @@ For a terminal-capable assistant, the optional [Catalog discovery Skill](assista
 | ARD HTTP client | `POST /ard/v1/search` with a nested `query` object | Use the configured discovery host. Its anonymous or authenticated audience controls access. |
 | ARD browse client | `POST /ard/v1/explore` for facets; `GET /ard/v1/agents` for Registry List | Both optional ARD operations are implemented. List serves supported entry types, not just Agents. |
 | `catalogctl remote` | Authenticated Control API, including `/api/v1/catalog/search` | Supply the Catalog API origin, without a path or trailing slash; this is not a generic external Registry client. |
+| ARD MCP client | [Publication Search over MCP](mcp-server.mdx#search-an-ard-publication-over-mcp) at `/ard/v1/mcp` | Enable this transport on the specific discovery host. Its published audience determines access. |
 | Local MCP host | [Catalog MCP server](mcp-server.mdx) through `catalogctl mcp serve` over stdio | Six read-only tools use an explicit API origin and bearer token, including local facets and current access. Remote clients use the separate [HTTP MCP setup](mcp-server.mdx#connect-over-http). |
 | Catalog UI | Control API through the UI's configured backend | Sign in with a current Catalog membership. The backend destination is deployment configuration, not a result-selected URL. |
 
@@ -424,11 +426,11 @@ See [remote commands](../reference/commands.md#remote-catalog-reads) for develop
 
 For inline A2A cards, ARD clients can also filter `data.defaultInputModes`, `data.defaultOutputModes` and `data.skills.tags`. For example, `{"query":{"text":"weather","filter":{"data.defaultInputModes":"text/plain","data.skills.tags":"weather"}},"federation":"none"}` selects declared defaults and skill keywords. These filters do not resolve skill-specific overrides or authorize invocation. See [native card filters and facets](../reference/standards.mdx#native-card-filters-and-facets) for matching rules and sparse peer responses.
 
-The [ARD Connect guides](https://agenticresourcediscovery.org/connect/) describe assistant instructions and HTTP or MCP transports. Catalog provides ARD HTTP discovery and separate [Control MCP tools](#connect-a-local-mcp-host). Its optional authenticated HTTP MCP endpoint must be enabled by the operator; it is not an ARD wrapper or a resource execution service. Configure the exact endpoint and credentials through the [HTTP MCP setup](mcp-server.mdx#connect-over-http). Appending `/mcp` to an arbitrary Catalog URL does not enable it. Instructions alone do not provide transport or Catalog permissions.
+The [ARD Connect guides](https://agenticresourcediscovery.org/connect/) describe assistant instructions and discovery transports. To search a publication over MCP, use its configured discovery host and the operator-enabled [`/ard/v1/mcp` endpoint](mcp-server.mdx#search-an-ard-publication-over-mcp). To read private Catalog metadata, use the independently enabled [Control MCP endpoint at `/mcp`](mcp-server.mdx#connect-over-http) with credentials for its configured audience. Ask the operator for the exact endpoint and client registration for your task.
 
 ### Prepare direct ARD HTTP requests
 
-Use curl and Python 3 for the List, Explore and Search response examples below. Select the configured discovery origin, including its port, without a trailing slash. Both List and Explore read that host's active audience snapshot. They return `404` when no snapshot is active.
+Use curl and Python 3 for the List, Explore and Search response examples below. Select the configured discovery origin, including its port, without a trailing slash. Both List and Explore read that host's active audience snapshot. An admitted request receives `404` when no snapshot is active. On an authenticated host a missing credential receives `401` and missing discovery permission or required scope receives `403` before the snapshot is read.
 
 For an authenticated host, set `ARD_HEADERS_FILE` to a [protected curl header file](../operations/oidc-keycloak.md#prepare-private-http-credentials). The file contains `Authorization: Bearer ...`, not a bare token or login JSON. Follow [discovery access requirements](#find-the-registry-and-check-access) for permissions and OAuth scopes. Leave `ARD_HEADERS_FILE` unset for an anonymous host. Optionally set `ARD_CA_FILE` for the operator's private CA.
 
@@ -605,6 +607,39 @@ Use [the shared evidence table](understand-results.mdx#understand-what-the-evide
 In production, obtain an access token through the deployment's identity system. The Catalog validates issuer, audience, signature and time claims. It does not issue tokens. An accepted token still needs an active tenant-bound Catalog identity and membership. OAuth scopes or identity-provider groups alone do not grant Catalog permissions. The [security runbook](../operations/security.md) and [database-role/bootstrap procedure](../operations/database-roles.mdx) describe the operator setup; [configuration](../reference/configuration.mdx) defines exact claim mappings and the optional issuer-specific private CA input.
 
 Development tokens such as `local-admin` work only when the deployment explicitly selects development authentication and configures those token mappings. Never distribute them as production credentials. Keep real tokens out of URLs, source files, shell history, browser storage, logs and support bundles.
+
+### Verify your first authenticated read
+
+For browser access, ask the operator for the Catalog UI URL. For a CLI, editor or workload, ask for the API origin, issuer, audience and registered client ID. To verify access to a specific release, get its name, resource identifier and release UUID from the publisher or operator.
+
+| Client | How to connect |
+| --- | --- |
+| Browser | Open the Catalog UI and choose **Sign in**. Its operator configures the issuer, web client and scopes. The issuer registration must select the API audience. |
+| CLI | Follow [human CLI login](../reference/commands.md#human-cli-login) with the registered native client. Request `--scope catalog.read` when scopes are enforced. Select the saved `--login-file` explicitly on `catalogctl remote search --origin local`. Request `offline_access` separately if your issuer requires it for refresh. |
+| VS Code | Configure the Catalog connection and use its [sign-in procedure](../../../../../extensions/vscode/README.md#sign-in-and-sign-out). Its native authorization request sends the configured `audience`. |
+| Workload or SDK | Obtain a signed JWT access token for the API audience from the issuer. Give its actual subject a service membership and a reader grant on the target. The workload owns acquisition, renewal and replacement of the bare token. |
+
+To check an application connection, set `CATALOG_API_URL` to the API origin and `CATALOG_HEADERS_FILE` to a protected file containing the full Authorization header. A curl header file, a CLI login JSON file and an SDK's bare token file have different formats. The [Keycloak example](../operations/oidc-keycloak.md#prepare-private-http-credentials) shows how to prepare them. If the API uses private trust, export `CURL_CA_BUNDLE` with the path to the API's CA bundle. Configure the issuer CA separately for the client that obtains the token.
+
+Run this example in Bash with curl and jq. Replace `order processing` with the name of the known release.
+
+```bash
+(
+  set -e -o pipefail
+  curl --silent --show-error --fail --max-time 30 \
+    --header "@$CATALOG_HEADERS_FILE" "$CATALOG_API_URL/api/v1/me" |
+    jq '{subject, actorType, tenantId, scopeEnforcement, scopes}'
+  curl --silent --show-error --fail --max-time 30 \
+    --header "@$CATALOG_HEADERS_FILE" --header 'Content-Type: application/json' \
+    --data '{"origins":["local"],"text":"order processing","limit":10}' \
+    "$CATALOG_API_URL/api/v1/catalog/search" |
+    jq '[.items[] | {identifier, releaseId: .local.release.id}]'
+)
+```
+
+Compare the subject, actor type (`human` or `service`) and tenant UUID with the intended membership. Then match both the resource identifier and release UUID in the second response. An empty array (`[]`) means Search succeeded but returned no matches on this page. A valid human login can read `/me` and still receive 403 `FORBIDDEN` on Search when its token lacks `catalog.read` under scope enforcement.
+
+The [Keycloak service-account walkthrough](../operations/oidc-keycloak.md#give-a-service-account-access) runs the installed Python reader with a bare token, its claims file and the tutorial CA. It checks the service subject, tenant-wide `resource.read` and the Search response status. Confirm the expected tenant and release separately as above. A reader-only service should receive 403 on `GET /api/v1/memberships`.
 
 ### Keep identities and credentials separate
 

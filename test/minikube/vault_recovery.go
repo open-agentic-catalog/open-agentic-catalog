@@ -93,7 +93,7 @@ func (h *harness) verifyVaultProviderRecovery(baseURL string, before []podIdenti
 	if err := h.vaultSnapshot(baseURL, "sealed-provider"); err != nil {
 		return err
 	}
-	if err := h.vaultUnchanged(before); err != nil {
+	if err := h.credentialPodsUnchanged(before); err != nil {
 		return err
 	}
 	if err := h.unsealVault(); err != nil {
@@ -128,7 +128,7 @@ func (h *harness) verifyVaultProviderRecovery(baseURL string, before []podIdenti
 	if err := h.vaultSnapshot(baseURL, "server-recovered"); err != nil {
 		return err
 	}
-	if err := h.vaultUnchanged(before); err != nil {
+	if err := h.credentialPodsUnchanged(before); err != nil {
 		return err
 	}
 	h.report.Checks = append(h.report.Checks, "vault-seal-refuses-maintenance-before-drain", "vault-outage-preserves-api-worker-and-complete-snapshots", "vault-pod-replacement-retains-raft-and-recovers-after-unseal")
@@ -181,7 +181,7 @@ func (h *harness) verifyVaultAuthenticationRecovery(baseURL string, before []pod
 	if err := h.vaultRetainedSnapshot(baseURL); err != nil {
 		return err
 	}
-	if err := h.vaultUnchanged(before); err != nil {
+	if err := h.credentialPodsUnchanged(before); err != nil {
 		return err
 	}
 	if err := h.applyObject("restore exact source authentication", vaultRuntimeSecret(vaultSourceSecret, h.vault.expected[vaultSourceSecret])); err != nil {
@@ -191,12 +191,12 @@ func (h *harness) verifyVaultAuthenticationRecovery(baseURL string, before []pod
 		return err
 	}
 	for _, pod := range before {
-		if err := h.attachVaultMetadataProbe(pod.Name); err != nil {
+		if err := h.attachSourceMetadataProbe(pod.Name); err != nil {
 			return err
 		}
 	}
 	revision := fmt.Sprintf("%s-kv-%d", h.suffix, h.vault.versions[vaultSourceSecret])
-	if err := h.waitVaultMountedRevision(before, revision); err != nil {
+	if err := h.waitMountedSourceRevision(before, "https://federation-fixture:8443", revision); err != nil {
 		return err
 	}
 	if err := h.vaultSourceTest(baseURL, "auth-repaired", revision); err != nil {
@@ -205,7 +205,7 @@ func (h *harness) verifyVaultAuthenticationRecovery(baseURL string, before []pod
 	if err := h.vaultSnapshot(baseURL, "auth-repaired"); err != nil {
 		return err
 	}
-	if err := h.vaultUnchanged(before); err != nil {
+	if err := h.credentialPodsUnchanged(before); err != nil {
 		return err
 	}
 	h.report.Checks = append(h.report.Checks, "vault-authentication-outage-isolates-source-input", "vault-owner-and-startup-gates-exclude-source-credentials", "vault-authentication-repair-activates-complete-successor-without-restart")

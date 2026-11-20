@@ -7,7 +7,7 @@ Use this path when your administrator already operates a Catalog. Browser access
 
 ## Browse an anonymous publication
 
-For terminal access, use [`catalogctl discovery manifest` or `list`](../reference/commands.md#read-an-anonymous-publication) with the operator's API origin. These commands need no account and read one response at a time.
+For terminal access, ask the operator for the anonymous publication's discovery origin. Its hostname selects the publication and can differ from the private API hostname. Use [`catalogctl discovery manifest` or `list`](../reference/commands.md#read-an-anonymous-publication) to read it without an account.
 
 If your operator supplies an enabled `/discover` URL, you can [browse its public directory](catalog-ui.mdx#browse-a-public-directory) without an account. This view contains only the selected active anonymous publication. It cannot show private records or perform authoring and administration. Public browsing is optional and disabled by default. The remaining instructions cover the private workspace.
 
@@ -86,7 +86,7 @@ Ask your administrator for `library.own` if the page is unavailable. With OAuth 
 
 Obtain a built `catalogctl` binary from your administrator. No released binary download is assumed. Maintainers can follow [the build guide](../contributing/build-and-release.md); readers with a supplied binary do not need its source-build prerequisites.
 
-Ask for the API origin, exact [issuer](../reference/glossary.md#issuer) URL, registered [public CLI client](../reference/glossary.md#confidential-and-public-client) ID and required scopes. Browser cookies do not supply CLI credentials. Create a private credential directory and select a new credential filename:
+For a worked identity and release check, see [verify your first authenticated read](integrating.mdx#verify-your-first-authenticated-read). Ask for the API origin, exact [issuer](../reference/glossary.md#issuer) URL, registered [public CLI client](../reference/glossary.md#confidential-and-public-client) ID and required scopes. Browser cookies do not supply CLI credentials. Create a private credential directory and select a new credential filename:
 
 ```sh
 mkdir -p "$HOME/.catalog-login"

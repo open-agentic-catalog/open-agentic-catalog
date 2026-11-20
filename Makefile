@@ -1290,7 +1290,7 @@ webhook-report-check: ## Check the Go receiver example, SDK, isolated units and 
 	cd examples/publication-report && ../../test/sdk/.tools/staticcheck -tags=functional,integration ./...
 	cd examples/publication-report && ../../test/sdk/.tools/golangci-lint run --config ../../.golangci.yaml --build-tags=functional,integration ./...
 	@mkdir -p output/verification/publication-report
-	cd examples/publication-report && ../../test/sdk/.tools/go-licenses report --include_tests --ignore=$(MODULE_PATH) ./... > ../../output/verification/publication-report/licenses.csv
+	cd examples/publication-report && GOROOT="$$($(GO) env GOROOT)" ../../test/sdk/.tools/go-licenses report --include_tests --ignore=$(MODULE_PATH) ./... > ../../output/verification/publication-report/licenses.csv
 	$(PYTHON) -B -c "import sys; sys.path.insert(0, 'test/packaging'); from go_licenses import check_report; from pathlib import Path; check_report(Path('output/verification/publication-report/licenses.csv').read_text(), set('$(GO_LICENSE_ALLOWLIST)'.split(',')), False)"
 	cd examples/publication-report && $(GO) list -deps -f '{{if .Module}}{{.Module.Path}}{{end}}' ./... > ../../output/verification/publication-report/runtime-modules.txt
 	$(PYTHON) -B -c "from pathlib import Path; assert '$(MODULE_PATH)' not in Path('output/verification/publication-report/runtime-modules.txt').read_text().splitlines(), 'Example imports the Catalog application module'"
@@ -1321,7 +1321,7 @@ mcp-scanner-receiver-check: ## Check receiver units, local MCP/TLS transport, an
 	cd examples/mcp-scanner/receiver && $(GO) vet -tags=functional,integration ./...
 	cd examples/mcp-scanner/receiver && ../../../test/sdk/.tools/staticcheck -tags=functional,integration ./...
 	cd examples/mcp-scanner/receiver && ../../../test/sdk/.tools/golangci-lint run --config ../../../.golangci.yaml --build-tags=functional,integration ./...
-	cd examples/mcp-scanner/receiver && ../../../test/sdk/.tools/go-licenses report --include_tests --ignore=$(MODULE_PATH) ./... > ../../../output/verification/mcp-scanner-receiver/licenses.csv
+	cd examples/mcp-scanner/receiver && GOROOT="$$($(GO) env GOROOT)" ../../../test/sdk/.tools/go-licenses report --include_tests --ignore=$(MODULE_PATH) ./... > ../../../output/verification/mcp-scanner-receiver/licenses.csv
 	$(PYTHON) -B -c "import sys; sys.path.insert(0, 'test/packaging'); from go_licenses import check_report; from pathlib import Path; check_report(Path('output/verification/mcp-scanner-receiver/licenses.csv').read_text(), set('$(GO_LICENSE_ALLOWLIST)'.split(',')), False)"
 	cd examples/mcp-scanner/receiver && $(GO) list -deps -f '{{if .Module}}{{.Module.Path}}{{end}}' ./... > ../../../output/verification/mcp-scanner-receiver/runtime-modules.txt
 	$(PYTHON) -B -c "from pathlib import Path; assert '$(MODULE_PATH)' not in Path('output/verification/mcp-scanner-receiver/runtime-modules.txt').read_text().splitlines(), 'Example imports the Catalog application module'"

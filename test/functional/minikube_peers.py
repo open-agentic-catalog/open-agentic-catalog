@@ -6,7 +6,7 @@ import sys
 import time
 import urllib.parse
 
-from federation import Client, observations, snapshot_items, sync
+from federation import Client, observations, snapshot_items, sync, wait_job
 from http_client import fixture_tls_context
 from journeys import header
 from peers import HostClient, Peers, mutate, registry_members
@@ -49,10 +49,56 @@ class ClusterPeer(Peers):
         return items
 
     def connect(self, host, credential=None):
-        assert credential is None
-        inspection = mutate(self.b, "/api/v1/federation/source-inspections", {"url": "https://" + host + ":8443/.well-known/ard.json", "networkProfile": "functional-fixture"}, 201)[0]
+        access = {"networkProfile": "functional-fixture"}
+        if credential:
+            access["credentialBinding"] = credential
+        inspection = mutate(self.b, "/api/v1/federation/source-inspections", {"url": "https://" + host + ":8443/.well-known/ard.json", **access}, 201)[0]
         assert inspection["sourceType"] == "hybrid", "peer does not advertise actual Catalog discovery"
-        return mutate(self.b, "/api/v1/federation/sources", {"inspectionId": inspection["id"], "displayName": "Independent Helm peer", "retrievalMode": "indexed", "scope": {"kinds": list(KINDS)}, "updateMode": "manual_review", "networkProfile": "functional-fixture", "reason": "Owned Minikube peer"}, 201)[0]
+        if credential:
+            assert inspection.get("credentialRevision") == "authenticated", "inspection missed the selected credential generation"
+        return mutate(self.b, "/api/v1/federation/sources", {"inspectionId": inspection["id"], "displayName": "Independent Helm peer", "retrievalMode": "indexed", "scope": {"kinds": list(KINDS)}, "updateMode": "manual_review", **access, "reason": "Owned Minikube peer"}, 201)[0]
+
+
+def authenticated_sync(config, phase, a, b, state):
+    """Verify the same tenant-visible release and Source through each projected Secret generation."""
+    identifier = "urn:air:catalog.example.com:peers-a:private-control"
+    if phase == "authenticated":
+        member, _ = mutate(a.a, "/api/v1/role-assignments", {"subject": "oidc-peer-reader", "actorType": "service",
+                              "role": "service_client", "reason": "Upstream service member"}, 201)
+        role, _ = mutate(a.a, "/api/v1/access/roles", {"name": "Publication reader", "permissions": ["discovery.read"], "reason": "Read published metadata"}, 201)
+        mutate(a.a, "/api/v1/access/assignments", {"roleDefinitionId": role["id"], "membershipId": member["membershipId"], "reason": "Read this publication"}, 201)
+        a.snapshot(a.publisher_client, config["privateHost"])
+        HostClient(config["frontend"], host=config["privateHost"] + ":8443", ssl_context=fixture_tls_context(config["ca"])).request("GET", "/.well-known/ard.json", expected=(401,))
+        state["privateSource"] = b.connect(config["privateHost"], "bearer")["id"]
+    sid = state["privateSource"]
+    path = "/api/v1/federation/sources/" + sid
+    _, headers = b.a.request("GET", path)
+    refused = phase == "refused"
+    result, _ = mutate(b.a, path + ":test", {}, 503 if refused else 200, header(headers, "ETag"))
+    if refused:
+        assert result["code"] == "DEPENDENCY_UNAVAILABLE", "source test did not report DEPENDENCY_UNAVAILABLE for the token signed by B"
+    else:
+        assert result["status"] == "succeeded" and result["credentialRevision"] == phase, "source test used another generation"
+    current, _ = b.a.request("GET", path)
+    job_id = sync(b.a, sid, current["revision"], "private-peer")["job"]["id"]
+    job = wait_job(b.a, job_id, {"failed", "dead_letter"} if refused else {"succeeded"})
+    last = b.a.request("GET", path)[0]["lastCompleteSnapshotId"]
+    if refused:
+        assert last == state["privateSnapshot"], "failed sync replaced the complete snapshot"
+        state["failedJob"] = job_id
+    else:
+        assert last == job["result"]["snapshotId"] and last != state.get("privateSnapshot"), "sync did not produce a new current snapshot"
+        snapshot = b.a.request("GET", "/api/v1/federation/snapshots/" + last)[0]
+        assert snapshot["sourceId"] == sid and snapshot["sourceRevision"] == current["revision"] and snapshot["credentialRevision"] == phase, "worker snapshot binding differs"
+        assert snapshot["state"] == "complete" and snapshot["enumerationComplete"], "private enumeration incomplete"
+        ids = {row["identifier"] for row in observations(b.a, sid)}
+        assert identifier in ids and "urn:air:catalog.example.com:peers-a:draft-control" not in ids, "private publication visibility differs"
+        state["privateSnapshot"] = last
+    if phase == "restored":
+        assert b.a.request("GET", "/api/v1/jobs/" + state["failedJob"])[0]["state"] in ("failed", "dead_letter"), "rotation revived the failed job"
+    page = b.reader.request("POST", "/api/v1/catalog/search", {"origins": ["indexed"], "tags": ["private-control"], "limit": 20})[0]
+    assert not page["partial"] and any(row["identifier"] == identifier and row["version"] == "1.0.0" and sid in row["indexed"]["sourceIds"] for row in page["items"]), "reader lost the tenant release or source attribution"
+    return "refused-credential-preserves-last-complete-snapshot" if refused else "credential-bound-source-test-worker-snapshot-and-index"
 
 
 def resource_ids(client):
@@ -113,7 +159,7 @@ def run(config, phase):
         control_page(b.a, expected_b)
         repeated = b.synchronize(source)
         assert {r["id"] for r in repeated} == {r["id"] for r in rows}, "unchanged sync duplicates observations"
-        checks.extend(("three-kind-exact-bytes-and-provenance", "private-draft-tenant-and-issuer-denials", "no-implicit-adoption", "one-item-pagination-and-unchanged-sync"))
+        checks.extend(("three-kind-exact-bytes-and-provenance", "private-draft-tenant-and-cross-catalog-token-denials", "no-implicit-adoption", "one-item-pagination-and-unchanged-sync"))
         source = b.change_source(source, {"retrievalMode": "hybrid", "live": {"enabled": True, "queryPrivacyAcknowledged": True, "federationMode": "none"},
             "discoveryAssignments": [{"host": b.authenticated_host, "audience": "authenticated"}]})
         live = b.a.request("POST", "/api/v1/catalog/search", {"text": "peer", "origins": ["live"], "tags": ["peers"], "limit": 20})[0]
@@ -167,6 +213,10 @@ def run(config, phase):
         assert resource_ids(a.a) == set(state["resourcesA"]) and resource_ids(b.a) == set(state["resourcesB"]), "process replacement loses retained data"
         control_page(b.a, state["expectedA"], state["source"]["id"])
         checks.append("both-catalogs-retain-native-and-synchronized-state-after-replacement")
+    elif phase in ("authenticated", "refused", "restored"):
+        state = json.loads(state_path.read_text())
+        checks.append(authenticated_sync(config, phase, a, b, state))
+        state_path.write_text(json.dumps(state))
     else:
         raise ValueError("unknown owned peer phase")
     return {"phase": phase, "checks": checks, "kinds": list(KINDS), "catalogs": 2}

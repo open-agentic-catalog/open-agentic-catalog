@@ -42,6 +42,8 @@ export async function namespaceReadControl({ route, id, slug, tenant }) {
   };
 }
 
+export const browserReaderSubject = "00000000-0000-4000-8000-000000000012";
+
 // A synthetic human profile for the external test provider. The ordinary
 // backend provider gate uses service accounts and cannot qualify this flow.
 export function humanRealm(base, { origin, subject, password, secret }) {
@@ -56,6 +58,14 @@ export function humanRealm(base, { origin, subject, password, secret }) {
     );
   return {
     ...base,
+    attributes: { ...base.attributes, CreateDefaultClientScopes: "true" },
+    clientScopes: [
+      {
+        name: "catalog.read",
+        protocol: "openid-connect",
+        attributes: { "include.in.token.scope": "true" },
+      },
+    ],
     users: [
       {
         id: subject,
@@ -71,7 +81,7 @@ export function humanRealm(base, { origin, subject, password, secret }) {
         credentials: [{ type: "password", value: password, temporary: false }],
       },
       {
-        id: "00000000-0000-4000-8000-000000000012",
+        id: browserReaderSubject,
         username: "unregistered-human",
         enabled: true,
         emailVerified: true,
@@ -127,7 +137,7 @@ export function humanRealm(base, { origin, subject, password, secret }) {
         redirectUris: ["http://127.0.0.1/oauth/callback"],
         attributes: { "pkce.code.challenge.method": "S256" },
         defaultClientScopes: ["basic", "profile"],
-        optionalClientScopes: ["offline_access"],
+        optionalClientScopes: ["offline_access", "catalog.read"],
         protocolMappers: [
           {
             name: "catalog-audience",
@@ -158,6 +168,7 @@ export function ratingsRealm(base, secret) {
   ];
   return {
     ...base,
+    attributes: { ...base.attributes, CreateDefaultClientScopes: "false" },
     realm: "catalog-ratings",
     id: "catalog-ratings",
     clientScopes: [

@@ -76,6 +76,7 @@ func TestGeneratePreservesContainerReadPermissionsUnderUmask(t *testing.T) {
 				t.Fatal("fixture permission inspection failed")
 			}
 			if !slices.Equal(inputs, []string{
+				"accepted-api_key.token", "accepted-bearer.token",
 				"credentials/api_key.json", "credentials/api_key.token",
 				"credentials/bearer.json", "credentials/bearer.token",
 				"credentials/client-key.pem", "credentials/client-two-key.pem",

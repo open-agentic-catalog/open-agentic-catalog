@@ -133,7 +133,11 @@ func (h *harness) prepareDependencies() error {
 		if !ok {
 			return errors.New("invalid Catalog peer policy origins")
 		}
-		profile["origins"] = append(origins, peerOrigin("a"), peerOrigin("b"))
+		origins = append(origins, peerOrigin("a"), peerOrigin("b"))
+		if h.catalogNamespace() == namespace {
+			origins = append(origins, peerOrigin("private-a"))
+		}
+		profile["origins"] = origins
 	}
 	if h.options.scenario == "replicas" {
 		// Only this owned two-tenant queue case approves both tenants for the fixture origin.
@@ -258,6 +262,11 @@ func (h *harness) createSecretsAndConfiguration(policy, ca, certificate, certifi
 			}
 		}
 		if err := h.createSecret(secret.label, secret.name, secret.values); err != nil {
+			return err
+		}
+	}
+	if h.options.scenario == "peers" && h.catalogNamespace() == namespace {
+		if err := h.createSecret("create consumer source Secret", peerSourceMaterialName, peerCredentialData("unconfigured", "unconfigured")); err != nil {
 			return err
 		}
 	}
@@ -388,7 +397,7 @@ func (h *harness) fixtureDeployment(name, component string, placement map[string
 	materialSecret := map[string]any{"secretName": "local-fixture-material", "defaultMode": 292}
 	if h.vault != nil {
 		fixtureArgs = append(fixtureArgs, "--credentials")
-		materialSecret["items"] = []any{map[string]string{"key": "server.pem", "path": "server.pem"}, map[string]string{"key": "server-key.pem", "path": "server-key.pem"}, map[string]string{"key": "jwks.json", "path": "jwks.json"}, map[string]string{"key": "functional-ca.pem", "path": "trust/functional-ca.pem"}, map[string]string{"key": "bearer.token", "path": "credentials/bearer.token"}}
+		materialSecret["items"] = []any{map[string]string{"key": "server.pem", "path": "server.pem"}, map[string]string{"key": "server-key.pem", "path": "server-key.pem"}, map[string]string{"key": "jwks.json", "path": "jwks.json"}, map[string]string{"key": "functional-ca.pem", "path": "trust/functional-ca.pem"}, map[string]string{"key": "bearer.token", "path": "accepted-bearer.token"}}
 	}
 	if component == "identity" {
 		ports = append(ports, map[string]any{"name": "federation", "containerPort": 8443})

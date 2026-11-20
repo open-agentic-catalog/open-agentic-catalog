@@ -90,11 +90,10 @@ raise SystemExit(runner.main())
                                     self.assertEqual((target / name).read_text(), "previous " + language)
 
     def test_native_go_sdk_completion_refuses_empty_skip_and_failure(self):
-        go = shutil.which("go")
-        self.assertIsNotNone(go, "Repository Go toolchain is required")
+        go = str(runner.installed())
         with tempfile.TemporaryDirectory(prefix="oac-sdk-completion-") as directory:
             work = Path(directory)
-            (work / "go.mod").write_text("module fixture.example/sdk\n\ngo 1.27.3\n")
+            runner.run([go, "mod", "init", "fixture.example/sdk"], work, runner.environment(offline=True))
             script = work / "check.py"
             script.write_text("import importlib.util,os\nfrom pathlib import Path\n"
                               + "spec=importlib.util.spec_from_file_location('sdk_runner'," + repr(str(runner.HERE / "runner.py")) + ")\n"

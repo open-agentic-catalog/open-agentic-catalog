@@ -56,7 +56,7 @@ func (h *harness) vaultSourceTest(baseURL, phase, revision string) error {
 	})
 }
 
-func (h *harness) attachVaultMetadataProbe(pod string) error {
+func (h *harness) attachSourceMetadataProbe(pod string) error {
 	raw, err := h.kubectl("inspect source projection Pod", "-n", namespace, "get", "pod", pod, "-o", "json")
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func (h *harness) attachVaultMetadataProbe(pod string) error {
 		return errors.New("source projection Pod has no spec")
 	}
 	existing, _ := spec["ephemeralContainers"].([]any)
-	spec["ephemeralContainers"] = append(existing, map[string]any{"name": "vault-metadata-probe", "image": h.postgres, "imagePullPolicy": "Never", "command": []string{"sleep", "3600"}, "volumeMounts": []any{map[string]any{"name": "federation-credentials", "mountPath": "/source", "readOnly": true}}, "securityContext": map[string]any{"runAsNonRoot": true, "runAsUser": 65532, "allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true, "capabilities": map[string]any{"drop": []string{"ALL"}}, "seccompProfile": map[string]string{"type": "RuntimeDefault"}}})
+	spec["ephemeralContainers"] = append(existing, map[string]any{"name": "source-metadata-probe", "image": h.postgres, "imagePullPolicy": "Never", "command": []string{"sleep", "3600"}, "volumeMounts": []any{map[string]any{"name": "federation-credentials", "mountPath": "/source", "readOnly": true}}, "securityContext": map[string]any{"runAsNonRoot": true, "runAsUser": 65532, "allowPrivilegeEscalation": false, "readOnlyRootFilesystem": true, "capabilities": map[string]any{"drop": []string{"ALL"}}, "seccompProfile": map[string]string{"type": "RuntimeDefault"}}})
 	raw, err = json.Marshal(object)
 	if err != nil {
 		return err
@@ -78,15 +78,15 @@ func (h *harness) attachVaultMetadataProbe(pod string) error {
 	if _, err := h.kubectlInput("attach owned metadata-only observer", raw, "replace", "--raw", "/api/v1/namespaces/"+namespace+"/pods/"+pod+"/ephemeralcontainers", "-f", "-"); err != nil {
 		return err
 	}
-	_, err = h.kubectl("wait for metadata observer", "-n", namespace, "wait", "pod/"+pod, "--for=jsonpath={.status.ephemeralContainerStatuses[?(@.name==\"vault-metadata-probe\")].state.running}", "--timeout=60s")
+	_, err = h.kubectl("wait for metadata observer", "-n", namespace, "wait", "pod/"+pod, "--for=jsonpath={.status.ephemeralContainerStatuses[?(@.name==\"source-metadata-probe\")].state.running}", "--timeout=60s")
 	return err
 }
-func (h *harness) waitVaultMountedRevision(pods []podIdentity, revision string) error {
+func (h *harness) waitMountedSourceRevision(pods []podIdentity, origin, revision string) error {
 	ctx, cancel := context.WithTimeout(h.ctx, 3*time.Minute)
 	defer cancel()
 	return waitTopology(ctx, func() (bool, error) {
 		for _, pod := range pods {
-			raw, err := h.topologyCommand(ctx, "observe mounted source metadata", nil, "-n", namespace, "exec", pod.Name, "-c", "vault-metadata-probe", "--", "cat", "/source/bearer.json")
+			raw, err := h.topologyCommand(ctx, "observe mounted source metadata", nil, "-n", namespace, "exec", pod.Name, "-c", "source-metadata-probe", "--", "cat", "/source/bearer.json")
 			if err != nil {
 				return false, err
 			}
@@ -96,7 +96,7 @@ func (h *harness) waitVaultMountedRevision(pods []podIdentity, revision string) 
 				Origin   string `json:"origin"`
 				Type     string `json:"type"`
 			}
-			if json.Unmarshal(raw, &metadata) != nil || metadata.Tenant != primaryTenantID || metadata.Origin != "https://federation-fixture:8443" || metadata.Type != "bearer" {
+			if json.Unmarshal(raw, &metadata) != nil || metadata.Tenant != primaryTenantID || metadata.Origin != origin || metadata.Type != "bearer" {
 				return false, errors.New("mounted source metadata lost its tenant/origin binding")
 			}
 			if metadata.Revision != revision {
@@ -140,7 +140,7 @@ func vaultOriginStatus(ctx context.Context, client *http.Client, url, token stri
 
 func (h *harness) verifyVaultSourceRotation(baseURL string, before []podIdentity) error {
 	for _, pod := range before {
-		if err := h.attachVaultMetadataProbe(pod.Name); err != nil {
+		if err := h.attachSourceMetadataProbe(pod.Name); err != nil {
 			return err
 		}
 	}
@@ -172,7 +172,7 @@ func (h *harness) verifyVaultSourceRotation(baseURL string, before []podIdentity
 	if err := h.vaultSourceTest(baseURL, "controller-stopped", h.suffix+"-kv-1"); err != nil {
 		return err
 	}
-	if err := h.vaultUnchanged(before); err != nil {
+	if err := h.credentialPodsUnchanged(before); err != nil {
 		return err
 	}
 	if err := h.scaleVaultOperator("1"); err != nil {
@@ -182,10 +182,10 @@ func (h *harness) verifyVaultSourceRotation(baseURL string, before []podIdentity
 		return err
 	}
 	revision := fmt.Sprintf("%s-kv-%d", h.suffix, h.vault.versions[vaultSourceSecret])
-	if err := h.waitVaultMountedRevision(before, revision); err != nil {
+	if err := h.waitMountedSourceRevision(before, "https://federation-fixture:8443", revision); err != nil {
 		return err
 	}
-	if err := h.patchVaultFixtureSecret("local-fixture-material", map[string]string{"bearer.token": successor}); err != nil {
+	if err := h.patchFixtureSecret("local-fixture-material", map[string]string{"bearer.token": successor}); err != nil {
 		return err
 	}
 	client, url, err := h.vaultOriginClient()
@@ -211,7 +211,7 @@ func (h *harness) verifyVaultSourceRotation(baseURL string, before []podIdentity
 	if err := h.vaultSnapshot(baseURL, "successor"); err != nil {
 		return err
 	}
-	if err := h.vaultUnchanged(before); err != nil {
+	if err := h.credentialPodsUnchanged(before); err != nil {
 		return err
 	}
 	h.vault.bearer = successor
@@ -220,7 +220,7 @@ func (h *harness) verifyVaultSourceRotation(baseURL string, before []podIdentity
 }
 
 func (h *harness) rotateVaultDatabases() (string, error) {
-	before, err := h.vaultRuntimePods()
+	before, err := h.credentialRuntimePods()
 	if err != nil {
 		return "", err
 	}
@@ -279,10 +279,10 @@ func (h *harness) rotateVaultDatabases() (string, error) {
 	if err := h.waitVaultInputs(); err != nil {
 		return "", err
 	}
-	if err := h.patchVaultFixtureSecret("postgres-owner", map[string]string{"password": next[2]}); err != nil {
+	if err := h.patchFixtureSecret("postgres-owner", map[string]string{"password": next[2]}); err != nil {
 		return "", err
 	}
-	if err := h.patchVaultFixtureSecret("catalog-role-passwords", map[string]string{"api": next[0], "worker": next[1]}); err != nil {
+	if err := h.patchFixtureSecret("catalog-role-passwords", map[string]string{"api": next[0], "worker": next[1]}); err != nil {
 		return "", err
 	}
 	for i, role := range roles {
@@ -301,7 +301,7 @@ func (h *harness) rotateVaultDatabases() (string, error) {
 	if err := h.verifyVaultDatabases(); err != nil {
 		return "", err
 	}
-	after, err := h.vaultRuntimePods()
+	after, err := h.credentialRuntimePods()
 	if err != nil || sameUIDs(before, after) {
 		return "", errors.New("database activation did not replace startup consumers")
 	}

@@ -189,7 +189,11 @@ def qualification_reviewer(directory, configuration):
     realm = json.loads(original.read_text())
     secret = secrets.token_urlsafe(32)
     prepare.write(directory / "a/reviewer-client-secret", secret)
-    realm["clients"].append(prepare.client("catalog-reviewer-qualification", "open-agentic-catalog", secret=secret, service=True))
+    reviewer = prepare.client("catalog-reviewer-qualification", "open-agentic-catalog", secret=secret, service=True)
+    reviewer["defaultClientScopes"].append("catalog.review")
+    realm["clients"].append(reviewer)
+    admin = next(client for client in realm["clients"] if client["clientId"] == "catalog-automation-a")
+    admin["defaultClientScopes"].extend(["catalog.write", "catalog.publish", "publishers.manage", "tenant.admin"])
     selected = directory / "qualification-realm.json"
     prepare.document(selected, realm)
     mounts[0]["source"] = str(selected)
@@ -215,7 +219,17 @@ def publish(api, reviewer):
     submission, etag = api.request("POST", "/api/v1/catalog-listings/" + listing["id"] + "/submissions", {}, 201)
     reviewer.request("POST", "/api/v1/review-submissions/" + submission["id"] + ":approve", {"reason": "Independent owned tutorial review"}, etag=etag)
     _, etag = api.request("GET", "/api/v1/catalog-listings/" + listing["id"])
-    api.request("POST", "/api/v1/catalog-listings/" + listing["id"] + ":publish", {"submissionId": submission["id"]}, 201, etag)
+    published, _ = api.request("POST", "/api/v1/catalog-listings/" + listing["id"] + ":publish", {"submissionId": submission["id"]}, 201, etag)
+    # The independent reviewer's Reader grant allows local release reads without membership administration.
+    me, _ = reviewer.request("GET", "/api/v1/me")
+    if (me["subject"] != claims(reviewer.token)["sub"] or me["tenantId"] != TENANTS["a"] or me["actorType"] != "service"
+            or "resource.read" not in me["permissions"] or "access.manage" in me["permissions"]):
+        raise ValueError("Unexpected service reader identity or permissions")
+    denied, _ = reviewer.request("GET", "/api/v1/memberships", expected=403)
+    page, _ = reviewer.request("POST", "/api/v1/catalog/search", {"origins": ["local"], "text": "federation tutorial", "limit": 10})
+    releases = [item["local"]["release"]["id"] for item in page["items"] if item["identifier"] == identifier]
+    if denied.get("code") != "FORBIDDEN" or page["partial"] or releases != [published["release"]["id"]]:
+        raise ValueError("Service reader access differs from the published release or expected refusal")
     snapshot, etag = api.request("POST", "/api/v1/publication/snapshots", {"host": "catalog-a.test"}, 201)
     assert_publication(snapshot, identifier)
     api.request("POST", "/api/v1/publication/snapshots/" + snapshot["id"] + ":activate", {"host": "catalog-a.test", "reason": "Owned tutorial activation"}, etag=etag)
@@ -318,6 +332,8 @@ def run(args):
             # Use a separate ordinary service account for the independent review.
             outcome["stage"] = "qualification-reviewer-realm"
             qualification_reviewer(directory, configuration)
+            for role in ("api-a", "worker-a"):
+                configuration["services"][role].setdefault("environment", {})["CATALOG_AUTH_ENFORCE_SCOPES"] = "true"
             outcome["stage"] = "write-qualification-compose"
             selected = directory / "compose.qualification.json"
             prepare.document(selected, configuration, 0o600)
@@ -379,16 +395,24 @@ def run(args):
                         "reason": "Independent owned tutorial review"}, 201)
                 reviewer.request("GET", "/api/v1/me")
                 outcome["completed"].append("ready")
-                outcome["stage"] = "review-and-publication"
-                identifier = publish(a, reviewer)
                 outcome["stage"] = "source-credential-generation"
                 source_token = acquire(directory, "b", "catalog-source-b-to-a", "source-client-secret", "upstream-a", "open-agentic-catalog")
                 member, _ = a.request("POST", "/api/v1/role-assignments", {"subject": claims(source_token)["sub"], "actorType": "service", "role": "service_client", "reason": "Owned tutorial source membership"}, 201)
-                roles, _ = a.request("GET", "/api/v1/access/roles?limit=100")
-                role = next(r for r in roles["items"] if r.get("builtin") and r["key"] == "discovery_reader" and r["state"] == "active")
-                a.request("POST", "/api/v1/access/assignments", {"roleDefinitionId": role["id"], "membershipId": member["membershipId"], "reason": "Owned tutorial discovery caller"}, 201)
                 source_api = API(directory, "a", source_token)
-                manifest, _ = source_api.request("GET", "/.well-known/ard.json")
+                manifest_path = "/.well-known/ard.json"
+                API(directory, "a", "").request("GET", manifest_path, expected=401)
+                source_api.request("GET", manifest_path, expected=403)
+                role, _ = a.request("POST", "/api/v1/access/roles", {"name": "Published metadata reader", "permissions": ["discovery.read"],
+                    "reason": "Allow only upstream publication reads"}, 201)
+                a.request("POST", "/api/v1/access/assignments", {"roleDefinitionId": role["id"], "membershipId": member["membershipId"], "reason": "Owned tutorial discovery caller"}, 201)
+                access, _ = source_api.request("GET", "/api/v1/me")
+                if (access["actorType"] != "service" or access["tenantId"] != TENANTS["a"] or access["subject"] != claims(source_token)["sub"]
+                        or access["permissions"] != ["discovery.read"] or not access["scopeEnforcement"] or "catalog.read" not in access["scopes"]):
+                    raise ValueError("Publication reader lacks the expected identity, exact grant or enforced read scope")
+                source_api.request("GET", manifest_path, expected=404)
+                outcome["stage"] = "review-and-publication"
+                identifier = publish(a, reviewer)
+                manifest, _ = source_api.request("GET", manifest_path)
                 if not any(e.get("identifier") == identifier and e.get("version") == "1.0.0" for e in manifest.get("entries", [])):
                     raise ValueError("Authenticated source manifest omitted the exact published Agent/version")
                 revision = generation(directory)

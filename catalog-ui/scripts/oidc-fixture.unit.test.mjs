@@ -161,7 +161,16 @@ test("human provider profile retains subject mapping, separate audiences and req
   assert.equal(Object.hasOwn(cli, "secret"), false);
   assert.deepEqual(cli.redirectUris, ["http://127.0.0.1/oauth/callback"]);
   assert.equal(cli.attributes["pkce.code.challenge.method"], "S256");
-  assert.deepEqual(cli.optionalClientScopes, ["offline_access"]);
+  assert.deepEqual(cli.optionalClientScopes, [
+    "offline_access",
+    "catalog.read",
+  ]);
+  assert.equal(realm.attributes.CreateDefaultClientScopes, "true");
+  assert.equal(
+    realm.clientScopes.find((scope) => scope.name === "catalog.read")
+      .attributes["include.in.token.scope"],
+    "true",
+  );
   assert.equal(cli.protocolMappers[0].config["id.token.claim"], "false");
 });
 

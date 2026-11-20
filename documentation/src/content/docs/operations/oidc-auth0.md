@@ -13,10 +13,10 @@ Complete the [shared authentication setup](sign-in.md) first. Use one exact issu
 3. Define required API permissions if you plan to enforce Catalog's OAuth ceiling. Use the exact names from the [Catalog scope matrix](../reference/api-conventions.md).
 4. Set the tenant's **Default Audience** to the API identifier before using built-in browser or human CLI login.
 
-Catalog's login clients do not send Auth0's `audience` parameter. Auth0's [access-token guide](https://auth0.com/docs/secure/tokens/access-tokens/get-access-tokens) describes the default-audience option. Without a selected API audience, an access token can be opaque and unusable by Catalog.
+The Catalog UI and CLI rely on issuer registration to select the API audience. The VS Code native client sends its configured `audience` parameter. Auth0's [access-token guide](https://auth0.com/docs/secure/tokens/access-tokens/get-access-tokens) describes the default-audience option. Without a selected API audience, an access token can be opaque and unusable by Catalog.
 
 :::caution[Tenant-wide setting]
-The [default audience](https://support.auth0.com/center/s/article/value-of-the-audience-attribute-in-access-token-requests-and-its-significance) affects authorization requests across the Auth0 tenant. Review other applications before changing it. If this setting is unsuitable, use an external token-acquisition client; built-in login has no per-client audience override.
+The [default audience](https://support.auth0.com/center/s/article/value-of-the-audience-attribute-in-access-token-requests-and-its-significance) affects authorization requests across the Auth0 tenant. Review other applications before changing it. If you keep a different default, use an [externally acquired token for CLI reads](#use-an-external-client-for-cli-credentials). Browser sign-in still requires Auth0 to issue the UI an access token for the Catalog API.
 :::
 
 Configure this `auth` object in your complete backend profile:
@@ -76,7 +76,7 @@ Omit `--scope offline_access` if you do not enable refresh. Add required API sco
 
 ## Use an external client for CLI credentials
 
-Use an external client if you cannot select the tenant-wide default audience or need provider-specific authorization parameters. Preserve the exact issuer, including its trailing slash.
+Use this procedure for `catalogctl remote` when you need to request the audience explicitly or supply other Auth0 parameters. Preserve the exact issuer, including its trailing slash.
 
 Use an approved external OAuth client to obtain the API access token. Follow Auth0's [native application setup](https://auth0.com/docs/get-started/auth0-overview/create-applications/native-apps) if you manage a public native client. Use Authorization Code with S256 PKCE, the API audience and that client's exact callback. That client owns token renewal and protected file replacement.
 

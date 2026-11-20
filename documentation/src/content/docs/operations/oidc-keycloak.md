@@ -748,6 +748,8 @@ This example omits `namespaceId` and grants tenant-wide reading. The SDK helper 
 
 ### Verify CLI, SDK and refusal
 
+For an existing deployment, [verify your first authenticated read](../guides/integrating.mdx#verify-your-first-authenticated-read) shows how to check the tenant and match a known release.
+
 Run the actual CLI Search using the bare token file:
 
 ```sh
