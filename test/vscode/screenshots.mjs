@@ -3,18 +3,12 @@
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { createServer } from "node:http";
+import { createBlockedProxy } from "./listen.mjs";
 import { resolveCliArgsFromVSCodeExecutablePath } from "../../extensions/vscode/node_modules/@vscode/test-electron/out/index.js";
 import { developmentHost } from "./editor.mjs";
 
 const work = await mkdtemp(join(process.env.CATALOG_VSCODE_RUN_DIR, "guide-"));
-const blocked = createServer((_, response) => {
-  response.writeHead(403);
-  response.end();
-});
-blocked.on("connect", (_, socket) =>
-  socket.end("HTTP/1.1 403 Forbidden\r\n\r\n"),
-);
+const blocked = createBlockedProxy();
 try {
   await new Promise((done, reject) => {
     blocked.once("error", reject);

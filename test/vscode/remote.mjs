@@ -11,7 +11,7 @@ import { join, resolve, dirname } from "node:path";
 import { userInfo } from "node:os";
 import { spawn, execFileSync } from "node:child_process";
 import { createServer } from "node:net";
-import { createServer as httpServer } from "node:http";
+import { createBlockedProxy } from "./listen.mjs";
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 import assert from "node:assert/strict";
@@ -74,13 +74,7 @@ export async function qualifyRemote(parent, tools, host, vsix) {
   let native,
     browser,
     passed = false;
-  const blocked = httpServer((_, response) => {
-    response.writeHead(403);
-    response.end();
-  });
-  blocked.on("connect", (_, socket) =>
-    socket.end("HTTP/1.1 403 Forbidden\r\n\r\n"),
-  );
+  const blocked = createBlockedProxy();
   await new Promise((done) => blocked.listen(0, "127.0.0.1", done));
   const proxy = `http://127.0.0.1:${blocked.address().port}`;
   try {

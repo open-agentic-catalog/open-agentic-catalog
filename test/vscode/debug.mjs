@@ -1,3 +1,4 @@
+import { createBlockedProxy } from "./listen.mjs";
 // Focused real-editor debugger iteration; full qualification selects the same case.
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
@@ -10,14 +11,7 @@ const user = join(work, "user"),
 await mkdir(driver);
 await mkdir(join(work, "workspace"));
 await mkdir(join(user, "User"), { recursive: true });
-const { createServer } = await import("node:http");
-const blocked = createServer((_, response) => {
-  response.writeHead(403);
-  response.end();
-});
-blocked.on("connect", (_, socket) =>
-  socket.end("HTTP/1.1 403 Forbidden\r\n\r\n"),
-);
+const blocked = createBlockedProxy();
 await new Promise((done) => blocked.listen(0, "127.0.0.1", done));
 const proxy = `http://127.0.0.1:${blocked.address().port}`;
 await writeFile(

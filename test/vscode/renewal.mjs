@@ -1,6 +1,6 @@
 // Two real editor windows share the production extension's native SecretStorage.
 import assert from "node:assert/strict";
-import { listenFixture } from "./listen.mjs";
+import { createBlockedProxy, listenFixture } from "./listen.mjs";
 import { createServer } from "node:http";
 import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -130,13 +130,7 @@ const issuer = createServer(async (request, response) => {
 });
 await listenFixture(issuer);
 origin = `http://127.0.0.1:${issuer.address().port}`;
-const blocked = createServer((_, response) => {
-  response.writeHead(403);
-  response.end();
-});
-blocked.on("connect", (_, socket) =>
-  socket.end("HTTP/1.1 403 Forbidden\r\n\r\n"),
-);
+const blocked = createBlockedProxy();
 await new Promise((done) => blocked.listen(0, "127.0.0.1", done));
 const proxy = `http://127.0.0.1:${blocked.address().port}`;
 let editor,
