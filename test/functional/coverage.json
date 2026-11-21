@@ -402,13 +402,17 @@
           "symbol": "TestPersonalCLIResumesLostExistingFollow"
         },
         {
+          "path": "test/functional/personal_restore_integration_test.go",
+          "symbol": "qualifyProcessPersonalRestore"
+        },
+        {
           "path": "test/functional/operators.py"
         }
       ],
       "reason": "The existing packaged operator journey restores selected private searches and exact release references through the shipped CLI and PostgreSQL. Native process controls qualify actual response loss on first and later selected saves, retained acknowledgements and skips, same-origin tenant refusal, and membership suspension/reactivation between saves. Units qualify strict local input, finite enumeration, durable intent before sending and unverified acknowledgement/progress refusal.",
       "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per newly created item.",
       "rejection": "Refuse malformed/oversized files, changed origins/tenants/principals/intent, unsafe private state, unavailable targets and quota exhaustion without overwriting existing items or disclosing another owner. At quota, freeing a slot allows a newly confirmed plan to save the failed item. Resuming the original plan leaves the slot free.",
-      "recovery": "Keep acknowledged saves and original request/key/first-attempt bindings. Explicit resume skips acknowledged work, replays safe uncertain commands only within the conservative window, and refuses expired, future or missing chronology without mutation. After a lost HTTP 200 response for an existing follow, resume reports the original item and preserves its current label, revision and acknowledged release.",
+      "recovery": "Keep acknowledged saves and original request/key/first-attempt bindings. Explicit resume skips acknowledged work, replays safe uncertain commands only within the conservative window, and refuses expired, future or missing chronology without mutation. After a lost HTTP 200 response and API restart, a fresh CLI reports the existing follow. PostgreSQL retains its original ID, current label, revision, acknowledged release and single creation audit.",
       "gaps": []
     },
     {
@@ -1463,6 +1467,10 @@
           "symbol": "TestExportCLIEndToEnd"
         },
         {
+          "path": "cmd/catalogctl/export_recovery_functional_test.go",
+          "symbol": "qualifyExportBatchCrash"
+        },
+        {
           "path": "cmd/catalogctl/export_functional_test.go",
           "symbol": "TestExportLocalTLSFaultsAndDeadline"
         },
@@ -1486,7 +1494,7 @@
       "reason": "Units qualify exact identities, current permission, required audits, local-only paging, limits, lossless text, private files and artifact integrity. The compiled CLI qualifies native and reusable exports for all four kinds against an owned Catalog. PostgreSQL process tests verify delivered jsonb precision, exact reusable-file reads, separate digests and explicit native re-import. The packaged Compose runner has no export phase.",
       "success": "Save a selected native representation or a reusable file with all representations and optional exact Listing metadata. Preserve native text and separate digest scopes. Freeze bounded local selections before batch reads; deduplicate exact releases only.",
       "rejection": "Refuse conflicting selections, changed origins/identities, malformed pages, repeated cursors, over-limit responses, ambiguous representations, mismatched integrity, permission loss, unsafe output paths and overwrites.",
-      "recovery": "Record complete, reference-only, denied, failed and unattempted outcomes. Preserve earlier successful files and a bounded final report after cancellation. Missing completion markers identify interrupted output; retries use a new directory. Incomplete selections stay incomplete. No automatic network retry or Catalog mutation occurs.",
+      "recovery": "Record complete, reference-only, denied, failed and unattempted outcomes. SIGTERM preserves successful files and a bounded final report. SIGKILL during an artifact read leaves the earlier export intact and no final batch report. A fresh CLI refuses the existing directory before contacting the API and can export the saved selection to a new directory. Incomplete selections stay incomplete. No automatic network retry or Catalog mutation occurs.",
       "gaps": []
     },
     {

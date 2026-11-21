@@ -72,6 +72,7 @@ func TestExportCLIEndToEnd(t *testing.T) {
 	before := writes.Load()
 	seen := map[catalog.Kind]bool{}
 	var artifactRecord, inlineRecord catalog.CatalogRecord
+	var pluginRelease string
 	for _, item := range report.Items {
 		if item.ReleaseID == "" || seen[item.Kind] {
 			continue
@@ -99,6 +100,7 @@ func TestExportCLIEndToEnd(t *testing.T) {
 			t.Fatal("sidecar does not bind the exact selected release", err)
 		}
 		if rep.Plugin != nil {
+			pluginRelease = item.ReleaseID
 			var inspection catalog.PluginInspection
 			if manifest.File != nil || manifest.Disposition != "reference_only" || manifest.URL != rep.URL || json.Unmarshal(manifest.Plugin, &inspection) != nil || len(inspection.Documents) != len(rep.Plugin.Documents) || inspection.Documents[0] != rep.Plugin.Documents[0] {
 				t.Fatal("external archive misrepresented or inspected documents lost")
@@ -179,6 +181,9 @@ func TestExportCLIEndToEnd(t *testing.T) {
 	selectionPath := qualifyExportBatchCLI(t, ctx, binary, server.URL, readerToken, expectedReleases)
 	qualifyExportBatchByteBudget(t, ctx, server.URL, readerToken, inlineRecord, artifactRecord)
 	qualifyExportBatchSignal(t, ctx, binary)
+	t.Run("retry-batch-after-SIGKILL", func(t *testing.T) {
+		qualifyExportBatchCrash(t, ctx, binary, readerToken, server.Config.Handler, inlineRecord, artifactRecord, pluginRelease)
+	})
 	if writes.Load() != before {
 		t.Fatal("batch export performed mutations")
 	}

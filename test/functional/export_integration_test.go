@@ -20,7 +20,7 @@ import (
 // Extend the existing real import/process fixture after its draft-only counts
 // have passed. Govern one complete native document; do not simulate SQL JSON
 // encoding with a memory store or rewrite immutable retained evidence.
-func qualifyProcessExport(ctx context.Context, t *testing.T, f processFixture, owner *pgx.Conn, dsn, address, tenant, namespace, publisher, listing, revision, expectedVersion string) {
+func qualifyProcessExport(ctx context.Context, t *testing.T, f processFixture, owner *pgx.Conn, dsn, address, tenant, namespace, publisher, listing, revision, expectedVersion string) catalog.ListingRelease {
 	t.Helper()
 	var submission catalog.ReviewSubmission
 	decodeProcessJSON(t, f.request(ctx, address, "POST", "/api/v1/catalog-listings/"+listing+"/submissions", "local-contributor", `{}`, 201), &submission)
@@ -148,4 +148,5 @@ func qualifyProcessExport(ctx context.Context, t *testing.T, f processFixture, o
 		t.Fatal("re-import bypassed governance", err)
 	}
 	t.Log("native export: PostgreSQL inline precision, separate byte digests, frozen preview, batch and draft-only re-import passed")
+	return publication.Release
 }

@@ -24,7 +24,7 @@ import (
 // Reuses the owned migrated database, exact API login and two compiled API
 // processes. The proxy drops one committed response, then routes replay to the
 // other process. No direct repository call creates the imported drafts.
-func qualifyProcessImport(ctx context.Context, t *testing.T, f processFixture, owner *pgx.Conn, dsn, address, peer, tenant, namespace string) {
+func qualifyProcessImport(ctx context.Context, t *testing.T, f processFixture, owner *pgx.Conn, dsn, address, peer, tenant, namespace string) catalog.ListingRelease {
 	t.Helper()
 	var publisher catalog.Publisher
 	decodeProcessJSON(t, f.request(ctx, address, "POST", "/api/v1/publishers", "local-admin", `{"displayName":"Import process fixture","domains":["example.com"]}`, 201), &publisher)
@@ -322,7 +322,8 @@ func qualifyProcessImport(ctx context.Context, t *testing.T, f processFixture, o
 			t.Fatal("invalid controls changed retained mutation effects")
 		}
 	}
-	qualifyProcessExport(ctx, t, f, owner, dsn, address, tenant, namespace, publisher.ID, completed.Items[0].Steps[2].Ack.ID, completed.Items[0].Steps[1].Ack.RevisionID, version)
+	release := qualifyProcessExport(ctx, t, f, owner, dsn, address, tenant, namespace, publisher.ID, completed.Items[0].Steps[2].Ack.ID, completed.Items[0].Steps[1].Ack.RevisionID, version)
 	qualifyProcessDraftImport(ctx, t, f, owner, address, peer, tenant, namespace, publisher.ID)
 	qualifyProcessImportSignals(ctx, t, f, owner, address, peer, tenant, publisher.ID)
+	return release
 }

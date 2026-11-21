@@ -234,7 +234,7 @@ func TestPostgresProcesses(t *testing.T) {
 		t.Fatal("namespace creation response mismatch")
 	}
 	stop = qualifyProcessTenantSettings(ctx, t, fixture, owner, cfg, peerConfig, stop, roleDSN("api"), roleDSN("worker"), settingsPeer)
-	qualifyProcessImport(ctx, t, fixture, owner, dsn, cfg.HTTP.Address, peerConfig.HTTP.Address, tenant, namespace.ID)
+	published := qualifyProcessImport(ctx, t, fixture, owner, dsn, cfg.HTTP.Address, peerConfig.HTTP.Address, tenant, namespace.ID)
 	auditExportPath := retainProcessAuditRange(ctx, t, fixture, owner, cfg.HTTP.Address, tenant, namespace.ID)
 	// Qualify ratings composition through compiled processes and exact runtime
 	// logins. Repository tests own the complete vote and publication fault matrix.
@@ -358,8 +358,10 @@ func TestPostgresProcesses(t *testing.T) {
 	var privateRole identity.RoleDefinition
 	decodeProcessJSON(t, privateReply, &privateRole)
 
-	stop()
-	stop = fixture.start(ctx, "api", roleDSN("api"), configuration, cfg.HTTP.Address)
+	qualifyProcessPersonalRestore(ctx, t, fixture, owner, cfg.HTTP.Address, published, func() {
+		stop()
+		stop = fixture.start(ctx, "api", roleDSN("api"), configuration, cfg.HTTP.Address)
+	})
 	checkRatings(1)
 	if replay := fixture.request(ctx, cfg.HTTP.Address, "POST", "/api/v1/ratings/sharing", "local-admin", sharingInput, 200); !bytes.Equal(replay, sharingReply) {
 		t.Fatal("rating sharing replay changed across API process replacement")
