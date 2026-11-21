@@ -47,6 +47,8 @@ make helm-deploy HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
   HELM_VALUES=/path/to/production-values.yaml HELM_DEPLOY_TIMEOUT=20m
 ```
 
+For a fresh install, select an unused release name in the existing namespace. For an upgrade, the installed chart name must match the selected local chart. The coordinator checks Helm's release metadata before draining Pods, including when the existing release has no Deployments.
+
 The check snapshots local inputs, renders, runs a server-connected dry-run and verifies workload ownership and autoscaler constraints without changing workloads. It cannot validate Secret contents, PostgreSQL credentials or runtime access. Deployment repeats that validation, drains API then worker and waits for all selected old Pods to disappear, invokes the existing owner-only pre-install/pre-upgrade hook, and waits for the intended target replicas to become ready. First installation skips scaling absent workloads.
 
 The desired replica counts come from the selected target values, never from the live objects after drain. Both roles must have a positive target count. The drain, Helm deployment and readiness phases default to ten minutes each. Supported overrides are one second to one hour.
@@ -60,6 +62,14 @@ For local development, run `make compose-up`. It builds and validates target API
 When rebuilding a retained Compose stack, reuse its project, enabled `LOCAL_*` selectors and custom port assignments. For example, keep `LOCAL_UI=on` and `LOCAL_MONITORING=on` if those services already run. Preserve a custom `CATALOG_MONITORING_GRAFANA_PORT`; omitting it restores the default port rather than discovering the existing binding. Set these non-secret inputs in your trusted Make workflow file or repeat them on the command line. Review the [workflow input reference](../reference/configuration.mdx#workflow-only-variables) before replacement. Do not stop another project's services to free a port.
 
 After success, verify API and worker readiness, expected version/profile identity and an authorized read of retained tenant state. An empty migration plan or a version label does not establish safe mixed-version operation. Compatible configuration-only rollouts may use ordinary orchestration when schema/privileges remain unchanged; release upgrades use the conservative path above. PostgreSQL engine-major upgrades, backup restoration and webhook ciphertext-key replacement are separate operator procedures.
+
+### Application ownership with Flux or Argo CD
+
+If your cluster uses GitOps, give the Catalog application release one owner. For the coordinated procedure above, keep the release under Helm. Flux or Argo CD can manage prerequisites such as the namespace and Secret delivery separately. Keep the optional monitoring release independent of application startup.
+
+A Flux `HelmRelease` runs Helm actions. An Argo CD `Application` renders a Helm chart and manages the resulting resources during sync. Neither controller runs the Catalog coordinator merely because the chart declares a migration hook. On upgrade, that hook must wait until every old API and worker Pod has stopped. See the [Flux HelmRelease reference](https://fluxcd.io/flux/components/helm/helmreleases/) and [Argo CD Helm behavior](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/).
+
+Do not point a second release manager at workloads owned by the first. A reconciler that restores replicas during a drain can start old code against a changed schema. The [Minikube deployment checks](deployment.mdx#maintained-local-minikube-verification) exercise direct Helm installs and upgrades. Controller-driven reconciliation and recovery need separate qualification.
 
 ### Hand off an external autoscaler
 

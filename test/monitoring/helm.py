@@ -85,27 +85,40 @@ def run(arguments):
         print(package(arguments.output))
         return
     selection = deployment_arguments(arguments)
-    # Refuse to upgrade or remove a release belonging to another chart.
-    current = subprocess.run([arguments.helm, "list", *selection, "--all", "--filter", "^" + arguments.release + "$", "--output", "json"],
-                             check=True, capture_output=True, text=True, timeout=30)
-    releases = json.loads(current.stdout)
-    if not isinstance(releases, list) or len(releases) > 1 or any(not isinstance(item, dict) for item in releases):
-        raise ValueError("unexpected Helm release inventory")
-    if any(not re.fullmatch(re.escape(CHART_NAME) + r"-[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?", str(item.get("chart", ""))) for item in releases):
-        raise ValueError("selected release belongs to another chart")
-    if arguments.action == "install":
+    action = arguments.action
+    if action == "install":
         if not arguments.values or not Path(arguments.values).is_file():
             raise ValueError("install requires an explicit values file")
+        # List all named release states on both Helm 3 and 4. A new install
+        # cannot take over an existing release if the inventory changes.
+        current = subprocess.run([arguments.helm, "list", *selection, "--filter", "^" + arguments.release + "$",
+                                  "--deployed", "--failed", "--pending", "--uninstalling", "--uninstalled", "--superseded", "--short"],
+                                 check=True, capture_output=True, text=True, timeout=30)
+        names = current.stdout.splitlines()
+        if names == [arguments.release]:
+            action = "upgrade"
+        elif names:
+            raise ValueError("unexpected Helm release inventory")
+    if action != "install":
+        current = subprocess.run([arguments.helm, "get", "metadata", arguments.release, *selection, "--output", "json"],
+                                 check=True, capture_output=True, text=True, timeout=30)
+        metadata = json.loads(current.stdout)
+        if not isinstance(metadata, dict) or metadata.get("name") != arguments.release or metadata.get("namespace") != arguments.namespace:
+            raise ValueError("unexpected Helm release metadata")
+        if metadata.get("chart") != CHART_NAME:
+            raise ValueError("selected release belongs to another chart")
+        if action == "upgrade" and metadata.get("status") == "uninstalled":
+            action = "reinstall"
+    if action in ("install", "upgrade", "reinstall"):
         archive = package(arguments.output)
-        subprocess.run([arguments.helm, "upgrade", "--install", arguments.release, str(archive), *selection,
+        install = ["install", "--replace"] if action == "reinstall" else [action]
+        subprocess.run([arguments.helm, *install, arguments.release, str(archive), *selection,
                         "--values", arguments.values, "--set", "enabled=true", "--wait", "--timeout", "5m"], check=True, timeout=330)
-    elif arguments.action == "uninstall":
+    elif action == "uninstall":
         subprocess.run([arguments.helm, "uninstall", arguments.release, *selection, "--wait", "--timeout", "3m"], check=True, timeout=210)
-    elif arguments.action == "status":
+    elif action == "status":
         subprocess.run([arguments.helm, "status", arguments.release, *selection], check=True, timeout=30)
     else:
-        if not releases:
-            raise ValueError("selected monitoring release does not exist")
         port = 3000 if arguments.component == "grafana" else 9090
         subprocess.run([arguments.kubectl, "--context", arguments.context, "--namespace", arguments.namespace,
                         "port-forward", "--address", "127.0.0.1", "service/" + resource_name(arguments.namespace, arguments.release) + "-" + arguments.component,

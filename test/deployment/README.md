@@ -8,7 +8,7 @@ The caller must select an existing Kubernetes context/namespace, release, local 
 
 Target chart/values are copied to a private temporary directory before validation and removed on exit. Retain your reviewed original artifacts and image digests for recovery; this directory is not a deployment journal.
 
-The tool renders and performs a server-connected Helm dry-run, verifies existing Deployment ownership/names/selectors, and rejects HPAs targeting either runtime. The UI and PgBouncer Deployments are separate from the two drain targets. It scales API to zero and waits for all selected Pods to disappear, then does the same for workers. Only then does Helm run the migration hook and deploy the target.
+For an existing release, the coordinator compares the installed chart name from Helm metadata with the local chart. It also renders and performs a server-connected Helm dry-run, verifies existing Deployment ownership/names/selectors, and rejects HPAs targeting either runtime. The UI and PgBouncer Deployments are separate from the two drain targets. It scales API to zero and waits for all selected Pods to disappear, then does the same for workers. Only then does Helm run the migration hook and deploy the target.
 
 It verifies/restores the configured replica counts and waits for rollout readiness. `helm-deploy-check` performs the same preflight without draining or applying. It does not prove database admission, Secret contents or runtime readiness.
 

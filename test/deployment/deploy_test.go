@@ -46,6 +46,87 @@ func testOptions() options {
 	return options{context: "owned", namespace: "test", release: "catalog", chart: "chart", values: "values", helm: "helm", kubectl: "kubectl", timeout: time.Second}
 }
 
+func helmInventoryFixture(args []string, fresh bool) ([]byte, bool) {
+	switch args[0] {
+	case "list":
+		if fresh {
+			return nil, true
+		}
+		return []byte("catalog\n"), true
+	case "get":
+		return []byte(`{"name":"catalog","namespace":"test","chart":"open-agentic-catalog","version":"1.2.3-rc.1+build"}`), true
+	case "show":
+		return []byte("name: open-agentic-catalog\nversion: 1.2.3\n"), true
+	default:
+		return nil, false
+	}
+}
+
+func TestReleaseOwnershipStopsBeforeDryRunOrDrain(t *testing.T) {
+	for _, tc := range []struct{ name, command, reply, diagnostic string }{
+		{"unavailable inventory", "list", "", "cannot read Helm release inventory"},
+		{"wrong release name", "list", "another-release\n", "release inventory"},
+		{"ambiguous listing", "list", "catalog\nother\n", "release inventory"},
+		{"failed metadata read", "get", "", "installed Helm release metadata"},
+		{"wrong namespace", "get", `{"name":"catalog","namespace":"other","chart":"open-agentic-catalog"}`, "installed Helm release metadata"},
+		{"missing chart name", "get", `{"name":"catalog","namespace":"test"}`, "installed Helm release metadata"},
+		{"other chart", "get", `{"name":"catalog","namespace":"test","chart":"open-agentic-catalog-monitoring"}`, "belongs to another chart"},
+		{"invalid local metadata", "show", "version: 0.1.0\n", "target Helm chart metadata"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			run := func(_ context.Context, program string, args ...string) ([]byte, error) {
+				if program != "helm" {
+					t.Fatalf("unexpected cluster operation: %s %v", program, args)
+				}
+				if args[0] == "template" {
+					return rendered(t, fixtureObjects()), nil
+				}
+				if args[0] == tc.command {
+					if tc.reply == "" {
+						return nil, errors.New("private diagnostic")
+					}
+					return []byte(tc.reply), nil
+				}
+				if data, ok := helmInventoryFixture(args, false); ok {
+					return data, nil
+				}
+				t.Fatalf("unexpected Helm operation: %v", args)
+				return nil, nil
+			}
+			err := deploy(t.Context(), testOptions(), run, func(string) {})
+			if err == nil || !strings.Contains(err.Error(), tc.diagnostic) {
+				t.Fatalf("unexpected refusal: %v", err)
+			}
+		})
+	}
+}
+
+func TestReinstallRequiresMatchingRetainedChart(t *testing.T) {
+	o := testOptions()
+	for _, chart := range []string{"open-agentic-catalog", "another-chart"} {
+		t.Run(chart, func(t *testing.T) {
+			helm := func(_ context.Context, args ...string) ([]byte, error) {
+				if args[0] == "get" {
+					return json.Marshal(map[string]string{"name": o.release, "namespace": o.namespace, "chart": chart, "status": "uninstalled"})
+				}
+				data, ok := helmInventoryFixture(args, false)
+				if !ok {
+					t.Fatalf("unexpected Helm operation %v", args)
+				}
+				return data, nil
+			}
+			args, err := releaseAction(t.Context(), o, helm)
+			if chart == "another-chart" {
+				if err == nil || args != nil {
+					t.Fatalf("foreign history accepted: %v, %v", args, err)
+				}
+			} else if err != nil || !slices.Equal(args, []string{"install", o.release, o.chart, "--replace"}) {
+				t.Fatalf("owned history cannot be reused: %v, %v", args, err)
+			}
+		})
+	}
+}
+
 func TestTargetsRejectIncompleteOrChangedAuthority(t *testing.T) {
 	for _, change := range []func([]object) []object{
 		func(v []object) []object { return v[:2] },
@@ -110,6 +191,13 @@ func TestDeploymentOrderingAndFailures(t *testing.T) {
 							return rendered(t, withCompanions()), nil
 						}
 						return rendered(t, fixtureObjects()), nil
+					}
+					if data, ok := helmInventoryFixture(args, scenario == "install"); ok {
+						return data, nil
+					}
+					if scenario == "install" && args[0] != "install" || scenario != "install" && args[0] != "upgrade" ||
+						slices.Contains(args, "--install") || slices.Contains(args, "--replace") {
+						t.Fatalf("unexpected Helm action: %v", args)
 					}
 					if slices.Contains(args, "--dry-run=server") {
 						if scenario == "dry-run-fail" {

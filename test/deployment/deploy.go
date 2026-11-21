@@ -82,6 +82,49 @@ func targets(raw []byte, release string) (map[string]target, error) {
 	return result, nil
 }
 
+// releaseAction selects a fresh install or an upgrade of the same chart.
+// Helm's list display joins chart name and version, so use structured metadata
+// to compare the installed chart with the operator's frozen local artifact.
+func releaseAction(ctx context.Context, o options, helm func(context.Context, ...string) ([]byte, error)) ([]string, error) {
+	raw, err := helm(ctx, "list", "--filter", "^"+o.release+"$", "--deployed", "--failed", "--pending", "--uninstalling", "--uninstalled", "--superseded", "--short")
+	if err != nil {
+		return nil, errors.New("cannot read Helm release inventory")
+	}
+	name := strings.TrimSpace(string(raw))
+	if name == "" {
+		// Without --replace, install cannot take over an existing name.
+		return []string{"install", o.release, o.chart}, nil
+	}
+	if name != o.release {
+		return nil, errors.New("unexpected Helm release inventory")
+	}
+	raw, err = helm(ctx, "get", "metadata", o.release, "--output", "json")
+	var installed struct {
+		Name      string `json:"name"`
+		Namespace string `json:"namespace"`
+		Chart     string `json:"chart"`
+		Status    string `json:"status"`
+	}
+	if err != nil || json.Unmarshal(raw, &installed) != nil || installed.Name != o.release || installed.Namespace != o.namespace || installed.Chart == "" {
+		return nil, errors.New("invalid installed Helm release metadata")
+	}
+	raw, err = helm(ctx, "show", "chart", o.chart)
+	var selected struct {
+		Name string `yaml:"name"`
+	}
+	if err != nil || yaml.Unmarshal(raw, &selected) != nil || selected.Name == "" {
+		return nil, errors.New("invalid target Helm chart metadata")
+	}
+	if installed.Chart != selected.Name {
+		return nil, errors.New("selected Helm release belongs to another chart")
+	}
+	if installed.Status == "uninstalled" {
+		// Helm retains the name after uninstall --keep-history.
+		return []string{"install", o.release, o.chart, "--replace"}, nil
+	}
+	return []string{"upgrade", o.release, o.chart, "--reset-values"}, nil
+}
+
 func deploy(ctx context.Context, o options, run command, progress func(string)) error {
 	kube := func(c context.Context, args ...string) ([]byte, error) {
 		return run(c, o.kubectl, append([]string{"--context", o.context, "--namespace", o.namespace, "--request-timeout=30s"}, args...)...)
@@ -100,8 +143,12 @@ func deploy(ctx context.Context, o options, run command, progress func(string)) 
 	if err != nil {
 		return err
 	}
-	upgrade := []string{"upgrade", "--install", o.release, o.chart, "--values", o.values, "--reset-values", "--wait", "--wait-for-jobs", "--timeout", o.timeout.String()}
-	if _, err := helm(pre, append(append([]string{}, upgrade...), "--dry-run=server", "--hide-secret")...); err != nil {
+	apply, err := releaseAction(pre, o, helm)
+	if err != nil {
+		return err
+	}
+	apply = append(apply, "--values", o.values, "--wait", "--wait-for-jobs", "--timeout", o.timeout.String())
+	if _, err := helm(pre, append(append([]string{}, apply...), "--dry-run=server", "--hide-secret")...); err != nil {
 		return errors.New("helm dry-run failed; workloads unchanged")
 	}
 	raw, err = kube(pre, "get", "deployments", "-l", "app.kubernetes.io/instance="+o.release, "-o", "json")
@@ -158,7 +205,7 @@ func deploy(ctx context.Context, o options, run command, progress func(string)) 
 	progress("old runtimes stopped; applying migration and target release")
 	// Never roll back SQL or restart the prior image after mutation. On a
 	// target startup failure, best-effort stop both target roles and report it.
-	if _, err := helm(ctx, upgrade...); err != nil {
+	if _, err := helm(ctx, apply...); err != nil {
 		return failedDeployment(ctx, kube, selected)
 	}
 	ready, finish := context.WithTimeout(ctx, o.timeout)

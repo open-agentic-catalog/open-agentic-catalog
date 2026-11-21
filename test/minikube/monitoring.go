@@ -260,6 +260,20 @@ func (h *harness) verifyMonitoring(baseURL string) error {
 	if err := h.monitoringAbsent(); err != nil {
 		return err
 	}
+	// Exercise the documented Make defaults with no workflow environment file.
+	if _, err := h.run("check the monitoring release status", "make", "--no-print-directory", "monitoring-status",
+		"CATALOG_ENV_FILE=/dev/null", "MONITORING_CONTEXT="+h.profile, "MONITORING_NAMESPACE="+namespace,
+		"MONITORING_RELEASE="+monitoringRelease, "HELM="+h.options.helm); err != nil {
+		return err
+	}
+	chart := filepath.Join(h.options.repositoryRoot, "deployments/helm/open-agentic-catalog")
+	_, err = h.run("check application deployment against the monitoring release", "make", "--no-print-directory", "helm-deploy-check",
+		"CATALOG_ENV_FILE=/dev/null", "HELM_CONTEXT="+h.profile, "HELM_NAMESPACE="+namespace, "HELM_RELEASE="+monitoringRelease,
+		"HELM_CHART="+chart, "HELM_VALUES="+filepath.Join(chart, "values.yaml"), "HELM="+h.options.helm, "KUBECTL="+h.options.kubectl)
+	if err == nil || !strings.Contains(err.Error(), "selected Helm release belongs to another chart") {
+		return errors.New("application deployment did not refuse the monitoring release on chart ownership")
+	}
+	h.report.Checks = append(h.report.Checks, "application-coordinator-refuses-monitoring-release")
 	for _, role := range []string{"api", "worker"} {
 		if _, err := h.kubectl("scale Catalog replicas for monitoring", "-n", namespace, "scale", "deployment/catalog-"+role, "--replicas=2"); err != nil {
 			return err
@@ -330,7 +344,7 @@ func (h *harness) verifyMonitoring(baseURL string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := h.helm("enable ephemeral monitoring", "upgrade", monitoringRelease, archive, "-n", namespace, "-f", values, "--wait", "--timeout=4m"); err != nil {
+	if err := h.monitoringCommand("install", values); err != nil {
 		return err
 	}
 	hash := sha256.Sum256([]byte(namespace + "/" + monitoringRelease))
@@ -428,7 +442,7 @@ func (h *harness) verifyMonitoring(baseURL string) error {
 	// Both the boolean switch and release removal leave external state alone.
 	for _, removeRelease := range []bool{false, true} {
 		if removeRelease {
-			if _, err := h.helm("remove monitoring without deleting external claims", "uninstall", monitoringRelease, "-n", namespace, "--wait", "--timeout=2m"); err != nil {
+			if err := h.monitoringCommand("uninstall", ""); err != nil {
 				return err
 			}
 		} else if _, err := h.helm("disable monitoring with its Helm flag", "upgrade", monitoringRelease, archive, "-n", namespace, "--reuse-values", "--set", "enabled=false", "--wait", "--timeout=2m"); err != nil {
@@ -443,7 +457,7 @@ func (h *harness) verifyMonitoring(baseURL string) error {
 		if err := h.verifyInstrumentation("monitoring-removed"); err != nil {
 			return err
 		}
-		if _, err := h.helm("re-enable monitoring using retained history", "upgrade", "--install", monitoringRelease, archive, "-n", namespace, "-f", values, "--set", "enabled=true", "--wait", "--timeout=3m"); err != nil {
+		if err := h.monitoringCommand("install", values); err != nil {
 			return err
 		}
 		prometheus, grafana, err = h.monitoringClients(name, password, client)
@@ -471,6 +485,14 @@ func (h *harness) verifyMonitoring(baseURL string) error {
 	}
 	h.report.Checks = append(h.report.Checks, "monitoring-workload-and-pod-replacement", "monitoring-missing-secret-failure-isolation", "monitoring-flag-disable-and-reenable-with-retained-history", "monitoring-removal-independence-and-retained-history-reinstallation")
 	return h.verifyCrossNamespaceMonitoring(archive, password, client)
+}
+
+// monitoringCommand uses the operator's entry point with invocation-owned chart output.
+func (h *harness) monitoringCommand(action, values string) error {
+	_, err := h.run("run monitoring "+action, "python3", "test/monitoring/helm.py", action,
+		"--helm", h.options.helm, "--context", h.profile, "--namespace", namespace, "--release", monitoringRelease,
+		"--values", values, "--output", filepath.Join(h.temporary, "monitoring-package"))
+	return err
 }
 
 // verifyMonitoringDashboard checks the fixed Grafana dashboard and datasource, then evaluates all panel expressions against the test's Prometheus.

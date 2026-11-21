@@ -43,9 +43,8 @@ Allow TCP port 53 to the selected DNS service when you use this option. Resolver
 
 - CNCF-certified Kubernetes 1.34+ with the [documented cluster capabilities](../../../documentation/src/content/docs/operations/deployment.mdx#kubernetes-prerequisites). The chart constraint `>=1.34.0-0` accepts vendor suffixes without a distribution allowlist. Offline rendering uses `make helm-render` or an explicit `--kube-version 1.34.0`.
 - A compatible PostgreSQL 18 database with `pgcrypto`, a dedicated Catalog schema-owning migration identity, and the separate restricted API and worker identities described in the database-role guide.
-- Existing Secrets for the three database DSNs and the cursor-signing key.
+- An existing release namespace containing the Secrets for the three database DSNs and the cursor-signing key. The coordinator does not create the namespace.
 - A production OIDC issuer and audience, one selected tenancy mode, the matching tenant or organization mapping, a public base URL, and a reviewed federation policy. Configure exact discovery-host mappings when discovery is needed; set `configEnv.CATALOG_DISCOVERY_HOSTS: '[]'` to disable discovery while retaining the authenticated Catalog API.
-- Initial Catalog tenant, identity realm and administrator membership must be explicitly provisioned with the schema-owner command; an OIDC token alone grants no Catalog role. Follow [initial identity provisioning](../../../documentation/src/content/docs/operations/database-roles.mdx#initial-catalog-identity-provisioning).
 - Every externally referenced ServiceAccount, image pull Secret, ConfigMap, credential Secret, and optional capability Secret must exist before the workload or migration hook that consumes it. By default the chart creates the three role-specific ServiceAccounts itself.
 
 See the [deployment guide](../../../documentation/src/content/docs/operations/deployment.mdx), [database-role guide](../../../documentation/src/content/docs/operations/database-roles.mdx), and [configuration reference](../../../documentation/src/content/docs/reference/configuration.mdx) for the complete service contract.
@@ -56,14 +55,42 @@ For a fresh installation, the chart's pre-install Job creates the Catalog schema
 
 The current schema runs through migration 000055 with exact privilege manifest v31. Documentation contract tests compare these values with embedded migrations and manifest code.
 
-Create the namespace and deployment-owned Secrets and ConfigMaps first. For an existing database, review the pending changes with `catalogctl migrate plan` from the exact release image. Install or upgrade with a timeout longer than `migration.activeDeadlineSeconds` plus image-pull and scheduling time.
+For a fresh, single-tenant installation, start with a values file such as `catalog-values.yaml`. Replace the image repository and digest, public URL, issuer, access-token audience and tenant ID with your deployment's values. This example serves the authenticated Control API with no discovery hosts. The Secret references select existing keys in the release namespace.
+
+```yaml
+image:
+  repository: registry.example.com/platform/open-agentic-catalog
+  digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+configEnv:
+  CATALOG_PUBLIC_BASE_URL: https://catalog.example.com
+  CATALOG_AUTH_ISSUER: https://identity.example.com
+  CATALOG_AUTH_AUDIENCE: open-agentic-catalog
+  CATALOG_AUTH_DEDICATED_TENANT_ID: 00000000-0000-7000-8000-000000000001
+  CATALOG_DISCOVERY_HOSTS: '[]'
+secrets:
+  apiDatabase: {name: catalog-api-database, key: dsn}
+  workerDatabase: {name: catalog-worker-database, key: dsn}
+  migrationDatabase: {name: catalog-owner-database, key: dsn}
+  cursorSigning: {name: catalog-cursor-signing, key: key}
+```
+
+The default runtime login names are `catalog_api` and `catalog_worker`. If your database uses other names, set `databaseRoles.api` and `databaseRoles.worker` to match the respective DSNs. For private certificate authorities, configure `databaseTrustBundleConfigMap` for database TLS and `auth.trustBundleConfigMap` for the API's OIDC connection as needed.
+
+Use Helm 3 (3.15 or later) or Helm 4. The coordinator also requires kubectl and the repository's Go toolchain. Run both commands from the repository root with the same local chart and complete values file. The example selects the [packaged chart](#image-selection). For an existing database, review pending changes with `catalogctl migrate plan` from the exact release image first. Set the deployment timeout above `migration.activeDeadlineSeconds` to allow for image pulls and scheduling.
 
 ```sh
-make helm-deploy-check HELM_CONTEXT=my-cluster HELM_NAMESPACE=open-agentic-catalog \
-  HELM_RELEASE=open-agentic-catalog HELM_VALUES=/path/to/catalog-values.yaml
-make helm-deploy HELM_CONTEXT=my-cluster HELM_NAMESPACE=open-agentic-catalog \
-  HELM_RELEASE=open-agentic-catalog HELM_VALUES=/path/to/catalog-values.yaml \
-  HELM_DEPLOY_TIMEOUT=20m
+chart=output/artifacts/open-agentic-catalog-0.1.0.tgz
+make helm-deploy-check HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
+  HELM_RELEASE=catalog HELM_CHART="$chart" HELM_VALUES=catalog-values.yaml
+make helm-deploy HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
+  HELM_RELEASE=catalog HELM_CHART="$chart" HELM_VALUES=catalog-values.yaml HELM_DEPLOY_TIMEOUT=20m
+```
+
+After a fresh install, use the schema owner to [provision the tenant, issuer realm and first administrator](../../../documentation/src/content/docs/operations/database-roles.mdx#initial-catalog-identity-provisioning). Check the ready API and worker counts, then call `GET /api/v1/me` with that administrator's Catalog access token to verify the membership.
+
+```sh
+kubectl --context my-cluster --namespace catalog get deployments \
+  -l app.kubernetes.io/instance=catalog
 ```
 
 The [pre-install or pre-upgrade hook](https://helm.sh/docs/topics/charts_hooks/) applies migrations and reconciles the exact runtime privilege manifest before either Deployment changes. Set `databaseRoles.api` and `databaseRoles.worker` to the existing distinct LOGIN roles authenticated directly by the corresponding runtime DSNs; each name is limited to 63 UTF-8 bytes and cannot contain whitespace. The command validates role attributes and memberships before a migration, holds one advisory lock through migration and reconciliation, and fails the hook unless both bounded privilege reports are compliant.
@@ -88,7 +115,7 @@ The generated Service name must start with a lowercase letter and contain only l
 
 ## Image selection
 
-`image.tag` defaults to the chart `appVersion` with `+` replaced by `_` when empty. Set `image.digest` to an exact `sha256:` manifest digest for an immutable deployment; a digest takes precedence over the tag. `imagePullSecrets` is projected into API, worker, and migration Pods without placing registry credentials in chart values.
+`image.tag` defaults to the chart `appVersion` with `+` replaced by `_` when empty. Set `image.digest` to an exact `sha256:` manifest digest for an immutable deployment. A digest takes precedence over the tag. The chart references the same `imagePullSecrets` in API, worker, migration and any enabled UI or PgBouncer Pods. Keep registry credentials in the referenced Secrets.
 
 Use `make helm-package CHART_VERSION=0.1.0 APP_VERSION=0.1.0` from the repository root to create versioned application and independent monitoring archives under `output/artifacts/`. The target includes the project license, excludes CI fixtures, and lints/renders the actual archives before publishing local output. It never rewrites the tracked chart or publishes to a registry. See [build and release](../../../documentation/src/content/docs/contributing/build-and-release.md) for version metadata, image tags/digests and output collisions.
 
@@ -341,7 +368,12 @@ ui:
     clientId: catalog-browser
 ```
 
-Create `catalog-ui-inputs` in the release namespace before enabling the UI. It must contain `keys.json` (one to three objects with independent random 64-byte `hash` and 32-byte `block` keys encoded as hex) and `client-secret` (the OIDC client secret). Use an existing secret-management workflow or `kubectl create secret generic catalog-ui-inputs --from-file=keys.json=/protected/keys.json --from-file=client-secret=/protected/client-secret`. Do not put their contents in values or checked-in files.
+Create `catalog-ui-inputs` in the release namespace before enabling the UI. It must contain `keys.json` (one to three objects with independent random 64-byte `hash` and 32-byte `block` keys encoded as hex) and `client-secret` (the OIDC client secret). Keep both files out of chart values and version control. Use your secret-management workflow or create the Secret from protected files:
+
+```sh
+kubectl --context my-cluster --namespace catalog create secret generic catalog-ui-inputs \
+  --from-file=keys.json=/protected/keys.json --from-file=client-secret=/protected/client-secret
+```
 
 All UI replicas mount the same inputs.
 
@@ -405,7 +437,7 @@ These values override the corresponding parsed DSN pool timings. Acquired transa
 
 Use `make helm-deploy-check` followed by `make helm-deploy` with explicit `HELM_CONTEXT`, `HELM_NAMESPACE`, `HELM_RELEASE`, `HELM_CHART` and `HELM_VALUES`. `HELM_DEPLOY_TIMEOUT` defaults to `10m`. The local chart may be a directory or packaged archive; select immutable target images and complete values. See [installation and maintenance](../../../documentation/src/content/docs/operations/maintenance.mdx#coordinated-release-deployment) for prerequisites, recovery and the manual path for migrations requiring stopped-runtime repair.
 
-This operator-side workflow validates before draining both runtime roles, then invokes this chart's existing migration hook. It creates no runtime RBAC. The hook alone does not drain old Pods; raw `helm upgrade` is therefore not the general release-upgrade command. Coordinate external GitOps/autoscaling and serialize deployment operations. Desired replica counts come from target values, even after a failed attempt leaves live replicas at zero. Never use automatic Helm rollback after possible SQL mutation.
+This operator-side workflow validates before draining both runtime roles, then invokes this chart's existing migration hook. It creates no runtime RBAC. The hook alone does not drain old Pods; raw `helm upgrade` is therefore not the general release-upgrade command. If you use [Flux or Argo CD](../../../documentation/src/content/docs/operations/maintenance.mdx#application-ownership-with-flux-or-argo-cd), keep one owner for the application release. Pause external autoscaling and serialize deployment operations. Desired replica counts come from target values, even after a failed attempt leaves live replicas at zero. Never use automatic Helm rollback after possible SQL mutation.
 
 ### External listing artwork
 
