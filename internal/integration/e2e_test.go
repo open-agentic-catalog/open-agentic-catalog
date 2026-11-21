@@ -6,11 +6,14 @@ import (
 	"archive/zip"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,6 +22,7 @@ import (
 	"time"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/adapter"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/audit"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jobs"
@@ -57,10 +61,18 @@ func TestEndToEndAuthorReviewPublishDiscoverAndWork(t *testing.T) {
 	approveResult := request(t, server.URL, http.MethodPost, "/api/v1/publishers/"+publisher.ID+"/publication-domains/example.com:approve", "admin", "e2e-publication-domain-approve", `"rev-1"`, map[string]any{"reason": "approved for end-to-end publication"})
 	requireStatus(t, approveResult, http.StatusOK)
 
-	resourceResult := request(t, server.URL, http.MethodPost, "/api/v1/resources", "contributor", "e2e-resource", "", map[string]any{"namespaceId": namespace.ID, "canonicalIdentifier": "urn:air:example.com:payments:invoice-resolution-agent", "kind": "agent"})
+	createResource := map[string]any{"namespaceId": namespace.ID, "canonicalIdentifier": "urn:air:example.com:payments:invoice-resolution-agent", "kind": "agent"}
+	resourceResult := request(t, server.URL, http.MethodPost, "/api/v1/resources", "contributor", "e2e-resource", "", createResource)
 	requireStatus(t, resourceResult, http.StatusCreated)
 	var resource catalog.Resource
 	decode(t, resourceResult, &resource)
+	if resourceResult.header.Get("ETag") != revisionETag(resource.Revision) {
+		t.Fatalf("creation ETag does not match resource revision %d", resource.Revision)
+	}
+	creation := requireSingleAuditEvent(t, server.URL, "resource.created", "resource", resource.ID)
+	if creation.RequestID == "" || creation.RequestID != resourceResult.header.Get("X-Request-ID") {
+		t.Fatalf("resource creation audit has request ID %q, expected %q", creation.RequestID, resourceResult.header.Get("X-Request-ID"))
+	}
 	versionResult := request(t, server.URL, http.MethodPost, "/api/v1/resources/"+resource.ID+"/versions", "contributor", "e2e-version", "", map[string]any{"version": "1.0.0", "representations": []map[string]any{{"role": "primary", "mediaType": adapter.MediaA2AAgentCard, "data": map[string]any{"name": "Invoice resolution agent", "description": "Resolves invoice exceptions", "version": "1.0.0", "supportedInterfaces": []map[string]any{{"url": "https://agents.example.com/invoice-resolution", "protocolBinding": "JSONRPC", "protocolVersion": "1.0"}}, "capabilities": map[string]any{}, "defaultInputModes": []string{"application/json"}, "defaultOutputModes": []string{"application/json"}, "skills": []map[string]any{{"id": "resolve-invoices", "name": "Resolve invoices", "description": "Resolves invoice exceptions", "tags": []string{"invoices"}}}}}}})
 	requireStatus(t, versionResult, http.StatusCreated)
 	var versionEnvelope struct {
@@ -168,25 +180,29 @@ func TestEndToEndAuthorReviewPublishDiscoverAndWork(t *testing.T) {
 	if err := runtime.JobWorker.RunOnce(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	jobView, err := runtime.Jobs.Get(actorContext, job.ID)
-	if err != nil || jobView.State != jobs.StateSucceeded || jobView.Progress != 100 {
-		t.Fatalf("publication job = %#v, %v", jobView, err)
+	jobResult := request(t, server.URL, http.MethodGet, "/api/v1/jobs/"+job.ID, "publisher", "", "", nil)
+	requireStatus(t, jobResult, http.StatusOK)
+	var jobView jobs.View
+	decode(t, jobResult, &jobView)
+	if jobView.ID != job.ID || jobView.State != jobs.StateSucceeded || jobView.Progress != 100 {
+		t.Fatalf("publication job = %#v", jobView)
 	}
-	if jobView.Result == nil || jobView.Result.Type != "publication_snapshot" || jobView.Result.SnapshotID == "" || jobView.Result.Host != "127.0.0.1" {
+	if jobView.Result == nil || jobView.Result.Type != "publication_snapshot" || jobView.Result.SnapshotID == "" || jobView.Result.Host != "127.0.0.1" || jobView.Result.State != "candidate" {
 		t.Fatalf("publication job lacks an exact snapshot/host reference: %#v", jobView.Result)
 	}
 	jobSnapshot := request(t, server.URL, http.MethodGet, "/api/v1/publication/snapshots/"+jobView.Result.SnapshotID+"?host="+jobView.Result.Host, "publisher", "", "", nil)
 	requireStatus(t, jobSnapshot, http.StatusOK)
-	var generatedSnapshot publication.Snapshot
-	decode(t, jobSnapshot, &generatedSnapshot)
-	if generatedSnapshot.ID != jobView.Result.SnapshotID || generatedSnapshot.Host != jobView.Result.Host || generatedSnapshot.State != publication.SnapshotCandidate {
-		t.Fatalf("publication Job reference resolved a different snapshot: %#v", generatedSnapshot)
-	}
-
-	snapshotResult := request(t, server.URL, http.MethodPost, "/api/v1/publication/snapshots", "publisher", "e2e-snapshot", "", map[string]any{"host": "127.0.0.1"})
-	requireStatus(t, snapshotResult, http.StatusCreated)
 	var snapshot publication.Snapshot
-	decode(t, snapshotResult, &snapshot)
+	decode(t, jobSnapshot, &snapshot)
+	if snapshot.ID != jobView.Result.SnapshotID || snapshot.Host != jobView.Result.Host || snapshot.State != publication.SnapshotCandidate || snapshot.Generation <= 0 || snapshot.Generation != jobView.Result.Generation {
+		t.Fatalf("publication Job reference resolved a different snapshot: %#v", snapshot)
+	}
+	built := requireSingleAuditEvent(t, server.URL, audit.ActionPublicationCandidateCreated, "publication_snapshot", snapshot.ID)
+	facts, _ := built.Details["facts"].(map[string]any)
+	if built.Actor != audit.PrincipalIDCatalogWorker || facts["jobId"] != job.ID || facts["initiator"] != publisherActor.MembershipID {
+		t.Fatalf("candidate creation does not identify its worker, Job and initiator: %+v", built)
+	}
+	requireStatus(t, request(t, server.URL, http.MethodGet, "/.well-known/ard.json", "", "", "", nil), http.StatusNotFound)
 	foundSkillExclusion := false
 	for _, exclusion := range snapshot.Exclusions {
 		if exclusion.ResourceID != skillResource.ID {
@@ -199,11 +215,18 @@ func TestEndToEndAuthorReviewPublishDiscoverAndWork(t *testing.T) {
 	if !foundSkillExclusion {
 		t.Fatalf("snapshot did not explain the externally handed-off Skill exclusion: %#v", snapshot.Exclusions)
 	}
-	requireStatus(t, request(t, server.URL, http.MethodPost, "/api/v1/publication/snapshots/"+snapshot.ID+":activate", "publisher", "e2e-activate", snapshot.ETag, map[string]any{"host": "127.0.0.1", "reason": "Activate the reviewed end-to-end snapshot"}), http.StatusOK)
+	activation := request(t, server.URL, http.MethodPost, "/api/v1/publication/snapshots/"+snapshot.ID+":activate", "publisher", "e2e-activate", snapshot.ETag, map[string]any{"host": snapshot.Host, "reason": "Activate the reviewed end-to-end snapshot"})
+	requireStatus(t, activation, http.StatusOK)
+	activated := requireSingleAuditEvent(t, server.URL, audit.ActionPublicationActivated, "publication_snapshot", snapshot.ID)
+	if activated.Actor != publisherActor.MembershipID || activated.RequestID == "" || activated.RequestID != activation.header.Get("X-Request-ID") {
+		t.Fatalf("activation does not identify its publisher and request: %+v", activated)
+	}
 	manifest := request(t, server.URL, http.MethodGet, "/.well-known/ard.json", "", "", "", nil)
 	requireStatus(t, manifest, http.StatusOK)
-	if manifest.header.Get("Content-Digest") == "" || manifest.header.Get("ETag") != snapshot.ETag {
-		t.Fatalf("public manifest headers = %#v", manifest.header)
+	sum := sha256.Sum256(manifest.body)
+	digest := "sha-256=:" + base64.StdEncoding.EncodeToString(sum[:]) + ":"
+	if digest != snapshot.ARDContentDigest || manifest.header.Get("Content-Digest") != digest || manifest.header.Get("ETag") != snapshot.ETag {
+		t.Fatalf("public manifest does not match worker candidate %s: digest=%s headers=%v", snapshot.ID, digest, manifest.header)
 	}
 	registrySearch := request(t, server.URL, http.MethodPost, "/ard/v1/search", "", "", "", map[string]any{"query": map[string]any{"text": "resolve invoice"}, "federation": "none"})
 	requireStatus(t, registrySearch, http.StatusOK)
@@ -212,23 +235,36 @@ func TestEndToEndAuthorReviewPublishDiscoverAndWork(t *testing.T) {
 	if len(publicSearch.Results) != 1 || publicSearch.Results[0].Identifier != resource.CanonicalIdentifier {
 		t.Fatalf("public search = %#v", publicSearch)
 	}
-	audit := request(t, server.URL, http.MethodGet, "/api/v1/audit-events?limit=100", "admin", "", "", nil)
-	requireStatus(t, audit, http.StatusOK)
-	var audits struct {
-		Items []catalog.AuditEvent `json:"items"`
-	}
-	decode(t, audit, &audits)
-	if len(audits.Items) < 9 {
-		t.Fatalf("only %d audit events recorded", len(audits.Items))
-	}
-
-	replay := request(t, server.URL, http.MethodPost, "/api/v1/resources", "contributor", "e2e-resource", "", map[string]any{"namespaceId": namespace.ID, "canonicalIdentifier": "urn:air:example.com:payments:invoice-resolution-agent", "kind": "agent"})
+	replay := request(t, server.URL, http.MethodPost, "/api/v1/resources", "contributor", "e2e-resource", "", createResource)
 	requireStatus(t, replay, http.StatusCreated)
-	if replay.header.Get("Idempotency-Replayed") != "true" {
-		t.Fatal("end-to-end command replay was not identified")
+	if replay.header.Get("Idempotency-Replayed") != "true" || replay.header.Get("ETag") != resourceResult.header.Get("ETag") || !bytes.Equal(replay.body, resourceResult.body) {
+		t.Fatal("replay did not return the original resource creation response")
+	}
+	if after := requireSingleAuditEvent(t, server.URL, "resource.created", "resource", resource.ID); after.ID != creation.ID || after.RequestID != creation.RequestID {
+		t.Fatalf("replay replaced the original resource creation audit: %+v", after)
 	}
 	crossTenant := request(t, server.URL, http.MethodGet, "/api/v1/resources/"+resource.ID, "other-admin", "", "", nil)
 	requireStatus(t, crossTenant, http.StatusNotFound)
+}
+
+func requireSingleAuditEvent(t *testing.T, baseURL, action, targetType, targetID string) catalog.AuditEvent {
+	t.Helper()
+	query := url.Values{"action": {action}, "targetType": {targetType}, "targetId": {targetID}, "limit": {"2"}}
+	result := request(t, baseURL, http.MethodGet, "/api/v1/audit-events?"+query.Encode(), "admin", "", "", nil)
+	requireStatus(t, result, http.StatusOK)
+	var page struct {
+		Items      []catalog.AuditEvent `json:"items"`
+		NextCursor string               `json:"nextCursor"`
+	}
+	decode(t, result, &page)
+	if len(page.Items) != 1 || page.NextCursor != "" {
+		t.Fatalf("expected one %s event for %s %s; got %d, cursor=%q", action, targetType, targetID, len(page.Items), page.NextCursor)
+	}
+	event := page.Items[0]
+	if event.ID == "" || event.TenantID != testTenantID || event.Action != action || event.TargetType != targetType || event.TargetID != targetID {
+		t.Fatalf("unexpected audit event for %s %s: %+v", action, targetID, event)
+	}
+	return event
 }
 
 const testTenantID = "00000000-0000-7000-8000-000000000001"

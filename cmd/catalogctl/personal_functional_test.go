@@ -27,6 +27,34 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/personal"
 )
 
+// interceptPersonalSaves lets a test drop an actual server response after the API has handled the save.
+func interceptPersonalSaves(t *testing.T, api http.Handler, drop func(*http.Request, []byte, *httptest.ResponseRecorder) bool) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != personalSavePath {
+			api.ServeHTTP(w, r)
+			return
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Errorf("read personal save request: %v", err)
+			http.Error(w, "read failed", http.StatusBadRequest)
+			return
+		}
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		reply := httptest.NewRecorder()
+		api.ServeHTTP(reply, r)
+		if drop(r, body, reply) {
+			panic(http.ErrAbortHandler) // Close the connection before sending any response.
+		}
+		for key, values := range reply.Header() {
+			w.Header()[key] = values
+		}
+		w.WriteHeader(reply.Code)
+		_, _ = w.Write(reply.Body.Bytes())
+	})
+}
+
 func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	defer cancel()
@@ -43,49 +71,26 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 	var mutations, targets atomic.Int32
 	var sentLock sync.Mutex
 	var sent []struct{ key, body string }
+	api := interceptPersonalSaves(t, runtime.HTTP.Handler(), func(r *http.Request, body []byte, reply *httptest.ResponseRecorder) bool {
+		mutations.Add(1)
+		sentLock.Lock()
+		sent = append(sent, struct{ key, body string }{r.Header.Get("Idempotency-Key"), string(body)})
+		sentLock.Unlock()
+		if reply.Code != http.StatusCreated {
+			return false
+		}
+		if member := suspendAfterSave.Swap(nil); member != nil {
+			if _, err := runtime.Identity.SuspendMembership(adminCtx, member.ID, "Test authority changes during restore", "personal-suspend", member.Revision); err != nil {
+				t.Error("owned membership suspension failed", err)
+			}
+		}
+		return loseReplyAfter.Load() > 0 && loseReplyAfter.Add(-1) == 0
+	})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(r.URL.Path, "/resolve") || strings.Contains(r.URL.Path, "/catalog/") {
 			targets.Add(1)
 		}
-		if r.Method == http.MethodPost && r.URL.Path == personalSavePath {
-			mutations.Add(1)
-			body, _ := io.ReadAll(r.Body)
-			sentLock.Lock()
-			sent = append(sent, struct{ key, body string }{r.Header.Get("Idempotency-Key"), string(body)})
-			sentLock.Unlock()
-			r.Body = io.NopCloser(bytes.NewReader(body))
-			capture := httptest.NewRecorder()
-			runtime.HTTP.Handler().ServeHTTP(capture, r)
-			if capture.Code == http.StatusCreated {
-				if member := suspendAfterSave.Swap(nil); member != nil {
-					if _, err := runtime.Identity.SuspendMembership(adminCtx, member.ID, "Test authority changes during restore", "personal-suspend", member.Revision); err != nil {
-						t.Error("owned membership suspension failed", err)
-					}
-				}
-			}
-			if capture.Code == http.StatusCreated && loseReplyAfter.Load() > 0 && loseReplyAfter.Add(-1) == 0 {
-				// Drop the actual connection after a real commit, before acknowledgement.
-				hijacker, ok := w.(http.Hijacker)
-				if !ok {
-					t.Error("owned response does not support connection loss")
-					return
-				}
-				connection, _, err := hijacker.Hijack()
-				if err != nil {
-					t.Error("owned response-loss control", err)
-					return
-				}
-				_ = connection.Close()
-				return
-			}
-			for key, values := range capture.Header() {
-				w.Header()[key] = values
-			}
-			w.WriteHeader(capture.Code)
-			_, _ = w.Write(capture.Body.Bytes())
-			return
-		}
-		runtime.HTTP.Handler().ServeHTTP(w, r)
+		api.ServeHTTP(w, r)
 	}))
 	defer server.Close()
 	root := canonicalTempDir(t)
@@ -132,6 +137,36 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 		}
 		return remoteEnvelope{Data: raw}
 	}
+	readLibrary := func() map[string]personal.Item {
+		t.Helper()
+		items := make(map[string]personal.Item)
+		const pagePath = personalSavePath + "?limit=100"
+		path := pagePath
+		for offset := 0; offset < personal.MaxItems; offset += 100 {
+			var page struct {
+				Items      []personal.Item `json:"items"`
+				NextCursor string          `json:"nextCursor"`
+			}
+			if err := json.Unmarshal(request("local-reader", "GET", path, "", nil, 200).Data, &page); err != nil {
+				t.Fatal(err)
+			}
+			for _, saved := range page.Items {
+				if _, seen := items[saved.ID]; saved.ID == "" || seen {
+					t.Fatalf("empty or repeated item ID in owner inventory: %q", saved.ID)
+				}
+				items[saved.ID] = saved
+			}
+			if len(page.Items) > 100 || (page.NextCursor != "" && len(page.Items) != 100) {
+				t.Fatalf("unexpected library page size %d", len(page.Items))
+			}
+			if page.NextCursor == "" {
+				return items
+			}
+			path = pagePath + "&cursor=" + url.QueryEscape(page.NextCursor)
+		}
+		t.Fatal("library pagination exceeded the owner quota")
+		return nil
+	}
 	item := personalTestFile().Items[0]
 	streaming := false
 	item.Search.Origins = []catalog.SearchResultType{catalog.SearchResultLocal}
@@ -169,8 +204,12 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 	args := []string{"--file", filename, "--state-file", state, "--all", "--confirm"}
 	loseReplyAfter.Store(1)
 	outcome := readReport(run(false, "local-reader", append([]string{"apply"}, args...)...))
-	if outcome.Items[0].State != "uncertain" {
+	if len(outcome.Items) != 1 || outcome.Items[0].State != "uncertain" || outcome.Items[0].ID != "" {
 		t.Fatal("lost committed response was called a rollback")
+	}
+	committedWhileUncertain := readLibrary()
+	if len(committedWhileUncertain) != 1 {
+		t.Fatalf("expected one committed save before resume, got %d", len(committedWhileUncertain))
 	}
 	progressRoot, err := os.OpenRoot(filepath.Dir(state))
 	if err != nil {
@@ -216,8 +255,12 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 		}
 	}
 	outcome = readReport(run(true, "local-reader", append([]string{"resume"}, args...)...))
-	if outcome.Status != "complete" || outcome.Items[0].State != "acknowledged" {
+	if outcome.Status != "complete" || len(outcome.Items) != 1 || outcome.Items[0].State != "acknowledged" {
 		t.Fatal("same-key resume failed")
+	}
+	recoveredSearch := outcome.Items[0].ID
+	if savedItem, ok := committedWhileUncertain[recoveredSearch]; !ok || savedItem.Revision != 1 || !reflect.DeepEqual(savedItem.Input, item) {
+		t.Fatal("resume acknowledged a different item from the save that had already committed")
 	}
 	sentLock.Lock()
 	sameCommand := len(sent) >= 2 && sent[len(sent)-1] == sent[len(sent)-2]
@@ -241,11 +284,8 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 	if mutations.Load() != before {
 		t.Fatal("completed restore created a duplicate")
 	}
-	var page struct {
-		Items []personal.Item `json:"items"`
-	}
-	if json.Unmarshal(request("local-reader", "GET", personalSavePath, "", nil, 200).Data, &page) != nil || len(page.Items) != 1 || !reflect.DeepEqual(page.Items[0].Input, item) {
-		t.Fatal("restore did not preserve exact criteria once")
+	if !reflect.DeepEqual(readLibrary(), committedWhileUncertain) {
+		t.Fatal("resume changed the item that committed before acknowledgement")
 	}
 	if targets.Load() != 0 {
 		t.Fatal("backup or restore executed search or resolution")
@@ -308,7 +348,7 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 	if commands[1] != commands[2] || commands[0].key == commands[1].key || commands[3].key == commands[1].key || commands[0].body != string(personalTestBytes(t, file.Items[0])) || commands[1].body != string(personalTestBytes(t, file.Items[2])) || commands[3].body != string(personalTestBytes(t, file.Items[3])) {
 		t.Fatal("selected restore changed request bindings or created the skipped item")
 	}
-	if json.Unmarshal(request("local-reader", "GET", personalSavePath, "", nil, 200).Data, &page) != nil || len(page.Items) != 5 {
+	if len(readLibrary()) != 5 {
 		t.Fatal("selected restore duplicated or omitted saved items")
 	}
 	for _, index := range []int{0, 2, 3} {
@@ -324,33 +364,56 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 	for i := 0; i < 197; i++ {
 		request("local-reader", "POST", personalSavePath, fmt.Sprintf("personal-quota-%d", i), personalTestBytes(t, item), 201)
 	}
+	expectedLibrary := readLibrary()
+	if len(expectedLibrary) != personal.MaxItems-1 {
+		t.Fatalf("expected one free slot, found %d", personal.MaxItems-len(expectedLibrary))
+	}
 	file.Items = []personal.Input{item, item}
+	file.Items[0].Label = "Fits in the last slot"
+	file.Items[1].Label = "Requires a free slot"
 	if err := os.WriteFile(filename, personalTestBytes(t, file), 0600); err != nil {
 		t.Fatal(err)
 	}
 	args = []string{"--file", filename, "--state-file", filepath.Join(root, "quota", "state.json"), "--all", "--confirm"}
 	outcome = readReport(run(false, "local-reader", append([]string{"apply"}, args...)...))
-	if outcome.Items[0].State != "acknowledged" || outcome.Items[1].State != "failed" {
+	if outcome.Status != "incomplete" || len(outcome.Items) != 2 || outcome.Items[0].State != "acknowledged" || outcome.Items[1].State != "failed" {
 		t.Fatal("quota race lost per-item admission", outcome)
 	}
-	var full struct {
-		Items      []personal.Item `json:"items"`
-		NextCursor string          `json:"nextCursor"`
+	if failure := outcome.Items[1].Failure; failure == nil || failure.Status != http.StatusConflict || failure.Code != string(catalog.CodeConflict) || outcome.Items[1].ID != "" {
+		t.Fatalf("expected quota refusal without an item ID, got %+v", outcome.Items[1])
 	}
-	if json.Unmarshal(request("local-reader", "GET", personalSavePath+"?limit=100", "", nil, 200).Data, &full) != nil || len(full.Items) != 100 || full.NextCursor == "" {
-		t.Fatal("quota first page incomplete")
+	onlyAdded := func(prior map[string]personal.Item, id string, want personal.Input) personal.Item {
+		t.Helper()
+		after := readLibrary()
+		added, found := after[id]
+		if _, existed := prior[id]; existed || !found || added.Revision != 1 || !reflect.DeepEqual(added.Input, want) {
+			t.Fatalf("missing or incorrect acknowledged item %q: %+v", id, added)
+		}
+		delete(after, id)
+		if !reflect.DeepEqual(after, prior) {
+			t.Fatal("restore changed other items in the owner's library")
+		}
+		return added
 	}
-	var remaining struct {
-		Items      []personal.Item `json:"items"`
-		NextCursor string          `json:"nextCursor"`
+	firstAtQuota := onlyAdded(expectedLibrary, outcome.Items[0].ID, file.Items[0])
+	request("local-reader", "DELETE", personalSavePath+"/"+recoveredSearch, "quota-free-one-slot", nil, 200)
+	expectedLibrary[firstAtQuota.ID] = firstAtQuota
+	delete(expectedLibrary, recoveredSearch)
+	before = mutations.Load()
+	resumed := readReport(run(false, "local-reader", append([]string{"resume"}, args...)...))
+	if mutations.Load() != before || !reflect.DeepEqual(resumed, outcome) || !reflect.DeepEqual(readLibrary(), expectedLibrary) {
+		t.Fatal("resume retried a definitive quota refusal or changed retained state")
 	}
-	if json.Unmarshal(request("local-reader", "GET", personalSavePath+"?limit=100&cursor="+url.QueryEscape(full.NextCursor), "", nil, 200).Data, &remaining) != nil || len(remaining.Items) != 100 || remaining.NextCursor != "" {
-		t.Fatal("quota restore evicted items or exceeded 200")
+	// After the owner frees a slot, a new plan can explicitly select just the failed item.
+	args = []string{"--file", filename, "--state-file", filepath.Join(root, "quota-recovery", "state.json"), "--create", "2", "--confirm"}
+	recovered := readReport(run(true, "local-reader", append([]string{"apply"}, args...)...))
+	if recovered.Status != "complete" || len(recovered.Items) != 2 || recovered.Items[0] != (personalRestoreRow{Index: 1, State: "skipped"}) || recovered.Items[1].State != "acknowledged" || mutations.Load() != before+1 {
+		t.Fatalf("fresh quota recovery plan did not save only the selected item: %+v", recovered)
 	}
+	secondAtQuota := onlyAdded(expectedLibrary, recovered.Items[1].ID, file.Items[1])
 	// Current membership is checked between saves and again before exposing progress on resume.
-	for i := 0; i < 2; i++ {
-		request("local-reader", "DELETE", personalSavePath+"/"+full.Items[i].ID, fmt.Sprintf("authority-space-%d", i), nil, 200)
-	}
+	request("local-reader", "DELETE", personalSavePath+"/"+firstAtQuota.ID, "authority-space-1", nil, 200)
+	request("local-reader", "DELETE", personalSavePath+"/"+secondAtQuota.ID, "authority-space-2", nil, 200)
 	reader, err := runtime.Authenticator.Authenticate(ctx, "local-reader")
 	if err != nil {
 		t.Fatal(err)
@@ -381,5 +444,133 @@ func TestPersonalCLIRealAPIAndLostAcknowledgement(t *testing.T) {
 	outcome = readReport(run(true, "local-reader", append([]string{"resume"}, args...)...))
 	if outcome.Status != "complete" || outcome.Items[0] != firstAcknowledgement || outcome.Items[1].State != "acknowledged" || mutations.Load() != before+2 {
 		t.Fatal("renewed current authority did not resume only the unstarted save", outcome)
+	}
+}
+
+func TestPersonalCLIResumesLostExistingFollow(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
+	defer cancel()
+	binary := buildCatalogctlProcessBinary(t, ctx)
+	runtime := buildSmokeTestRuntime(t)
+	defer runtime.Close()
+	ownerAPI := httptest.NewServer(runtime.HTTP.Handler())
+	defer ownerAPI.Close()
+	root := canonicalTempDir(t)
+	demo, err := executeMinimalDemo(ctx, ownerAPI.URL, filepath.Join(root, "demo.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var published demoItem
+	for _, item := range demo.Items {
+		if item.ReleaseID != "" {
+			published = item
+			break
+		}
+	}
+	if published.ListingID == "" {
+		t.Fatal("fixture did not publish a Listing to follow")
+	}
+	const reader = "local-reader"
+	client := &smokeHTTPClient{baseURL: ownerAPI.URL, client: ownerAPI.Client()}
+	original := personal.Input{Type: "follow", ListingID: personal.ListingID(published.ListingID), Label: "Backed-up label"}
+	follow, etag, err := demoExchangeETag[personal.Item](ctx, client, http.MethodPost, personalSavePath, reader, "follow-create", "", original, http.StatusCreated)
+	if err != nil || follow.ID == "" || follow.Revision != 1 {
+		t.Fatalf("create follow: %+v, %v", follow, err)
+	}
+
+	type exchange struct {
+		key, body, etag, replay string
+		status                  int
+	}
+	var mu sync.Mutex
+	var saves []exchange
+	cliAPI := httptest.NewServer(interceptPersonalSaves(t, runtime.HTTP.Handler(), func(r *http.Request, body []byte, reply *httptest.ResponseRecorder) bool {
+		mu.Lock()
+		defer mu.Unlock()
+		saves = append(saves, exchange{
+			key: r.Header.Get("Idempotency-Key"), body: string(body),
+			status: reply.Code, etag: reply.Header().Get("ETag"), replay: reply.Header().Get("Idempotency-Replayed"),
+		})
+		return len(saves) == 1 && reply.Code == http.StatusOK
+	}))
+	defer cliAPI.Close()
+	env := append(catalogctlProcessEnvironment(t), "CATALOG_REMOTE_BASE_URL="+cliAPI.URL, "CATALOG_REMOTE_TOKEN="+reader)
+	backup := filepath.Join(root, "backup")
+	startCatalogctlProcess(t, ctx, binary, env, "personal", "export", "--output-dir", backup).wait(t, 0)
+	path := personalSavePath + "/" + follow.ID
+	resolve := func() personal.FollowResolution {
+		t.Helper()
+		result, err := demoExchange[personal.FollowResolution](ctx, client, http.MethodPost, path+"/resolve", reader, "", "", struct{}{}, http.StatusOK)
+		if err != nil || result.Status != "available" || result.Current == nil || result.Current.ReleaseID != published.ReleaseID {
+			t.Fatalf("resolve follow: %+v, %v", result, err)
+		}
+		return result
+	}
+	observed := *resolve().Current
+	const newLabel = "Owner's current label"
+	update := map[string]any{"type": "follow", "listingId": published.ListingID, "label": newLabel, "observed": observed}
+	updated, currentETag, err := demoExchangeETag[personal.Item](ctx, client, http.MethodPatch, path, reader, "follow-acknowledge", etag, update, http.StatusOK)
+	if err != nil || updated.ID != follow.ID || updated.Revision != 2 || currentETag == "" || currentETag == etag {
+		t.Fatalf("rename and acknowledge follow: %+v, %v", updated, err)
+	}
+	if before := resolve(); before.Change != "unchanged" || *before.Current != observed {
+		t.Fatalf("owner acknowledgement missing before restore: %+v", before)
+	}
+
+	restore := func(action string, exitCode int) personalRestoreReport {
+		t.Helper()
+		stdout, _ := startCatalogctlProcess(t, ctx, binary, env, "personal", action, "--file", filepath.Join(backup, "library.json"), "--state-file", filepath.Join(root, "progress", "state.json"), "--all", "--confirm").wait(t, exitCode)
+		var report personalRestoreReport
+		if err := json.Unmarshal(stdout, &report); err != nil {
+			t.Fatalf("%s: invalid restore report: %v", action, err)
+		}
+		return report
+	}
+	interrupted := restore("apply", 1)
+	if interrupted.Status != "incomplete" || len(interrupted.Items) != 1 || interrupted.Items[0].State != "uncertain" || interrupted.Items[0].ID != "" {
+		t.Fatalf("lost reply should leave one uncertain follow: %+v", interrupted)
+	}
+	mu.Lock()
+	attempts := len(saves)
+	mu.Unlock()
+	if attempts != 1 {
+		t.Fatalf("apply sent %d saves before explicit resume, want 1", attempts)
+	}
+	completed := restore("resume", 0)
+	if completed.Status != "complete" || len(completed.Items) != 1 || completed.Items[0].State != "already-followed" || completed.Items[0].ID != follow.ID {
+		t.Fatalf("resume did not identify the existing follow: %+v", completed)
+	}
+	if again := restore("resume", 0); !reflect.DeepEqual(again, completed) {
+		t.Fatalf("completed resume changed the acknowledgement: %+v", again)
+	}
+	mu.Lock()
+	got := append([]exchange(nil), saves...)
+	mu.Unlock()
+	if len(got) != 2 {
+		t.Fatalf("expected one save on apply and one on explicit recovery, got %d", len(got))
+	}
+	first, replay := got[0], got[1]
+	if first.status != http.StatusOK || replay.status != http.StatusOK || first.replay == "true" || replay.replay != "true" ||
+		first.etag != currentETag || replay.etag != currentETag {
+		t.Fatalf("expected the existing follow revision on both responses: %+v", got)
+	}
+	if first.key == "" || replay.key != first.key || replay.body != first.body {
+		t.Fatal("recovery changed the original follow save key or request bytes")
+	}
+	var sent map[string]string
+	want := map[string]string{"type": "follow", "listingId": published.ListingID, "label": original.Label}
+	if err := json.Unmarshal([]byte(first.body), &sent); err != nil || !reflect.DeepEqual(sent, want) {
+		t.Fatalf("apply did not send the exported follow: %v, %v", sent, err)
+	}
+	page, err := demoExchange[struct{ Items []personal.Item }](ctx, client, http.MethodGet, personalSavePath+"?limit=2", reader, "", "", nil, http.StatusOK)
+	if err != nil || len(page.Items) != 1 {
+		t.Fatalf("expected one retained item: %+v, %v", page, err)
+	}
+	item := page.Items[0]
+	if item.ID != follow.ID || item.Revision != updated.Revision || item.Type != "follow" || item.ListingID != original.ListingID || item.Label != newLabel {
+		t.Fatalf("restore replaced the owner's current follow: %+v", item)
+	}
+	if result := resolve(); result.Change != "unchanged" || *result.Current != observed {
+		t.Fatalf("restore lost the owner's acknowledged release: %+v", result)
 	}
 }

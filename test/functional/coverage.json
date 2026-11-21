@@ -398,13 +398,17 @@
           "symbol": "TestPersonalCLIRealAPIAndLostAcknowledgement"
         },
         {
+          "path": "cmd/catalogctl/personal_functional_test.go",
+          "symbol": "TestPersonalCLIResumesLostExistingFollow"
+        },
+        {
           "path": "test/functional/operators.py"
         }
       ],
       "reason": "The existing packaged operator journey restores selected private searches and exact release references through the shipped CLI and PostgreSQL. Native process controls qualify actual response loss on first and later selected saves, retained acknowledgements and skips, same-origin tenant refusal, and membership suspension/reactivation between saves. Units qualify strict local input, finite enumeration, durable intent before sending and unverified acknowledgement/progress refusal.",
-      "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per item.",
-      "rejection": "Refuse malformed/oversized files, changed origins/tenants/principals/intent, unsafe private state, unavailable targets and quota exhaustion without overwriting existing items or disclosing another owner.",
-      "recovery": "Keep acknowledged saves and original request/key/first-attempt bindings. Explicit resume skips acknowledged work, replays safe uncertain commands only within the conservative window, and refuses expired, future or missing chronology without mutation.",
+      "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per newly created item.",
+      "rejection": "Refuse malformed/oversized files, changed origins/tenants/principals/intent, unsafe private state, unavailable targets and quota exhaustion without overwriting existing items or disclosing another owner. At quota, freeing a slot allows a newly confirmed plan to save the failed item. Resuming the original plan leaves the slot free.",
+      "recovery": "Keep acknowledged saves and original request/key/first-attempt bindings. Explicit resume skips acknowledged work, replays safe uncertain commands only within the conservative window, and refuses expired, future or missing chronology without mutation. After a lost HTTP 200 response for an existing follow, resume reports the original item and preserves its current label, revision and acknowledged release.",
       "gaps": []
     },
     {
@@ -963,6 +967,10 @@
         {
           "path": "internal/platform/httpserver/guardrails_functional_test.go",
           "symbol": "TestHTTPPublicationAndPublicDiscoveryRoundTrip"
+        },
+        {
+          "path": "internal/integration/publication_replacement_functional_test.go",
+          "symbol": "TestReplacementPublicationPreservesActiveDiscoveryUntilExplicitChange"
         },
         {
           "path": "test/functional/core.py"

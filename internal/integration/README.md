@@ -4,8 +4,8 @@ This package exercises complete Catalog workflows through composed services and 
 
 | File | Coverage |
 | --- | --- |
-| [e2e_test.go](e2e_test.go) | Governed lifecycle, public discovery and composed workflow behavior. |
-| [publication_replacement_functional_test.go](publication_replacement_functional_test.go) | Replacement publication preserves active snapshot identity, bytes and ETags; activation and explicit release withdrawal change discovery separately. |
+| [e2e_test.go](e2e_test.go) | Author and review a release, run the publication worker, activate its candidate and verify the public manifest and search result. Replaying Resource creation preserves the original audit event. |
+| [publication_replacement_functional_test.go](publication_replacement_functional_test.go) | Replace a release, reject stale activation and withdraw the replacement. An ineligible rollback leaves discovery withdrawn. A fresh snapshot restores both feeds and survives a retry of the original retirement. |
 | [api_examples_test.go](api_examples_test.go) | Reviewed API examples exercised against the service. |
 | [skill_frontmatter_test.go](skill_frontmatter_test.go) | Skill frontmatter through the composed validation path. |
 
