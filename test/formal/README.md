@@ -75,7 +75,9 @@ Unproved obligations can indicate either an implementation defect or an insuffic
 
 ## Harness verification and maintenance
 
-Native helper units run through `make test-tooling-unit`. Local Make/process fixtures run with `go test -tags=functional ./test/formal` and through the normal functional/race selections. These use synthetic executables and never require Java or download tools.
+Run `make test-tooling-unit PYTHON_UNIT_DIRS=formal` for the installer and proof helper units, or `make test-tooling-unit` for all Python tooling units. The checksum test uses a local ZIP and checks that a modified installed solver is rejected before it runs. Separate tests simulate Linux amd64, Linux arm64, Intel macOS and Apple Silicon macOS to verify which hosts can install and run the tools.
+
+Run `go test -tags=functional ./test/formal` for the Make and process fixtures. They exercise the runner with synthetic Java and Z3 executables, including interrupting the runner and checking that its child exits. These tests run without Java or downloads and are included in the normal functional/race selections.
 
 They cover exact extraction/caller binding, missing/vacuous contracts, evidence classification, host/environment isolation, missing tools, deadlines, interruption and source drift. These fixture passes do not replace `make test-formal` against installed tools.
 
