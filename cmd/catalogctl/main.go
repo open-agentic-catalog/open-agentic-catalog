@@ -728,6 +728,9 @@ func diagnostics(arguments []string) error {
 	if err := diagnostic.Parse(flags, arguments); err != nil {
 		return err
 	}
+	if flags.NArg() != 0 {
+		return safeerr.New("unexpected arguments; use catalogctl diagnostics --help")
+	}
 	if *role != string(config.RoleAPI) && *role != string(config.RoleWorker) {
 		return safeerr.New("diagnostics role must be api or worker")
 	}
@@ -771,6 +774,9 @@ func bootstrap(arguments []string) error {
 	namespaceSlug := flags.String("namespace", "default", "initial namespace slug")
 	if err := diagnostic.Parse(flags, arguments); err != nil {
 		return err
+	}
+	if flags.NArg() != 0 {
+		return safeerr.New("unexpected arguments; use catalogctl bootstrap --help")
 	}
 	ctx := context.Background()
 	runtime, err := platformruntime.Build(ctx, platformruntime.BuildOptions{ConfigPath: *configPath, Version: version, Commit: commit, SourceState: sourceState, Role: config.RoleAPI, LogOutput: os.Stderr})

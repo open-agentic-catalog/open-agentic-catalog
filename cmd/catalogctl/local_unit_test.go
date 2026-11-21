@@ -31,6 +31,8 @@ func TestOperatorCommandsRejectLocalConfigurationBeforeConnecting(t *testing.T) 
 		{"smoke dispatch", []string{"smoke", "--unknown"}, "flag provided but not defined"},
 		{"seed dispatch", []string{"seed-demo", "--unknown"}, "flag provided but not defined"},
 		{"config flag", []string{"config", "validate", "--unknown"}, "flag provided but not defined"},
+		{"diagnostics operand", []string{"diagnostics", "--config", missing, "unexpected", "--role", "worker"}, "unexpected arguments; use catalogctl diagnostics --help"},
+		{"bootstrap operand", []string{"bootstrap", "--config", missing, "unexpected", "--namespace", "selected"}, "unexpected arguments; use catalogctl bootstrap --help"},
 		{"migration config", []string{"migrate", "plan", "--config", missing}, "no such file"},
 		{"restore dispatch", []string{"restore"}, "usage: catalogctl restore verify"},
 		{"realm dispatch", []string{"identity", "realms"}, "usage: catalogctl identity realms"},

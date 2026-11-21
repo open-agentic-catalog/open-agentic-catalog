@@ -772,6 +772,33 @@ func TestAdoptObservationPreservesImmutableSourceEvidence(t *testing.T) {
 			if !adopter.called || adopter.input.Version != "1.2.3" || adopter.input.DisplayName != entry.DisplayName || adopter.input.Description != entry.Description || adopter.input.Representation.URL != entry.URL || string(adopter.input.Representation.Data) != string(entry.Data) || adopter.input.Provenance.ExactEntryDigest != exactDigest || adopter.input.Provenance.NormalizedEntryDigest != normalizedDigest {
 				t.Fatalf("adoption handoff = called %t, %#v", adopter.called, adopter.input)
 			}
+			if kind == catalog.KindAgent && test.versioned {
+				key := occurrenceKey(tenantID, observation.Occurrence)
+				for _, change := range []string{"exact digest", "normalized digest", "incomplete enumeration", "snapshot revision"} {
+					t.Run(change, func(t *testing.T) {
+						occurrence, originalSnapshot := store.occurrences[key], store.snapshots[snapshotID]
+						defer func() {
+							store.occurrences[key], store.snapshots[snapshotID] = occurrence, originalSnapshot
+						}()
+						selected, selectedSnapshot := occurrence, originalSnapshot
+						switch change {
+						case "exact digest":
+							selected.ExactEntryDigest = observationDigest([]byte("different entry"))
+						case "normalized digest":
+							selected.NormalizedEntryDigest = observationDigest([]byte("different projection"))
+						case "incomplete enumeration":
+							selectedSnapshot.EnumerationComplete = false
+						case "snapshot revision":
+							selectedSnapshot.SourceRevision++
+						}
+						store.occurrences[key], store.snapshots[snapshotID] = selected, selectedSnapshot
+						adopter.called = false
+						if _, err := manager.AdoptObservation(ctx, itemID, input); catalog.ErrorCodeOf(err) != catalog.CodePreconditionFailed || adopter.called || len(outbound.requests) != 0 {
+							t.Fatalf("changed evidence: err=%v adopter called=%t fetches=%d", err, adopter.called, len(outbound.requests))
+						}
+					})
+				}
+			}
 			if !slices.ContainsFunc(adopter.checks, func(check identity.PermissionCheck) bool {
 				return check.Permission == "source.read_evidence" && check.NamespaceID == ""
 			}) {

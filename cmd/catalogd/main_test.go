@@ -89,6 +89,7 @@ func TestTopLevelArgumentsFailBeforeStartingComponents(t *testing.T) {
 	}{
 		{name: "missing role", message: "usage: catalogd <api|worker|all|version> [--config <path>]"},
 		{name: "unknown API flag", arguments: []string{"api", "--UNKNOWN_PRIVATE_FLAG"}, message: "invalid flags; use catalogd api --help", invalidDriver: true},
+		{name: "operand before config", arguments: []string{"worker", "PRIVATE_OPERAND", "--config", "intended.json"}, message: "unexpected arguments; use catalogd worker --help", invalidDriver: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if test.invalidDriver {
