@@ -1,11 +1,35 @@
 package api
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"go.yaml.in/yaml/v3"
 )
+
+func TestSkillHandoffReferenceSchema(t *testing.T) {
+	t.Parallel()
+	doc, err := openapi3.NewLoader().LoadFromData(ControlV1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reference := doc.Components.Schemas["OCIHandoffReference"].Value
+	suffix := "/team/skill@sha256:" + strings.Repeat("b", 64)
+	for _, tc := range []struct {
+		host  string
+		valid bool
+	}{
+		{"LoCaLhOsT", true}, {"registry:5000", true}, {"REGISTRY.example", true}, {"[2001:db8::1]:443", true},
+		{"team", false}, {"-registry.example", false}, {"registry_.example", false}, {"registry.example:port", false},
+		{"[registry.example]", false}, {"[127.0.0.1]", false}, {"2001:db8::1:443", false},
+	} {
+		err := reference.VisitJSON(map[string]any{"reference": tc.host + suffix})
+		if (err == nil) != tc.valid {
+			t.Errorf("registry %q: expected valid=%t, got %v", tc.host, tc.valid, err)
+		}
+	}
+}
 
 // Keep parameter components directly usable by editors and generators that do
 // not follow a second Reference Object when checking a path template.

@@ -6100,7 +6100,7 @@ export interface components {
             directory: string;
         };
         OCIHandoffReference: {
-            /** @description Explicit registry and lower-case repository pinned by manifest digest; mutable tag-only references are rejected. */
+            /** @description Explicit registry and lower-case repository pinned by SHA-256 manifest digest. Use a dotted ASCII hostname, localhost (case-insensitive), a single-label host with a port, or a bracketed IPv6 address. The server validates the address and any port (1-65535) and lowercases the registry on acceptance. */
             reference: string;
         };
         /** @description Exact external handoff metadata. The Catalog does not clone Git, pull OCI, install the package, or assert that the declared remote currently exists. */

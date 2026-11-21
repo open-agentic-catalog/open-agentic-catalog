@@ -451,6 +451,10 @@ class ContractUnits(unittest.TestCase):
                 for model in (ARDEntry(**value), ARDEntry.model_validate(value), ARDEntry.from_dict(value), ARDEntry.from_json(json.dumps(value))):
                     self.assertEqual(model.to_dict(), value)
 
+    def test_skill_handoff_round_trips_a_case_insensitive_localhost_registry(self):
+        reference = {"reference": "LoCaLhOsT/team/skill@sha256:" + "a" * 64}
+        self.assertEqual(models.OCIHandoffReference.from_dict(reference).to_dict(), reference)
+
     def test_representation_delivery_alternatives_and_archive_constraints(self):
         validator = jsonschema.Draft202012Validator({"$ref":"#/components/schemas/RepresentationInput", "components":CONTRACT["components"]})
         base = {"role":"primary", "mediaType":"application/json"}

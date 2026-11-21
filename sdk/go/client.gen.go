@@ -8426,7 +8426,7 @@ type NetworkProfileReference = string
 
 // OCIHandoffReference defines model for OCIHandoffReference.
 type OCIHandoffReference struct {
-	// Reference Explicit registry and lower-case repository pinned by manifest digest; mutable tag-only references are rejected.
+	// Reference Explicit registry and lower-case repository pinned by SHA-256 manifest digest. Use a dotted ASCII hostname, localhost (case-insensitive), a single-label host with a port, or a bracketed IPv6 address. The server validates the address and any port (1-65535) and lowercases the registry on acceptance.
 	Reference string `json:"reference"`
 }
 

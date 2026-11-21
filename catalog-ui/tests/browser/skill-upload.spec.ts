@@ -119,7 +119,7 @@ test("Skill upload rejects an empty file and preserves inspected archive metadat
     await page.getByLabel("Include OCI handoff", { exact: true }).check();
     await page
       .getByRole("textbox", { name: "OCI digest reference", exact: true })
-      .fill("registry.example.com/skills@sha256:" + "b".repeat(64));
+      .fill("LoCaLhOsT/skills@sha256:" + "b".repeat(64));
     await page
       .getByRole("button", {
         name: "Edit immutable handoff as JSON",
@@ -140,7 +140,7 @@ test("Skill upload rejects an empty file and preserves inspected archive metadat
           directory: "browser-skill",
         },
         oci: {
-          reference: "registry.example.com/skills@sha256:" + "b".repeat(64),
+          reference: "LoCaLhOsT/skills@sha256:" + "b".repeat(64),
         },
       }),
     );
@@ -198,10 +198,7 @@ test("Skill upload rejects an empty file and preserves inspected archive metadat
       ["Git repository", "https://github.com/example/skills"],
       ["Git commit", "a".repeat(40)],
       ["Git directory", "browser-skill"],
-      [
-        "OCI digest reference",
-        "registry.example.com/skills@sha256:" + "b".repeat(64),
-      ],
+      ["OCI digest reference", "localhost/skills@sha256:" + "b".repeat(64)],
     ]) {
       await inspection
         .getByRole("button", { name: `Copy ${label}`, exact: true })
@@ -218,9 +215,7 @@ test("Skill upload rejects an empty file and preserves inspected archive metadat
     expect(text).toContain("browser-skill");
     expect(text).toContain("https://github.com/example/skills");
     expect(text).toContain("a".repeat(40));
-    expect(text).toContain(
-      "registry.example.com/skills@sha256:" + "b".repeat(64),
-    );
+    expect(text).toContain("localhost/skills@sha256:" + "b".repeat(64));
     expect(text).not.toContain(archive.toString("base64"));
     expect(
       await readFile(join(directory, "browser-skill/SKILL.md"), "utf8"),

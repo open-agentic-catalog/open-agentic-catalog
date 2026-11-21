@@ -10511,8 +10511,8 @@ pub struct SkillHandoff {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct OCIHandoffReference {
-    ///Explicit registry and lower-case repository pinned by manifest digest; mutable tag-only references are rejected.
-    ///Constraint: maxLength=2048, pattern=`^(?:localhost|[^/@\s.:]+(?:[.:][^/@\s.:]+)+|\[[0-9A-Fa-f:.]+\](?::[0-9]+)?)/[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*(?:/[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*)*@sha256:[a-f0-9]{64}$`
+    ///Explicit registry and lower-case repository pinned by SHA-256 manifest digest. Use a dotted ASCII hostname, localhost (case-insensitive), a single-label host with a port, or a bracketed IPv6 address. The server validates the address and any port (1-65535) and lowercases the registry on acceptance.
+    ///Constraint: maxLength=2048, pattern=`^(?:(?:[Ll][Oo][Cc][Aa][Ll][Hh][Oo][Ss][Tt]|\[[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*\])(?::0*[1-9][0-9]*)?|[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+(?::0*[1-9][0-9]*)?|:0*[1-9][0-9]*))/(?:[a-z0-9]+(?:(?:\.|_{1,2}|-+)[a-z0-9]+)*​/)*[a-z0-9]+(?:(?:\.|_{1,2}|-+)[a-z0-9]+)*@sha256:[a-f0-9]{64}$`
     pub reference: String,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
