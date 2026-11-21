@@ -328,6 +328,10 @@ from catalog_sdk.generated.models.list_review_submissions200_response import (
 from catalog_sdk.generated.models.list_version_revisions200_response import (
     ListVersionRevisions200Response,
 )
+from catalog_sdk.generated.models.listing_metadata_gap import ListingMetadataGap
+from catalog_sdk.generated.models.listing_metadata_gap_page import (
+    ListingMetadataGapPage,
+)
 from catalog_sdk.generated.models.listing_published import ListingPublished
 from catalog_sdk.generated.models.listing_release import ListingRelease
 from catalog_sdk.generated.models.listing_revision import ListingRevision
@@ -599,6 +603,11 @@ from catalog_sdk.generated.models.trust_evidence_bundle import TrustEvidenceBund
 from catalog_sdk.generated.models.trust_summary import TrustSummary
 from catalog_sdk.generated.models.update_collection import UpdateCollection
 from catalog_sdk.generated.models.update_source import UpdateSource
+from catalog_sdk.generated.models.upstream_change import UpstreamChange
+from catalog_sdk.generated.models.upstream_change_occurrence import (
+    UpstreamChangeOccurrence,
+)
+from catalog_sdk.generated.models.upstream_change_page import UpstreamChangePage
 from catalog_sdk.generated.models.validation_maintenance_item import (
     ValidationMaintenanceItem,
 )

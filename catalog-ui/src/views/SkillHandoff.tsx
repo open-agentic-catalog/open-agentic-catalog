@@ -37,6 +37,43 @@ export function handoffShape(value: Record<string, unknown>): Handoff {
   }
   return value as Handoff;
 }
+function validOCIRegistry(authority: string) {
+  const match = /^(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9.-]+)(?::([0-9]+))?$/.exec(
+    authority,
+  );
+  if (!match?.[1]) return false;
+  const host = match[1];
+  const port = match[2];
+  if (port !== undefined && (Number(port) < 1 || Number(port) > 65535))
+    return false;
+  if (host.startsWith("[")) return URL.canParse("https://" + host);
+  return (
+    host.length <= 253 &&
+    (port !== undefined ||
+      host.includes(".") ||
+      host.toLowerCase() === "localhost") &&
+    host
+      .split(".")
+      .every((label) =>
+        /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/.test(label),
+      )
+  );
+}
+
+function validOCIReference(reference: string) {
+  const at = reference.indexOf("@");
+  if (at < 0 || !/^sha256:[a-f0-9]{64}$/.test(reference.slice(at + 1)))
+    return false;
+  const [registry = "", ...segments] = reference.slice(0, at).split("/");
+  return (
+    validOCIRegistry(registry) &&
+    segments.length > 0 &&
+    segments.every((segment) =>
+      /^[a-z0-9]+(?:(?:\.|_{1,2}|-+)[a-z0-9]+)*$/.test(segment),
+    )
+  );
+}
+
 export function handoffInput(text: string, prefix = "skill-handoff"): Handoff {
   const value = atField(prefix, () => handoffShape(parseObject(text || "{}")));
   const mapped = (field: string, check: () => unknown) => {
@@ -114,9 +151,7 @@ export function handoffInput(text: string, prefix = "skill-handoff"): Handoff {
       byteText(value.oci!.reference.trim(), "OCI reference", 2048);
       if (
         /[^\p{ASCII}]/u.test(value.oci!.reference) ||
-        !/^(?:localhost|[^/@\s.:]+(?:[.:][^/@\s.:]+)+|\[[0-9A-Fa-f:.]+\](?::[0-9]+)?)\/[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*(?:\/[a-z0-9]+(?:(?:[._]|__|-+)[a-z0-9]+)*)*@sha256:[a-f0-9]{64}$/u.test(
-          value.oci!.reference.trim(),
-        )
+        !validOCIReference(value.oci!.reference.trim())
       )
         throw new Error(
           "Use an explicit OCI registry/repository@sha256: followed by 64 lowercase hexadecimal characters.",

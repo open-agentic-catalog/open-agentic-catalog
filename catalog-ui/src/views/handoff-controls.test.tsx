@@ -144,6 +144,19 @@ it("verifies exact bytes and refuses missing media types, mismatched digests and
   );
 });
 
+it.each(["text/plain ; charset=utf-8", "application/x~catalog"])(
+  "downloads verified retained bytes with the declared media type %s",
+  async (mediaType) => {
+    const a = await artifact();
+    a.response.headers.set("Content-Type", mediaType);
+    const blob = await verifyArtifact(a.bytes, a.response, a.id);
+    expect(blob.type).toBe(mediaType);
+    expect(new Uint8Array(await blob.arrayBuffer())).toEqual(
+      new Uint8Array(a.bytes),
+    );
+  },
+);
+
 it("prepares a verified attachment only on request, replaces URLs and cleans up on unmount", async () => {
   const a = await artifact();
   const { props, get } = workspace();

@@ -681,7 +681,7 @@ class RunnerTests(unittest.TestCase):
                 self.assertNotIn("private-secret", str(error.exception))
         with mock.patch.object(runner, "read_document", return_value=good):
             families = runner.inventory()
-            self.assertEqual(len(families), 58)
+            self.assertEqual(len(families), 59)
             relationships = next(item for item in families if item["id"] == "release-relationships")
             self.assertEqual(relationships["surfaceCount"], 1)
             self.assertEqual(relationships["disposition"], "compose")

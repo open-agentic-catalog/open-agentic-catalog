@@ -30,6 +30,7 @@ type versionAdoptionCase struct {
 	Origin                 string                       `json:"origin"`
 	ResourceID             string                       `json:"resourceId"`
 	PriorVersionRevisionID string                       `json:"priorVersionRevisionId"`
+	NormalizedEntryDigest  string                       `json:"normalizedEntryDigest"`
 	SourceID               string                       `json:"sourceId"`
 	Body                   federation.AdoptVersionInput `json:"body"`
 }
@@ -98,7 +99,11 @@ func newVersionAdoptionCase(t *testing.T) versionAdoptionCase {
 			t.Error("SDK append changed parent, Listing or prior immutable revision")
 		}
 	})
-	return versionAdoptionCase{Origin: f.server.URL, ResourceID: first.Resource.ID, PriorVersionRevisionID: first.VersionRevision.ID, SourceID: source.ID, Body: federation.AdoptVersionInput{ObservationID: next.ID, SnapshotID: occurrence.SnapshotID, RetrievalDigest: occurrence.RetrievalDigest, EntryLocation: occurrence.EntryLocation, PriorVersionRevisionID: first.VersionRevision.ID}}
+	return versionAdoptionCase{
+		Origin: f.server.URL, ResourceID: first.Resource.ID, SourceID: source.ID,
+		PriorVersionRevisionID: first.VersionRevision.ID, NormalizedEntryDigest: occurrence.NormalizedEntryDigest,
+		Body: federation.AdoptVersionInput{ObservationID: next.ID, SnapshotID: occurrence.SnapshotID, RetrievalDigest: occurrence.RetrievalDigest, EntryLocation: occurrence.EntryLocation, PriorVersionRevisionID: first.VersionRevision.ID},
+	}
 }
 
 func versionAdoptionEnvironment(t *testing.T) string {

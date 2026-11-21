@@ -15,6 +15,21 @@ const adopter = createCatalogClient({
   allowLoopbackHTTP: true,
   token: "admin",
 });
+const changes = await adopter.api.GET("/api/v1/upstream-changes", {
+  params: { query: { observationId: adoption.body.observationId } },
+});
+assert.equal(changes.response.status, 200);
+assert.equal(changes.data.items.length, 1);
+assert.equal(changes.data.items[0].outcome, "unadopted_version");
+assert.equal(changes.data.items[0].target.resourceId, adoption.resourceId);
+assert.equal(
+  changes.data.items[0].occurrence.normalizedEntryDigest,
+  adoption.normalizedEntryDigest,
+);
+assert.equal(
+  changes.data.items[0].occurrence.snapshotId,
+  adoption.body.snapshotId,
+);
 const destination = await adopter.api.GET(
   "/api/v1/observations/{observationId}/adoption-target",
   { params: { path: { observationId: adoption.body.observationId } } },
@@ -804,6 +819,14 @@ const sourceListing = corpus.cases.find(
 );
 const targetListing = corpus.cases.find(
   (item) => item.name === "context7-registry",
+);
+const gaps = await corpusReader.api.GET("/api/v1/listing-metadata-gaps", {
+  params: { query: { checks: "license,support", kind: "plugin" } },
+});
+assert.equal(gaps.response.status, 200);
+assert.deepEqual(
+  gaps.data.items.map((row) => [row.releaseId, row.missing]),
+  [[sourceListing.releaseId, ["support", "license"]]],
 );
 const incoming = await corpusReader.api.GET(
   "/api/v1/listing-releases/{releaseId}/relationships",

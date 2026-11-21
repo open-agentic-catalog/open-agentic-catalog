@@ -255,7 +255,11 @@ else:
     # The generator emits the boolean singleton enum as the string "true".
     # Keep StrictBool admission and the schema's exact true-only constraint.
     enum_marker = "if value not in set(['true']):"
-    for filename, model in (("observation_occurrence", "ObservationOccurrence"), ("catalog_record", "CatalogRecord")):
+    for filename, model in (
+        ("observation_occurrence", "ObservationOccurrence"),
+        ("upstream_change_occurrence", "UpstreamChangeOccurrence"),
+        ("catalog_record", "CatalogRecord"),
+    ):
         path = destination / "catalog_sdk/generated/models" / (filename + ".py")
         source = path.read_text()
         if source.count(enum_marker) != 1:

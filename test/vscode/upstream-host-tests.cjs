@@ -3,6 +3,26 @@ const vscode = require("vscode");
 const assert = require("node:assert/strict");
 const { readFile } = require("node:fs/promises");
 
+async function checkReleasedMetadataGap(origin, detail) {
+  const response = await fetch(
+    origin + "/api/v1/listing-metadata-gaps?kind=plugin&checks=license,support",
+    {
+      headers: { Authorization: "Bearer reader" },
+      redirect: "error",
+      signal: AbortSignal.timeout(5000),
+    },
+  );
+  assert.equal(response.status, 200);
+  const { items } = await response.json();
+  assert.equal(items.length, 1);
+  const [gap] = items;
+  assert.equal(detail.item.releaseId, gap.releaseId);
+  assert.equal(detail.item.listingRevisionId, gap.listingRevisionId);
+  assert.deepEqual(gap.missing, ["support", "license"]);
+  assert.ok(!detail.references.some((ref) => ref.label === "Support"));
+  assert.ok(!detail.facts.some((fact) => fact.label === "Declared license"));
+}
+
 // The same reader can bookmark a release in the editor and follow its Listing
 // on the server. Saving or removing the former must not acknowledge the latter.
 async function checkBookmarkAndFollow(api, origin, expected) {
@@ -146,6 +166,8 @@ exports.run = async (api) => {
       assert.equal(item.kind, expected.kind);
       assert.equal(item.releaseId, expected.releaseId);
       const detail = await api.detail(item.key);
+      if (expected.name === "context7-plugin")
+        await checkReleasedMetadataGap(corpus.origin, detail);
       if (expected.name === "context7-registry")
         await checkBookmarkAndFollow(api, corpus.origin, expected);
       if (expected.data) {

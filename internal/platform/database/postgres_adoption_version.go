@@ -19,7 +19,7 @@ func (p *PostgresRepository) AdoptExternalVersion(ctx context.Context, pms catal
 		if proof == nil {
 			return catalog.ExternalVersionAdoption{}, catalog.E(catalog.CodeInvalidArgument, "adoption provenance is required")
 		}
-		if err := lockAdoptionOccurrence(ctx, tx, pms.Resource.TenantID, proof, pms.SourceAdmissionRevision); err != nil {
+		if err := lockAdoptionOccurrence(ctx, tx, pms.Resource.TenantID, proof, pms.SourceAdmissionRevision, true); err != nil {
 			return catalog.ExternalVersionAdoption{}, err
 		}
 		var eligible bool
@@ -47,16 +47,16 @@ func (p *PostgresRepository) AdoptExternalVersion(ctx context.Context, pms catal
 	})
 }
 
-func (p *PostgresRepository) FindVersionAdoptionTarget(ctx context.Context, tenant, source, identifier string, kind catalog.Kind, selectedVersion string) (catalog.AdoptionTarget, error) {
-	return withTenantCollectionRead(ctx, p.pool, tenant, func(tx pgx.Tx) (catalog.AdoptionTarget, error) {
+func (p *PostgresFederationStore) FindVersionAdoptionTarget(ctx context.Context, tenant, source, identifier string, kind catalog.Kind, selectedVersion string) (catalog.AdoptionTarget, error) {
+	return withTenantCollectionRead(ctx, p.repository.pool, tenant, func(tx pgx.Tx) (catalog.AdoptionTarget, error) {
 		var out catalog.AdoptionTarget
 		err := tx.QueryRow(ctx, `SELECT r.id,r.namespace_id,prior.id,v.version FROM resources r
  JOIN resource_versions v ON v.tenant_id=r.tenant_id AND v.resource_id=r.id
  JOIN resource_version_revisions prior ON prior.tenant_id=v.tenant_id AND prior.resource_version_id=v.id
  JOIN observations original ON original.tenant_id=prior.tenant_id AND original.id=(prior.adoption_provenance->>'observationId')::uuid
  WHERE r.tenant_id=$1 AND r.deleted_at IS NULL AND r.canonical_identifier=$3 AND r.kind=$4
- AND prior.adoption_provenance->>'sourceId'=$2 AND original.source_id=$2::uuid AND original.identifier=$3 AND original.kind=$4 AND original.version_present AND original.version<>''
- AND v.version<>$5 AND `+collectionPermissionSQL("resource.edit", "r.namespace_id")+` LIMIT 1`, tenant, source, identifier, kind, selectedVersion).Scan(&out.ResourceID, &out.NamespaceID, &out.PriorVersionRevisionID, &out.Version)
+ AND prior.adoption_provenance->>'sourceId'=$2 AND original.source_id=$2::uuid AND original.identifier=$3 AND original.kind=$4 AND original.version_present AND btrim(original.version,$6)<>''
+ AND btrim(original.version,$6)<>$5 AND v.version<>$5 AND `+collectionPermissionSQL("resource.edit", "r.namespace_id")+` ORDER BY prior.id LIMIT 1`, tenant, source, identifier, kind, selectedVersion, versionWhitespace).Scan(&out.ResourceID, &out.NamespaceID, &out.PriorVersionRevisionID, &out.Version)
 		return out, translateError("read adoption destination", err)
 	})
 }

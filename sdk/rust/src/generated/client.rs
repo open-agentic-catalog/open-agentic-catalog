@@ -515,6 +515,35 @@ impl AsRef<str> for ListRoleDefinitionsState {
         self.as_str()
     }
 }
+///Allowed values for the `check` query parameter.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum ListUpstreamChangesCheck {
+    #[serde(rename = "all")]
+    All,
+    #[serde(rename = "unadopted_version")]
+    UnadoptedVersion,
+    #[serde(rename = "entry_comparison")]
+    EntryComparison,
+}
+impl ListUpstreamChangesCheck {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::All => "all",
+            Self::UnadoptedVersion => "unadopted_version",
+            Self::EntryComparison => "entry_comparison",
+        }
+    }
+}
+impl std::fmt::Display for ListUpstreamChangesCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListUpstreamChangesCheck {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
 ///Allowed values for the `state` query parameter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 pub enum ListValidationMaintenanceState {
@@ -1282,6 +1311,11 @@ pub enum ListFeedbackInboxApiError {
 pub enum ListJobsApiError {
     Default(Problem),
 }
+///Typed error responses for `listListingMetadataGaps`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum ListListingMetadataGapsApiError {
+    Default(Problem),
+}
 ///Typed error responses for `listListingReleases`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ListListingReleasesApiError {
@@ -1395,6 +1429,11 @@ pub enum ListRoleDefinitionsApiError {
 ///Typed error responses for `listRoleImpact`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ListRoleImpactApiError {
+    Default(Problem),
+}
+///Typed error responses for `listUpstreamChanges`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum ListUpstreamChangesApiError {
     Default(Problem),
 }
 ///Typed error responses for `listValidationMaintenance`. One variant per declared non-2xx response.
@@ -2182,7 +2221,7 @@ impl Client {
     }
     /// Append a selected upstream version to an existing adopted Resource
     ///
-    /// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+    /// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
     ///
     /// `POST /api/v1/resources/{resourceId}/versions:adopt`
     pub async fn adopt_resource_version(
@@ -12368,6 +12407,99 @@ impl Client {
             }))
         }
     }
+    /// Find released Listings missing optional metadata
+    ///
+    /// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+    ///
+    /// `GET /api/v1/listing-metadata-gaps`
+    pub async fn list_listing_metadata_gaps(
+        &self,
+        checks: Option<impl AsRef<str>>,
+        namespace_id: Option<impl AsRef<str>>,
+        kind: Option<ResourceKind>,
+        limit: Option<i64>,
+        cursor: Option<impl AsRef<str>>,
+    ) -> Result<Response<ListingMetadataGapPage>, ApiOpError<ListListingMetadataGapsApiError>> {
+        let request_url = format!("{}{}", self.base_url, "/api/v1/listing-metadata-gaps");
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = checks {
+                query_params.push(("checks".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = namespace_id {
+                query_params.push(("namespaceId".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = kind {
+                query_params.push(("kind".to_string(), v.to_string()));
+            }
+            if let Some(v) = limit {
+                query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = cursor {
+                query_params.push(("cursor".to_string(), v.as_ref().to_string()));
+            }
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<ListListingMetadataGapsApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(ListListingMetadataGapsApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
     /// List releases
     ///
     /// Requires current resource.read_history at the canonical parent namespace. Results use ascending immutable UUID order and bounded parent-scoped pages. Revision histories contain summaries; exact content is read separately.
@@ -14377,6 +14509,103 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(ListRoleImpactApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Find retained upstream changes for editable adopted Resources
+    ///
+    /// Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the canonical namespace with its companion reads. Both catalog.write and sources.read apply when OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope. Compares exact previously adopted upstream labels and normalized metadata, and checks all local Version labels before suggesting an addition. Entry comparisons include unavailable comparisons. Valid continuation rechecks admission and complete membership. Refresh from page one for a new traversal. Each row binds one immutable prior revision and a specific complete occurrence. Makes no external requests or mutations. Broken selected evidence fails the read.
+    ///
+    /// `GET /api/v1/upstream-changes`
+    pub async fn list_upstream_changes(
+        &self,
+        check: Option<ListUpstreamChangesCheck>,
+        source_id: Option<impl AsRef<str>>,
+        namespace_id: Option<impl AsRef<str>>,
+        observation_id: Option<impl AsRef<str>>,
+        limit: Option<i64>,
+        cursor: Option<impl AsRef<str>>,
+    ) -> Result<Response<UpstreamChangePage>, ApiOpError<ListUpstreamChangesApiError>> {
+        let request_url = format!("{}{}", self.base_url, "/api/v1/upstream-changes");
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = check {
+                query_params.push(("check".to_string(), v.to_string()));
+            }
+            if let Some(v) = source_id {
+                query_params.push(("sourceId".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = namespace_id {
+                query_params.push(("namespaceId".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = observation_id {
+                query_params.push(("observationId".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = limit {
+                query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = cursor {
+                query_params.push(("cursor".to_string(), v.as_ref().to_string()));
+            }
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<ListUpstreamChangesApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(ListUpstreamChangesApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {

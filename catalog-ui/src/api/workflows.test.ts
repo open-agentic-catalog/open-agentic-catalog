@@ -8,6 +8,8 @@ import type { operations } from "./schema";
 // screen. Equivalent capabilities identify a different route used by the UI.
 // Keep every API operation explicitly classified.
 const workflows = {
+  listUpstreamChanges: "screen:upstream-changes",
+  listListingMetadataGaps: "screen:listing-metadata-gaps",
   listValidationMaintenance: "screen:validation-maintenance",
   listCollections: "screen:collections",
   createCollection: "screen:collections",

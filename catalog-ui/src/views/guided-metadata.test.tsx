@@ -343,6 +343,33 @@ it("guides both immutable references without losing either when changing editor,
     /at least one/,
   );
 });
+it.each(["LOCALHOST", "Registry:443", "[2001:db8::1]:5000"])(
+  "accepts an explicit OCI registry %s",
+  (registry) => {
+    const oci = {
+      reference: registry + "/team/skill@sha256:" + "a".repeat(64),
+    };
+    expect(handoffInput(JSON.stringify({ oci }))).toEqual({ oci });
+  },
+);
+it.each([
+  "-registry.example",
+  "registry_.example",
+  "registry.example:0",
+  "registry.example:65536",
+  "registry.example:abc",
+  "[:::1]",
+])(
+  "refuses an invalid OCI registry %s before submitting a Skill handoff",
+  (registry) => {
+    const oci = {
+      reference: registry + "/team/skill@sha256:" + "a".repeat(64),
+    };
+    expect(() => handoffInput(JSON.stringify({ oci }))).toThrow(
+      /explicit OCI registry/,
+    );
+  },
+);
 it("explains missing references for untouched guided input without accepting malformed JSON", () => {
   expect(() => handoffInput("")).toThrow(
     "Supply at least one immutable Git or OCI reference.",

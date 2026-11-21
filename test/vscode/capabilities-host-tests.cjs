@@ -58,8 +58,10 @@ exports.run = async (api) => {
   const toggle = async (text, label) => {
     await ui.until(title(text));
     const checkbox = `[...document.querySelectorAll(${JSON.stringify(`${visible} .quick-input-list .monaco-list-row`)})].find(row=>row.textContent.trim()===${JSON.stringify(label)})?.querySelector('[role=checkbox],input[type=checkbox]')`;
-    await ui.until(`!!(${checkbox})`);
-    await ui.click(checkbox);
+    await ui.until(`(${checkbox})?.getClientRects().length > 0`);
+    // The picker can move over the webview. Activate the rendered checkbox
+    // directly so an old screen coordinate cannot dismiss the picker.
+    await ui.evaluate(`(${checkbox}).click()`);
     await ui.until(
       `(${checkbox})?.getAttribute('aria-checked')==='true' || (${checkbox})?.checked===true`,
     );

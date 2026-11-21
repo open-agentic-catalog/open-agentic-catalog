@@ -104,12 +104,33 @@ func TestPostgresVersionAdoption(t *testing.T) {
 	}
 	var last federation.Observation
 	var lastOccurrence federation.ObservationOccurrence
+	var lastAdoptedRevisionID string
+	readChanges := func(check string) []federation.UpstreamChange {
+		t.Helper()
+		rows, err := manager.UpstreamChanges(ctx, federation.UpstreamChangesQuery{Check: check, NamespaceID: ns.ID, SourceID: source.ID, Limit: 20})
+		if err != nil {
+			t.Fatal("upstream inventory", err)
+		}
+		return rows
+	}
+	if rows := readChanges("all"); len(rows) != 0 {
+		t.Fatal("equal adopted evidence", rows)
+	}
 	// More than one hundred real adopted Versions exercise store-bound projection.
 	for n := 0; n < 101; n++ {
 		obs, occ := selectVersion(fmt.Sprintf("opaque-%03d", n))
 		last = obs
 		lastOccurrence = occ
 		input := federation.AdoptVersionInput{ObservationID: obs.ID, SnapshotID: occ.SnapshotID, RetrievalDigest: occ.RetrievalDigest, EntryLocation: occ.EntryLocation, PriorVersionRevisionID: first.VersionRevision.ID}
+		if n == 0 || n == 100 {
+			rows := readChanges("all")
+			if len(rows) != 1 || rows[0].Outcome != "unadopted_version" || rows[0].Target.ResourceID != first.Resource.ID || rows[0].Target.PriorVersionRevisionID != first.VersionRevision.ID || rows[0].Occurrence != occ || rows[0].LatestAttempt == nil || rows[0].LatestAttempt.SnapshotID != occ.SnapshotID {
+				t.Fatal("upstream selection", rows)
+			}
+			if rows := readChanges("entry_comparison"); len(rows) != 0 {
+				t.Fatal("wrong check", rows)
+			}
+		}
 		if n == 0 {
 			var wg sync.WaitGroup
 			results := make(chan error, 2)
@@ -132,9 +153,16 @@ func TestPostgresVersionAdoption(t *testing.T) {
 			if successes != 1 || conflicts != 1 {
 				t.Fatal("competing append", successes, conflicts)
 			}
-		} else if _, err := manager.AdoptVersion(ctx, first.Resource.ID, input); err != nil {
-			t.Fatal("append", n, err)
+		} else {
+			appended, err := manager.AdoptVersion(ctx, first.Resource.ID, input)
+			if err != nil {
+				t.Fatal("append", n, err)
+			}
+			lastAdoptedRevisionID = appended.VersionRevision.ID
 		}
+	}
+	if rows := readChanges("all"); len(rows) != 0 {
+		t.Fatal("existing Version in a large history", rows)
 	}
 	retained, _, err := repo.GetVersionRevision(ctx, housekeepingTenantA, first.VersionRevision.ID)
 	if err != nil || !reflect.DeepEqual(retained.Adoption, first.VersionRevision.Adoption) || retained.ContentSetDigest != first.VersionRevision.ContentSetDigest {
@@ -190,6 +218,122 @@ func TestPostgresVersionAdoption(t *testing.T) {
 	}
 	if err := db.operator.QueryRow(context.Background(), `SELECT (SELECT count(*) FROM resource_versions WHERE tenant_id=$1),(SELECT count(*) FROM audit_events WHERE tenant_id=$1 AND action='resource_version.created')`, housekeepingTenantB).Scan(&versions, &audits); err != nil || versions != 0 || audits != 0 {
 		t.Fatal("cross-tenant append changed caller state", versions, audits, err)
+	}
+	// Repeat one adopted label with new metadata, alongside two additional opaque labels.
+	clk.Advance(time.Second)
+	set(last.Version)
+	entry := strings.TrimSuffix(strings.TrimPrefix(string(outbound.result.Body), `{"entries":[`), `]}`)
+	changedEntry := strings.Replace(entry, "Upstream metadata", "Changed metadata", 1)
+	nextEntry := strings.ReplaceAll(entry, last.Version, "next-candidate")
+	otherEntry := strings.ReplaceAll(entry, last.Version, "previous-looking")
+	outbound.result.Body = []byte(`{"entries":[` + changedEntry + "," + nextEntry + "," + nextEntry + "," + otherEntry + `]}`)
+	snap, err := syncClaimedFixture(t, db, ctx, worker, source.ID)
+	if err != nil || snap.State != federation.SnapshotComplete {
+		t.Fatal("refresh", snap.State, err)
+	}
+	changes := readChanges("entry_comparison")
+	if len(changes) != 1 || changes[0].Outcome != "changed_entry" || changes[0].Target.UpstreamVersion != last.Version || changes[0].Target.PriorVersionRevisionID != lastAdoptedRevisionID || changes[0].PriorDigest != last.NormalizedEntryDigest || changes[0].Occurrence.NormalizedEntryDigest == changes[0].PriorDigest {
+		t.Fatal("changed metadata", changes)
+	}
+	if rows := readChanges("unadopted_version"); len(rows) != 2 {
+		t.Fatal("distinct new observations", rows)
+	} else {
+		for _, row := range rows {
+			if row.Target.UpstreamVersion == "next-candidate" && row.Occurrence.EntryLocation != "/entries/1" {
+				t.Fatal("repeated entry selection", row)
+			}
+		}
+	}
+	q := federation.UpstreamChangesQuery{Check: "all", Limit: 1}
+	page, err := manager.UpstreamChanges(ctx, q)
+	if err != nil || len(page) != 2 {
+		t.Fatal("lookahead", page, err)
+	}
+	q.AfterID = page[0].Occurrence.ObservationID
+	nextPage, err := manager.UpstreamChanges(ctx, q)
+	if err != nil || len(nextPage) != 2 || nextPage[0].Occurrence.ObservationID != page[1].Occurrence.ObservationID {
+		t.Fatal("keyset", nextPage, err)
+	}
+	if rows, err := manager.UpstreamChanges(other, q); err != nil || len(rows) != 0 {
+		t.Fatal("foreign inventory", rows, err)
+	}
+	evidenceOnly := postgresFixtureContext(t, db, t.Context(), identity.Actor{TenantID: housekeepingTenantA, Subject: "source-observer", Roles: []identity.Role{identity.RoleSourceAdmin}})
+	if rows, err := manager.UpstreamChanges(evidenceOnly, q); err != nil || len(rows) != 0 {
+		t.Fatal("source evidence alone disclosed editable Resources", rows, err)
+	}
+	store, err := NewPostgresIdentityStore(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	authority, err := identity.NewService(identity.ServiceOptions{Store: store, Clock: clk, IDs: id.Generator{}, CursorKey: key[:]})
+	if err != nil {
+		t.Fatal(err)
+	}
+	grant, err := authority.GrantRole(ctx, identity.GrantRoleInput{Subject: "source-observer", ActorType: identity.ActorHuman, Role: identity.RoleContributor, NamespaceID: ns.ID, Reason: "Maintain adopted Resources"}, "upstream-edit")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The new maintainer can inspect another user's adoption. Paging and exact
+	// rechecks must leave the job queue, audit, outbox and governed state alone.
+	counts := func() [5]int {
+		t.Helper()
+		var n [5]int
+		if err := db.operator.QueryRow(ctx, `SELECT
+		  (SELECT count(*) FROM jobs WHERE tenant_id=$1),
+		  (SELECT count(*) FROM audit_events WHERE tenant_id=$1),
+		  (SELECT count(*) FROM outbox_events WHERE tenant_id=$1),
+		  (SELECT count(*) FROM resource_versions WHERE tenant_id=$1),
+		  (SELECT count(*) FROM listing_releases WHERE tenant_id=$1)`, housekeepingTenantA).Scan(&n[0], &n[1], &n[2], &n[3], &n[4]); err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	before := counts()
+	outbound.beforeReturn = func() error { t.Fatal("inventory contacted the Source"); return nil }
+	exact := federation.UpstreamChangesQuery{Check: "entry_comparison", ObservationID: changes[0].Occurrence.ObservationID, Limit: 1}
+	if rows, err := manager.UpstreamChanges(evidenceOnly, exact); err != nil || !reflect.DeepEqual(rows, changes) {
+		t.Fatal("scoped adoption evidence", rows, err)
+	}
+	if rows, err := manager.UpstreamChanges(evidenceOnly, q); err != nil || !reflect.DeepEqual(rows, nextPage) {
+		t.Fatal("scoped continuation", rows, err)
+	}
+	if after := counts(); after != before {
+		t.Fatalf("inventory reads changed retained state: %v to %v", before, after)
+	}
+	if _, err := authority.RevokeRole(ctx, grant.ID, "End adoption maintenance", "upstream-revoke", grant.Revision); err != nil {
+		t.Fatal(err)
+	}
+	if rows, err := manager.UpstreamChanges(evidenceOnly, exact); err != nil || len(rows) != 0 {
+		t.Fatal("revoked namespace grant disclosed the selected observation", rows, err)
+	}
+	// The maintained inventory must still use the complete snapshot after the
+	// real worker records a failed refresh. Only the latest-attempt fact advances.
+	clk.Advance(time.Hour)
+	outbound.beforeReturn = nil
+	outbound.result.Status = 503
+	outbound.result.FetchedAt = clk.Now()
+	failed, syncErr := syncClaimedFixture(t, db, ctx, worker, source.ID)
+	if syncErr == nil || failed.State != federation.SnapshotFailed || failed.CompletedAt == nil || !failed.CompletedAt.After(changes[0].SnapshotCompletedAt) {
+		t.Fatal("expected a later failed refresh", failed.State, syncErr)
+	}
+	rows := readChanges("entry_comparison")
+	if len(rows) != 1 {
+		t.Fatal("failed refresh lost the changed entry", rows)
+	}
+	attempt := rows[0].LatestAttempt
+	if attempt == nil || attempt.SnapshotID != failed.ID || attempt.Revision != source.Revision ||
+		attempt.State != federation.SnapshotFailed || !attempt.CompletedAt.Equal(*failed.CompletedAt) {
+		t.Fatal("inventory did not report the failed attempt", attempt)
+	}
+	if rows[0].Occurrence != changes[0].Occurrence || !rows[0].SnapshotCompletedAt.Equal(changes[0].SnapshotCompletedAt) ||
+		rows[0].Target != changes[0].Target || rows[0].PriorDigest != changes[0].PriorDigest || rows[0].Outcome != "changed_entry" {
+		t.Fatal("failed refresh replaced complete adoption evidence", rows[0])
+	}
+	if _, err := manager.SetStatus(ctx, source.ID, federation.SourcePaused, source.Revision, federation.StatusChangeInput{Reason: "Pause after inventory selection"}); err != nil {
+		t.Fatal(err)
+	}
+	if rows := readChanges("all"); len(rows) != 0 {
+		t.Fatal("paused Source suggested changes", rows)
 	}
 	// Native validation errors remain evidence on drafts; they are not waived.
 	if first.VersionRevision.EvidenceSetID == "" || len(first.VersionRevision.Representations) == 0 {

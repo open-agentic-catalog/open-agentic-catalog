@@ -1,3 +1,4 @@
+import { canBrowseUpstream, SelectedUpstreamChange } from "./UpstreamChanges";
 import { AdoptVersion } from "./AdoptVersion";
 import { commandSummary } from "./workspace";
 import {
@@ -64,9 +65,26 @@ export function Observations(props: WorkspaceProps) {
       />
       {permits(props.access, "source.read", "sources.read") ? (
         props.id ? (
-          <ObservationDetail {...props} />
+          new URLSearchParams(location.search).get("from") ===
+          "upstream-changes" ? (
+            <SelectedUpstreamChange
+              {...props}
+              raw={<RawObservation {...props} />}
+            />
+          ) : (
+            <ObservationDetail {...props} />
+          )
         ) : (
-          <ObservationList {...props} />
+          <>
+            {canBrowseUpstream(props) && (
+              <p>
+                <a href={props.runtime.basePath + "/upstream-changes"}>
+                  Find upstream changes for adopted Resources
+                </a>
+              </p>
+            )}
+            <ObservationList {...props} />
+          </>
         )
       ) : (
         <p role="alert">

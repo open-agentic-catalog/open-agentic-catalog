@@ -2983,6 +2983,18 @@
       "conditionalPermissions": {}
     },
     {
+      "operationId": "listUpstreamChanges",
+      "method": "GET",
+      "path": "/api/v1/upstream-changes",
+      "permissions": [
+        "source.read_evidence",
+        "resource.edit"
+      ],
+      "policy": "adoption",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "Deployment opt-in; current source evidence and exact destination edit authority with companions. The sources.read OAuth ceiling also applies. Current editable namespaces restrict selection before pagination."
+    },
+    {
       "operationId": "getVersionAdoptionTarget",
       "method": "GET",
       "path": "/api/v1/observations/{observationId}/adoption-target",
@@ -3005,6 +3017,15 @@
       "policy": "adoption",
       "oauthCeiling": "catalog.write",
       "currentAuthority": "Deployment opt-in; current source evidence and exact destination edit authority with companions. Additional sources.read OAuth ceiling applies before lookup, mutation and replay."
+    },
+    {
+      "operationId": "listListingMetadataGaps",
+      "method": "GET",
+      "path": "/api/v1/listing-metadata-gaps",
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "Current resource.read in each canonical Namespace before pagination",
+      "permissions": ["resource.read"]
     },
     {
       "operationId": "listValidationMaintenance",
@@ -5197,15 +5218,6 @@
     },
     {
       "calls": [],
-      "method": "FindVersionAdoptionTarget",
-      "package": "catalog",
-      "receiver": "Service",
-      "roleConstants": [],
-      "source": "internal/catalog/adoption_version.go",
-      "policy": "adoption"
-    },
-    {
-      "calls": [],
       "method": "AdoptExternalVersion",
       "package": "catalog",
       "receiver": "Service",
@@ -5224,6 +5236,15 @@
     },
     {
       "calls": [],
+      "method": "UpstreamChanges",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/upstream_changes.go",
+      "policy": "adoption"
+    },
+    {
+      "calls": [],
       "method": "VersionAdoptionTarget",
       "package": "federation",
       "receiver": "Manager",
@@ -5239,6 +5260,13 @@
       "roleConstants": [],
       "source": "internal/federation/adoption_version.go",
       "policy": "adoption"
+    },
+    {
+      "package": "catalog",
+      "receiver": "Service",
+      "method": "ListListingMetadataGaps",
+      "source": "internal/catalog/listing_metadata.go",
+      "policy": "search"
     },
     {
       "package": "catalog",

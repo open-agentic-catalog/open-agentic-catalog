@@ -4,6 +4,46 @@
  */
 
 export interface paths {
+    "/api/v1/upstream-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find retained upstream changes for editable adopted Resources
+         * @description Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the canonical namespace with its companion reads. Both catalog.write and sources.read apply when OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope. Compares exact previously adopted upstream labels and normalized metadata, and checks all local Version labels before suggesting an addition. Entry comparisons include unavailable comparisons. Valid continuation rechecks admission and complete membership. Refresh from page one for a new traversal. Each row binds one immutable prior revision and a specific complete occurrence. Makes no external requests or mutations. Broken selected evidence fails the read.
+         */
+        get: operations["listUpstreamChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/listing-metadata-gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find released Listings missing optional metadata
+         * @description Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+         */
+        get: operations["listListingMetadataGaps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/validation-maintenance": {
         parameters: {
             query?: never;
@@ -3434,7 +3474,7 @@ export interface paths {
         put?: never;
         /**
          * Append a selected upstream version to an existing adopted Resource
-         * @description Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+         * @description Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
          */
         post: operations["adoptResourceVersion"];
         delete?: never;
@@ -4409,6 +4449,23 @@ export interface components {
             /** @description Applicability at the fixed observation time, not later publication eligibility, approval or trust. */
             applicable: boolean;
             conditions: ("blocked" | "stale" | "expired" | "expiring")[];
+        };
+        ListingMetadataGap: {
+            listingId: components["schemas"]["UUID"];
+            namespaceId: components["schemas"]["UUID"];
+            resourceId: components["schemas"]["UUID"];
+            releaseId: components["schemas"]["UUID"];
+            listingRevisionId: components["schemas"]["UUID"];
+            kind: components["schemas"]["ResourceKind"];
+            displayName: string;
+            version: string;
+            /** @enum {string} */
+            state: "published" | "deprecated";
+            missing: ("documentation" | "support" | "license")[];
+        };
+        ListingMetadataGapPage: {
+            items: components["schemas"]["ListingMetadataGap"][];
+            nextCursor?: string;
         };
         ValidationMaintenancePage: {
             items: components["schemas"]["ValidationMaintenanceItem"][];
@@ -6043,7 +6100,7 @@ export interface components {
             directory: string;
         };
         OCIHandoffReference: {
-            /** @description Explicit registry and lower-case repository pinned by manifest digest; mutable tag-only references are rejected. */
+            /** @description Explicit registry and lower-case repository pinned by SHA-256 manifest digest. Use a dotted ASCII hostname, localhost (case-insensitive), a single-label host with a port, or a bracketed IPv6 address. The server validates the address and any port (1-65535) and lowercases the registry on acceptance. */
             reference: string;
         };
         /** @description Exact external handoff metadata. The Catalog does not clone Git, pull OCI, install the package, or assert that the declared remote currently exists. */
@@ -7093,6 +7150,27 @@ export interface components {
             retrievalDigest: string;
             entryLocation: string;
             priorVersionRevisionId: components["schemas"]["UUID"];
+        };
+        UpstreamChangePage: {
+            items: components["schemas"]["UpstreamChange"][];
+            nextCursor?: string;
+        };
+        UpstreamChange: {
+            target: components["schemas"]["VersionAdoptionTarget"];
+            identifier: string;
+            kind: components["schemas"]["ResourceKind"];
+            mediaType: string;
+            /** @enum {string} */
+            outcome: "unadopted_version" | "changed_entry" | "comparison_unavailable";
+            occurrence: components["schemas"]["ObservationOccurrence"] & {
+                normalizedEntryDigest: string;
+            };
+            priorDigest: string;
+            priorProfile: string;
+            currentProfile: string;
+            /** Format: date-time */
+            snapshotCompletedAt: string;
+            latestAttempt?: components["schemas"]["SourceSyncAttempt"];
         };
         VersionAdoptionTarget: {
             resourceId: components["schemas"]["UUID"];
@@ -8815,6 +8893,69 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    listUpstreamChanges: {
+        parameters: {
+            query?: {
+                check?: "all" | "unadopted_version" | "entry_comparison";
+                sourceId?: components["schemas"]["UUID"];
+                namespaceId?: components["schemas"]["UUID"];
+                /** @description Recheck an exact inventory selection before opening it. */
+                observationId?: components["schemas"]["UUID"];
+                /** @description Maximum items in one page. Follow nextCursor with the same page size and filters to continue. */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Authorized changes ordered by observation ID. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpstreamChangePage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listListingMetadataGaps: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing. */
+                checks?: string;
+                namespaceId?: components["schemas"]["UUID"];
+                kind?: components["schemas"]["ResourceKind"];
+                /** @description Maximum items in one page. Follow nextCursor with the same page size and filters to continue. */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current authorized released Listings matching at least one selected check. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingMetadataGapPage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
     listValidationMaintenance: {
         parameters: {
             query?: {

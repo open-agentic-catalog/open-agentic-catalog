@@ -187,7 +187,11 @@ func newConfiguredHTTPServer(t *testing.T, configure func(*Dependencies), sender
 // A caller-controlled clock qualifies changes across real HTTP requests without sleeps.
 func newConfiguredHTTPServerWithClock(t *testing.T, serviceClock *clock.Fake, configure func(*Dependencies), senders ...webhook.Sender) *httptest.Server {
 	t.Helper()
-	repository := catalog.NewMemoryRepository()
+	return newConfiguredHTTPServerWithRepository(t, serviceClock, catalog.NewMemoryRepository(), configure, senders...)
+}
+
+func newConfiguredHTTPServerWithRepository(t *testing.T, serviceClock *clock.Fake, repository *catalog.MemoryRepository, configure func(*Dependencies), senders ...webhook.Sender) *httptest.Server {
+	t.Helper()
 	cursorKey := sha256.Sum256([]byte("webhook-http-test-key"))
 	catalogService, err := catalog.NewService(catalog.Options{Repository: repository, Clock: serviceClock, IDs: id.Generator{}, Validator: adapter.NewRegistry(), CursorKey: cursorKey[:], Policy: "test-policy"})
 	if err != nil {

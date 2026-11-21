@@ -48,6 +48,58 @@ it.each([
   );
   expect(screen.queryByText(order)).toBeNull();
 });
+it("shows the exact saved Agent protocol, skill IDs and explicit false streaming filter", () => {
+  render(
+    <PersonalSummary
+      input={{
+        type: "search",
+        label: "Agents",
+        search: {
+          origins: ["local"],
+          agentProtocol: "JSONRPC",
+          nativeCapabilities: {
+            agentSkillIds: ["A,b", "a"],
+            agentStreaming: false,
+          },
+        },
+      }}
+    />,
+  );
+  expect(
+    screen.getByText("Declared A2A protocol").nextElementSibling?.textContent,
+  ).toBe("JSONRPC");
+  expect(
+    screen.getByText("Agent skill IDs").nextElementSibling?.textContent,
+  ).toBe('["A,b","a"]');
+  expect(
+    screen.getByText("Agent streaming").nextElementSibling?.textContent,
+  ).toBe("false");
+  expect(screen.queryByText("Include declared MCP tools")).toBeNull();
+});
+it("shows saved MCP tool and transport filters without implying an Agent filter", () => {
+  render(
+    <PersonalSummary
+      input={{
+        type: "search",
+        label: "Tools",
+        search: {
+          origins: ["local"],
+          text: "lookup",
+          includeMcpTools: true,
+          nativeCapabilities: { mcpTransports: ["streamable-http"] },
+        },
+      }}
+    />,
+  );
+  expect(
+    screen.getByText("Include declared MCP tools").nextElementSibling
+      ?.textContent,
+  ).toBe("true");
+  expect(
+    screen.getByText("MCP transports").nextElementSibling?.textContent,
+  ).toBe('["streamable-http"]');
+  expect(screen.queryByText("Agent streaming")).toBeNull();
+});
 const item = {
   id: "saved-1",
   type: "search" as const,

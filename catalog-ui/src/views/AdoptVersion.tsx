@@ -90,7 +90,9 @@ function Destination(props: Props) {
   );
 }
 
-function Append(props: Props & { target: Schema["VersionAdoptionTarget"] }) {
+export function Append(
+  props: Props & { target: Schema["VersionAdoptionTarget"] },
+) {
   const [created, setCreated] =
     useState<
       NonNullable<

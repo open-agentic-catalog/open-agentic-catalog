@@ -21,6 +21,7 @@ func TestVersionAdoptionUsesHistoricalProofAndCurrentPolicy(t *testing.T) {
 	store := NewMemoryStore()
 	clk := clock.NewFake(time.Date(2026, 9, 1, 12, 0, 0, 0, time.UTC))
 	repo := catalog.NewMemoryRepository()
+	store.BindLocalCatalog(repo)
 	key := sha256.Sum256([]byte(t.Name()))
 	service, err := catalog.NewService(catalog.Options{Repository: repo, Clock: clk, IDs: id.Generator{}, Validator: adapter.NewRegistry(), CursorKey: key[:], Policy: "version-test"})
 	if err != nil {
@@ -83,6 +84,11 @@ func TestVersionAdoptionUsesHistoricalProofAndCurrentPolicy(t *testing.T) {
 	target, err := manager.VersionAdoptionTarget(ctx, next.ID)
 	if err != nil || target.ResourceID != first.Resource.ID {
 		t.Fatal(target, err)
+	}
+	contacts := len(outbound.requests)
+	rows, err := manager.UpstreamChanges(ctx, UpstreamChangesQuery{Check: "all", Limit: 1})
+	if err != nil || len(rows) != 1 || rows[0].Target != target || rows[0].Occurrence != occ || contacts != len(outbound.requests) {
+		t.Fatal("inventory changed source contacts or exact selection", rows, err)
 	}
 	// A harmless policy revision does not rewrite selected provenance revision 1.
 	changed := store.sources[source.ID]

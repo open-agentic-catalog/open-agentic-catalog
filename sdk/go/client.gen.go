@@ -2501,6 +2501,45 @@ func (e LegalRightsSummaryState) Valid() bool {
 	}
 }
 
+// Defines values for ListingMetadataGapMissing.
+const (
+	ListingMetadataGapMissingDocumentation ListingMetadataGapMissing = "documentation"
+	ListingMetadataGapMissingLicense       ListingMetadataGapMissing = "license"
+	ListingMetadataGapMissingSupport       ListingMetadataGapMissing = "support"
+)
+
+// Valid indicates whether the value is a known member of the ListingMetadataGapMissing enum.
+func (e ListingMetadataGapMissing) Valid() bool {
+	switch e {
+	case ListingMetadataGapMissingDocumentation:
+		return true
+	case ListingMetadataGapMissingLicense:
+		return true
+	case ListingMetadataGapMissingSupport:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListingMetadataGapState.
+const (
+	ListingMetadataGapStateDeprecated ListingMetadataGapState = "deprecated"
+	ListingMetadataGapStatePublished  ListingMetadataGapState = "published"
+)
+
+// Valid indicates whether the value is a known member of the ListingMetadataGapState enum.
+func (e ListingMetadataGapState) Valid() bool {
+	switch e {
+	case ListingMetadataGapStateDeprecated:
+		return true
+	case ListingMetadataGapStatePublished:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListingReleaseState.
 const (
 	ListingReleaseStateDeprecated ListingReleaseState = "deprecated"
@@ -4649,6 +4688,42 @@ func (e UpdateSourceUpdateMode) Valid() bool {
 	}
 }
 
+// Defines values for UpstreamChangeOccurrenceEvidenceComplete.
+const (
+	UpstreamChangeOccurrenceEvidenceCompleteTrue UpstreamChangeOccurrenceEvidenceComplete = true
+)
+
+// Valid indicates whether the value is a known member of the UpstreamChangeOccurrenceEvidenceComplete enum.
+func (e UpstreamChangeOccurrenceEvidenceComplete) Valid() bool {
+	switch e {
+	case UpstreamChangeOccurrenceEvidenceCompleteTrue:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for UpstreamChangeOutcome.
+const (
+	UpstreamChangeOutcomeChangedEntry          UpstreamChangeOutcome = "changed_entry"
+	UpstreamChangeOutcomeComparisonUnavailable UpstreamChangeOutcome = "comparison_unavailable"
+	UpstreamChangeOutcomeUnadoptedVersion      UpstreamChangeOutcome = "unadopted_version"
+)
+
+// Valid indicates whether the value is a known member of the UpstreamChangeOutcome enum.
+func (e UpstreamChangeOutcome) Valid() bool {
+	switch e {
+	case UpstreamChangeOutcomeChangedEntry:
+		return true
+	case UpstreamChangeOutcomeComparisonUnavailable:
+		return true
+	case UpstreamChangeOutcomeUnadoptedVersion:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ValidationMaintenanceItemConditions.
 const (
 	ValidationMaintenanceItemConditionsBlocked  ValidationMaintenanceItemConditions = "blocked"
@@ -5492,6 +5567,27 @@ func (e ListReviewSubmissionsParamsState) Valid() bool {
 	case ListReviewSubmissionsParamsStateRejected:
 		return true
 	case ListReviewSubmissionsParamsStateSubmitted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListUpstreamChangesParamsCheck.
+const (
+	ListUpstreamChangesParamsCheckAll              ListUpstreamChangesParamsCheck = "all"
+	ListUpstreamChangesParamsCheckEntryComparison  ListUpstreamChangesParamsCheck = "entry_comparison"
+	ListUpstreamChangesParamsCheckUnadoptedVersion ListUpstreamChangesParamsCheck = "unadopted_version"
+)
+
+// Valid indicates whether the value is a known member of the ListUpstreamChangesParamsCheck enum.
+func (e ListUpstreamChangesParamsCheck) Valid() bool {
+	switch e {
+	case ListUpstreamChangesParamsCheckAll:
+		return true
+	case ListUpstreamChangesParamsCheckEntryComparison:
+		return true
+	case ListUpstreamChangesParamsCheckUnadoptedVersion:
 		return true
 	default:
 		return false
@@ -7899,6 +7995,32 @@ type LegalRightsSummary struct {
 // LegalRightsSummaryState The v1 baseline does not perform legal-rights assessment. This value never grants publication permission.
 type LegalRightsSummaryState string
 
+// ListingMetadataGap defines model for ListingMetadataGap.
+type ListingMetadataGap struct {
+	DisplayName       string                      `json:"displayName"`
+	Kind              ResourceKind                `json:"kind"`
+	ListingId         UUID                        `json:"listingId"`
+	ListingRevisionId UUID                        `json:"listingRevisionId"`
+	Missing           []ListingMetadataGapMissing `json:"missing"`
+	NamespaceId       UUID                        `json:"namespaceId"`
+	ReleaseId         UUID                        `json:"releaseId"`
+	ResourceId        UUID                        `json:"resourceId"`
+	State             ListingMetadataGapState     `json:"state"`
+	Version           string                      `json:"version"`
+}
+
+// ListingMetadataGapMissing defines model for ListingMetadataGap.Missing.
+type ListingMetadataGapMissing string
+
+// ListingMetadataGapState defines model for ListingMetadataGap.State.
+type ListingMetadataGapState string
+
+// ListingMetadataGapPage defines model for ListingMetadataGapPage.
+type ListingMetadataGapPage struct {
+	Items      []ListingMetadataGap `json:"items"`
+	NextCursor *string              `json:"nextCursor,omitempty"`
+}
+
 // ListingPublished defines model for ListingPublished.
 type ListingPublished struct {
 	Listing      CatalogListing  `json:"listing"`
@@ -8304,7 +8426,7 @@ type NetworkProfileReference = string
 
 // OCIHandoffReference defines model for OCIHandoffReference.
 type OCIHandoffReference struct {
-	// Reference Explicit registry and lower-case repository pinned by manifest digest; mutable tag-only references are rejected.
+	// Reference Explicit registry and lower-case repository pinned by SHA-256 manifest digest. Use a dotted ASCII hostname, localhost (case-insensitive), a single-label host with a port, or a bracketed IPv6 address. The server validates the address and any port (1-65535) and lowercases the registry on acceptance.
 	Reference string `json:"reference"`
 }
 
@@ -10064,6 +10186,48 @@ type UpdateSource struct {
 // UpdateSourceUpdateMode defines model for UpdateSource.UpdateMode.
 type UpdateSourceUpdateMode string
 
+// UpstreamChange defines model for UpstreamChange.
+type UpstreamChange struct {
+	CurrentProfile string             `json:"currentProfile"`
+	Identifier     string             `json:"identifier"`
+	Kind           ResourceKind       `json:"kind"`
+	LatestAttempt  *SourceSyncAttempt `json:"latestAttempt,omitempty"`
+	MediaType      string             `json:"mediaType"`
+	Occurrence     struct {
+		// EntryLocation Exact `/entries/N` manifest location or `/items/N` Registry List page location for complete retained evidence.
+		EntryLocation            string                                   `json:"entryLocation"`
+		EvidenceComplete         UpstreamChangeOccurrenceEvidenceComplete `json:"evidenceComplete"`
+		ExactEntryDigest         string                                   `json:"exactEntryDigest"`
+		NormalizationInputDigest *string                                  `json:"normalizationInputDigest,omitempty"`
+		NormalizedEntryDigest    string                                   `json:"normalizedEntryDigest"`
+		ObservationId            UUID                                     `json:"observationId"`
+		ObservedAt               time.Time                                `json:"observedAt"`
+		RetrievalDigest          string                                   `json:"retrievalDigest"`
+		SnapshotId               UUID                                     `json:"snapshotId"`
+		SourceId                 UUID                                     `json:"sourceId"`
+
+		// SourceRevision Exact retained source revision.
+		SourceRevision int64 `json:"sourceRevision"`
+	} `json:"occurrence"`
+	Outcome             UpstreamChangeOutcome `json:"outcome"`
+	PriorDigest         string                `json:"priorDigest"`
+	PriorProfile        string                `json:"priorProfile"`
+	SnapshotCompletedAt time.Time             `json:"snapshotCompletedAt"`
+	Target              VersionAdoptionTarget `json:"target"`
+}
+
+// UpstreamChangeOccurrenceEvidenceComplete defines model for UpstreamChange.Occurrence.EvidenceComplete.
+type UpstreamChangeOccurrenceEvidenceComplete bool
+
+// UpstreamChangeOutcome defines model for UpstreamChange.Outcome.
+type UpstreamChangeOutcome string
+
+// UpstreamChangePage defines model for UpstreamChangePage.
+type UpstreamChangePage struct {
+	Items      []UpstreamChange `json:"items"`
+	NextCursor *string          `json:"nextCursor,omitempty"`
+}
+
 // ValidationMaintenanceItem defines model for ValidationMaintenanceItem.
 type ValidationMaintenanceItem struct {
 	// Applicable Applicability at the fixed observation time, not later publication eligibility, approval or trust.
@@ -11341,6 +11505,20 @@ type RetryJobParams struct {
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
 }
 
+// ListListingMetadataGapsParams defines parameters for ListListingMetadataGaps.
+type ListListingMetadataGapsParams struct {
+	// Checks Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing.
+	Checks      *string       `form:"checks,omitempty" json:"checks,omitempty"`
+	NamespaceId *UUID         `form:"namespaceId,omitempty" json:"namespaceId,omitempty"`
+	Kind        *ResourceKind `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// Limit Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
 // ListReleaseRelationshipsParams defines parameters for ListReleaseRelationships.
 type ListReleaseRelationshipsParams struct {
 	// View Direction or version-specific withdrawal impact.
@@ -11969,6 +12147,25 @@ type SetTenantSettingsParams struct {
 	// IfMatch Exact settings ETag from GET, including before the first save. Wildcards and validator lists are not accepted.
 	IfMatch string `json:"If-Match"`
 }
+
+// ListUpstreamChangesParams defines parameters for ListUpstreamChanges.
+type ListUpstreamChangesParams struct {
+	Check       *ListUpstreamChangesParamsCheck `form:"check,omitempty" json:"check,omitempty"`
+	SourceId    *UUID                           `form:"sourceId,omitempty" json:"sourceId,omitempty"`
+	NamespaceId *UUID                           `form:"namespaceId,omitempty" json:"namespaceId,omitempty"`
+
+	// ObservationId Recheck an exact inventory selection before opening it.
+	ObservationId *UUID `form:"observationId,omitempty" json:"observationId,omitempty"`
+
+	// Limit Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
+}
+
+// ListUpstreamChangesParamsCheck defines parameters for ListUpstreamChanges.
+type ListUpstreamChangesParamsCheck string
 
 // ListValidationMaintenanceParams defines parameters for ListValidationMaintenance.
 type ListValidationMaintenanceParams struct {
@@ -18844,6 +19041,13 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/jobs/{jobId}:retry (the `RetryJob` operationId).
 	RetryJob(ctx context.Context, jobId JobId, params *RetryJobParams, body RetryJobJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListListingMetadataGaps Find released Listings missing optional metadata
+	//
+	// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+	//
+	// Corresponds with GET /api/v1/listing-metadata-gaps (the `ListListingMetadataGaps` operationId).
+	ListListingMetadataGaps(ctx context.Context, params *ListListingMetadataGapsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetListingRelease Get a listing release
 	//
 	// Returns a visible release binding a listing revision to a version revision, including its lifecycle state and ETag.
@@ -19808,7 +20012,7 @@ type ClientInterface interface {
 
 	// AdoptResourceVersionWithBody Append a selected upstream version to an existing adopted Resource
 	//
-	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -19817,7 +20021,7 @@ type ClientInterface interface {
 
 	// AdoptResourceVersion Append a selected upstream version to an existing adopted Resource
 	//
-	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -19998,6 +20202,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /api/v1/tenant-settings (the `SetTenantSettings` operationId).
 	SetTenantSettings(ctx context.Context, params *SetTenantSettingsParams, body SetTenantSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListUpstreamChanges Find retained upstream changes for editable adopted Resources
+	//
+	// Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the canonical namespace with its companion reads. Both catalog.write and sources.read apply when OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope. Compares exact previously adopted upstream labels and normalized metadata, and checks all local Version labels before suggesting an addition. Entry comparisons include unavailable comparisons. Valid continuation rechecks admission and complete membership. Refresh from page one for a new traversal. Each row binds one immutable prior revision and a specific complete occurrence. Makes no external requests or mutations. Broken selected evidence fails the read.
+	//
+	// Corresponds with GET /api/v1/upstream-changes (the `ListUpstreamChanges` operationId).
+	ListUpstreamChanges(ctx context.Context, params *ListUpstreamChangesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListValidationMaintenance Find current validation evidence needing attention
 	//
@@ -22768,6 +22979,23 @@ func (c *Client) RetryJob(ctx context.Context, jobId JobId, params *RetryJobPara
 	return c.Client.Do(req)
 }
 
+// ListListingMetadataGaps Find released Listings missing optional metadata
+//
+// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+//
+// Corresponds with GET /api/v1/listing-metadata-gaps (the `ListListingMetadataGaps` operationId).
+func (c *Client) ListListingMetadataGaps(ctx context.Context, params *ListListingMetadataGapsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListListingMetadataGapsRequest(c.Server, params)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
 // GetListingRelease Get a listing release
 //
 // Returns a visible release binding a listing revision to a version revision, including its lifecycle state and ETag.
@@ -24912,7 +25140,7 @@ func (c *Client) CreateResourceVersion(ctx context.Context, resourceId ResourceI
 
 // AdoptResourceVersionWithBody Append a selected upstream version to an existing adopted Resource
 //
-// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 //
 // Takes any type of body and a specified content type.
 //
@@ -24931,7 +25159,7 @@ func (c *Client) AdoptResourceVersionWithBody(ctx context.Context, resourceId Re
 
 // AdoptResourceVersion Append a selected upstream version to an existing adopted Resource
 //
-// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -25323,6 +25551,23 @@ func (c *Client) SetTenantSettingsWithBody(ctx context.Context, params *SetTenan
 // Corresponds with POST /api/v1/tenant-settings (the `SetTenantSettings` operationId).
 func (c *Client) SetTenantSettings(ctx context.Context, params *SetTenantSettingsParams, body SetTenantSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetTenantSettingsRequest(c.Server, params, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// ListUpstreamChanges Find retained upstream changes for editable adopted Resources
+//
+// Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the canonical namespace with its companion reads. Both catalog.write and sources.read apply when OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope. Compares exact previously adopted upstream labels and normalized metadata, and checks all local Version labels before suggesting an addition. Entry comparisons include unavailable comparisons. Valid continuation rechecks admission and complete membership. Refresh from page one for a new traversal. Each row binds one immutable prior revision and a specific complete occurrence. Makes no external requests or mutations. Broken selected evidence fails the read.
+//
+// Corresponds with GET /api/v1/upstream-changes (the `ListUpstreamChanges` operationId).
+func (c *Client) ListUpstreamChanges(ctx context.Context, params *ListUpstreamChangesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListUpstreamChangesRequest(c.Server, params)
 	if err != nil {
 		return nil, safeError(err)
 	}
@@ -31605,6 +31850,108 @@ func NewRetryJobRequestWithBody(server string, jobId JobId, params *RetryJobPara
 	return req, nil
 }
 
+// NewListListingMetadataGapsRequest constructs an http.Request for the ListListingMetadataGaps method
+func NewListListingMetadataGapsRequest(server string, params *ListListingMetadataGapsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/listing-metadata-gaps")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Checks != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "checks", *params.Checks, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.NamespaceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespaceId", *params.NamespaceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
 // NewGetListingReleaseRequest constructs an http.Request for the GetListingRelease method
 func NewGetListingReleaseRequest(server string, releaseId ReleaseId) (*http.Request, error) {
 	var err error
@@ -37210,6 +37557,120 @@ func NewSetTenantSettingsRequestWithBody(server string, params *SetTenantSetting
 	return req, nil
 }
 
+// NewListUpstreamChangesRequest constructs an http.Request for the ListUpstreamChanges method
+func NewListUpstreamChangesRequest(server string, params *ListUpstreamChangesParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/upstream-changes")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Check != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "check", *params.Check, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.SourceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "sourceId", *params.SourceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.NamespaceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespaceId", *params.NamespaceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.ObservationId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "observationId", *params.ObservationId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
 // NewListValidationMaintenanceRequest constructs an http.Request for the ListValidationMaintenance method
 func NewListValidationMaintenanceRequest(server string, params *ListValidationMaintenanceParams) (*http.Request, error) {
 	var err error
@@ -39989,6 +40450,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/jobs/{jobId}:retry (the `RetryJob` operationId).
 	RetryJobWithResponse(ctx context.Context, jobId JobId, params *RetryJobParams, body RetryJobJSONRequestBody, reqEditors ...RequestEditorFn) (*RetryJobResponse, error)
 
+	// ListListingMetadataGapsWithResponse Find released Listings missing optional metadata
+	//
+	// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/listing-metadata-gaps (the `ListListingMetadataGaps` operationId).
+	ListListingMetadataGapsWithResponse(ctx context.Context, params *ListListingMetadataGapsParams, reqEditors ...RequestEditorFn) (*ListListingMetadataGapsResponse, error)
+
 	// GetListingReleaseWithResponse Get a listing release
 	//
 	// Returns a visible release binding a listing revision to a version revision, including its lifecycle state and ETag.
@@ -41053,7 +41523,7 @@ type ClientWithResponsesInterface interface {
 
 	// AdoptResourceVersionWithBodyWithResponse Append a selected upstream version to an existing adopted Resource
 	//
-	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -41062,7 +41532,7 @@ type ClientWithResponsesInterface interface {
 
 	// AdoptResourceVersionWithResponse Append a selected upstream version to an existing adopted Resource
 	//
-	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+	// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -41257,6 +41727,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /api/v1/tenant-settings (the `SetTenantSettings` operationId).
 	SetTenantSettingsWithResponse(ctx context.Context, params *SetTenantSettingsParams, body SetTenantSettingsJSONRequestBody, reqEditors ...RequestEditorFn) (*SetTenantSettingsResponse, error)
+
+	// ListUpstreamChangesWithResponse Find retained upstream changes for editable adopted Resources
+	//
+	// Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the canonical namespace with its companion reads. Both catalog.write and sources.read apply when OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope. Compares exact previously adopted upstream labels and normalized metadata, and checks all local Version labels before suggesting an addition. Entry comparisons include unavailable comparisons. Valid continuation rechecks admission and complete membership. Refresh from page one for a new traversal. Each row binds one immutable prior revision and a specific complete occurrence. Makes no external requests or mutations. Broken selected evidence fails the read.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/upstream-changes (the `ListUpstreamChanges` operationId).
+	ListUpstreamChangesWithResponse(ctx context.Context, params *ListUpstreamChangesParams, reqEditors ...RequestEditorFn) (*ListUpstreamChangesResponse, error)
 
 	// ListValidationMaintenanceWithResponse Find current validation evidence needing attention
 	//
@@ -47868,6 +48347,70 @@ func (r RetryJobResponse) ContentType() string {
 	return ""
 }
 
+// ListListingMetadataGapsResponse200Headers the declared response headers of an HTTP 200 response for ListListingMetadataGaps
+type ListListingMetadataGapsResponse200Headers struct {
+	CacheControl *string
+}
+
+// ListListingMetadataGapsResponseDefaultHeaders the declared response headers of an HTTP default response for ListListingMetadataGaps
+type ListListingMetadataGapsResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type ListListingMetadataGapsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ListingMetadataGapPage
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListListingMetadataGapsResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *ListListingMetadataGapsResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListListingMetadataGapsResponse) GetJSON200() *ListingMetadataGapPage {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListListingMetadataGapsResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListListingMetadataGapsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListListingMetadataGapsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListListingMetadataGapsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListListingMetadataGapsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // GetListingReleaseResponse200Headers the declared response headers of an HTTP 200 response for GetListingRelease
 type GetListingReleaseResponse200Headers struct {
 	ETag       *string
@@ -54215,6 +54758,70 @@ func (r SetTenantSettingsResponse) ContentType() string {
 	return ""
 }
 
+// ListUpstreamChangesResponse200Headers the declared response headers of an HTTP 200 response for ListUpstreamChanges
+type ListUpstreamChangesResponse200Headers struct {
+	CacheControl *string
+}
+
+// ListUpstreamChangesResponseDefaultHeaders the declared response headers of an HTTP default response for ListUpstreamChanges
+type ListUpstreamChangesResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type ListUpstreamChangesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *UpstreamChangePage
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListUpstreamChangesResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *ListUpstreamChangesResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListUpstreamChangesResponse) GetJSON200() *UpstreamChangePage {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListUpstreamChangesResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListUpstreamChangesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListUpstreamChangesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListUpstreamChangesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListUpstreamChangesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // ListValidationMaintenanceResponse200Headers the declared response headers of an HTTP 200 response for ListValidationMaintenance
 type ListValidationMaintenanceResponse200Headers struct {
 	CacheControl *string
@@ -58726,6 +59333,21 @@ func (c *ClientWithResponses) RetryJobWithResponse(ctx context.Context, jobId Jo
 	return ParseRetryJobResponse(rsp)
 }
 
+// ListListingMetadataGapsWithResponse Find released Listings missing optional metadata
+//
+// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/listing-metadata-gaps (the `ListListingMetadataGaps` operationId).
+func (c *ClientWithResponses) ListListingMetadataGapsWithResponse(ctx context.Context, params *ListListingMetadataGapsParams, reqEditors ...RequestEditorFn) (*ListListingMetadataGapsResponse, error) {
+	rsp, err := c.ListListingMetadataGaps(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseListListingMetadataGapsResponse(rsp)
+}
+
 // GetListingReleaseWithResponse Get a listing release
 //
 // Returns a visible release binding a listing revision to a version revision, including its lifecycle state and ETag.
@@ -60498,7 +61120,7 @@ func (c *ClientWithResponses) CreateResourceVersionWithResponse(ctx context.Cont
 
 // AdoptResourceVersionWithBodyWithResponse Append a selected upstream version to an existing adopted Resource
 //
-// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -60513,7 +61135,7 @@ func (c *ClientWithResponses) AdoptResourceVersionWithBodyWithResponse(ctx conte
 
 // AdoptResourceVersionWithResponse Append a selected upstream version to an existing adopted Resource
 //
-// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+// Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -60839,6 +61461,21 @@ func (c *ClientWithResponses) SetTenantSettingsWithResponse(ctx context.Context,
 		return nil, safeError(err)
 	}
 	return ParseSetTenantSettingsResponse(rsp)
+}
+
+// ListUpstreamChangesWithResponse Find retained upstream changes for editable adopted Resources
+//
+// Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the canonical namespace with its companion reads. Both catalog.write and sources.read apply when OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope. Compares exact previously adopted upstream labels and normalized metadata, and checks all local Version labels before suggesting an addition. Entry comparisons include unavailable comparisons. Valid continuation rechecks admission and complete membership. Refresh from page one for a new traversal. Each row binds one immutable prior revision and a specific complete occurrence. Makes no external requests or mutations. Broken selected evidence fails the read.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/upstream-changes (the `ListUpstreamChanges` operationId).
+func (c *ClientWithResponses) ListUpstreamChangesWithResponse(ctx context.Context, params *ListUpstreamChangesParams, reqEditors ...RequestEditorFn) (*ListUpstreamChangesResponse, error) {
+	rsp, err := c.ListUpstreamChanges(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseListUpstreamChangesResponse(rsp)
 }
 
 // ListValidationMaintenanceWithResponse Find current validation evidence needing attention
@@ -69436,6 +70073,77 @@ func ParseRetryJobResponse(rsp *http.Response) (result *RetryJobResponse, err er
 	return response, nil
 }
 
+// ParseListListingMetadataGapsResponse parses an HTTP response from a ListListingMetadataGapsWithResponse call
+func ParseListListingMetadataGapsResponse(rsp *http.Response) (result *ListListingMetadataGapsResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &ListListingMetadataGapsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListingMetadataGapPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListListingMetadataGapsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers ListListingMetadataGapsResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
 // ParseGetListingReleaseResponse parses an HTTP response from a GetListingReleaseWithResponse call
 func ParseGetListingReleaseResponse(rsp *http.Response) (result *GetListingReleaseResponse, err error) {
 	defer func() { err = safeResponseError(err, rsp) }()
@@ -77061,6 +77769,77 @@ func ParseSetTenantSettingsResponse(rsp *http.Response) (result *SetTenantSettin
 		response.Headers200 = &headers
 	case true:
 		var headers SetTenantSettingsResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListUpstreamChangesResponse parses an HTTP response from a ListUpstreamChangesWithResponse call
+func ParseListUpstreamChangesResponse(rsp *http.Response) (result *ListUpstreamChangesResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &ListUpstreamChangesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest UpstreamChangePage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListUpstreamChangesResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers ListUpstreamChangesResponseDefaultHeaders
 		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {

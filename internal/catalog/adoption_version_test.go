@@ -42,10 +42,6 @@ func TestAdoptVersionPreservesResourceListingAndOrigin(t *testing.T) {
 	if last.Action != "resource_version.created" || last.TargetType != "resource_version" || last.TargetID != created.Version.ID {
 		t.Fatal("wrong creation evidence", last)
 	}
-	target, err := f.service.FindVersionAdoptionTarget(ctx, input.Provenance.SourceID, input.CanonicalIdentifier, input.Kind, old.Version.Version)
-	if err != nil || target.Version == old.Version.Version || target.ResourceID != old.Resource.ID {
-		t.Fatal("lookup selected the requested label rather than a different prior adoption", target, err)
-	}
 	before := len(f.repo.audit)
 	if _, err = f.service.AdoptExternalVersion(ctx, ExternalVersionAdoptionInput{ResourceID: old.Resource.ID, PriorVersionRevisionID: old.VersionRevision.ID, Selection: input}); ErrorCodeOf(err) != CodeConflict {
 		t.Fatal("duplicate label", err)

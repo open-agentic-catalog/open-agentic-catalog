@@ -4,6 +4,7 @@ import type { components } from "../api/schema";
 import type { Command } from "./workspace";
 import { kindLabel } from "../resource-kinds";
 import { catalogOrders } from "./catalog-order";
+import { nativeArrayFields } from "./native-capabilities";
 type Input = components["schemas"]["PersonalInput"];
 type Reference = components["schemas"]["PersonalReference"];
 
@@ -48,7 +49,10 @@ export function personalFacts(input: Input): NonNullable<Command["summary"]> {
   if (input.type === "follow")
     return [...facts, { label: "Listing ID", value: input.listingId! }];
   if (input.reference) return [...facts, ...referenceFacts(input.reference)];
-  const labels: Record<string, string> = {
+  const { nativeCapabilities, ...criteria } = input.search!;
+  const labels = {
+    agentProtocol: "Declared A2A protocol",
+    includeMcpTools: "Include declared MCP tools",
     text: "Search text",
     order: "Sort by",
     origins: "Origins",
@@ -59,11 +63,12 @@ export function personalFacts(input: Input): NonNullable<Command["summary"]> {
     license: "License declaration",
     publisher: "Publisher selector",
     visibility: "Visibility",
-  };
-  return [
-    ...facts,
-    ...Object.entries(input.search!).map(([key, value]) => ({
-      label: labels[key]!,
+  } satisfies Record<keyof typeof criteria, string>;
+  for (const key of Object.keys(labels) as (keyof typeof labels)[]) {
+    const value = criteria[key];
+    if (value === undefined) continue;
+    facts.push({
+      label: labels[key],
       value:
         key === "order"
           ? catalogOrders.find((order) => order.value === value)!.label
@@ -72,11 +77,23 @@ export function personalFacts(input: Input): NonNullable<Command["summary"]> {
             : value === ""
               ? "Empty value"
               : String(value),
-    })),
-    ...(input.search!.origins === undefined
-      ? [{ label: "Origins", value: "Not specified" }]
-      : []),
-  ];
+    });
+  }
+  if (nativeCapabilities) {
+    for (const [field, label] of nativeArrayFields) {
+      const values = nativeCapabilities[field];
+      if (values !== undefined)
+        facts.push({ label, value: JSON.stringify(values) });
+    }
+    if (nativeCapabilities.agentStreaming !== undefined)
+      facts.push({
+        label: "Agent streaming",
+        value: String(nativeCapabilities.agentStreaming),
+      });
+  }
+  if (criteria.origins === undefined)
+    facts.push({ label: "Origins", value: "Not specified" });
+  return facts;
 }
 export function PersonalSummary({
   input,

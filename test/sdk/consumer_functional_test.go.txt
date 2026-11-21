@@ -119,6 +119,13 @@ func TestManagedSDKRelationshipPagesAndFollow(t *testing.T) {
 	must(t, err)
 	defer c.Close()
 
+	gaps, err := c.ListListingMetadataGapsWithResponse(t.Context(), &sdk.ListListingMetadataGapsParams{Checks: ptr("license,support"), Kind: ptr(sdk.ResourceKindPlugin)})
+	must(t, err)
+	if gaps.JSON200 == nil || len(gaps.JSON200.Items) != 1 || gaps.JSON200.Items[0].ReleaseId != sourceID ||
+		!reflect.DeepEqual(gaps.JSON200.Items[0].Missing, []sdk.ListingMetadataGapMissing{sdk.ListingMetadataGapMissingSupport, sdk.ListingMetadataGapMissingLicense}) {
+		t.Fatalf("selected Plugin Listing omissions (HTTP %d)", gaps.StatusCode())
+	}
+
 	query := &sdk.ListReleaseRelationshipsParams{View: "outgoing", Limit: ptr(1)}
 	first, err := c.ListReleaseRelationshipsWithResponse(t.Context(), sourceID, query)
 	must(t, err)
@@ -199,6 +206,18 @@ func TestManagedSDKVersionAdoption(t *testing.T) {
 	defer c.Close()
 	observation := decode[sdk.ObservationId](t, []byte(strconv.Quote(input.Body.ObservationID)))
 	resource := decode[sdk.ResourceId](t, []byte(strconv.Quote(input.ResourceID)))
+	page, err := c.ListUpstreamChangesWithResponse(t.Context(), &sdk.ListUpstreamChangesParams{ObservationId: &observation})
+	must(t, err)
+	if page.JSON200 == nil || len(page.JSON200.Items) != 1 {
+		t.Fatal("upstream inventory", page.StatusCode())
+	}
+	row := page.JSON200.Items[0]
+	if row.Occurrence.NormalizedEntryDigest != input.NormalizedEntryDigest {
+		t.Fatal("wrong normalized digest for selected occurrence", row.Occurrence)
+	}
+	if row.Outcome != "unadopted_version" || row.Target.ResourceId.String() != input.ResourceID || row.Occurrence.SnapshotId.String() != input.Body.SnapshotID || row.Target.PriorVersionRevisionId.String() != input.PriorVersionRevisionID {
+		t.Fatal("incorrect SDK inventory handoff", row)
+	}
 	target, err := c.GetVersionAdoptionTargetWithResponse(t.Context(), observation)
 	must(t, err)
 	if target.JSON200 == nil || target.JSON200.ResourceId.String() != input.ResourceID || target.JSON200.PriorVersionRevisionId.String() != input.PriorVersionRevisionID || target.JSON200.Version != "opaque-first" || target.JSON200.UpstreamVersion != "opaque-next" {

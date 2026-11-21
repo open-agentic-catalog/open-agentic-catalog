@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import UpstreamChanges, { SelectedUpstreamChange } from "./UpstreamChanges";
 import { AdoptVersion } from "./AdoptVersion";
 import { APIError } from "../api/client";
 import {
@@ -370,3 +371,362 @@ it("clears private adoption results on source access revocation and requires a f
   ).toBeNull();
   expect(w.post).toHaveBeenCalledTimes(1);
 });
+
+const upstreamRow = {
+  target,
+  occurrence,
+  identifier: "urn:air:example.com:agents:imported",
+  kind: "agent",
+  mediaType: "application/a2a-agent-card+json",
+  outcome: "changed_entry",
+  priorDigest: occurrence.exactEntryDigest,
+  priorProfile: "catalog-observation-v1",
+  currentProfile: "catalog-observation-v1",
+  snapshotCompletedAt: stamp,
+};
+
+function inventoryWorkspace(row: typeof upstreamRow = upstreamRow) {
+  const w = screenWorkspace();
+  readReplies(w.get, {
+    "/api/v1/capabilities": {
+      ...capabilities,
+      optionalCapabilities: {
+        ...capabilities.optionalCapabilities,
+        versionAdoption: "enabled",
+      },
+    },
+    "/api/v1/upstream-changes": { items: [row] },
+  });
+  return w;
+}
+
+const secondRow = {
+  ...upstreamRow,
+  occurrence: { ...occurrence, observationId: "another-observation" },
+};
+it.each([
+  {
+    defect: "more than 100 results",
+    items: Array.from({ length: 101 }, (_, i) => ({
+      ...upstreamRow,
+      occurrence: { ...occurrence, observationId: `observation-page-${i}` },
+    })),
+  },
+  {
+    defect: "invalid prior digest",
+    items: [upstreamRow, { ...secondRow, priorDigest: "unverified" }],
+  },
+  ...(
+    ["retrievalDigest", "exactEntryDigest", "normalizedEntryDigest"] as const
+  ).map((field) => ({
+    defect: `invalid ${field}`,
+    items: [
+      upstreamRow,
+      {
+        ...secondRow,
+        occurrence: { ...secondRow.occurrence, [field]: "unverified" },
+      },
+    ],
+  })),
+])(
+  "clears the inventory on reload with $defect and recovers on a valid reply",
+  async ({ items }) => {
+    const w = inventoryWorkspace();
+    render(<UpstreamChanges {...w.props} access={administrator} />);
+    await screen.findByRole("link", { name: "Inspect selected occurrence" });
+    w.get.mockResolvedValueOnce(etagReply({ items }));
+    click("Refresh from first page");
+    await screen.findByRole("alert");
+    expect(w.props.onFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "invalid_api_response" }),
+    );
+    expect(
+      screen.queryAllByRole("link", { name: "Inspect selected occurrence" }),
+    ).toHaveLength(0);
+    click("Reload");
+    await screen.findByRole("link", { name: "Inspect selected occurrence" });
+    expect(w.post).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  ["agent", upstreamRow.mediaType, "changed_entry"],
+  ["agent", upstreamRow.mediaType, "comparison_unavailable"],
+  ["skill", "application/agent-skills+zip", "changed_entry"],
+  ["skill", "application/agent-skills+gzip", "comparison_unavailable"],
+])(
+  "opens %s (%s) for exact inspection of %s",
+  async (kind, mediaType, outcome) => {
+    const w = inventoryWorkspace({
+      ...upstreamRow,
+      kind,
+      mediaType,
+      outcome,
+      target: { ...target, upstreamVersion: target.version },
+      currentProfile:
+        outcome === "comparison_unavailable"
+          ? "another-normalization-profile"
+          : upstreamRow.priorProfile,
+    });
+    const view = render(
+      <UpstreamChanges {...w.props} access={administrator} />,
+    );
+    const link = await screen.findByRole("link", {
+      name: "Inspect selected occurrence",
+    });
+    const href = link.getAttribute("href")!;
+    expect(href).toContain(occurrence.observationId);
+    view.unmount();
+    history.replaceState(null, "", href);
+    render(
+      <SelectedUpstreamChange
+        {...w.props}
+        access={administrator}
+        id={occurrence.observationId}
+        raw={<span>Audited raw content</span>}
+      />,
+    );
+    await screen.findByText(target.priorVersionRevisionId);
+    expect(
+      screen.getByText(
+        outcome === "comparison_unavailable"
+          ? /profiles do not support a digest comparison/
+          : /metadata changed for the same version/,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Use inspected package authoring/)).toBeNull();
+    expect(screen.queryByText("Audited raw content")).toBeNull();
+    click("Read exact raw entry");
+    await screen.findByText("Audited raw content");
+    expect(
+      screen.queryByRole("button", { name: "Confirm new Version adoption" }),
+    ).toBeNull();
+    expect(w.get.mock.calls.at(-1)).toMatchObject([
+      "/api/v1/upstream-changes",
+      { params: { query: { observationId: occurrence.observationId } } },
+    ]);
+    expect(w.post).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  {
+    changed: "prior revision",
+    current: { target: { ...target, priorVersionRevisionId: "new-proof" } },
+  },
+  {
+    changed: "complete snapshot",
+    current: { occurrence: { ...occurrence, snapshotId: "new-snapshot" } },
+  },
+  {
+    changed: "entry location",
+    current: { occurrence: { ...occurrence, entryLocation: "/entries/1" } },
+  },
+  {
+    changed: "retrieval digest",
+    current: {
+      occurrence: {
+        ...occurrence,
+        retrievalDigest: "sha256:" + "d".repeat(64),
+      },
+    },
+  },
+])(
+  "requires a fresh selection when the same observation's $changed changes",
+  async ({ current }) => {
+    const row = { ...upstreamRow, outcome: "unadopted_version" };
+    const inventory = inventoryWorkspace(row);
+    const view = render(
+      <UpstreamChanges {...inventory.props} access={administrator} />,
+    );
+    const link = await screen.findByRole("link", {
+      name: "Inspect selected occurrence",
+    });
+    const href = link.getAttribute("href")!;
+    view.unmount();
+    history.replaceState(null, "", href);
+    const refreshed = inventoryWorkspace({ ...row, ...current });
+    render(
+      <SelectedUpstreamChange
+        {...refreshed.props}
+        access={administrator}
+        id={occurrence.observationId}
+        raw={null}
+      />,
+    );
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Refresh the inventory",
+    );
+    expect(refreshed.get.mock.calls.at(-1)).toMatchObject([
+      "/api/v1/upstream-changes",
+      { params: { query: { observationId: occurrence.observationId } } },
+    ]);
+    expect(
+      screen.queryByRole("button", { name: "Read exact raw entry" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Confirm new Version adoption" }),
+    ).toBeNull();
+    expect(refreshed.get.mock.calls.map(([path]) => path)).not.toContain(
+      "/api/v1/observations/{observationId}/adoption-target",
+    );
+    expect(refreshed.post).not.toHaveBeenCalled();
+  },
+);
+
+it("applies exact source and namespace filters, pages and refreshes from page one", async () => {
+  const w = inventoryWorkspace();
+  const row = {
+    ...upstreamRow,
+    latestAttempt: {
+      snapshotId: "attempt",
+      revision: 2,
+      state: "failed",
+      completedAt: stamp,
+    },
+  };
+  w.get.mockImplementation(async (path, options) => {
+    if (path === "/api/v1/capabilities")
+      return etagReply({
+        ...capabilities,
+        optionalCapabilities: {
+          ...capabilities.optionalCapabilities,
+          versionAdoption: "enabled",
+        },
+      });
+    const q = (options as { params: { query: { cursor?: string } } }).params
+      .query;
+    return etagReply(
+      q.cursor ? { items: [] } : { items: [row], nextCursor: "continue" },
+    );
+  });
+  render(<UpstreamChanges {...w.props} access={administrator} />);
+  await screen.findByRole("link", { name: "Inspect selected occurrence" });
+  const before = w.get.mock.calls.length;
+  fireEvent.change(screen.getByLabelText("Condition"), {
+    target: { value: "entry_comparison" },
+  });
+  fireEvent.change(screen.getByLabelText("Source ID (optional)"), {
+    target: { value: "source-id" },
+  });
+  fireEvent.change(screen.getByLabelText("Namespace ID (optional)"), {
+    target: { value: "namespace-id" },
+  });
+  expect(w.get).toHaveBeenCalledTimes(before);
+  click("Apply filters");
+  const query = {
+    check: "entry_comparison",
+    sourceId: "source-id",
+    namespaceId: "namespace-id",
+  };
+  await waitFor(() =>
+    expect(w.get.mock.calls.at(-1)).toMatchObject([
+      "/api/v1/upstream-changes",
+      { params: { query } },
+    ]),
+  );
+  click("Next page");
+  await screen.findByText(
+    "No matching changes in the retained complete source evidence.",
+  );
+  expect(w.get.mock.calls.at(-1)).toMatchObject([
+    "/api/v1/upstream-changes",
+    { params: { query: { ...query, cursor: "continue" } } },
+  ]);
+  click("Refresh from first page");
+  await screen.findByRole("link", { name: "Inspect selected occurrence" });
+  expect(w.get.mock.calls.at(-1)?.[1]).toMatchObject({ params: { query } });
+  click("Apply filters");
+  await screen.findByRole("link", { name: "Inspect selected occurrence" });
+  click("Refresh from first page");
+  await screen.findByRole("link", { name: "Inspect selected occurrence" });
+  expect(w.post).not.toHaveBeenCalled();
+});
+it("discards results when permission is lost and explains a disabled capability", async () => {
+  const w = inventoryWorkspace();
+  const view = render(<UpstreamChanges {...w.props} access={administrator} />);
+  await screen.findByRole("link", { name: "Inspect selected occurrence" });
+  view.rerender(
+    <UpstreamChanges
+      {...w.props}
+      access={{ ...administrator, availablePermissions: [] }}
+    />,
+  );
+  expect(
+    screen.queryByRole("link", { name: "Inspect selected occurrence" }),
+  ).toBeNull();
+  expect(screen.getByRole("alert").textContent).toContain("permission to edit");
+  readReplies(w.get, {
+    "/api/v1/capabilities": {
+      ...capabilities,
+      optionalCapabilities: {
+        ...capabilities.optionalCapabilities,
+        versionAdoption: "disabled",
+      },
+    },
+  });
+  view.rerender(<UpstreamChanges {...w.props} access={administrator} />);
+  await screen.findByText(
+    "The administrator has not enabled upstream Version adoption.",
+  );
+  expect(w.get.mock.calls.at(-1)?.[0]).toBe("/api/v1/capabilities");
+});
+it.each([
+  ["agent", upstreamRow.mediaType],
+  ["skill", "application/agent-skills+gzip"],
+  ["skill", "Application/Agent-Skills+ZIP"],
+])(
+  "binds the exact %s selection and respects delivery limits for %s",
+  async (kind, mediaType) => {
+    const w = inventoryWorkspace({
+      ...upstreamRow,
+      outcome: "unadopted_version",
+      kind,
+      mediaType,
+    });
+    const view = render(
+      <UpstreamChanges {...w.props} access={administrator} />,
+    );
+    const link = await screen.findByRole("link", {
+      name: "Inspect selected occurrence",
+    });
+    const href = link.getAttribute("href")!;
+    view.unmount();
+    history.replaceState(null, "", href);
+    render(
+      <SelectedUpstreamChange
+        {...w.props}
+        access={administrator}
+        id={occurrence.observationId}
+        raw={null}
+      />,
+    );
+    if (kind === "skill") {
+      await screen.findByText(/Use inspected package authoring/);
+      expect(
+        screen.queryByRole("button", { name: "Confirm new Version adoption" }),
+      ).toBeNull();
+      expect(w.post).not.toHaveBeenCalled();
+    } else {
+      w.post.mockResolvedValue(etagReply(created));
+      await screen.findByRole("button", {
+        name: "Confirm new Version adoption",
+      });
+      await confirmCommand("Confirm new Version adoption");
+      await screen.findByRole("link", { name: "Inspect adopted revision" });
+      expect(w.post.mock.calls[0]).toMatchObject([
+        "/api/v1/resources/{resourceId}/versions:adopt",
+        {
+          params: { path: { resourceId: target.resourceId } },
+          body: {
+            snapshotId: occurrence.snapshotId,
+            observationId: occurrence.observationId,
+            priorVersionRevisionId: target.priorVersionRevisionId,
+            retrievalDigest: occurrence.retrievalDigest,
+            entryLocation: occurrence.entryLocation,
+          },
+        },
+      ]);
+    }
+  },
+);

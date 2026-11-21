@@ -40,6 +40,7 @@ func TestSkillHandoffNormalization(t *testing.T) {
 	}
 	for _, reference := range []string{
 		"localhost/team/safe-skill@sha256:" + strings.Repeat("b", 64),
+		"LoCaLhOsT/team/safe-skill@sha256:" + strings.Repeat("b", 64),
 		"registry:5000/team/safe-skill@sha256:" + strings.Repeat("b", 64),
 		"127.0.0.1/team/safe-skill@sha256:" + strings.Repeat("b", 64),
 		"[2001:db8::1]/team/safe-skill@sha256:" + strings.Repeat("b", 64),
@@ -104,6 +105,9 @@ func TestSkillHandoffRejectsMutableOrUnsafeReferences(t *testing.T) {
 		"OCI implicit registry": {OCI: &OCIHandoffReference{Reference: "team/safe-skill@sha256:" + strings.Repeat("b", 64)}},
 		"OCI invalid hostname":  {OCI: &OCIHandoffReference{Reference: "-registry.example.com/team/safe-skill@sha256:" + strings.Repeat("b", 64)}},
 		"OCI trailing dot":      {OCI: &OCIHandoffReference{Reference: "registry.example.com./team/safe-skill@sha256:" + strings.Repeat("b", 64)}},
+		"OCI bracketed DNS":     {OCI: &OCIHandoffReference{Reference: "[registry.example.com]/team/safe-skill@sha256:" + strings.Repeat("b", 64)}},
+		"OCI bracketed IPv4":    {OCI: &OCIHandoffReference{Reference: "[127.0.0.1]/team/safe-skill@sha256:" + strings.Repeat("b", 64)}},
+		"OCI unbracketed IPv6":  {OCI: &OCIHandoffReference{Reference: "2001:db8::1:443/team/safe-skill@sha256:" + strings.Repeat("b", 64)}},
 		"OCI upper repository":  {OCI: &OCIHandoffReference{Reference: "registry.example.com/Team/safe-skill@sha256:" + strings.Repeat("b", 64)}},
 		"OCI short digest":      {OCI: &OCIHandoffReference{Reference: "registry.example.com/team/safe-skill@sha256:abcd"}},
 		"OCI URL":               {OCI: &OCIHandoffReference{Reference: "https://registry.example.com/team/safe-skill@sha256:" + strings.Repeat("b", 64)}},

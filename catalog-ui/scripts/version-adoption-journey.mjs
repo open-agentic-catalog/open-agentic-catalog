@@ -74,26 +74,37 @@ try {
       request.failure()?.errorText,
     ),
   );
-  await page.goto(`${origin}/observations/${input.observationId}`);
+  await page.goto(origin + "/upstream-changes");
   await page.locator('[data-login-alias="local-admin"]').click();
-  // Scheduled synchronization can add another appearance while the UI opens.
-  // Select the exact retained snapshot supplied by the owning fixture.
-  const occurrence = page.locator("article.workspace-panel").filter({
-    hasText: input.body.snapshotId,
+  const inventory = page.locator("section.workspace-panel").filter({
+    has: page.locator('a[href*="/observations/' + input.observationId + '?"]'),
   });
-  await expect(occurrence).toHaveCount(1);
-  await occurrence
-    .getByRole("button", { name: "Use this occurrence for adoption" })
+  await expect(inventory).toContainText("Additional upstream version");
+  await inventory
+    .getByRole("link", { name: "Inspect selected occurrence" })
     .click();
-  const panel = page.locator("section.workspace-panel").filter({
-    has: page.getByRole("heading", {
-      name: "Adopt as a new Version",
-      exact: true,
-    }),
-  });
-  await panel
-    .getByRole("button", { name: "Find existing local Resource" })
-    .click();
+  const panel = page
+    .locator("section.workspace-panel")
+    .filter({ hasText: input.body.snapshotId });
+  const capturePanel = async (filename) => {
+    // Crop the document with the sticky header at its normal top position.
+    const clip = await panel.evaluate((element) => {
+      globalThis.scrollTo({ top: 0, behavior: "instant" });
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    });
+    await page.screenshot({
+      path: join(input.reportDirectory, filename),
+      fullPage: true,
+      clip,
+    });
+  };
+  await expect(panel).toContainText(input.body.entryLocation);
+  await expect(panel).toContainText(input.body.retrievalDigest);
+  const selectionURL = page.url();
+  await expect(
+    panel.getByRole("button", { name: "Find existing local Resource" }),
+  ).toHaveCount(0);
   await expect(
     panel.getByRole("link", { name: input.resourceId, exact: true }),
   ).toBeVisible();
@@ -108,9 +119,7 @@ try {
         globalThis.innerWidth,
     ),
   ).toBe(true);
-  await panel.screenshot({
-    path: join(input.reportDirectory, "adopt-version-narrow.png"),
-  });
+  await capturePanel("adopt-version-narrow.png");
   await page.setViewportSize({ width: 1280, height: 900 });
   await panel
     .getByRole("button", { name: "Confirm new Version adoption" })
@@ -144,9 +153,7 @@ try {
   expect(
     (await new AxeBuilder({ page }).include("main").analyze()).violations,
   ).toEqual([]);
-  await panel.screenshot({
-    path: join(input.reportDirectory, "adopt-version-desktop.png"),
-  });
+  await capturePanel("adopt-version-desktop.png");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByLabel("Appearance", { exact: true }).click();
   await page.getByRole("radio", { name: "Dark", exact: true }).check();
@@ -161,13 +168,25 @@ try {
   expect(
     (await new AxeBuilder({ page }).include("main").analyze()).violations,
   ).toEqual([]);
-  await panel.screenshot({
-    path: join(input.reportDirectory, "adopt-version-narrow-dark.png"),
-  });
+  await capturePanel("adopt-version-narrow-dark.png");
   await inspect.click();
   await expect(page).toHaveURL(
     new RegExp(`/version-revisions/${result.versionRevision.id}$`),
   );
+  // Reopening a saved link after the append must recheck current eligibility.
+  await page.goto(selectionURL);
+  await expect(page.getByRole("alert")).toContainText(
+    "This selection is no longer available",
+  );
+  await expect(
+    page.getByRole("button", { name: "Confirm new Version adoption" }),
+  ).toHaveCount(0);
+  await page.getByRole("link", { name: "Return to upstream changes" }).click();
+  // The other kinds still have pending versions, so wait for actual results.
+  await expect(
+    page.getByRole("link", { name: "Inspect selected occurrence" }).first(),
+  ).toBeVisible();
+  await expect(inventory).toHaveCount(0);
   expect(network.results()).toEqual([]);
   expect(errors).toEqual([]);
 } catch (error) {

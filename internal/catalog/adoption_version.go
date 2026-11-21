@@ -58,16 +58,6 @@ func (s *Service) AdoptionVersionProof(ctx context.Context, resourceID, revision
 	return r, v, proof, nil
 }
 
-// FindVersionAdoptionTarget selects at most one currently editable same-source
-// destination. Store selection is bounded; native content is never projected.
-func (s *Service) FindVersionAdoptionTarget(ctx context.Context, source, identifier string, kind Kind, selectedVersion string) (AdoptionTarget, error) {
-	ctx, actor, err := collectionContext(ctx)
-	if err != nil {
-		return AdoptionTarget{}, err
-	}
-	return s.repo.FindVersionAdoptionTarget(ctx, actor.TenantID, source, identifier, kind, selectedVersion)
-}
-
 // AdoptExternalVersion creates only a child Version and its immutable evidence.
 // It deliberately uses Version-created evidence, preserving Resource origin.
 func (s *Service) AdoptExternalVersion(ctx context.Context, input ExternalVersionAdoptionInput) (ExternalVersionAdoption, error) {
@@ -148,38 +138,6 @@ func (m *MemoryRepository) AdoptExternalVersion(ctx context.Context, p AdoptExte
 	return ExternalVersionAdoption{ResourceID: r.ID, Version: v, VersionRevision: revision, Evidence: evidence}, nil
 }
 
-func (m *MemoryRepository) FindVersionAdoptionTarget(ctx context.Context, tenant, source, identifier string, kind Kind, selectedVersion string) (AdoptionTarget, error) {
-	if err := identity.RequireCollectionTenant(ctx, tenant); err != nil {
-		return AdoptionTarget{}, err
-	}
-	if identity.NeedsReadAdmission(ctx) {
-		return identity.WithReadAdmission(ctx, func(ctx context.Context) (AdoptionTarget, error) {
-			return m.FindVersionAdoptionTarget(ctx, tenant, source, identifier, kind, selectedVersion)
-		})
-	}
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	for _, r := range m.resources {
-		if r.TenantID != tenant || r.DeletedAt != nil || r.CanonicalIdentifier != identifier || r.Kind != kind {
-			continue
-		}
-		allowed, err := identity.CollectionAllows(ctx, "resource.edit", r.NamespaceID)
-		if err != nil {
-			return AdoptionTarget{}, err
-		}
-		if !allowed {
-			continue
-		}
-		for _, rev := range m.versionRevisions {
-			v := m.versions[rev.ResourceVersionID]
-			if rev.TenantID == tenant && rev.Adoption != nil && rev.Adoption.SourceID == source && v.ResourceID == r.ID && v.Version != selectedVersion {
-				return AdoptionTarget{ResourceID: r.ID, NamespaceID: r.NamespaceID, PriorVersionRevisionID: rev.ID, Version: v.Version}, nil
-			}
-		}
-	}
-	return AdoptionTarget{}, E(CodeNotFound, "no editable same-source adoption is available")
-}
-
 // GetVersionAdoptionProof reads only exact same-parent metadata, never another
 // Resource's native content or all of this Resource's version history.
 func (m *MemoryRepository) GetVersionAdoptionProof(ctx context.Context, tenant, resourceID, revisionID string) (ResourceVersion, AdoptionProvenance, error) {
@@ -210,4 +168,57 @@ func ValidateAdoptedVersionBinding(p AdoptExternalVersionParams) error {
 		return E(CodeInvalidArgument, "adopted Version must belong to the selected Resource")
 	}
 	return nil
+}
+
+// AdoptedResourceInventory is the development store's metadata-only projection.
+// All local labels participate, including Versions without adoption provenance.
+type AdoptedResourceInventory struct {
+	ResourceID, NamespaceID string
+	Kind                    Kind
+	Labels                  map[string]bool
+	Proofs                  map[string]AdoptedVersionProof // keyed by immutable VersionRevision ID
+}
+
+type AdoptedVersionProof struct {
+	AdoptionProvenance
+	LocalVersion string
+}
+
+func (m *MemoryRepository) AdoptedResourceInventories(ctx context.Context, tenant, namespace, identifier string) (map[string]*AdoptedResourceInventory, error) {
+	if err := identity.RequireCollectionTenant(ctx, tenant); err != nil {
+		return nil, err
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	result := make(map[string]*AdoptedResourceInventory)
+	byResource := make(map[string]*AdoptedResourceInventory)
+	for _, r := range m.resources {
+		if r.TenantID != tenant || r.DeletedAt != nil || identifier != "" && r.CanonicalIdentifier != identifier || namespace != "" && r.NamespaceID != namespace {
+			continue
+		}
+		allowed, err := identity.CollectionAllows(ctx, "resource.edit", r.NamespaceID)
+		if err != nil {
+			return nil, err
+		}
+		if !allowed {
+			continue
+		}
+		i := &AdoptedResourceInventory{ResourceID: r.ID, NamespaceID: r.NamespaceID, Kind: r.Kind, Labels: map[string]bool{}, Proofs: map[string]AdoptedVersionProof{}}
+		result[r.CanonicalIdentifier], byResource[r.ID] = i, i
+	}
+	for _, v := range m.versions {
+		if i := byResource[v.ResourceID]; i != nil && v.TenantID == tenant {
+			i.Labels[v.Version] = true
+		}
+	}
+	for _, rev := range m.versionRevisions {
+		if rev.TenantID != tenant || rev.Adoption == nil {
+			continue
+		}
+		v := m.versions[rev.ResourceVersionID]
+		if i := byResource[v.ResourceID]; i != nil && v.TenantID == tenant {
+			i.Proofs[rev.ID] = AdoptedVersionProof{AdoptionProvenance: *rev.Adoption, LocalVersion: v.Version}
+		}
+	}
+	return result, nil
 }

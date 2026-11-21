@@ -42,6 +42,15 @@ WITH approved_sources AS MATERIALIZED (
    WHERE source.tenant_id=$1 AND source.status IN ('active','error') AND revision.retrieval_mode IN ('indexed','hybrid')
 )`
 
+const indexedObservationScopeSQL = `
+     AND NOT (source.excluded_identifiers @> jsonb_build_array(observation.identifier))
+     AND (source.identifiers='[]'::jsonb OR source.identifiers @> jsonb_build_array(observation.identifier))
+     AND (source.versions='[]'::jsonb OR source.versions @> jsonb_build_array(coalesce(observation.version,'')))
+     AND (source.kinds='[]'::jsonb OR source.kinds @> jsonb_build_array(observation.kind))
+     AND (source.publishers='[]'::jsonb OR source.publishers @> jsonb_build_array(observation.search_publisher))
+     AND (source.tags='[]'::jsonb OR to_jsonb(observation.search_tags) @> source.tags)
+`
+
 // indexedCurrentEligibleFromSQL is shared by reader matching and worker metadata
 // enumeration. Workers select only metadata, not API-only ranking projections.
 var indexedCurrentEligibleFromSQL = `
@@ -58,12 +67,7 @@ var indexedCurrentEligibleFromSQL = `
      AND NOT EXISTS (SELECT 1 FROM unnest(observation.search_tags) search_tag WHERE char_length(search_tag)>80)
      AND cardinality(observation.search_representative_queries)<=5
      AND NOT EXISTS (SELECT 1 FROM unnest(observation.search_representative_queries) search_query WHERE octet_length(search_query)>240)
-     AND NOT (source.excluded_identifiers @> jsonb_build_array(observation.identifier))
-     AND (source.identifiers='[]'::jsonb OR source.identifiers @> jsonb_build_array(observation.identifier))
-     AND (source.versions='[]'::jsonb OR source.versions @> jsonb_build_array(coalesce(observation.version,'')))
-     AND (source.kinds='[]'::jsonb OR source.kinds @> jsonb_build_array(observation.kind))
-     AND (source.publishers='[]'::jsonb OR source.publishers @> jsonb_build_array(observation.search_publisher))
-     AND (source.tags='[]'::jsonb OR to_jsonb(observation.search_tags) @> source.tags)
+` + indexedObservationScopeSQL + `
      AND NOT (observation.version_present AND EXISTS (
        SELECT 1
          FROM resources local_resource

@@ -274,6 +274,15 @@ def archive_publication(api, resource, version, blocked, target):
     record, _ = api.request("GET", "/api/v1/catalog/resources/" + published["release"]["id"])
     assert record["resource"]["id"] == resource["id"] and record["listingRevision"]["publisherId"] == publisher["id"], "archive publication lost identity"
     reader, other = Client(api.base_url, "local-reader"), Client(api.base_url, "other-tenant-admin")
+    report = "/api/v1/listing-metadata-gaps?kind=skill&namespaceId=" + resource["namespaceId"]
+    def omissions(client, checks=None):
+        page, _ = client.request("GET", report + ("&checks=" + checks if checks else ""))
+        assert "nextCursor" not in page, "fixture exceeded the report page"
+        return [row for row in page["items"] if row["listingId"] == listing["id"]]
+    released_row = {"listingId": listing["id"], "namespaceId": resource["namespaceId"], "resourceId": resource["id"],
+                    "releaseId": published["release"]["id"], "listingRevisionId": listing_revision["revision"]["id"],
+                    "kind": "skill", "version": record["version"]["version"], "displayName": "Reviewed archive", "state": "published", "missing": ["documentation", "support"]}
+    assert omissions(reader) == [released_row] and not omissions(other), "released omissions lost exact metadata or tenant isolation"
     relationships = "/api/v1/listing-releases/" + published["release"]["id"] + "/relationships"
     outward, _ = reader.request("GET", relationships + "?view=outgoing&limit=1")
     cursor = urllib.parse.urlencode({"cursor": outward["nextCursor"], "limit": 1})
@@ -298,13 +307,25 @@ def archive_publication(api, resource, version, blocked, target):
 
     # Replace this small tenant-only release, retaining both immutable histories.
     _, current_headers = api.request("GET", listing_path)
-    second_revision, headers = mutate(api, "POST", listing_path + "/revisions", {
+    long_license = " AND ".join(f"LicenseRef-Archive-Part-{part}" for part in range(1, 13))
+    corrected = {
         "versionRevisionId": version["revision"]["id"], "displayName": "Reviewed archive updated", "description": "Revised listing metadata",
-        "publisherId": publisher["id"], "visibility": "tenant", "license": "Apache-2.0"}, 201, header(current_headers, "ETag"))
+        "publisherId": publisher["id"], "visibility": "tenant", "license": long_license, "documentationUrl": "https://docs.example.test/archive"}
+    second_revision, headers = mutate(api, "POST", listing_path + "/revisions", corrected, 201, header(current_headers, "ETag"))
+    api.request("POST", listing_path + "/revisions", {**corrected, "displayName": "Stale correction"}, (412,),
+                {"Idempotency-Key": key("stale-listing-correction"), "If-Match": header(current_headers, "ETag")})
+    selected, _ = api.request("GET", listing_path)
+    assert selected["candidateRevisionId"] == second_revision["revision"]["id"] and omissions(reader) == [released_row], "draft or stale update changed the released report"
     listing_etag = header(headers, "ETag")
     second_submission, headers = mutate(api, "POST", listing_path + "/submissions", {}, 201)
     mutate(reviewer, "POST", "/api/v1/review-submissions/" + second_submission["id"] + ":approve", {"reason": "Independent revised review"}, etag=header(headers, "ETag"))
     replacement, _ = mutate(api, "POST", listing_path + ":publish", {"submissionId": second_submission["id"], "priorDisposition": "superseded", "priorReason": "Reviewed listing replacement"}, 201, listing_etag)
+    updated_record, _ = reader.request("GET", "/api/v1/catalog/resources/" + replacement["release"]["id"])
+    assert updated_record["listingRevision"]["license"] == long_license, "replacement lost the full license declaration"
+    assert updated_record["display"].get("licenseOmitted") is True and "license" not in updated_record["display"], "long declaration was not omitted from compact display"
+    assert not omissions(reader, "license"), "omitting the compact license incorrectly made the released declaration missing"
+    assert omissions(reader) == [{**released_row, "listingRevisionId": second_revision["revision"]["id"], "releaseId": replacement["release"]["id"],
+                                  "displayName": corrected["displayName"], "missing": ["support"]}], "publication did not switch the report to the corrected revision"
     prior_release, _ = reader.request("GET", "/api/v1/listing-releases/" + published["release"]["id"])
     assert prior_release["state"] == "superseded" and prior_release["replacementReleaseId"] == replacement["release"]["id"], "replacement lost prior release linkage"
     api.request("GET", "/api/v1/catalog/resources/" + prior_release["id"], expected=(404,))
@@ -333,6 +354,7 @@ def archive_publication(api, resource, version, blocked, target):
     for query in ("", "?transition=", "?transition=deprecated", "?transition=retired&transition=revoked"):
         api.request("GET", release_path + "/withdrawal-preview" + query, expected=(400,))
     retired, _ = mutate(api, "POST", release_path + ":retire", {"reason": "Finish owned archive trial"}, etag=header(headers, "ETag"))
+    assert not omissions(reader), "retired Listing remained in the report"
     assert retired["state"] == "retired", "archive release not retired"
     api.request("GET", "/api/v1/catalog/resources/" + retired["id"], expected=(404,))
 
@@ -463,10 +485,18 @@ def administration(api, other, public, base, seed, run_id):
     global_reader = [v for v in grants["items"] if v["role"] == "reader" and not v.get("namespaceId") and v["state"] == "active"]
     assert len(global_reader) == 1, "reader grant fixture is ambiguous"
     grant = global_reader[0]
+    report = "/api/v1/listing-metadata-gaps?limit=1&checks=support,documentation"
+    initial, _ = reader.request("GET", report)
+    continuation = urllib.parse.urlencode({"cursor": initial["nextCursor"]})
+    next_page, _ = reader.request("GET", report + "&" + continuation)
+    assert len(initial["items"]) == len(next_page["items"]) == 1 and initial["items"][0]["listingId"] < next_page["items"][0]["listingId"], "metadata cursor did not advance"
     mutate(api, "POST", "/api/v1/role-assignments/" + grant["id"] + ":revoke", {"reason": "Owned no-role access check"}, etag='"rev-' + str(grant["revision"]) + '"')
     try:
         access, _ = reader.request("GET", "/api/v1/me")
         assert "resource.read" not in access["availablePermissions"] and access["namespaceGrants"] == [], "self access manufactured product authority"
+        refused, _ = reader.request("GET", report + "&" + continuation, expected=(400,))
+        fresh, _ = reader.request("GET", report)
+        assert refused["code"] == "INVALID_ARGUMENT" and fresh == {"items": []}, "revoked authority retained metadata or continuation"
         reader.request("GET", "/api/v1/resources/" + seed["resource"]["id"] + "/versions", expected=(403,))
     finally:
         mutate(api, "POST", "/api/v1/role-assignments", {"subject": "local-reader", "actorType": "human", "role": "reader", "reason": "Restore owned reader"}, 201)

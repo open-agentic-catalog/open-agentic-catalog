@@ -76,10 +76,12 @@ for (const base of ["root", "subpath"]) {
     await page
       .getByRole("button", { name: "Save named search", exact: true })
       .click();
-    await page
-      .getByRole("dialog")
-      .getByRole("button", { name: "Confirm", exact: true })
-      .click();
+    const confirm = page.getByRole("dialog");
+    await expect(
+      confirm.getByText("Agent streaming", { exact: true }),
+    ).toBeVisible();
+    await expect(confirm.getByText("false", { exact: true })).toBeVisible();
+    await confirm.getByRole("button", { name: "Confirm", exact: true }).click();
     const stored = await saved;
     expect(stored.status()).toBe(201);
     expect(object(stored.request().postDataJSON()).search).toMatchObject({
@@ -90,6 +92,15 @@ for (const base of ["root", "subpath"]) {
       .getByRole("link", { name: "Open saved item", exact: true })
       .click();
     await page.reload();
+    const summary = page.getByText("Last loaded saved criteria or reference", {
+      exact: true,
+    });
+    await summary.click();
+    const facts = page.locator("details").filter({ has: summary });
+    await expect(
+      facts.getByText("Agent streaming", { exact: true }),
+    ).toBeVisible();
+    await expect(facts.getByText("false", { exact: true })).toBeVisible();
     await page.getByText("More saved filters", { exact: true }).click();
     await page.getByText("Agent declarations", { exact: true }).click();
     await expect(
