@@ -21,7 +21,8 @@ func main() {
 
 // run validates scenario inputs and owns the signal-bounded harness lifecycle, including failure diagnostics, cleanup and successful evidence output.
 func run() int {
-	scenario := flag.String("scenario", "basic", "basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault or flux")
+	lab := flag.Bool("argocd-lab", false, "retain the owned Argo CD lab until signaled by its lifecycle command")
+	scenario := flag.String("scenario", "basic", "basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault, flux or argocd")
 	upgradeOnly := flag.Bool("upgrade-only", false, "qualify coordinated upgrades only in the topology scenario")
 	ansCapture := flag.Bool("ans-capture", false, "capture authentic ANS V1/V2 public verification fixtures; requires --scenario ans")
 	ansTrust := flag.Bool("ans-trust", false, "qualify explicit ANS assessment Jobs; requires --scenario ans")
@@ -34,6 +35,10 @@ func run() int {
 	configured, err := loadOptions(*scenario)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+	if *lab && *scenario != "argocd" {
+		fmt.Fprintln(os.Stderr, "--argocd-lab requires --scenario argocd")
 		return 2
 	}
 	if *upgradeOnly && *scenario != "topology" {
@@ -65,9 +70,16 @@ func run() int {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
 	}
+	if *lab {
+		runner.argoLab = true
+		runner.forwardLifetime = parent
+	}
 	runErr := runner.interopProgress("setup", nil, nil)
 	if runErr == nil {
 		runErr = runner.execute()
+	}
+	if runErr == nil && *lab {
+		<-parent.Done()
 	}
 	expectedVaultFault := runner.expectedVaultCleanupFault(runErr)
 	if runErr != nil && !expectedVaultFault {
@@ -77,7 +89,16 @@ func run() int {
 		runner.ansDiagnostics()
 		runner.vaultDiagnostics()
 	}
+	if *scenario == "argocd" && !*lab {
+		runner.captureArgoProgress()
+	}
 	cleanupErr := runner.cleanup()
+	if *scenario == "argocd" && !*lab {
+		cleanupErr = errors.Join(cleanupErr, runner.writeArgoReport(runErr, cleanupErr))
+	}
+	if *lab {
+		cleanupErr = errors.Join(cleanupErr, runner.recordArgoCleanup(runErr, cleanupErr))
+	}
 	if expectedVaultFault && cleanupErr == nil {
 		runErr = nil
 		runner.report.Checks = append(runner.report.Checks, "vault-expected-"+configured.vaultCleanupTest+"-cleanup-complete")

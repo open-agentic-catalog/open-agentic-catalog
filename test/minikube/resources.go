@@ -521,7 +521,7 @@ func (h *harness) databaseJob(name, script string, environment []any) kubernetes
 func (h *harness) writeHelmValues(marker, apiRole string) (string, error) {
 	application := h.application
 	if h.coordinatorChart != "" {
-		application = h.fluxImages["target"]
+		application = h.gitopsImages["target"]
 	}
 	repository, tag, found := strings.Cut(application, ":")
 	if !found {

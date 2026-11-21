@@ -75,6 +75,7 @@ export default defineConfig({
         { label: 'Two-Catalog federation tutorial', slug: 'guides/two-catalog-federation', attrs: { 'data-nav-icon': 'code-branch' } },
         { label: 'Connect and manage federation sources', slug: 'operations/federation', attrs: { 'data-nav-icon': 'code-branch' } },
         { label: 'Install and configure', collapsed: true, items: [
+          { label: 'Deploy with Argo CD', slug: 'operations/argocd', attrs: { 'data-nav-icon': 'map' } },
           { label: 'Installation, upgrades and credential rotation', slug: 'operations/maintenance', attrs: { 'data-nav-icon': 'map' } },
           { label: 'Deploy the service', slug: 'operations/deployment', attrs: { 'data-nav-icon': 'map' } },
           { label: 'Optional Vault secret delivery', slug: 'operations/vault', attrs: { 'data-nav-icon': 'padlock' } },

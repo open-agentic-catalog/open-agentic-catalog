@@ -6,6 +6,8 @@ import CoordinatedUpgrade from "../../../components/architecture/CoordinatedUpgr
 
 Operators use these procedures to install and maintain their deployments. They select the Kubernetes distribution, replica count, backup schedule and service objectives. Use the [deployment guide](deployment.mdx), [Helm reference](../../../../../deployments/helm/open-agentic-catalog/README.md) and [configuration reference](../reference/configuration.mdx) for exact inputs. Local Compose and Minikube are test environments, not production installation recipes.
 
+For an Argo CD-owned Application, use the [native Argo CD installation and upgrade procedure](argocd.mdx).
+
 ## First installation
 
 Before changing the deployment, identify these inputs:
@@ -65,7 +67,7 @@ After success, verify API and worker readiness, expected version/profile identit
 
 ### Application ownership with Flux or Argo CD
 
-Helm can own the application release while a GitOps controller manages the namespace, Secret delivery or optional monitoring. An Argo CD Application renders chart templates and manages the resulting resources. Its sync does not invoke the Catalog upgrade coordinator. Argo CD maintenance handback requires separate qualification. See [Argo CD Helm behavior](https://argo-cd.readthedocs.io/en/stable/user-guide/helm/).
+Helm can own the application release while a GitOps controller manages the namespace, Secret delivery or optional monitoring. If Flux owns the HelmRelease, suspend it and follow the handoff below. If a standalone Argo CD Application owns the workloads, Argo CD renders the chart and runs its hooks during a full sync. Follow the [Argo CD procedure](argocd.mdx) to drain the workloads before that sync.
 
 #### Hand off a standalone Flux HelmRelease
 

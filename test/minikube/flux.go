@@ -49,20 +49,20 @@ func (h *harness) prepareFluxImages() error {
 	if err := json.Unmarshal(fluxPins, &pins); err != nil {
 		return err
 	}
-	h.fluxImages = map[string]string{}
+	h.gitopsImages = map[string]string{}
 	for name, ref := range pins.Images {
 		alias := "open-agentic-catalog:minikube-flux-" + name + "-" + h.suffix
 		if _, err := h.run("alias pinned "+name, h.options.docker, "image", "tag", ref, alias); err != nil {
 			return err
 		}
-		h.fluxImages[name] = alias
+		h.gitopsImages[name] = alias
 	}
 	return nil
 }
 
 // fluxPhase runs native Helm and Kubernetes operations against the harness's private context.
 func (h *harness) fluxPhase(phase, values string) error {
-	inputs, err := json.Marshal(map[string]map[string]string{"aliases": h.fluxImages, "ids": h.report.Images})
+	inputs, err := json.Marshal(map[string]map[string]string{"aliases": h.gitopsImages, "ids": h.report.Images})
 	if err != nil {
 		return err
 	}
@@ -80,13 +80,17 @@ func (h *harness) fluxPhase(phase, values string) error {
 	return nil
 }
 
-// readFluxRelease uses only the reader's GET and opens a fresh forward after each drain.
-func (h *harness) readFluxRelease(releaseID string) ([sha256.Size]byte, error) {
+// readRetainedRelease uses only the reader's GET and opens a fresh forward after each drain.
+func (h *harness) readRetainedRelease(releaseID string) ([sha256.Size]byte, error) {
 	address, err := h.startPortForward("service/catalog", 8080)
 	if err != nil {
 		return [sha256.Size]byte{}, err
 	}
-	result, err := h.request(http.MethodGet, "http://"+address+"/api/v1/catalog/resources/"+releaseID, h.tokens["reader"], "", "", nil, nil)
+	return h.readRetainedReleaseAt("http://"+address, releaseID)
+}
+
+func (h *harness) readRetainedReleaseAt(baseURL, releaseID string) ([sha256.Size]byte, error) {
+	result, err := h.request(http.MethodGet, baseURL+"/api/v1/catalog/resources/"+releaseID, h.tokens["reader"], "", "", nil, nil)
 	if err != nil {
 		return [sha256.Size]byte{}, err
 	}
@@ -111,12 +115,12 @@ func (h *harness) verifyFlux(runID string, initial []byte) error {
 		return errors.New("missing governed release for the Flux handoff")
 	}
 	releaseID := smoke.Resources[0].ReleaseID
-	before, err := h.readFluxRelease(releaseID)
+	before, err := h.readRetainedRelease(releaseID)
 	if err != nil {
 		return err
 	}
 	checkRetained := func() error {
-		after, err := h.readFluxRelease(releaseID)
+		after, err := h.readRetainedRelease(releaseID)
 		if err != nil {
 			return err
 		}

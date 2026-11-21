@@ -49,6 +49,7 @@ When the Helm runtime boundary changes, run the basic and topology gates require
 | --- | --- |
 | `make test-minikube` | Install, failed migration hook/retry, identities/probes, smoke, retained state, checksum rollout and no-op reapplication. |
 | `make test-minikube-upgrade` | Focused three-node coordinated drain/hook ordering, failed migration/startup recovery, cross-node replica intent and retained state; reports `upgradeOnly: true`, excluding broader topology checks. |
+| `make test-minikube-argocd` | Standalone manual Argo CD Application, TLS Git checkout, ordered native migrations, drain, forward repair and retained release readback. Prepare inputs with `make argocd-tools-install`. The retained `argocd-up/status/down` lab has separate ownership. Follow `documentation/src/content/docs/operations/argocd.mdx` for Argo-owned workloads. |
 | `make test-minikube-flux` | Standalone Flux HelmRelease maintenance handoff, suspended upgrade failure recovery, target adoption and the hooks-enabled refusal control. Prepare the pinned inputs with `make flux-tools-install`. |
 | `make test-minikube-topology` | Replica placement, PDB/eviction/drain, node loss, replay/lease takeover and enforcing Calico network isolation. |
 | `make test-minikube-ui` | Optional packaged UI, subpath probes and shared sessions; not browser JavaScript or human OIDC login. |

@@ -47,7 +47,11 @@ type harness struct {
 	uiImage            string
 	metricsImage       string
 	certificateImages  map[string]string
-	fluxImages         map[string]string
+	gitopsImages       map[string]string
+	argoBuild          map[string]string
+	argoAddress        string
+	argoLab            bool
+	forwardLifetime    context.Context //nolint:containedctx // Retained lab forwards end with its supervisor.
 	coordinatorChart   string
 	certificateRoot    []byte
 	semanticImage      string
@@ -80,6 +84,7 @@ type fixtureSecrets struct {
 }
 
 type runReport struct {
+	ArgoCD            json.RawMessage                 `json:"argoCD,omitempty"`
 	Flux              json.RawMessage                 `json:"flux,omitempty"`
 	Vault             *vaultReport                    `json:"vault,omitempty"`
 	DatabaseTLS       *databaseRenewalReport          `json:"databaseTls,omitempty"`
@@ -202,17 +207,18 @@ func newHarness(ctx context.Context, configured options) (*harness, error) {
 	prefix := "open-agentic-catalog-" + configured.scenario + "-"
 	profile := prefix + suffix
 	instance := &harness{
-		options:      configured,
-		ctx:          ctx,
-		temporary:    temporary,
-		minikubeHome: filepath.Join(temporary, "minikube"),
-		kubeconfig:   filepath.Join(temporary, "kubeconfig"),
-		profile:      profile,
-		network:      profile,
-		suffix:       suffix,
-		application:  "open-agentic-catalog:minikube-" + suffix,
-		fixture:      "open-agentic-catalog:minikube-fixture-" + suffix,
-		postgres:     "open-agentic-catalog:minikube-postgres-" + suffix,
+		options:         configured,
+		ctx:             ctx,
+		forwardLifetime: ctx,
+		temporary:       temporary,
+		minikubeHome:    filepath.Join(temporary, "minikube"),
+		kubeconfig:      filepath.Join(temporary, "kubeconfig"),
+		profile:         profile,
+		network:         profile,
+		suffix:          suffix,
+		application:     "open-agentic-catalog:minikube-" + suffix,
+		fixture:         "open-agentic-catalog:minikube-fixture-" + suffix,
+		postgres:        "open-agentic-catalog:minikube-postgres-" + suffix,
 		report: runReport{
 			Scenario: configured.scenario, UpgradeOnly: configured.upgradeOnly, Profile: profile, Driver: configured.driver,
 			ContainerRuntime: configured.runtime, CNI: configured.clusterCNI(), Images: make(map[string]string), Placements: make(map[string][]podPlacementReport),
@@ -366,7 +372,7 @@ func (h *harness) preflight() error {
 	}
 	minimumCPUs, minimumMemory := 4, int64(6<<30)
 	minimumDisk := uint64(8 << 30)
-	if h.options.scenario == "topology" || h.options.scenario == "semantic" || h.options.scenario == "pgbouncer" || h.options.scenario == "agntcy" || h.options.scenario == "gateway" || h.options.scenario == "ans" || h.options.scenario == "peers" || h.options.scenario == "vault" {
+	if h.options.scenario == "topology" || h.options.scenario == "semantic" || h.options.scenario == "pgbouncer" || h.options.scenario == "agntcy" || h.options.scenario == "gateway" || h.options.scenario == "ans" || h.options.scenario == "peers" || h.options.scenario == "vault" || h.options.scenario == "argocd" {
 		minimumCPUs, minimumMemory, minimumDisk = 8, 12<<30, 12<<30
 	}
 	if capacity.OS != "linux" || capacity.Architecture != "x86_64" && capacity.Architecture != "amd64" || capacity.CPUs < minimumCPUs || capacity.Memory < minimumMemory {
@@ -423,6 +429,11 @@ func (h *harness) preflight() error {
 			return fmt.Errorf("cache the selected Metrics Server image before running: %w", err)
 		}
 	}
+	if h.options.scenario == "argocd" {
+		if err := h.checkArgoInputs(); err != nil {
+			return err
+		}
+	}
 	if h.options.scenario == "flux" {
 		if err := h.checkFluxInputs(); err != nil {
 			return err
@@ -445,6 +456,11 @@ func (h *harness) preflight() error {
 // buildImages creates unique local application/fixture tags, aliases the pinned
 // database image and records resolved identities without publishing any artifact.
 func (h *harness) buildImages() error {
+	if h.options.scenario == "argocd" {
+		if err := h.prepareArgoImages(); err != nil {
+			return err
+		}
+	}
 	if h.options.scenario == "flux" {
 		if err := h.prepareFluxImages(); err != nil {
 			return err
@@ -481,7 +497,7 @@ func (h *harness) buildImages() error {
 	}
 	if h.options.scenario == "flux" {
 		target := "open-agentic-catalog:minikube-flux-target-" + h.suffix
-		h.fluxImages["target"] = target
+		h.gitopsImages["target"] = target
 		if _, err := h.run("build distinct Flux target Catalog image", h.options.docker, "build", "--pull=false", "--target", "runtime", "--build-arg", "VERSION=minikube-flux-target", "--build-arg", "COMMIT=local", "--tag", target, "--file", "Containerfile", "."); err != nil {
 			return err
 		}
@@ -557,7 +573,7 @@ func (h *harness) startCluster() error {
 	if h.options.scenario == "semantic" {
 		cpus, memory, cni = "8", "12288mb", "calico"
 	}
-	if h.options.scenario == "agntcy" || h.options.scenario == "gateway" || h.options.scenario == "ans" || h.options.scenario == "vault" {
+	if h.options.scenario == "agntcy" || h.options.scenario == "gateway" || h.options.scenario == "ans" || h.options.scenario == "vault" || h.options.scenario == "argocd" {
 		cpus, memory, cni = "8", "12288mb", "calico"
 	}
 	if h.options.scenario == "peers" {
@@ -820,7 +836,7 @@ func (h *harness) loadImages() error {
 			}
 		}
 	}
-	for name, image := range h.fluxImages {
+	for name, image := range h.gitopsImages {
 		if _, err := h.minikube("load pinned "+name, "image", "load", "--daemon=true", "--overwrite=true", image); err != nil {
 			return err
 		}
@@ -888,7 +904,7 @@ func (h *harness) startPortForwardIn(selectedNamespace, resource string, remoteP
 		return "", err
 	}
 	arguments := []string{"--kubeconfig", h.kubeconfig, "--context", h.profile, "-n", selectedNamespace, "port-forward", "--address", "127.0.0.1", resource, strconv.Itoa(port) + ":" + strconv.Itoa(remotePort)}
-	command := exec.CommandContext(h.ctx, h.options.kubectl, arguments...) // #nosec G204 -- kubectl is preflight validated and every argument targets the owned context.
+	command := exec.CommandContext(h.forwardLifetime, h.options.kubectl, arguments...) // #nosec G204 -- kubectl is preflight validated and every argument targets the owned context.
 	command.Dir = h.options.repositoryRoot
 	command.Env = h.environment()
 	buffer := &boundedBuffer{limit: 32 << 10}
@@ -1059,7 +1075,7 @@ func (h *harness) cleanup() error {
 				ownedImages = append(ownedImages, image)
 			}
 		}
-		for _, image := range h.fluxImages {
+		for _, image := range h.gitopsImages {
 			ownedImages = append(ownedImages, image)
 		}
 		for _, image := range h.certificateImages {

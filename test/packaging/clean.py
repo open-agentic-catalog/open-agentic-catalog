@@ -38,7 +38,7 @@ TARGETS = FILE_TARGETS + (
     "test/clientcompat/.tools", "test/clientcompat/go/generated", "test/sdk/.tools", "test/formal/.tools", "test/apigenerated/.tools", "test/performance/.tools", "test/mcp-scanner/.tools",
     "output/artifacts", "coverage/.staging", ".ruff_cache", ".mypy_cache", ".hypothesis", ".tools/dev", ".tools/ci",
     "examples/langgraph/.venv", ".tools/gitleaks", ".tools/agntcy", ".tools/gateway", ".tools/ans",
-    ".tools/minikube-cert-manager", ".tools/minikube-flux", ".tools/minikube-vault", ".tools/documentation-pdf",
+    ".tools/minikube-cert-manager", ".tools/minikube-flux", ".tools/minikube-argocd", ".tools/minikube-vault", ".tools/documentation-pdf",
     "output/documentation-pdf",
     "extensions/vscode/node_modules", "extensions/vscode/dist", "test/vscode/.tools",
     "sdk/rust/target", "test/sdk/rust/consumer/target",

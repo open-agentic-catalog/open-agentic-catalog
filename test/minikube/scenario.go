@@ -112,6 +112,9 @@ func (h *harness) execute() error {
 	if h.vault != nil {
 		return h.verifyVault(baseURL, initialSmoke)
 	}
+	if h.options.scenario == "argocd" {
+		return h.verifyArgo(initialSmoke, baseURL)
+	}
 	if h.options.scenario == "flux" {
 		return h.verifyFlux(runID, initialSmoke)
 	}
@@ -256,6 +259,8 @@ func (h *harness) installCatalog() error {
 		arguments = append([]string{"--install"}, arguments...)
 	}
 	switch {
+	case h.options.scenario == "argocd":
+		err = h.installArgo(values)
 	case h.options.scenario == "flux":
 		err = h.fluxPhase("install", values)
 	case h.managedBuild() != nil:
@@ -277,7 +282,11 @@ func (h *harness) installCatalog() error {
 	if err := h.verifyInstalledWorkloads(); err != nil {
 		return err
 	}
-	h.report.Checks = append(h.report.Checks, "helm-install-and-hooks")
+	if h.options.scenario == "argocd" {
+		h.report.Checks = append(h.report.Checks, "argocd-install-and-native-migration-hooks")
+	} else {
+		h.report.Checks = append(h.report.Checks, "helm-install-and-hooks")
+	}
 	return nil
 }
 

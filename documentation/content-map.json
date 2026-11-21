@@ -360,6 +360,10 @@
     "route": "guides/assistant-discovery"
   },
   {
+    "source": "documentation/src/content/docs/operations/argocd.mdx",
+    "route": "operations/argocd"
+  },
+  {
     "source": "documentation/src/content/docs/operations/maintenance.mdx",
     "route": "operations/maintenance"
   },

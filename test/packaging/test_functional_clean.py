@@ -244,6 +244,7 @@ class CleanTests(unittest.TestCase):
             "output/n88/result.json", "output/deadcode-research/n16-rebuild/check.log",
             "output/demo/catalog-demo-v1.json", "output/demo/archives/cert.pem",
             "output/ui-compose/development/inputs/config.json",
+            "output/argocd-lab/owner.json", "output/argocd-lab/ready.json",
             "output/monitoring/development/grafana-password", "output/sonarqube/credentials.json",
             "output/search-relevance/model/weights", "output/old-coverage/before.out",
             "objects/document", "objects-dev/document", ".venv/bin/python",
@@ -268,6 +269,7 @@ class CleanTests(unittest.TestCase):
         self.assertIn("Would remove test/vscode/.tools", output)
         self.assertIn("Would remove .tools/ci", output)
         self.assertIn("Would remove .tools/minikube-flux\n", output)
+        self.assertIn("Would remove .tools/minikube-argocd\n", output)
         self.assertTrue(all(path.exists() for path in removed + retained))
         actual, _ = self.run_clean()
         self.assertEqual(actual, before)

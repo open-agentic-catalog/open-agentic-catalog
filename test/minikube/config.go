@@ -103,12 +103,12 @@ func loadOptions(scenario string) (options, error) {
 	switch scenario {
 	case "basic":
 		configured.overallTimeout = 25 * time.Minute
-	case "monitoring", "tracing", "ui", "replicas", "semantic", "pgbouncer", "agntcy", "gateway", "ans", "peers", "backup-restore", "autoscaling", "cert-manager", "vault", "flux":
+	case "monitoring", "tracing", "ui", "replicas", "semantic", "pgbouncer", "agntcy", "gateway", "ans", "peers", "backup-restore", "autoscaling", "cert-manager", "vault", "flux", "argocd":
 		configured.overallTimeout = 40 * time.Minute
 	case "topology":
 		configured.overallTimeout = 40 * time.Minute
 	default:
-		return options{}, errors.New("scenario must be basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault or flux")
+		return options{}, errors.New("scenario must be basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault, flux or argocd")
 	}
 	if scenario == "gateway" || scenario == "agntcy" {
 		value, present := os.LookupEnv("INTEROPERABILITY_TRUST_VERIFICATION")
@@ -131,6 +131,9 @@ func loadOptions(scenario string) (options, error) {
 	}
 	if configured.driver != "docker" || configured.runtime != "containerd" {
 		return options{}, errors.New("the maintained Minikube harness requires the docker driver and containerd runtime")
+	}
+	if scenario == "argocd" && configured.kubernetes != "v1.37.1" {
+		return options{}, errors.New("the Argo CD fixture requires the pinned Kubernetes v1.37.1 preload")
 	}
 	for name, reference := range map[string]string{"base image": configured.baseImage, "PostgreSQL image": configured.postgresImage} {
 		if err := validateDigestReference(reference); err != nil {
@@ -156,7 +159,7 @@ func (o options) runtimeReplicas() int {
 	switch o.scenario {
 	case "replicas", "semantic":
 		return 3
-	case "topology", "tracing", "pgbouncer", "autoscaling", "flux":
+	case "topology", "tracing", "pgbouncer", "autoscaling", "flux", "argocd":
 		return 2
 	default:
 		return 1
@@ -306,7 +309,7 @@ func signToken(key *rsa.PrivateKey, subject, organization string, now time.Time)
 // clusterCNI binds startup and image qualification to the selected scenario.
 func (o options) clusterCNI() string {
 	switch o.scenario {
-	case "topology", "semantic", "pgbouncer", "agntcy", "gateway", "ans", "vault":
+	case "topology", "semantic", "pgbouncer", "agntcy", "gateway", "ans", "vault", "argocd":
 		return "calico"
 	default:
 		return "bridge"

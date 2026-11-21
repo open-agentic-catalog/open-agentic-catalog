@@ -1,0 +1,136 @@
+---
+title: Deploy and upgrade Catalog with Argo CD
+---
+
+Use a standalone Argo CD Application when Git holds the Catalog chart and its deployment values. Argo CD renders Helm templates and applies the resulting objects itself. The application has no Helm release history. Give one maintenance operator exclusive permission to sync it, including after a credential change or a failed operation. Each full sync can run the database owner Job.
+
+## Prepare the first installation
+
+Provide the [PostgreSQL roles](database-roles.mdx), namespace, Secret references, trust bundles and [Catalog values](../../../../../deployments/helm/open-agentic-catalog/README.md) before creating the Application. Keep credentials outside Git. Install the Git server's CA in Argo CD and use its normal repository credentials for private repositories. The local lab serves a read-only Git repository over TLS.
+
+Ask the Argo CD administrator to verify `application.resourceTrackingMethod: annotation` in `argocd-cm`. This installation-wide setting affects other Applications. This AppProject permits one repository and one destination.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: catalog
+  namespace: argocd
+spec:
+  sourceRepos:
+    - https://git.example.org/platform/catalog.git
+  destinations:
+    - server: https://kubernetes.default.svc
+      namespace: catalog
+```
+
+The following Application uses that project and a different name from the Helm release. The chart keeps its own instance labels and selectors. Replace the repository, destination, chart path, values and commit with the approved inputs.
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: catalog-publication
+  namespace: argocd
+spec:
+  project: catalog
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: catalog
+  source:
+    repoURL: https://git.example.org/platform/catalog.git
+    targetRevision: <full-reviewed-commit-sha>
+    path: deployments/helm/open-agentic-catalog
+    helm:
+      releaseName: catalog
+      valueFiles: [production.yaml]
+  syncPolicy:
+    automated:
+      enabled: false
+    retry:
+      limit: 0
+```
+
+Place `production.yaml` in the selected chart directory or set the value file path relative to it. After the Argo CD administrator has created the restricted project, apply the reviewed Application to the Argo CD namespace with `kubectl --context "$CONTEXT" -n argocd apply -f catalog-application.yaml`.
+
+Set `automated.enabled` explicitly to `false`. An empty `automated: {}` enables automation. Keep the desired API and worker replica counts positive. Check that neither an ApplicationSet nor a parent Application, another deployment tool or a second operator can overwrite these settings or trigger synchronization.
+
+## Inspect the target and sync
+
+Use your authenticated Argo CD context. The examples use `APP=catalog-publication`, `PROJECT=catalog` and `NAMESPACE=catalog`. Set `CONTEXT` to the destination Kubernetes context and `APPROVED_COMMIT` to the reviewed full SHA.
+
+The operator needs Argo CD permission to read and sync this Application and scoped Kubernetes permission to update it, scale its two Deployments and manage their targeting HPAs. Inspect the project, effective Helm settings, image identities and sync windows. Check for an active operation or pending retry. Establish exclusive control **before changing the desired commit**. Save the current Application and HPA configuration for reference.
+
+For an upgrade, set `spec.source.targetRevision` in the reviewed Application manifest to the approved full commit SHA and reapply it. A commit to the source repository alone leaves a pinned Application at its previous revision. Verify that the live Application now selects the approved commit before rendering it or draining any Pods.
+
+```sh
+argocd app get "$APP" --hard-refresh -o yaml
+argocd account can-i sync applications "$PROJECT/$APP"
+argocd app manifests "$APP" --revision "$APPROVED_COMMIT"
+```
+
+Match the full render to the Application's desired SHA and your approved values and images. The revision on the manifests command asks the repository server to include hooks. Check the migration ServiceAccount, ConfigMap and Job in waves -20, -10 and -5, their names, owner Secret reference, target image and Job deadline. Confirm the API and worker Deployments have the expected selectors, positive replicas and images. Rendering cannot validate credentials or PostgreSQL grants.
+
+On first install, check every rendered object name in the destination namespace, including all three migration hooks. A pre-existing hook can be replaced by Argo CD before the migration runs. Resolve ownership of any existing object before syncing.
+
+On **every subsequent sync**, including a retry at the same revision:
+
+1. Pause any mechanism that can recreate a targeting HPA. Save and remove each HPA targeting either selected Deployment, even if it currently reports inactive. Leave other HPAs in place.
+2. Verify the Argo tracking annotation, selector and namespace of both Deployments. Scale the API Deployment to zero. Wait for every selected API Pod to disappear, including terminating Pods. Repeat for the worker. Keep Git's replica settings positive throughout.
+3. Request a hard refresh. Expect the controller to report drift against the approved SHA while the runtime Pods stay absent. Recheck manual policy, operation state, authority, source and rendered inputs before starting owner SQL.
+
+For example, with a Helm release name and fullname override of `catalog`, inspect the API Deployment below. Verify its tracking annotation and Pod selector. Set `API_RESOURCE_VERSION` to the `metadata.resourceVersion` from that inspection. If scaling reports a conflict, inspect the Deployment again. Run the equivalent worker commands after the API Pod list is empty.
+
+```sh
+kubectl --context "$CONTEXT" -n "$NAMESPACE" get deploy/catalog-api -o yaml
+kubectl --context "$CONTEXT" -n "$NAMESPACE" scale deploy/catalog-api \
+  --resource-version="$API_RESOURCE_VERSION" --replicas=0
+kubectl --context "$CONTEXT" -n "$NAMESPACE" wait --for=delete pod \
+  -l app.kubernetes.io/name=open-agentic-catalog,app.kubernetes.io/instance=catalog,app.kubernetes.io/component=api --timeout=180s
+```
+
+Start one full native sync. Selective sync, parameter or revision overrides, hook skipping and the Helm deployment coordinator bypass parts of this procedure.
+
+```sh
+argocd app sync "$APP" --async
+argocd app wait "$APP" --operation --timeout 300
+argocd app get "$APP" --hard-refresh -o yaml
+```
+
+Inspect `status.operationState` in the Application. Verify the initiator, full hook-based sync and `syncResult.revision` against the approved operation. A selective sync can report the same Git SHA. Check the migration hook result and use the [migration and role checks](database-roles.mdx) to verify ledger and grant state. Native hook cleanup can remove the Job after completion.
+
+Verify the compared SHA, Healthy/Synced status, ready API and worker replica counts and running image identities. Reopen a known Catalog record as an authorized reader. Restore the saved HPAs only after that read succeeds. Leave full syncs manual.
+
+## Recover from an interrupted or failed sync
+
+A timeout can leave Argo CD working. Read the Application's current operation, revision, hook results, Job and Pods before sending another command. If an operation must be stopped, use `argocd app terminate-op "$APP"` and wait for terminal status. Check that the owner process has actually stopped in Kubernetes and PostgreSQL. A terminated operation can remove the Job and its Pod while PostgreSQL is still waiting on a lock for the old connection. Ask the database operator to identify the exact migration backend in `pg_stat_activity`, check its blockers with `pg_blocking_pids` and end that specific session if it remains blocked after its client has stopped. Canceling a statement can leave its connection open. Confirm it has ended and inspect committed state before retrying. Termination cannot undo SQL that already committed.
+
+* **Owner Job failed.** Preserve its status and diagnostics before another sync deletes it. Verify the runtime Pods stayed absent. Inspect the database ledger and effective grants, then correct the owner inputs.
+* **Owner succeeded but the API cannot start.** Drain both runtime roles again. Verify the actual missing Secret, image or configuration and repair the selected target. Treat operation completion and runtime readiness as independent checks.
+* **Result uncertain.** Keep the application manual and autoscaling paused. Inspect committed state with the schema owner. Resume forward only from an identified state under the [maintenance procedure](maintenance.mdx). An earlier image or a Helm rollback cannot repair a partially applied database change.
+
+## Reproduce locally
+
+The Linux AMD64 lab uses the Docker driver, containerd, one Calico node, eight CPUs, 12 GiB of memory and at least 12 GiB of free disk. Prepare the [standard Minikube inputs](../../../../../test/minikube/README.md) and the repository's developer Python environment. Start with the pinned non-HA Argo CD 3.6.2 release. PostgreSQL, Git and the Catalog chart are private to the lab.
+
+```sh
+make argocd-tools-install
+make argocd-up
+make argocd-status
+```
+
+Status prints the loopback addresses, profile name and paths to the private kubeconfig, Argo CD CLI configuration and CA. For browser access, trust the lab CA and sign in as `admin` with the password from the reported file. To inspect the lab from a terminal, set the variables below to the values printed by `make argocd-status`.
+
+```sh
+.tools/minikube-argocd/argocd --config "$LAB_ARGO_CONFIG" app get catalog-publication
+kubectl --kubeconfig "$LAB_KUBECONFIG" --context "$LAB_PROFILE" \
+  -n open-agentic-catalog-e2e get deployment/catalog-api deployment/catalog-worker
+```
+
+A Kubernetes Service port-forward ends if the selected Pod is replaced. To reconnect to Catalog after a rollout, use the same kubeconfig, context and namespace with `kubectl port-forward --address 127.0.0.1 service/catalog :8080`. The command prints its new loopback port. Press Ctrl+C to stop it.
+
+Running `make argocd-up` again verifies the same cluster, approved revision, source inputs and Catalog readiness before reusing its database. The fixture certificate and CLI credential expire after 24 hours. Inspect the lab before running `make argocd-down` if the credentials expire or the inputs change.
+
+The tools installer caches the verified Kubernetes preload. If you already have the pinned archive, set `MINIKUBE_PRELOAD_ARCHIVE` to its path when running `make argocd-tools-install` to reuse it. Both runtime targets verify the archive before creating the cluster.
+
+`make argocd-down` removes **the entire retained lab, including its PostgreSQL data**. A fresh `make test-minikube-argocd` uses and removes a separate profile. The qualification covers the single-source manual-sync arrangement. Production SSO, HA, ApplicationSets, unattended upgrades and multi-cluster rollout are outside this profile.

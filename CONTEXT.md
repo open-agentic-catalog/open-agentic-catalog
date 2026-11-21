@@ -632,6 +632,8 @@ The backend non-root `FROM scratch` image packages both static stripped commands
 
 Local image builds/inspection, licenses, SPDX SBOMs and chart packaging publish nothing. The application chart supports Kubernetes 1.34+, optional UI, role-specific probes, scoped configuration/Secrets, migration hooks and optional network policy. Operators supply PostgreSQL, the required roles and Secrets. On a [fresh install](documentation/src/content/docs/operations/maintenance.mdx#first-installation), the pre-install Job applies the schema and runtime grants before starting the API and worker. The separate monitoring chart adds no application readiness dependency, Operator, CRD or cluster-wide RBAC.
 
+The [Argo CD procedure](documentation/src/content/docs/operations/argocd.mdx) uses a standalone, manually synced Application and the shipped chart. The optional Minikube campaign selects a private Git source, drains the live workloads and observes native migration hooks.
+
 The [Flux maintenance handoff](documentation/src/content/docs/operations/maintenance.mdx#hand-off-a-standalone-flux-helmrelease) covers one standalone HelmRelease. The operator suspends reconciliation for the coordinated upgrade and resumes the frozen target with upgrade hooks temporarily disabled. Flux remains an optional deployment tool.
 
 The optional [MCP certificate procedure](documentation/src/content/docs/operations/deployment.mdx#optional-mcp-ingress-certificates) uses external cert-manager and an ingress controller. Its owned Minikube scenario checks leaf/key replacement, stable CA trust, issuer failure/recovery and unchanged Pod identities. The Catalog gains no controller dependency or certificate authority.
