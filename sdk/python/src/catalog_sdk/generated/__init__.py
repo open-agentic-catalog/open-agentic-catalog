@@ -425,6 +425,9 @@ __all__ = [
     "TrustSummary",
     "UpdateCollection",
     "UpdateSource",
+    "UpstreamChange",
+    "UpstreamChangeOccurrence",
+    "UpstreamChangePage",
     "ValidationMaintenanceItem",
     "ValidationMaintenancePage",
     "VersionAdoptionTarget",
@@ -1461,6 +1464,15 @@ from catalog_sdk.generated.models.update_collection import (
     UpdateCollection as UpdateCollection,
 )
 from catalog_sdk.generated.models.update_source import UpdateSource as UpdateSource
+from catalog_sdk.generated.models.upstream_change import (
+    UpstreamChange as UpstreamChange,
+)
+from catalog_sdk.generated.models.upstream_change_occurrence import (
+    UpstreamChangeOccurrence as UpstreamChangeOccurrence,
+)
+from catalog_sdk.generated.models.upstream_change_page import (
+    UpstreamChangePage as UpstreamChangePage,
+)
 from catalog_sdk.generated.models.validation_maintenance_item import (
     ValidationMaintenanceItem as ValidationMaintenanceItem,
 )

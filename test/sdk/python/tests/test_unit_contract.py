@@ -107,17 +107,26 @@ class ContractUnits(unittest.TestCase):
                  "sourceRevision": 1, "retrievalDigest": "sha256:" + "a" * 64,
                  "entryLocation": "/entries/0", "exactEntryDigest": "sha256:" + "b" * 64,
                  "evidenceComplete": True, "observedAt": "2026-01-01T00:00:00Z"}
-        validator = jsonschema.Draft202012Validator({"$ref": "#/components/schemas/ObservationOccurrence", "components": CONTRACT["components"]})
-        validator.validate(value)
-        for codec in (models.ObservationOccurrence.from_dict, models.ObservationOccurrence.model_validate):
-            self.assertIs(codec(value).evidence_complete, True)
-            for invalid in (False, "true", "false", 1, 0, None):
-                rejected = dict(value, evidenceComplete=invalid)
-                with self.subTest(codec=codec.__name__, invalid=invalid):
-                    with self.assertRaises(jsonschema.ValidationError):
-                        validator.validate(rejected)
-                    with self.assertRaises(ValueError):
-                        codec(rejected)
+        for model, ref, wire in (
+            (models.ObservationOccurrence, "ObservationOccurrence", value),
+            (models.UpstreamChangeOccurrence, "UpstreamChange/properties/occurrence",
+             dict(value, normalizedEntryDigest="sha256:" + "c" * 64)),
+        ):
+            validator = jsonschema.Draft202012Validator({"$ref": "#/components/schemas/" + ref, "components": CONTRACT["components"]})
+            validator.validate(wire)
+            for codec in (model.from_dict, model.model_validate):
+                with self.subTest(model=model.__name__, codec=codec.__name__):
+                    self.assertIs(codec(wire).evidence_complete, True)
+                    if model is models.UpstreamChangeOccurrence:
+                        with self.assertRaises(ValueError):
+                            codec(value)
+                for invalid in (False, "true", "false", 1, 0, None):
+                    rejected = dict(wire, evidenceComplete=invalid)
+                    with self.subTest(model=model.__name__, codec=codec.__name__, invalid=invalid):
+                        with self.assertRaises(jsonschema.ValidationError):
+                            validator.validate(rejected)
+                        with self.assertRaises(ValueError):
+                            codec(rejected)
 
     def test_private_resource_identity_preserves_opaque_and_unicode_values(self):
         """Private response codecs share request bounds without imposing AIR."""

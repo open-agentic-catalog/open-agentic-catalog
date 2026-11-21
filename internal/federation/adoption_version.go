@@ -18,7 +18,6 @@ type AdoptVersionInput struct {
 
 type versionAdopter interface {
 	AdoptionVersionProof(context.Context, string, string) (catalog.Resource, catalog.ResourceVersion, catalog.AdoptionProvenance, error)
-	FindVersionAdoptionTarget(context.Context, string, string, catalog.Kind, string) (catalog.AdoptionTarget, error)
 	AdoptExternalVersion(context.Context, catalog.ExternalVersionAdoptionInput) (catalog.ExternalVersionAdoption, error)
 }
 
@@ -59,7 +58,17 @@ func (m *Manager) VersionAdoptionTarget(ctx context.Context, observationID strin
 	if !obs.VersionPresent || strings.TrimSpace(obs.Version) == "" {
 		return catalog.AdoptionTarget{}, catalog.E(catalog.CodePreconditionFailed, "a versioned observation is required")
 	}
-	target, err := v.FindVersionAdoptionTarget(ctx, obs.SourceID, obs.Identifier, obs.Kind, strings.TrimSpace(obs.Version))
+	ctx, _, err = identity.WithCollectionContext(ctx)
+	if err != nil {
+		return catalog.AdoptionTarget{}, catalog.PermissionError("adoption destination admission failed", err)
+	}
+	reader, ok := m.store.(interface {
+		FindVersionAdoptionTarget(context.Context, string, string, string, catalog.Kind, string) (catalog.AdoptionTarget, error)
+	})
+	if !ok {
+		return catalog.AdoptionTarget{}, catalog.E(catalog.CodeDependencyUnavailable, "adoption destination lookup unavailable")
+	}
+	target, err := reader.FindVersionAdoptionTarget(ctx, a.TenantID, obs.SourceID, obs.Identifier, obs.Kind, strings.TrimSpace(obs.Version))
 	if err != nil {
 		return catalog.AdoptionTarget{}, err
 	}
@@ -107,9 +116,47 @@ func (m *Manager) AdoptVersion(ctx context.Context, resourceID string, input Ado
 	if err = m.admitPriorVersion(ctx, a.TenantID, proof, obs); err != nil {
 		return catalog.ExternalVersionAdoption{}, err
 	}
-	selection, err := m.prepareAdoption(ctx, input.ObservationID, AdoptInput{SnapshotID: input.SnapshotID, RetrievalDigest: input.RetrievalDigest, EntryLocation: input.EntryLocation})
+	selection, err := m.prepareAdoption(ctx, input.ObservationID, AdoptInput{SnapshotID: input.SnapshotID, RetrievalDigest: input.RetrievalDigest, EntryLocation: input.EntryLocation}, true)
 	if err != nil {
 		return catalog.ExternalVersionAdoption{}, err
 	}
 	return v.AdoptExternalVersion(ctx, catalog.ExternalVersionAdoptionInput{ResourceID: resourceID, PriorVersionRevisionID: input.PriorVersionRevisionID, Selection: selection})
+}
+
+// FindVersionAdoptionTarget selects a different versioned upstream proof even
+// if an earlier create-only adoption supplied its local version manually.
+func (m *MemoryStore) FindVersionAdoptionTarget(ctx context.Context, tenant, source, identifier string, kind catalog.Kind, label string) (catalog.AdoptionTarget, error) {
+	if err := identity.RequireCollectionTenant(ctx, tenant); err != nil {
+		return catalog.AdoptionTarget{}, err
+	}
+	if identity.NeedsReadAdmission(ctx) {
+		return identity.WithReadAdmission(ctx, func(bound context.Context) (catalog.AdoptionTarget, error) {
+			return m.FindVersionAdoptionTarget(bound, tenant, source, identifier, kind, label)
+		})
+	}
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	resources, err := m.adoptedResources(ctx, tenant, "", identifier)
+	if err != nil {
+		return catalog.AdoptionTarget{}, err
+	}
+	r := resources[identifier]
+	if r != nil && r.Kind == kind {
+		versioned := map[string]bool{}
+		for _, old := range m.observations {
+			if old.TenantID == tenant && old.SourceID == source && old.Identifier == identifier && old.Kind == kind && old.VersionPresent && strings.TrimSpace(old.Version) != "" && strings.TrimSpace(old.Version) != label {
+				versioned[old.ID] = true
+			}
+		}
+		var chosen string
+		for id, p := range r.Proofs {
+			if p.SourceID == source && versioned[p.ObservationID] && p.LocalVersion != label && (chosen == "" || id < chosen) {
+				chosen = id
+			}
+		}
+		if chosen != "" {
+			return catalog.AdoptionTarget{ResourceID: r.ResourceID, NamespaceID: r.NamespaceID, PriorVersionRevisionID: chosen, Version: r.Proofs[chosen].LocalVersion}, nil
+		}
+	}
+	return catalog.AdoptionTarget{}, catalog.E(catalog.CodeNotFound, "no editable same-source adoption is available")
 }

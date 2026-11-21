@@ -59,6 +59,46 @@ tags:
   - name: Discovery
     description: Exact-host anonymous or authenticated ARD and AI Catalog discovery backed by an active immutable audience snapshot.
 paths:
+  /api/v1/upstream-changes:
+    get:
+      tags: [Federation]
+      operationId: listUpstreamChanges
+      summary: Find retained upstream changes for editable adopted Resources
+      description: >-
+        Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the
+        canonical namespace with its companion reads. Both catalog.write and sources.read apply when
+        OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope.
+        Compares exact previously adopted upstream labels and normalized metadata, and checks all local
+        Version labels before suggesting an addition. Entry comparisons include unavailable comparisons.
+        Valid continuation rechecks admission and complete membership. Refresh from page one for a new
+        traversal. Each row binds one immutable prior revision and a specific complete occurrence.
+        Makes no external requests or mutations. Broken selected evidence fails the read.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: check
+          in: query
+          schema: {type: string, enum: [all, unadopted_version, entry_comparison], default: all}
+        - name: sourceId
+          in: query
+          schema: {$ref: '#/components/schemas/UUID'}
+        - name: namespaceId
+          in: query
+          schema: {$ref: '#/components/schemas/UUID'}
+        - name: observationId
+          in: query
+          description: Recheck an exact inventory selection before opening it.
+          schema: {$ref: '#/components/schemas/UUID'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Authorized changes ordered by observation ID.
+          headers:
+            Cache-Control: {$ref: '#/components/headers/CacheControl'}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UpstreamChangePage'}
+        default: {$ref: '#/components/responses/Problem'}
   /api/v1/validation-maintenance:
     get:
       tags:
@@ -4642,6 +4682,7 @@ paths:
       description: >-
         Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact
         destination resource.edit with companion reads; catalog.write and sources.read apply when enforced.
+        A fresh append requires an active or error Source at preparation and commit.
         The selected complete occurrence must declare a different nonempty version and match
         the retained prior adoption's Source, identifier and kind. Labels are opaque.
         Creates only a Version, immutable revision, validation evidence and adoption provenance.
@@ -12145,6 +12186,34 @@ components:
         retrievalDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
         entryLocation: {type: string, pattern: '^/(entries|items)/(0|[1-9][0-9]*)$', maxLength: 1024}
         priorVersionRevisionId: {$ref: '#/components/schemas/UUID'}
+    UpstreamChangePage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/UpstreamChange'}}
+        nextCursor: {type: string, maxLength: 2048}
+    UpstreamChange:
+      type: object
+      additionalProperties: false
+      required: [target, identifier, kind, mediaType, outcome, occurrence, priorDigest, priorProfile, currentProfile, snapshotCompletedAt]
+      properties:
+        target: {$ref: '#/components/schemas/VersionAdoptionTarget'}
+        identifier: {type: string}
+        kind: {$ref: '#/components/schemas/ResourceKind'}
+        mediaType: {type: string}
+        outcome: {type: string, enum: [unadopted_version, changed_entry, comparison_unavailable]}
+        occurrence:
+          allOf:
+            - {$ref: '#/components/schemas/ObservationOccurrence'}
+            - required: [normalizedEntryDigest]
+              properties:
+                normalizedEntryDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
+        priorDigest: {type: string, pattern: '^sha256:[a-f0-9]{64}$'}
+        priorProfile: {type: string}
+        currentProfile: {type: string}
+        snapshotCompletedAt: {type: string, format: date-time}
+        latestAttempt: {$ref: '#/components/schemas/SourceSyncAttempt'}
     VersionAdoptionTarget:
       type: object
       additionalProperties: false

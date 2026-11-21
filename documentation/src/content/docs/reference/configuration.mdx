@@ -579,7 +579,7 @@ These startup settings bound the shared hardened fetcher. They apply to API and 
 
 | JSON field | Environment override | Default | Accepted values |
 | --- | --- | --- | --- |
-| `federation.versionAdoptionEnabled` | `CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED` | `false` | Boolean; deployment administrator opt-in for explicit existing-Resource Version adoption; API restart required |
+| `federation.versionAdoptionEnabled` | `CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED` | `false` | Deployment administrator opt-in for the private upstream changes inventory and explicit Version adoption into existing Resources. Restart the API after changing it. |
 | `federation.maxResponseBytes` | `CATALOG_FEDERATION_MAX_RESPONSE_BYTES` | `2097152` bytes, 2 MiB | Integer, `1024` through `67108864` bytes |
 | `federation.maxRedirects` | `CATALOG_FEDERATION_MAX_REDIRECTS` | `3` redirects | Integer, `0` through `10`; zero refuses redirects |
 

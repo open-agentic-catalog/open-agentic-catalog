@@ -168,6 +168,7 @@ export function navigationGroups(access: Access): {
             inspections: "Source inspection",
             "source-snapshots": "Source snapshot",
             observations: "Observations",
+            "upstream-changes": "Upstream changes",
             "observation-group": "Observation group",
             "federation-search": "Federation search",
           },

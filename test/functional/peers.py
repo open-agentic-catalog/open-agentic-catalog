@@ -755,7 +755,10 @@ class Peers:
         self.passed("adoption")
         self.phase("automatic")
         source = self.automatic(source, items[0], adopted)
+        # Keep the bound complete snapshot fixed during the human confirmation journey.
+        source = self.change_source(source, {"updateMode": "manual_review"})
         self.adopt_next_versions(source, [items[0], fresh[1], fresh[2], fresh[3]], adopted)
+        source = self.change_source(source, {"updateMode": "automatic"})
         self.passed("automatic")
         self.phase("pause-resume")
         source = self.pause_resume(source, fresh_ids)
@@ -1182,11 +1185,12 @@ class Peers:
         self.snapshot(self.publisher_client, PUBLIC_A)
         indexed = self.synchronize(source)
         self.check_adopted(adopted)
+        snapshot_id = self.b.request("GET", "/api/v1/federation/sources/" + source["id"])[0]["lastCompleteSnapshotId"]
         for previous in adopted:
             observation = next(row for row in indexed if row["identifier"] == previous["resource"]["canonicalIdentifier"])
             assert observation["version"] == "2.0.0", "upstream version missing"
             occurrences = self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/occurrences")[0]["items"]
-            occurrence = next(row for row in occurrences if row["evidenceComplete"])
+            occurrence = min((row for row in occurrences if row["snapshotId"] == snapshot_id and row["evidenceComplete"]), key=lambda row: (row["entryLocation"], row["retrievalDigest"]))
             target = self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/adoption-target")[0]
             assert target["resourceId"] == previous["resource"]["id"], "wrong existing Resource"
             body = {field: occurrence[field] for field in ("snapshotId", "retrievalDigest", "entryLocation")}

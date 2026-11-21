@@ -42,6 +42,11 @@ async def qualify_version_adoption():
     fixture = json.loads(os.environ["CATALOG_SDK_VERSION_ADOPTION"])
     client = Client(Config(origin=fixture["origin"], allow_loopback_http=True, token="admin"))
     federation = FederationApi(client)
+    page = await federation.list_upstream_changes(observation_id=UUID(fixture["body"]["observationId"]))
+    row, = page.items
+    assert row.outcome == "unadopted_version" and str(row.target.resource_id) == fixture["resourceId"]
+    assert str(row.occurrence.snapshot_id) == fixture["body"]["snapshotId"]
+    assert row.occurrence.normalized_entry_digest == fixture["normalizedEntryDigest"]
     target = await federation.get_version_adoption_target_with_http_info(UUID(fixture["body"]["observationId"]))
     assert target.status_code == 200
     assert str(target.data.resource_id) == fixture["resourceId"]

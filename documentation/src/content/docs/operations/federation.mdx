@@ -635,7 +635,28 @@ Adoption does not reuse source credentials or the source's private route for res
 
 This optional authoring operation is disabled by default. A deployment administrator enables `federation.versionAdoptionEnabled: true` in the API configuration, or sets `CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED=true`, then restarts the API. Compose accepts the same environment variable. Helm uses `configEnv.CATALOG_FEDERATION_VERSION_ADOPTION_ENABLED: "true"`. No Source or curator can enable it. The capability response reports `optionalCapabilities.versionAdoption`; disabling it also refuses recovery responses through these routes. Existing local Versions and ordinary authoring remain available.
 
-Use it when the same approved Source advertises a different, nonempty version of a Resource you previously adopted. Version labels are opaque: the Catalog neither compares semantic versions nor chooses a latest version. The canonical identifier and resource kind must match. The prior adopted revision proves the relationship even after its old upstream observation has been withdrawn; a manually authored Resource with a matching identifier is insufficient.
+Use it when an approved Source advertises another version of a Resource previously adopted from that Source. Any maintainer with the required access can continue the work. Version labels are opaque. The Catalog does not rank them or choose a latest version. The canonical identifier and resource kind must match. The prior adopted revision proves the relationship even after its upstream observation has been withdrawn.
+
+#### Find changes across adopted Resources
+
+Open **Observations** under **Federation sources**, then select **Find upstream changes for adopted Resources**.
+Choose a condition, optionally enter an exact Source or Namespace ID, then select **Apply filters**.
+
+| Condition | What the result tells you |
+| --- | --- |
+| Additional upstream version | A complete entry advertises a nonempty version that this Resource does not have. Even a local draft with that label rules out a suggestion. |
+| Changed upstream metadata | The normalized entry differs from the retained adoption proof for that exact upstream version. Later local edits do not change the comparison baseline. |
+| Comparison unavailable | The normalization profiles cannot be compared. Open the retained evidence to investigate. |
+
+The page reads the last complete indexed snapshot of each active or error Source in indexed or hybrid mode. Each row shows when the entry was observed, when that snapshot completed, and the latest completed attempt under the current Source configuration, when available. A failed refresh does not renew older evidence. Empty results mean no eligible changes are known. Refreshing starts no synchronization.
+
+If the same observation occurs several times in that snapshot, the Catalog selects the first entry location in byte order. The retrieval digest breaks ties. If several prior adoptions qualify, it selects the smallest revision ID. A same-version comparison always uses an adoption of that exact upstream version.
+
+**Inspect selected occurrence** opens the exact entry, snapshot and prior local revision. For an additional version, **Confirm new Version adoption** prepares the existing draft command. Same-version changes and unavailable comparisons are inspection only. If a selection becomes unavailable, return to the inventory and refresh. Pausing a Source refuses fresh appends, including direct API calls. An authorized retry with the original key can still recover an already committed append.
+
+API and generated SDK clients can use `GET /api/v1/upstream-changes` with `check=all` (default), `unadopted_version`, or `entry_comparison`. Optional `sourceId`, `namespaceId` and `observationId` select exact references. Pages default to 20 and allow at most 100. Use the same filters and page size with `nextCursor`; results and permissions are checked again on each page. Start from page one to include changes that now sort before the cursor. The inventory requires the same capability, source-evidence permission, destination edit permission and OAuth scopes as Version adoption.
+
+#### Append a selected version
 
 The operation reuses ordinary adoption delivery and native validation:
 

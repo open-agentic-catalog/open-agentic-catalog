@@ -353,6 +353,7 @@ func (s *Server) routes(router *http.ServeMux) {
 	router.Handle("/.well-known/oauth-protected-resource/ard/v1/mcp", http.HandlerFunc(s.handleARDMCP))
 	s.collectionRoutes(router)
 	s.personalRoutes(router)
+	router.HandleFunc("GET /api/v1/upstream-changes", s.withQueryParameters(s.handleUpstreamChanges, "check", "sourceId", "namespaceId", "observationId", "limit", "cursor"))
 	router.HandleFunc("GET /api/v1/validation-maintenance", s.withQueryParameters(s.handleValidationMaintenance, "state", "horizonHours", "limit", "cursor"))
 	s.feedbackRoutes(router)
 	s.ratingsRoutes(router)

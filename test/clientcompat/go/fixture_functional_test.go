@@ -103,6 +103,7 @@ func newFixtureWithFederation(t *testing.T, external catalog.ExternalRepresentat
 	service, err := catalog.NewService(catalog.Options{Repository: repo, Clock: c, IDs: id.Generator{}, Validator: adapter.NewRegistry(), CursorKey: key[:], Policy: "client-compatibility", ExternalFetcher: external})
 	must(t, err)
 	sourceStore := federation.NewMemoryStore()
+	sourceStore.BindLocalCatalog(repo)
 	var federationOptions []federation.ManagerOption
 	if adoptVersions {
 		federationOptions = []federation.ManagerOption{federation.WithObservationAdopter(service), federation.WithVersionAdoption(true)}

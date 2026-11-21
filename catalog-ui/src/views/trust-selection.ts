@@ -2,7 +2,7 @@
 import type { Access } from "../api/client";
 import { permits } from "../api/permissions";
 import type { components } from "../api/schema";
-import { object, text } from "../api/values";
+import { object, sha256Digest, text } from "../api/values";
 
 type Schema = components["schemas"];
 export type TrustSelection = Omit<Schema["TrustAssessmentRequest"], "reason">;
@@ -11,12 +11,6 @@ export function canRequestTrust(access: Access): boolean {
   return (
     ["source.manage", "source.read_evidence", "federation.discover"] as const
   ).every((permission) => permits(access, permission, "sources.manage"));
-}
-
-function digest(value: unknown): value is string {
-  return (
-    text(value) && value.length === 71 && /^sha256:[a-f0-9]{64}$/.test(value)
-  );
 }
 
 /** Check consumed native selection fields, not the complete standards document. */
@@ -71,7 +65,7 @@ export function eligibleObservation(
     observation.freshness === "current" &&
     observation.rawEntryAvailable === true &&
     !!observation.identifier &&
-    digest(observation.exactEntryDigest)
+    sha256Digest(observation.exactEntryDigest)
   );
 }
 
@@ -108,7 +102,7 @@ export function liveTrustSelection(
   if (
     !Number.isSafeInteger(item.sourceRevision) ||
     item.sourceRevision < 1 ||
-    !digest(item.exactEntryDigest) ||
+    !sha256Digest(item.exactEntryDigest) ||
     !query.trim() ||
     [...query].length > 500
   )

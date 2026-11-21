@@ -2797,14 +2797,14 @@ func ObservationGroupID(identifier, version string, versionPresent bool) (string
 // before delegating creation of an explicit local draft.
 func (m *Manager) AdoptObservation(ctx context.Context, observationID string, input AdoptInput) (catalog.ExternalObservationAdoption, error) {
 	ctx = identity.WithPermissionContext(ctx)
-	prepared, err := m.prepareAdoption(ctx, observationID, input)
+	prepared, err := m.prepareAdoption(ctx, observationID, input, false)
 	if err != nil {
 		return catalog.ExternalObservationAdoption{}, err
 	}
 	return m.adopter.AdoptExternalObservation(ctx, prepared)
 }
 
-func (m *Manager) prepareAdoption(ctx context.Context, observationID string, input AdoptInput) (catalog.ExternalObservationAdoptionInput, error) {
+func (m *Manager) prepareAdoption(ctx context.Context, observationID string, input AdoptInput, appendVersion bool) (catalog.ExternalObservationAdoptionInput, error) {
 	ctx = identity.WithPermissionContext(ctx)
 	actor, err := permissionActor(ctx, "source.read_evidence")
 	if err != nil {
@@ -2823,6 +2823,9 @@ func (m *Manager) prepareAdoption(ctx context.Context, observationID string, inp
 	source, err := m.store.GetSource(ctx, actor.TenantID, observation.SourceID)
 	if err != nil {
 		return catalog.ExternalObservationAdoptionInput{}, err
+	}
+	if appendVersion && !sourceAcceptsVersionAppend(source.Status) {
+		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodePreconditionFailed, "upstream Version adoption requires an active or error Source")
 	}
 	if !scopeMatches(source.Scope, sourceEntry{Identifier: observation.Identifier, Version: observation.Version, Type: observation.MediaType, Tags: observation.SearchTags}) {
 		return catalog.ExternalObservationAdoptionInput{}, catalog.E(catalog.CodePreconditionFailed, "source scope excludes this observation")
@@ -2890,13 +2893,13 @@ func (m *Manager) prepareAdoption(ctx context.Context, observationID string, inp
 	return catalog.ExternalObservationAdoptionInput{SourceAdmissionRevision: source.Revision, AdmitCommit: func(ctx context.Context, commit func(context.Context) error) error {
 		return identity.WithCurrentPermissionAdmission(ctx, func(ctx context.Context) error {
 			if memory, ok := m.store.(*MemoryStore); ok {
-				return memory.withAdoptionOccurrence(ctx, actor.TenantID, source.ID, source.Revision, observation, occurrence, commit)
+				return memory.withAdoptionOccurrence(ctx, actor.TenantID, source.ID, source.Revision, observation, occurrence, appendVersion, commit)
 			}
 			current, err := m.store.GetSource(ctx, actor.TenantID, source.ID)
 			if err != nil {
 				return err
 			}
-			if current.Revision != source.Revision {
+			if current.Revision != source.Revision || appendVersion && !sourceAcceptsVersionAppend(current.Status) {
 				return catalog.E(catalog.CodePreconditionFailed, "source policy changed during adoption")
 			}
 			return commit(ctx)

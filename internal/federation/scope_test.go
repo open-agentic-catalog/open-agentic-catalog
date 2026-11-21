@@ -213,7 +213,7 @@ func TestAdoptionCommitGuardRejectsStaleTenantRemovalAndMembership(t *testing.T)
 		{"tenant", "source", 2, true}, {"tenant", "source", 1, false}, {"other", "source", 2, false}, {"tenant", "absent", 2, false},
 	} {
 		called := false
-		err := store.withAdoptionOccurrence(t.Context(), tc.tenant, tc.source, tc.revision, selected, occurrence, func(context.Context) error { called = true; return nil })
+		err := store.withAdoptionOccurrence(t.Context(), tc.tenant, tc.source, tc.revision, selected, occurrence, false, func(context.Context) error { called = true; return nil })
 		if called != tc.allowed || (err == nil) != tc.allowed {
 			t.Fatalf("%+v called=%t err=%v", tc, called, err)
 		}
@@ -230,7 +230,7 @@ func TestAdoptionCommitGuardRejectsStaleTenantRemovalAndMembership(t *testing.T)
 			changed.NormalizedEntryDigest = "other"
 		}
 		store.observations[observationKey(changed)] = changed
-		if err := store.withAdoptionOccurrence(t.Context(), "tenant", "source", 2, selected, occurrence, func(context.Context) error { t.Fatal("changed membership committed"); return nil }); err == nil {
+		if err := store.withAdoptionOccurrence(t.Context(), "tenant", "source", 2, selected, occurrence, false, func(context.Context) error { t.Fatal("changed membership committed"); return nil }); err == nil {
 			t.Fatal("same-revision change admitted", mutation)
 		}
 		delete(store.observations, observationKey(changed))
@@ -238,9 +238,17 @@ func TestAdoptionCommitGuardRejectsStaleTenantRemovalAndMembership(t *testing.T)
 	}
 
 	source := store.sources["source"]
+	source.Status = SourcePaused
+	store.sources["source"] = source
+	if err := store.withAdoptionOccurrence(t.Context(), "tenant", "source", 2, selected, occurrence, true, func(context.Context) error { t.Fatal("paused fresh append committed"); return nil }); catalog.ErrorCodeOf(err) != catalog.CodePreconditionFailed {
+		t.Fatal(err)
+	}
+	if err := store.withAdoptionOccurrence(t.Context(), "tenant", "source", 2, selected, occurrence, false, func(context.Context) error { return nil }); err != nil {
+		t.Fatal("create-only fence changed", err)
+	}
 	source.Status = SourceRemoved
 	store.sources["source"] = source
-	if err := store.withAdoptionOccurrence(t.Context(), "tenant", "source", 2, selected, occurrence, func(context.Context) error { t.Fatal("removed source committed"); return nil }); catalog.ErrorCodeOf(err) != catalog.CodePreconditionFailed {
+	if err := store.withAdoptionOccurrence(t.Context(), "tenant", "source", 2, selected, occurrence, false, func(context.Context) error { t.Fatal("removed source committed"); return nil }); catalog.ErrorCodeOf(err) != catalog.CodePreconditionFailed {
 		t.Fatal(err)
 	}
 }

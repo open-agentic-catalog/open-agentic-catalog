@@ -91,6 +91,16 @@ type Route = {
 };
 const routes: Route[] = [
   {
+    route: "upstream-changes",
+    heading: "Upstream changes",
+    endpoint: "/api/v1/capabilities",
+  },
+  {
+    route: "observations/exact-id?from=upstream-changes",
+    heading: "Source observations",
+    endpoint: "/api/v1/capabilities",
+  },
+  {
     route: "validation-maintenance",
     heading: "Validation maintenance",
     endpoint: "/api/v1/validation-maintenance",

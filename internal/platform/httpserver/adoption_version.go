@@ -79,3 +79,55 @@ func (s *Server) handleVersionAdoption(w http.ResponseWriter, r *http.Request) {
 
 var adoptionDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 var adoptionLocationPattern = regexp.MustCompile(`^/(entries|items)/(0|[1-9][0-9]*)$`)
+
+func (s *Server) handleUpstreamChanges(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	if !s.federation.VersionAdoptionEnabled() {
+		s.fail(w, r, catalog.E(catalog.CodeForbidden, "upstream Version adoption is disabled by the administrator"))
+		return
+	}
+	if s.enforceOAuthScopes {
+		actor, _ := identity.FromContext(r.Context())
+		if actor.Claims["scope:sources.read"] != "true" {
+			s.fail(w, r, catalog.E(catalog.CodeForbidden, "sources.read OAuth scope is required for source evidence"))
+			return
+		}
+	}
+	values := r.URL.Query()
+	check := "all"
+	if values.Has("check") {
+		check = values.Get("check")
+	}
+	filters := map[string]string{"check": check}
+	for _, key := range []string{"sourceId", "namespaceId", "observationId"} {
+		if values.Has(key) && !identity.ValidTenantID(values.Get(key)) {
+			s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, key+" must be a UUID"))
+			return
+		}
+		filters[key] = strings.ToLower(values.Get(key))
+	}
+	page, err := s.parseAdminPage(r, "upstream-changes", "", "observation-id", filters)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	q := federation.UpstreamChangesQuery{Check: check, SourceID: filters["sourceId"], NamespaceID: filters["namespaceId"], ObservationID: filters["observationId"], Limit: page.Limit}
+	if len(page.Position) > 0 {
+		if len(page.Position) != 1 || !identity.ValidTenantID(page.Position[0]) {
+			s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "invalid upstream changes position"))
+			return
+		}
+		q.AfterID = page.Position[0]
+	}
+	rows, err := s.federation.UpstreamChanges(r.Context(), q)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	result, err := finishCursorPage(s, page, rows, func(row federation.UpstreamChange) []string { return []string{row.Occurrence.ObservationID} })
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.respondJSON(w, r, http.StatusOK, result)
+}

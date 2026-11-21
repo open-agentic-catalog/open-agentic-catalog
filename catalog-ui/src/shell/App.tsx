@@ -45,6 +45,7 @@ const TrustAssessment = lazy(() => import("../views/TrustAssessment"));
 const Service = lazy(() => import("../views/Service"));
 const Resources = lazy(() => import("../views/Resources"));
 const Versions = lazy(() => import("../views/Versions"));
+const UpstreamChanges = lazy(() => import("../views/UpstreamChanges"));
 const ValidationMaintenance = lazy(
   () => import("../views/ValidationMaintenance"),
 );
@@ -107,6 +108,7 @@ const authoringScreens = {
   releases: Release,
 };
 const managementScreens = {
+  "upstream-changes": UpstreamChanges,
   overview: Overview,
   "trust-assessments": TrustAssessment,
   sources: Federation,

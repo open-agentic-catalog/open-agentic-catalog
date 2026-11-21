@@ -12,6 +12,11 @@ export function object(value: unknown): value is Record<string, unknown> {
 export function text(value: unknown): value is string {
   return typeof value === "string";
 }
+export function sha256Digest(value: unknown): value is string {
+  return (
+    text(value) && value.length === 71 && /^sha256:[a-f0-9]{64}$/.test(value)
+  );
+}
 export function flag(value: unknown): value is boolean {
   return typeof value === "boolean";
 }

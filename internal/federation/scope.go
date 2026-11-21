@@ -55,13 +55,17 @@ func scopeExcludesIdentifier(scope Scope, value string) bool {
 	return slices.Contains(scope.ExcludedIdentifiers, exclusionIdentifier(value))
 }
 
+func sourceAcceptsVersionAppend(status SourceStatus) bool {
+	return status == SourceActive || status == SourceError
+}
+
 // withAdoptionOccurrence fences same-revision synchronization as well as policy
 // changes, after native acquisition and before the local repository mutation.
-func (m *MemoryStore) withAdoptionOccurrence(ctx context.Context, tenant, sourceID string, revision int64, selected Observation, occurrence ObservationOccurrence, commit func(context.Context) error) error {
+func (m *MemoryStore) withAdoptionOccurrence(ctx context.Context, tenant, sourceID string, revision int64, selected Observation, occurrence ObservationOccurrence, appendVersion bool, commit func(context.Context) error) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	source, ok := m.sources[sourceID]
-	if !ok || source.TenantID != tenant || source.Status == SourceRemoved || source.Revision != revision {
+	if !ok || source.TenantID != tenant || source.Status == SourceRemoved || source.Revision != revision || appendVersion && !sourceAcceptsVersionAppend(source.Status) {
 		return catalog.E(catalog.CodePreconditionFailed, "source policy changed during adoption")
 	}
 	current := false

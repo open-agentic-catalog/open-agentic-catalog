@@ -63,6 +63,8 @@ The language guides' first-request examples read `CATALOG_SDK_ORIGIN` and `CATAL
 
 For the default local Compose setup, the API origin is `http://127.0.0.1:8080`; port 4180 serves the UI. Each guide shows an explicit loopback HTTP option. Enable it only for the selected local API. Development tokens work only with configured development authentication; they are not production credentials.
 
+The generated clients expose `listUpstreamChanges` (with language-specific naming) for maintainers of adopted Resources. The deployment must enable Version adoption. Use the returned Resource, prior revision and complete occurrence for the explicit confirmation workflow. See [find changes across adopted Resources](../documentation/src/content/docs/operations/federation.mdx#find-changes-across-adopted-resources).
+
 ARD manifest reads also require a configured discovery host and an active publication for its audience. Unknown or disabled hosts return HTTP 404. On an authenticated host, credentials and permissions are checked before a missing snapshot returns 404. This is a server response, not a failed SDK connection. See [discovery interfaces](../documentation/src/content/docs/guides/integrating.mdx#choose-a-discovery-interface) for the distinction between ARD discovery and authenticated Control API Search.
 
 ## Build and verify local packages

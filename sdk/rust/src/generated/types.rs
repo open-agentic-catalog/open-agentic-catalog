@@ -391,22 +391,6 @@ pub struct VersionEvidenceEnvelope {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
-pub struct VersionAdoptionTarget {
-    #[serde(rename = "namespaceId")]
-    pub namespace_id: UUID,
-    #[serde(rename = "priorVersionRevisionId")]
-    pub prior_version_revision_id: UUID,
-    #[serde(rename = "resourceId")]
-    pub resource_id: UUID,
-    ///Exact advertised label on the selected observation.
-    ///Constraint: minLength=1, maxLength=128
-    #[serde(rename = "upstreamVersion")]
-    pub upstream_version: String,
-    ///Constraint: minLength=1, maxLength=128
-    pub version: String,
-}
-#[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(deny_unknown_fields)]
 pub struct ValidationMaintenancePage {
     ///Constraint: minimum=1, maximum=168
     #[serde(rename = "horizonHours")]
@@ -515,6 +499,118 @@ impl AsRef<str> for ValidationMaintenanceItemConditionsItem {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpstreamChangePage {
+    ///Constraint: maxItems=100
+    pub items: Vec<UpstreamChange>,
+    ///Constraint: maxLength=2048
+    #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct UpstreamChange {
+    #[serde(rename = "currentProfile")]
+    pub current_profile: String,
+    pub identifier: String,
+    pub kind: ResourceKind,
+    #[serde(rename = "latestAttempt", skip_serializing_if = "Option::is_none")]
+    pub latest_attempt: Option<SourceSyncAttempt>,
+    #[serde(rename = "mediaType")]
+    pub media_type: String,
+    pub occurrence: UpstreamChangeOccurrence,
+    pub outcome: UpstreamChangeOutcome,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "priorDigest")]
+    pub prior_digest: String,
+    #[serde(rename = "priorProfile")]
+    pub prior_profile: String,
+    #[serde(rename = "snapshotCompletedAt")]
+    pub snapshot_completed_at: chrono::DateTime<chrono::Utc>,
+    pub target: VersionAdoptionTarget,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct VersionAdoptionTarget {
+    #[serde(rename = "namespaceId")]
+    pub namespace_id: UUID,
+    #[serde(rename = "priorVersionRevisionId")]
+    pub prior_version_revision_id: UUID,
+    #[serde(rename = "resourceId")]
+    pub resource_id: UUID,
+    ///Exact advertised label on the selected observation.
+    ///Constraint: minLength=1, maxLength=128
+    #[serde(rename = "upstreamVersion")]
+    pub upstream_version: String,
+    ///Constraint: minLength=1, maxLength=128
+    pub version: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum UpstreamChangeOutcome {
+    #[default]
+    #[serde(rename = "unadopted_version")]
+    UnadoptedVersion,
+    #[serde(rename = "changed_entry")]
+    ChangedEntry,
+    #[serde(rename = "comparison_unavailable")]
+    ComparisonUnavailable,
+}
+impl UpstreamChangeOutcome {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::UnadoptedVersion => "unadopted_version",
+            Self::ChangedEntry => "changed_entry",
+            Self::ComparisonUnavailable => "comparison_unavailable",
+        }
+    }
+}
+impl ::std::fmt::Display for UpstreamChangeOutcome {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for UpstreamChangeOutcome {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct UpstreamChangeOccurrence {
+    ///Exact `/entries/N` manifest location or `/items/N` Registry List page location for complete retained evidence.
+    ///Constraint: minLength=1, maxLength=1024
+    #[serde(rename = "entryLocation")]
+    pub entry_location: String,
+    #[serde(rename = "evidenceComplete")]
+    pub evidence_complete: bool,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "exactEntryDigest")]
+    pub exact_entry_digest: String,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(
+        rename = "normalizationInputDigest",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub normalization_input_digest: Option<String>,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "normalizedEntryDigest")]
+    pub normalized_entry_digest: String,
+    #[serde(rename = "observationId")]
+    pub observation_id: UUID,
+    #[serde(rename = "observedAt")]
+    pub observed_at: chrono::DateTime<chrono::Utc>,
+    ///Constraint: pattern=`^sha256:[a-f0-9]{64}$`
+    #[serde(rename = "retrievalDigest")]
+    pub retrieval_digest: String,
+    #[serde(rename = "snapshotId")]
+    pub snapshot_id: UUID,
+    #[serde(rename = "sourceId")]
+    pub source_id: UUID,
+    ///Exact retained source revision.
+    ///Constraint: minimum=1
+    #[serde(rename = "sourceRevision")]
+    pub source_revision: i64,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]

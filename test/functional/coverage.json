@@ -2192,6 +2192,7 @@
       "disposition": "compose",
       "status": "covered",
       "surfaces": [
+        "http:listUpstreamChanges",
         "http:getVersionAdoptionTarget",
         "http:adoptResourceVersion"
       ],
@@ -2212,8 +2213,8 @@
         }
       ],
       "reason": "The explicitly enabled two-Catalog profile uses real PostgreSQL and governed upstream releases. Default-off and current dual OAuth ceilings have focused HTTP controls.",
-      "success": "Append selected different version to an exact prior adoption without changing Resource, Listing candidate or publication.",
-      "rejection": "Refuse current permission/scope loss, duplicate versions, changed idempotency input and invalid occurrence references.",
+      "success": "Inspect an upstream change and append its selected different version to an exact prior adoption without changing Resource, Listing candidate or publication.",
+      "rejection": "Refuse fresh appends from paused Sources, current permission/scope loss, duplicate versions, changed idempotency input and invalid occurrence references.",
       "recovery": "Replay the exact committed command under current authority without another Version or native fetch; browser confirmation opens the retained revision.",
       "gaps": []
     },

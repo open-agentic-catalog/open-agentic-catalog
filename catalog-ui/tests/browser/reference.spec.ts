@@ -1,3 +1,4 @@
+import { operationCountLabel } from "./reference-inventory";
 import { object, array, text } from "./json";
 import { readFile } from "node:fs/promises";
 import { test, expect, login } from "./fixtures";
@@ -32,7 +33,7 @@ test("API reference recovers from unavailable and malformed replies and service 
   ).toHaveCount(0);
   await page.getByRole("button", { name: "Reload", exact: true }).click();
   await expect(
-    page.getByText("219 of 219 operations", { exact: true }),
+    page.getByText(operationCountLabel(), { exact: true }),
   ).toBeVisible();
   const download = page.getByRole("link", {
     name: "Download OpenAPI YAML",
@@ -52,7 +53,7 @@ test("API reference recovers from unavailable and malformed replies and service 
   ).toBeVisible();
   await page.getByRole("button", { name: "Reload", exact: true }).click();
   await expect(
-    page.getByText("219 of 219 operations", { exact: true }),
+    page.getByText(operationCountLabel(), { exact: true }),
   ).toBeVisible();
   await expect(download).toHaveAttribute("href", /^blob:/);
   await expect(download).toHaveAttribute("href", previousDownload!);
@@ -198,11 +199,11 @@ test("reader browses the live API reference and downloads its exact contract und
     page.getByRole("heading", { name: "API reference", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("219 of 219 operations", { exact: true }),
+    page.getByText(operationCountLabel(), { exact: true }),
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByText("219 of 219 operations", { exact: true }),
+    page.getByText(operationCountLabel(), { exact: true }),
   ).toBeVisible();
   const connected = object(
     await page.evaluate(async (basePath) => {
@@ -270,6 +271,17 @@ test("reader browses the live API reference and downloads its exact contract und
   expect(
     expectedOperations.filter((operation) => operation.tags.length > 1),
   ).toHaveLength(23);
+  const federation = page.getByRole("region", {
+    name: "Federation",
+    exact: true,
+  });
+  const inventoryOperation = federation.locator(
+    '[data-operation-id="listUpstreamChanges"]',
+  );
+  await expect(inventoryOperation.locator(".api-method")).toHaveText("GET");
+  await expect(inventoryOperation.locator("summary code")).toHaveText(
+    "/api/v1/upstream-changes",
+  );
   const sections = page.locator(".api-area-section");
   expect(
     await sections.locator(".api-area-summary h2").allTextContents(),
@@ -340,7 +352,11 @@ test("reader browses the live API reference and downloads its exact contract und
   expect((await refreshedContract).status()).toBe(200);
   await expect(
     page.getByText(
-      `${expectedOperations.filter((operation) => operation.tags.includes("Groups and members")).length} of 219 operations`,
+      operationCountLabel(
+        expectedOperations.filter((operation) =>
+          operation.tags.includes("Groups and members"),
+        ).length,
+      ),
       { exact: true },
     ),
   ).toBeVisible();
@@ -391,7 +407,7 @@ test("reader browses the live API reference and downloads its exact contract und
     .getByLabel("Search API operations", { exact: true })
     .fill("suspendMembership");
   await expect(
-    page.getByText("1 of 219 operations", { exact: true }),
+    page.getByText(operationCountLabel(1), { exact: true }),
   ).toBeVisible();
   const operation = page.locator(".api-operation");
   await operation.locator(":scope > summary").click();
@@ -699,7 +715,7 @@ test("administrator reaches management pages and disabled webhooks without hidde
     .getByRole("link", { name: "Browse API reference", exact: true })
     .click();
   await expect(
-    page.getByText("219 of 219 operations", { exact: true }),
+    page.getByText(operationCountLabel(), { exact: true }),
   ).toBeVisible();
   expect(writes).toEqual([]);
 });

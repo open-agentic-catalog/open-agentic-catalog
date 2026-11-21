@@ -105,7 +105,7 @@ func (p *PostgresRepository) AdoptExternalObservation(ctx context.Context, param
 			return catalog.ExternalObservationAdoption{}, catalog.E(catalog.CodeInvalidArgument, "adopted draft tenant or provenance is invalid")
 		}
 		provenance := params.VersionRevision.Adoption
-		if err := lockAdoptionOccurrence(ctx, tx, params.Resource.TenantID, provenance, params.SourceAdmissionRevision); err != nil {
+		if err := lockAdoptionOccurrence(ctx, tx, params.Resource.TenantID, provenance, params.SourceAdmissionRevision, false); err != nil {
 			return catalog.ExternalObservationAdoption{}, err
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO resources(id,tenant_id,namespace_id,canonical_identifier,kind,created_by,revision,created_at,updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, params.Resource.ID, params.Resource.TenantID, params.Resource.NamespaceID, params.Resource.CanonicalIdentifier, params.Resource.Kind, params.Resource.CreatedBy, params.Resource.Revision, params.Resource.CreatedAt, params.Resource.UpdatedAt); err != nil {
@@ -529,9 +529,9 @@ func unmarshalListingExtensions(raw []byte, target *map[string]any) error {
 	return nil
 }
 
-func lockAdoptionOccurrence(ctx context.Context, tx pgx.Tx, tenant string, provenance *catalog.AdoptionProvenance, admissionRevision int64) error {
+func lockAdoptionOccurrence(ctx context.Context, tx pgx.Tx, tenant string, provenance *catalog.AdoptionProvenance, admissionRevision int64, appendVersion bool) error {
 	var sourceRevision int64
-	if err := tx.QueryRow(ctx, `SELECT revision FROM federation_sources WHERE tenant_id=$1 AND id=$2 FOR SHARE`, tenant, provenance.SourceID).Scan(&sourceRevision); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT revision FROM federation_sources WHERE tenant_id=$1 AND id=$2 AND (NOT $3::boolean OR status IN ('active','error')) FOR SHARE`, tenant, provenance.SourceID, appendVersion).Scan(&sourceRevision); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return catalog.E(catalog.CodePreconditionFailed, "selected observation source is no longer available")
 		}

@@ -48,6 +48,32 @@ async fn qualify_version_adoption() {
         serde_json::from_str(&env::var("CATALOG_SDK_VERSION_ADOPTION").unwrap()).unwrap();
     let client = Client::new(config(fixture["origin"].as_str().unwrap(), Some("admin"))).unwrap();
     let resource = fixture["resourceId"].as_str().unwrap();
+    let changes = data(
+        client
+            .list_upstream_changes(
+                None,
+                None::<&str>,
+                None::<&str>,
+                fixture["body"]["observationId"].as_str(),
+                None,
+                None::<&str>,
+            )
+            .await
+            .unwrap(),
+        200,
+    );
+    let rows = changes["items"].as_array().unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["outcome"], "unadopted_version");
+    assert_eq!(rows[0]["target"]["resourceId"], fixture["resourceId"]);
+    assert_eq!(
+        rows[0]["occurrence"]["normalizedEntryDigest"],
+        fixture["normalizedEntryDigest"]
+    );
+    assert_eq!(
+        rows[0]["occurrence"]["snapshotId"],
+        fixture["body"]["snapshotId"]
+    );
     let target = data(
         client
             .get_version_adoption_target(fixture["body"]["observationId"].as_str().unwrap())

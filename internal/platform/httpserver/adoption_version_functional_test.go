@@ -5,9 +5,11 @@ package httpserver
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 	"time"
 
@@ -37,7 +39,9 @@ func TestHTTPVersionAdoptionAndExactRecovery(t *testing.T) {
 	var deps Dependencies
 	testContext := t.Context()
 	var principal identity.Actor
-	server := newConfiguredHTTPServer(t, func(d *Dependencies) {
+	repo := catalog.NewMemoryRepository()
+	store.BindLocalCatalog(repo)
+	server := newConfiguredHTTPServerWithRepository(t, serviceClock, repo, func(d *Dependencies) {
 		deps = *d
 		actor, err := d.Authenticator.Authenticate(testContext, "admin")
 		if err != nil {
@@ -51,7 +55,7 @@ func TestHTTPVersionAdoptionAndExactRecovery(t *testing.T) {
 		}
 		d.Federation = manager
 		deps.Federation = manager
-		_, err = store.CreateSource(actorContext, federation.Source{ID: sourceID, TenantID: actor.TenantID, DisplayName: "Upstream", Endpoint: endpoint, Type: federation.SourceARDManifest, Status: federation.SourceActive, ProfileID: "ard-0.91-aa3e598", Revision: 1, Scope: federation.Scope{Kinds: []catalog.Kind{catalog.KindAgent}}, PolicyID: "test-policy", PolicyRevision: 1, PolicyDigest: responses.PolicyDigest(), CreatedAt: serviceClock.Now(), UpdatedAt: serviceClock.Now()})
+		_, err = store.CreateSource(actorContext, federation.Source{ID: sourceID, TenantID: actor.TenantID, DisplayName: "Upstream", Endpoint: endpoint, Type: federation.SourceARDManifest, Status: federation.SourceActive, RetrievalMode: federation.RetrievalIndexed, ProfileID: "ard-0.91-aa3e598", Revision: 1, Scope: federation.Scope{Kinds: []catalog.Kind{catalog.KindAgent}}, PolicyID: "test-policy", PolicyRevision: 1, PolicyDigest: responses.PolicyDigest(), CreatedAt: serviceClock.Now(), UpdatedAt: serviceClock.Now()})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -103,6 +107,25 @@ func TestHTTPVersionAdoptionAndExactRecovery(t *testing.T) {
 	decodeResult(t, targetReply, &target)
 	if target.ResourceID != first.Resource.ID || target.PriorVersionRevisionID != first.VersionRevision.ID {
 		t.Fatal("lost historical same-source target", target)
+	}
+	inventoryPath := "/api/v1/upstream-changes"
+	inventory := requestJSON(t, server.URL, "GET", inventoryPath+"?check=unadopted_version&sourceId="+sourceID+"&namespaceId="+ns.ID+"&limit=1", "admin", "", "", nil)
+	requireStatus(t, inventory, 200)
+	requireControlSchema(t, "UpstreamChangePage", inventory.body)
+	var page struct{ Items []federation.UpstreamChange }
+	decodeResult(t, inventory, &page)
+	if len(page.Items) != 1 || page.Items[0].Target != target || page.Items[0].Occurrence != occ || page.Items[0].Outcome != "unadopted_version" || inventory.header.Get("Cache-Control") != "no-store" {
+		t.Fatal("inventory did not bind exact handoff", page)
+	}
+	requireControlProblem(t, requestJSON(t, server.URL, "GET", inventoryPath, "reader", "", "", nil), 403, catalog.CodeForbidden)
+	other := requestJSON(t, server.URL, "GET", inventoryPath, "other-admin", "", "", nil)
+	requireStatus(t, other, 200)
+	decodeResult(t, other, &page)
+	if len(page.Items) != 0 {
+		t.Fatal("cross-tenant rows")
+	}
+	for _, query := range []string{"?limit=101", "?check=newer", "?sourceId=no", "?namespaceId=", "?extra=yes", "?limit=1&limit=2"} {
+		requireControlProblem(t, requestJSON(t, server.URL, "GET", inventoryPath+query, "admin", "", "", nil), 400, catalog.CodeInvalidArgument)
 	}
 	body := map[string]any{"observationId": next.ID, "snapshotId": occ.SnapshotID, "retrievalDigest": occ.RetrievalDigest, "entryLocation": occ.EntryLocation, "priorVersionRevisionId": target.PriorVersionRevisionID}
 	path := "/api/v1/resources/" + target.ResourceID + "/versions:adopt"
@@ -162,6 +185,8 @@ func TestHTTPVersionAdoptionAndExactRecovery(t *testing.T) {
 	scopesHTTP := httptest.NewServer(scopedServer.Handler())
 	defer scopesHTTP.Close()
 	for _, token := range []string{"no-write", "no-source"} {
+		requireControlProblem(t, requestJSON(t, scopesHTTP.URL, "GET", inventoryPath, token, "", "", nil), 403, catalog.CodeForbidden)
+		requireStatus(t, requestJSON(t, scopesHTTP.URL, "HEAD", inventoryPath, token, "", "", nil), 403)
 		requireControlProblem(t, requestJSON(t, scopesHTTP.URL, "POST", path, token, "append-upstream-version", "", body), 403, catalog.CodeForbidden)
 		requireControlProblem(t, requestJSON(t, scopesHTTP.URL, "GET", "/api/v1/observations/"+next.ID+"/adoption-target", token, "", "", nil), 403, catalog.CodeForbidden)
 		requireStatus(t, requestJSON(t, scopesHTTP.URL, "HEAD", "/api/v1/observations/"+next.ID+"/adoption-target", token, "", "", nil), http.StatusForbidden)
@@ -243,6 +268,81 @@ func TestHTTPVersionAdoptionAndExactRecovery(t *testing.T) {
 		t.Fatal("uncertain result was not recovered")
 	}
 	requireControlProblem(t, requestJSON(t, server.URL, "POST", path, "admin", "new-key-after-withdrawal", "", body), 412, catalog.CodePreconditionFailed)
+	// An opaque continuation belongs to its principal, filter and page size.
+	setVersion("RC")
+	var manifest struct {
+		Entries []json.RawMessage `json:"entries"`
+	}
+	response := responses["GET "+endpoint]
+	if err := json.Unmarshal(response.Body, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	manifest.Entries = append(manifest.Entries, bytes.ReplaceAll(manifest.Entries[0], []byte(`"RC"`), []byte(`"preview"`)))
+	response.Body, err = json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	responses["GET "+endpoint] = response
+	serviceClock.Advance(time.Second)
+	if _, err := manager.Sync(ctx, sourceID); err != nil {
+		t.Fatal(err)
+	}
+	var firstPage, secondPage cursorPage[federation.UpstreamChange]
+	firstRead := requestJSON(t, server.URL, "GET", inventoryPath+"?limit=1", "admin", "", "", nil)
+	requireStatus(t, firstRead, 200)
+	decodeResult(t, firstRead, &firstPage)
+	if len(firstPage.Items) != 1 || firstPage.NextCursor == "" {
+		t.Fatal("missing continuation", firstPage)
+	}
+	cursor := "&cursor=" + url.QueryEscape(firstPage.NextCursor)
+	secondRead := requestJSON(t, server.URL, "GET", inventoryPath+"?limit=1"+cursor, "admin", "", "", nil)
+	requireStatus(t, secondRead, 200)
+	decodeResult(t, secondRead, &secondPage)
+	if len(secondPage.Items) != 1 || secondPage.NextCursor != "" || secondPage.Items[0].Occurrence.ObservationID <= firstPage.Items[0].Occurrence.ObservationID {
+		t.Fatal("unstable continuation", secondPage)
+	}
+	for _, q := range []string{"?limit=2", "?limit=1&check=unadopted_version", "?limit=1&sourceId=" + sourceID} {
+		requireControlProblem(t, requestJSON(t, server.URL, "GET", inventoryPath+q+cursor, "admin", "", "", nil), 400, catalog.CodeInvalidArgument)
+	}
+	requireControlProblem(t, requestJSON(t, server.URL, "GET", inventoryPath+"?limit=1"+cursor, "other-admin", "", "", nil), 400, catalog.CodeInvalidArgument)
+	// Keep the first observation and withdraw the one the continuation just returned.
+	// Both the old cursor and the exact link must reflect the new complete membership.
+	setVersion(firstPage.Items[0].Target.UpstreamVersion)
+	remaining := selection()
+	if remaining.ID != firstPage.Items[0].Occurrence.ObservationID {
+		t.Fatal("unchanged entry did not retain its observation ID", remaining.ID)
+	}
+	for _, query := range []string{"?limit=1" + cursor, "?observationId=" + secondPage.Items[0].Occurrence.ObservationID} {
+		reply := requestJSON(t, server.URL, "GET", inventoryPath+query, "admin", "", "", nil)
+		requireStatus(t, reply, http.StatusOK)
+		requireControlSchema(t, "UpstreamChangePage", reply.body)
+		var empty cursorPage[federation.UpstreamChange]
+		decodeResult(t, reply, &empty)
+		if len(empty.Items) != 0 || empty.NextCursor != "" {
+			t.Fatal("withdrawn observation remained selectable", query, empty)
+		}
+	}
+	firstRead = requestJSON(t, server.URL, "GET", inventoryPath+"?limit=1", "admin", "", "", nil)
+	requireStatus(t, firstRead, http.StatusOK)
+	var refreshed cursorPage[federation.UpstreamChange]
+	decodeResult(t, firstRead, &refreshed)
+	if len(refreshed.Items) != 1 || refreshed.NextCursor != "" || refreshed.Items[0].Occurrence.ObservationID != remaining.ID ||
+		refreshed.Items[0].Occurrence.SnapshotID == firstPage.Items[0].Occurrence.SnapshotID {
+		t.Fatal("fresh inventory did not select the remaining occurrence", refreshed)
+	}
+	setVersion("4.0")
+	fresh := selection()
+	freshOccurrence := occurrences(fresh)
+	if _, err := manager.SetStatus(ctx, sourceID, federation.SourcePaused, 1, federation.StatusChangeInput{Reason: "Pause before confirming the selected append"}); err != nil {
+		t.Fatal(err)
+	}
+	refused := map[string]any{"observationId": fresh.ID, "snapshotId": freshOccurrence.SnapshotID, "retrievalDigest": freshOccurrence.RetrievalDigest, "entryLocation": freshOccurrence.EntryLocation, "priorVersionRevisionId": target.PriorVersionRevisionID}
+	requireControlProblem(t, requestJSON(t, server.URL, "POST", path, "admin", "paused-fresh", "", refused), 412, catalog.CodePreconditionFailed)
+	pausedReplay := requestJSON(t, server.URL, "POST", path, "admin", "append-upstream-version", "", body)
+	requireStatus(t, pausedReplay, 201)
+	if !bytes.Equal(pausedReplay.body, created.body) || pausedReplay.header.Get("Idempotency-Replayed") != "true" {
+		t.Fatal("paused replay changed result")
+	}
 	disabled, err := federation.NewManager(store, responses, serviceClock, id.Generator{}, federation.WithObservationAdopter(deps.Catalog))
 	if err != nil {
 		t.Fatal(err)
@@ -254,5 +354,6 @@ func TestHTTPVersionAdoptionAndExactRecovery(t *testing.T) {
 	}
 	closedHTTP := httptest.NewServer(closed.Handler())
 	defer closedHTTP.Close()
+	requireControlProblem(t, requestJSON(t, closedHTTP.URL, "GET", inventoryPath, "admin", "", "", nil), 403, catalog.CodeForbidden)
 	requireControlProblem(t, requestJSON(t, closedHTTP.URL, "POST", path, "admin", "append-upstream-version", "", body), 403, catalog.CodeForbidden)
 }

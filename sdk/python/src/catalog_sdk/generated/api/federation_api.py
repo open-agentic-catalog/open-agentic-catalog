@@ -63,6 +63,7 @@ from catalog_sdk.generated.models.trust_assessment_response import (
     TrustAssessmentResponse,
 )
 from catalog_sdk.generated.models.update_source import UpdateSource
+from catalog_sdk.generated.models.upstream_change_page import UpstreamChangePage
 from catalog_sdk.generated.models.version_adoption_target import VersionAdoptionTarget
 
 from catalog_sdk.generated.api_client import ApiClient, RequestSerialized
@@ -578,7 +579,7 @@ class FederationApi:
     ) -> ResourceVersionAdoption:
         """Append a selected upstream version to an existing adopted Resource
 
-        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 
         :param idempotency_key: Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. (required)
         :type idempotency_key: str
@@ -657,7 +658,7 @@ class FederationApi:
     ) -> ApiResponse[ResourceVersionAdoption]:
         """Append a selected upstream version to an existing adopted Resource
 
-        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 
         :param idempotency_key: Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. (required)
         :type idempotency_key: str
@@ -736,7 +737,7 @@ class FederationApi:
     ) -> RESTResponseType:
         """Append a selected upstream version to an existing adopted Resource
 
-        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
+        Default off. Requires federation.versionAdoptionEnabled, source.read_evidence and exact destination resource.edit with companion reads; catalog.write and sources.read apply when enforced. A fresh append requires an active or error Source at preparation and commit. The selected complete occurrence must declare a different nonempty version and match the retained prior adoption's Source, identifier and kind. Labels are opaque. Creates only a Version, immutable revision, validation evidence and adoption provenance. Existing Resource metadata, Listing candidates, releases and public snapshots are unchanged. Retained native validation findings can block subsequent review or release. Idempotency-Key binds the exact request. Committed recovery reauthorizes without refetching or rerunning current observation eligibility. Administrator disablement blocks recovery too.
 
         :param idempotency_key: Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed. (required)
         :type idempotency_key: str
@@ -7895,6 +7896,527 @@ class FederationApi:
         return self.api_client.param_serialize(
             method="GET",
             resource_path="/api/v1/observations",
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_upstream_changes(
+        self,
+        check: Optional[StrictStr] = None,
+        source_id: Optional[UUID] = None,
+        namespace_id: Optional[UUID] = None,
+        observation_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Recheck an exact inventory selection before opening it."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> UpstreamChangePage:
+        """Find retained upstream changes for editable adopted Resources
+
+        Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the canonical namespace with its companion reads. Both catalog.write and sources.read apply when OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope. Compares exact previously adopted upstream labels and normalized metadata, and checks all local Version labels before suggesting an addition. Entry comparisons include unavailable comparisons. Valid continuation rechecks admission and complete membership. Refresh from page one for a new traversal. Each row binds one immutable prior revision and a specific complete occurrence. Makes no external requests or mutations. Broken selected evidence fails the read.
+
+        :param check:
+        :type check: str
+        :param source_id:
+        :type source_id: UUID
+        :param namespace_id:
+        :type namespace_id: UUID
+        :param observation_id: Recheck an exact inventory selection before opening it.
+        :type observation_id: UUID
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_upstream_changes_serialize(
+            check=check,
+            source_id=source_id,
+            namespace_id=namespace_id,
+            observation_id=observation_id,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "UpstreamChangePage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_upstream_changes_with_http_info(
+        self,
+        check: Optional[StrictStr] = None,
+        source_id: Optional[UUID] = None,
+        namespace_id: Optional[UUID] = None,
+        observation_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Recheck an exact inventory selection before opening it."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[UpstreamChangePage]:
+        """Find retained upstream changes for editable adopted Resources
+
+        Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the canonical namespace with its companion reads. Both catalog.write and sources.read apply when OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope. Compares exact previously adopted upstream labels and normalized metadata, and checks all local Version labels before suggesting an addition. Entry comparisons include unavailable comparisons. Valid continuation rechecks admission and complete membership. Refresh from page one for a new traversal. Each row binds one immutable prior revision and a specific complete occurrence. Makes no external requests or mutations. Broken selected evidence fails the read.
+
+        :param check:
+        :type check: str
+        :param source_id:
+        :type source_id: UUID
+        :param namespace_id:
+        :type namespace_id: UUID
+        :param observation_id: Recheck an exact inventory selection before opening it.
+        :type observation_id: UUID
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_upstream_changes_serialize(
+            check=check,
+            source_id=source_id,
+            namespace_id=namespace_id,
+            observation_id=observation_id,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "UpstreamChangePage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_upstream_changes_without_preload_content(
+        self,
+        check: Optional[StrictStr] = None,
+        source_id: Optional[UUID] = None,
+        namespace_id: Optional[UUID] = None,
+        observation_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Recheck an exact inventory selection before opening it."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Find retained upstream changes for editable adopted Resources
+
+        Requires federation.versionAdoptionEnabled, tenant source.read_evidence, and resource.edit in the canonical namespace with its companion reads. Both catalog.write and sources.read apply when OAuth scopes are enforced. Reads active/error indexed/hybrid Sources under current scope. Compares exact previously adopted upstream labels and normalized metadata, and checks all local Version labels before suggesting an addition. Entry comparisons include unavailable comparisons. Valid continuation rechecks admission and complete membership. Refresh from page one for a new traversal. Each row binds one immutable prior revision and a specific complete occurrence. Makes no external requests or mutations. Broken selected evidence fails the read.
+
+        :param check:
+        :type check: str
+        :param source_id:
+        :type source_id: UUID
+        :param namespace_id:
+        :type namespace_id: UUID
+        :param observation_id: Recheck an exact inventory selection before opening it.
+        :type observation_id: UUID
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_upstream_changes_serialize(
+            check=check,
+            source_id=source_id,
+            namespace_id=namespace_id,
+            observation_id=observation_id,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "UpstreamChangePage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_upstream_changes_sync(
+        self,
+        check: Optional[StrictStr] = None,
+        source_id: Optional[UUID] = None,
+        namespace_id: Optional[UUID] = None,
+        observation_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Recheck an exact inventory selection before opening it."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> UpstreamChangePage:
+        """Find retained upstream changes for editable adopted Resources (synchronous)
+
+        Synchronous variant of :meth:`list_upstream_changes`. It calls the asynchronous
+        method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_upstream_changes(
+                check=check,
+                source_id=source_id,
+                namespace_id=namespace_id,
+                observation_id=observation_id,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_upstream_changes_sync_with_http_info(
+        self,
+        check: Optional[StrictStr] = None,
+        source_id: Optional[UUID] = None,
+        namespace_id: Optional[UUID] = None,
+        observation_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Recheck an exact inventory selection before opening it."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[UpstreamChangePage]:
+        """Find retained upstream changes for editable adopted Resources (synchronous)
+
+        Synchronous variant of :meth:`list_upstream_changes_with_http_info`. It calls the
+        asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_upstream_changes_with_http_info(
+                check=check,
+                source_id=source_id,
+                namespace_id=namespace_id,
+                observation_id=observation_id,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_upstream_changes_sync_without_preload_content(
+        self,
+        check: Optional[StrictStr] = None,
+        source_id: Optional[UUID] = None,
+        namespace_id: Optional[UUID] = None,
+        observation_id: Annotated[
+            Optional[UUID],
+            Field(
+                description="Recheck an exact inventory selection before opening it."
+            ),
+        ] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Find retained upstream changes for editable adopted Resources (synchronous)
+
+        Synchronous variant of :meth:`list_upstream_changes_without_preload_content`. It calls
+        the asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_upstream_changes_without_preload_content(
+                check=check,
+                source_id=source_id,
+                namespace_id=namespace_id,
+                observation_id=observation_id,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    def _list_upstream_changes_serialize(
+        self,
+        check,
+        source_id,
+        namespace_id,
+        observation_id,
+        limit,
+        cursor,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {}
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        # process the query parameters
+        if check is not None:
+            _query_params.append(("check", check))
+
+        if source_id is not None:
+            _query_params.append(("sourceId", source_id))
+
+        if namespace_id is not None:
+            _query_params.append(("namespaceId", namespace_id))
+
+        if observation_id is not None:
+            _query_params.append(("observationId", observation_id))
+
+        if limit is not None:
+            _query_params.append(("limit", limit))
+
+        if cursor is not None:
+            _query_params.append(("cursor", cursor))
+
+        # process the header parameters
+        # process the form parameters
+        # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json", "application/problem+json"]
+            )
+
+        # authentication setting
+        _auth_settings: List[str] = ["bearerAuth"]
+
+        return self.api_client.param_serialize(
+            method="GET",
+            resource_path="/api/v1/upstream-changes",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

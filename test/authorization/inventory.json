@@ -2983,6 +2983,18 @@
       "conditionalPermissions": {}
     },
     {
+      "operationId": "listUpstreamChanges",
+      "method": "GET",
+      "path": "/api/v1/upstream-changes",
+      "permissions": [
+        "source.read_evidence",
+        "resource.edit"
+      ],
+      "policy": "adoption",
+      "oauthCeiling": "catalog.write",
+      "currentAuthority": "Deployment opt-in; current source evidence and exact destination edit authority with companions. The sources.read OAuth ceiling also applies. Current editable namespaces restrict selection before pagination."
+    },
+    {
       "operationId": "getVersionAdoptionTarget",
       "method": "GET",
       "path": "/api/v1/observations/{observationId}/adoption-target",
@@ -5197,15 +5209,6 @@
     },
     {
       "calls": [],
-      "method": "FindVersionAdoptionTarget",
-      "package": "catalog",
-      "receiver": "Service",
-      "roleConstants": [],
-      "source": "internal/catalog/adoption_version.go",
-      "policy": "adoption"
-    },
-    {
-      "calls": [],
       "method": "AdoptExternalVersion",
       "package": "catalog",
       "receiver": "Service",
@@ -5221,6 +5224,15 @@
       "roleConstants": [],
       "source": "internal/federation/adoption_version.go",
       "policy": "process"
+    },
+    {
+      "calls": [],
+      "method": "UpstreamChanges",
+      "package": "federation",
+      "receiver": "Manager",
+      "roleConstants": [],
+      "source": "internal/federation/upstream_changes.go",
+      "policy": "adoption"
     },
     {
       "calls": [],

@@ -2494,6 +2494,22 @@
   },
   {
     "consumption": "buffered",
+    "method": "list_upstream_changes",
+    "operation_id": "listUpstreamChanges",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1upstream-changes/get",
+    "source_method": "GET",
+    "source_operation_id": "listUpstreamChanges",
+    "source_path": "/api/v1/upstream-changes",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "list_validation_maintenance",
     "operation_id": "listValidationMaintenance",
     "response_excluded_statuses": [],
