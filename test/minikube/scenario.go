@@ -112,6 +112,9 @@ func (h *harness) execute() error {
 	if h.vault != nil {
 		return h.verifyVault(baseURL, initialSmoke)
 	}
+	if h.options.scenario == "flux" {
+		return h.verifyFlux(runID, initialSmoke)
+	}
 	if h.options.scenario == "autoscaling" {
 		return h.verifyAutoscaling(runID, initialSmoke)
 	}
@@ -253,6 +256,8 @@ func (h *harness) installCatalog() error {
 		arguments = append([]string{"--install"}, arguments...)
 	}
 	switch {
+	case h.options.scenario == "flux":
+		err = h.fluxPhase("install", values)
 	case h.managedBuild() != nil:
 		var raw []byte
 		raw, err = os.ReadFile(values) // #nosec G304 -- writeHelmValues created this path under the invocation-owned temporary directory.

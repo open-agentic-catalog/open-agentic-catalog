@@ -47,6 +47,8 @@ type harness struct {
 	uiImage            string
 	metricsImage       string
 	certificateImages  map[string]string
+	fluxImages         map[string]string
+	coordinatorChart   string
 	certificateRoot    []byte
 	semanticImage      string
 	semantic           map[string]any
@@ -78,6 +80,7 @@ type fixtureSecrets struct {
 }
 
 type runReport struct {
+	Flux              json.RawMessage                 `json:"flux,omitempty"`
 	Vault             *vaultReport                    `json:"vault,omitempty"`
 	DatabaseTLS       *databaseRenewalReport          `json:"databaseTls,omitempty"`
 	Certificates      *certificateReport              `json:"certificates,omitempty"`
@@ -420,6 +423,11 @@ func (h *harness) preflight() error {
 			return fmt.Errorf("cache the selected Metrics Server image before running: %w", err)
 		}
 	}
+	if h.options.scenario == "flux" {
+		if err := h.checkFluxInputs(); err != nil {
+			return err
+		}
+	}
 	if h.options.scenario == "cert-manager" {
 		if err := h.checkCertificateInputs(); err != nil {
 			return err
@@ -437,6 +445,11 @@ func (h *harness) preflight() error {
 // buildImages creates unique local application/fixture tags, aliases the pinned
 // database image and records resolved identities without publishing any artifact.
 func (h *harness) buildImages() error {
+	if h.options.scenario == "flux" {
+		if err := h.prepareFluxImages(); err != nil {
+			return err
+		}
+	}
 	if h.options.scenario == "cert-manager" {
 		if err := h.prepareCertificateImages(); err != nil {
 			return err
@@ -454,7 +467,7 @@ func (h *harness) buildImages() error {
 		h.report.Images["metrics-server-config"] = strings.TrimSpace(string(raw))
 	}
 
-	if h.options.scenario == "basic" || h.options.scenario == "topology" || h.options.scenario == "pgbouncer" || h.options.scenario == "peers" || h.options.scenario == "backup-restore" || h.options.scenario == "autoscaling" || h.options.scenario == "cert-manager" || h.options.scenario == "vault" {
+	if h.options.scenario == "basic" || h.options.scenario == "topology" || h.options.scenario == "pgbouncer" || h.options.scenario == "peers" || h.options.scenario == "backup-restore" || h.options.scenario == "autoscaling" || h.options.scenario == "cert-manager" || h.options.scenario == "vault" || h.options.scenario == "flux" {
 		if _, err := h.run("build deployment coordinator", "go", "build", "-o", filepath.Join(h.temporary, "catalog-deploy"), "./test/deployment"); err != nil {
 			return err
 		}
@@ -465,6 +478,18 @@ func (h *harness) buildImages() error {
 	}
 	if _, err := h.run("build unique Catalog image", h.options.docker, buildArgs...); err != nil {
 		return err
+	}
+	if h.options.scenario == "flux" {
+		target := "open-agentic-catalog:minikube-flux-target-" + h.suffix
+		h.fluxImages["target"] = target
+		if _, err := h.run("build distinct Flux target Catalog image", h.options.docker, "build", "--pull=false", "--target", "runtime", "--build-arg", "VERSION=minikube-flux-target", "--build-arg", "COMMIT=local", "--tag", target, "--file", "Containerfile", "."); err != nil {
+			return err
+		}
+		id, err := h.run("record Flux target image", h.options.docker, "image", "inspect", "--format", "{{.Id}}", target)
+		if err != nil {
+			return err
+		}
+		h.report.Images["flux-target-config"] = strings.TrimSpace(string(id))
 	}
 	if _, err := h.run("build unique local fixture image", h.options.docker, "build", "--pull=false", "--tag", h.fixture, "--file", "test/functional/Containerfile", "."); err != nil {
 		return err
@@ -795,6 +820,11 @@ func (h *harness) loadImages() error {
 			}
 		}
 	}
+	for name, image := range h.fluxImages {
+		if _, err := h.minikube("load pinned "+name, "image", "load", "--daemon=true", "--overwrite=true", image); err != nil {
+			return err
+		}
+	}
 	for name, image := range h.certificateImages {
 		if _, err := h.minikube("load pinned "+name, "image", "load", "--daemon=true", "--overwrite=true", image); err != nil {
 			return err
@@ -1028,6 +1058,9 @@ func (h *harness) cleanup() error {
 			for _, image := range h.vault.images {
 				ownedImages = append(ownedImages, image)
 			}
+		}
+		for _, image := range h.fluxImages {
+			ownedImages = append(ownedImages, image)
 		}
 		for _, image := range h.certificateImages {
 			ownedImages = append(ownedImages, image)

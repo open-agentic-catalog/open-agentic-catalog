@@ -519,7 +519,11 @@ func (h *harness) databaseJob(name, script string, environment []any) kubernetes
 
 // writeHelmValues writes invocation-owned application values for the selected scenario, including test-only topology, credentials references and enabled fixture integrations.
 func (h *harness) writeHelmValues(marker, apiRole string) (string, error) {
-	repository, tag, found := strings.Cut(h.application, ":")
+	application := h.application
+	if h.coordinatorChart != "" {
+		application = h.fluxImages["target"]
+	}
+	repository, tag, found := strings.Cut(application, ":")
 	if !found {
 		return "", errors.New("developer image has no tag")
 	}

@@ -267,6 +267,7 @@ class CleanTests(unittest.TestCase):
         self.assertIn("Would remove extensions/vscode/THIRD_PARTY_NOTICES.txt", output)
         self.assertIn("Would remove test/vscode/.tools", output)
         self.assertIn("Would remove .tools/ci", output)
+        self.assertIn("Would remove .tools/minikube-flux\n", output)
         self.assertTrue(all(path.exists() for path in removed + retained))
         actual, _ = self.run_clean()
         self.assertEqual(actual, before)

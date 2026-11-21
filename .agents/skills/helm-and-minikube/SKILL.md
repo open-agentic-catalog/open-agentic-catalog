@@ -49,6 +49,7 @@ When the Helm runtime boundary changes, run the basic and topology gates require
 | --- | --- |
 | `make test-minikube` | Install, failed migration hook/retry, identities/probes, smoke, retained state, checksum rollout and no-op reapplication. |
 | `make test-minikube-upgrade` | Focused three-node coordinated drain/hook ordering, failed migration/startup recovery, cross-node replica intent and retained state; reports `upgradeOnly: true`, excluding broader topology checks. |
+| `make test-minikube-flux` | Standalone Flux HelmRelease maintenance handoff, suspended upgrade failure recovery, target adoption and the hooks-enabled refusal control. Prepare the pinned inputs with `make flux-tools-install`. |
 | `make test-minikube-topology` | Replica placement, PDB/eviction/drain, node loss, replay/lease takeover and enforcing Calico network isolation. |
 | `make test-minikube-ui` | Optional packaged UI, subpath probes and shared sessions; not browser JavaScript or human OIDC login. |
 | `make test-minikube-replicas` | Three UI/API/worker replicas, concurrent integrity, replacement and bounded traffic; separate from multi-node loss. |

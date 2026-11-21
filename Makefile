@@ -980,7 +980,7 @@ test-unit: ## Run isolated Go units, including Minikube helpers without a cluste
 
 # Keep each owner's imports in its own interpreter. Helm has only functional
 # tests and retains its existing explicit selection.
-PYTHON_UNIT_DIRS := ci clientcompat demo embeddings formal functional hooks interoperability mcp-scanner monitoring packaging performance pgbouncer sdk search-relevance vscode
+PYTHON_UNIT_DIRS := ci clientcompat demo embeddings formal functional hooks interoperability mcp-scanner minikube monitoring packaging performance pgbouncer sdk search-relevance vscode
 test-tooling-unit: ## Run isolated Python helper tests in their owning directories
 	@set -eu; test -n "$(PYTHON_UNIT_DIRS)" || { echo "No Python unit owners selected" >&2; exit 1; }; \
 		unit_coverage=$(call shell-quote,$(TOOLING_PYTHON_COVERAGE_DIR)); \
@@ -2540,6 +2540,7 @@ monitoring-install monitoring-status monitoring-access monitoring-uninstall:
 		--values "$(MONITORING_VALUES)" --component "$(MONITORING_COMPONENT)" --port "$(MONITORING_PORT)"
 
 test-minikube-contract: ## Test the local Minikube harness without creating a cluster
+	$(PYTHON) -B test/packaging/completion.py python --directory test/minikube --pattern 'test_unit_flux_*.py'
 	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GO) test -tags=minikube,functional ./test/minikube -shuffle=on -count=1
 
 define run_minikube_scenario
@@ -2553,6 +2554,13 @@ endef
 
 test-minikube: helm-check test-minikube-contract ## Install and exercise the chart in an owned single-node Minikube cluster
 	$(call run_minikube_scenario,basic)
+
+.PHONY: flux-tools-install test-minikube-flux
+flux-tools-install: ## Cache the pinned Flux controller manifest and images for the Minikube handoff test
+	$(PYTHON) -B test/minikube/fixtures/flux/install.py
+
+test-minikube-flux: helm-check test-minikube-contract ## Qualify native Flux suspension, coordinated upgrade and hook-safe resumption in an owned cluster
+	$(call run_minikube_scenario,flux)
 
 test-minikube-backup-restore: helm-check test-minikube-contract ## Restore a full logical backup into fresh PostgreSQL and recover the owned Helm deployment
 	$(call run_minikube_scenario,backup-restore)

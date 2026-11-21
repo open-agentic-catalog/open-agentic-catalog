@@ -191,6 +191,16 @@ The caller reopens its Service port-forward after old Pods are drained. These ar
 
 Use `make test-minikube-upgrade` for only the cross-node coordinated-upgrade qualification. It reuses the topology scenario, pinned prerequisites, complete upgrade assertions and independent cleanup, then stops before the separate UI-policy/federation/disruption checks. Its JSON report explicitly sets `upgradeOnly: true`; it is not a full topology pass. `make test-minikube-topology` still executes both upgrade and broader topology checks.
 
+## Flux maintenance handoff
+
+Run `make flux-tools-install` to prepare the [pinned Flux inputs](fixtures/flux/README.md), then run `make test-minikube-flux`. The test installs source-controller and helm-controller in an isolated single-node cluster. A local Helm repository serves the exact initial and target archives. The target uses a second locally built Catalog image with a distinct build identity. The test verifies its running image ID on both API and worker Pods. The release uses two API and two worker replicas, a dedicated PostgreSQL database, a standalone HelmRelease and a manually managed HPA.
+
+The scenario holds the first migration Job pending with a namespace Pod quota. It requests Flux suspension during the install and observes the completed Helm operation and a fresh controller acknowledgement after the quota is removed. A later preflight refuses the targeting HPA without disturbing existing Pods. An HPA for a different Deployment in the same namespace keeps its identity and configuration through maintenance and resumption. The first coordinated upgrade checks the owner migration barrier across the image change. Migration and startup faults recover with the frozen target values.
+
+During handback a temporary quota rejects new Jobs in the disposable test namespace. Flux must record the intended extra revision with upgrade hooks disabled. A reader reopens a release saved before maintenance and checks the exact response bytes before and after handback. A second reconcile with hooks enabled must leave the revision and ready Pods unchanged. In a separate control, ordinary resume attempts the owner Job and the quota refuses it. The target stays running and rollback and uninstall remain disabled. HPA metrics and provisioning belong to the separate autoscaling scenario.
+
+The harness removes the owned profile and its resources after either outcome. Operators should use the [maintenance procedure](../../documentation/src/content/docs/operations/maintenance.mdx#hand-off-a-standalone-flux-helmrelease) for a retained installation.
+
 ## Logical backup and restore
 
 Run `make test-minikube-backup-restore` with the same pinned tools, cached images and optional preload archive. It creates a separate one-node profile with the application chart, two PostgreSQL instances and distinct persistent volumes. It uses no retained cluster, database or credentials.

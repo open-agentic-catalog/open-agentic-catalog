@@ -21,7 +21,7 @@ func main() {
 
 // run validates scenario inputs and owns the signal-bounded harness lifecycle, including failure diagnostics, cleanup and successful evidence output.
 func run() int {
-	scenario := flag.String("scenario", "basic", "basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager or vault")
+	scenario := flag.String("scenario", "basic", "basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault or flux")
 	upgradeOnly := flag.Bool("upgrade-only", false, "qualify coordinated upgrades only in the topology scenario")
 	ansCapture := flag.Bool("ans-capture", false, "capture authentic ANS V1/V2 public verification fixtures; requires --scenario ans")
 	ansTrust := flag.Bool("ans-trust", false, "qualify explicit ANS assessment Jobs; requires --scenario ans")

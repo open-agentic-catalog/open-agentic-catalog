@@ -18,6 +18,8 @@ Use `make test` or `make test-functional-local` for the broad local Go suite, in
 
 Use `make helm-package-test` for the focused real-Helm packager tests or `make helm-check` for the complete cluster-free chart gate.
 
+For a standalone Flux HelmRelease, run `make flux-tools-install` once to cache the pinned test inputs, then `make test-minikube-flux` to exercise the upgrade in a disposable cluster. On a retained installation, follow the [Flux handoff procedure](../operations/maintenance.mdx#hand-off-a-standalone-flux-helmrelease) and use `make helm-deploy-check` and `make helm-deploy` during the maintenance window.
+
 The [reviewed upstream resource corpus](testing.md#reviewed-upstream-resource-fixtures) uses the existing unit and local functional targets. It needs no separate installer, download step or running service. `test-e2e` selects only the existing `TestEndToEnd` journey, so use `test` or the documented focused command for the corpus publication scenario.
 
 Run `make workflow-local-tools-install` to install the pinned local act tools. Run `make workflow-local-list` to list fixed selections without downloads or containers. Execute each target alone. Jobs require clean committed source and always disable external uploads. The [local runner guide](../../../../../test/ci/README.md#local-workflow-commands) describes isolation, cleanup and current qualification limits.

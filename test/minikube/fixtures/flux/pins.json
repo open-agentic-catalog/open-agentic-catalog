@@ -1,0 +1,10 @@
+{
+  "version": "v2.10.0",
+  "cliArchiveSha256": "208dd7012c04fedeed5b2d0b6e63df3b15b1c34a381527811685c098bc9f8659",
+  "controllerManifestSha256": "74284f453df1ce32a043d50d97d8a1e1e334416d7d405f3f16bcda313256783b",
+  "images": {
+    "source-controller": "ghcr.io/fluxcd/source-controller:v1.10.1@sha256:611b6bca3eae95bcff471414d1fb14a4ab83d7f14e609cccef2bd389c121f37e",
+    "helm-controller": "ghcr.io/fluxcd/helm-controller:v1.7.1@sha256:54526cc6ed1202d71d44c310676448065664f3255ad671d9a69ac26f904e617a",
+    "chart-server": "python:3.13.17-slim-bookworm@sha256:e32be0e55814a08977501ca863271d9bd02443710db8f2afaf8372e2c4508530"
+  }
+}

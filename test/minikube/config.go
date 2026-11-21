@@ -103,12 +103,12 @@ func loadOptions(scenario string) (options, error) {
 	switch scenario {
 	case "basic":
 		configured.overallTimeout = 25 * time.Minute
-	case "monitoring", "tracing", "ui", "replicas", "semantic", "pgbouncer", "agntcy", "gateway", "ans", "peers", "backup-restore", "autoscaling", "cert-manager", "vault":
+	case "monitoring", "tracing", "ui", "replicas", "semantic", "pgbouncer", "agntcy", "gateway", "ans", "peers", "backup-restore", "autoscaling", "cert-manager", "vault", "flux":
 		configured.overallTimeout = 40 * time.Minute
 	case "topology":
 		configured.overallTimeout = 40 * time.Minute
 	default:
-		return options{}, errors.New("scenario must be basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager or vault")
+		return options{}, errors.New("scenario must be basic, topology, monitoring, tracing, ui, replicas, semantic, pgbouncer, agntcy, gateway, ans, peers, backup-restore, autoscaling, cert-manager, vault or flux")
 	}
 	if scenario == "gateway" || scenario == "agntcy" {
 		value, present := os.LookupEnv("INTEROPERABILITY_TRUST_VERIFICATION")
@@ -156,7 +156,7 @@ func (o options) runtimeReplicas() int {
 	switch o.scenario {
 	case "replicas", "semantic":
 		return 3
-	case "topology", "tracing", "pgbouncer", "autoscaling":
+	case "topology", "tracing", "pgbouncer", "autoscaling", "flux":
 		return 2
 	default:
 		return 1
