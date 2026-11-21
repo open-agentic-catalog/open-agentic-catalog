@@ -6,6 +6,8 @@ import CoordinatedUpgrade from "../../../components/architecture/CoordinatedUpgr
 
 Operators use these procedures to install and maintain their deployments. They select the Kubernetes distribution, replica count, backup schedule and service objectives. Use the [deployment guide](deployment.mdx), [Helm reference](../../../../../deployments/helm/open-agentic-catalog/README.md) and [configuration reference](../reference/configuration.mdx) for exact inputs. Local Compose and Minikube are test environments, not production installation recipes.
 
+For an Argo CD-owned Application, use the [native Argo CD installation and upgrade procedure](argocd.mdx).
+
 ## First installation
 
 Before changing the deployment, identify these inputs:
@@ -47,6 +49,8 @@ make helm-deploy HELM_CONTEXT=my-cluster HELM_NAMESPACE=catalog \
   HELM_VALUES=/path/to/production-values.yaml HELM_DEPLOY_TIMEOUT=20m
 ```
 
+For a fresh install, select an unused release name in the existing namespace. For an upgrade, the installed chart name must match the selected local chart. The coordinator checks Helm's release metadata before draining Pods, including when the existing release has no Deployments.
+
 The check snapshots local inputs, renders, runs a server-connected dry-run and verifies workload ownership and autoscaler constraints without changing workloads. It cannot validate Secret contents, PostgreSQL credentials or runtime access. Deployment repeats that validation, drains API then worker and waits for all selected old Pods to disappear, invokes the existing owner-only pre-install/pre-upgrade hook, and waits for the intended target replicas to become ready. First installation skips scaling absent workloads.
 
 The desired replica counts come from the selected target values, never from the live objects after drain. Both roles must have a positive target count. The drain, Helm deployment and readiness phases default to ten minutes each. Supported overrides are one second to one hour.
@@ -60,6 +64,68 @@ For local development, run `make compose-up`. It builds and validates target API
 When rebuilding a retained Compose stack, reuse its project, enabled `LOCAL_*` selectors and custom port assignments. For example, keep `LOCAL_UI=on` and `LOCAL_MONITORING=on` if those services already run. Preserve a custom `CATALOG_MONITORING_GRAFANA_PORT`; omitting it restores the default port rather than discovering the existing binding. Set these non-secret inputs in your trusted Make workflow file or repeat them on the command line. Review the [workflow input reference](../reference/configuration.mdx#workflow-only-variables) before replacement. Do not stop another project's services to free a port.
 
 After success, verify API and worker readiness, expected version/profile identity and an authorized read of retained tenant state. An empty migration plan or a version label does not establish safe mixed-version operation. Compatible configuration-only rollouts may use ordinary orchestration when schema/privileges remain unchanged; release upgrades use the conservative path above. PostgreSQL engine-major upgrades, backup restoration and webhook ciphertext-key replacement are separate operator procedures.
+
+### Application ownership with Flux or Argo CD
+
+Helm can own the application release while a GitOps controller manages the namespace, Secret delivery or optional monitoring. If Flux owns the HelmRelease, suspend it and follow the handoff below. If a standalone Argo CD Application owns the workloads, Argo CD renders the chart and runs its hooks during a full sync. Follow the [Argo CD procedure](argocd.mdx) to drain the workloads before that sync.
+
+#### Hand off a standalone Flux HelmRelease
+
+Use one maintenance operator. Freeze the chart source, values, image digests and every process that can change them for the whole window. The tested arrangement uses Flux v2.10.0, Helm 4.3.1 and Kubernetes 1.37.1. It uses a standalone HelmRelease with inline values, exact-version HelmChart references and the default disabled drift detection. The operator manages the targeting HPA separately. Flux Kustomizations, automated image updates and other reconcilers that can write the release or its HPA need their own suspension and completion checks.
+
+Use client-side apply from the first installation of this release. With Flux server-side apply, Kubernetes refused the coordinator's change to fields owned by `helm-controller`, including chart labels and Pod template fields. The refusal occurred after the migration hook. An existing server-side-managed installation needs a separate ownership transition. For new installations, use the following HelmRelease fields.
+
+```yaml
+spec:
+  install:
+    serverSideApply: false
+    strategy: {name: RemediateOnFailure}
+    remediation: {retries: 0, remediateLastFailure: false}
+  upgrade:
+    serverSideApply: disabled
+    disableHooks: false
+    strategy: {name: RemediateOnFailure}
+    remediation: {retries: 0, remediateLastFailure: false}
+```
+
+1. Verify the effective release name, target namespace and storage namespace against `helm history` and the live Deployment ownership annotations. The coordinator uses the same namespace for the release and the workloads. Check that Flux reports the installed Helm revision as ready. Save the current HPA, intended replica counts and the recovery point.
+2. Record the latest suspension log entry for this namespace and release, then suspend the HelmRelease. The v1.7.1 helm-controller logs `reconciliation is suspended for this object` with a new `reconcileID` once it observes the change. An operation already in progress can continue. Wait for the new entry and inspect Helm history. If the latest revision is pending, stop here. Wait for any migration Job to disappear or reach `Complete=True` or `Failed=True`, and for its Pods to finish. A Job can have zero active Pods while it is still waiting to start. Investigate a failed revision before proceeding.
+3. While suspended, select the exact target chart and complete values in Flux. Compare the selected HelmChart's `status.artifact.digest` with the SHA-256 of the local chart archive. Set `spec.upgrade.disableHooks: true` for the handback. With hooks enabled, Flux attempts the migration Job again while the target Pods are running. The coordinator runs the required migration hook during the maintenance window. Keep the chart name, release name and both namespaces fixed. A chart rename can trigger a reinstall.
+4. Remove every HPA targeting the release's API or worker Deployment. Keep HPAs for other workloads in place. Run `make helm-deploy-check` and `make helm-deploy` with the verified archive and values. Verify the Helm revision, both workload images, ready replica counts and an authorized read of known retained Catalog data.
+5. Resume the release with the target still frozen. Flux treats a Helm revision written by the coordinator as unmanaged. Expect one extra Helm upgrade to adopt it. Wait for `Ready=True` at the current generation. Compare `status.history[0]` with `helm history` and compare `helm get values` with the reviewed inputs. Verify the same ready target Pods and repeat the retained-data read.
+6. Restore `spec.upgrade.disableHooks: false` and request a fresh reconciliation of the same inputs. Check its acknowledgement and confirm that the release revision stays fixed. Then restore the reviewed HPA. Before selecting the next application release in Flux, repeat the handoff starting at step 1. Changing the chart or image while the HelmRelease is active can start an upgrade against running Pods.
+
+If preflight refuses the HPA or an invalid target, inspect the running Pods and correct the input. If the hook runs or target startup fails, keep Flux suspended and the HPA removed. Follow the [coordinated release procedure](#coordinated-release-deployment) to recover forward with the same target. If handback differs from the reviewed target, suspend again and inspect actual Helm history, Pods, owner Job and database state before retrying. Never request a rollback or uninstall as a recovery shortcut.
+
+Capture the controller logs before and after the suspension request. Match the new entry on the release name, namespace and reconcile ID.
+
+```sh
+kubectl --context my-cluster --namespace flux-system logs deployment/helm-controller --since=5m
+flux suspend helmrelease catalog --context my-cluster --namespace catalog
+kubectl --context my-cluster --namespace flux-system logs deployment/helm-controller --since=5m
+helm --kube-context my-cluster --namespace catalog history catalog
+kubectl --context my-cluster --namespace catalog get jobs,pods \
+  -l app.kubernetes.io/instance=catalog,app.kubernetes.io/component=migration
+```
+
+After verifying suspension, apply your reviewed HelmRelease manifest. It must keep `spec.suspend: true`, select the target HelmChart and complete values, and set `spec.upgrade.disableHooks: true`. Keep automatic retries and remediation disabled. Complete the coordinated deployment and retained-data check before running the handback command.
+
+```sh
+flux resume helmrelease catalog --context my-cluster --namespace catalog
+kubectl --context my-cluster --namespace catalog get helmrelease catalog \
+  -o 'jsonpath={.metadata.generation} {.status.observedGeneration} {.status.history[0].version} {.status.history[0].chartVersion}{"\n"}'
+helm --kube-context my-cluster --namespace catalog history catalog
+```
+
+After verifying the adopted release, restore hooks and reconcile the same inputs. Repeat the history and readback checks before restoring the HPA.
+
+```sh
+kubectl --context my-cluster --namespace catalog patch helmrelease catalog --type=merge \
+  -p '{"spec":{"upgrade":{"disableHooks":false}}}'
+flux reconcile helmrelease catalog --context my-cluster --namespace catalog
+```
+
+On a retained cluster, the release stays under Flux and the HPA returns to its operator. The [Minikube qualification](../../../../../test/minikube/README.md#flux-maintenance-handoff) deletes its private profile, network, image aliases and port-forwards. See the [Flux HelmRelease reference](https://fluxcd.io/flux/components/helm/helmreleases/) and [Kubernetes Job terminal conditions](https://kubernetes.io/docs/concepts/workloads/controllers/job/#terminal-job-conditions).
 
 ### Hand off an external autoscaler
 

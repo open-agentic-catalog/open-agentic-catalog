@@ -41,6 +41,9 @@ func TestHPAAdmissionUsesRuntimeTargetRatherThanStatusOrHPAName(t *testing.T) {
 						if args[0] == "template" {
 							return rendered(t, fixtureObjects()), nil
 						}
+						if data, ok := helmInventoryFixture(args, false); ok {
+							return data, nil
+						}
 						if args[0] == "upgrade" && slices.Contains(args, "--dry-run=server") {
 							return nil, nil
 						}

@@ -343,7 +343,6 @@ unexport SEARCH_PROJECTION_REPAIR_LIMIT SEARCH_PROJECTION_REPAIR_OPERATOR_LABEL
 unexport RESTORE_TENANT_ID RESTORE_RECOVERY_POINT RESTORE_CURSOR RESTORE_VERIFY_LIMIT
 unexport MINIKUBE_PRELOAD_ARCHIVE MINIKUBE_TIMEOUT
 unexport CATALOG_CLIENT_SKILL_SESSION_DIR
-unexport MONITORING_CONTEXT MONITORING_NAMESPACE MONITORING_RELEASE MONITORING_VALUES MONITORING_COMPONENT MONITORING_PORT
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -522,6 +521,7 @@ MONITORING_RELEASE ?= catalog-monitoring
 MONITORING_VALUES ?=
 MONITORING_COMPONENT ?= grafana
 MONITORING_PORT ?= 13000
+unexport MONITORING_CONTEXT MONITORING_NAMESPACE MONITORING_RELEASE MONITORING_VALUES MONITORING_COMPONENT MONITORING_PORT
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Coverage gates
@@ -980,7 +980,7 @@ test-unit: ## Run isolated Go units, including Minikube helpers without a cluste
 
 # Keep each owner's imports in its own interpreter. Helm has only functional
 # tests and retains its existing explicit selection.
-PYTHON_UNIT_DIRS := ci clientcompat demo embeddings formal functional hooks interoperability mcp-scanner monitoring packaging performance pgbouncer sdk search-relevance vscode
+PYTHON_UNIT_DIRS := ci clientcompat demo embeddings formal functional hooks interoperability mcp-scanner minikube monitoring packaging performance pgbouncer sdk search-relevance vscode
 test-tooling-unit: ## Run isolated Python helper tests in their owning directories
 	@set -eu; test -n "$(PYTHON_UNIT_DIRS)" || { echo "No Python unit owners selected" >&2; exit 1; }; \
 		unit_coverage=$(call shell-quote,$(TOOLING_PYTHON_COVERAGE_DIR)); \
@@ -1887,10 +1887,10 @@ test-docs-pdf: ## Qualify PDF export with the installed browser and local PDF in
 docs-site-check: ## Lint JS, check Astro, test root/base docs builds; leave root output ready to preview
 	cd documentation && ASTRO_TELEMETRY_DISABLED=1 npm run check
 
-# Preserve copied upstream Markdown; the corpus guide remains in this audit.
+# Exclude private GitHub issue drafts and copied upstream Markdown; local trackers and the corpus guide remain in this audit.
 # Adapter units own its checksum and complete-inventory checks.
 docs-check: ## Lint Markdown and audit documentation plus tracked workflow defaults
-	"$(MARKDOWNLINT)" --dot --ignore .venv --ignore schemas/upstream --ignore samples/upstream --ignore internal/adapter/testdata/upstream/openai --ignore internal/adapter/testdata/upstream/huggingface --ignore internal/adapter/testdata/upstream/context7/plugin --ignore specs --ignore documentation/node_modules --ignore documentation/.astro --ignore documentation/dist --ignore documentation/src/content/docs/generated --ignore catalog-ui/node_modules --ignore catalog-ui/dist --ignore test/validation/node_modules --ignore test/interoperability/mcp/node_modules --ignore test/validation/.tools --ignore test/apigenerated/.tools --ignore test/sdk/.tools --ignore examples/langgraph/.venv --ignore sdk/typescript/node_modules --ignore sdk/rust/target --ignore test/sdk/rust/consumer/target --ignore examples/rust-catalog-report/target --ignore extensions/vscode/node_modules --ignore extensions/vscode/.tools --ignore extensions/vscode/dist --ignore test/vscode/.tools --ignore .tools --ignore output '**/*.md' '**/*.mdx'
+	"$(MARKDOWNLINT)" --dot --ignore .venv --ignore todo/epics --ignore schemas/upstream --ignore samples/upstream --ignore internal/adapter/testdata/upstream/openai --ignore internal/adapter/testdata/upstream/huggingface --ignore internal/adapter/testdata/upstream/context7/plugin --ignore specs --ignore documentation/node_modules --ignore documentation/.astro --ignore documentation/dist --ignore documentation/src/content/docs/generated --ignore catalog-ui/node_modules --ignore catalog-ui/dist --ignore test/validation/node_modules --ignore test/interoperability/mcp/node_modules --ignore test/validation/.tools --ignore test/apigenerated/.tools --ignore test/sdk/.tools --ignore examples/langgraph/.venv --ignore sdk/typescript/node_modules --ignore sdk/rust/target --ignore test/sdk/rust/consumer/target --ignore examples/rust-catalog-report/target --ignore extensions/vscode/node_modules --ignore extensions/vscode/.tools --ignore extensions/vscode/dist --ignore test/vscode/.tools --ignore .tools --ignore output '**/*.md' '**/*.mdx'
 	$(PYTHON) -B test/packaging/completion.py go --required TestDocumentationContracts -- $(GO) test ./internal/platform/runtime -run '^TestDocumentationContracts$$' -count=1 -json
 
 
@@ -2540,19 +2540,50 @@ monitoring-install monitoring-status monitoring-access monitoring-uninstall:
 		--values "$(MONITORING_VALUES)" --component "$(MONITORING_COMPONENT)" --port "$(MONITORING_PORT)"
 
 test-minikube-contract: ## Test the local Minikube harness without creating a cluster
+	$(PYTHON) -B test/packaging/completion.py python --directory test/minikube --pattern 'test_unit_flux_*.py'
+	$(PYTHON) -B test/packaging/completion.py python --directory test/minikube --pattern 'test_unit_argocd.py'
+	$(PYTHON) -B test/packaging/completion.py python --directory test/minikube --pattern 'test_functional_argocd_lab.py'
 	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GO) test -tags=minikube,functional ./test/minikube -shuffle=on -count=1
 
-define run_minikube_scenario
+define minikube_environment
 	CATALOG_MINIKUBE_BIN="$(MINIKUBE)" CATALOG_KUBECTL_BIN="$(KUBECTL)" CATALOG_HELM_BIN="$(HELM)" CATALOG_CONTAINER_ENGINE_BIN="docker" \
 	CATALOG_MINIKUBE_VERSION="$(MINIKUBE_VERSION)" CATALOG_MINIKUBE_KUBERNETES_VERSION="$(MINIKUBE_KUBERNETES_VERSION)" \
 	CATALOG_MINIKUBE_DRIVER="$(MINIKUBE_DRIVER)" CATALOG_MINIKUBE_CONTAINER_RUNTIME="$(MINIKUBE_CONTAINER_RUNTIME)" \
 	CATALOG_MINIKUBE_BASE_IMAGE="$(MINIKUBE_BASE_IMAGE)" CATALOG_MINIKUBE_POSTGRES_IMAGE="$(MINIKUBE_POSTGRES_IMAGE)" \
 	CATALOG_MINIKUBE_PRELOAD_ARCHIVE="$(MINIKUBE_PRELOAD_ARCHIVE)" CATALOG_MINIKUBE_TIMEOUT="$(MINIKUBE_TIMEOUT)" \
-	GOTOOLCHAIN=$(GO_TOOLCHAIN) $(GO) run -tags=minikube ./test/minikube --scenario $(1) $(2)
+	GOTOOLCHAIN=$(GO_TOOLCHAIN)
+endef
+
+define run_minikube_scenario
+	$(minikube_environment) $(GO) run -tags=minikube ./test/minikube --scenario $(1) $(2)
 endef
 
 test-minikube: helm-check test-minikube-contract ## Install and exercise the chart in an owned single-node Minikube cluster
 	$(call run_minikube_scenario,basic)
+
+.PHONY: argocd-tools-install argocd-up argocd-status argocd-down test-minikube-argocd
+argocd-tools-install: ## Prepare the pinned Argo CD CLI, install manifest, images and Kubernetes preload
+	CATALOG_MINIKUBE_PRELOAD_ARCHIVE="$(MINIKUBE_PRELOAD_ARCHIVE)" $(PYTHON) -B test/minikube/fixtures/argocd/install.py
+
+argocd-up argocd-status argocd-down test-minikube-argocd: export CATALOG_ARGOCD_PYTHON := $(subst ',,$(PYTHON))
+argocd-up: ## Start or inspect the private retained Argo CD Minikube lab
+	$(minikube_environment) $(PYTHON) -B test/minikube/fixtures/argocd/lab.py up
+
+argocd-status: ## Show the retained lab's native Application, workload state and loopback URLs
+	$(minikube_environment) $(PYTHON) -B test/minikube/fixtures/argocd/lab.py status
+
+argocd-down: ## Delete the verified Argo CD lab and its synthetic PostgreSQL data
+	$(minikube_environment) $(PYTHON) -B test/minikube/fixtures/argocd/lab.py down
+
+test-minikube-argocd: helm-check test-minikube-contract ## Qualify native Argo CD installation, maintenance and forward recovery in a fresh profile
+	$(call run_minikube_scenario,argocd)
+
+.PHONY: flux-tools-install test-minikube-flux
+flux-tools-install: ## Cache the pinned Flux controller manifest and images for the Minikube handoff test
+	$(PYTHON) -B test/minikube/fixtures/flux/install.py
+
+test-minikube-flux: helm-check test-minikube-contract ## Qualify native Flux suspension, coordinated upgrade and hook-safe resumption in an owned cluster
+	$(call run_minikube_scenario,flux)
 
 test-minikube-backup-restore: helm-check test-minikube-contract ## Restore a full logical backup into fresh PostgreSQL and recover the owned Helm deployment
 	$(call run_minikube_scenario,backup-restore)

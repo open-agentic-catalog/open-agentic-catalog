@@ -293,7 +293,7 @@ helm upgrade --install catalog-monitoring \
   --values monitoring-values.yaml --set enabled=true --wait --timeout 5m
 ```
 
-The equivalent wrapper explicitly sets `enabled=true` after loading the values file. It requires explicit context and namespace and refuses to operate on an existing release of a different chart:
+The Make commands work with Helm 3.15+ and Helm 4. Select the context and namespace explicitly. On an existing release they check that Helm records the chart name as `open-agentic-catalog-monitoring`. The install command sets `enabled=true` after loading your values file.
 
 ```sh
 make monitoring-install MONITORING_CONTEXT=my-context \

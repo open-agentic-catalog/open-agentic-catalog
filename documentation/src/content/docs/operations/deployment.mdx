@@ -8,6 +8,8 @@ Add optional monitoring through the [Compose overlay](../guides/performance-and-
 
 Monitoring data and credentials stay separate from Catalog PostgreSQL, and worker metrics stay off the product Service and ingress. Operators can use either option or their existing monitoring. They own production discovery, network access, infrastructure collectors, retention and alerting.
 
+Deployments managed by Argo CD use the [manual Application sync procedure](argocd.mdx).
+
 ## Managed container platforms
 
 These guides describe deployment without a Kubernetes cluster that you must operate. Each uses the provider's CLI and a managed PostgreSQL service:
@@ -61,7 +63,7 @@ See [logical applications and data](../architecture/deployment.mdx#logical-appli
 
 Both charts declare `kubeVersion: ">=1.34.0-0"`. Helm rejects older clusters. The `-0` permits normal vendor suffixes and also accepts prerelease version strings; accepting a version string does not make an upstream alpha, beta or release candidate a recommended production release. No distribution-specific version allowlist is used.
 
-The charts use standard `v1`, `apps/v1`, `batch/v1` and `policy/v1` resources, plus `networking.k8s.io/v1` for optional UI Ingress/NetworkPolicy and `rbac.authorization.k8s.io/v1` for enabled monitoring discovery. Optional replica spreading requires labeled nodes and the default-enabled `MatchLabelKeysInPodTopologySpread` feature. Its selector merging is also default-enabled in 1.34; keep the standard feature behavior when selecting that option. See [Kubernetes topology spread](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/).
+The application chart uses `v1`, `apps/v1`, `batch/v1` and `policy/v1` resources. Its optional UI and MCP Ingresses and its UI and PgBouncer NetworkPolicies use `networking.k8s.io/v1`. The separate monitoring chart uses namespaced `rbac.authorization.k8s.io/v1` resources for Pod discovery. Optional replica spreading requires labeled nodes and the default-enabled `MatchLabelKeysInPodTopologySpread` feature. Its selector merging is also default-enabled in 1.34; keep the standard feature behavior when selecting that option. See [Kubernetes topology spread](https://kubernetes.io/docs/concepts/scheduling-eviction/topology-spread-constraints/).
 
 Admission policies must allow the documented non-root workloads, and selected NetworkPolicies require an enforcing network implementation. Existing persistent-volume claims are required only when monitoring persistence is selected. Neither chart requires a Kubernetes Operator, CRD or a particular cloud provider.
 
@@ -143,11 +145,19 @@ This overlay leaves ingress, network policy and external infrastructure to the s
 
 The example requires at least two eligible nodes with the selected hostname labels. Hard spread can leave a replacement Pending when only one eligible worker node survives. Check the available capacity and required service level before choosing this behavior. The [maintained topology scenario](#maintained-local-minikube-verification) tests that degraded state with two API and two worker replicas. It does not qualify this overlay for an operator's infrastructure.
 
-For the illustrative [direct PostgreSQL budget](database-roles.mdx#direct-postgresql-example), retain maximum counts of three API, two worker and two UI replicas. These limits are operator constraints; the values above set desired counts only. Raising the worker and UI desired counts to two stays within those maxima. It does not increase the worksheet's maximum connection ceiling.
+The [direct PostgreSQL budget](database-roles.mdx#direct-postgresql-example) allows up to three API, two worker and two UI replicas. The overlay sets the desired counts to two per role. Operators enforce the maxima separately.
 
 Use the [complete worksheet](database-roles.mdx#replica-and-dependency-budget) before accepting the six-connection pool choice. It includes surge, terminating old processes, direct owner/backup/monitoring clients, fault headroom and PostgreSQL reserves. The example permits 72 runtime connections at maximum overlap, not only the 24 allowed by its four steady-state backend pools. Check pool waits and Job heartbeat progress against the selected workload. UI capacity comes from HTTP admission and issuer/API limits, with no SQL allocation.
 
-Validate the complete values with `helm lint --strict` and render them with `helm template --kube-version 1.34.0`. Review the resulting workloads, references, probes and placement constraints. Follow the [coordinated deployment procedure](maintenance.mdx#coordinated-release-deployment) for installation or release changes.
+Merge the placement settings into your [application values file](../../../../../deployments/helm/open-agentic-catalog/README.md#install-or-upgrade). Use that file for both offline checks. These examples render the source chart at its minimum Kubernetes version:
+
+```sh
+chart=deployments/helm/open-agentic-catalog
+helm lint --strict --kube-version 1.34.0 --values catalog-values.yaml "$chart"
+helm template catalog "$chart" --namespace catalog --kube-version 1.34.0 --values catalog-values.yaml
+```
+
+Review the resulting workloads, Secret references, probes and placement constraints. Follow the [coordinated deployment procedure](maintenance.mdx#coordinated-release-deployment) to install or upgrade.
 
 ### Use an external API autoscaler
 
@@ -629,7 +639,13 @@ Permit TCP port 53 to the selected DNS service. Keep required UDP rules for clie
 
 Run `make test-minikube-contract` for the cluster-free harness tests. Run `make test-minikube` for the single-node Helm installation and retained-state reconfiguration flow, and `make test-minikube-topology` for the three-node replica, disruption, drain, and Calico NetworkPolicy flow. Use `make test-minikube-upgrade` for focused cross-node upgrade ordering, failure/retry and retained-state qualification; it uses the same topology harness but stops before the separate network-policy/federation/disruption campaign. Its report sets `upgradeOnly: true` and does not claim a full topology pass. The cluster runs are intentionally outside `make check` and `make verify` because they build images and create local clusters.
 
+For a Flux-managed application release, follow the [standalone HelmRelease maintenance handoff](maintenance.mdx#hand-off-a-standalone-flux-helmrelease). To rehearse it locally, run `make flux-tools-install` and then `make test-minikube-flux`. See the [fixture prerequisites](../../../../../test/minikube/fixtures/flux/README.md).
+
+For a standalone Argo CD Application, run `make argocd-tools-install` and then `make test-minikube-argocd` to exercise installation, manual upgrades and recovery in a disposable profile. To keep a lab open for inspection, follow the [Argo CD lab instructions](argocd.mdx#reproduce-locally).
+
 The topology test also checks the in-cluster API Service route before API eviction. A restricted client must observe both API processes over separate connections. A denied control must time out against the same ClusterIP. See the [route checks and limits](../../../../../test/minikube/README.md#drain-and-disruption-qualification). The topology scenario also checks retained Job reads and command replay through the Service while one API drains. See the linked test guide for the controlled interval and limits.
+
+Run `make test-minikube-ui` to check the optional UI's subpath, session continuity across two Pods and removal while the backend stays available. Run `make test-minikube-monitoring` to check the [monitoring companion](helm-monitoring.mdx#verification-and-reuse), including Pod discovery, dashboard queries and retained storage. Run one cluster scenario at a time. Each creates and removes its own profile.
 
 Use `make test-minikube-replicas` for three UI, three API and three worker replicas sharing PostgreSQL on one disposable node. It verifies concurrent commands, retained state and sessions after process replacement, and short mixed-load batches. See [replica integrity and short load](../contributing/testing.md#replica-integrity-and-short-load) for commands, report interpretation and the distinction from node-loss, browser and scale testing. It uses the same minimum host capacity as the basic profile below and does not change chart replica defaults.
 
@@ -646,7 +662,7 @@ See [inotify limits for local clusters](#inotify-limits-for-local-clusters) if a
 
 Each invocation creates a collision-resistant profile under a temporary Minikube home and kubeconfig, an exact Docker network, short-lived credentials and OIDC tokens, local image aliases, and loopback port forwards. Every Minikube, kubectl, and Helm command names that profile or context. The harness refuses incompatible tools, mutable dependency inputs, insufficient declared capacity, and pre-existing invocation names; prints bounded diagnostics on failure and a JSON identity and scenario report on success; and deletes only its own cluster, network, image tags, port forwards, and temporary files. Teardown gives each resource class a fresh bounded context, so one failed or timed-out cleanup step cannot suppress the remaining owned cleanup. The harness never reads, changes, or deletes another Minikube profile or the caller's current context.
 
-The single-node scenario proves a deliberately failed migration hook leaves the schema untouched and no runtime Deployment, then corrects the missing database role and safely retries the release. Every running application Pod must use the exact configuration digest recorded after the local image build. Checks cover migration reconciliation, hook cleanup, restricted admission and separate tokenless API, worker and migration identities. They require no chart-created RBAC and verify deterministic OIDC membership resolution under the local test profile.
+The single-node scenario first names a nonexistent API database role in the chart values. It verifies that the migration hook fails before the schema changes or either runtime Deployment starts. It then retries the release with the correct role name. The harness builds its own application image and compares each running API and worker container's Kubernetes `imageID` with that build's Docker image ID. Checks cover migration reconciliation, hook cleanup, restricted admission and separate tokenless API, worker and migration identities. They require no chart-created RBAC and verify deterministic OIDC membership resolution under the local test profile.
 
 They cover API/worker health, product-port isolation, served version/OpenAPI identity and the governed smoke workflow. Pod recreation must retain state. One checksum change must roll Pods; an identical Helm reapply must not.
 

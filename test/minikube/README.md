@@ -28,7 +28,7 @@ From the repository root, `make test-minikube-contract` runs harness tests witho
 
 The monitoring scenario then installs a separate collector namespace with an explicit target namespace and release. It checks live Pod read permissions, denied Secret/node access, credential mounts and selection with decoys in both namespaces. Each current API/worker Pod must supply a sample less than 20 seconds old, using a five-second scrape interval. An unsatisfied readiness gate verifies collection from running unready API Pods, followed by readiness restoration. The scenario removes only its cross-namespace discovery binding and restarts Prometheus to clear the existing watch. It requires an explicit list denial, no discovered targets and no new samples, while historical samples remain readable. After binding restoration, all four current Pods must supply samples newer than the restoration. Catalog readiness, retained search results and Pod identities remain unchanged during the failure. Disable/re-enable and uninstall checks verify removal in both namespaces while preserving the external Secret and two bound PVCs.
 
-The scenario uses dotted Secret and PVC names to check Kubernetes admission, exact chart references and retained storage throughout removal and reinstallation.
+The scenario uses dotted Secret and PVC names to check Kubernetes admission, exact chart references and retained storage throughout removal and reinstallation. It reads release status through Make and uses the monitoring installer for upgrades, removal and fresh installation. It also checks that the application coordinator refuses the monitoring release name while the disabled chart owns no workloads.
 
 Use the [Minikube prerequisites](../../documentation/src/content/docs/operations/deployment.mdx#maintained-local-minikube-verification) for exact host, tool, cached-image, resource and version inputs. Do not invoke the harness against an existing kubeconfig as a shortcut.
 
@@ -191,6 +191,16 @@ The caller reopens its Service port-forward after old Pods are drained. These ar
 
 Use `make test-minikube-upgrade` for only the cross-node coordinated-upgrade qualification. It reuses the topology scenario, pinned prerequisites, complete upgrade assertions and independent cleanup, then stops before the separate UI-policy/federation/disruption checks. Its JSON report explicitly sets `upgradeOnly: true`; it is not a full topology pass. `make test-minikube-topology` still executes both upgrade and broader topology checks.
 
+## Flux maintenance handoff
+
+Run `make flux-tools-install` to prepare the [pinned Flux inputs](fixtures/flux/README.md), then run `make test-minikube-flux`. The test installs source-controller and helm-controller in an isolated single-node cluster. A local Helm repository serves the exact initial and target archives. The target uses a second locally built Catalog image with a distinct build identity. The test verifies its running image ID on both API and worker Pods. The release uses two API and two worker replicas, a dedicated PostgreSQL database, a standalone HelmRelease and a manually managed HPA.
+
+The scenario holds the first migration Job pending with a namespace Pod quota. It requests Flux suspension during the install and observes the completed Helm operation and a fresh controller acknowledgement after the quota is removed. A later preflight refuses the targeting HPA without disturbing existing Pods. An HPA for a different Deployment in the same namespace keeps its identity and configuration through maintenance and resumption. The first coordinated upgrade checks the owner migration barrier across the image change. Migration and startup faults recover with the frozen target values.
+
+During handback a temporary quota rejects new Jobs in the disposable test namespace. Flux must record the intended extra revision with upgrade hooks disabled. A reader reopens a release saved before maintenance and checks the exact response bytes before and after handback. A second reconcile with hooks enabled must leave the revision and ready Pods unchanged. In a separate control, ordinary resume attempts the owner Job and the quota refuses it. The target stays running and rollback and uninstall remain disabled. HPA metrics and provisioning belong to the separate autoscaling scenario.
+
+The harness removes the owned profile and its resources after either outcome. Operators should use the [maintenance procedure](../../documentation/src/content/docs/operations/maintenance.mdx#hand-off-a-standalone-flux-helmrelease) for a retained installation.
+
 ## Logical backup and restore
 
 Run `make test-minikube-backup-restore` with the same pinned tools, cached images and optional preload archive. It creates a separate one-node profile with the application chart, two PostgreSQL instances and distinct persistent volumes. It uses no retained cluster, database or credentials.
@@ -256,3 +266,7 @@ The test publishes Agent, MCP Server and Skill records with independent author, 
 Both API/worker pairs then restart. Native records and synchronized observations must survive in their separate databases. B then reads A's authenticated publication through a separate TLS Service using an ordinary Kubernetes Secret. When B replaces A's token with one signed by B's key, A refuses it and B preserves the last complete inventory. A fresh valid generation must restore it. The test waits for each revision on both Pod mounts, checks both Pod identities and restart counts, and verifies the terminal Job and exact indexed release. The final report also records distinct persistent-claim identities. The existing supervisor owns cluster, process, image and temporary-file cleanup.
 
 This scenario qualifies federation, not database replication or node-loss availability. The separate four-kind `make test-federation-peers` Compose journey adds Plugin archive authoring and API/CLI/browser continuation checks. Its development-only private archive exception is not enabled in Helm.
+
+## Argo CD deployment and upgrades
+
+Prepare the standard Minikube tools, base image and PostgreSQL image, then run `make argocd-tools-install` for the [pinned native inputs](fixtures/argocd/README.md) and Kubernetes preload. `make test-minikube-argocd` builds two Catalog images from the same source, starts one private Calico cluster, serves immutable chart commits from its read-only TLS Git fixture and performs native Application syncs against real PostgreSQL. The retained `argocd-up`, `argocd-status` and `argocd-down` targets use a separate supervisor and profile. Teardown removes the lab database. See the [operator procedure](../../documentation/src/content/docs/operations/argocd.mdx).

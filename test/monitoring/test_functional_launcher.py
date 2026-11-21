@@ -7,6 +7,19 @@ import launcher
 
 
 class MonitoringSafety(unittest.TestCase):
+    def test_make_supplies_helm_defaults_without_an_env_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.py"
+            probe.write_text("import json, sys\nprint(json.dumps(sys.argv[1:]))\n")
+            result = subprocess.run(["make", "--no-print-directory", "-s", "monitoring-access", "CATALOG_ENV_FILE=/dev/null",
+                                     "MONITORING_CONTEXT=owned", "MONITORING_NAMESPACE=test", "PYTHON=python3 " + str(probe)],
+                                    cwd=launcher.ROOT, env=launcher.isolated_environment(), capture_output=True, text=True, timeout=15, check=True)
+            arguments = json.loads(result.stdout)
+            self.assertEqual(arguments[:2], ["test/monitoring/helm.py", "access"])
+            self.assertEqual(arguments[arguments.index("--release") + 1], "catalog-monitoring")
+            self.assertEqual(arguments[arguments.index("--component") + 1], "grafana")
+            self.assertEqual(arguments[arguments.index("--port") + 1], "13000")
+
     def test_make_exports_env_file_settings_and_command_line_precedence(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

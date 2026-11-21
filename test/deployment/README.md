@@ -8,7 +8,7 @@ The caller must select an existing Kubernetes context/namespace, release, local 
 
 Target chart/values are copied to a private temporary directory before validation and removed on exit. Retain your reviewed original artifacts and image digests for recovery; this directory is not a deployment journal.
 
-The tool renders and performs a server-connected Helm dry-run, verifies existing Deployment ownership/names/selectors, and rejects HPAs targeting either runtime. The UI and PgBouncer Deployments are separate from the two drain targets. It scales API to zero and waits for all selected Pods to disappear, then does the same for workers. Only then does Helm run the migration hook and deploy the target.
+For an existing release, the coordinator compares the installed chart name from Helm metadata with the local chart. It also renders and performs a server-connected Helm dry-run, verifies existing Deployment ownership/names/selectors, and rejects HPAs targeting either runtime. The UI and PgBouncer Deployments are separate from the two drain targets. It scales API to zero and waits for all selected Pods to disappear, then does the same for workers. Only then does Helm run the migration hook and deploy the target.
 
 It verifies/restores the configured replica counts and waits for rollout readiness. `helm-deploy-check` performs the same preflight without draining or applying. It does not prove database admission, Secret contents or runtime readiness.
 
@@ -26,6 +26,7 @@ Inspect remaining Pods/hooks yourself after interruption or failed cleanup. No `
 - `make helm-check` includes real local Helm package/render tests for defaults, UI and PgBouncer values under the `helm` tag.
 - `make test-minikube` uses the compiled coordinator for installation, failed-hook recovery and retained upgrades with two API/worker replicas. It tests preflight refusal without Pod replacement, a real ledger barrier proving zero old Pods while the hook waits, failed migration with both roles stopped, startup failure after successful migration, retry from zero with the configured count and repeat application preserving governed smoke state.
 - `make test-minikube-autoscaling` adds real active/inactive targeting-HPA refusal, an unaffected same-namespace HPA and Pod, the coordinated-upgrade failure controls and readiness before HPA reinstatement. No external HPA recreator runs in that fixture.
+- `make test-minikube-flux` exercises the coordinator with a real, suspended HelmRelease. It verifies the migration, retained data and the additional revision Flux creates when it takes the release back. See the [fixture setup and qualification](../minikube/README.md#flux-maintenance-handoff).
 - Existing PostgreSQL integration tests own checksums, advisory locking, atomic migration failure and exact-grant reconciliation. The coordinator does not reimplement those assertions.
 
 Local development uses `make compose-up`: build and validate both target runtime configurations before stopping API then worker; existing migration/provisioning dependencies gate startup, and Compose waits for healthy services. Native launcher units cover validation, drain and startup failure ordering; packaged tests retain real database/runtime verification.

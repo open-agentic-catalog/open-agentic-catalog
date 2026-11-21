@@ -13,6 +13,13 @@ import (
 	"time"
 )
 
+func (h *harness) deploymentChart() string {
+	if h.coordinatorChart != "" {
+		return h.coordinatorChart
+	}
+	return filepath.Join(h.options.repositoryRoot, "deployments/helm/open-agentic-catalog")
+}
+
 // deployCatalog invokes the same operator entry point as make helm-deploy.
 func (h *harness) deployCatalog(values, timeout string) error {
 	if h.vault != nil {
@@ -26,7 +33,7 @@ func (h *harness) deployCatalog(values, timeout string) error {
 	}
 	_, err := h.run("coordinate selected Catalog deployment", executable,
 		"--context", h.profile, "--namespace", h.catalogNamespace(), "--release", releaseName,
-		"--chart", filepath.Join(h.options.repositoryRoot, "deployments/helm/open-agentic-catalog"),
+		"--chart", h.deploymentChart(),
 		"--values", values, "--helm", h.options.helm, "--kubectl", h.options.kubectl, "--timeout", timeout)
 	return err
 }
@@ -90,6 +97,29 @@ func (h *harness) verifyCoordinatedUpgrade(runID string, initial []byte) error {
 	if err := h.verifyUpgradeBarrier(good); err != nil {
 		return err
 	}
+	if err := h.verifyUpgradeFaults(runID, initial, good); err != nil {
+		return err
+	}
+	// Restore the selected scenario's baseline inputs for its remaining checks.
+	baseline, err := h.writeHelmValues("initial", "catalog_api")
+	if err != nil {
+		return err
+	}
+	if err = h.deployCatalog(baseline, "4m"); err != nil {
+		return err
+	}
+	if h.options.scenario == "topology" {
+		if err = h.verifyUpgradeReadback(runID, initial); err != nil {
+			return err
+		}
+		h.report.Checks = append(h.report.Checks, "coordinated-upgrade-retains-cross-node-replicas")
+	}
+	return nil
+}
+
+// verifyUpgradeFaults injects invalid inputs, then recovers using the caller's exact target.
+func (h *harness) verifyUpgradeFaults(runID string, initial []byte, good string) error {
+	var err error
 	before := map[string][]podIdentity{}
 	for _, role := range []string{"api", "worker"} {
 		before[role], err = h.pods(role)
@@ -167,20 +197,6 @@ func (h *harness) verifyCoordinatedUpgrade(runID string, initial []byte) error {
 		if err = h.verifyUpgradeReadback(runID, initial); err != nil {
 			return err
 		}
-	}
-	// Restore the selected scenario's baseline inputs for its remaining checks.
-	baseline, err := h.writeHelmValues("initial", "catalog_api")
-	if err != nil {
-		return err
-	}
-	if err = h.deployCatalog(baseline, "4m"); err != nil {
-		return err
-	}
-	if h.options.scenario == "topology" {
-		if err = h.verifyUpgradeReadback(runID, initial); err != nil {
-			return err
-		}
-		h.report.Checks = append(h.report.Checks, "coordinated-upgrade-retains-cross-node-replicas")
 	}
 	h.report.Checks = append(h.report.Checks, "coordinated-preflight-preserves-running-replicas", "coordinated-migration-failure-stops-both-roles", "coordinated-startup-failure-no-rollback", "coordinated-retry-restores-two-replicas-and-retained-state")
 	return nil
@@ -290,7 +306,7 @@ func (h *harness) verifyUpgradeBarrier(values string) (resultErr error) {
 	deploymentWaited := false
 	go func() {
 		_, err := h.runWithInput(deployment, "deploy behind controlled ledger barrier", nil, filepath.Join(h.temporary, "catalog-deploy"),
-			"--context", h.profile, "--namespace", h.catalogNamespace(), "--release", releaseName, "--chart", filepath.Join(h.options.repositoryRoot, "deployments/helm/open-agentic-catalog"),
+			"--context", h.profile, "--namespace", h.catalogNamespace(), "--release", releaseName, "--chart", h.deploymentChart(),
 			"--values", values, "--helm", h.options.helm, "--kubectl", h.options.kubectl, "--timeout", "1m")
 		completed <- err
 	}()

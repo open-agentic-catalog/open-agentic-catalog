@@ -2,7 +2,7 @@
 
 | Chart | Contents | Installation |
 | --- | --- | --- |
-| [open-agentic-catalog/](open-agentic-catalog/README.md) | Catalog API, worker, migration hook, optional UI/session-mode PgBouncer, configuration and role-specific identities. | Install the source chart or its packaged archive with deployment-specific values and existing database/identity inputs. Enable the separate-image UI with `ui.enabled=true` and its required session/OIDC inputs. |
+| [open-agentic-catalog/](open-agentic-catalog/README.md) | Catalog API, worker, migration hook, optional UI and session-mode PgBouncer. | Use the [application install procedure](open-agentic-catalog/README.md#install-or-upgrade) with the source chart or its archive. On upgrades, the deployment coordinator drains old API and worker Pods before the migration hook runs. |
 | [open-agentic-catalog-monitoring/](open-agentic-catalog-monitoring/README.md) | Optional Prometheus, Grafana and the shared Catalog dashboard. | Package first to include the shared assets, then install as a separate release with `enabled=true`; the default renders no resources. |
 
 Both charts require Kubernetes 1.34+. The application chart has no dependency on the monitoring chart. Neither installs PostgreSQL or an identity provider.

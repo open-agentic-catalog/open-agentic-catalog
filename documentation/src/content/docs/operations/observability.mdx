@@ -405,31 +405,31 @@ The service does not emit PostgreSQL replica, backup, storage, ingress, CDN, nod
 
 ### Choose monitoring queries and alerts
 
-Start with these expressions from the shipped dashboard. They select deployment `local` and a one-minute rate window without Grafana variables. Replace the deployment label with your installation's value. Select a window that contains enough scrapes for your collection interval.
+Start with these PromQL expressions from the shipped dashboard. They select deployment `local` and a one-minute rate window without Grafana variables. Replace the deployment label with your installation's value. Select a window that contains enough scrapes for your collection interval.
 
 Keep availability visible alongside dependent measurements. Every dependent query below checks the reporting target's scrape result. Database-global Job and outbox queries also require that worker's available snapshot. One healthy replica cannot validate another replica's missing collection.
 
 **Check scrape availability.** A value of 0 means the latest scrape failed. An absent target is missing data; compare against your expected target inventory.
 
-```promql
+```text
 up{catalog_deployment=~"local",catalog_role=~"api|worker"}
 ```
 
 **Check worker snapshot availability.** A value of 0 means the worker cannot collect its database snapshot. A successful scrape alone does not establish snapshot availability.
 
-```promql
+```text
 (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"}) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
 ```
 
 **Investigate sustained product failures.** This is a per-second rate of product 5xx responses across successfully scraped processes. Observed traffic without 5xx responses produces zero. Missing traffic remains unavailable.
 
-```promql
+```text
 (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~"local",catalog_role=~"api|worker",status_class="5xx",route!~"/(metrics|livez|readyz|startupz|status|version|openapi.*)"}[1m]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1))) or on (catalog_deployment,catalog_role) (0 * (sum by (catalog_deployment,catalog_role) (rate(open_agentic_catalog_http_responses_total{catalog_deployment=~"local",catalog_role=~"api|worker",route!~"/(metrics|livez|readyz|startupz|status|version|openapi.*)"}[1m]) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1))))
 ```
 
 **Check database pool wait.** Each result is a pool wait rate in seconds per second for one process. Compare it with request deadlines and pool capacity.
 
-```promql
+```text
 (rate(open_agentic_catalog_postgresql_pool_empty_acquire_seconds_total{catalog_deployment=~"local",catalog_role=~"api|worker"}[1m])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
 ```
 
@@ -437,25 +437,25 @@ Also inspect increases in `open_agentic_catalog_postgresql_pool_acquire_canceled
 
 **Check the oldest runnable Job.** This database-global age is repeated by reporting workers. Keep the per-worker results; do not sum them. Increasing age can indicate stalled eligible work.
 
-```promql
+```text
 (open_agentic_catalog_job_oldest_runnable_age_seconds{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
 ```
 
 **Check pending notification age.** This is the age of the oldest unacknowledged outbox event. Check worker progress and delivery configuration before treating age alone as a receiver failure.
 
-```promql
+```text
 (open_agentic_catalog_outbox_oldest_pending_age_seconds{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"}) and on (job,instance,catalog_deployment,catalog_role) (open_agentic_catalog_operational_snapshot_available{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"} == 1) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
 ```
 
 **Investigate housekeeping failures.** This rate counts failed cleanup batches by class and reporting worker. Read the class outcome and safe diagnostics before changing retention.
 
-```promql
+```text
 (rate(open_agentic_catalog_housekeeping_batches_total{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker",outcome="failed"}[1m])) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
 ```
 
 **Check housekeeping freshness.** This measures time since each reporting worker last completed a successful class check. Never-observed success has no age value. A successful check can reclaim zero rows.
 
-```promql
+```text
 ((time() - open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"}) and (open_agentic_catalog_housekeeping_last_success_timestamp_seconds{catalog_deployment=~"local",catalog_role=~"api|worker",catalog_role="worker"} > 0)) and on (job,instance,catalog_deployment,catalog_role) (up{catalog_deployment=~"local",catalog_role=~"api|worker"} == 1)
 ```
 

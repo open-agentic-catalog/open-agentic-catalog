@@ -41,6 +41,9 @@ type gatewayState struct {
 }
 
 func (h *harness) managedBuild() map[string]string {
+	if h.argoBuild != nil {
+		return h.argoBuild
+	}
 	if h.ans != nil {
 		return h.ans.report.Build
 	}

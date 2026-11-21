@@ -236,7 +236,7 @@ func TestDiagnosticRedactionCoversGeneratedSecretsAndTokens(t *testing.T) {
 }
 
 func TestHelmValuesKeepTopologyOptInAndSecretsReferenced(t *testing.T) {
-	for _, scenario := range []string{"basic", "topology", "monitoring", "tracing", "ui", "replicas"} {
+	for _, scenario := range []string{"basic", "topology", "monitoring", "tracing", "ui", "replicas", "flux", "argocd"} {
 		t.Run(scenario, func(t *testing.T) {
 			directory := t.TempDir()
 			harness := &harness{temporary: directory, suffix: "abcdef", application: "open-agentic-catalog:minikube-abcdef", postgres: "open-agentic-catalog:minikube-postgres-abcdef", options: options{scenario: scenario}}
@@ -261,7 +261,7 @@ func TestHelmValuesKeepTopologyOptInAndSecretsReferenced(t *testing.T) {
 			if got := enabled; got != (scenario == "topology") {
 				t.Fatalf("topology spread = %t", got)
 			}
-			wantReplicas := map[string]float64{"basic": 1, "topology": 2, "monitoring": 1, "tracing": 2, "ui": 1, "replicas": 3}[scenario]
+			wantReplicas := map[string]float64{"basic": 1, "topology": 2, "monitoring": 1, "tracing": 2, "ui": 1, "replicas": 3, "flux": 2, "argocd": 2}[scenario]
 			for _, role := range []string{"api", "worker"} {
 				configured, ok := values[role].(map[string]any)
 				if !ok || configured["replicas"] != wantReplicas {

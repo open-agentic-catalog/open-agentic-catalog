@@ -236,6 +236,8 @@ make test-ui
 
 `test-ui` runs the static and unit checks before starting the browser suite and exits nonzero if any stage fails. Dependencies and Chromium are installed explicitly, not during testing. Use `ui-check` or `ui-test` for faster iteration without launching a browser.
 
+On WSL, a stalled Wayland display can leave headless Chromium waiting for animation frames. Symptoms include screenshots timing out and a focused diagram ignoring the Right Arrow key. If you see this, run `env -u WAYLAND_DISPLAY make test-ui` or `env -u WAYLAND_DISPLAY make test-ui-compose`. This selects the headless rendering path for that invocation and preserves your desktop session.
+
 `ui-lint` checks maintained application and test TS/TSX, Node scripts and tool configuration with JavaScript/TypeScript rules, React hook checks, typed promise checks and selected Playwright/Testing Library rules. Warnings fail the gate. Generated OpenAPI declarations, build output and npm dependencies are excluded; no application screen is excluded.
 
 Prettier covers CSS and formatting. ESLint does not replace runtime validation, rendered accessibility checks or dependency scanning. The lint target does not download tools, apply fixes or write a cache.
