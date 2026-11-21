@@ -30,7 +30,10 @@ export async function verifyArtifact(
   id: string,
 ) {
   const type = response.headers.get("Content-Type");
-  if (!type || !/^[\w!#$&^_.+-]+\/[\w!#$&^_.+-]+(?:;[^\r\n]*)?$/.test(type))
+  if (
+    !type ||
+    !/^[\w!#$%&'*+.^`|~-]+\/[\w!#$%&'*+.^`|~-]+(?:[ \t]*;[^\r\n]*)?$/.test(type)
+  )
     throw new Error("Missing or invalid document media type.");
   const hash = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
   const hex = Array.from(hash, (byte) =>
