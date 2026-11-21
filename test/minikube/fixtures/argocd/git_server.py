@@ -36,7 +36,7 @@ class GitReader(BaseHTTPRequestHandler):
             self.send_error(400)
             return
         result = subprocess.run(
-            [*args, "/tmp/catalog.git"],
+            [*args, "/repository/catalog.git"],
             input=self.rfile.read(length),
             capture_output=True,
             env={**os.environ, "GIT_PROTOCOL": version},
@@ -54,7 +54,6 @@ class GitReader(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    subprocess.run(["git", "clone", "--bare", "/source/catalog.bundle", "/tmp/catalog.git"], timeout=30, check=True)
     server = ThreadingHTTPServer(("", 8443), GitReader)
     tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     tls.load_cert_chain("/tls/tls.crt", "/tls/tls.key")

@@ -14,7 +14,28 @@ spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 65534
+        fsGroup: 65534
         seccompProfile: {type: RuntimeDefault}
+      initContainers:
+        - name: prepare-repository
+          image: local-git-fixture
+          imagePullPolicy: Never
+          command: [sh, -ec]
+          args:
+            - |
+              # An interrupted init may leave a partial clone on this Pod's emptyDir.
+              rm -rf /repository/catalog.git
+              exec git clone --bare /source/catalog.bundle /repository/catalog.git
+          securityContext: &restricted
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: {drop: ["ALL"]}
+          resources: &gitResources
+            requests: {cpu: 10m, memory: 32Mi, ephemeral-storage: 16Mi}
+            limits: {cpu: 500m, memory: 128Mi, ephemeral-storage: 32Mi}
+          volumeMounts:
+            - {name: source, mountPath: /source, readOnly: true}
+            - {name: repository, mountPath: /repository}
       containers:
         - name: git
           image: local-git-fixture
@@ -22,20 +43,18 @@ spec:
           command: [python3, -B, /source/git_server.py]
           readinessProbe:
             tcpSocket: {port: 8443}
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities: {drop: ["ALL"]}
+          securityContext: *restricted
+          resources: *gitResources
           volumeMounts:
             - {name: source, mountPath: /source, readOnly: true}
             - {name: tls, mountPath: /tls, readOnly: true}
-            - {name: tmp, mountPath: /tmp}
+            - {name: repository, mountPath: /repository, readOnly: true}
       volumes:
         - name: source
           configMap: {name: fixture-source}
         - name: tls
           secret: {secretName: catalog-git-tls}
-        - name: tmp
+        - name: repository
           emptyDir: {sizeLimit: 16Mi}
 ---
 apiVersion: v1

@@ -271,7 +271,9 @@ class Campaign:
         self.k("create", "-f", "-", data=json.dumps(bundle), ns=ARGO)
         for obj in yaml.safe_load_all(Path(__file__).with_name("git.yaml").read_text()):
             if obj["kind"] == "Deployment":
-                obj["spec"]["template"]["spec"]["containers"][0]["image"] = self.images["aliases"]["git"]
+                pod = obj["spec"]["template"]["spec"]
+                for container in (*pod["initContainers"], *pod["containers"]):
+                    container["image"] = self.images["aliases"]["git"]
             self.k("create", "-f", "-", data=json.dumps(obj), ns=ARGO)
         for obj in (
             "deployment/catalog-git",

@@ -2,6 +2,8 @@
 
 [pins.json](pins.json) binds the Linux AMD64 CLI, upstream installation manifest, original image references and immutable registry digests. The local installer verifies the file checksums and caches the selected image platform. Runtime uses invocation-specific local tags and records their image configuration IDs. The Minikube baseline supplies Kubernetes, Calico, PostgreSQL and the Catalog dependency fixtures. The full Python image also provides Git for the read-only repository. No fixture Git commit is written to the project checkout.
 
+The Git fixture's init container clones the immutable bundle into a Pod-owned volume. The HTTPS server mounts the clone read-only and reuses it when the container restarts.
+
 | Input | Provenance and licensing |
 | --- | --- |
 | Argo CD v3.6.2, CLI, install manifest and controllers | [Argo CD at the pinned commit](https://github.com/argoproj/argo-cd/tree/8e8268ef2f3df99ca95663f5080fa6056f156805), Apache-2.0. The controller image bundles Helm, Git and OS packages with separate notices. |
