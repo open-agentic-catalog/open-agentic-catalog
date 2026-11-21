@@ -40,6 +40,19 @@ export default function Resources(props: WorkspaceProps) {
         description="Create and maintain locally governed Agents, MCP Servers, Skills and Plugins."
       >
         {!props.id &&
+          availablePermission(
+            props.access,
+            "resource.read",
+            "catalog.read",
+          ) && (
+            <a
+              className="button"
+              href={`${props.runtime.basePath}/listing-metadata-gaps`}
+            >
+              Missing Listing metadata
+            </a>
+          )}
+        {!props.id &&
           (
             [
               "resource.read",

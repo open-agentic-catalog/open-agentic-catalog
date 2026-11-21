@@ -2126,6 +2126,22 @@
   },
   {
     "consumption": "buffered",
+    "method": "list_listing_metadata_gaps",
+    "operation_id": "listListingMetadataGaps",
+    "response_excluded_statuses": [],
+    "response_kind": "json",
+    "response_media_type": "application/json",
+    "response_statuses": [
+      "200"
+    ],
+    "source_json_pointer": "/paths/~1api~1v1~1listing-metadata-gaps/get",
+    "source_method": "GET",
+    "source_operation_id": "listListingMetadataGaps",
+    "source_path": "/api/v1/listing-metadata-gaps",
+    "webhook": false
+  },
+  {
+    "consumption": "buffered",
     "method": "list_listing_releases",
     "operation_id": "listListingReleases",
     "response_excluded_statuses": [],

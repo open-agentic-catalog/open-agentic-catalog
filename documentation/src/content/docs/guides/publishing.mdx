@@ -28,6 +28,16 @@ Read scopes remain necessary for browser reads before and after a command. Listi
 
 Contributor, Reviewer and Publisher templates cover different tasks. Publication administrator is a separate tenant template; a Namespace Publisher cannot manage discovery snapshots. The tutorial below uses separate author, Reviewer and Publisher accounts. Independent review still requires a different retained principal, including for Tenant Administrators. A terminal review cannot be decided again. Existing immutable releases and discovery snapshots keep their own lifecycle checks.
 
+## Find missing metadata on released Listings
+
+Open **Authoring > Missing Listing metadata**. Select **Documentation URL**, **Support URL** or **License declaration**, then choose **Apply filters**. The report shows one row per current published or deprecated Listing missing any selected field. You can narrow the results by Resource kind or exact Namespace ID. All three declarations are optional. The report checks whether a value was supplied. A long license declaration still counts as present even when the Catalog summary omits its text. The report does not visit a URL or interpret a license.
+
+Select the Listing name to open its current Catalog record. Expand **Release references** for the exact Resource, Listing, release and released ListingRevision IDs. A reader with content access can also open the sealed revision. An author with edit access can choose **Edit current candidate** to work from the latest saved metadata. Another author may already have corrected the omission. If a save encounters a concurrent change, reopen the editor and review the new candidate before trying again.
+
+Saving a draft leaves the report unchanged. Submit the correction for review and publish the approved revision to clear the omission. Public discovery changes separately when a new snapshot is activated.
+
+For automation, call `GET /api/v1/listing-metadata-gaps?checks=documentation,support&kind=agent` on the authenticated Control API. Supply `namespaceId` to select one Namespace. Each row contains only the selected missing reasons. Reading requires `resource.read` in the Listing's Namespace and `catalog.read` when OAuth scopes are enforced. Use `nextCursor` with the same filters and page size (default 20, maximum 100). Releases can change while you page. Choose **Refresh from first page** to see the current selection again.
+
 ## Publisher approval and DNS evidence
 
 Publication approval permits a declared Publisher domain in the publication workflow. It does not establish legal rights or resource safety.

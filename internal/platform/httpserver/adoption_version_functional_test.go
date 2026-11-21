@@ -333,8 +333,28 @@ func TestHTTPVersionAdoptionAndExactRecovery(t *testing.T) {
 	setVersion("4.0")
 	fresh := selection()
 	freshOccurrence := occurrences(fresh)
-	if _, err := manager.SetStatus(ctx, sourceID, federation.SourcePaused, 1, federation.StatusChangeInput{Reason: "Pause before confirming the selected append"}); err != nil {
+	exactInventory := func() []federation.UpstreamChange {
+		t.Helper()
+		reply := requestJSON(t, server.URL, "GET", inventoryPath+"?observationId="+fresh.ID, "admin", "", "", nil)
+		requireStatus(t, reply, http.StatusOK)
+		requireControlSchema(t, "UpstreamChangePage", reply.body)
+		var page cursorPage[federation.UpstreamChange]
+		decodeResult(t, reply, &page)
+		if page.NextCursor != "" {
+			t.Fatal("exact observation lookup returned a continuation")
+		}
+		return page.Items
+	}
+	active := exactInventory()
+	if len(active) != 1 || active[0].Occurrence != freshOccurrence || active[0].Outcome != "unadopted_version" {
+		t.Fatal("active occurrence missing from exact inventory", active)
+	}
+	paused, err := manager.SetStatus(ctx, sourceID, federation.SourcePaused, 1, federation.StatusChangeInput{Reason: "Pause before confirming the selected append"})
+	if err != nil {
 		t.Fatal(err)
+	}
+	if rows := exactInventory(); len(rows) != 0 {
+		t.Fatal("saved selection remained eligible while source was paused", rows)
 	}
 	refused := map[string]any{"observationId": fresh.ID, "snapshotId": freshOccurrence.SnapshotID, "retrievalDigest": freshOccurrence.RetrievalDigest, "entryLocation": freshOccurrence.EntryLocation, "priorVersionRevisionId": target.PriorVersionRevisionID}
 	requireControlProblem(t, requestJSON(t, server.URL, "POST", path, "admin", "paused-fresh", "", refused), 412, catalog.CodePreconditionFailed)
@@ -342,6 +362,12 @@ func TestHTTPVersionAdoptionAndExactRecovery(t *testing.T) {
 	requireStatus(t, pausedReplay, 201)
 	if !bytes.Equal(pausedReplay.body, created.body) || pausedReplay.header.Get("Idempotency-Replayed") != "true" {
 		t.Fatal("paused replay changed result")
+	}
+	if _, err = manager.SetStatus(ctx, sourceID, federation.SourceActive, paused.Revision, federation.StatusChangeInput{Reason: "Resume the qualified source"}); err != nil {
+		t.Fatal(err)
+	}
+	if rows := exactInventory(); len(rows) != 1 || rows[0].Occurrence != freshOccurrence || rows[0].Target != active[0].Target || rows[0].Outcome != active[0].Outcome {
+		t.Fatal("resumed source lost the original retained selection", rows)
 	}
 	disabled, err := federation.NewManager(store, responses, serviceClock, id.Generator{}, federation.WithObservationAdopter(deps.Catalog))
 	if err != nil {

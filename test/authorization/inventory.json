@@ -3019,6 +3019,15 @@
       "currentAuthority": "Deployment opt-in; current source evidence and exact destination edit authority with companions. Additional sources.read OAuth ceiling applies before lookup, mutation and replay."
     },
     {
+      "operationId": "listListingMetadataGaps",
+      "method": "GET",
+      "path": "/api/v1/listing-metadata-gaps",
+      "policy": "search",
+      "oauthCeiling": "catalog.read",
+      "currentAuthority": "Current resource.read in each canonical Namespace before pagination",
+      "permissions": ["resource.read"]
+    },
+    {
       "operationId": "listValidationMaintenance",
       "method": "GET",
       "path": "/api/v1/validation-maintenance",
@@ -5251,6 +5260,13 @@
       "roleConstants": [],
       "source": "internal/federation/adoption_version.go",
       "policy": "adoption"
+    },
+    {
+      "package": "catalog",
+      "receiver": "Service",
+      "method": "ListListingMetadataGaps",
+      "source": "internal/catalog/listing_metadata.go",
+      "policy": "search"
     },
     {
       "package": "catalog",

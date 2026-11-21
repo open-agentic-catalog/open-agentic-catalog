@@ -1099,6 +1099,28 @@ async fn qualify_reviewed_corpus() {
         .iter()
         .find(|c| c["name"] == "context7-plugin")
         .unwrap();
+    let gaps = reader
+        .list_listing_metadata_gaps(
+            Some("license,support"),
+            None::<&str>,
+            Some(ResourceKind::Plugin),
+            None,
+            None::<&str>,
+        )
+        .await
+        .unwrap()
+        .data
+        .unwrap();
+    assert_eq!(gaps.items.len(), 1);
+    assert_eq!(gaps.items[0].release_id.to_string(), source["releaseId"]);
+    assert_eq!(
+        gaps.items[0].missing,
+        [
+            ListingMetadataGapMissingItem::Support,
+            ListingMetadataGapMissingItem::License
+        ]
+    );
+
     let release = target["releaseId"].as_str().unwrap();
     let publisher = Client::new(config(origin, Some("admin"))).unwrap();
     let impact = publisher

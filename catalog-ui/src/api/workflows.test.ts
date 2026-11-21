@@ -9,6 +9,7 @@ import type { operations } from "./schema";
 // Keep every API operation explicitly classified.
 const workflows = {
   listUpstreamChanges: "screen:upstream-changes",
+  listListingMetadataGaps: "screen:listing-metadata-gaps",
   listValidationMaintenance: "screen:validation-maintenance",
   listCollections: "screen:collections",
   createCollection: "screen:collections",

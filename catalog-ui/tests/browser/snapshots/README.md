@@ -1,6 +1,6 @@
 # Reviewed visual baselines
 
-The upstream changes inventory brings the API reference to 220 operations and 478 definitions. The two light API screenshots show the updated counts. The local Catalog record screenshots show the relationship sections, Follow Listing control, assessment, consumer handoff and MCP client controls.
+The API reference includes the released Listing metadata report and has 221 operations and 480 definitions. The two light API screenshots show the updated counts. The local Catalog record screenshots show the relationship sections, Follow Listing control, assessment, consumer handoff and MCP client controls.
 
 Release-withdrawal preview updates only `api-endpoints-light.png` and `api-definitions-light.png` for the added operation and its two response definitions. Reviewed differences contain only those contract totals. Layout and controls are unchanged.
 

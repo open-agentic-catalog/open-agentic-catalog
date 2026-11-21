@@ -449,10 +449,25 @@ it.each([
   },
 );
 
-it.each(["changed_entry", "comparison_unavailable"])(
-  "opens %s for exact inspection without offering a mutation",
-  async (outcome) => {
-    const w = inventoryWorkspace({ ...upstreamRow, outcome });
+it.each([
+  ["agent", upstreamRow.mediaType, "changed_entry"],
+  ["agent", upstreamRow.mediaType, "comparison_unavailable"],
+  ["skill", "application/agent-skills+zip", "changed_entry"],
+  ["skill", "application/agent-skills+gzip", "comparison_unavailable"],
+])(
+  "opens %s (%s) for exact inspection of %s",
+  async (kind, mediaType, outcome) => {
+    const w = inventoryWorkspace({
+      ...upstreamRow,
+      kind,
+      mediaType,
+      outcome,
+      target: { ...target, upstreamVersion: target.version },
+      currentProfile:
+        outcome === "comparison_unavailable"
+          ? "another-normalization-profile"
+          : upstreamRow.priorProfile,
+    });
     const view = render(
       <UpstreamChanges {...w.props} access={administrator} />,
     );
@@ -472,6 +487,14 @@ it.each(["changed_entry", "comparison_unavailable"])(
       />,
     );
     await screen.findByText(target.priorVersionRevisionId);
+    expect(
+      screen.getByText(
+        outcome === "comparison_unavailable"
+          ? /profiles do not support a digest comparison/
+          : /metadata changed for the same version/,
+      ),
+    ).toBeTruthy();
+    expect(screen.queryByText(/Use inspected package authoring/)).toBeNull();
     expect(screen.queryByText("Audited raw content")).toBeNull();
     click("Read exact raw entry");
     await screen.findByText("Audited raw content");
@@ -486,38 +509,70 @@ it.each(["changed_entry", "comparison_unavailable"])(
   },
 );
 
-it("requires a fresh selection when the prior revision or occurrence has changed", async () => {
-  const w = inventoryWorkspace({
-    ...upstreamRow,
-    outcome: "unadopted_version",
-  });
-  const view = render(<UpstreamChanges {...w.props} access={administrator} />);
-  const link = await screen.findByRole("link", {
-    name: "Inspect selected occurrence",
-  });
-  const stale = new URL(link.getAttribute("href")!, location.origin);
-  stale.searchParams.set("priorVersionRevisionId", "other-proof");
-  view.unmount();
-  history.replaceState(null, "", stale);
-  render(
-    <SelectedUpstreamChange
-      {...w.props}
-      access={administrator}
-      id={occurrence.observationId}
-      raw={null}
-    />,
-  );
-  expect((await screen.findByRole("alert")).textContent).toContain(
-    "Refresh the inventory",
-  );
-  expect(
-    screen.queryByRole("button", { name: "Confirm new Version adoption" }),
-  ).toBeNull();
-  expect(w.get.mock.calls.map(([path]) => path)).not.toContain(
-    "/api/v1/observations/{observationId}/adoption-target",
-  );
-  expect(w.post).not.toHaveBeenCalled();
-});
+it.each([
+  {
+    changed: "prior revision",
+    current: { target: { ...target, priorVersionRevisionId: "new-proof" } },
+  },
+  {
+    changed: "complete snapshot",
+    current: { occurrence: { ...occurrence, snapshotId: "new-snapshot" } },
+  },
+  {
+    changed: "entry location",
+    current: { occurrence: { ...occurrence, entryLocation: "/entries/1" } },
+  },
+  {
+    changed: "retrieval digest",
+    current: {
+      occurrence: {
+        ...occurrence,
+        retrievalDigest: "sha256:" + "d".repeat(64),
+      },
+    },
+  },
+])(
+  "requires a fresh selection when the same observation's $changed changes",
+  async ({ current }) => {
+    const row = { ...upstreamRow, outcome: "unadopted_version" };
+    const inventory = inventoryWorkspace(row);
+    const view = render(
+      <UpstreamChanges {...inventory.props} access={administrator} />,
+    );
+    const link = await screen.findByRole("link", {
+      name: "Inspect selected occurrence",
+    });
+    const href = link.getAttribute("href")!;
+    view.unmount();
+    history.replaceState(null, "", href);
+    const refreshed = inventoryWorkspace({ ...row, ...current });
+    render(
+      <SelectedUpstreamChange
+        {...refreshed.props}
+        access={administrator}
+        id={occurrence.observationId}
+        raw={null}
+      />,
+    );
+    expect((await screen.findByRole("alert")).textContent).toContain(
+      "Refresh the inventory",
+    );
+    expect(refreshed.get.mock.calls.at(-1)).toMatchObject([
+      "/api/v1/upstream-changes",
+      { params: { query: { observationId: occurrence.observationId } } },
+    ]);
+    expect(
+      screen.queryByRole("button", { name: "Read exact raw entry" }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Confirm new Version adoption" }),
+    ).toBeNull();
+    expect(refreshed.get.mock.calls.map(([path]) => path)).not.toContain(
+      "/api/v1/observations/{observationId}/adoption-target",
+    );
+    expect(refreshed.post).not.toHaveBeenCalled();
+  },
+);
 
 it("applies exact source and namespace filters, pages and refreshes from page one", async () => {
   const w = inventoryWorkspace();
@@ -616,17 +671,18 @@ it("discards results when permission is lost and explains a disabled capability"
   );
   expect(w.get.mock.calls.at(-1)?.[0]).toBe("/api/v1/capabilities");
 });
-it.each(["agent", "skill"])(
-  "binds the exact %s selection and respects archive delivery limits",
-  async (kind) => {
+it.each([
+  ["agent", upstreamRow.mediaType],
+  ["skill", "application/agent-skills+gzip"],
+  ["skill", "Application/Agent-Skills+ZIP"],
+])(
+  "binds the exact %s selection and respects delivery limits for %s",
+  async (kind, mediaType) => {
     const w = inventoryWorkspace({
       ...upstreamRow,
       outcome: "unadopted_version",
       kind,
-      mediaType:
-        kind === "skill"
-          ? "application/agent-skills+gzip"
-          : upstreamRow.mediaType,
+      mediaType,
     });
     const view = render(
       <UpstreamChanges {...w.props} access={administrator} />,
@@ -650,6 +706,7 @@ it.each(["agent", "skill"])(
       expect(
         screen.queryByRole("button", { name: "Confirm new Version adoption" }),
       ).toBeNull();
+      expect(w.post).not.toHaveBeenCalled();
     } else {
       w.post.mockResolvedValue(etagReply(created));
       await screen.findByRole("button", {

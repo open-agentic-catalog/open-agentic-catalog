@@ -46,6 +46,7 @@ const Service = lazy(() => import("../views/Service"));
 const Resources = lazy(() => import("../views/Resources"));
 const Versions = lazy(() => import("../views/Versions"));
 const UpstreamChanges = lazy(() => import("../views/UpstreamChanges"));
+const ListingMetadataGaps = lazy(() => import("../views/ListingMetadataGaps"));
 const ValidationMaintenance = lazy(
   () => import("../views/ValidationMaintenance"),
 );
@@ -100,6 +101,7 @@ const FederationSearch = lazy(() =>
 const authoringScreens = {
   resources: Resources,
   versions: Versions,
+  "listing-metadata-gaps": ListingMetadataGaps,
   "validation-maintenance": ValidationMaintenance,
   "version-revisions": VersionRevision,
   listings: Listings,

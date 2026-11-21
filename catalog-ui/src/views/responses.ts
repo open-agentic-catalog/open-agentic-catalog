@@ -173,6 +173,40 @@ export function CatalogPresentation(value: unknown): boolean {
   );
 }
 
+/** A missing-field report contains only released references and selected reasons. */
+export function listingMetadataGapPage(value: unknown): boolean {
+  return (
+    object(value) &&
+    Array.isArray(value.items) &&
+    value.items.length <= 100 &&
+    value.items.every(
+      (row: unknown) =>
+        object(row) &&
+        [
+          row.listingId,
+          row.namespaceId,
+          row.resourceId,
+          row.releaseId,
+          row.listingRevisionId,
+        ].every(uuid) &&
+        choice(row.kind, ["agent", "mcp_server", "skill", "plugin"]) &&
+        text(row.displayName) &&
+        row.displayName.length > 0 &&
+        text(row.version) &&
+        row.version.length > 0 &&
+        choice(row.state, ["published", "deprecated"]) &&
+        Array.isArray(row.missing) &&
+        row.missing.length > 0 &&
+        row.missing.length <= 3 &&
+        row.missing.every((field: unknown) =>
+          choice(field, ["documentation", "support", "license"]),
+        ) &&
+        new Set(row.missing).size === row.missing.length,
+    ) &&
+    cursor(value.nextCursor)
+  );
+}
+
 export function CatalogRecord(value: unknown): boolean {
   return (
     object(value) &&

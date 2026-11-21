@@ -315,7 +315,7 @@ function Selection(props: WorkspaceProps & { raw: ReactNode }) {
   const archive =
     row?.kind === "skill" &&
     ["application/agent-skills+zip", "application/agent-skills+gzip"].includes(
-      row.mediaType,
+      row.mediaType.toLowerCase(),
     );
   return (
     <>
@@ -356,24 +356,24 @@ function Selection(props: WorkspaceProps & { raw: ReactNode }) {
             {showRaw ? "Hide raw entry" : "Read exact raw entry"}
           </button>
           {showRaw && props.raw}
-          {archive ? (
-            <p>
-              Use inspected package authoring with an immutable Git or OCI
-              reference for this Skill archive.
-            </p>
-          ) : row.outcome === "unadopted_version" ? (
-            <Append
-              {...props}
-              occurrence={row.occurrence}
-              target={row.target}
-            />
-          ) : (
+          {row.outcome !== "unadopted_version" ? (
             <p>
               {row.outcome === "comparison_unavailable"
                 ? "The normalization profiles do not support a digest comparison."
                 : "The upstream metadata changed for the same version."}{" "}
               Inspect the evidence here. No Version replacement is available.
             </p>
+          ) : archive ? (
+            <p>
+              Use inspected package authoring with an immutable Git or OCI
+              reference for this Skill archive.
+            </p>
+          ) : (
+            <Append
+              {...props}
+              occurrence={row.occurrence}
+              target={row.target}
+            />
           )}
         </section>
       )}

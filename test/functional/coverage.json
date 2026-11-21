@@ -849,6 +849,22 @@
       "gaps": []
     },
     {
+      "id": "released-listing-metadata",
+      "disposition": "compose",
+      "status": "covered",
+      "surfaces": ["http:listListingMetadataGaps"],
+      "evidence": [
+        {"path": "test/functional/core.py"},
+        {"path": "internal/platform/database/listing_metadata_integration_test.go", "symbol": "TestPostgresReleasedListingMetadata"},
+        {"path": "catalog-ui/tests/browser/listing-metadata.spec.ts"}
+      ],
+      "reason": "Follow the released Skill through a draft correction, replacement and withdrawal using the packaged Control API.",
+      "success": "Return the exact released revision and its selected missing declarations.",
+      "rejection": "Foreign tenants see no rows and a stale editor cannot overwrite a newer candidate.",
+      "recovery": "A fresh page changes after publication and retirement.",
+      "gaps": []
+    },
+    {
       "id": "release-relationships",
       "disposition": "compose",
       "status": "covered",

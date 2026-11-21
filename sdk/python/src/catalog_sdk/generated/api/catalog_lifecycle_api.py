@@ -43,6 +43,9 @@ from catalog_sdk.generated.models.list_review_submissions200_response import (
 from catalog_sdk.generated.models.list_version_revisions200_response import (
     ListVersionRevisions200Response,
 )
+from catalog_sdk.generated.models.listing_metadata_gap_page import (
+    ListingMetadataGapPage,
+)
 from catalog_sdk.generated.models.listing_published import ListingPublished
 from catalog_sdk.generated.models.listing_release import ListingRelease
 from catalog_sdk.generated.models.listing_revision import ListingRevision
@@ -7506,6 +7509,505 @@ class CatalogLifecycleApi:
         return self.api_client.param_serialize(
             method="GET",
             resource_path="/api/v1/version-revisions/{revisionId}",
+            path_params=_path_params,
+            query_params=_query_params,
+            header_params=_header_params,
+            body=_body_params,
+            post_params=_form_params,
+            files=_files,
+            auth_settings=_auth_settings,
+            collection_formats=_collection_formats,
+            _host=_host,
+            _request_auth=_request_auth,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_listing_metadata_gaps(
+        self,
+        checks: Annotated[
+            Optional[Annotated[str, Field(strict=True)]],
+            Field(
+                description="Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing."
+            ),
+        ] = None,
+        namespace_id: Optional[UUID] = None,
+        kind: Optional[ResourceKind] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ListingMetadataGapPage:
+        """Find released Listings missing optional metadata
+
+        Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+
+        :param checks: Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing.
+        :type checks: str
+        :param namespace_id:
+        :type namespace_id: UUID
+        :param kind:
+        :type kind: ResourceKind
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_listing_metadata_gaps_serialize(
+            checks=checks,
+            namespace_id=namespace_id,
+            kind=kind,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ListingMetadataGapPage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        ).data
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_listing_metadata_gaps_with_http_info(
+        self,
+        checks: Annotated[
+            Optional[Annotated[str, Field(strict=True)]],
+            Field(
+                description="Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing."
+            ),
+        ] = None,
+        namespace_id: Optional[UUID] = None,
+        kind: Optional[ResourceKind] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ListingMetadataGapPage]:
+        """Find released Listings missing optional metadata
+
+        Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+
+        :param checks: Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing.
+        :type checks: str
+        :param namespace_id:
+        :type namespace_id: UUID
+        :param kind:
+        :type kind: ResourceKind
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_listing_metadata_gaps_serialize(
+            checks=checks,
+            namespace_id=namespace_id,
+            kind=kind,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ListingMetadataGapPage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        await response_data.read()
+        return self.api_client.response_deserialize(
+            response_data=response_data,
+            response_types_map=_response_types_map,
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    async def list_listing_metadata_gaps_without_preload_content(
+        self,
+        checks: Annotated[
+            Optional[Annotated[str, Field(strict=True)]],
+            Field(
+                description="Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing."
+            ),
+        ] = None,
+        namespace_id: Optional[UUID] = None,
+        kind: Optional[ResourceKind] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Find released Listings missing optional metadata
+
+        Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+
+        :param checks: Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing.
+        :type checks: str
+        :param namespace_id:
+        :type namespace_id: UUID
+        :param kind:
+        :type kind: ResourceKind
+        :param limit: Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+        :type limit: int
+        :param cursor: Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+        :type cursor: str
+        :param _request_timeout: Optional whole-call deadline in seconds, capped by Config.timeout.
+        :type _request_timeout: float, optional
+        :param _request_auth: Ignored by the managed credential boundary; configure Client explicitly.
+        :type _request_auth: dict, optional
+        :param _content_type: force content-type for the request.
+        :type _content_type: str, Optional
+        :param _headers: Additional headers. Managed credentials, origin and encoding take precedence.
+        :type _headers: dict, optional
+        :param _host_index: set to override the host_index for a single
+                            request; this effectively ignores the host_index
+                            in the spec for a single request.
+        :type _host_index: int, optional
+        :return: Returns the result object.
+        """  # noqa: E501
+
+        _param = self._list_listing_metadata_gaps_serialize(
+            checks=checks,
+            namespace_id=namespace_id,
+            kind=kind,
+            limit=limit,
+            cursor=cursor,
+            _request_auth=_request_auth,
+            _content_type=_content_type,
+            _headers=_headers,
+            _host_index=_host_index,
+        )
+
+        _response_types_map: Dict[str, Optional[str]] = {
+            "200": "ListingMetadataGapPage",
+            "default": "Problem",
+        }
+        response_data = await self.api_client.call_api(
+            *_param, _request_timeout=_request_timeout
+        )
+        return response_data.response
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_listing_metadata_gaps_sync(
+        self,
+        checks: Annotated[
+            Optional[Annotated[str, Field(strict=True)]],
+            Field(
+                description="Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing."
+            ),
+        ] = None,
+        namespace_id: Optional[UUID] = None,
+        kind: Optional[ResourceKind] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ListingMetadataGapPage:
+        """Find released Listings missing optional metadata (synchronous)
+
+        Synchronous variant of :meth:`list_listing_metadata_gaps`. It calls the asynchronous
+        method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_listing_metadata_gaps(
+                checks=checks,
+                namespace_id=namespace_id,
+                kind=kind,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_listing_metadata_gaps_sync_with_http_info(
+        self,
+        checks: Annotated[
+            Optional[Annotated[str, Field(strict=True)]],
+            Field(
+                description="Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing."
+            ),
+        ] = None,
+        namespace_id: Optional[UUID] = None,
+        kind: Optional[ResourceKind] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> ApiResponse[ListingMetadataGapPage]:
+        """Find released Listings missing optional metadata (synchronous)
+
+        Synchronous variant of :meth:`list_listing_metadata_gaps_with_http_info`. It calls the
+        asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_listing_metadata_gaps_with_http_info(
+                checks=checks,
+                namespace_id=namespace_id,
+                kind=kind,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    @validate_call(config={"hide_input_in_errors": True})
+    def list_listing_metadata_gaps_sync_without_preload_content(
+        self,
+        checks: Annotated[
+            Optional[Annotated[str, Field(strict=True)]],
+            Field(
+                description="Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing."
+            ),
+        ] = None,
+        namespace_id: Optional[UUID] = None,
+        kind: Optional[ResourceKind] = None,
+        limit: Annotated[
+            Optional[Annotated[int, Field(le=100, strict=True, ge=1)]],
+            Field(
+                description="Maximum items in one page. Follow nextCursor with the same page size and filters to continue."
+            ),
+        ] = None,
+        cursor: Annotated[
+            Optional[Annotated[str, Field(strict=True, max_length=2048)]],
+            Field(
+                description="Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size."
+            ),
+        ] = None,
+        _request_timeout: Union[
+            None,
+            Annotated[StrictFloat, Field(gt=0)],
+            Tuple[
+                Annotated[StrictFloat, Field(gt=0)], Annotated[StrictFloat, Field(gt=0)]
+            ],
+        ] = None,
+        _request_auth: Optional[Dict[StrictStr, Any]] = None,
+        _content_type: Optional[StrictStr] = None,
+        _headers: Optional[Dict[StrictStr, Any]] = None,
+        _host_index: Annotated[StrictInt, Field(ge=0, le=0)] = 0,
+    ) -> RESTResponseType:
+        """Find released Listings missing optional metadata (synchronous)
+
+        Synchronous variant of :meth:`list_listing_metadata_gaps_without_preload_content`. It calls
+        the asynchronous method and blocks until it completes.
+        """  # noqa: E501
+        return run_sync(
+            self.list_listing_metadata_gaps_without_preload_content(
+                checks=checks,
+                namespace_id=namespace_id,
+                kind=kind,
+                limit=limit,
+                cursor=cursor,
+                _request_timeout=_request_timeout,
+                _request_auth=_request_auth,
+                _content_type=_content_type,
+                _headers=_headers,
+                _host_index=_host_index,
+            )
+        )
+
+    def _list_listing_metadata_gaps_serialize(
+        self,
+        checks,
+        namespace_id,
+        kind,
+        limit,
+        cursor,
+        _request_auth,
+        _content_type,
+        _headers,
+        _host_index,
+    ) -> RequestSerialized:
+
+        _host = None
+
+        _collection_formats: Dict[str, str] = {}
+
+        _path_params: Dict[str, str] = {}
+        _query_params: List[Tuple[str, str]] = []
+        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _form_params: List[Tuple[str, str]] = []
+        _files: Dict[
+            str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
+        ] = {}
+        _body_params: Optional[bytes] = None
+
+        # process the path parameters
+        # process the query parameters
+        if checks is not None:
+            _query_params.append(("checks", checks))
+
+        if namespace_id is not None:
+            _query_params.append(("namespaceId", namespace_id))
+
+        if kind is not None:
+            _query_params.append(("kind", kind.value))
+
+        if limit is not None:
+            _query_params.append(("limit", limit))
+
+        if cursor is not None:
+            _query_params.append(("cursor", cursor))
+
+        # process the header parameters
+        # process the form parameters
+        # process the body parameter
+
+        # set the HTTP header `Accept`
+        if "Accept" not in _header_params:
+            _header_params["Accept"] = self.api_client.select_header_accept(
+                ["application/json", "application/problem+json"]
+            )
+
+        # authentication setting
+        _auth_settings: List[str] = ["bearerAuth"]
+
+        return self.api_client.param_serialize(
+            method="GET",
+            resource_path="/api/v1/listing-metadata-gaps",
             path_params=_path_params,
             query_params=_query_params,
             header_params=_header_params,

@@ -328,6 +328,10 @@ from catalog_sdk.generated.models.list_review_submissions200_response import (
 from catalog_sdk.generated.models.list_version_revisions200_response import (
     ListVersionRevisions200Response,
 )
+from catalog_sdk.generated.models.listing_metadata_gap import ListingMetadataGap
+from catalog_sdk.generated.models.listing_metadata_gap_page import (
+    ListingMetadataGapPage,
+)
 from catalog_sdk.generated.models.listing_published import ListingPublished
 from catalog_sdk.generated.models.listing_release import ListingRelease
 from catalog_sdk.generated.models.listing_revision import ListingRevision

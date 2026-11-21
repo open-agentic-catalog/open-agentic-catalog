@@ -354,6 +354,7 @@ func (s *Server) routes(router *http.ServeMux) {
 	s.collectionRoutes(router)
 	s.personalRoutes(router)
 	router.HandleFunc("GET /api/v1/upstream-changes", s.withQueryParameters(s.handleUpstreamChanges, "check", "sourceId", "namespaceId", "observationId", "limit", "cursor"))
+	router.HandleFunc("GET /api/v1/listing-metadata-gaps", s.withQueryParameters(s.handleListingMetadataGaps, "checks", "namespaceId", "kind", "limit", "cursor"))
 	router.HandleFunc("GET /api/v1/validation-maintenance", s.withQueryParameters(s.handleValidationMaintenance, "state", "horizonHours", "limit", "cursor"))
 	s.feedbackRoutes(router)
 	s.ratingsRoutes(router)

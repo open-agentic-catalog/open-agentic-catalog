@@ -4984,6 +4984,93 @@ pub struct ListingPublished {
     pub release: ListingRelease,
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListingMetadataGapPage {
+    ///Constraint: maxItems=100
+    pub items: Vec<ListingMetadataGap>,
+    ///Constraint: maxLength=2048
+    #[serde(rename = "nextCursor", skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct ListingMetadataGap {
+    ///Constraint: minLength=1, maxLength=160
+    #[serde(rename = "displayName")]
+    pub display_name: String,
+    pub kind: ResourceKind,
+    #[serde(rename = "listingId")]
+    pub listing_id: UUID,
+    #[serde(rename = "listingRevisionId")]
+    pub listing_revision_id: UUID,
+    ///Constraint: minItems=1, maxItems=3, uniqueItems=true
+    pub missing: Vec<ListingMetadataGapMissingItem>,
+    #[serde(rename = "namespaceId")]
+    pub namespace_id: UUID,
+    #[serde(rename = "releaseId")]
+    pub release_id: UUID,
+    #[serde(rename = "resourceId")]
+    pub resource_id: UUID,
+    pub state: ListingMetadataGapState,
+    ///Constraint: minLength=1, maxLength=128
+    pub version: String,
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum ListingMetadataGapState {
+    #[default]
+    #[serde(rename = "published")]
+    Published,
+    #[serde(rename = "deprecated")]
+    Deprecated,
+}
+impl ListingMetadataGapState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Published => "published",
+            Self::Deprecated => "deprecated",
+        }
+    }
+}
+impl ::std::fmt::Display for ListingMetadataGapState {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListingMetadataGapState {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
+pub enum ListingMetadataGapMissingItem {
+    #[default]
+    #[serde(rename = "documentation")]
+    Documentation,
+    #[serde(rename = "support")]
+    Support,
+    #[serde(rename = "license")]
+    License,
+}
+impl ListingMetadataGapMissingItem {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Documentation => "documentation",
+            Self::Support => "support",
+            Self::License => "license",
+        }
+    }
+}
+impl ::std::fmt::Display for ListingMetadataGapMissingItem {
+    fn fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+impl AsRef<str> for ListingMetadataGapMissingItem {
+    fn as_ref(&self) -> &str {
+        self.as_str()
+    }
+}
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ListVersionRevisionsResponse {
     ///Constraint: maxItems=100
     pub items: Vec<RevisionSummary>,

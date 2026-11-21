@@ -104,6 +104,9 @@ async def qualify_reviewed_corpus():
             assert hidden.status_code == 404
         cases = {case["name"]: case for case in corpus["cases"]}
         source, target = cases["context7-plugin"], cases["context7-registry"]
+        gaps = await CatalogLifecycleApi(reader).list_listing_metadata_gaps(checks="license,support", kind=ResourceKind.PLUGIN)
+        row, = gaps.items
+        assert str(row.release_id) == source["releaseId"] and row.missing == ["support", "license"]
         outgoing = await api.list_release_relationships_with_http_info(view="outgoing", release_id=UUID(source["releaseId"]))
         assert outgoing.status_code == 200
         draft, linked = outgoing.data.items

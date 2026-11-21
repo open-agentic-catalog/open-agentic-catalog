@@ -2501,6 +2501,45 @@ func (e LegalRightsSummaryState) Valid() bool {
 	}
 }
 
+// Defines values for ListingMetadataGapMissing.
+const (
+	ListingMetadataGapMissingDocumentation ListingMetadataGapMissing = "documentation"
+	ListingMetadataGapMissingLicense       ListingMetadataGapMissing = "license"
+	ListingMetadataGapMissingSupport       ListingMetadataGapMissing = "support"
+)
+
+// Valid indicates whether the value is a known member of the ListingMetadataGapMissing enum.
+func (e ListingMetadataGapMissing) Valid() bool {
+	switch e {
+	case ListingMetadataGapMissingDocumentation:
+		return true
+	case ListingMetadataGapMissingLicense:
+		return true
+	case ListingMetadataGapMissingSupport:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ListingMetadataGapState.
+const (
+	ListingMetadataGapStateDeprecated ListingMetadataGapState = "deprecated"
+	ListingMetadataGapStatePublished  ListingMetadataGapState = "published"
+)
+
+// Valid indicates whether the value is a known member of the ListingMetadataGapState enum.
+func (e ListingMetadataGapState) Valid() bool {
+	switch e {
+	case ListingMetadataGapStateDeprecated:
+		return true
+	case ListingMetadataGapStatePublished:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListingReleaseState.
 const (
 	ListingReleaseStateDeprecated ListingReleaseState = "deprecated"
@@ -7956,6 +7995,32 @@ type LegalRightsSummary struct {
 // LegalRightsSummaryState The v1 baseline does not perform legal-rights assessment. This value never grants publication permission.
 type LegalRightsSummaryState string
 
+// ListingMetadataGap defines model for ListingMetadataGap.
+type ListingMetadataGap struct {
+	DisplayName       string                      `json:"displayName"`
+	Kind              ResourceKind                `json:"kind"`
+	ListingId         UUID                        `json:"listingId"`
+	ListingRevisionId UUID                        `json:"listingRevisionId"`
+	Missing           []ListingMetadataGapMissing `json:"missing"`
+	NamespaceId       UUID                        `json:"namespaceId"`
+	ReleaseId         UUID                        `json:"releaseId"`
+	ResourceId        UUID                        `json:"resourceId"`
+	State             ListingMetadataGapState     `json:"state"`
+	Version           string                      `json:"version"`
+}
+
+// ListingMetadataGapMissing defines model for ListingMetadataGap.Missing.
+type ListingMetadataGapMissing string
+
+// ListingMetadataGapState defines model for ListingMetadataGap.State.
+type ListingMetadataGapState string
+
+// ListingMetadataGapPage defines model for ListingMetadataGapPage.
+type ListingMetadataGapPage struct {
+	Items      []ListingMetadataGap `json:"items"`
+	NextCursor *string              `json:"nextCursor,omitempty"`
+}
+
 // ListingPublished defines model for ListingPublished.
 type ListingPublished struct {
 	Listing      CatalogListing  `json:"listing"`
@@ -11438,6 +11503,20 @@ type CancelJobParams struct {
 type RetryJobParams struct {
 	// IdempotencyKey Scopes one mutating command to its authenticated tenant, actor, route, request, and current authorization. An identical completed retry returns the retained response with Idempotency-Replayed, while an active or interrupted pending command fails closed with Retry-After. A response completed by the current command protocol has a fixed 24-hour replay window measured from the original reservation. After that window the key may be reclaimed or reused as a new command. Pending reservations do not become safe to discard merely because that window elapsed.
 	IdempotencyKey IdempotencyKey `json:"Idempotency-Key"`
+}
+
+// ListListingMetadataGapsParams defines parameters for ListListingMetadataGaps.
+type ListListingMetadataGapsParams struct {
+	// Checks Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing.
+	Checks      *string       `form:"checks,omitempty" json:"checks,omitempty"`
+	NamespaceId *UUID         `form:"namespaceId,omitempty" json:"namespaceId,omitempty"`
+	Kind        *ResourceKind `form:"kind,omitempty" json:"kind,omitempty"`
+
+	// Limit Maximum items in one page. Follow nextCursor with the same page size and filters to continue.
+	Limit *Limit `form:"limit,omitempty" json:"limit,omitempty"`
+
+	// Cursor Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size.
+	Cursor *Cursor `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // ListReleaseRelationshipsParams defines parameters for ListReleaseRelationships.
@@ -18962,6 +19041,13 @@ type ClientInterface interface {
 	// Corresponds with POST /api/v1/jobs/{jobId}:retry (the `RetryJob` operationId).
 	RetryJob(ctx context.Context, jobId JobId, params *RetryJobParams, body RetryJobJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// ListListingMetadataGaps Find released Listings missing optional metadata
+	//
+	// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+	//
+	// Corresponds with GET /api/v1/listing-metadata-gaps (the `ListListingMetadataGaps` operationId).
+	ListListingMetadataGaps(ctx context.Context, params *ListListingMetadataGapsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetListingRelease Get a listing release
 	//
 	// Returns a visible release binding a listing revision to a version revision, including its lifecycle state and ETag.
@@ -22883,6 +22969,23 @@ func (c *Client) RetryJobWithBody(ctx context.Context, jobId JobId, params *Retr
 // Corresponds with POST /api/v1/jobs/{jobId}:retry (the `RetryJob` operationId).
 func (c *Client) RetryJob(ctx context.Context, jobId JobId, params *RetryJobParams, body RetryJobJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRetryJobRequest(c.Server, jobId, params, body)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, safeError(err)
+	}
+	return c.Client.Do(req)
+}
+
+// ListListingMetadataGaps Find released Listings missing optional metadata
+//
+// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+//
+// Corresponds with GET /api/v1/listing-metadata-gaps (the `ListListingMetadataGaps` operationId).
+func (c *Client) ListListingMetadataGaps(ctx context.Context, params *ListListingMetadataGapsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListListingMetadataGapsRequest(c.Server, params)
 	if err != nil {
 		return nil, safeError(err)
 	}
@@ -31747,6 +31850,108 @@ func NewRetryJobRequestWithBody(server string, jobId JobId, params *RetryJobPara
 	return req, nil
 }
 
+// NewListListingMetadataGapsRequest constructs an http.Request for the ListListingMetadataGaps method
+func NewListListingMetadataGapsRequest(server string, params *ListListingMetadataGapsParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	operationPath := fmt.Sprintf("/api/v1/listing-metadata-gaps")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Checks != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "checks", *params.Checks, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.NamespaceId != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "namespaceId", *params.NamespaceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "uuid"}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Kind != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "kind", *params.Kind, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", true, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	return req, nil
+}
+
 // NewGetListingReleaseRequest constructs an http.Request for the GetListingRelease method
 func NewGetListingReleaseRequest(server string, releaseId ReleaseId) (*http.Request, error) {
 	var err error
@@ -40245,6 +40450,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /api/v1/jobs/{jobId}:retry (the `RetryJob` operationId).
 	RetryJobWithResponse(ctx context.Context, jobId JobId, params *RetryJobParams, body RetryJobJSONRequestBody, reqEditors ...RequestEditorFn) (*RetryJobResponse, error)
 
+	// ListListingMetadataGapsWithResponse Find released Listings missing optional metadata
+	//
+	// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /api/v1/listing-metadata-gaps (the `ListListingMetadataGaps` operationId).
+	ListListingMetadataGapsWithResponse(ctx context.Context, params *ListListingMetadataGapsParams, reqEditors ...RequestEditorFn) (*ListListingMetadataGapsResponse, error)
+
 	// GetListingReleaseWithResponse Get a listing release
 	//
 	// Returns a visible release binding a listing revision to a version revision, including its lifecycle state and ETag.
@@ -48127,6 +48341,70 @@ func (r RetryJobResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RetryJobResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListListingMetadataGapsResponse200Headers the declared response headers of an HTTP 200 response for ListListingMetadataGaps
+type ListListingMetadataGapsResponse200Headers struct {
+	CacheControl *string
+}
+
+// ListListingMetadataGapsResponseDefaultHeaders the declared response headers of an HTTP default response for ListListingMetadataGaps
+type ListListingMetadataGapsResponseDefaultHeaders struct {
+	IdempotencyReplayed *string
+	RetryAfter          *string
+	XRequestID          *string
+}
+
+type ListListingMetadataGapsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ListingMetadataGapPage
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *ProblemResponse
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListListingMetadataGapsResponse200Headers
+	// HeadersDefault the parsed response headers for an HTTP default response
+	HeadersDefault *ListListingMetadataGapsResponseDefaultHeaders
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListListingMetadataGapsResponse) GetJSON200() *ListingMetadataGapPage {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListListingMetadataGapsResponse) GetApplicationproblemJSONDefault() *ProblemResponse {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListListingMetadataGapsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListListingMetadataGapsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListListingMetadataGapsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListListingMetadataGapsResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -59055,6 +59333,21 @@ func (c *ClientWithResponses) RetryJobWithResponse(ctx context.Context, jobId Jo
 	return ParseRetryJobResponse(rsp)
 }
 
+// ListListingMetadataGapsWithResponse Find released Listings missing optional metadata
+//
+// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /api/v1/listing-metadata-gaps (the `ListListingMetadataGaps` operationId).
+func (c *ClientWithResponses) ListListingMetadataGapsWithResponse(ctx context.Context, params *ListListingMetadataGapsParams, reqEditors ...RequestEditorFn) (*ListListingMetadataGapsResponse, error) {
+	rsp, err := c.ListListingMetadataGaps(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, safeError(err)
+	}
+	return ParseListListingMetadataGapsResponse(rsp)
+}
+
 // GetListingReleaseWithResponse Get a listing release
 //
 // Returns a visible release binding a listing revision to a version revision, including its lifecycle state and ETag.
@@ -69753,6 +70046,77 @@ func ParseRetryJobResponse(rsp *http.Response) (result *RetryJobResponse, err er
 		response.Headers202 = &headers
 	case true:
 		var headers RetryJobResponseDefaultHeaders
+		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.IdempotencyReplayed = &value
+		}
+		if values := rsp.Header.Values("Retry-After"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Retry-After", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.RetryAfter = &value
+		}
+		if values := rsp.Header.Values("X-Request-ID"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "X-Request-ID", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.XRequestID = &value
+		}
+		response.HeadersDefault = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListListingMetadataGapsResponse parses an HTTP response from a ListListingMetadataGapsWithResponse call
+func ParseListListingMetadataGapsResponse(rsp *http.Response) (result *ListListingMetadataGapsResponse, err error) {
+	defer func() { err = safeResponseError(err, rsp) }()
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, safeError(err)
+	}
+
+	response := &ListListingMetadataGapsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ListingMetadataGapPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest ProblemResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListListingMetadataGapsResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, safeError(err)
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	case true:
+		var headers ListListingMetadataGapsResponseDefaultHeaders
 		if values := rsp.Header.Values("Idempotency-Replayed"); len(values) > 0 {
 			var value string
 			if err := runtime.BindStyledParameterWithOptions("simple", "Idempotency-Replayed", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {

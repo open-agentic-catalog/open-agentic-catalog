@@ -96,6 +96,7 @@ export function navigationGroups(access: Access): {
           children: {
             versions: "Resource versions",
             "version-revisions": "Version revision",
+            "listing-metadata-gaps": "Missing Listing metadata",
             "validation-maintenance": "Validation maintenance",
             listings: "Listings",
             "listing-revisions": "Listing revision",

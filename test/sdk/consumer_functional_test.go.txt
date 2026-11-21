@@ -119,6 +119,13 @@ func TestManagedSDKRelationshipPagesAndFollow(t *testing.T) {
 	must(t, err)
 	defer c.Close()
 
+	gaps, err := c.ListListingMetadataGapsWithResponse(t.Context(), &sdk.ListListingMetadataGapsParams{Checks: ptr("license,support"), Kind: ptr(sdk.ResourceKindPlugin)})
+	must(t, err)
+	if gaps.JSON200 == nil || len(gaps.JSON200.Items) != 1 || gaps.JSON200.Items[0].ReleaseId != sourceID ||
+		!reflect.DeepEqual(gaps.JSON200.Items[0].Missing, []sdk.ListingMetadataGapMissing{sdk.ListingMetadataGapMissingSupport, sdk.ListingMetadataGapMissingLicense}) {
+		t.Fatalf("selected Plugin Listing omissions (HTTP %d)", gaps.StatusCode())
+	}
+
 	query := &sdk.ListReleaseRelationshipsParams{View: "outgoing", Limit: ptr(1)}
 	first, err := c.ListReleaseRelationshipsWithResponse(t.Context(), sourceID, query)
 	must(t, err)

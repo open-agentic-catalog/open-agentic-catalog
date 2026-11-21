@@ -645,14 +645,16 @@ Choose a condition, optionally enter an exact Source or Namespace ID, then selec
 | Condition | What the result tells you |
 | --- | --- |
 | Additional upstream version | A complete entry advertises a nonempty version that this Resource does not have. Even a local draft with that label rules out a suggestion. |
-| Changed upstream metadata | The normalized entry differs from the retained adoption proof for that exact upstream version. Later local edits do not change the comparison baseline. |
+| Changed upstream metadata | The normalized entry differs from the retained adoption proof for that exact upstream version. A formatting-only change to the source JSON can leave that digest unchanged. Later local edits do not change the comparison baseline. |
 | Comparison unavailable | The normalization profiles cannot be compared. Open the retained evidence to investigate. |
 
 The page reads the last complete indexed snapshot of each active or error Source in indexed or hybrid mode. Each row shows when the entry was observed, when that snapshot completed, and the latest completed attempt under the current Source configuration, when available. A failed refresh does not renew older evidence. Empty results mean no eligible changes are known. Refreshing starts no synchronization.
 
 If the same observation occurs several times in that snapshot, the Catalog selects the first entry location in byte order. The retrieval digest breaks ties. If several prior adoptions qualify, it selects the smallest revision ID. A same-version comparison always uses an adoption of that exact upstream version.
 
-**Inspect selected occurrence** opens the exact entry, snapshot and prior local revision. For an additional version, **Confirm new Version adoption** prepares the existing draft command. Same-version changes and unavailable comparisons are inspection only. If a selection becomes unavailable, return to the inventory and refresh. Pausing a Source refuses fresh appends, including direct API calls. An authorized retry with the original key can still recover an already committed append.
+**Inspect selected occurrence** shows which entry, snapshot and prior local revision were selected. Use **Read exact raw entry** to open the retained source entry. For an additional version with supported delivery, **Confirm new Version adoption** lets you review the command before creating a draft. For an additional Skill version delivered as ZIP or gzip, use inspected package authoring with an immutable Git or OCI reference. For a same-version change or an unavailable comparison, inspect the evidence.
+
+If a selection becomes unavailable, return to the inventory and refresh. Pausing a Source refuses fresh appends, including direct API calls. An authorized retry with the original key can still recover an already committed append.
 
 API and generated SDK clients can use `GET /api/v1/upstream-changes` with `check=all` (default), `unadopted_version`, or `entry_comparison`. Optional `sourceId`, `namespaceId` and `observationId` select exact references. Pages default to 20 and allow at most 100. Use the same filters and page size with `nextCursor`; results and permissions are checked again on each page. Start from page one to include changes that now sort before the cursor. The inventory requires the same capability, source-evidence permission, destination edit permission and OAuth scopes as Version adoption.
 

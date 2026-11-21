@@ -820,6 +820,14 @@ const sourceListing = corpus.cases.find(
 const targetListing = corpus.cases.find(
   (item) => item.name === "context7-registry",
 );
+const gaps = await corpusReader.api.GET("/api/v1/listing-metadata-gaps", {
+  params: { query: { checks: "license,support", kind: "plugin" } },
+});
+assert.equal(gaps.response.status, 200);
+assert.deepEqual(
+  gaps.data.items.map((row) => [row.releaseId, row.missing]),
+  [[sourceListing.releaseId, ["support", "license"]]],
+);
 const incoming = await corpusReader.api.GET(
   "/api/v1/listing-releases/{releaseId}/relationships",
   {

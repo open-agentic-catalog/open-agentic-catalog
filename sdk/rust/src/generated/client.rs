@@ -1311,6 +1311,11 @@ pub enum ListFeedbackInboxApiError {
 pub enum ListJobsApiError {
     Default(Problem),
 }
+///Typed error responses for `listListingMetadataGaps`. One variant per declared non-2xx response.
+#[derive(Debug, Clone)]
+pub enum ListListingMetadataGapsApiError {
+    Default(Problem),
+}
 ///Typed error responses for `listListingReleases`. One variant per declared non-2xx response.
 #[derive(Debug, Clone)]
 pub enum ListListingReleasesApiError {
@@ -12384,6 +12389,99 @@ impl Client {
                 _ => match serde_json::from_slice::<Problem>(&raw_body) {
                     Ok(v) => {
                         typed = Some(ListJobsApiError::Default(v));
+                        parse_error = None;
+                    }
+                    Err(e) => {
+                        typed = None;
+                        parse_error = Some(e.to_string());
+                    }
+                },
+            }
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed,
+                parse_error,
+            }))
+        }
+    }
+    /// Find released Listings missing optional metadata
+    ///
+    /// Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+    ///
+    /// `GET /api/v1/listing-metadata-gaps`
+    pub async fn list_listing_metadata_gaps(
+        &self,
+        checks: Option<impl AsRef<str>>,
+        namespace_id: Option<impl AsRef<str>>,
+        kind: Option<ResourceKind>,
+        limit: Option<i64>,
+        cursor: Option<impl AsRef<str>>,
+    ) -> Result<Response<ListingMetadataGapPage>, ApiOpError<ListListingMetadataGapsApiError>> {
+        let request_url = format!("{}{}", self.base_url, "/api/v1/listing-metadata-gaps");
+        let mut req = self.http_client.get(request_url);
+        {
+            let mut query_params: Vec<(String, String)> = Vec::new();
+            if let Some(v) = checks {
+                query_params.push(("checks".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = namespace_id {
+                query_params.push(("namespaceId".to_string(), v.as_ref().to_string()));
+            }
+            if let Some(v) = kind {
+                query_params.push(("kind".to_string(), v.to_string()));
+            }
+            if let Some(v) = limit {
+                query_params.push(("limit".to_string(), v.to_string()));
+            }
+            if let Some(v) = cursor {
+                query_params.push(("cursor".to_string(), v.as_ref().to_string()));
+            }
+            if !query_params.is_empty() {
+                req = req.query(&query_params);
+            }
+        }
+        req = req.header(reqwest::header::ACCEPT, "application/json");
+        let response = self.send(req).await?;
+        let status = response.status();
+        let status_code = status.as_u16();
+        let headers = response.headers().clone();
+        let body_bytes = response.body.clone();
+        let raw_body = body_bytes;
+        let body_text = String::from_utf8_lossy(&raw_body).into_owned();
+        if false || status_code == 200u16 {
+            match serde_json::from_slice(&raw_body) {
+                Ok(body) => Ok(Response::new(body, status_code, headers, raw_body)),
+                Err(e) => Err(ApiOpError::api(ApiError {
+                    status: status_code,
+                    headers: headers,
+                    body: body_text,
+                    raw_body,
+                    typed: None,
+                    parse_error: Some(format!("failed to deserialize 2xx response body: {}", e)),
+                })),
+            }
+        } else if status.is_success() {
+            Err(ApiOpError::api(ApiError {
+                status: status_code,
+                headers,
+                body: body_text,
+                raw_body,
+                typed: None,
+                parse_error: Some(format!(
+                    "unexpected successful status {}; generated return type selects `{}`",
+                    status_code, "200",
+                )),
+            }))
+        } else {
+            let typed: Option<ListListingMetadataGapsApiError>;
+            let parse_error: Option<String>;
+            match status_code {
+                _ => match serde_json::from_slice::<Problem>(&raw_body) {
+                    Ok(v) => {
+                        typed = Some(ListListingMetadataGapsApiError::Default(v));
                         parse_error = None;
                     }
                     Err(e) => {

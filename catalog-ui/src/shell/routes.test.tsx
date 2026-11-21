@@ -101,6 +101,12 @@ const routes: Route[] = [
     endpoint: "/api/v1/capabilities",
   },
   {
+    route: "listing-metadata-gaps",
+    heading: "Missing Listing metadata",
+    endpoint: "/api/v1/listing-metadata-gaps",
+    query: { checks: "documentation,support,license", limit: 20 },
+  },
+  {
     route: "validation-maintenance",
     heading: "Validation maintenance",
     endpoint: "/api/v1/validation-maintenance",

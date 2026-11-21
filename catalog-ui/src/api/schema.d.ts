@@ -24,6 +24,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/listing-metadata-gaps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Find released Listings missing optional metadata
+         * @description Requires resource.read in the current local Listing Namespace. OAuth ceiling when enforced: catalog.read. Selects current published and deprecated releases by ascending Listing ID. One row lists only the selected fields absent from its released ListingRevision. Candidates, native content and external observations do not contribute. Continuations bind current authority, filters and page size. Pages default to 20 Listings and accept up to 100. Releases can change between pages. Refresh from page one to revisit earlier Listings.
+         */
+        get: operations["listListingMetadataGaps"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/validation-maintenance": {
         parameters: {
             query?: never;
@@ -4429,6 +4449,23 @@ export interface components {
             /** @description Applicability at the fixed observation time, not later publication eligibility, approval or trust. */
             applicable: boolean;
             conditions: ("blocked" | "stale" | "expired" | "expiring")[];
+        };
+        ListingMetadataGap: {
+            listingId: components["schemas"]["UUID"];
+            namespaceId: components["schemas"]["UUID"];
+            resourceId: components["schemas"]["UUID"];
+            releaseId: components["schemas"]["UUID"];
+            listingRevisionId: components["schemas"]["UUID"];
+            kind: components["schemas"]["ResourceKind"];
+            displayName: string;
+            version: string;
+            /** @enum {string} */
+            state: "published" | "deprecated";
+            missing: ("documentation" | "support" | "license")[];
+        };
+        ListingMetadataGapPage: {
+            items: components["schemas"]["ListingMetadataGap"][];
+            nextCursor?: string;
         };
         ValidationMaintenancePage: {
             items: components["schemas"]["ValidationMaintenanceItem"][];
@@ -8883,6 +8920,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UpstreamChangePage"];
+                };
+            };
+            default: components["responses"]["Problem"];
+        };
+    };
+    listListingMetadataGaps: {
+        parameters: {
+            query?: {
+                /** @description Comma-separated subset in any order. Select each field at most once. A Listing matches if any selected field is missing. */
+                checks?: string;
+                namespaceId?: components["schemas"]["UUID"];
+                kind?: components["schemas"]["ResourceKind"];
+                /** @description Maximum items in one page. Follow nextCursor with the same page size and filters to continue. */
+                limit?: components["parameters"]["Limit"];
+                /** @description Opaque, expiring cursor bound to the authenticated principal, current permissions, filters, ordering, parent resource, and page size. */
+                cursor?: components["parameters"]["Cursor"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current authorized released Listings matching at least one selected check. */
+            200: {
+                headers: {
+                    "Cache-Control": components["headers"]["CacheControl"];
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingMetadataGapPage"];
                 };
             };
             default: components["responses"]["Problem"];

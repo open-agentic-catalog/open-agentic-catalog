@@ -244,6 +244,8 @@ __all__ = [
     "ListResourceVersions200Response",
     "ListReviewSubmissions200Response",
     "ListVersionRevisions200Response",
+    "ListingMetadataGap",
+    "ListingMetadataGapPage",
     "ListingPublished",
     "ListingRelease",
     "ListingRevision",
@@ -1010,6 +1012,12 @@ from catalog_sdk.generated.models.list_review_submissions200_response import (
 )
 from catalog_sdk.generated.models.list_version_revisions200_response import (
     ListVersionRevisions200Response as ListVersionRevisions200Response,
+)
+from catalog_sdk.generated.models.listing_metadata_gap import (
+    ListingMetadataGap as ListingMetadataGap,
+)
+from catalog_sdk.generated.models.listing_metadata_gap_page import (
+    ListingMetadataGapPage as ListingMetadataGapPage,
 )
 from catalog_sdk.generated.models.listing_published import (
     ListingPublished as ListingPublished,
