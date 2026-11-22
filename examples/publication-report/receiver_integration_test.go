@@ -436,6 +436,20 @@ func TestReceiverPostgresAndProcess(t *testing.T) {
 		v := readSaved()
 		return pendingCount() == 0 && v.LastSuccessful.Active != nil && v.LastSuccessful.Active.Generation == 2 && v.LastSuccessful.Trigger != nil && *v.LastSuccessful.Trigger == expectedTrigger
 	})
+	// The retained receipt still fills the only slot. A late duplicate gets
+	// the same acknowledgement without reopening work or refreshing the report.
+	beforeDuplicate := readSaved()
+	snapshotReads, counterReads := counts()
+	if code, err := post(origin, raw, 1, testSecret); err != nil || code != http.StatusNoContent {
+		t.Fatal("completed duplicate was not acknowledged", code, err)
+	}
+	var completed bool
+	if err := pool.QueryRow(ctx, "SELECT completed_at IS NOT NULL FROM publication_receiver_inbox WHERE source=$1 AND id=$2", expectedTrigger.Source, expectedTrigger.ID).Scan(&completed); err != nil || !completed {
+		t.Fatal("redelivery lost or reopened the completed receipt", err)
+	}
+	if gotSnapshots, gotCounters := counts(); gotSnapshots != snapshotReads || gotCounters != counterReads || !reflect.DeepEqual(readSaved(), beforeDuplicate) {
+		t.Fatal("completed duplicate triggered another Catalog read or changed the saved report")
+	}
 	pruneReady()
 	setAPI(200, `{"items":[]}`)
 	withdrawn := bytes.ReplaceAll(eventBytes("publication.unpublished"), []byte(testID), []byte("00000000-0000-4000-8000-000000000005"))

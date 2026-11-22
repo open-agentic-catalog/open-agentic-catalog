@@ -119,7 +119,8 @@ WEBHOOK_WAITS = (
     "initial-housekeeping", "delivery-parent-acknowledged", "delivery-markers-elapsed", "delivery-cleanup", "test-active",
     "accepted-before-loss", "crash-disconnected", "crash-lease-expired", "crash-parent-acknowledged", "two-worker-drain", "capacity-drain", "disabled-endpoint-drain",
     "database-down", "dispatcher-recovered", "persisted-retry-metric",
-    "publication-report-startup", "publication-report-activation", "publication-report-unpublish",
+    "publication-report-startup", "publication-report-activation", "publication-report-read-refused", "publication-report-unpublish",
+    "publication-report-missed-activation",
 )
 WEBHOOK_STATES = ("pending", "waiting", "succeeded", "dead_letter")
 WEBHOOK_DATABASE_FIELDS = {"eventExists", "endpointExists", "eventPredatesEndpoint", "eventAcknowledged",
