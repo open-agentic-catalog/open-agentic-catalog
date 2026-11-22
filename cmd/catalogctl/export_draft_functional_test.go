@@ -6,9 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -22,11 +25,7 @@ import (
 func TestExportDraftCLIEndToEnd(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Minute)
 	defer cancel()
-	binary := filepath.Join(canonicalTempDir(t), "catalogctl")
-	build := exec.CommandContext(ctx, "go", "build", "-mod=readonly", "-o", binary, ".") // #nosec G204,G702 -- owned compiled command with fixed build arguments.
-	if raw, err := build.CombinedOutput(); err != nil {
-		t.Fatalf("build: %s %v", raw, err)
-	}
+	binary := buildCatalogctlProcessBinary(t, ctx)
 	fault := &atomic.Int32{}
 	runtime, server, archiveOrigin, _, writes := configuredDemoRuntimeWithPeerControl(t, fault)
 	seed, err := executeExpandedDemo(ctx, server.URL, filepath.Join(canonicalTempDir(t), "seed.json"), archiveOrigin, false)
@@ -43,7 +42,7 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 		arguments := append([]string{"export"}, args...)
 		arguments = append(arguments, "--base-url", server.URL, "--token-file", token)
 		command := exec.CommandContext(ctx, binary, arguments...) // #nosec G204,G702 -- owned binary, local API and synthetic credentials only.
-		command.Env = append(os.Environ(), "CATALOG_REMOTE_CA_FILE=", "CATALOG_REMOTE_TOKEN=ignored", "CATALOG_CONFIG_FILE=/missing/PRIVATE_SENTINEL", "CATALOG_DATABASE_DSN=ignored")
+		command.Env = append(catalogctlProcessEnvironment(t), "CATALOG_REMOTE_TOKEN=ignored", "CATALOG_CONFIG_FILE=/missing/PRIVATE_SENTINEL", "CATALOG_DATABASE_DSN=ignored")
 		var output, diagnostic bytes.Buffer
 		command.Stdout, command.Stderr = &output, &diagnostic
 		err := command.Run()
@@ -94,6 +93,7 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 		var output exportResult
 		file := readDraft(directory)
 		preview := exec.CommandContext(ctx, binary, "import", "preview", "--file", filepath.Join(directory, "draft.json"), "--namespace-id", record.Resource.NamespaceID, "--content-only") // #nosec G204,G702 -- owned executable and exported fixture input; preview is offline.
+		preview.Env = catalogctlProcessEnvironment(t)
 		previewOutput, err := preview.Output()
 		var admission importBatchPreview
 		if err != nil || json.Unmarshal(previewOutput, &admission) != nil || !admission.LocallyValid {
@@ -190,6 +190,9 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 	if packageFile.Representations[0].Input.Mode != "skill-package" || packageFile.Representations[0].Input.Handoff == nil || !strings.Contains(*packageFile.Representations[0].Input.Handoff, "registry.example.com/safe-skill@sha256:") {
 		t.Fatal("package-only Skill lost its separate package requirement or immutable handoff")
 	}
+	t.Run("transfer inspected Skill to another Catalog", func(t *testing.T) {
+		qualifySkillDraftTransfer(t, binary, server.URL, packageDir, packaged.Representations[0].PackageData, resource, skillRevision)
+	})
 
 	admin, err := runtime.Authenticator.Authenticate(ctx, "local-admin")
 	if err != nil {
@@ -240,5 +243,96 @@ func TestExportDraftCLIEndToEnd(t *testing.T) {
 	}
 	if writes.Load() != before {
 		t.Fatal("draft export issued a mutating HTTP request")
+	}
+}
+
+// qualifySkillDraftTransfer imports the exported handoff and separately supplied
+// ZIP into a second Catalog. Each apply or resume starts a fresh CLI process.
+func qualifySkillDraftTransfer(t *testing.T, binary, sourceURL, directory string, archive []byte, source catalog.Resource, revision catalog.VersionRevision) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), time.Minute)
+	defer cancel()
+	destination := buildSmokeTestRuntime(t)
+	t.Cleanup(destination.Close)
+	admin, err := destination.Authenticator.Authenticate(ctx, "local-admin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	adminCtx := identity.WithActor(ctx, admin)
+	ns, err := destination.Catalog.CreateNamespace(adminCtx, catalog.CreateNamespaceInput{Slug: "transferred", DisplayName: "Transferred Skills"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var calls, writes atomic.Int64
+	var lastRevisionRead atomic.Value
+	api := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.Method != http.MethodGet {
+			writes.Add(1)
+		} else if strings.HasPrefix(r.URL.Path, "/api/v1/version-revisions/") {
+			lastRevisionRead.Store(r.URL.Path)
+		}
+		destination.HTTP.Handler().ServeHTTP(w, r)
+	}))
+	t.Cleanup(api.Close)
+	state := filepath.Join(canonicalTempDir(t), "private", "receipt.json")
+	token := clientSkillToken(t, "local-contributor")
+	run := func(action, origin, refusal string) []byte {
+		t.Helper()
+		command := exec.CommandContext(ctx, binary, "import", action, // #nosec G204,G702 -- test-built CLI and owned loopback Catalogs.
+			"--file", filepath.Join(directory, "draft.json"), "--package-file", "1=safe-skill.zip",
+			"--namespace-id", ns.ID, "--state-file", state, "--base-url", origin, "--token-file", token)
+		command.Env = catalogctlProcessEnvironment(t)
+		var diagnostic bytes.Buffer
+		command.Stderr = &diagnostic
+		output, err := command.Output()
+		if refusal == "" {
+			if err != nil || diagnostic.Len() != 0 {
+				t.Fatalf("%s: %v %s", action, err, &diagnostic)
+			}
+		} else if command.ProcessState == nil || command.ProcessState.ExitCode() != 1 || !strings.Contains(diagnostic.String(), refusal) {
+			t.Fatalf("expected %s to refuse %q: %v %s", action, refusal, err, &diagnostic)
+		}
+		return output
+	}
+	zipPath := writeImportTestFile(t, directory, "safe-skill.zip", archive, 0600)
+	var applied importOutcome
+	if err := json.Unmarshal(run("apply", api.URL, ""), &applied); err != nil || applied.Disposition != "complete" || len(applied.Items) != 1 || len(applied.Items[0].Steps) != 2 || writes.Load() != 2 {
+		t.Fatalf("expected one Resource and one Version at the destination: %v", err)
+	}
+	receipt := readDemoRecoveryFile(t, state)
+	beforeCalls := calls.Load()
+	run("apply", api.URL, "apply requires a new state file")
+	run("resume", sourceURL, "receipt is not for this reusable file and origin")
+	if err := os.Remove(zipPath); err != nil {
+		t.Fatal(err)
+	}
+	if out := run("resume", api.URL, "import assets must exist"); len(out) != 0 {
+		t.Fatal("missing package unexpectedly produced an import report")
+	}
+	if calls.Load() != beforeCalls || !bytes.Equal(receipt, readDemoRecoveryFile(t, state)) {
+		t.Fatal("a refused import contacted the destination or changed the receipt")
+	}
+	writeImportTestFile(t, directory, "safe-skill.zip", archive, 0600)
+	lastRevisionRead.Store("")
+	var resumed importOutcome
+	if err := json.Unmarshal(run("resume", api.URL, ""), &resumed); err != nil || !reflect.DeepEqual(resumed, applied) {
+		t.Fatal("restoring the package did not recover the original acknowledgements", err)
+	}
+	steps := resumed.Items[0].Steps
+	if lastRevisionRead.Load() != "/api/v1/version-revisions/"+steps[1].Ack.RevisionID || writes.Load() != 2 || !bytes.Equal(receipt, readDemoRecoveryFile(t, state)) {
+		t.Fatal("resume must read the exact destination revision and preserve both records and receipt")
+	}
+	resource, err := destination.Catalog.GetResource(adminCtx, steps[0].Ack.ID)
+	if err != nil || resource.ID == source.ID || resource.CanonicalIdentifier != source.CanonicalIdentifier || resource.NamespaceID != ns.ID {
+		t.Fatal("transferred Resource lost its canonical identity or destination Namespace", err)
+	}
+	got, evidence, _, err := destination.Catalog.GetVersionRevision(adminCtx, steps[1].Ack.RevisionID)
+	if err != nil || got.ID == revision.ID || evidence.State != catalog.EvidenceComplete || len(got.Representations) != 1 {
+		t.Fatal("expected a new, validated destination revision", err)
+	}
+	want, retained := revision.Representations[0], got.Representations[0]
+	if retained.ContentDigest != want.ContentDigest || !reflect.DeepEqual(retained.Package, want.Package) || !reflect.DeepEqual(retained.Handoff, want.Handoff) {
+		t.Fatal("destination Skill archive digest, inspected files or immutable handoff differs from the source")
 	}
 }

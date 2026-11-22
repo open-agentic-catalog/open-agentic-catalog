@@ -15,7 +15,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jsondoc"
 )
 
-// clientSkillSessionSearch admits the public Search fields without exporting the
+// clientSkillSessionSearch admits the Skill's documented Search fields without exporting the
 // HTTP DTO. Pointers distinguish omitted controls from explicit empty values.
 // The demo owns general query semantics; synthetic pages support only text,
 // distinct kinds and a sufficient bounded limit.
@@ -25,6 +25,8 @@ type clientSkillSessionSearch struct {
 	Text        string                      `json:"text"`
 	Kinds       []catalog.Kind              `json:"kinds"`
 	Tags        *[]string                   `json:"tags"`
+	License     *string                     `json:"license"`
+	Categories  *[]string                   `json:"categories"`
 	Publisher   *string                     `json:"publisher"`
 	Visibility  *catalog.Visibility         `json:"visibility"`
 	Limit       *int                        `json:"limit"`
@@ -80,7 +82,8 @@ func clientSkillSessionHandler(demo http.Handler, plugin, large catalog.CatalogR
 			// or genuine continuation requests intended for the governed demo.
 			synthetic := query.Text == "triage" || query.Text == "plugin" || query.Text == "large" || query.Text == "" && len(query.Kinds) == 1 && query.Kinds[0] == catalog.KindPlugin
 			if synthetic {
-				if query.Origins != nil || query.NamespaceID != nil || query.Tags != nil || query.Publisher != nil || query.Visibility != nil || query.Cursor != nil {
+				if query.Origins != nil || query.NamespaceID != nil || query.Tags != nil || query.Publisher != nil ||
+					query.Visibility != nil || query.License != nil || query.Categories != nil || query.Cursor != nil {
 					http.Error(w, "synthetic scenario supports only text, kinds and limit; filters and continuation are unsupported", http.StatusBadRequest)
 					return
 				}
@@ -265,6 +268,7 @@ func TestClientSkillSessionSyntheticRefusal(t *testing.T) {
 	for _, selector := range []string{`"text":"triage"`, `"text":"plugin"`, `"text":"large"`, `"kinds":["plugin"]`} {
 		for _, control := range []string{
 			`"tags":["order"]`, `"tags":[]`, `"publisher":"publisher"`, `"publisher":""`,
+			`"license":"Apache-2.0"`, `"license":""`, `"categories":["development"]`, `"categories":[]`,
 			`"visibility":"tenant"`, `"visibility":""`, `"namespaceId":"00000000-0000-7000-8000-000000000002"`, `"namespaceId":""`,
 			`"origins":["local"]`, `"origins":[]`, `"cursor":"opaque"`, `"cursor":""`,
 		} {
@@ -297,10 +301,10 @@ func TestClientSkillSessionStrictSearch(t *testing.T) {
 		`{"Text":"plugin"}`, `{"text":"plugin","Limit":5}`, `{"text":"plugin","KINDS":["plugin"]}`,
 		`{"text":"\ud800"}`, "{\"text\":\""+string([]byte{0xff})+"\"}",
 	)
-	for _, field := range []string{"text", "kinds", "tags", "publisher", "visibility", "namespaceId", "origins", "limit", "cursor"} {
+	for _, field := range []string{"text", "kinds", "tags", "publisher", "visibility", "license", "categories", "namespaceId", "origins", "limit", "cursor"} {
 		bodies = append(bodies, "{\""+field+"\":null}")
 	}
-	bodies = append(bodies, `{"kinds":[null]}`, `{"tags":[null]}`, `{"origins":[null]}`)
+	bodies = append(bodies, `{"kinds":[null]}`, `{"tags":[null]}`, `{"categories":[null]}`, `{"origins":[null]}`)
 	for _, body := range bodies {
 		t.Run(body, func(t *testing.T) {
 			request := httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/api/v1/catalog/search", strings.NewReader(body))
@@ -331,6 +335,7 @@ func TestClientSkillSessionForwarding(t *testing.T) {
 	}), clientSkillPluginRecord(t), clientSkillLargeRecord(t))
 	for _, body := range []string{
 		` { "text" : "order" } `,
+		`{ "text":"order", "license":"Apache-2.0", "categories":[" Development ","discovery"] }`,
 		`{"text":"plugin tools","kinds":["plugin"],"limit":1}`,
 		`{"text":"large orders","limit":100}`,
 		`{"text":"triage orders","tags":["order"],"cursor":"opaque","limit":5}`,

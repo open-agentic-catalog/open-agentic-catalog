@@ -2283,7 +2283,7 @@ Memory repositories remain useful for domain and HTTP tests because they impleme
 
 Run `make client-skill-check` for the [portable discovery package](../guides/assistant-discovery.md). It needs Go and cached project dependencies, not an assistant, model, database, Compose or a built binary. The colocated command tests validate pinned frontmatter, copied relative files and license bytes.
 
-The tests exercise a real in-memory Reader workflow, including retirement and revoked or namespace-only access. They preserve Plugin, conflicting external and large-output evidence, and check safe failures.
+The tests exercise a real in-memory Reader workflow, including retirement and revoked or namespace-only access. One test loads the curated sample manifest, finds Catalog Discovery Tools by license and two categories, and reads the selected release. It compares the bundled `SKILL.md` with the original file. Other cases cover conflicting external results, large records and failed reads.
 
 They also check the model-session fixture's read-only guard, strict structural admission, synthetic scenario refusal, valid distinct kinds and limits, unchanged ordinary-body forwarding, compact local Search and exact selected-record evidence without starting a long-lived session. `TestRemoteAgainstCatalog` tests real continuation. `TestRemoteLargeGovernedRecord` tests compact Search for large records, exact bytes and CLI budget failure. Remote transport and Plugin lifecycle tests remain their owning regression coverage. These tests also run in ordinary Go gates.
 
@@ -2300,7 +2300,7 @@ The opt-in test writes `origin` and a synthetic `reader-token` file into the sel
 
 Query `order` for the real three-kind governed demo. Exact text selectors `plugin`, `triage` and `large` select synthetic Plugin, conflicting external and large-record scenarios. Empty text with only `kinds: ["plugin"]` also selects the Plugin scenario. Ordinary phrases, such as `plugin tools`, and genuine continuation pass unchanged to the demo.
 
-Reserved scenarios accept only text, distinct valid kinds and an omitted or explicit limit from 1 through 100. The triage limit must cover its kind-filtered results: two when unfiltered. No reserved scenario simulates pagination. Supplied `origins`, `namespaceId`, `tags`, `publisher`, `visibility` or `cursor` fields receive HTTP 400, including empty values. Invalid fields, typed nulls, wrong case and invalid kinds or limits also receive 400 without reaching the demo. Use the governed demo and API tests for general filters and continuation.
+Reserved scenarios accept only text, distinct valid kinds and an optional limit from 1 through 100. An unfiltered triage search needs room for both results. Any other filter or a cursor returns HTTP 400, even when empty. Invalid fields, explicit nulls, incorrect field casing and invalid kinds or limits also return 400. Use an ordinary search such as `order` to exercise license, categories or continuation against the governed demo.
 
 The `large` exact record retains about 648 KiB of inline evidence. It checks display and evidence handling, not the 8 MiB CLI overflow boundary. The separate real large-record test checks overflow, compact Search and the record-only override up to 64 MiB. These response fixtures add no federation or publication tests.
 

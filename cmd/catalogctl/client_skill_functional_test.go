@@ -19,6 +19,7 @@ import (
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata"
 )
 
 // clientSkillCall runs controlled argv with a mounted token and decodes only
@@ -252,6 +253,74 @@ func TestClientSkillCatalogWorkflow(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestClientSkillCuratedDiscovery reads the Skill bundled in the published
+// sample Plugin through the same read-only session used by assistant clients.
+func TestClientSkillCuratedDiscovery(t *testing.T) {
+	ctx := t.Context()
+	runtime, api, origin, trust, _ := configuredDemoRuntime(t)
+	plan, err := demodata.Load("../../samples/catalog.yaml", "curated", origin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := executeConfiguredDemo(ctx, api.URL, filepath.Join(t.TempDir(), "receipt.json"), origin, trust, false, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := slices.IndexFunc(loaded.Items, func(item demoItem) bool { return item.Key == "catalog-discovery-tools" })
+	if index < 0 || loaded.Items[index].ReleaseID == "" {
+		t.Fatal("curated load did not publish Catalog Discovery Tools")
+	}
+	want := loaded.Items[index]
+	session := httptest.NewServer(clientSkillSessionHandler(runtime.HTTP.Handler(), clientSkillPluginRecord(t), clientSkillLargeRecord(t)))
+	defer session.Close()
+	reader := clientSkillToken(t, "local-reader")
+	search := func(license, category string) catalog.CatalogSearchResponse {
+		t.Helper()
+		result, err := clientSkillCall(t, ctx, session.URL, reader, "search", "--origin", "local", "--limit", "5",
+			"--license", license, "--category", " Development ", "--category", category)
+		if err != nil {
+			t.Fatalf("search license %q, category %q: %v", license, category, err)
+		}
+		var page catalog.CatalogSearchResponse
+		if err := json.Unmarshal(result.Data, &page); err != nil {
+			t.Fatal(err)
+		}
+		if page.Partial || page.NextCursor != "" {
+			t.Fatal("expected a complete filtered page")
+		}
+		return page
+	}
+	page := search("Apache-2.0", "Discovery")
+	if len(page.Items) != 1 || page.DurableTotal != 1 {
+		t.Fatalf("expected only Catalog Discovery Tools, got %d items and total %d", len(page.Items), page.DurableTotal)
+	}
+	match := page.Items[0]
+	if match.Type != catalog.SearchResultLocal || match.Local == nil || match.Local.Release.ID != want.ReleaseID || match.Identifier != want.Identifier {
+		t.Fatal("filtered search did not return the published sample release")
+	}
+	result, err := clientSkillCall(t, ctx, session.URL, reader, "record", "--id", match.Local.Release.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record catalog.CatalogRecord
+	if err := json.Unmarshal(result.Data, &record); err != nil {
+		t.Fatal(err)
+	}
+	if record.Release.ID != want.ReleaseID || record.VersionRevision.ID != want.VersionRevisionID || len(record.VersionRevision.Representations) != 1 {
+		t.Fatal("selected record differs from the release and revision created by the sample loader")
+	}
+	plugin := record.VersionRevision.Representations[0].Plugin
+	skill := catalog.PluginDocument{Path: "skills/catalog-discovery/SKILL.md", Content: string(clientSkillReadFile(t, filepath.Join(clientSkillDirectory, "SKILL.md")))}
+	if plugin == nil || !slices.Contains(plugin.Documents, skill) {
+		t.Fatal("selected Plugin does not contain the original discovery Skill instructions")
+	}
+	for _, filters := range []struct{ license, category string }{{"apache-2.0", "discovery"}, {"Apache-2.0", "absent-sample-category"}} {
+		if page := search(filters.license, filters.category); len(page.Items) != 0 || page.DurableTotal != 0 {
+			t.Errorf("expected no matches for license %q and category %q", filters.license, filters.category)
+		}
+	}
 }
 
 // TestClientSkillReadEvidence covers Plugin inspection, partial federation and
