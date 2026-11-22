@@ -2,7 +2,7 @@
 
 import asyncio
 from builtins import BaseExceptionGroup
-from contextlib import AsyncExitStack
+from contextlib import AsyncExitStack, asynccontextmanager
 import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -28,6 +28,7 @@ class Proxy(BaseHTTPRequestHandler):
     port = 8080
     alternate = True
     seen = set()
+    post_paths = set()
     no_sessions = True
 
     def log_message(self, *_):
@@ -38,6 +39,8 @@ class Proxy(BaseHTTPRequestHandler):
         require(self.path in ("/mcp", "/ard/v1/mcp", "/ard/v1/search", "/.well-known/oauth-protected-resource/ard/v1/mcp") or self.path.startswith("/api/v1/"), "fixed proxy route")
         port = Proxy.port
         Proxy.seen.add(port)
+        if self.command == "POST":
+            Proxy.post_paths.add(self.path)
         if Proxy.alternate:
             Proxy.port = 8081 if port == 8080 else 8080
         body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
@@ -96,6 +99,43 @@ async def restart(transport, protocol):
     raise AssertionError("API restart acknowledgment deadline")
 
 
+@asynccontextmanager
+async def control_client(transport, protocol, token_file="/catalog/reader-token"):
+    origin = "https://127.0.0.1:9555"
+    async with AsyncExitStack() as stack:
+        if transport == "stdio":
+            connector = ObservedStdio(origin=origin, token_file=token_file, args=("--ca-file", CA))
+            stack.callback(connector.log.close)
+        else:
+            http = await stack.enter_async_context(httpx2.AsyncClient(verify=ssl.create_default_context(cafile=CA), trust_env=False,
+                                                   timeout=20, headers={"Authorization": "Bearer " + Path(token_file).read_text()}))
+            connector = streamable_http_client(origin + "/mcp", http_client=http, terminate_on_close=False)
+        async with Client(connector, mode="legacy" if protocol == "2025-11-25" else "auto", cache=None) as client:
+            require(client.protocol_version == protocol and client.server_info.name == "open-agentic-catalog-control", "independent negotiation")
+            yield client
+        if transport == "stdio":
+            require(connector.process.returncode == 0, "stdio child exit")
+            connector.log.seek(0)
+            require(not connector.log.read(8193), "stdio diagnostics")
+
+
+async def check_agent_protocol(client, transport, agent_ids, can_read_content):
+    Proxy.post_paths.clear()
+    for query, allowed in (({"kinds": ["agent"]}, agent_ids),
+                           ({"agentProtocol": "JSONRPC"}, agent_ids if can_read_content else set()),
+                           ({"agentProtocol": "jsonrpc"}, set())):
+        page = envelope(await call(client, "search", dict(query, origins=["local"], limit=10)))
+        found = {r["local"]["release"]["id"] for r in page["items"]}
+        require(found == allowed and len(page["items"]) == page["durableTotal"] == len(allowed)
+                and not page.get("nextCursor") and page["partial"] is False, "wrong Agent release inventory")
+        facets = envelope(await call(client, "explore", {"query": query, "facets": [{"field": "kind"}]}))
+        buckets = [{"value": "agent", "count": len(allowed)}] if allowed else []
+        require(facets["matched"] == len(allowed) and facets["facets"]["kind"]["buckets"] == buckets
+                and not facets["facets"]["kind"].get("otherCount"), "wrong Agent protocol facets")
+    expected_paths = {"/mcp"} if transport == "http" else {"/api/v1/catalog/search", "/api/v1/catalog/explore"}
+    require(Proxy.post_paths == expected_paths, "Agent discovery used the wrong transport routes")
+
+
 async def matrix_case(transport, protocol):
     global PHASE
     cases = {}
@@ -103,16 +143,7 @@ async def matrix_case(transport, protocol):
     _, partial_etag = await api(partial_path)
     await api(partial_path + ":pause", {"reason": "Healthy live continuation control"}, etag=partial_etag)
     Proxy.port, Proxy.alternate, Proxy.seen = 8080, True, set()
-    stdio_transport = None
-    async with AsyncExitStack() as stack:
-        if transport == "stdio":
-            stdio_transport = ObservedStdio(origin="https://127.0.0.1:9555", args=("--ca-file", CA))
-            connector = stdio_transport
-        else:
-            http = await stack.enter_async_context(httpx2.AsyncClient(verify=ssl.create_default_context(cafile=CA), trust_env=False, timeout=20, headers={"Authorization": "Bearer " + TOKEN}))
-            connector = streamable_http_client("https://127.0.0.1:9555/mcp", http_client=http, terminate_on_close=False)
-        client = await stack.enter_async_context(Client(connector, mode="legacy" if protocol == "2025-11-25" else "auto", cache=None))
-        require(client.protocol_version == protocol and client.server_info.name == "open-agentic-catalog-control", "independent negotiation")
+    async with control_client(transport, protocol) as client:
         PHASE = transport + "/" + protocol + "/inventory"
         listing = await client.list_tools()
         require({t.name for t in listing.tools} == {"catalog_control_" + n for n in ("capabilities", "search", "release", "indexed_record", "explore", "access")}, "static tool inventory")
@@ -139,6 +170,12 @@ async def matrix_case(transport, protocol):
         # Curated samples have no categories. Exercise this supported filter
         # with a deliberate contradiction rather than invent sample metadata.
         await search_pages(client, {"categories": ["no-match-control"]}, 0)
+        agent_ids = {r["releaseId"] for r in EXPECTED["releases"] if r["kind"] == "agent"}
+        require(len(agent_ids) == 3, "missing published Agent controls")
+        PHASE = transport + "/" + protocol + "/filters"
+        await check_agent_protocol(client, transport, agent_ids, can_read_content=True)
+        async with control_client(transport, protocol, "/catalog/metadata-reader-token") as metadata_reader:
+            await check_agent_protocol(metadata_reader, transport, agent_ids, can_read_content=False)
         cases["filters"] = True
         PHASE = transport + "/" + protocol + "/indexed"
         indexed = await search_pages(client, {"origins": ["indexed"]}, 3)
@@ -245,11 +282,6 @@ async def matrix_case(transport, protocol):
         cases["stale-cursor"] = True
         replicas = sorted(Proxy.seen)
         require(replicas == [8080, 8081], "same client missed a replica")
-    if stdio_transport:
-        require(stdio_transport.process.returncode == 0, "stdio child exit")
-        stdio_transport.log.seek(0)
-        require(not stdio_transport.log.read(8193), "stdio diagnostics")
-        stdio_transport.log.close()
     return dict(transport=transport, protocol=protocol, cases=cases, replicas=replicas)
 
 
@@ -265,41 +297,58 @@ def ard_envelope(result):
     return parsed, value["_meta"]["catalog/ard-search"]
 
 
+async def publication_pages(client, http, query, expected):
+    """Read the complete host inventory, comparing every MCP page with REST."""
+    results, tokens = [], []
+    for _ in range(len(expected)):
+        args = dict(query, **({"pageToken": tokens[-1]} if tokens else {}))
+        page, meta = ard_envelope(await client.call_tool("search", args))
+        require(meta["partial"] is False and 0 < len(page["results"]) <= query["pageSize"], "incomplete or oversized ARD page")
+        direct = await http.post("/ard/v1/search", json=args)
+        require(direct.status_code == 200, "REST ARD control failed")
+        rest = direct.json()
+        token = page.get("pageToken")
+        require(bool(rest.get("pageToken")) == bool(token), "REST/MCP continuation mismatch")
+        require({k: v for k, v in rest.items() if k != "pageToken"} == {k: v for k, v in page.items() if k != "pageToken"}, "REST/MCP ARD mismatch")
+        results.extend(page["results"])
+        if not token:
+            identities = {(r["identifier"], r["version"]) for r in results}
+            missing = [r["key"] for r in EXPECTED["releases"] if (r["identifier"], r["version"]) in expected - identities]
+            require(tokens and len(results) == len(expected) and identities == expected,
+                    f"wrong ARD membership on {http.base_url.host}: {len(results)} results, missing {missing}, {len(identities - expected)} unexpected")
+            return results, tokens[0]
+        require(token not in tokens, "repeated ARD continuation")
+        tokens.append(token)
+    raise AssertionError("ARD pages did not terminate")
+
+
+async def ard_client(stack, http, origin, protocol):
+    connector = streamable_http_client(origin + "/ard/v1/mcp", http_client=http, terminate_on_close=False)
+    client = await stack.enter_async_context(Client(connector, mode="legacy" if protocol == "2025-11-25" else "auto", cache=None))
+    require(client.protocol_version == protocol and client.server_info.name == "open-agentic-catalog-ard", "ARD native negotiation")
+    return client
+
+
 async def ard_checks():
     global PHASE
     rows = []
+    expected = {(r["identifier"], r["version"]) for r in EXPECTED["releases"]}
+    public = {entry for entry in expected if entry[0] != EXPECTED["tenantListing"]}
+    require(len(expected) == 12 and len(public) == 11, "ARD audience fixtures missing")
+    authenticated_origin = "https://localhost:9555"
+    anonymous_origin = "https://127.0.0.1:9555"
     async with AsyncExitStack() as stack:
         clients, anonymous_clients = [], []
         for protocol in ("2025-11-25", "2026-07-28"):
             PHASE = "http/" + protocol + "/ard-publication"
-            http = await stack.enter_async_context(httpx2.AsyncClient(verify=ssl.create_default_context(cafile=CA), trust_env=False, timeout=20, headers={"Authorization": "Bearer " + TOKEN}))
-            connector = streamable_http_client("https://localhost:9555/ard/v1/mcp", http_client=http, terminate_on_close=False)
-            client = await stack.enter_async_context(Client(connector, mode="legacy" if protocol == "2025-11-25" else "auto", cache=None))
+            http = await stack.enter_async_context(httpx2.AsyncClient(base_url=authenticated_origin, verify=ssl.create_default_context(cafile=CA), trust_env=False, timeout=20, headers={"Authorization": "Bearer " + TOKEN}))
+            client = await ard_client(stack, http, authenticated_origin, protocol)
             clients.append(client)
-            require(client.protocol_version == protocol and client.server_info.name == "open-agentic-catalog-ard", "ARD native negotiation")
             tools = (await client.list_tools()).tools
             require([t.name for t in tools] == ["search"], "ARD static inventory")
             before = await peers()
             query = dict(query=dict(text="demo"), federation="none", pageSize=2)
-            actual, cursor = [], None
-            for _ in range(20):
-                args = dict(query, **({"pageToken": cursor} if cursor else {}))
-                page, meta = ard_envelope(await client.call_tool("search", args))
-                require(meta["partial"] is False, "local ARD completeness")
-                actual += page["results"]
-                # Compare the exact selected response through real REST with the
-                # same host, actor, generation, filters and continuation.
-                rest = await http.post("https://localhost:9555/ard/v1/search", json=args)
-                require(rest.status_code == 200, "REST ARD control failed")
-                direct = rest.json()
-                require(bool(direct.get("pageToken")) == bool(page.get("pageToken")), "REST/MCP continuation mismatch")
-                require({k: v for k, v in direct.items() if k != "pageToken"} == {k: v for k, v in page.items() if k != "pageToken"}, "REST/MCP ARD mismatch")
-                cursor = page.get("pageToken")
-                if not cursor:
-                    break
-            require(len(actual) > 2 and len({r["identifier"] for r in actual}) == len(actual), "ARD page duplication or vacuous corpus")
-            expected = {r["identifier"] for r in EXPECTED["releases"]}
-            require({r["identifier"] for r in actual} <= expected, "ARD returned a private or foreign entry")
+            actual, _ = await publication_pages(client, http, query, expected)
             require({"application/a2a-agent-card+json", "application/mcp-server-card+json"} <= {r.get("type") for r in actual}, "nonempty Agent/MCP control")
             typed_query = dict(query={"text": "demo", "@context": {"kind": "https://agenticresourcediscovery.org/ns#mediaType"}, "filter": {"kind": "application/mcp-server-card+json"}}, federation="none", pageSize=100)
             typed, _ = ard_envelope(await client.call_tool("search", typed_query))
@@ -313,18 +362,23 @@ async def ard_checks():
                 denied = await denial_http.post("https://localhost:9555/ard/v1/mcp", headers={"Authorization": "Bearer " + token} if token else {}, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
                 require(denied.status_code == status, "ARD host authority: expected " + str(status) + ", got " + str(denied.status_code))
             # Anonymous access stays anonymous even with an invalid bearer.
-            anonymous_http = await stack.enter_async_context(httpx2.AsyncClient(verify=ssl.create_default_context(cafile=CA), trust_env=False, timeout=20, headers={"Authorization": "Bearer invalid"}))
-            anonymous_connector = streamable_http_client("https://127.0.0.1:9555/ard/v1/mcp", http_client=anonymous_http, terminate_on_close=False)
-            anonymous = await stack.enter_async_context(Client(anonymous_connector, mode="legacy" if protocol == "2025-11-25" else "auto", cache=None))
-            anonymous_clients.append(anonymous)
-            anonymous_page, _ = ard_envelope(await anonymous.call_tool("search", query))
-            require(anonymous_page["results"], "anonymous MCP positive control")
-            public = await http.post("https://127.0.0.1:9555/ard/v1/search", headers={"Authorization": "Bearer invalid"}, json=query)
-            require(public.status_code == 200 and public.json()["results"], "anonymous ARD positive control")
+            anonymous_http = await stack.enter_async_context(httpx2.AsyncClient(base_url=anonymous_origin, verify=ssl.create_default_context(cafile=CA), trust_env=False, timeout=20, headers={"Authorization": "Bearer invalid"}))
+            anonymous = await ard_client(stack, anonymous_http, anonymous_origin, protocol)
+            _, public_cursor = await publication_pages(anonymous, anonymous_http, query, public)
+            anonymous_clients.append((anonymous, public_cursor))
+            # The reader can find this release only on the authenticated host,
+            # even when using the very same bearer and query on the public host.
+            public_reader = await ard_client(stack, http, anonymous_origin, protocol)
+            tenant_query = dict(query={"text": EXPECTED["tenantListing"]}, federation="none", pageSize=2)
+            for reader, matches in ((client, expected - public), (public_reader, set())):
+                page, meta = ard_envelope(await reader.call_tool("search", tenant_query))
+                require(meta["partial"] is False and not page.get("pageToken") and len(page["results"]) == len(matches)
+                        and {(r["identifier"], r["version"]) for r in page["results"]} == matches, "reader changed the host audience")
+            require(await peers() == before, "anonymous publication search contacted a peer")
             # Both approved peers are enabled at the end of the Control matrix;
             # one has an owned outage. Local results must survive that failure.
             partial, meta = ard_envelope(await client.call_tool("search", dict(query=dict(text="demo"), federation="auto", pageSize=100)))
-            require(meta["partial"] is True and any(r["identifier"] in expected for r in partial["results"]), "ARD live failure erased healthy local results")
+            require(meta["partial"] is True and any((r["identifier"], r.get("version")) in expected for r in partial["results"]), "ARD live failure erased healthy local results")
             cases = dict.fromkeys(("inventory", "publication-pages", "rest-equivalence", "closed-arguments", "host-admission", "live-partial"), True)
             rows.append(dict(protocol=protocol, cases=cases))
         # Referral participation is an independent administrator opt-in. Enable
@@ -344,12 +398,12 @@ async def ard_checks():
             refused = (await client.call_tool("search", dict(query=dict(text="demo"), federation="none"))).model_dump(by_alias=True, exclude_none=True)
             require(refused.get("isError") is True and "structuredContent" not in refused and refused["content"][0]["text"].startswith("publication_unavailable:"), "unpublished ARD fell back to Control")
             row["cases"]["unpublication"] = True
-        selected = next(r for r in EXPECTED["releases"] if r["identifier"] == anonymous_page["results"][0]["identifier"])
+        selected = next(r for r in EXPECTED["releases"] if (r["identifier"], r["version"]) in public)
         release_path = "/api/v1/listing-releases/" + selected["releaseId"]
         _, etag = await api(release_path)
         await api(release_path + ":revoke", dict(reason="Qualify ARD MCP safety withdrawal"), etag=etag)
-        for client, row in zip(anonymous_clients, rows, strict=True):
-            for args in (query, dict(query, pageToken=anonymous_page["pageToken"])):
+        for (client, cursor), row in zip(anonymous_clients, rows, strict=True):
+            for args in (query, dict(query, pageToken=cursor)):
                 refused = (await client.call_tool("search", args)).model_dump(by_alias=True, exclude_none=True)
                 require(refused.get("isError") is True and "structuredContent" not in refused and refused["content"][0]["text"].startswith("publication_unavailable:"), "withdrawn ARD publication remained readable")
             row["cases"]["safety-withdrawal"] = True
