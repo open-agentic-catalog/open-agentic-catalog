@@ -27,6 +27,7 @@ def audit_once(api, action, target_type, target_id):
     assert len(events["items"]) == 1 and not events.get("nextCursor"), "mutation audit missing or duplicated"
     event = events["items"][0]
     assert (event["action"], event["targetType"], event["targetId"]) == (action, target_type, target_id), "mutation audit does not match requested target"
+    return event
 
 
 def namespace_journey(base, run_id):

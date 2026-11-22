@@ -55,17 +55,17 @@ class CrashEvidenceTests(unittest.TestCase):
 
     def test_pending_requires_unacknowledged_claim_without_saved_delivery(self):
         value = {"acknowledged": False, "leased": True, "leaseCleared": False,
-                 "deliveryCount": 0, "leaseExpired": False}
+                 "deliveryCount": 0, "deliveryAuditCount": 0, "leaseExpired": False}
         crash.check_pending(value, expired=False)
         for change in ({"acknowledged": True}, {"leased": False}, {"leaseCleared": True},
-                       {"deliveryCount": 1}, {"leaseExpired": True}):
+                       {"deliveryCount": 1}, {"deliveryAuditCount": 1}, {"leaseExpired": True}):
             with self.subTest(change=change), self.assertRaises(runner.Failure):
                 crash.check_pending(dict(value, **change), expired=False)
 
     def test_snapshot_binds_all_database_reads_and_rejects_malformed_inputs(self):
         journey = mock.Mock()
         valid = {"digest": "a" * 64, "acknowledged": False, "leased": True,
-                 "leaseCleared": False, "deliveryCount": 0, "leaseExpired": False}
+                 "leaseCleared": False, "deliveryCount": 0, "deliveryAuditCount": 0, "leaseExpired": False}
         ids = [f"00000000-0000-7000-8000-{i:012d}" for i in (1, 2, 3)]
         journey.sql.return_value = json.dumps(valid)
         self.assertEqual(crash.snapshot(journey, *ids), valid)
@@ -74,13 +74,16 @@ class CrashEvidenceTests(unittest.TestCase):
             self.assertIn(text, query)
         with self.assertRaises(runner.Failure):
             crash.snapshot(journey, "'", *ids[1:])
-        for change in ({"leaseExpired": 1}, {"deliveryCount": True}, {"acknowledged": 1}, {"digest": ""}):
+        for change in ({"leaseExpired": 1}, {"deliveryCount": True}, {"deliveryAuditCount": True}, {"acknowledged": 1}, {"digest": ""}):
             journey.sql.return_value = json.dumps(dict(valid, **change))
             with self.assertRaises(runner.Failure):
                 crash.snapshot(journey, *ids)
 
     def test_full_control_cleans_up_and_rejects_incomplete_recovery(self):
-        for fault in (None, "kill", "kill-and-release", "release", "accept-timeout", "persisted", "redelivery", "acknowledgement", "mutation", "other", "restart"):
+        audit_failures = {"replaced-creation": "crash-origin-audit-changed",
+                          "duplicate-delivery-audit": "crash-parent-outcome-invalid",
+                          "wrong-event": "crash-delivery-audit-invalid", "wrong-actor": "crash-delivery-audit-invalid"}
+        for fault in (None, "kill", "kill-and-release", "release", "accept-timeout", "persisted", "redelivery", "acknowledgement", "mutation", "other", "restart", *audit_failures):
             with self.subTest(fault=fault):
                 journey = mock.Mock()
                 ns = {"id": "namespace", "tenantId": "tenant", "revision": 1}
@@ -117,16 +120,22 @@ class CrashEvidenceTests(unittest.TestCase):
                         raise runner.Failure("kill-failed")
                 journey.compose.side_effect = compose
                 pending = {"digest": "a" * 64, "acknowledged": False, "leased": True,
-                           "leaseCleared": False, "deliveryCount": int(fault == "persisted"), "leaseExpired": False}
-                final = dict(pending, acknowledged=True, leased=False, leaseCleared=fault != "acknowledgement", deliveryCount=1)
+                           "leaseCleared": False, "deliveryCount": int(fault == "persisted"), "deliveryAuditCount": 0, "leaseExpired": False}
+                final = dict(pending, acknowledged=True, leased=False, leaseCleared=fault != "acknowledgement",
+                             deliveryCount=1, deliveryAuditCount=2 if fault == "duplicate-delivery-audit" else 1)
                 observations = [dict(pending, leased=False, deliveryCount=0), pending, pending,
                                 dict(pending, leaseExpired=True), dict(final, acknowledged=False), final]
-                journey.delivery.return_value = {"tenantId": "tenant", "endpointId": "endpoint", "eventType": "com.open.agentic.catalog.namespace.created.v1", "attempt": 1, "responseStatus": 204}
-                journey.api.request.return_value = (ns, {"ETag": '"rev-1"'})
+                journey.delivery.return_value = {"id": "delivery", "tenantId": "tenant", "endpointId": "endpoint", "eventType": "com.open.agentic.catalog.namespace.created.v1", "attempt": 1, "responseStatus": 204}
+                journey.api.request.side_effect = [({"membershipId": "creator"}, {}), (ns, {"ETag": '"rev-1"'})]
                 journey.sql.return_value = "2" if fault == "mutation" else "1"
-                with mock.patch.object(crash, "snapshot", side_effect=copy.deepcopy(observations)), mock.patch.object(crash, "audit_once"), mock.patch.object(crash, "namespace_state", side_effect=lambda x: x), mock.patch.object(crash, "command", return_value=json.dumps({"Running": False, "ExitCode": 137, "StartedAt": "lost"}).encode()):
+                creation = {"id": "original", "tenantId": "tenant", "actor": "creator", "details": {"principalType": "catalog_membership"}}
+                attempt_audit = {"tenantId": "tenant", "actor": "creator" if fault == "wrong-actor" else "catalog-worker",
+                                 "details": {"principalType": "service_executor", "facts": {"endpointId": "endpoint", "eventId": "other" if fault == "wrong-event" else "event",
+                                            "attempt": 1, "state": "succeeded", "httpStatus": 204}}}
+                audits = [None, creation, dict(creation, id="replacement") if fault == "replaced-creation" else creation, attempt_audit, None]
+                with mock.patch.object(crash, "snapshot", side_effect=copy.deepcopy(observations)), mock.patch.object(crash, "audit_once", side_effect=audits), mock.patch.object(crash, "namespace_state", side_effect=lambda x: x), mock.patch.object(crash, "command", return_value=json.dumps({"Running": False, "ExitCode": 137, "StartedAt": "lost"}).encode()):
                     if fault:
-                        with self.assertRaisesRegex(runner.Failure, "kill-failed" if fault == "kill-and-release" else ".*"):
+                        with self.assertRaisesRegex(runner.Failure, "kill-failed" if fault == "kill-and-release" else audit_failures.get(fault, ".*")):
                             crash.qualify(journey, endpoint)
                     else:
                         self.assertTrue(crash.valid_evidence(crash.qualify(journey, endpoint)))

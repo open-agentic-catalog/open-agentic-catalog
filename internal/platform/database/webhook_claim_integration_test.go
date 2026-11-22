@@ -139,27 +139,63 @@ type failAcknowledgement struct {
 	*PostgresRepository
 }
 
+var errAcknowledgementLost = errors.New("injected acknowledgement loss")
+
 func (f failAcknowledgement) MarkOutboxPublished(context.Context, string, string, string, time.Time) error {
-	return errors.New("injected acknowledgement loss")
+	return errAcknowledgementLost
 }
 
 func TestWebhookCommittedOutcomeSurvivesAcknowledgementLoss(t *testing.T) {
 	f := newWebhookClaimFixture(t)
+	ctx := t.Context()
 	sends := 0
 	sender := claimSender(func(context.Context, webhook.SendRequest) (webhook.SendResult, error) {
 		sends++
 		return webhook.SendResult{Status: 204}, nil
 	})
-	if n, err := f.dispatcher(t, failAcknowledgement{f.repo}, sender).DispatchOnce(context.Background()); err == nil || n != 0 {
+	if n, err := f.dispatcher(t, failAcknowledgement{f.repo}, sender).DispatchOnce(ctx); !errors.Is(err, errAcknowledgementLost) || n != 0 {
 		t.Fatalf("acknowledgement failure: %d %v", n, err)
 	}
+	before, err := f.worker.GetDelivery(ctx, housekeepingTenantA, f.endpoint.ID, f.eventID)
+	if err != nil || before.State != webhook.DeliverySucceeded || before.ResponseStatus != 204 || before.Attempt != 1 {
+		t.Fatalf("committed delivery before takeover: %#v %v", before, err)
+	}
 	f.counts(t, 1, 1)
-	f.clock.Advance(2 * time.Minute)
-	if n, err := f.dispatcher(t, f.repo, sender).DispatchOnce(context.Background()); err != nil || n != 1 {
-		t.Fatalf("recovery: %d %v", n, err)
+
+	var expiresAt time.Time
+	if err := f.db.operator.QueryRow(ctx, `SELECT lease_expires_at FROM outbox_events
+		WHERE tenant_id=$1 AND id=$2 AND published_at IS NULL AND lease_owner='original-owner'`,
+		housekeepingTenantA, f.eventID).Scan(&expiresAt); err != nil {
+		t.Fatalf("read original unpublished claim: %v", err)
+	}
+	remaining := expiresAt.Sub(f.clock.Now())
+	if remaining < time.Microsecond {
+		t.Fatalf("expected a live original lease, remaining %s", remaining)
+	}
+	replacement, err := webhook.NewDispatcher(f.repo, f.worker, f.cipher, sender, f.clock, id.Generator{}, "replacement-owner", time.Minute, 3, time.Millisecond, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.clock.Advance(remaining - time.Microsecond)
+	if n, err := replacement.DispatchOnce(ctx); err != nil || n != 0 {
+		t.Fatalf("replacement before lease expiry: completed %d, err %v", n, err)
+	}
+	f.clock.Advance(time.Microsecond)
+	if n, err := replacement.DispatchOnce(ctx); err != nil || n != 1 {
+		t.Fatalf("replacement at lease expiry: completed %d, err %v", n, err)
 	}
 	if sends != 1 {
-		t.Fatalf("terminal outcome resent %d times", sends)
+		t.Fatalf("webhook sends across both workers: got %d, want 1", sends)
+	}
+	after, err := f.worker.GetDelivery(ctx, housekeepingTenantA, f.endpoint.ID, f.eventID)
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatalf("takeover changed delivery: before=%#v after=%#v err=%v", before, after, err)
+	}
+	var acknowledged bool
+	if err := f.db.operator.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM outbox_events
+		WHERE tenant_id=$1 AND id=$2 AND published_at=$3 AND lease_owner IS NULL AND lease_expires_at IS NULL)`,
+		housekeepingTenantA, f.eventID, f.clock.Now()).Scan(&acknowledged); err != nil || !acknowledged {
+		t.Fatalf("expected acknowledged outbox event with lease cleared: acknowledged=%t err=%v", acknowledged, err)
 	}
 	f.counts(t, 1, 1)
 }

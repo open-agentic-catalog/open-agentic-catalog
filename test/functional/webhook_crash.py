@@ -10,7 +10,7 @@ from runner import Failure, command
 
 CHECKS = ["accepted-in-flight", "worker-killed", "unacknowledged-without-outcome",
           "lease-expired", "same-event-redelivered", "parent-acknowledged",
-          "origin-unchanged", "other-tenant-unchanged", "replacement-process"]
+          "origin-unchanged", "delivery-audit-verified", "other-tenant-unchanged", "replacement-process"]
 
 
 def valid_evidence(value):
@@ -55,21 +55,24 @@ def snapshot(journey, tenant, endpoint, event):
                       "'leaseExpired',e.lease_expires_at<=clock_timestamp(),"
                       "'leaseCleared',e.lease_owner IS NULL AND e.lease_expires_at IS NULL,"
                       "'deliveryCount',(SELECT count(*) FROM webhook_deliveries d WHERE d.tenant_id=e.tenant_id "
-                      "AND d.event_id=e.id AND d.endpoint_id='" + endpoint + "')) "
+                      "AND d.event_id=e.id AND d.endpoint_id='" + endpoint + "'),"
+                      "'deliveryAuditCount',(SELECT count(*) FROM audit_events a WHERE a.tenant_id=e.tenant_id "
+                      "AND a.action='webhook.delivery_attempted' AND a.details->'facts'->>'eventId'=e.id::text "
+                      "AND a.details->'facts'->>'endpointId'='" + endpoint + "')) "
                       "FROM outbox_events e WHERE e.tenant_id='" + tenant + "' AND e.id='" + event + "'")
     value = json.loads(raw)
-    if (set(value) != {"digest", "acknowledged", "leased", "leaseExpired", "leaseCleared", "deliveryCount"}
+    if (set(value) != {"digest", "acknowledged", "leased", "leaseExpired", "leaseCleared", "deliveryCount", "deliveryAuditCount"}
             or not isinstance(value["digest"], str) or not re.fullmatch(r"[0-9a-f]{64}", value["digest"])
             or any(type(value[key]) is not bool for key in ("acknowledged", "leased", "leaseCleared"))
             or value["leaseExpired"] is not None and type(value["leaseExpired"]) is not bool
-            or type(value["deliveryCount"]) is not int):
+            or any(type(value[key]) is not int for key in ("deliveryCount", "deliveryAuditCount"))):
         raise Failure("crash-database-observation-invalid")
     return value
 
 
 def check_pending(value, *, expired):
     if (value["acknowledged"] or not value["leased"] or value["leaseCleared"]
-            or value["deliveryCount"] != 0 or value["leaseExpired"] is not expired):
+            or value["deliveryCount"] != 0 or value["deliveryAuditCount"] != 0 or value["leaseExpired"] is not expired):
         raise Failure("crash-original-outcome-already-persisted")
 
 
@@ -82,11 +85,16 @@ def qualify(journey, endpoint):
     before = journey.process_identities()
     journey.compose("stop", "--timeout", "20", "worker")
     namespace = journey.namespace()
+    creator, _ = journey.api.request("GET", "/api/v1/me")
+    creation = audit_once(journey.api, "namespace.created", "namespace", namespace["id"])
+    if (creation["tenantId"] != namespace["tenantId"] or creation["actor"] != creator["membershipId"]
+            or creation["details"]["principalType"] != "catalog_membership"):
+        raise Failure("crash-origin-audit-attribution-invalid")
     event = journey.event_id(namespace)
     selection = {"endpointId": endpoint["endpoint"]["id"], "eventId": event,
                  "source": "https://github.com/open-agentic-catalog/open-agentic-catalog/tenants/" + namespace["tenantId"]}
     initial = snapshot(journey, namespace["tenantId"], selection["endpointId"], event)
-    if initial["acknowledged"] or initial["leased"] or initial["deliveryCount"] != 0:
+    if initial["acknowledged"] or initial["leased"] or initial["deliveryCount"] != 0 or initial["deliveryAuditCount"] != 0:
         raise Failure("crash-control-not-pristine")
     engine = shlex.split(journey.env.get("CATALOG_FUNCTIONAL_ENGINE_COMMAND", "docker"))
     journey.receiver.request("POST", "/webhooks/barrier", dict(selection, action="arm"), expected=(204,))
@@ -150,7 +158,7 @@ def qualify(journey, endpoint):
         value = snapshot(journey, namespace["tenantId"], selection["endpointId"], event)
         if not value["acknowledged"]:
             return False
-        if (not value["leaseCleared"] or value["leased"] or value["deliveryCount"] != 1
+        if (not value["leaseCleared"] or value["leased"] or value["deliveryCount"] != 1 or value["deliveryAuditCount"] != 1
                 or value["digest"] != initial["digest"]):
             raise Failure("crash-parent-outcome-invalid")
         return True
@@ -158,7 +166,14 @@ def qualify(journey, endpoint):
     current, headers = journey.api.request("GET", "/api/v1/namespaces/" + namespace["id"])
     if namespace_state(current) != namespace_state(namespace) or header(headers, "ETag") != '"rev-1"':
         raise Failure("crash-origin-changed")
-    audit_once(journey.api, "namespace.created", "namespace", namespace["id"])
+    if audit_once(journey.api, "namespace.created", "namespace", namespace["id"]) != creation:
+        raise Failure("crash-origin-audit-changed")
+    delivery_audit = audit_once(journey.api, "webhook.delivery_attempted", "webhook_delivery", delivered["id"])
+    facts = {"endpointId": selection["endpointId"], "eventId": event, "attempt": 1, "state": "succeeded", "httpStatus": 204}
+    if (delivery_audit["tenantId"] != namespace["tenantId"] or delivery_audit["actor"] != "catalog-worker"
+            or delivery_audit["details"]["principalType"] != "service_executor"
+            or delivery_audit["details"]["facts"] != facts):
+        raise Failure("crash-delivery-audit-invalid")
     count = journey.sql("SELECT count(*) FROM outbox_events WHERE tenant_id='" + namespace["tenantId"] + "' AND subject='" + namespace["id"] + "' AND event_type='com.open.agentic.catalog.namespace.created.v1'")
     if count != "1":
         raise Failure("crash-origin-duplicated")

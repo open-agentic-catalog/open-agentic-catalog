@@ -2085,7 +2085,7 @@ The enabled-webhook crash check binds receiver acceptance to one exact endpoint,
 
 It restarts only after observed lease expiry. The same payload must be accepted again, followed by successful delivery evidence and cleared parent lease. Two receiver observations with only persisted attempt one are expected when the first send's outcome was lost.
 
-Namespace state, one originating audit/event and a known other-tenant control must remain unchanged. The supervisor requires the bounded `webhookCrash` evidence, not an aggregate duplicate count. Isolated barrier/report tests and local HTTP controls supplement the real Compose run.
+After both receipts, the namespace remains at revision 1 with its original member-attributed creation audit and one outbox event. The Catalog records one successful delivery and one worker-attributed attempt audit for that event and endpoint. The test also checks the other tenant's namespace and audit. The supervisor records the selected event's results in `webhookCrash`.
 
 They do not claim exactly-once delivery or replace the PostgreSQL stale-owner fencing tests.
 
