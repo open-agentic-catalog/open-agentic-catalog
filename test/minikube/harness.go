@@ -498,7 +498,7 @@ func (h *harness) buildImages() error {
 	if h.options.scenario == "flux" {
 		target := "open-agentic-catalog:minikube-flux-target-" + h.suffix
 		h.gitopsImages["target"] = target
-		if _, err := h.run("build distinct Flux target Catalog image", h.options.docker, "build", "--pull=false", "--target", "runtime", "--build-arg", "VERSION=minikube-flux-target", "--build-arg", "COMMIT=local", "--tag", target, "--file", "Containerfile", "."); err != nil {
+		if _, err := h.run("build distinct Flux target Catalog image", h.options.docker, "build", "--pull=false", "--target", "runtime", "--build-arg", "VERSION="+fluxTargetVersion, "--build-arg", "COMMIT=local", "--tag", target, "--file", "Containerfile", "."); err != nil {
 			return err
 		}
 		id, err := h.run("record Flux target image", h.options.docker, "image", "inspect", "--format", "{{.Id}}", target)

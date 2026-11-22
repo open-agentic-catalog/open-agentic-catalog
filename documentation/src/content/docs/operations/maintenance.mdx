@@ -97,6 +97,8 @@ spec:
 
 If preflight refuses the HPA or an invalid target, inspect the running Pods and correct the input. If the hook runs or target startup fails, keep Flux suspended and the HPA removed. Follow the [coordinated release procedure](#coordinated-release-deployment) to recover forward with the same target. If handback differs from the reviewed target, suspend again and inspect actual Helm history, Pods, owner Job and database state before retrying. Never request a rollback or uninstall as a recovery shortcut.
 
+If Flux handback failed because Kubernetes denied creation of the migration Job, suspend the HelmRelease and verify that the Job never ran. Confirm that the coordinator already migrated this exact target, its Pods are still ready and a reader can reopen the same release. To retry this handback once, patch the HelmRelease with `spec.upgrade.disableHooks: true` and `spec.suspend: false`. In the same patch, set the annotations `reconcile.fluxcd.io/requestedAt` and `reconcile.fluxcd.io/resetAt` to the same fresh value. Wait for Flux to acknowledge both values and report the new revision ready. Repeat the checks in steps 5 and 6 before restoring autoscaling.
+
 Capture the controller logs before and after the suspension request. Match the new entry on the release name, namespace and reconcile ID.
 
 ```sh

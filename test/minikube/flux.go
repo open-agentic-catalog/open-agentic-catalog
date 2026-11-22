@@ -18,6 +18,8 @@ import (
 //go:embed fixtures/flux/pins.json
 var fluxPins []byte
 
+const fluxTargetVersion = "minikube-flux-target"
+
 type fluxInputs struct {
 	ControllerManifestSHA256 string            `json:"controllerManifestSha256"`
 	Images                   map[string]string `json:"images"`
@@ -80,13 +82,32 @@ func (h *harness) fluxPhase(phase, values string) error {
 	return nil
 }
 
-// readRetainedRelease uses only the reader's GET and opens a fresh forward after each drain.
-func (h *harness) readRetainedRelease(releaseID string) ([sha256.Size]byte, error) {
+type fluxCatalogReadback struct {
+	release  [sha256.Size]byte
+	manifest [sha256.Size]byte
+}
+
+// readFluxCatalog opens a fresh Service port-forward for the build, public snapshot and reader-authorized release.
+func (h *harness) readFluxCatalog(releaseID, snapshotETag, version string) (fluxCatalogReadback, error) {
+	var readback fluxCatalogReadback
 	address, err := h.startPortForward("service/catalog", 8080)
 	if err != nil {
-		return [sha256.Size]byte{}, err
+		return readback, err
 	}
-	return h.readRetainedReleaseAt("http://"+address, releaseID)
+	baseURL := "http://" + address
+	if err := h.verifyServedBuild(baseURL, map[string]string{"version": version, "commit": "local"}); err != nil {
+		return readback, err
+	}
+	manifest, err := h.request(http.MethodGet, baseURL+"/.well-known/ard.json", "", "", "", nil, nil)
+	if err != nil {
+		return readback, err
+	}
+	if manifest.Status != http.StatusOK || manifest.Header.Get("ETag") != snapshotETag || !json.Valid(manifest.Body) {
+		return readback, errors.New("served ARD manifest does not match the original active snapshot")
+	}
+	readback.manifest = sha256.Sum256(manifest.Body)
+	readback.release, err = h.readRetainedReleaseAt(baseURL, releaseID)
+	return readback, err
 }
 
 func (h *harness) readRetainedReleaseAt(baseURL, releaseID string) ([sha256.Size]byte, error) {
@@ -107,24 +128,28 @@ func (h *harness) readRetainedReleaseAt(baseURL, releaseID string) ([sha256.Size
 
 func (h *harness) verifyFlux(runID string, initial []byte) error {
 	var smoke struct {
-		Resources []struct {
+		SnapshotETag string `json:"snapshotEtag"`
+		Resources    []struct {
 			ReleaseID string `json:"releaseId"`
 		} `json:"resources"`
 	}
-	if json.Unmarshal(initial, &smoke) != nil || len(smoke.Resources) == 0 || smoke.Resources[0].ReleaseID == "" {
-		return errors.New("missing governed release for the Flux handoff")
+	if json.Unmarshal(initial, &smoke) != nil || smoke.SnapshotETag == "" || len(smoke.Resources) == 0 || smoke.Resources[0].ReleaseID == "" {
+		return errors.New("missing publication ETag or governed release for the Flux handoff")
 	}
 	releaseID := smoke.Resources[0].ReleaseID
-	before, err := h.readRetainedRelease(releaseID)
+	before, err := h.readFluxCatalog(releaseID, smoke.SnapshotETag, "minikube")
 	if err != nil {
 		return err
 	}
 	checkRetained := func() error {
-		after, err := h.readRetainedRelease(releaseID)
+		after, err := h.readFluxCatalog(releaseID, smoke.SnapshotETag, fluxTargetVersion)
 		if err != nil {
 			return err
 		}
-		if after != before {
+		if after.manifest != before.manifest {
+			return errors.New("served ARD manifest changed during the Flux handoff")
+		}
+		if after.release != before.release {
 			return errors.New("retained release response changed during the Flux handoff")
 		}
 		return nil
@@ -168,12 +193,16 @@ func (h *harness) verifyFlux(runID string, initial []byte) error {
 	if err = checkRetained(); err != nil {
 		return err
 	}
-	if err = h.fluxPhase("hooks-control", target); err != nil {
-		return err
+	for _, phase := range []string{"hooks-control", "stop-controller", "restart-controller", "recover-handback"} {
+		if err = h.fluxPhase(phase, target); err != nil {
+			return err
+		}
+		if err = checkRetained(); err != nil {
+			return err
+		}
 	}
-	if err = checkRetained(); err != nil {
-		return err
-	}
-	h.report.Checks = append(h.report.Checks, "reader-gets-identical-retained-release-before-and-after-flux-handoff")
+	h.report.Checks = append(h.report.Checks, "reader-gets-identical-retained-release-before-and-after-flux-handoff",
+		"flux-target-build-and-original-ard-snapshot-served-through-controller-restart",
+		"flux-recovers-refused-handback-without-replacing-target-pods")
 	return h.fluxPhase("result", target)
 }

@@ -277,15 +277,29 @@ class Handoff:
         wait_for("Job quota was not enforced", lambda: self.get("quota/"+QUOTA).get("status", {}).get("hard", {}).get("count/jobs.batch") == "0")
         self.k("create", "job", "catalog-quota-probe", "--image=unused", "--dry-run=server", refusal="exceeded quota: "+QUOTA)
 
-    def check_target(self):
+    def check_target(self, status="deployed"):
         revision = self.history()[-1]
-        require(revision["status"] == "deployed" and revision["chart"] == CHART+"-"+VERSIONS["target"], "wrong deployed target")
+        require(revision["status"] == status and revision["chart"] == CHART+"-"+VERSIONS["target"],
+                "expected the frozen target chart at a "+status+" revision")
         desired = self.selected_release("target")["spec"]
         require(desired["suspend"], "release must remain suspended")
         require(json.loads(command([*self.helm, "get", "values", RELEASE, "-o", "json"])) ==
                 desired["values"] == json.loads(self.values_file.read_text()), "release inputs do not agree")
         self.check_hpas()
         return revision["revision"]
+
+    def verify_adoption(self, revision, pods, request=None):
+        wait_for("Flux did not adopt the frozen target", lambda: self.acknowledged(revision, VERSIONS["target"], request))
+        obj = self.selected_release("target")
+        require(not obj["spec"].get("suspend") and obj["spec"]["upgrade"]["disableHooks"],
+                "expected an active HelmRelease with upgrade hooks disabled")
+        latest = self.history()[-1]
+        require(latest["revision"] == revision and latest["status"] == "deployed" and latest["chart"] == CHART+"-"+VERSIONS["target"],
+                "Helm history disagrees with the revision adopted by Flux")
+        values = json.loads(command([*self.helm, "get", "values", RELEASE, "-o", "json"]))
+        require(values == obj["spec"]["values"] == json.loads(self.values_file.read_text()), "adopted values differ from the frozen target")
+        require(self.runtime() == pods, "adoption replaced a target Pod")
+        self.check_hpas()
 
     def resume(self):
         revision = self.check_target()
@@ -295,33 +309,30 @@ class Handoff:
         pods = self.runtime()
         self.guard()
         self.patch({"suspend": False})
-        wait_for("hook-free reconciliation did not record the coordinator target", lambda: self.acknowledged(revision+1, VERSIONS["target"]))
-        latest = self.history()[-1]
-        require(latest["revision"] == revision+1 and latest["status"] == "deployed" and latest["chart"] == CHART+"-"+VERSIONS["target"]
-                and json.loads(command([*self.helm, "get", "values", RELEASE, "-o", "json"])) == obj["spec"]["values"]
-                and self.runtime() == pods, "resume changed target workloads or chart")
-        self.check_hpas()
+        self.verify_adoption(revision+1, pods)
         self.report["coordinatorRevision"] = revision
         self.report["fluxResumeRevision"] = revision+1
         self.report["resumedPods"] = pods
 
-    def restore_hooks(self):
+    def restore_hooks(self, revision, pods):
         self.patch({"upgrade": {"disableHooks": False}})
         token = str(uuid4())
         self.k("annotate", HR, "reconcile.fluxcd.io/requestedAt="+token, "--overwrite")
-        revision = self.report["fluxResumeRevision"]
         wait_for("restored hook policy was not reconciled", lambda: self.acknowledged(revision, VERSIONS["target"], token))
         latest = self.history()[-1]
         require(latest["revision"] == revision and latest["status"] == "deployed"
                 and not self.selected_release("target")["spec"]["upgrade"].get("disableHooks")
-                and self.runtime() == self.report["resumedPods"],
+                and self.runtime() == pods,
                 "restoring normal hooks changed the adopted target")
         self.check_hpas()
 
-    def pause_control(self):
+    def restore_hpa(self):
         hpa = self.add_hpa(HPA, "catalog-api", 2)
-        self.report["restoredHPA"] = hpa["metadata"]["uid"]
         require(hpa["spec"] == self.report["hpaSpec"], "restored HPA differs from reviewed configuration")
+        return hpa["metadata"]["uid"]
+
+    def pause_control(self):
+        self.report["restoredHPA"] = self.restore_hpa()
         require(self.report["originalHPA"] != self.report["restoredHPA"], "HPA was not restored explicitly")
 
         require(self.suspend() == self.report["fluxResumeRevision"], "unexpected revision before negative control")
@@ -343,16 +354,79 @@ class Handoff:
                 "failed resume unexpectedly rolled back, restarted or uninstalled the release")
         self.check_hpas()
         self.report["blockedHooksEnabledRevision"] = revision+1
+        self.report["blockedPods"] = pods
+
+    def verify_failed_handback(self):
+        revision = self.check_target("failed")
+        require(revision == self.report["blockedHooksEnabledRevision"] and self.runtime() == self.report["blockedPods"],
+                "refused handback changed while suspended")
+        status = self.get(HR)["status"]
+        latest = status["history"][0]
+        require(latest["version"] == revision and latest["status"] == "failed"
+                and any(c["type"] == "Ready" and c["status"] == "False" and c["reason"] == "UpgradeFailed"
+                        for c in status["conditions"]), "Flux lost the failed upgrade while suspended")
+        require(not self.get("jobs", "-l", OWNER_SELECTOR)["items"], "expected the quota to have refused the owner Job")
+        return revision
+
+    def controller_uid(self):
+        pods = self.get("pods", "-l", "app=helm-controller", namespace=FLUX)["items"]
+        require(len(pods) == 1 and not pods[0]["metadata"].get("deletionTimestamp"), "expected one active helm-controller Pod")
+        container = pods[0]["status"]["containerStatuses"][0]
+        require(container["ready"] and container["imageID"] == self.images["ids"]["helm-controller-config"],
+                "helm-controller is not ready on the pinned image")
+        return pods[0]["metadata"]["uid"]
+
+    def stop_controller(self):
+        self.verify_failed_handback()
+        self.report["controllerPodBeforeRestart"] = self.controller_uid()
+        self.k("scale", "deployment/helm-controller", "--current-replicas=1", "--replicas=0", namespace=FLUX)
+        wait_for("helm-controller Pod still present", lambda: not self.get("pods", "-l", "app=helm-controller", namespace=FLUX)["items"])
+        self.verify_failed_handback()
+
+    def restart_controller(self):
+        self.k("scale", "deployment/helm-controller", "--current-replicas=0", "--replicas=1", namespace=FLUX)
+        self.k("rollout", "status", "deployment/helm-controller", "--timeout=3m", namespace=FLUX)
+        replacement = self.controller_uid()
+        require(replacement != self.report["controllerPodBeforeRestart"], "helm-controller Pod was not replaced")
+        # The old Pod is gone. Require the replacement's own observation of
+        # this suspended release before allowing the operator to reset retries.
+        revision = self.wait_for_suspension(set(self.report["suspensionReconciles"]))
+        require(revision == self.verify_failed_handback(), "controller restart changed the failed Helm revision")
+        self.report["controllerPodAfterRestart"] = replacement
+        self.report["suspendedRevisionAfterRestart"] = revision
+
+    def recover_handback(self):
+        revision = self.verify_failed_handback()
+        pods = self.report["blockedPods"]
+
+        # Retry the known admission refusal once. Keep the Job quota in force
+        # while Flux adopts the already migrated target and restores normal hooks.
+        request = str(uuid4())
+        annotations = {"reconcile.fluxcd.io/requestedAt": request, "reconcile.fluxcd.io/resetAt": request}
+        self.k("patch", HR, "--type=merge", "-p", json.dumps({
+            "metadata": {"annotations": annotations}, "spec": {"suspend": False, "upgrade": {"disableHooks": True}},
+        }))
+        recovered = revision+1
+        self.verify_adoption(recovered, pods, request)
+        require(self.get(HR)["status"].get("lastHandledResetAt") == request, "Flux did not acknowledge the operator retry")
+        self.restore_hooks(recovered, pods)
+        self.report["recoveredRevision"] = recovered
+        self.report["recoveredHPA"] = self.restore_hpa()
+        self.k("delete", "quota/"+QUOTA)
 
     def run(self, phase):
         if phase == "result":
             require(self.report["initialRevision"] < self.report["coordinatorRevision"] < self.report["fluxResumeRevision"]
-                    < self.report["blockedHooksEnabledRevision"] and self.report["originalHPA"] != self.report["restoredHPA"],
+                    < self.report["blockedHooksEnabledRevision"] < self.report["recoveredRevision"]
+                    and self.report["suspendedRevisionAfterRestart"] == self.report["blockedHooksEnabledRevision"]
+                    and len({self.report[key] for key in ("originalHPA", "restoredHPA", "recoveredHPA")}) == 3,
                     "incomplete Flux handoff evidence")
             print(json.dumps(self.report))
             return
-        phases = {"install": self.install, "pause": self.pause, "resume": self.resume, "restore-hooks": self.restore_hooks,
-                  "pause-control": self.pause_control, "hooks-control": self.hooks_control}
+        phases = {"install": self.install, "pause": self.pause, "resume": self.resume,
+                  "restore-hooks": lambda: self.restore_hooks(self.report["fluxResumeRevision"], self.report["resumedPods"]),
+                  "pause-control": self.pause_control, "hooks-control": self.hooks_control, "stop-controller": self.stop_controller,
+                  "restart-controller": self.restart_controller, "recover-handback": self.recover_handback}
         phases[phase]()
         self.receipt.write_text(json.dumps(self.report))
 

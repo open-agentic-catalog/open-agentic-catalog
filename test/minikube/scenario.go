@@ -653,17 +653,12 @@ func (h *harness) runSmoke(baseURL, runID string) ([]byte, error) {
 
 // verifyServedContract matches the test build identity and served OpenAPI bytes against the local packaged inputs.
 func (h *harness) verifyServedContract(baseURL string) error {
-	version, err := h.request(http.MethodGet, baseURL+"/version", "", "", "", nil, nil)
-	if err != nil || version.Status != http.StatusOK {
-		return fmt.Errorf("read served version: status %d: %w", version.Status, err)
-	}
-	var identity map[string]any
 	expected := map[string]string{"version": "minikube", "commit": "local"}
 	if stamp := h.managedBuild(); stamp != nil {
 		expected = stamp
 	}
-	if err := json.Unmarshal(version.Body, &identity); err != nil || !matchesBuildIdentity(identity, expected) {
-		return fmt.Errorf("unexpected served build identity: %s", version.Body)
+	if err := h.verifyServedBuild(baseURL, expected); err != nil {
+		return err
 	}
 	contract, err := h.request(http.MethodGet, baseURL+"/openapi/control-v1.yaml", "", "", "", nil, nil)
 	if err != nil || contract.Status != http.StatusOK {
@@ -677,6 +672,18 @@ func (h *harness) verifyServedContract(baseURL string) error {
 		return errors.New("served OpenAPI differs from the checked-in contract")
 	}
 	h.report.Checks = append(h.report.Checks, "served-build-and-openapi-identity")
+	return nil
+}
+
+func (h *harness) verifyServedBuild(baseURL string, expected map[string]string) error {
+	version, err := h.request(http.MethodGet, baseURL+"/version", "", "", "", nil, nil)
+	if err != nil {
+		return fmt.Errorf("read served version: %w", err)
+	}
+	var identity map[string]any
+	if version.Status != http.StatusOK || json.Unmarshal(version.Body, &identity) != nil || !matchesBuildIdentity(identity, expected) {
+		return fmt.Errorf("expected Catalog build %s at /version, got HTTP %d and version %v", expected["version"], version.Status, identity["version"])
+	}
 	return nil
 }
 
