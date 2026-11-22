@@ -3634,8 +3634,7 @@ pub struct PersonalItem {
     #[serde(rename = "createdAt")]
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub id: UUID,
-    ///Constraint: minLength=1, maxLength=120, pattern=`^[^\x00-\x1F\x7F-\x9F]*$`
-    pub label: String,
+    pub label: PersonalLabel,
     #[serde(rename = "listingId", skip_serializing_if = "Option::is_none")]
     pub listing_id: Option<UUID>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3679,8 +3678,7 @@ impl AsRef<str> for PersonalItemType {
 }
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct PersonalInput {
-    ///Constraint: minLength=1, maxLength=120, pattern=`^[^\x00-\x1F\x7F-\x9F]*$`
-    pub label: String,
+    pub label: PersonalLabel,
     #[serde(rename = "listingId", skip_serializing_if = "Option::is_none")]
     pub listing_id: Option<UUID>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3693,7 +3691,7 @@ pub struct PersonalInput {
 }
 impl PersonalInput {
     /// Construct this request with every required wire field.
-    pub fn new(label: String, r#type: PersonalInputType) -> Self {
+    pub fn new(label: PersonalLabel, r#type: PersonalInputType) -> Self {
         Self {
             label,
             r#type,
@@ -3704,7 +3702,7 @@ impl PersonalInput {
         }
     }
     /// Start a dependency-free builder with every required wire field.
-    pub fn builder(label: String, r#type: PersonalInputType) -> PersonalInputBuilder {
+    pub fn builder(label: PersonalLabel, r#type: PersonalInputType) -> PersonalInputBuilder {
         PersonalInputBuilder::new(label, r#type)
     }
 }
@@ -3716,7 +3714,7 @@ pub struct PersonalInputBuilder {
 }
 impl PersonalInputBuilder {
     /// Start a builder with every required wire field.
-    pub fn new(label: String, r#type: PersonalInputType) -> Self {
+    pub fn new(label: PersonalLabel, r#type: PersonalInputType) -> Self {
         Self {
             value: PersonalInput::new(label, r#type),
         }
@@ -3810,6 +3808,8 @@ impl AsRef<str> for PersonalReferenceOrigin {
         self.as_str()
     }
 }
+///Literal label of 1 to 120 Unicode code points. Requires a non-whitespace character and excludes control characters. Surrounding spaces are significant.
+pub type PersonalLabel = String;
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize, Default)]
 pub enum PersonalInputType {
     #[default]

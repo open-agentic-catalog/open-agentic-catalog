@@ -1,4 +1,5 @@
 import { isProcessInfo, isBuildInfo } from "../api/build-info";
+import { trimGoWhitespace } from "./input-validation";
 import { validCriteria } from "./personal-criteria";
 // Checks for fields consumed by workflow views. Unknown evidence stays unchanged.
 // These predicates do not assert whole-schema conformance or reconstruct records.
@@ -1793,7 +1794,7 @@ export function PersonalInput(v: unknown): boolean {
     text(v.label) &&
     [...v.label].length >= 1 &&
     [...v.label].length <= 120 &&
-    v.label.trim().length > 0 &&
+    trimGoWhitespace(v.label).length > 0 &&
     ![...v.label].some((c) => {
       const n = c.codePointAt(0)!;
       return n < 32 || (n >= 127 && n <= 159);

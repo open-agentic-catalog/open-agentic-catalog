@@ -77,11 +77,16 @@ func (s *Server) handlePersonalWork(w http.ResponseWriter, r *http.Request) {
 	s.respondJSON(w, r, 200, result)
 }
 func (s *Server) handlePersonalList(w http.ResponseWriter, r *http.Request) {
-	kind := r.URL.Query().Get("type")
+	query := r.URL.Query()
+	kind := query.Get("type")
+	if query.Has("type") && kind == "" {
+		s.fail(w, r, catalog.E(catalog.CodeInvalidArgument, "saved item type cannot be empty"))
+		return
+	}
 	filters := map[string]string{"type": kind}
 	var label *string
-	if r.URL.Query().Has("label") {
-		value := r.URL.Query().Get("label")
+	if query.Has("label") {
+		value := query.Get("label")
 		label = &value
 		filters["label"] = value
 	}

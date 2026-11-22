@@ -8705,8 +8705,9 @@ type PersonalCriteria1Origins string
 
 // PersonalInput defines model for PersonalInput.
 type PersonalInput struct {
-	Label     string `json:"label"`
-	ListingId *UUID  `json:"listingId,omitempty"`
+	// Label Literal label of 1 to 120 Unicode code points. Requires a non-whitespace character and excludes control characters. Surrounding spaces are significant.
+	Label     PersonalLabel `json:"label"`
+	ListingId *UUID         `json:"listingId,omitempty"`
 
 	// Observed Exact current release shown to the human. Omit on restore or rename.
 	Observed  *ReleaseObservation `json:"observed,omitempty"`
@@ -8722,9 +8723,11 @@ type PersonalInputType string
 
 // PersonalItem defines model for PersonalItem.
 type PersonalItem struct {
-	CreatedAt time.Time          `json:"createdAt"`
-	Id        UUID               `json:"id"`
-	Label     string             `json:"label"`
+	CreatedAt time.Time `json:"createdAt"`
+	Id        UUID      `json:"id"`
+
+	// Label Literal label of 1 to 120 Unicode code points. Requires a non-whitespace character and excludes control characters. Surrounding spaces are significant.
+	Label     PersonalLabel      `json:"label"`
 	ListingId *UUID              `json:"listingId,omitempty"`
 	Reference *PersonalReference `json:"reference,omitempty"`
 	Revision  int                `json:"revision"`
@@ -8737,6 +8740,9 @@ type PersonalItem struct {
 
 // PersonalItemType defines model for PersonalItem.Type.
 type PersonalItemType string
+
+// PersonalLabel Literal label of 1 to 120 Unicode code points. Requires a non-whitespace character and excludes control characters. Surrounding spaces are significant.
+type PersonalLabel = string
 
 // PersonalPage defines model for PersonalPage.
 type PersonalPage struct {
@@ -11733,9 +11739,9 @@ type ListPersonalItemsParams struct {
 	Type *ListPersonalItemsParamsType `form:"type,omitempty" json:"type,omitempty"`
 
 	// Label Optional literal case-sensitive match of the complete saved label. Surrounding spaces and Unicode spelling are significant; wildcard characters are literal. Labels need not be unique. Omission leaves labels unrestricted; an empty, whitespace-only or control-containing value is invalid. Filtering precedes page limits and is bound into continuation with type and current owner authority.
-	Label  *string `form:"label,omitempty" json:"label,omitempty"`
-	Limit  *int    `form:"limit,omitempty" json:"limit,omitempty"`
-	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+	Label  *PersonalLabel `form:"label,omitempty" json:"label,omitempty"`
+	Limit  *int           `form:"limit,omitempty" json:"limit,omitempty"`
+	Cursor *string        `form:"cursor,omitempty" json:"cursor,omitempty"`
 }
 
 // ListPersonalItemsParamsType defines parameters for ListPersonalItems.

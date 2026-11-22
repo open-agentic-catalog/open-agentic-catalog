@@ -608,9 +608,7 @@ paths:
             an empty, whitespace-only or control-containing value is invalid. Filtering precedes page limits and is bound into
             continuation with type and current owner authority.'
           schema:
-            type: string
-            minLength: 1
-            maxLength: 120
+            $ref: '#/components/schemas/PersonalLabel'
         - name: limit
           in: query
           schema:
@@ -7422,6 +7420,15 @@ components:
           type: integer
           format: int64
           minimum: 1
+    PersonalLabel:
+      type: string
+      description: Literal label of 1 to 120 Unicode code points. Requires a non-whitespace character and excludes control characters. Surrounding spaces are significant.
+      minLength: 1
+      maxLength: 120
+      # Some regex engines match the end anchor before a final newline.
+      not: {pattern: '[\x00-\x1F\x7F-\x9F]'}
+      pattern: "^[ \\xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]*\
+        [^\\x00-\\x20\\x7F-\\xA0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000][^\\x00-\\x1F\\x7F-\\x9F]*$"
     PersonalInput:
       type: object
       additionalProperties: false
@@ -7436,10 +7443,7 @@ components:
             - search
             - follow
         label:
-          type: string
-          minLength: 1
-          maxLength: 120
-          pattern: '^[^\x00-\x1F\x7F-\x9F]*$'
+          $ref: '#/components/schemas/PersonalLabel'
         listingId:
           $ref: '#/components/schemas/UUID'
         reference:
@@ -7499,10 +7503,7 @@ components:
             - search
             - follow
         label:
-          type: string
-          minLength: 1
-          maxLength: 120
-          pattern: ^[^\x00-\x1F\x7F-\x9F]*$
+          $ref: '#/components/schemas/PersonalLabel'
         listingId:
           $ref: '#/components/schemas/UUID'
         reference:

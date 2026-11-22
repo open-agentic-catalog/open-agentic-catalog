@@ -69,6 +69,8 @@ def mock_generation(destination, changed_source=None, boolean_sources=None):
             for name in BOOLEAN_MODELS:
                 source = (boolean_sources or {}).get(name, "if value not in set(['true']):\n    raise ValueError()\n")
                 (models / (name + ".py")).write_text(source)
+            for name in ("personal_input", "personal_item"):
+                (models / (name + ".py")).write_text('if not re.match(r"^x$", value):\n    raise ValueError()\n')
             for name in OPEN_MODELS:
                 source = changed_source if changed_source is not None and name == OPEN_MODELS[-1] else MODEL_SOURCE
                 (models / (name + ".py")).write_text(source)
@@ -240,6 +242,8 @@ class PythonRunnerUnits(unittest.TestCase):
             self.assertIn(runner.ROOT / "api/openapi/control-v1.yaml", args)
             self.assertNotIn("--skip-validate-spec", args)
             self.assertEqual(run.call_args_list[1].args[0][1], "format")
+            for name in ("personal_input", "personal_item"):
+                self.assertIn("not re.fullmatch(", (destination / "catalog_sdk/generated/models" / (name + ".py")).read_text())
             for name in BOOLEAN_MODELS:
                 self.assertIn("if value is not True:", (destination / "catalog_sdk/generated/models" / (name + ".py")).read_text())
             source = (base / "work/templates/api.mustache").read_text()

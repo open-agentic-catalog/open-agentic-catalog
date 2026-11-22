@@ -36,6 +36,7 @@ import {
   personalFacts,
   PersonalSummary,
   savedTypeNames,
+  savedItemTitle,
 } from "./PersonalSummary";
 import { CurrentRead, useCurrentRead } from "./current-read";
 import { ExternalHandoff, IndexedProvenance } from "./Handoff";
@@ -510,7 +511,7 @@ function LibraryList(props: WorkspaceProps) {
                       <a
                         href={`${props.runtime.basePath}/saved-items/${item.id}`}
                       >
-                        {item.label}
+                        {savedItemTitle(item)}
                       </a>
                     </td>
                     <td>
@@ -711,7 +712,7 @@ function ExistingItem(props: LibraryProps) {
           <>
             {visible && (
               <>
-                <h2>{base.item.label}</h2>
+                <h2>{savedItemTitle(base.item)}</h2>
                 <details>
                   <summary>Last loaded saved criteria or reference</summary>
                   <PersonalSummary input={base.item} />
