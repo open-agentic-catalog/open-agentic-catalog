@@ -35,12 +35,16 @@ class OIDCTests(unittest.TestCase):
         with patch.object(Path, "read_bytes", return_value=b'{"realm":"catalog","clients":[]}'):
             value = oidc.realm_template("private-secret")
         self.assertEqual(len(value["clients"]), 4)
+        scopes = {scope["name"] for scope in value["clientScopes"]}
+        self.assertEqual(scopes, {"catalog.read", "tenant.admin"})
         for client in value["clients"]:
             self.assertTrue(client["serviceAccountsEnabled"])
             self.assertFalse(client["standardFlowEnabled"])
             self.assertFalse(client["directAccessGrantsEnabled"])
             self.assertFalse(client["publicClient"])
             self.assertEqual(client["secret"], "private-secret")
+            self.assertEqual(client["defaultClientScopes"], [])
+            self.assertEqual(set(client["optionalClientScopes"]), scopes if client["clientId"] == "catalog" else set())
 
     def test_progress_and_identity_cannot_be_skipped(self):
         with tempfile.TemporaryDirectory() as directory:

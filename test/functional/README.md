@@ -54,6 +54,10 @@ The overlay also sets worker dependency restart windows to 1.25s initial and 2.5
 
 Outage observations accumulate separately for the Job worker and outbox processor within the same continuously-not-ready phase. Independent jittered retries report running when callbacks reenter; their degraded backoffs need not coincide in one sample. Every sample must still pass the fixed status contract and required readiness state. Recovery requires one coherent healthy component sample plus completed fresh work and unchanged process identities; outage observations cannot establish recovery.
 
+The OIDC membership journey uses two service accounts. An administrator inspects the second account's grants after each transition. Suspension preserves the grant IDs and disables access. Reactivation restores access with the same token and grants. Offboarding revokes the grants, and a subsequent reactivation request returns HTTP 409. The administrator can still inspect the revoked grants.
+
+With OAuth scope enforcement enabled, a namespace creation request without `tenant.admin` returns HTTP 403 and leaves no matching namespace. The same account obtains a token with `catalog.read` and `tenant.admin` and retries the original idempotency key. Only the scoped token can replay the successful creation. A final directory lookup finds exactly the namespace returned by the retry, still at revision 1.
+
 The OIDC outage control distinguishes unavailable verification from invalid credentials. An unknown signing-key ID requires a JWKS refresh. With the issuer stopped, this returns `503 DEPENDENCY_UNAVAILABLE`; the same token returns `401 UNAUTHENTICATED` after issuer recovery. A valid cached token remains usable inside the existing cache window. These checks do not extend that window or accept unverified tokens.
 
 ## Where behavior belongs

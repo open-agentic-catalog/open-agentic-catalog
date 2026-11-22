@@ -66,7 +66,7 @@ WEBHOOK_CASES = [
 OIDC_STEPS = {
     "startup-contract": STEPS["startup-contract"],
     "packaged-smoke": STEPS["packaged-smoke"],
-    "independent-oidc": ["membership-smoke", "identity-provisioning", "identity-realm-operations", "public-discovery"],
+    "independent-oidc": ["membership-smoke", "identity-provisioning", "identity-realm-operations", "public-discovery", "administration-smoke"],
 }
 TRACING_STEPS = {
     "startup-contract": STEPS["startup-contract"],
@@ -91,7 +91,7 @@ PEER_STEPS = {
 }
 OIDC_CASES = ["provider-startup", "dedicated-mapping", "discovery-isolation", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling"]
 OIDC_PHASES = ["setup", "provision", "provision-replay", "dedicated-startup", "capabilities", "membership", "token-rejection", "discovery", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "identity-report"]
-OIDC_PHASES += ["membership-lifecycle-read"] + [
+OIDC_PHASES += ["membership-lifecycle-read", "membership-lifecycle-terminal"] + [
     "membership-lifecycle-" + action + suffix
     for action in ("suspend", "reactivate", "offboard")
     for suffix in ("", "-readback", "-access")

@@ -637,7 +637,7 @@
       "reason": "Independent HTTPS service-account dedicated/shared mappings and revoked access join existing controlled Minikube human subjects. Claim, scope, cursor and final-administrator permutations remain in named verifier/database tests; no password or browser flow is required.",
       "success": "Grant and read a membership, traverse bounded pages, filter its exact identity, inspect bounded direct/group contributions, suspend/reactivate/offboard and verify revoked access.",
       "rejection": "Deny cross-tenant reads and invalid or stale transitions; roles must not come from token claims.",
-      "recovery": "Same-key requests replay the retained lifecycle across complete stack recreation.",
+      "recovery": "Same-key requests replay the retained lifecycle across complete stack recreation. With OIDC, reactivation restores the same grants after suspension. Offboarding revokes them and a rejected reactivation leaves the membership and grants unchanged.",
       "gaps": []
     },
     {
@@ -671,6 +671,9 @@
           "path": "test/functional/core.py"
         },
         {
+          "path": "test/functional/oidc.py"
+        },
+        {
           "path": "internal/platform/httpserver/server_functional_test.go",
           "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
         }
@@ -678,7 +681,7 @@
       "reason": "Owned namespace create/update/readback/stale/replay/audit checks reject changed-body and changed-If-Match reuse without replacing the retained response. They join shipped namespace/Publisher smoke and shared lower-level pagination/authorization tests.",
       "success": "Create/update namespace and Publisher with current ETags; approve the publication domain.",
       "rejection": "Reject removal of an approved domain through ordinary update; preserve safe timeout and revision failures.",
-      "recovery": "Replay mutations after recreation; drain retains the exact timeout response and a new key can succeed.",
+      "recovery": "Replay mutations after recreation; drain retains the exact timeout response and a new key can succeed. A namespace creation denied for insufficient OAuth scope leaves no namespace. The same account can retry the key with the required scope, and the original token still cannot replay the result.",
       "gaps": []
     },
     {
