@@ -1,5 +1,6 @@
 import { object } from "./json";
-import { test, expect, login, signOut } from "./fixtures";
+import { test, expect, confirmCommand, login, signOut } from "./fixtures";
+import { required } from "../required";
 
 test("Catalog identity admission rejects genuine self-review and permits an independent reviewer", async ({
   page,
@@ -96,6 +97,120 @@ test("Catalog identity admission rejects genuine self-review and permits an inde
   expect(approved.data.state).toBe("approved");
   expect(approved.data.listingRevisionId).toBe(revision.data.revision.id);
   expect(approved.data.versionRevisionId).toBe(item.versionRevisionId);
+});
+
+test("subpath: a stale review tab cannot reject an approved submission", async ({
+  page,
+  context,
+  catalog,
+  network,
+  sourceCoverage,
+}) => {
+  const id = required(
+    catalog.receipt.items.find((entry) => entry.key === "pending-mcp")
+      ?.submissionId,
+  );
+  const apiPath = `/api/v1/review-submissions/${id}`;
+  const original = await catalog.admin<{ revision: number }>("GET", apiPath);
+  expect(original.etag).toBeTruthy();
+  const approval = "The submitted tool declarations match the evidence.";
+  const rejection = "Please clarify the description before release.";
+  const commandPath = catalog.basePath + "/_catalog" + apiPath;
+  const decisions: [string, string | undefined][] = [];
+  context.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === "POST" && path.startsWith(commandPath + ":"))
+      decisions.push([path, request.headers()["if-match"]]);
+  });
+  await login(page, catalog, "local-reviewer", `/reviews/${id}`);
+  const stale = await context.newPage();
+  await sourceCoverage.ready(stale);
+  await stale.goto(page.url());
+
+  const decisionButton = { name: "Record review decision", exact: true };
+  for (const tab of [stale, page]) {
+    await tab
+      .getByRole("button", { name: "Inspect submitted evidence", exact: true })
+      .click();
+    await expect(tab.getByRole("button", decisionButton)).toBeEnabled();
+  }
+  const reason = stale.getByRole("textbox", { name: "Reason", exact: true });
+  await stale
+    .getByRole("combobox", { name: "Decision", exact: true })
+    .selectOption("reject");
+  await reason.fill(rejection);
+  await stale.getByRole("button", decisionButton).click();
+  const dialog = stale.getByRole("dialog");
+  await expect(dialog).toContainText("Reject review");
+
+  await page
+    .getByRole("textbox", { name: "Reason", exact: true })
+    .fill(approval);
+  await page.getByRole("button", decisionButton).click();
+  await confirmCommand(page);
+  await expect(page.getByRole("status")).toContainText("Review approved.");
+
+  network.expectFailure("POST", "/_catalog" + apiPath + ":reject", 412);
+  const [refusal] = await Promise.all([
+    stale.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname === commandPath + ":reject",
+    ),
+    dialog.getByRole("button", { name: "Confirm", exact: true }).click(),
+  ]);
+  expect(refusal.status()).toBe(412);
+  expect(object(await refusal.json()).code).toBe("PRECONDITION_FAILED");
+  await expect(dialog.getByRole("alert")).toContainText(
+    "The record changed. Your input is retained.",
+  );
+  await expect(
+    dialog.getByRole("button", { name: "Retry same command" }),
+  ).toHaveCount(0);
+  await dialog
+    .getByRole("button", { name: "Back to form", exact: true })
+    .click();
+  await expect(reason).toHaveValue(rejection);
+
+  await Promise.all([
+    stale.waitForEvent("dialog").then(async (prompt) => {
+      await prompt.accept();
+      expect(prompt.type()).toBe("beforeunload");
+    }),
+    stale.evaluate(() => window.location.reload()),
+  ]);
+  await expect(
+    stale.getByRole("heading", { name: "Review approved", exact: true }),
+  ).toBeVisible();
+  const history = stale
+    .getByRole("region", { name: "Reviewer decisions" })
+    .getByRole("listitem");
+  await expect(history).toHaveCount(1);
+  await expect(history).toContainText(approval);
+  await stale
+    .getByRole("button", { name: "Inspect submitted evidence", exact: true })
+    .click();
+  await expect(
+    stale.getByText(
+      "Only a pending submission accepts a new review decision.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(stale.getByRole("button", decisionButton)).toHaveCount(0);
+
+  const saved = await catalog.admin("GET", apiPath);
+  expect(saved.data).toMatchObject({
+    id,
+    state: "approved",
+    revision: original.data.revision + 1,
+    decisions: [
+      { action: "approve", actor: "local-reviewer", reason: approval },
+    ],
+  });
+  expect(decisions).toEqual([
+    [commandPath + ":approve", original.etag],
+    [commandPath + ":reject", original.etag],
+  ]);
 });
 
 for (const fault of ["evidence", "listing"]) {

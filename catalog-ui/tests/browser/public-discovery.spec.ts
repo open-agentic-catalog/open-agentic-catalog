@@ -2,6 +2,7 @@ import { test, expect, login, type Catalog } from "./fixtures";
 import { agentDocument, publishFixture } from "./published-fixture";
 import type { components } from "../../src/api/schema";
 import AxeBuilder from "@axe-core/playwright";
+import type { Route } from "@playwright/test";
 import { doubleText } from "./text-layout";
 import { tabTo } from "./keyboard";
 import { object } from "./json";
@@ -23,6 +24,92 @@ async function publish(catalog: Catalog) {
 
 test.describe("public discovery", () => {
   test.use({ publicDiscovery: true, curated: true });
+  test("subpath: withdrawing consent during the manifest read keeps search text in the browser", async ({
+    page,
+    context,
+    catalog,
+  }) => {
+    const name = "Orchid inventory agent";
+    await publishFixture(catalog, 92, "", { displayName: name });
+    await publish(catalog);
+    const host = catalog.origin + catalog.basePath;
+    await page.goto(host + "/discover");
+    const entry = page.getByRole("heading", { name, exact: true });
+    await expect(entry).toBeVisible();
+
+    const requests: string[] = [];
+    context.on("request", (request) =>
+      requests.push(request.method() + " " + request.url()),
+    );
+    const manifest = host + "/_discovery/manifest";
+    let hold!: (route: Route) => void;
+    const intercepted = new Promise<Route>((resolve) => {
+      hold = resolve;
+    });
+    // Only delay the next manifest. Browsing and the subsequent Search use the real host.
+    await page.route(manifest, hold, { times: 1 });
+    const text = page.getByRole("searchbox");
+    const consent = page.getByRole("checkbox", { name: /embedding provider/ });
+    const search = page.getByRole("button", { name: "Search", exact: true });
+    const browse = page.getByRole("button", { name: "Browse directory" });
+    await text.fill("orchid");
+    await consent.check();
+    await search.click();
+    const route = await intercepted;
+    const response = await route.fetch();
+    const cancelled = page.waitForEvent(
+      "requestfailed",
+      (request) => request === route.request(),
+    );
+    try {
+      expect(response.status()).toBe(200);
+      await expect(page.getByText("Loading public metadata...")).toBeVisible();
+      await consent.uncheck();
+    } finally {
+      await route.fulfill({ response });
+    }
+    expect((await cancelled).failure()?.errorText).toBe("net::ERR_ABORTED");
+    await expect(text).toHaveValue("orchid");
+    await expect(search).toBeDisabled();
+    await expect(
+      page.getByRole("button", { name: "Refresh publication" }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole("region", { name: "Published entries" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+    expect(requests).toEqual(["GET " + manifest]);
+
+    await browse.click();
+    await expect(entry).toBeVisible();
+    const entries = page.locator("article.public-entry");
+    expect(await entries.count()).toBeGreaterThan(1);
+    await expect(text).toHaveValue("");
+    const directoryReads = [
+      "GET " + manifest,
+      "GET " + manifest,
+      "GET " + host + "/_discovery/agents?pageSize=20",
+    ];
+    await text.fill("orchid");
+    await consent.check();
+    expect(requests).toEqual(directoryReads);
+    const searchURL = host + "/_discovery/search";
+    const searched = page.waitForResponse(searchURL);
+    await search.click();
+    const result = await searched;
+    expect(result.status()).toBe(200);
+    expect(result.request().postDataJSON()).toEqual({
+      text: "orchid",
+      pageSize: 20,
+    });
+    await expect(entries).toHaveCount(1);
+    await expect(entry).toBeVisible();
+    expect(requests).toEqual([
+      ...directoryReads,
+      "GET " + manifest,
+      "POST " + searchURL,
+    ]);
+  });
   for (const base of ["root", "subpath"]) {
     test(`${base}: anonymous browsing, explicit Search, pagination and inert metadata`, async ({
       page,
