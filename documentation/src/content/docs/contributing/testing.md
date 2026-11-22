@@ -512,7 +512,7 @@ Schema checks cover several different inputs. Select the target for the contract
 | Runtime configuration | `config-check` | Strict decoding and cross-field validation for the selected configuration and role, without opening runtime dependencies. `env-check` is its alias. |
 | Kubernetes resources | `helm-schema-check`, `deploy-check` | Strict schema validation of rendered Kubernetes resources. Requires the container engine and schema source, not a running cluster; see [test boundaries](#test-boundaries). |
 
-`conformance-fixture` independently validates the service fixture and all four checksummed official v0.91 examples. It passes each official example through federation ingestion. It checks mandatory-path and Link resolution with generic JSON, and rejects profile confusion.
+`conformance-fixture` independently validates the service fixture and all four checksummed official v0.91 examples. It passes each official example through federation ingestion. Source inspection must read the lowercase `entries` array even when the transport adds a separate `Entries` member. Publication must reject the whole manifest if a later entry claims another entry's identity. The suite also checks mandatory-path and Link resolution with generic JSON and rejects profile confusion.
 
 The target then runs the unchanged official CLI over all five documents. The official basic example must produce two warnings. The other four documents must produce none. It also runs the source-pinned reference corpus and service handler contracts. `verify` and `test-all` include this target. Unit targets run selected Go schema and corpus tests but do not invoke the upstream CLI.
 

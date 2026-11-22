@@ -9,6 +9,7 @@ package standards
 import (
 	"bytes"
 	"encoding/json"
+	jsonv2 "encoding/json/v2"
 	"errors"
 	"fmt"
 	"mime"
@@ -322,7 +323,7 @@ func MarshalAndValidateARDManifest(value any) ([]byte, error) {
 	var manifest struct {
 		Entries []json.RawMessage `json:"entries"`
 	}
-	if err := json.Unmarshal(raw, &manifest); err != nil {
+	if err := jsonv2.Unmarshal(raw, &manifest); err != nil {
 		return nil, err
 	}
 	for index, entry := range manifest.Entries {

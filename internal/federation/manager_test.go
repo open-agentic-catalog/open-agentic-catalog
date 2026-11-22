@@ -23,6 +23,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/fetcher"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/id"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/standards"
 	"github.com/open-agentic-catalog/open-agentic-catalog/schemas"
 )
 
@@ -41,6 +42,11 @@ func TestRetainedFederationEvidenceRejectsObsoleteAndCorruptState(t *testing.T) 
 	if err != nil {
 		t.Fatalf("current inspection = %v", err)
 	}
+	unmapped := inspection
+	unmapped.KindCounts = map[string]int{"agent": 1, "": 1}
+	if err := ValidateRetainedInspectionIntegrity(unmapped); err != nil {
+		t.Fatalf("retained count of unmapped formats: %v", err)
+	}
 	legacy := inspection
 	legacy.PolicyID, legacy.PolicyDigest, legacy.PolicyRevision = "", "", 0
 	if err := ValidateRetainedInspectionIntegrity(legacy); err == nil {
@@ -52,12 +58,14 @@ func TestRetainedFederationEvidenceRejectsObsoleteAndCorruptState(t *testing.T) 
 		t.Fatal("unsorted retained inspection evidence was accepted")
 	}
 	for name, mutate := range map[string]func(*Inspection){
-		"envelope":  func(value *Inspection) { value.RequestedURL = "http://source.example/catalog.json" },
-		"type":      func(value *Inspection) { value.SourceType = SourceType("unknown") },
-		"access":    func(value *Inspection) { value.RegistryListURL = "http://source.example/v0/servers" },
-		"aggregate": func(value *Inspection) { value.Publishers = []string{"one", "two", "three"} },
-		"kind":      func(value *Inspection) { value.KindCounts = map[string]int{"agent": 3} },
-		"policy":    func(value *Inspection) { value.PolicyRevision = 0 },
+		"envelope":              func(value *Inspection) { value.RequestedURL = "http://source.example/catalog.json" },
+		"type":                  func(value *Inspection) { value.SourceType = SourceType("unknown") },
+		"access":                func(value *Inspection) { value.RegistryListURL = "http://source.example/v0/servers" },
+		"aggregate":             func(value *Inspection) { value.Publishers = []string{"one", "two", "three"} },
+		"kind":                  func(value *Inspection) { value.KindCounts = map[string]int{"agent": 3} },
+		"empty unmapped count":  func(value *Inspection) { value.KindCounts = map[string]int{"": 0} },
+		"excess unmapped count": func(value *Inspection) { value.KindCounts = map[string]int{"agent": 1, "": 2} },
+		"policy":                func(value *Inspection) { value.PolicyRevision = 0 },
 	} {
 		t.Run("invalid inspection "+name, func(t *testing.T) {
 			candidate := inspection
@@ -1454,6 +1462,47 @@ func TestOfficialARDExamplesUseARDIngestionProfile(t *testing.T) {
 	aiDocument, err := parseDocumentWithContextInputs(transportExtra, aiCatalogDocumentMediaType, nil)
 	if err != nil || aiDocument.sourceType != SourceAICatalog {
 		t.Fatalf("explicit AI Catalog media type = %#v, %v", aiDocument, err)
+	}
+}
+
+func TestARDInspectionUsesExactEntriesMember(t *testing.T) {
+	const endpoint = "https://remote.example/.well-known/ard.json"
+	const entries = `"entries":[{"identifier":"urn:air:publisher.example:agent:weather","displayName":"Weather","type":"application/json","data":{}}]`
+	for _, tc := range []struct {
+		name, document string
+		valid          bool
+	}{
+		{"transport member first", `{"Entries":[],` + entries + `}`, true},
+		{"transport member last", `{` + entries + `,"Entries":[]}`, true},
+		{"transport member only", `{"Entries":[]}`, false},
+		{"null entries", `{"entries":null,"Entries":[]}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := standards.ValidateARDManifest([]byte(tc.document)); (err == nil) != tc.valid {
+				t.Fatalf("fixture disagrees with the pinned manifest schema: %v", err)
+			}
+			response := federationResultAt(endpoint, tc.document)
+			response.MediaType = ardDocumentMediaType
+			fetches := &routingFetcher{results: map[string]fetcher.Result{"GET " + endpoint: response}}
+			manager, err := NewManager(NewMemoryStore(), fetches, clock.NewFake(time.Unix(0, 0)), id.Generator{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			ctx := identityfixture.WithActor(t.Context(), identity.Actor{TenantID: "00000000-0000-7000-8000-000000000001", Subject: "source-admin", Roles: []identity.Role{identity.RoleSourceAdmin}})
+			inspection, err := manager.Inspect(ctx, endpoint)
+			if !tc.valid {
+				if catalog.ErrorCodeOf(err) != catalog.CodeInvalidArgument {
+					t.Fatalf("inspection of invalid manifest returned %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if inspection.SourceType != SourceARDManifest || inspection.EntryCount != 1 || !slices.Equal(inspection.Publishers, []string{"publisher.example"}) {
+				t.Fatalf("inspected type %q, count %d, publishers %v", inspection.SourceType, inspection.EntryCount, inspection.Publishers)
+			}
+		})
 	}
 }
 

@@ -67,6 +67,47 @@ func TestPinnedARDConformanceFixtures(t *testing.T) {
 	}
 }
 
+func TestARDPublicationRejectsConflictingSecondIdentity(t *testing.T) {
+	t.Parallel()
+	raw, err := schemas.Files.ReadFile("upstream/ard/ard-0.91-aa3e598/conformance/examples/local-business/local-business-catalog.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Retain both official entries and put a transport-defined member after
+	// them. Only the lowercase entries array supplies publication identities.
+	var manifest struct {
+		Entries          []map[string]any `json:"entries"`
+		TransportEntries []string         `json:"Entries"`
+	}
+	if err := json.Unmarshal(raw, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if len(manifest.Entries) != 2 {
+		t.Fatalf("expected two official entries, got %d", len(manifest.Entries))
+	}
+	manifest.TransportEntries = []string{}
+	valid, err := MarshalAndValidateARDManifest(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateARDManifest(valid); err != nil {
+		t.Fatalf("published control failed schema validation: %v", err)
+	}
+
+	manifest.Entries[1]["@id"] = manifest.Entries[0]["identifier"]
+	conflict, err := json.Marshal(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateARDManifest(conflict); err != nil {
+		t.Fatalf("identity conflict should pass structural validation: %v", err)
+	}
+	document, err := MarshalAndValidateARDManifest(manifest)
+	if err == nil || !strings.Contains(err.Error(), "ARD entry 1: ARD @id differs from identifier") || document != nil {
+		t.Fatalf("publication returned %d bytes, %v for conflicting second identity", len(document), err)
+	}
+}
+
 func TestPinnedARDAndMCPSchemas(t *testing.T) {
 	ard := []byte(`{"identifier":"urn:air:example.com:agent:weather","displayName":"Weather Agent","type":"application/a2a-agent-card+json","url":"https://agents.example.com/weather"}`)
 	if err := ValidateARDEntry(ard); err != nil {

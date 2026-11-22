@@ -155,6 +155,10 @@ Open Agentic Catalog supports ARD v0.91 at commit `aa3e598bb7752a917589782323431
 | Query `@context` | Search and Explore accept the supported URI, object and array forms. They reject explicit null. The Catalog limits how it retrieves and interprets contexts. Public queries cannot trigger arbitrary context downloads. |
 | Unsupported filters | Filters on unsupported namespaced terms or fields retained without interpretation return `400`. The Catalog does not silently ignore them. |
 
+Indexed synchronization keeps an in-scope entry with a valid but unfamiliar media type as a source observation. A source administrator can inspect its original JSON, including extension fields. The entry counts toward the inspection total, has no Catalog resource kind and does not appear in indexed reader Search. Eligible entries in the same manifest remain searchable.
+
+After JSON-LD term resolution, the Catalog reads the exact ARD field names. For example, an unmapped `displayname` extension cannot replace `displayName`.
+
 Remote Search results can omit optional fields used by a filter. The Catalog rejects a returned value that contradicts the filter, including null where the filter requires a string. An omitted optional field does not, by itself, prove a contradiction. The Catalog does not replace missing names or types with empty values.
 
 Invalid live Search entries are omitted without removing healthy local or peer results. The public response uses `Server-Timing` to report partial results; private diagnostics remain separate. The Catalog also omits entries whose supplied media types are malformed or whose node identifiers are contradictory or blank.
