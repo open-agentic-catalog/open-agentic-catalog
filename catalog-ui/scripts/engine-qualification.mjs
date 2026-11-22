@@ -4,6 +4,7 @@ import { join } from "node:path";
 // Only portable tasks with independent behavioral assertions are selected.
 export const engineJourneys = [
   "search pages contain disjoint real releases and submitting filters resets the cursor",
+  "subpath: keyboard filtering keeps enlarged controls in view",
   "metadata-only Catalog readers gain content and history links only with their independent current grants",
   "subpath: resume authoring after uncertain Listing revision without repeating acknowledged writes",
   "corrupt retained documents never become downloads and real bytes recover with replaced object URLs",

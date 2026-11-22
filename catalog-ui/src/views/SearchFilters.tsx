@@ -101,7 +101,10 @@ export default function SearchFilters({
   const close = useCallback(() => {
     panel.current?.close();
     setOpen(false);
-    (opener.current ?? trigger.current)?.focus();
+    const button = opener.current ?? trigger.current;
+    button?.focus();
+    // A native dialog can return focus without scrolling its opener into view.
+    button?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, []);
   useLayoutEffect(() => {
     if (!open) return;
@@ -367,7 +370,17 @@ export default function SearchFilters({
                 <Icon name="close" />
               </button>
             </header>
-            <div className="filter-panel-body">
+            <div
+              className="filter-panel-body"
+              onFocus={(event) => {
+                // WebKit can focus a drawer control without scrolling the drawer.
+                if (narrow && event.target.matches(":focus-visible"))
+                  event.target.scrollIntoView?.({
+                    block: "nearest",
+                    inline: "nearest",
+                  });
+              }}
+            >
               <div className="filter-summary">
                 <p className="filter-help">
                   Edit filters for the applied search text. Changes take effect

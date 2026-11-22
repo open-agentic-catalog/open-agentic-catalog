@@ -47,6 +47,7 @@
     margin-left: auto;
   }
   .filter-trigger {
+    scroll-margin-block: calc(var(--header-height, 56px) + 6px) 6px;
     border-radius: 24px;
     height: 41px;
     padding-inline: 11px;
@@ -337,6 +338,7 @@
     background: var(--accent-soft);
   }
   .filter-panel-footer button:focus-visible {
+    outline-color: currentColor;
     outline-offset: -4px;
   }
   .filter-error {

@@ -125,6 +125,27 @@ it("uses Ctrl/Command+K outside editors and other dialogs only", () => {
   expect(screen.queryByRole("dialog", { name: "Quick navigation" })).toBeNull();
 });
 
+it("returns to the header when a refresh removes the shortcut's original control", () => {
+  const shell = (showResult: boolean) => (
+    <>
+      {showResult && <button>Open result</button>}
+      <QuickNavigation access={sessionAccess} basePath="" />
+    </>
+  );
+  const view = render(shell(true));
+  const result = screen.getByRole("button", { name: "Open result" });
+  result.focus();
+  fireEvent.keyDown(result, { key: "k", ctrlKey: true });
+  view.rerender(shell(false));
+  fireEvent(
+    screen.getByRole("dialog"),
+    new Event("cancel", { cancelable: true }),
+  );
+  expect(document.activeElement).toBe(
+    screen.getByRole("button", { name: "Quick navigation" }),
+  );
+});
+
 it("closes after selecting a page section and retains ordinary link activation", () => {
   const admin = { ...sessionAccess, ...testAccess(["tenant_admin"]) };
   render(<QuickNavigation access={admin} basePath="/unit" />);

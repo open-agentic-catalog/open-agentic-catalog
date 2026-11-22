@@ -1171,11 +1171,12 @@ make test-ui-engine UI_BROWSER_ENGINE=firefox
 make test-ui-engine UI_BROWSER_ENGINE=webkit
 ```
 
-Run the two engine checks serially and separately from other browser or Docker deployment tests. Creating or removing a Docker network can interrupt in-flight browser requests, including local Chromium tests. Each engine runs five existing local journeys and one packaged journey:
+Run the two engine checks serially and separately from other browser or Docker deployment tests. Creating or removing a Docker network can interrupt in-flight browser requests, including local Chromium tests. Each engine runs the local and packaged journeys below:
 
 | Task | What must work |
 | --- | --- |
-| Find and open a release | Apply filters, page through distinct releases, inspect the selected record and navigate the pager by keyboard. |
+| Find and open a release | Navigate the pager by keyboard, cancel Quick navigation from Filters, and apply staged filters after resizing to 320 pixels. Verify the returned releases and open a selected record. |
+| Filter with enlarged text | At 320 by 568 pixels with doubled text, reach an offscreen kind by keyboard, apply it and check the matching result. The focused checkbox must scroll into view, and the Filters button must regain visible focus below the header. |
 | Read with limited permissions | Metadata-only readers see authorized information. Content and history links require their respective grants. |
 | Recover a Listing edit | On a nested UI path, recover a lost response with the original command key and revision precondition. |
 | Download a retained document | Reject corrupted responses, then save the verified bytes through the browser's download handler. |

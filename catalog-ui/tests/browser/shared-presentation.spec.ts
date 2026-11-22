@@ -1,37 +1,8 @@
 // Synthetic controls exercise bundled CSS; real command coverage stays in authoring-preparation.
-import type { Locator } from "@playwright/test";
+import { controlContrast } from "./painted-contrast";
 import { test, expect, login } from "./fixtures";
 import { doubleText } from "./text-layout";
 import { visibleFocus } from "./keyboard";
-
-/** Measure painted text against an opaque surface, independently of CSS tokens. */
-async function contrast(control: Locator) {
-  return control.evaluate((node) => {
-    const luminance = (color: string) => {
-      const channels = color
-        .match(/[\d.]+/g)!
-        .slice(0, 3)
-        .map(Number);
-      return channels.reduce((sum, value, index) => {
-        const channel = value / 255;
-        return (
-          sum +
-          (channel <= 0.04045
-            ? channel / 12.92
-            : ((channel + 0.055) / 1.055) ** 2.4) *
-            [0.2126, 0.7152, 0.0722][index]!
-        );
-      }, 0);
-    };
-    const style = getComputedStyle(node);
-    const foreground = luminance(style.color);
-    const background = luminance(style.backgroundColor);
-    return (
-      (Math.max(foreground, background) + 0.05) /
-      (Math.min(foreground, background) + 0.05)
-    );
-  });
-}
 
 for (const base of ["root", "subpath"]) {
   test(`${base}: shared action and status tones stay readable and contextual`, async ({
@@ -87,17 +58,17 @@ for (const base of ["root", "subpath"]) {
       );
       for (const button of await buttons.all()) {
         await page.mouse.move(0, 0);
-        expect(await contrast(button)).toBeGreaterThanOrEqual(4.5);
+        expect(await controlContrast(button)).toBeGreaterThanOrEqual(4.5);
         await button.hover();
-        expect(await contrast(button)).toBeGreaterThanOrEqual(4.5);
+        expect(await controlContrast(button)).toBeGreaterThanOrEqual(4.5);
         await button.focus();
         await page.keyboard.press("Tab");
         await page.keyboard.press("Shift+Tab");
         await visibleFocus(button);
-        expect(await contrast(button)).toBeGreaterThanOrEqual(4.5);
+        expect(await controlContrast(button)).toBeGreaterThanOrEqual(4.5);
       }
       for (const badge of await fixture.locator("#explicit-tones > span").all())
-        expect(await contrast(badge)).toBeGreaterThanOrEqual(4.5);
+        expect(await controlContrast(badge)).toBeGreaterThanOrEqual(4.5);
       const neutral = fixture
         .locator('.workspace-status[data-tone="neutral"]')
         .first();
