@@ -71,6 +71,23 @@ class MonitoringEvidenceTests(unittest.TestCase):
     def samples(self, timestamp=100, evaluated=200):
         return [{"metric": copy.deepcopy(labels), "value": [evaluated, str(timestamp)]} for labels in self.expected_targets]
 
+    def test_search_counter_matches_the_client_on_the_exact_api_series(self):
+        labels = self.expected_targets[0] | {"__name__": "open_agentic_catalog_http_responses_total",
+                                             "method": "POST", "route": "/api/v1/catalog/search", "status_class": "2xx"}
+        row = {"metric": labels, "value": [777, "16"]}
+        workload = {"warmup": {"succeeded": 2}, "measured": {"succeeded": 10}}
+        self.assertEqual(runner.collected_search_responses([row], 3, workload),
+                         {"beforeWorkload": 3, "clientResponses": 13, "collected": 16})
+        for value in ("3", "15", "17"):
+            with self.subTest(value=value), self.assertRaisesRegex(runner.Failure, "collected-search-count-mismatch"):
+                runner.collected_search_responses([row | {"value": [777, value]}], 3, workload)
+        for rows in ([], [row, row], [row | {"metric": {}}],
+                     [row | {"metric": labels | self.expected_targets[1]}],
+                     [row | {"metric": labels | {"catalog_deployment": "other"}}],
+                     [row | {"metric": labels | {"method": "GET"}}]):
+            with self.subTest(rows=rows), self.assertRaisesRegex(runner.Failure, "collected-search-series-invalid"):
+                runner.collected_search_responses(rows, 3, workload)
+
     def test_target_identity_rejects_duplicate_foreign_and_wrong_role(self):
         runner.monitoring_targets(self.targets())
         controls = [[], self.targets()[:1], self.targets() + self.targets()[:1], [self.targets()[0]] * 2]
@@ -123,6 +140,30 @@ class MonitoringEvidenceTests(unittest.TestCase):
         with patch.object(runner.time, "monotonic", side_effect=[0, 1, 2, 3, 61]), patch.object(runner.time, "sleep"):
             with self.assertRaisesRegex(runner.Failure, "recovery-sample-deadline"):
                 runner.recovered_monitoring_samples(lambda: self.targets(), lambda _: self.samples(101, 999999))
+
+    def test_catalog_readiness_checks_both_listeners_without_retry(self):
+        api, worker = "http://127.0.0.1:1", "http://127.0.0.1:2"
+        def response(body, status=200):
+            return status, {}, json.dumps(body).encode()
+        ready = response({"status": "ready"})
+        worker_ready = {"status": "ready", "role": "worker", "state": "running", "ready": True, "degraded": False}
+        for degraded in (False, True):
+            with patch.object(runner.http, "request", side_effect=[ready, response(worker_ready | {"degraded": degraded})]) as request:
+                self.assertEqual(runner.monitoring_catalog_readiness(api, worker), {"api": "ready", "worker": "ready"})
+                self.assertEqual([call.args[0].full_url for call in request.call_args_list], [api + "/readyz", worker + "/readyz"])
+        cases = [
+            ([response({"status": "live"})], "monitoring-api-not-ready"),
+            ([response({"status": "ready"}, 503)], "unexpected-http-status"),
+            ([ready, response(worker_ready, 503)], "unexpected-http-status"),
+            ([ready, ready], "monitoring-worker-not-ready"),
+        ]
+        for change in ({"ready": False}, {"ready": 1}, {"state": "draining"}, {"status": "not_ready"}, {"role": "api"}):
+            cases.append(([ready, response(worker_ready | change)], "monitoring-worker-not-ready"))
+        for replies, failure in cases:
+            with self.subTest(replies=replies), patch.object(runner.http, "request", side_effect=replies) as request:
+                with self.assertRaisesRegex(runner.Failure, failure):
+                    runner.monitoring_catalog_readiness(api, worker)
+                self.assertEqual(request.call_count, len(replies))
 
     def test_outage_read_is_authorized_and_checks_known_retained_content(self):
         seeded = {"resourceId": "owned", "identifier": "urn:example:owned", "kind": "agent"}
