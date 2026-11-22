@@ -139,7 +139,9 @@ The Search benchmark targets, including their `-dsn` variants and recursive Make
 
 Run `make bench-search` for selected pages of 1, 20, 100 and 101 records. It compares complete records with metadata summaries. The reference path reads each complete record separately; the metadata path uses two queries for the selected page. The paths return different payloads and perform different integrity checks. This is not a comparison of two interchangeable full-record readers.
 
-The fixture seeds governed records, including inspected Skill packages and renewed evidence, before timing. It reports three 500 ms samples with bytes/allocations per operation. It measures repository reads, not HTTP latency or capacity. Short samples, host contention and PostgreSQL cache state affect timing.
+The fixture publishes 101 Skill releases, including inspected packages and renewed validation evidence. After seeding, the fixture owner runs PostgreSQL `ANALYZE` on the tables used by the two readers. Before timing, Search must return every expected release in order. Each timed read uses the API database role and checks page membership, tenant and canonical Resource identifier. The full-record read also checks that the VersionRevision contains its representation. These checks use the data already read.
+
+For a repeatability check, run `make bench-search` several times in sequence on the same host. For each reader and page size, compare the median of the three 500 ms samples from each run. Each `ns/op` value is the mean time per page, including the transaction and result checks. `B/op` and `allocs/op` measure Go allocation per page. Individual page durations are needed to calculate tail latency. Host contention and cache state can still affect timings.
 
 The reference reader is not a selectable production fallback. `make test-integration` separately enforces the [repository read counts](#count-search-sql-reads) and composed-policy assertions, without timing thresholds.
 
