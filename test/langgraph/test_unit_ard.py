@@ -248,6 +248,57 @@ class ARDUnits(unittest.IsolatedAsyncioTestCase):
                     value["omitted_referrals"], [{"url": url, "reason": "not_approved"}]
                 )
 
+    async def test_malformed_continuation_discards_its_rows_and_referrals(self):
+        first = row(version="1")
+        later = row(version="2")
+        for valid in (True, False):
+            with self.subTest(valid=valid):
+                requests = []
+
+                def handle(request):
+                    url = str(request.url)
+                    token = json.loads(request.content).get("pageToken")
+                    requests.append((url, token))
+                    if url == PEER:
+                        return reply({"results": []})
+                    self.assertEqual(url, PRIMARY)
+                    if token is None:
+                        return reply({"results": [first], "pageToken": "next"})
+                    self.assertEqual(token, "next")
+                    last_referral = referral(UNKNOWN)
+                    if not valid:
+                        del last_referral["type"]
+                    return reply({
+                        "results": [later],
+                        "referrals": [referral(), last_referral],
+                    })
+
+                client = ard.ARDClient(
+                    settings(
+                        referral=ard.Service(search_url=PEER), disclose_to_referral=True
+                    ),
+                    httpx.MockTransport(handle),
+                )
+                result = await client.search("web")
+                self.assertEqual(result["status"], "partial")
+                versions = [r["version"] for r in result["results"]]
+                primary_requests = [(PRIMARY, None), (PRIMARY, "next")]
+                if valid:
+                    self.assertEqual(versions, ["1", "2"])
+                    self.assertEqual(requests, [*primary_requests, (PEER, None)])
+                    self.assertEqual(result["issues"], [])
+                    self.assertEqual(
+                        result["omitted_referrals"],
+                        [{"url": UNKNOWN, "reason": "not_approved"}],
+                    )
+                else:
+                    self.assertEqual(versions, ["1"])
+                    self.assertEqual(requests, primary_requests)
+                    self.assertEqual(result["omitted_referrals"], [])
+                    self.assertEqual(
+                        result["issues"], [{"service": "primary", "code": "invalid_response"}]
+                    )
+
     async def test_tool_context_omits_inline_definitions_and_raw_trust_claims(self):
         description = "Untrusted description. " + "x" * 600
         trust = {
@@ -617,9 +668,7 @@ class ARDUnits(unittest.IsolatedAsyncioTestCase):
                 await discovery.tools()[0].ainvoke(args)
         self.assertEqual(client.requests, 2)
 
-    async def test_graph_rejects_invented_recommendations_and_retains_partial_status(
-        self,
-    ):
+    async def test_graph_rejects_invented_recommendations(self):
         class Model(ScriptedModel):
             async def ainvoke(self, messages, **kwargs):
                 if kwargs:
@@ -636,13 +685,41 @@ class ARDUnits(unittest.IsolatedAsyncioTestCase):
         discovery = ARDTools(ard.ARDClient(settings(), httpx.MockTransport(handle)))
         with self.assertRaisesRegex(ard.ARDError, "unobserved_recommendation"):
             await run_ard_agent(Model("web"), discovery, "web")
-        transport = httpx.MockTransport(lambda _: reply({}, status=503))
-        result = await run_ard_agent(
-            ScriptedModel("web"), ARDTools(ard.ARDClient(settings(), transport)), "web"
-        )
-        self.assertEqual(result["status"], "failed")
-        self.assertEqual(result["recommendations"], [])
-        self.assertEqual(result["observed_results"], 0)
+
+    async def test_facets_do_not_supply_results_or_mask_a_search_failure(self):
+        for explore_status, search_status, expected in [
+            (200, 200, "complete"),
+            (200, 503, "failed"),
+            (503, 200, "failed"),
+            (503, 503, "failed"),
+        ]:
+            with self.subTest(explore=explore_status, search=search_status):
+                requests = []
+
+                def handle(request):
+                    url = str(request.url)
+                    requests.append(url)
+                    if url == EXPLORE:
+                        return reply(facets(), status=explore_status)
+                    self.assertEqual(url, PRIMARY)
+                    return reply({"results": []}, status=search_status)
+
+                client = ard.ARDClient(settings(), httpx.MockTransport(handle))
+                result = await run_ard_agent(ScriptedModel("web"), ARDTools(client), "web")
+                self.assertEqual(requests, [EXPLORE, PRIMARY])
+                explore, search = result["observations"]
+                unavailable = [{"service": "primary", "code": "service_unavailable"}]
+                if explore_status == 200:
+                    self.assertEqual(
+                        explore["facets"]["type"]["buckets"],
+                        [{"value": "text/markdown", "count": 2}],
+                    )
+                else:
+                    self.assertEqual(explore["issues"], unavailable)
+                self.assertEqual(search["issues"], [] if search_status == 200 else unavailable)
+                self.assertEqual(result["status"], expected)
+                self.assertEqual(result["recommendations"], [])
+                self.assertEqual(result["observed_results"], 0)
 
     async def test_model_refusal_and_turn_and_time_limits_are_safe(self):
         class NoTools(ScriptedModel):

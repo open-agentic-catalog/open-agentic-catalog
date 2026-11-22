@@ -1187,15 +1187,33 @@ it("disables result tags that would exceed exact-tag bounds", async () => {
   click(/Filters/);
   const tagInput = screen.getByLabelText("Add tag");
   const addTag = screen.getByRole("button", { name: "Add exact tag" });
-  for (const tag of [
+  const tags = [
     unicodeTag,
     ...Array.from({ length: 31 }, (_, index) => `tag-${index}`),
-  ]) {
+  ];
+  for (const tag of tags) {
     fireEvent.change(tagInput, { target: { value: tag } });
     fireEvent.click(addTag);
   }
+  fireEvent.change(tagInput, { target: { value: "another-tag" } });
+  fireEvent.click(addTag);
+  expect(screen.getByRole("alert").textContent).toContain("up to 32 tags");
+  expect(tagInput).toHaveProperty("value", "another-tag");
+  expect(screen.queryByRole("checkbox", { name: "another-tag" })).toBeNull();
+
+  fireEvent.click(screen.getByRole("checkbox", { name: "tag-30" }));
+  fireEvent.click(addTag);
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByRole("checkbox", { name: "another-tag" })).toHaveProperty(
+    "checked",
+    true,
+  );
+  expect(post).toHaveBeenCalledTimes(1);
   click("Apply filters");
   await waitFor(() => expect(post).toHaveBeenCalledTimes(2));
+  expect(post.mock.calls[1]?.[1]).toMatchObject({
+    body: { tags: [...tags.slice(0, -1), "another-tag"] },
+  });
   expect(
     screen.getByRole("button", { name: "Filter by tag tools" }),
   ).toHaveProperty("disabled", true);

@@ -25,21 +25,32 @@ const uri = (path) => ({
 });
 const hooks = registerHooks({
   resolve(specifier, context, next) {
+    if (specifier === "./acquire.js")
+      return { url: "local-tools-unit:acquire", shortCircuit: true };
     return specifier === "vscode"
       ? { url: "local-tools-unit:vscode", shortCircuit: true }
       : next(specifier, context);
   },
   load(url, context, next) {
+    if (url === "local-tools-unit:acquire")
+      return {
+        format: "module",
+        source:
+          "export const {packageTools,acquirePackage}=globalThis.localToolsVscode;",
+        shortCircuit: true,
+      };
     if (url !== "local-tools-unit:vscode") return next(url, context);
     return {
       format: "module",
       source:
-        "export const {window,workspace,commands,Uri,EventEmitter,TreeItem,ThemeIcon,ConfigurationTarget}=globalThis.localToolsVscode;",
+        "export const {window,workspace,commands,Uri,EventEmitter,TreeItem,ThemeIcon,ConfigurationTarget,ProgressLocation}=globalThis.localToolsVscode;",
       shortCircuit: true,
     };
   },
 });
 globalThis.localToolsVscode = {
+  packageTools: lib.packageTools,
+  acquirePackage: (...args) => f.acquire(...args),
   EventEmitter: class {
     event = () => ({ dispose() {} });
     fire() {}
@@ -56,12 +67,28 @@ globalThis.localToolsVscode = {
     }
   },
   ConfigurationTarget: { Global: 1 },
+  ProgressLocation: { Notification: 15 },
   Uri: { joinPath: (base, ...paths) => uri(join(base.fsPath, ...paths)) },
   commands: {
     executeCommand: async (command, value) =>
       f.commands.push({ command, value }),
   },
   window: {
+    withProgress: (_, action) =>
+      action(
+        {},
+        {
+          isCancellationRequested: false,
+          onCancellationRequested(listener) {
+            f.cancel = listener;
+            return {
+              dispose() {
+                delete f.cancel;
+              },
+            };
+          },
+        },
+      ),
     createTreeView: (_, options) => {
       f.provider = options.treeDataProvider;
       return { dispose() {} };
@@ -105,7 +132,7 @@ test.after(() => {
   hooks.deregister();
   delete globalThis.localToolsVscode;
 });
-async function setup(t) {
+async function setup(t, packageCredentials) {
   const root = await mkdtemp(join(tmpdir(), "catalog-local-tools-unit-"));
   f = {
     root,
@@ -120,13 +147,18 @@ async function setup(t) {
     state: { detail: { item: { kind: "skill", releaseId: "owned-release" } } },
     packageConsumer: () => async () => f.representation,
   };
+  const sessionSignal = new AbortController().signal;
   const session = {
     guard: () => () => {},
     connection: () => ({}),
     consumerBinding: () => "owned account and host",
+    cancellation: () => sessionSignal,
   };
-  const plugins = new CatalogPlugins(browser, session, async (value) =>
-    f.previews.push(value),
+  const plugins = new CatalogPlugins(
+    browser,
+    session,
+    async (value) => f.previews.push(value),
+    packageCredentials,
   );
   const skills = new CatalogSkills(
     browser,
@@ -137,6 +169,7 @@ async function setup(t) {
     },
     plugins,
     async (value) => f.previews.push(value),
+    packageCredentials,
   );
   t.after(async () => {
     skills.dispose();
@@ -200,6 +233,156 @@ test("healthy receipts remain listed and actionable beside damaged receipts", as
   );
   assert.equal(f.locations["/unrelated/plugin"], true);
 });
+test("Skill installation stops if its workspace leaves the window during folder or source selection", async (t) => {
+  const { root, skills, browser } = await setup(t);
+  browser.state.detail.facts = [];
+  f.representation = representation();
+  const original = f.folders[0];
+  const replacement = join(root, "other");
+  await mkdir(replacement);
+  let switchAt;
+  t.mock.method(
+    globalThis.localToolsVscode.window,
+    "showQuickPick",
+    async (choices, options) => {
+      if (options.title === switchAt)
+        f.folders = [{ name: original.name, uri: uri(replacement) }];
+      return choices[0];
+    },
+  );
+  const confirm = t.mock.method(
+    globalThis.localToolsVscode.window,
+    "showWarningMessage",
+    async () => undefined,
+  );
+  await skills.install();
+  assert.equal(confirm.mock.callCount(), 1);
+  assert.equal(f.previews.length, 1);
+  assert.ok(f.previews[0].includes(root));
+  for (switchAt of [
+    "Choose the workspace for this Skill",
+    "Choose an immutable package source",
+  ]) {
+    f.folders = [original];
+    await assert.rejects(skills.install(), { code: "selection_changed" });
+    assert.equal(f.previews.length, 1);
+    assert.equal(confirm.mock.callCount(), 1);
+  }
+  assert.deepEqual(await readdir(root), ["other"]);
+  assert.deepEqual(await readdir(replacement), []);
+});
+
+for (const kind of ["skill", "plugin"]) {
+  test(`${kind} acquisition respects workspace switches and cancellation during the credential prompt`, async (t) => {
+    const credential = {
+      type: kind === "skill" ? "git" : "https",
+      origin:
+        kind === "skill" ? "https://git.example" : "https://packages.example",
+      scheme: "basic",
+      username: "fixture",
+      token: "fixture-only",
+    };
+    let onPrompt;
+    const { root, plugins, skills, browser } = await setup(t, {
+      select: async (source) => {
+        assert.equal(source.type, credential.type);
+        assert.equal(lib.packageOrigin(source), credential.origin);
+        onPrompt();
+        return credential;
+      },
+    });
+    const original = f.folders[0];
+    const replacement = join(root, "other");
+    await mkdir(replacement);
+    const plugin = pluginFixture();
+    f.representation =
+      kind === "skill" ? representation() : plugin.representation;
+    browser.state.detail = {
+      item: { kind, releaseId: "owned-release" },
+      facts: [],
+    };
+    const host = kind === "skill" ? skills : plugins;
+    const store = new SkillStore(root, kind);
+    const name = kind === "skill" ? "owned-skill" : plugin.plan.name;
+    f.acquire = t.mock.fn(
+      async (_plan, source, _work, _tools, _signal, supplied) => {
+        assert.equal(lib.packageOrigin(source), credential.origin);
+        assert.deepEqual(supplied, credential);
+        return kind === "skill"
+          ? content()
+          : unpackPackage(plugin.plan, plugin.archive);
+      },
+    );
+    for (const code of ["selection_changed", "package_cancelled"]) {
+      f.folders = [original];
+      onPrompt = () => {
+        if (code === "selection_changed")
+          f.folders = [{ name: original.name, uri: uri(replacement) }];
+        else f.cancel();
+      };
+      await assert.rejects(host.install(0, root), { code });
+      assert.equal(
+        f.acquire.mock.callCount(),
+        0,
+        "A stale or canceled choice must not start a download",
+      );
+      assert.equal(await store.get(name), undefined);
+      assert.equal(
+        f.writes,
+        0,
+        "Refusing acquisition must preserve native settings",
+      );
+      assert.equal(f.cancel, undefined, "Progress listener should be released");
+    }
+    f.folders = [original];
+    onPrompt = () => undefined;
+    await host.install(0, root);
+    assert.equal(f.acquire.mock.callCount(), 1);
+    assert.equal((await store.get(name)).name, name);
+    assert.deepEqual(await readdir(replacement), []);
+  });
+}
+
+test("Plugin archive failure and a registration changed during download preserve native settings", async (t) => {
+  const { root, plugins, browser } = await setup(t);
+  const plugin = pluginFixture();
+  f.representation = plugin.representation;
+  browser.state.detail = {
+    item: { kind: "plugin", releaseId: "owned-release" },
+    facts: [],
+  };
+  const store = new SkillStore(root, "plugin");
+  const path = join(store.destination, plugin.plan.name);
+  const original = { ...f.locations };
+  const offline = new Error("fixture archive unavailable");
+  f.acquire = async () => {
+    throw offline;
+  };
+  await assert.rejects(plugins.install(0, root), (error) => error === offline);
+  assert.deepEqual(f.locations, original);
+  assert.equal(f.writes, 0);
+  assert.equal(await store.get(plugin.plan.name), undefined);
+
+  const bytes = unpackPackage(plugin.plan, plugin.archive);
+  f.acquire = async () => {
+    f.locations[path] = true;
+    return bytes;
+  };
+  await assert.rejects(plugins.install(0, root), {
+    code: "plugin_configuration_changed",
+  });
+  assert.deepEqual(f.locations, { ...original, [path]: true });
+  assert.equal(f.writes, 0);
+  assert.equal(await store.get(plugin.plan.name), undefined);
+
+  f.locations[path] = false;
+  f.acquire = async () => bytes;
+  await plugins.install(0, root);
+  assert.equal((await store.get(plugin.plan.name)).name, plugin.plan.name);
+  assert.deepEqual(f.locations, { ...original, [path]: false });
+  assert.equal(f.writes, 0, "An already-disabled path needs no settings write");
+});
+
 test("Skill and Plugin removal consent cannot transfer to a replacement receipt", async (t) => {
   for (const kind of ["skill", "plugin"]) {
     const { root, plugins, skills } = await setup(t);

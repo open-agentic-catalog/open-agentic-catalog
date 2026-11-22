@@ -571,7 +571,9 @@ func summarizeDiscovery(discovered discovery) discoverySummary {
 			}
 			continue
 		}
-		summary.kindCounts[string(kindForMediaType(entry.Type))]++
+		if kind := kindForMediaType(entry.Type); kind.Valid() {
+			summary.kindCounts[string(kind)]++
+		}
 		if parsed, parseErr := catalog.ParseAIRIdentifier(entry.Identifier); parseErr == nil {
 			publishers[parsed.Publisher] = struct{}{}
 		}
@@ -2352,7 +2354,8 @@ func ValidateRetainedInspectionIntegrity(inspection Inspection) error {
 	}
 	totalKinds := 0
 	for kind, count := range inspection.KindCounts {
-		if !safeRetrievalText(kind, 64, false) || count < 0 || count > inspection.EntryCount {
+		// Retained inspections can have a positive count under "" for unmapped formats.
+		if !safeRetrievalText(kind, 64, count > 0) || count < 0 || count > inspection.EntryCount {
 			return catalog.E(catalog.CodeInvalidArgument, "source inspection kind evidence is invalid")
 		}
 		totalKinds += count
@@ -3620,13 +3623,9 @@ func parseDocumentWithContextInputs(body []byte, mediaType string, contextFetche
 	var envelope struct {
 		Entries []json.RawMessage `json:"entries"`
 	}
-	decoder := json.NewDecoder(strings.NewReader(string(body)))
-	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&envelope); err != nil {
-		// Top-level standards documents are open. Retry without rejecting extensions.
-		if err := json.Unmarshal(body, &envelope); err != nil {
-			return parsedDocument{}, catalog.E(catalog.CodeInvalidArgument, "source is not a valid ARD or AI Catalog JSON document")
-		}
+	// Only "entries" supplies the inventory. Other top-level names are open.
+	if err := jsonv2.Unmarshal(body, &envelope); err != nil {
+		return parsedDocument{}, catalog.E(catalog.CodeInvalidArgument, "source is not a valid ARD or AI Catalog JSON document")
 	}
 	if envelope.Entries == nil {
 		return parsedDocument{}, catalog.E(catalog.CodeInvalidArgument, "source document has no entries array")
@@ -3670,7 +3669,7 @@ func parseDocumentWithContextInputs(body []byte, mediaType string, contextFetche
 					Identifier            string   `json:"identifier"`
 					RepresentativeQueries []string `json:"representativeQueries"`
 				}
-				if json.Unmarshal(normalized, &discoverySignals) == nil {
+				if jsonv2.Unmarshal(normalized, &discoverySignals) == nil {
 					if len(discoverySignals.RepresentativeQueries) < 2 || len(discoverySignals.RepresentativeQueries) > 5 {
 						structuralFindings = append(structuralFindings, catalog.Finding{Code: "ARD_REPRESENTATIVE_QUERIES_RECOMMENDED", Severity: catalog.SeverityWarning, Path: "/representativeQueries", Message: "ARD recommends two to five representative queries so the resource can be found semantically."})
 					}
@@ -3681,7 +3680,7 @@ func parseDocumentWithContextInputs(body []byte, mediaType string, contextFetche
 			}
 		}
 		var entry sourceEntry
-		if err := json.Unmarshal(parseRaw, &entry); err != nil {
+		if err := jsonv2.Unmarshal(parseRaw, &entry); err != nil {
 			return parsedDocument{}, catalog.E(catalog.CodeInvalidArgument, "source contains an invalid entry")
 		}
 		var properties map[string]json.RawMessage

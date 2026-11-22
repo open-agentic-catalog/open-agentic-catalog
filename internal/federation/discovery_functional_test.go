@@ -21,9 +21,12 @@ import (
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/audit"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/clock"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/fetcher"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/id"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/standards"
+	"github.com/open-agentic-catalog/open-agentic-catalog/test/identityfixture"
 )
 
 // The production router supplies policy evidence and delegates to the hardened
@@ -278,7 +281,14 @@ func TestInspectionHTTPSRegistryProbe(t *testing.T) {
 }
 
 func TestInspectionHTTPSPredecessorPathAcceptsCurrentARD(t *testing.T) {
-	const manifest = `{"specVersion":"1.0","host":{"trustManifest":{"identity":"https://remote.example","identityType":"https"}},"entries":[{"identifier":"urn:air:remote.example:server:one","displayName":"One","type":"application/mcp-server-card+json","url":"https://remote.example/one"}]}`
+	const supported = `{"identifier":"urn:air:remote.example:server:one","displayName":"One","displayname":"Vendor caption","type":"application/mcp-server-card+json","url":"https://remote.example/one","representativequeries":["vendor one","vendor two"]}`
+	const unknownType = "application/vnd.example.workflow+json; version=2"
+	const unknownID = "urn:air:remote.example:workflow:two"
+	const unknown = `{ "identifier":"` + unknownID + `","displayName":"Two","type":"` + unknownType + `","data":{"steps":[]},"representativeQueries":["find workflows","list workflows"],"https://vendor.example/ns#revision":9007199254740993 }`
+	const manifest = `{"specVersion":"1.0","host":{"trustManifest":{"identity":"https://remote.example","identityType":"https"}},"entries":[` + supported + `,` + unknown + `]}`
+	if err := standards.ValidateARDManifest([]byte(manifest)); err != nil {
+		t.Fatalf("test publication does not match the pinned ARD schema: %v", err)
+	}
 	server, outbound := newFederationHTTPSOrigin(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/.well-known/ai-catalog.json" {
 			http.NotFound(w, r)
@@ -287,7 +297,8 @@ func TestInspectionHTTPSPredecessorPathAcceptsCurrentARD(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = io.WriteString(w, manifest)
 	}))
-	manager, err := NewManager(NewMemoryStore(), outbound, clock.Real{}, id.Generator{})
+	evidence := &recordingFederationEvidence{}
+	manager, err := NewManager(NewMemoryStore(evidence), outbound, clock.Real{}, id.Generator{}, WithEvidenceSink(evidence, false))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,15 +306,53 @@ func TestInspectionHTTPSPredecessorPathAcceptsCurrentARD(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if inspection.SourceType != SourceARDManifest || inspection.ProfileID != ardProfileID || inspection.EntryCount != 1 {
+	if inspection.SourceType != SourceARDManifest || inspection.ProfileID != ardProfileID || inspection.EntryCount != 2 || !reflect.DeepEqual(inspection.KindCounts, map[string]int{string(catalog.KindMCPServer): 1}) {
 		t.Fatalf("current ARD through alias: %#v", inspection)
+	}
+	if err := ValidateRetainedInspectionIntegrity(inspection); err != nil {
+		t.Errorf("retained inspection with an unfamiliar media type: %v", err)
+	}
+	if !slices.ContainsFunc(inspection.Warnings, func(f catalog.Finding) bool {
+		return f.Code == "ARD_REPRESENTATIVE_QUERIES_RECOMMENDED" && f.Path == "/entries/0/representativeQueries"
+	}) {
+		t.Errorf("a similarly spelled extension hid the missing representativeQueries warning: %v", inspection.Warnings)
 	}
 	source, err := manager.Connect(auditEvidenceContext(), ConnectInput{InspectionID: inspection.ID, DisplayName: "Native alias", Scope: Scope{Publishers: []string{"remote.example"}}, RetrievalMode: RetrievalIndexed, UpdateMode: UpdateManual, NetworkProfile: "owned-https", Reason: "Qualify native alias"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := manager.Sync(auditEvidenceContext(), source.ID)
-	if err != nil || snapshot.MemberCount != 1 {
+	job := audit.JobExecution{ID: "00000000-0000-7000-8000-000000000032", Kind: "source.sync", Attempt: 1, Initiator: auditEvidenceMembershipID, Trigger: "manual"}
+	snapshot, err := manager.Sync(audit.WithJobExecution(auditEvidenceContext(), job), source.ID)
+	if err != nil || snapshot.State != SnapshotComplete || snapshot.MemberCount != 2 {
 		t.Fatalf("alias sync: %#v, %v", snapshot, err)
+	}
+	observations, err := manager.ObservationPage(auditEvidenceContext(), ObservationListRequest{SourceID: source.ID, CurrentOnly: true, Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := slices.IndexFunc(observations, func(o Observation) bool { return o.Identifier == unknownID })
+	if index < 0 {
+		t.Fatal("unfamiliar format missing from source observations")
+	}
+	retained, err := manager.GetRawObservation(auditEvidenceContext(), observations[index].ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if retained.MediaType != unknownType || retained.Compatibility.Structural != "valid" || retained.Compatibility.Support != "unknown" || retained.Kind != "" || retained.NormalizedEntryDigest != "" {
+		t.Fatalf("unfamiliar media type %q has kind %q, compatibility %+v, normalized digest %q", retained.MediaType, retained.Kind, retained.Compatibility, retained.NormalizedEntryDigest)
+	}
+	if string(retained.RawEntry) != unknown || retained.ExactEntryDigest != fmt.Sprintf("sha256:%x", sha256.Sum256([]byte(unknown))) {
+		t.Fatalf("source evidence changed: %s (%s)", retained.RawEntry, retained.ExactEntryDigest)
+	}
+	reader := identityfixture.WithActor(t.Context(), identity.Actor{TenantID: auditEvidenceTenantID, Subject: "reader", Roles: []identity.Role{identity.RoleReader}})
+	if _, err := manager.GetRawObservation(reader, retained.ID); catalog.ErrorCodeOf(err) != catalog.CodeForbidden {
+		t.Fatalf("reader access to source evidence returned %v", err)
+	}
+	page, err := manager.SearchFederatedCatalog(reader, catalog.FederatedCatalogSearchRequest{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if page.IndexedTotal != 1 || len(page.Indexed) != 1 || page.Indexed[0].Identifier != "urn:air:remote.example:server:one" || page.Indexed[0].DisplayName != "One" {
+		t.Fatalf("reader search returned %+v", page.Indexed)
 	}
 }

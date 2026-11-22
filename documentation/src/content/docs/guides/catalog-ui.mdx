@@ -297,7 +297,7 @@ Getting started explains discovery, contribution, independent review, release pu
 
 [![Public Getting started page with five workflows and their access prerequisites.](../../../../assets/catalog-ui/getting-started.png)](../../../../assets/catalog-ui/getting-started.png)
 
-After sign-in, select **Quick navigation** in the header, or press Ctrl+K or Command+K outside a text field or dialog. Type a page name, then follow its link. Only permitted fixed pages appear; resource names and private searches are not searched. Escape closes the chooser and returns focus. Ordinary unsaved-input protection applies when you follow a link. Catalog remains the default landing page.
+After sign-in, select **Quick navigation** in the header, or press Ctrl+K or Command+K outside a text field or dialog. Type a page name, then follow its link. Only permitted fixed pages appear; resource names and private searches are not searched. Press Escape to return to the control where you opened the chooser. If that control is gone, focus returns to **Quick navigation** in the header. Ordinary unsaved-input protection applies when you follow a link. Catalog remains the default landing page.
 
 ## Sign-in and session behavior
 
@@ -755,9 +755,9 @@ Choose **Edit private saved criteria as JSON** for advanced editing. Both views 
 
 [![A private saved search shows last-loaded context, a label and guided text editor, optional filters, and deliberate update and removal controls.](../../../../assets/catalog-ui/saved-search.png)](../../../../assets/catalog-ui/saved-search.png)
 
-Your library contains at most 200 items. Labels contain 1-120 Unicode code points without control characters. Each command body is limited to 16 KiB. PostgreSQL also limits the retained JSON input to 16 KiB after database encoding. Criteria exclude cursors, page sizes, transient receipts, credentials and arbitrary source URLs. These limits also apply to API clients.
+Your library contains at most 200 items. Labels must contain 1 to 120 Unicode code points, including at least one character other than whitespace. Control characters are invalid. Each command body is limited to 16 KiB. PostgreSQL also limits the retained JSON input to 16 KiB after database encoding. Criteria exclude cursors, page sizes, transient receipts, credentials and arbitrary source URLs. These limits also apply to API clients.
 
-In the library, enter an **Exact saved label** and optionally select **Saved item type**. Choose **Apply saved item filters**. Matching uses the complete case-sensitive label, including significant surrounding spaces and Unicode spelling; wildcard characters are literal. Duplicate labels can return several items. An empty input omits the label filter. **Clear saved item filters** restores the unfiltered first page. API clients use the optional `label` query parameter on `GET /api/v1/personal/items`; a supplied empty label is invalid.
+In the library, enter an **Exact saved label** and optionally select **Saved item type**. Choose **Apply saved item filters**. Matching uses the complete case-sensitive label, including significant surrounding spaces and Unicode spelling; wildcard characters are literal. If a saved label has no visible characters, its link shows the item type and ID. Editing or filtering still uses the original label. Duplicate labels can return several items. An empty input omits the label filter. **Clear saved item filters** restores the unfiltered first page. API clients use the optional `label` query parameter on `GET /api/v1/personal/items`; a supplied label must meet the same rules as a saved label.
 
 Each row shows its saved criteria or exact references and last-updated time. These facts do not prove current availability, and listing them does not resolve targets. Filtering happens before page limits. Continuation binds the current owner, permissions, type and exact label. **Refresh saved items** uses applied filters, leaving pending filter edits unchanged. After a continuation failure, it returns to the first page with those applied filters.
 

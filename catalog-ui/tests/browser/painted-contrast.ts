@@ -1,23 +1,26 @@
 import { expect, type Locator } from "@playwright/test";
 
+function luminance(color: string) {
+  const match = /^rgb\((\d+), (\d+), (\d+)\)$/.exec(color);
+  if (!match) throw new Error("Expected an opaque RGB color");
+  const channels = match.slice(1).map((channel) => {
+    const value = Number(channel) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+}
+
+function contrastRatio(foreground: string, background: string) {
+  const a = luminance(foreground);
+  const b = luminance(background);
+  return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+}
+
 // Resolve only specifically reviewed overlap indeterminates using actual
 // painted text rectangles and independently calculated opaque-color contrast.
 // Every other incomplete rule/failure remains a failure; no axe rule is disabled.
 export async function paintedContrast(target: Locator) {
   const measured = await target.evaluate((element) => {
-    function luminance(color: string) {
-      const match = /^rgb\((\d+), (\d+), (\d+)\)$/.exec(color);
-      if (!match) throw new Error("Expected an opaque RGB color");
-      const channels = match.slice(1).map((channel) => {
-        const value = Number(channel) / 255;
-        return value <= 0.04045
-          ? value / 12.92
-          : ((value + 0.055) / 1.055) ** 2.4;
-      });
-      return (
-        channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722
-      );
-    }
     let parent: Element | null = element;
     let background = "";
     while (parent) {
@@ -30,11 +33,6 @@ export async function paintedContrast(target: Locator) {
       }
       parent = parent.parentElement;
     }
-    const foreground = luminance(getComputedStyle(element).color);
-    const backdrop = luminance(background);
-    const ratio =
-      (Math.max(foreground, backdrop) + 0.05) /
-      (Math.min(foreground, backdrop) + 0.05);
     const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
     let count = 0;
     let unobscured = true;
@@ -66,7 +64,6 @@ export async function paintedContrast(target: Locator) {
       }
     }
     return {
-      ratio,
       count,
       unobscured,
       color: getComputedStyle(element).color,
@@ -75,6 +72,19 @@ export async function paintedContrast(target: Locator) {
   });
   expect(measured.count).toBeGreaterThan(0);
   expect(measured.unobscured).toBe(true);
-  expect(measured.ratio).toBeGreaterThanOrEqual(4.5);
-  return measured;
+  const ratio = contrastRatio(measured.color, measured.background);
+  expect(ratio).toBeGreaterThanOrEqual(4.5);
+  return { ...measured, ratio };
+}
+
+/** Measure text or an inset focus outline against its opaque control background. */
+export async function controlContrast(
+  control: Locator,
+  foregroundProperty: "color" | "outlineColor" = "color",
+) {
+  const colors = await control.evaluate((node, property) => {
+    const style = getComputedStyle(node);
+    return { foreground: style[property], background: style.backgroundColor };
+  }, foregroundProperty);
+  return contrastRatio(colors.foreground, colors.background);
 }

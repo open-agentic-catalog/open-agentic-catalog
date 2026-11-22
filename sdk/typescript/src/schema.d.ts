@@ -4387,10 +4387,12 @@ export interface components {
             /** Format: int64 */
             revision: number;
         };
+        /** @description Literal label of 1 to 120 Unicode code points. Requires a non-whitespace character and excludes control characters. Surrounding spaces are significant. */
+        PersonalLabel: string;
         PersonalInput: {
             /** @enum {string} */
             type: "resource" | "search" | "follow";
-            label: string;
+            label: components["schemas"]["PersonalLabel"];
             listingId?: components["schemas"]["UUID"];
             reference?: components["schemas"]["PersonalReference"];
             search?: components["schemas"]["PersonalCriteria"];
@@ -4401,7 +4403,7 @@ export interface components {
             id: components["schemas"]["UUID"];
             /** @enum {string} */
             type: "resource" | "search" | "follow";
-            label: string;
+            label: components["schemas"]["PersonalLabel"];
             listingId?: components["schemas"]["UUID"];
             reference?: components["schemas"]["PersonalReference"];
             search?: components["schemas"]["PersonalCriteria"];
@@ -9268,7 +9270,7 @@ export interface operations {
             query?: {
                 type?: "resource" | "search" | "follow";
                 /** @description Optional literal case-sensitive match of the complete saved label. Surrounding spaces and Unicode spelling are significant; wildcard characters are literal. Labels need not be unique. Omission leaves labels unrestricted; an empty, whitespace-only or control-containing value is invalid. Filtering precedes page limits and is bound into continuation with type and current owner authority. */
-                label?: string;
+                label?: components["schemas"]["PersonalLabel"];
                 limit?: number;
                 cursor?: string;
             };

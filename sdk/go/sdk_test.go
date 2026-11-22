@@ -385,6 +385,49 @@ func TestResponseLimitOverrideAndNoTruncation(t *testing.T) {
 	}
 }
 
+func TestProviderAndTransportShareEarliestDeadline(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		caller time.Duration
+		client time.Duration
+	}{
+		{"caller expires first", 5 * time.Second, 10 * time.Second},
+		{"client expires first", 10 * time.Second, 5 * time.Second},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				want := time.Now().Add(5 * time.Second)
+				ctx, cancel := context.WithTimeout(t.Context(), tc.caller)
+				defer cancel()
+				providers, sends := 0, 0
+				client := unitClient(t, Config{Timeout: tc.client, TokenProvider: func(ctx context.Context) (string, error) {
+					providers++
+					if deadline, ok := ctx.Deadline(); !ok || !deadline.Equal(want) {
+						t.Fatalf("provider deadline = %v, want %v", deadline, want)
+					}
+					time.Sleep(2 * time.Second) // Simulate credential lookup on the virtual clock.
+					return "token", nil
+				}}, doerFunc(func(r *http.Request) (*http.Response, error) {
+					sends++
+					if deadline, ok := r.Context().Deadline(); !ok || !deadline.Equal(want) {
+						t.Fatalf("transport deadline = %v, want %v", deadline, want)
+					}
+					<-r.Context().Done()
+					return nil, r.Context().Err()
+				}))
+				reply, err := client.GetCapabilitiesWithResponse(ctx)
+				var diagnostic *Error
+				if reply != nil || !errors.Is(err, context.DeadlineExceeded) || !errors.As(err, &diagnostic) || diagnostic.Code != "deadline_exceeded" {
+					t.Fatalf("expected SDK deadline error with no response, got %v, %v", reply, err)
+				}
+				if providers != 1 || sends != 1 || !time.Now().Equal(want) {
+					t.Fatalf("providers = %d, sends = %d, finished at %v, want one attempt ending at %v", providers, sends, time.Now(), want)
+				}
+			})
+		})
+	}
+}
+
 func TestConcurrentCallLimitsAndCredentials(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		type tokenKey struct{}
@@ -667,14 +710,18 @@ func TestRejectedRawInputsDoNotReachTransport(t *testing.T) {
 		reader   io.Reader
 		closeErr bool
 		editor   RequestEditorFn
+		wantCode string
 	}{
-		{name: "unreadable", reader: brokenReader{}},
-		{name: "close-failure", reader: strings.NewReader(`{}`), closeErr: true},
-		{name: "destination", reader: strings.NewReader(`{}`), editor: func(_ context.Context, r *http.Request) error { r.URL = nil; return nil }},
+		{name: "unreadable", reader: brokenReader{}, wantCode: "request_body_unreadable_or_over_limit"},
+		{name: "close-failure", reader: strings.NewReader(`{}`), closeErr: true, wantCode: "request_body_unreadable_or_over_limit"},
+		{name: "destination", reader: strings.NewReader(`{}`), editor: func(_ context.Context, r *http.Request) error { r.URL = nil; return nil }, wantCode: "origin_mismatch"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			body := &trackedBody{Reader: tc.reader, closeErr: tc.closeErr}
-			c := unitClient(t, Config{}, doerFunc(func(*http.Request) (*http.Response, error) {
+			c := unitClient(t, Config{TokenProvider: func(context.Context) (string, error) {
+				t.Fatal("rejected input reached credential provider")
+				return "", nil
+			}}, doerFunc(func(*http.Request) (*http.Response, error) {
 				t.Fatal("rejected input reached transport")
 				return nil, errors.New("unexpected transmission")
 			}))
@@ -685,9 +732,11 @@ func TestRejectedRawInputsDoNotReachTransport(t *testing.T) {
 			r, err := c.CreateNamespaceWithBody(context.Background(), &CreateNamespaceParams{IdempotencyKey: "caller-key"}, "application/json", body, editors...)
 			if r != nil {
 				_ = r.Body.Close()
+				t.Fatal("rejected input returned a response")
 			}
-			if err == nil || !body.closed || strings.Contains(err.Error(), "SECRET") {
-				t.Fatal("input was accepted or leaked", err, body.closed)
+			var diagnostic *Error
+			if !errors.As(err, &diagnostic) || diagnostic.Code != tc.wantCode || !body.closed || strings.Contains(err.Error(), "SECRET") {
+				t.Fatalf("want SDK error %q and closed body, got %v, closed = %t", tc.wantCode, err, body.closed)
 			}
 		})
 	}
@@ -851,6 +900,47 @@ func TestPersonalLabelQueryPreservesLiteralValueAndOptionalPresence(t *testing.T
 }
 
 func pointerLabel(value string) *string { return &value }
+
+func TestUpdateCollectionPreservesOmittedAndEmptyFields(t *testing.T) {
+	const idText = "00000000-0000-7000-8000-000000000101"
+	var id UUID
+	if err := id.UnmarshalText([]byte(idText)); err != nil {
+		t.Fatal(err)
+	}
+	name, empty := "SDK collection", ""
+	for _, tc := range []struct {
+		name string
+		body UpdateCollectionJSONRequestBody
+		want map[string]any
+	}{
+		{"rename keeping description", UpdateCollectionJSONRequestBody{Name: &name}, map[string]any{"name": name}},
+		{"clear description keeping name", UpdateCollectionJSONRequestBody{Description: &empty}, map[string]any{"description": ""}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client := unitClient(t, Config{}, doerFunc(func(r *http.Request) (*http.Response, error) {
+				if r.Method != http.MethodPatch || r.URL.Path != "/api/v1/collections/"+idText {
+					t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+				if r.Header.Get("Content-Type") != "application/json" || r.Header.Get("Idempotency-Key") != "collection-edit" || r.Header.Get("If-Match") != `"rev-2"` {
+					t.Fatalf("unexpected patch headers %v", r.Header)
+				}
+				data, err := io.ReadAll(r.Body)
+				if err != nil {
+					t.Fatal(err)
+				}
+				var got map[string]any
+				if err := json.Unmarshal(data, &got); err != nil || !reflect.DeepEqual(got, tc.want) {
+					t.Fatalf("patch = %s, want %v (decode error %v)", data, tc.want, err)
+				}
+				return response(`{"id":"`+idText+`","revision":3}`, http.StatusOK, "application/json"), nil
+			}))
+			reply, err := client.UpdateCollectionWithResponse(t.Context(), id, &UpdateCollectionParams{IdempotencyKey: "collection-edit", IfMatch: `"rev-2"`}, tc.body)
+			if err != nil || reply == nil || reply.JSON200 == nil || reply.JSON200.Id != id || reply.JSON200.Revision != 3 {
+				t.Fatalf("unexpected collection receipt %v, error %v", reply, err)
+			}
+		})
+	}
+}
 
 // A finite seeded corpus exercises semantic wire values independently of the
 // generated encoders. Integer values remain inside every SDK's exact range.

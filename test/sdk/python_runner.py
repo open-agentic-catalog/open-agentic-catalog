@@ -265,6 +265,14 @@ else:
         if source.count(enum_marker) != 1:
             raise RuntimeError("Unsupported Python " + model + " boolean enum template")
         path.write_text(source.replace(enum_marker, "if value is not True:"))
+    # Python's $ can match before a trailing newline. These label patterns
+    # describe the whole string and the generator omits the schema's `not`.
+    for filename in ("personal_input", "personal_item"):
+        path = destination / "catalog_sdk/generated/models" / (filename + ".py")
+        source = path.read_text()
+        if source.count("not re.match(") != 1:
+            raise RuntimeError("Unsupported Python saved label validator in " + filename)
+        path.write_text(source.replace("not re.match(", "not re.fullmatch("))
     run([TOOLS / "bin/ruff", "format", "--config", ROOT / "ruff.toml",
          destination / "catalog_sdk/generated"], env=environment(), capture=True)
     (work / "generation.log").write_text(result)
@@ -296,7 +304,7 @@ def build_packages(work, env):
 
 def package_sources():
     return [ROOT / "VERSION", ROOT / "api/openapi/control-v1.yaml", *sorted((SDK / "src").rglob("*.py")),
-            SDK / "src/catalog_sdk/py.typed", *(SDK / name for name in ("pyproject.toml", "README.md", "LICENSE", "NOTICE"))]
+            SDK / "src/catalog_sdk/py.typed", *(SDK / name for name in (".gitignore", "pyproject.toml", "README.md", "LICENSE", "NOTICE"))]
 
 
 def package():

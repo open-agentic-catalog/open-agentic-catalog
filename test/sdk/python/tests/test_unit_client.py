@@ -1,5 +1,6 @@
 """No listeners, subprocesses, DNS or real network in this selection."""
 import asyncio
+from contextvars import ContextVar
 import json
 from pathlib import Path
 import re
@@ -17,10 +18,12 @@ from catalog_sdk.generated.api.discovery_api import DiscoveryApi
 from catalog_sdk.generated.api.catalog_discovery_api import CatalogDiscoveryApi
 from catalog_sdk.generated.api.catalog_lifecycle_api import CatalogLifecycleApi
 from catalog_sdk.generated.api.personal_workspace_api import PersonalWorkspaceApi
+from catalog_sdk.generated.api.shared_collections_api import SharedCollectionsApi
 from catalog_sdk.generated.api.feedback_api import FeedbackApi
 from catalog_sdk.generated.api.federation_api import FederationApi
 from catalog_sdk.generated.models.catalog_search import CatalogSearch
 from catalog_sdk.generated.models.trust_assessment_request import TrustAssessmentRequest
+from catalog_sdk.generated.models.update_collection import UpdateCollection
 from catalog_sdk.transport import HTTPBoundary, Response
 
 
@@ -98,6 +101,37 @@ class ReadmeExampleUnits(unittest.IsolatedAsyncioTestCase):
         with injected(self.client.rest_client, forbidden), self.assertRaises(ValueError):
             _ = [page async for page in search(self.client, "weather", max_pages=0)]
         forbidden.assert_not_called()
+
+    async def test_search_resumes_from_last_decoded_page_after_invalid_continuation(self):
+        search = self.examples["search_local_pages"]
+        cursor = "opaque+page/2=="
+        page = {"items": [], "durableTotal": 0, "liveCount": 0, "partial": False,
+                "tier": "core", "profile": "core-lexical-v1", "generation": "sha256:" + "a" * 64}
+        # The second response advertises a new cursor but has an invalid result type.
+        bodies = [dict(page, nextCursor=cursor), dict(page, items="private-result", nextCursor="unconfirmed"), page]
+        transport = Mock(side_effect=[
+            httpx.Response(200, headers={"Content-Type": "application/json", "X-Request-ID": f"page-{number}"},
+                           stream=Stream([json.dumps(body).encode()]))
+            for number, body in enumerate(bodies, 1)
+        ])
+        with injected(self.client.rest_client, transport):
+            pages = search(self.client, "weather", namespace_id=self.uid)
+            first = await anext(pages)
+            self.assertEqual(first.next_cursor, cursor)
+            self.assertEqual(transport.call_count, 1)
+            with self.assertRaises(SDKError) as caught:
+                await anext(pages)
+            failure = caught.exception
+            self.assertEqual((failure.code, failure.status, failure.request_id), ("invalid_response", 200, "page-2"))
+            self.assertNotIn("private-result", str(failure))
+            self.assertEqual(transport.call_count, 2)
+            resumed = [p async for p in search(self.client, "weather", namespace_id=self.uid, cursor=first.next_cursor)]
+
+        self.assertEqual([p.next_cursor for p in resumed], [None])
+        base = {"text": "weather", "origins": ["local"], "namespaceId": str(self.uid), "limit": 20}
+        requests = [call.args[0] for call in transport.call_args_list]
+        self.assertEqual([json.loads(r.content) for r in requests], [base, dict(base, cursor=cursor), dict(base, cursor=cursor)])
+        self.assertTrue(all(r.headers.get("Authorization") == "Bearer selected" for r in requests))
 
     async def test_draft_recipe_serializes_each_kind_and_retains_key_and_etag(self):
         create = self.examples["create_draft_resource"]
@@ -202,6 +236,32 @@ class ConfigurationUnits(unittest.TestCase):
 
 
 class TransportUnits(unittest.IsolatedAsyncioTestCase):
+    def test_sync_collection_patch_preserves_omitted_fields_and_empty_description(self):
+        collection_id = UUID("00000000-0000-7000-8000-000000000101")
+        client = Client(Config(origin="https://catalog.example.com"))
+        api = SharedCollectionsApi(client)
+        receipt = json.dumps({"id": str(collection_id), "revision": 3}).encode()
+        for title, update, expected in (
+            ("rename only", UpdateCollection(name="Renamed"), {"name": "Renamed"}),
+            ("clear description only", UpdateCollection(description=""), {"description": ""}),
+        ):
+            with self.subTest(title):
+                transport = Mock(return_value=httpx.Response(
+                    200, headers={"Content-Type": "application/json"}, stream=Stream([receipt]),
+                ))
+                with injected(client.rest_client, transport):
+                    result = api.update_collection_sync_with_http_info(
+                        collection_id=collection_id, idempotency_key="collection-edit",
+                        if_match='"rev-2"', update_collection=update,
+                    )
+                transport.assert_called_once()
+                request = transport.call_args.args[0]
+                self.assertEqual((request.method, request.url.path), ("PATCH", f"/api/v1/collections/{collection_id}"))
+                self.assertEqual(request.headers["If-Match"], '"rev-2"')
+                self.assertEqual(request.headers["Idempotency-Key"], "collection-edit")
+                self.assertEqual(json.loads(request.content), expected)
+                self.assertEqual((result.status_code, result.data.id, result.data.revision), (200, collection_id, 3))
+
     async def test_withdrawal_preview_is_one_explicit_read_with_bound_references(self):
         release = "00000000-0000-7000-8000-000000000101"
         client = Client(Config(origin="https://catalog.example.com", token="selected"))
@@ -394,7 +454,7 @@ class TransportUnits(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.headers["Retry-After"], "5")
         self.assertNotIn("SECRET_BODY", repr(result))
 
-    async def test_exact_body_limits_stream_closure_and_overrides(self):
+    async def test_exact_body_limits_and_stream_closure(self):
         for size, code in ((32, None), (33, "response_too_large")):
             stream = Stream([b"x" * 16, b"x" * (size - 16)])
             with injected(self.boundary, lambda _: httpx.Response(200, headers={"X-Request-ID": "req"}, stream=stream)):
@@ -407,9 +467,6 @@ class TransportUnits(unittest.IsolatedAsyncioTestCase):
                 else:
                     self.assertEqual(len((await self.client.raw("GET", "/")).data), size)
             self.assertTrue(stream.closed)
-        stream = Stream([b"x" * 33])
-        with injected(self.boundary, lambda _: httpx.Response(200, stream=stream)), response_limit(33):
-            self.assertEqual(len((await self.client.raw("GET", "/")).data), 33)
         with self.assertRaises(SDKError):
             with response_limit(0):
                 pass
@@ -420,6 +477,21 @@ class TransportUnits(unittest.IsolatedAsyncioTestCase):
                     await self.boundary.request("POST", "https://catalog.example.com", body=body)
                 self.assertEqual(caught.exception.code, code)
         handler.assert_not_called()
+
+    async def test_response_limit_restores_outer_budget_after_error_and_default_on_exit(self):
+        payload = b"x" * 33  # One byte over the configured default.
+        def handler(_):
+            return httpx.Response(200, stream=Stream([payload]))
+
+        with injected(self.boundary, handler):
+            with response_limit(33):
+                with self.assertRaises(SDKError) as inner, response_limit(32):
+                    await self.client.raw("GET", "/")
+                self.assertEqual(inner.exception.code, "response_too_large")
+                self.assertEqual((await self.client.raw("GET", "/")).data, payload)
+            with self.assertRaises(SDKError) as outside:
+                await self.client.raw("GET", "/")
+            self.assertEqual(outside.exception.code, "response_too_large")
 
     async def test_encoding_headers_timeout_and_safe_transport_failure(self):
         for headers, code in (({"Content-Encoding": "gzip"}, "encoded_response"), ({"X-Large": "x" * 40000}, "headers_too_large")):
@@ -495,17 +567,36 @@ class TransportUnits(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(closed.is_set())
 
     async def test_concurrent_tokens_and_context_budgets(self):
-        credential = __import__("contextvars").ContextVar("credential")
-        boundary = HTTPBoundary(Config(origin="https://catalog.example.com", token_provider=credential.get))
-        async def handler(request):
-            await asyncio.sleep(0)
-            return httpx.Response(200, stream=Stream([request.headers["Authorization"].encode()]))
-        async def call(token):
+        credential = ContextVar("credential")
+        client = Client(Config(origin="https://catalog.example.com", token_provider=credential.get))
+        both_scopes = asyncio.Barrier(2)
+        received = []
+        payload = b"123456789"
+
+        def handler(request):
+            received.append((request.url.path, request.headers.get("Authorization")))
+            return httpx.Response(200, headers={"X-Request-ID": request.url.path[1:]}, stream=Stream([payload]))
+
+        async def call(token, limit):
             credential.set(token)
-            with response_limit(8 if token == "a" else 9):
-                return (await boundary.request("GET", "https://catalog.example.com/")).data
-        with injected(boundary, handler):
-            self.assertEqual(await asyncio.gather(call("a"), call("bb")), [b"Bearer a", b"Bearer bb"])
+            with response_limit(limit):
+                # Keep both overrides active until both responses have been checked.
+                await both_scopes.wait()
+                try:
+                    return await client.raw("GET", "/" + token)
+                finally:
+                    await both_scopes.wait()
+
+        with injected(client.rest_client, handler):
+            async with asyncio.timeout(5):
+                smaller, exact = await asyncio.gather(call("small", 8), call("exact", 9), return_exceptions=True)
+        self.assertCountEqual(received, [("/small", "Bearer small"), ("/exact", "Bearer exact")])
+        self.assertIsInstance(smaller, SDKError)
+        self.assertEqual((smaller.code, smaller.status, smaller.request_id), ("response_too_large", 200, "small"))
+        self.assertIsInstance(exact, Response)
+        self.assertEqual((exact.data, exact.headers["X-Request-ID"]), (payload, "exact"))
+
+    async def test_invalid_provider_tokens_do_not_reach_transport(self):
         for token in ("", "bad\ntoken", "nonascii\u00e9", 5):
             b = HTTPBoundary(Config(origin="https://catalog.example.com", token_provider=lambda: token))
             handler = Mock(side_effect=AssertionError("must not send"))

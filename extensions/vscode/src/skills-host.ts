@@ -226,8 +226,14 @@ export class CatalogSkills implements vscode.Disposable {
     const store = await this.workspace(path);
     check();
     if (!store) return;
+    const guardWorkspace = () => {
+      check();
+      if (!this.stores().some((s) => s.workspace === store.workspace))
+        throw new ClientError("selection_changed");
+    };
+    guardWorkspace();
     const status = await store.inspect(plan);
-    check();
+    guardWorkspace();
     if (status.identical) {
       void vscode.window.showInformationMessage(
         "This exact Skill is already installed. No download or write was needed.",
@@ -262,7 +268,7 @@ export class CatalogSkills implements vscode.Disposable {
               { title: "Choose an immutable package source" },
             )
           )?.source;
-    check();
+    guardWorkspace();
     if (!source) return;
     const changes = packageChanges(status.previous?.files ?? [], plan.files);
     const summary = `Workspace: ${store.workspace}\nDestination: .agents/skills/${plan.name}/\nSource: ${JSON.stringify(source)}\nDeclared license: ${detail!.facts.find((f) => f.label === "Declared license")?.value ?? "not supplied"}\nFiles: ${plan.files.length}; expanded bytes: ${plan.files.reduce((n, f) => n + f.size, 0)}.\n${status.previous ? "This update briefly removes the old directory during the two-rename switch. Local edits block replacement." : "VS Code can discover these instructions immediately after installation."}\nGit/ORAS uses separate package TLS trust and explicit source access, with no Catalog credentials. Scripts are copied, never run. Installation is not a safety approval.`;
@@ -280,7 +286,7 @@ export class CatalogSkills implements vscode.Disposable {
     ].join("\n");
     // Reuse the read-only, session-bound text provider. Never render instructions as Markdown.
     await this.preview(preview);
-    check();
+    guardWorkspace();
     if (
       (await vscode.window.showWarningMessage(
         `Install ${plan.name} in the selected workspace?`,
@@ -289,11 +295,9 @@ export class CatalogSkills implements vscode.Disposable {
       )) !== "Install Skill"
     )
       return;
-    check();
+    guardWorkspace();
     await read();
-    check();
-    if (!this.stores().some((s) => s.workspace === store.workspace))
-      throw new ClientError("selection_changed");
+    guardWorkspace();
     const work = await store.temporary();
     try {
       await vscode.window.withProgress(
@@ -310,33 +314,32 @@ export class CatalogSkills implements vscode.Disposable {
             cancelled.signal,
             this.session.cancellation(),
           ]);
+          const checkInstall = () => {
+            guardWorkspace();
+            if (signal.aborted) throw new ClientError("package_cancelled");
+          };
           try {
+            checkInstall();
+            const credential = await this.packageCredentials?.select(source);
+            checkInstall();
             const content = await acquirePackage(
               plan,
               source,
               work,
               tools,
               signal,
-              await this.packageCredentials?.select(source),
+              credential,
             );
-            check();
+            checkInstall();
             await store.install(
               plan,
               content,
               async () => {
-                if (signal.aborted) throw new ClientError("package_cancelled");
+                checkInstall();
                 await read();
-                check();
-                if (signal.aborted) throw new ClientError("package_cancelled");
-                if (!this.stores().some((s) => s.workspace === store.workspace))
-                  throw new ClientError("selection_changed");
+                checkInstall();
               },
-              () => {
-                check();
-                if (signal.aborted) throw new ClientError("package_cancelled");
-                if (!this.stores().some((s) => s.workspace === store.workspace))
-                  throw new ClientError("selection_changed");
-              },
+              checkInstall,
             );
           } finally {
             listener.dispose();

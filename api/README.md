@@ -2,7 +2,7 @@
 
 This directory contains the implemented HTTP contract, webhook event schema and reviewed examples for Agents, MCP Servers, Skills and Plugins. Start with the [OpenAPI document](openapi/control-v1.yaml) for operations and the [API conventions](../documentation/src/content/docs/reference/api-conventions.md) for authentication, request rules, trace correlation and browser preflight.
 
-Personal-library listing accepts an optional literal `label` filter alongside `type`. Matching preserves case, significant spaces and Unicode spelling; filtering precedes page limits and is bound into owner/current-authority cursors. Omit the parameter for all labels; a supplied empty or invalid label is rejected. The [personal-workspace guide](../documentation/src/content/docs/guides/catalog-ui.mdx#save-resources-and-searches) explains the UI, supported criteria and independent target admission.
+Personal-library listing accepts an optional literal `label` filter alongside `type`. Matching preserves case, significant spaces and Unicode spelling; filtering precedes page limits and is bound into owner/current-authority cursors. Omit either filter to include all values for it. An explicitly empty `type` or `label` returns `400 INVALID_ARGUMENT`. The [personal-workspace guide](../documentation/src/content/docs/guides/catalog-ui.mdx#save-resources-and-searches) explains the UI, supported criteria and independent target admission.
 
 For example, authenticated `GET /api/v1/personal/items?type=search&label=%20Support%20&limit=25` finds the current human's named searches labelled exactly ` Support `, including the two spaces. Follow its returned cursor with the same filters; labels need not be unique. Changing or omitting either filter starts a new page sequence.
 

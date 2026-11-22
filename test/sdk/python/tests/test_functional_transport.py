@@ -27,6 +27,15 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
 
+    def wait_for_client_close(self):
+        self.connection.settimeout(5)
+        try:
+            if self.rfile.read(1) == b"":
+                self.server.client_closed.set()
+        except TimeoutError:
+            pass
+        self.close_connection = True
+
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", "0")))
         self.server.calls.append((self.path, self.headers, body))
@@ -55,13 +64,21 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", "1")
             self.end_headers()
             self.server.body_waiting.set()
-            self.connection.settimeout(5)
-            try:
-                if self.rfile.read(1) == b"":
-                    self.server.client_closed.set()
-            except TimeoutError:
-                pass
-            self.close_connection = True
+            self.wait_for_client_close()
+            return
+        elif self.path in ("/chunked-exact", "/chunked-over"):
+            self.send_response(200)
+            self.send_header("Transfer-Encoding", "chunked")
+            self.send_header("X-Request-ID", "chunked-response")
+            self.end_headers()
+            self.wfile.write(b"2\r\nab\r\n2\r\ncd\r\n")
+            if self.path == "/chunked-exact":
+                self.wfile.write(b"0\r\n\r\n")
+            else:
+                self.wfile.write(b"1\r\ne\r\n")
+                self.wfile.flush()
+                # Withhold the final chunk so only the client can end this exchange.
+                self.wait_for_client_close()
             return
         elif self.path == "/slow":
             self.send_response(200)
@@ -239,6 +256,18 @@ class TransportFunctional(unittest.TestCase):
                 self.assertEqual(caught.exception.request_id, "slow")
                 self.assertEqual(caught.exception.status, 200)
         self.assertEqual(c.raw_sync("GET", "/").data, b"ok")
+
+    def test_chunked_response_over_limit_closes_before_final_chunk(self):
+        server, port = self.server()
+        client = Client(Config(origin=f"http://127.0.0.1:{port}", allow_loopback_http=True, response_bytes=4))
+        self.assertEqual(client.raw_sync("GET", "/chunked-exact").data, b"abcd")
+        with self.assertRaises(SDKError) as caught:
+            client.raw_sync("GET", "/chunked-over")
+        failure = caught.exception
+        self.assertEqual((failure.code, failure.status, failure.request_id), ("response_too_large", 200, "chunked-response"))
+        self.assertTrue(server.client_closed.wait(3), "oversized response left the connection open")
+        self.assertEqual(client.raw_sync("GET", "/").data, b"ok")
+        self.assertEqual([path for path, _, _ in server.calls], ["/chunked-exact", "/chunked-over", "/"])
 
     def test_generated_problem_hints_and_malformed_body_do_not_retry(self):
         server, port = self.server()

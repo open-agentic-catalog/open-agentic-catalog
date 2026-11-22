@@ -66,7 +66,7 @@ WEBHOOK_CASES = [
 OIDC_STEPS = {
     "startup-contract": STEPS["startup-contract"],
     "packaged-smoke": STEPS["packaged-smoke"],
-    "independent-oidc": ["membership-smoke", "identity-provisioning", "identity-realm-operations", "public-discovery"],
+    "independent-oidc": ["membership-smoke", "identity-provisioning", "identity-realm-operations", "public-discovery", "administration-smoke"],
 }
 TRACING_STEPS = {
     "startup-contract": STEPS["startup-contract"],
@@ -89,9 +89,9 @@ PEER_STEPS = {
     "startup-contract": STEPS["startup-contract"],
     "federation-peers": ["source-sync-smoke", "catalog-search-smoke", "public-discovery", "publication-smoke", "source-comparison-cli"],
 }
-OIDC_CASES = ["provider-startup", "dedicated-mapping", "discovery-isolation", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling"]
-OIDC_PHASES = ["setup", "provision", "provision-replay", "dedicated-startup", "capabilities", "membership", "token-rejection", "discovery", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "identity-report"]
-OIDC_PHASES += ["membership-lifecycle-read"] + [
+OIDC_CASES = ["provider-startup", "dedicated-mapping", "discovery-isolation", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "namespace-grants"]
+OIDC_PHASES = ["setup", "provision", "provision-replay", "dedicated-startup", "capabilities", "membership", "token-rejection", "discovery", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "namespace-grants", "identity-report"]
+OIDC_PHASES += ["membership-lifecycle-read", "membership-lifecycle-terminal"] + [
     "membership-lifecycle-" + action + suffix
     for action in ("suspend", "reactivate", "offboard")
     for suffix in ("", "-readback", "-access")
@@ -119,7 +119,8 @@ WEBHOOK_WAITS = (
     "initial-housekeeping", "delivery-parent-acknowledged", "delivery-markers-elapsed", "delivery-cleanup", "test-active",
     "accepted-before-loss", "crash-disconnected", "crash-lease-expired", "crash-parent-acknowledged", "two-worker-drain", "capacity-drain", "disabled-endpoint-drain",
     "database-down", "dispatcher-recovered", "persisted-retry-metric",
-    "publication-report-startup", "publication-report-activation", "publication-report-unpublish",
+    "publication-report-startup", "publication-report-activation", "publication-report-read-refused", "publication-report-unpublish",
+    "publication-report-missed-activation",
 )
 WEBHOOK_STATES = ("pending", "waiting", "succeeded", "dead_letter")
 WEBHOOK_DATABASE_FIELDS = {"eventExists", "endpointExists", "eventPredatesEndpoint", "eventAcknowledged",

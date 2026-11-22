@@ -428,43 +428,92 @@ it("preserves exact input after a failed or lossy source read and permits explic
   await screen.findByRole("alert");
   expect(onApply).not.toHaveBeenCalled();
 });
-it("keeps manual source selection when history is unavailable and aborts it when content access is lost", async () => {
-  const w = screenWorkspace();
-  const pending = deferred<unknown>();
-  w.get.mockReturnValue(pending.promise);
-  const onApply = vi.fn();
-  const noHistory = {
-    ...administrator,
-    permissions: administrator.permissions.filter(
-      (p) => p !== "resource.read_history",
-    ),
-  };
-  const view = render(
-    <VersionSource
-      {...w.props}
-      access={noHistory}
-      resource={resource}
-      drafts={[]}
-      onApply={onApply}
-    />,
-  );
-  expect(
-    screen.queryByRole("button", { name: "Browse source history" }),
-  ).toBeNull();
-  change("Exact source revision ID", bundle.revision.id);
-  click("Load source revision");
-  view.rerender(
-    <VersionSource
-      {...w.props}
-      access={{ ...noHistory, permissions: [] }}
-      resource={resource}
-      drafts={[]}
-      onApply={onApply}
-    />,
-  );
-  await act(async () => pending.resolve(etagReply(sourceBundle)));
-  expect(onApply).not.toHaveBeenCalled();
-});
+it.each(["succeeds", "fails"] as const)(
+  "retains the author's draft and can retry after access returns even if the cancelled read later %s",
+  async (outcome) => {
+    const w = screenWorkspace();
+    const pending = deferred<unknown>();
+    const retry = deferred<unknown>();
+    w.get
+      .mockReturnValueOnce(pending.promise)
+      .mockReturnValueOnce(retry.promise)
+      .mockResolvedValueOnce(etagReply(bundle.version));
+    const noHistory = {
+      ...administrator,
+      permissions: administrator.permissions.filter(
+        (p) => p !== "resource.read_history",
+      ),
+    };
+    const editor = (access: typeof administrator) => (
+      <AuthoringWorkspace {...w.props} access={access} resource={resource} />
+    );
+    const view = render(editor(noHistory));
+    const entered = '{"name":"My unsaved agent"}';
+    change("Version label", "my-version");
+    change("Standards document (JSON)", entered);
+    fireEvent.click(
+      screen.getByText("Start from an existing revision", {
+        selector: "summary",
+      }),
+    );
+    const load = await screen.findByRole("button", {
+      name: "Load source revision",
+    });
+    expect(
+      screen.queryByRole("button", { name: "Browse source history" }),
+    ).toBeNull();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    change("Exact source revision ID", bundle.revision.id);
+    fireEvent.click(load);
+    await screen.findByText("Loading complete source content...");
+    const signal = (w.get.mock.calls[0]![1] as { signal: AbortSignal }).signal;
+    view.rerender(
+      editor({
+        ...noHistory,
+        permissions: noHistory.permissions.filter(
+          (p) => p !== "resource.read_content",
+        ),
+      }),
+    );
+    expect(signal.aborted).toBe(true);
+    expect(screen.queryByText("Loading complete source content...")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Cancel source read" }),
+    ).toBeNull();
+    expect(load).toHaveProperty("disabled", true);
+    view.rerender(editor(noHistory));
+    expect(screen.getByLabelText("Exact source revision ID")).toHaveProperty(
+      "value",
+      bundle.revision.id,
+    );
+    expect(w.get).toHaveBeenCalledTimes(1);
+    click("Load source revision");
+    await act(async () => {
+      if (outcome === "fails")
+        pending.reject(new Error("obsolete source read"));
+      else pending.resolve(etagReply(sourceBundle));
+    });
+    expect(w.get).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Loading complete source content...")).toBeTruthy();
+    expect(screen.getByLabelText("Standards document (JSON)")).toHaveProperty(
+      "value",
+      entered,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(w.props.onFailure).not.toHaveBeenCalled();
+    await act(async () => retry.resolve(etagReply(sourceBundle)));
+    expect(screen.getByLabelText("Standards document (JSON)")).toHaveProperty(
+      "value",
+      JSON.stringify(native, null, 2),
+    );
+    expect(screen.getByLabelText("Version label")).toHaveProperty(
+      "value",
+      "my-version",
+    );
+    expect(w.get).toHaveBeenCalledTimes(3);
+    expect(w.post).not.toHaveBeenCalled();
+  },
+);
 it("opens Listing preparation after saving content without creating another Version", async () => {
   const w = screenWorkspace();
   readReplies(w.get, {

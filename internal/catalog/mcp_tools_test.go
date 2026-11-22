@@ -3,12 +3,16 @@ package catalog
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 	"unicode/utf8"
 
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/audit"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/test/identityfixture"
 )
@@ -213,6 +217,88 @@ func TestMemoryMCPToolsReleasedContentAuthority(t *testing.T) {
 		if len(filterAndScoreRecords([]CatalogSummary{row}, ordinary)) != 0 {
 			t.Fatal("ordinary search expanded")
 		}
+	}
+}
+
+type mcpRecordReadRepository struct {
+	Repository
+	record   CatalogRecord
+	audits   []AuditEvent
+	auditErr error
+}
+
+func (r *mcpRecordReadRepository) GetCatalogRecord(_ context.Context, tenant, release string) (CatalogRecord, error) {
+	if tenant != r.record.Resource.TenantID || release != r.record.Release.ID {
+		return CatalogRecord{}, E(CodeNotFound, "record unavailable")
+	}
+	return r.record, nil
+}
+
+func (r *mcpRecordReadRepository) AppendAuditEvent(_ context.Context, event AuditEvent) error {
+	if r.auditErr != nil {
+		return r.auditErr
+	}
+	r.audits = append(r.audits, event)
+	return nil
+}
+
+func TestMCPRecordReadRedactsOrAuditsToolDeclarations(t *testing.T) {
+	primary := Representation{ID: "primary", Role: RepresentationPrimary, MediaType: "application/json"}
+	tools := Representation{ID: "tools", Role: RepresentationMetadata, MediaType: MCPToolsMediaType, ProfileID: MCPToolsProfile, Data: json.RawMessage(`{"tools":[{"name":"extract_pdf_tables"}]}`)}
+	digest := "sha256:" + strings.Repeat("a", 64)
+	auditFailure := errors.New("audit storage unavailable")
+	for _, tc := range []struct {
+		name                            string
+		content, declaration, failAudit bool
+	}{
+		{name: "metadata reader with declaration", declaration: true},
+		{name: "metadata reader without declaration"},
+		{name: "content reader with declaration", content: true, declaration: true},
+		{name: "content reader without declaration", content: true},
+		{name: "content reader when audit fails", content: true, declaration: true, failAudit: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, policy := pass2CatalogSelectionContext(t, "resource.read")
+			policy.allowed["resource.read_content"] = tc.content
+			record := CatalogRecord{
+				Resource:        Resource{TenantID: pass2CatalogTenant, NamespaceID: pass2CatalogNamespace, Kind: KindMCPServer},
+				Release:         ListingRelease{ID: "00000000-0000-7000-8000-000000000081"},
+				VersionRevision: VersionRevision{ID: pass2DraftRevision, ContentSetDigest: digest, Representations: []Representation{primary}},
+			}
+			if tc.declaration {
+				record.VersionRevision.Representations = append(record.VersionRevision.Representations, tools)
+			}
+			repo := &mcpRecordReadRepository{record: record}
+			if tc.failAudit {
+				repo.auditErr = auditFailure
+			}
+			service := Service{repo: repo, ids: &guardrailIDs{}, clock: &guardrailClock{now: time.Unix(100, 0).UTC()}}
+			got, err := service.GetCatalogRecord(ctx, record.Release.ID)
+			if tc.failAudit {
+				if ErrorCodeOf(err) != CodeDependencyUnavailable || !errors.Is(err, auditFailure) || !reflect.DeepEqual(got, CatalogRecord{}) {
+					t.Fatalf("record disclosed or audit failure lost: %+v, %v", got, err)
+				}
+				return
+			}
+			want := []Representation{primary}
+			if tc.content && tc.declaration {
+				want = append(want, tools)
+			}
+			if err != nil || got.Release.ID != record.Release.ID || got.ToolDeclarationRedacted != !tc.content || !reflect.DeepEqual(got.VersionRevision.Representations, want) {
+				t.Fatalf("release read: %+v, %v", got, err)
+			}
+			if tc.content && tc.declaration {
+				if len(repo.audits) != 1 {
+					t.Fatalf("expected one private read audit, got %d", len(repo.audits))
+				}
+				event := repo.audits[0]
+				if event.Action != audit.ActionVersionRevisionRead || event.TargetID != record.VersionRevision.ID || event.TenantID != pass2CatalogTenant || event.AfterDigest != digest {
+					t.Fatalf("audit did not identify the disclosed revision: %+v", event)
+				}
+			} else if len(repo.audits) != 0 {
+				t.Fatal("private read was recorded without disclosing a declaration")
+			}
+		})
 	}
 }
 

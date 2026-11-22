@@ -75,6 +75,7 @@ func TestPythonSDKServiceRead(t *testing.T) {
 	var mu sync.Mutex
 	var paths []string
 	var statuses []int
+	var wantToken string
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/me" {
 			if r.Method != http.MethodGet || r.URL.RawQuery != "" {
@@ -117,6 +118,9 @@ func TestPythonSDKServiceRead(t *testing.T) {
 			reply.Header().Del("Content-Length")
 		}
 		mu.Lock()
+		if r.Header.Get("Authorization") != "Bearer "+wantToken {
+			t.Error("service script sent a different credential from its token file")
+		}
 		paths = append(paths, r.URL.Path)
 		statuses = append(statuses, reply.Code)
 		mu.Unlock()
@@ -143,6 +147,7 @@ func TestPythonSDKServiceRead(t *testing.T) {
 		success            bool
 	}{
 		{"success", "service-reader-private-sentinel", "", []int{200, 200}, true},
+		{"unrecognized-token", "service-reader-private-sentinel", "unrecognized-token", []int{http.StatusUnauthorized}, false},
 		{"wrong-subject", "service-reader-private-sentinel", "wrong-subject", []int{200}, false},
 		{"human-identity", "human-reader-private-sentinel", "", []int{200}, false},
 		{"no-reader", "service-no-reader-private-sentinel", "", []int{200}, false},
@@ -166,12 +171,17 @@ func TestPythonSDKServiceRead(t *testing.T) {
 		{"nested-claims", "service-reader-private-sentinel", "nested-claims", nil, false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
+			token := test.token
+			if test.input == "unrecognized-token" {
+				token += "-unrecognized"
+			}
 			mu.Lock()
 			paths, statuses = nil, nil
+			wantToken = token
 			mu.Unlock()
 			inputs := t.TempDir()
 			tokenFile, claimsFile := filepath.Join(inputs, "token"), filepath.Join(inputs, "claims.json")
-			must(t, os.WriteFile(tokenFile, []byte(test.token), 0600))
+			must(t, os.WriteFile(tokenFile, []byte(token), 0600))
 			claims, marshalErr := json.Marshal(map[string]string{"subject": users[test.token].Subject})
 			must(t, marshalErr)
 			must(t, os.WriteFile(claimsFile, claims, 0600))
@@ -237,7 +247,7 @@ func TestPythonSDKServiceRead(t *testing.T) {
 				}
 				message := "Cannot read the service token or expected subject from the input files"
 				switch test.name {
-				case "wrong-subject", "human-identity":
+				case "wrong-subject", "human-identity", "unrecognized-token":
 					message = "The API did not accept the expected service identity"
 				case "no-reader", "namespace-only-reader":
 					message = "The service has no current Reader permission"

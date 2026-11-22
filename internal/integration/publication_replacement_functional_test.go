@@ -10,6 +10,7 @@ import (
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/adapter"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/catalog"
+	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/httpserver"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/publication"
 )
 
@@ -92,7 +93,7 @@ func TestReplacementPublicationPreservesActiveDiscoveryUntilExplicitChange(t *te
 			}
 			assertActive := func(wantID string) {
 				t.Helper()
-				result := request(t, server.URL, http.MethodGet, "/api/v1/publication/snapshots?host=127.0.0.1&state=active&limit=1", "publisher", "", "", nil)
+				result := request(t, server.URL, http.MethodGet, "/api/v1/publication/snapshots?host=127.0.0.1&state=active&limit=2", "publisher", "", "", nil)
 				requireStatus(t, result, http.StatusOK)
 				var page struct {
 					Items []publication.SnapshotSummary `json:"items"`
@@ -142,9 +143,23 @@ func TestReplacementPublicationPreservesActiveDiscoveryUntilExplicitChange(t *te
 			}
 			assertUnchanged()
 			second := build("second-candidate")
+			stale := request(t, server.URL, http.MethodPost, "/api/v1/publication/snapshots/"+second.ID+":activate", "publisher", "stale-activation", first.ETag, map[string]any{"host": second.Host, "reason": "Activate replacement metadata"})
+			requireStatus(t, stale, http.StatusPreconditionFailed)
+			var precondition httpserver.Problem
+			decode(t, stale, &precondition)
+			if precondition.Code != catalog.CodePreconditionFailed {
+				t.Fatalf("stale candidate ETag returned %s", precondition.Code)
+			}
 			assertActive(first.ID)
 			assertUnchanged()
-			activate(second, "second-activate")
+			reload := request(t, server.URL, http.MethodGet, "/api/v1/publication/snapshots/"+second.ID+"?host="+second.Host, "publisher", "", "", nil)
+			requireStatus(t, reload, http.StatusOK)
+			var candidate publication.Snapshot
+			decode(t, reload, &candidate)
+			if candidate.ID != second.ID || candidate.State != publication.SnapshotCandidate || candidate.ETag != second.ETag || reload.header.Get("ETag") != candidate.ETag {
+				t.Fatalf("failed activation changed candidate %s", second.ID)
+			}
+			activate(candidate, "second-activate")
 			assertActive(second.ID)
 			if second.ID == first.ID {
 				t.Fatal("candidate reused the original snapshot identity")
@@ -158,10 +173,58 @@ func TestReplacementPublicationPreservesActiveDiscoveryUntilExplicitChange(t *te
 			}
 			release := request(t, server.URL, http.MethodGet, "/api/v1/listing-releases/"+replacement.ID, "publisher", "", "", nil)
 			requireStatus(t, release, http.StatusOK)
-			requireStatus(t, request(t, server.URL, http.MethodPost, "/api/v1/listing-releases/"+replacement.ID+":retire", "publisher", "explicit-retire", release.header.Get("ETag"), map[string]any{"reason": "Withdraw the replacement release explicitly"}), http.StatusOK)
-			assertActive("")
-			for _, path := range publicPaths {
-				requireStatus(t, request(t, server.URL, http.MethodGet, path, "", "", "", nil), http.StatusNotFound)
+			retire := func() response {
+				return request(t, server.URL, http.MethodPost, "/api/v1/listing-releases/"+replacement.ID+":retire", "publisher", "explicit-retire", release.header.Get("ETag"), map[string]any{"reason": "Withdraw the replacement release explicitly"})
+			}
+			retired := retire()
+			requireStatus(t, retired, http.StatusOK)
+			assertWithdrawn := func() {
+				t.Helper()
+				assertActive("")
+				for _, path := range publicPaths {
+					requireStatus(t, request(t, server.URL, http.MethodGet, path, "", "", "", nil), http.StatusNotFound)
+				}
+			}
+			assertWithdrawn()
+			rollback := request(t, server.URL, http.MethodPost, "/api/v1/publication/snapshots/"+second.ID+":rollback", "publisher", "rollback-withdrawn", second.ETag, map[string]any{"host": second.Host, "reason": "Restore the previously active snapshot"})
+			requireStatus(t, rollback, http.StatusUnprocessableEntity)
+			var problem httpserver.Problem
+			decode(t, rollback, &problem)
+			if problem.Code != catalog.CodePublicationNotReady {
+				t.Fatalf("rollback of withdrawn metadata returned %s", problem.Code)
+			}
+			assertWithdrawn()
+
+			recovered := build("after-withdrawal")
+			activate(recovered, "activate-after-withdrawal")
+			assertActive(recovered.ID)
+			// A delayed retry must return the original receipt and leave the newly active feed in place.
+			replay := retire()
+			requireStatus(t, replay, http.StatusOK)
+			if replay.header.Get("Idempotency-Replayed") != "true" || replay.header.Get("ETag") != retired.header.Get("ETag") || !bytes.Equal(replay.body, retired.body) {
+				t.Fatal("retirement retry did not return the original receipt")
+			}
+			history := request(t, server.URL, http.MethodGet, "/api/v1/listing-releases/"+replacement.ID, "publisher", "", "", nil)
+			requireStatus(t, history, http.StatusOK)
+			var retained catalog.ListingRelease
+			decode(t, history, &retained)
+			if retained.ID != replacement.ID || retained.State != catalog.ReleaseRetired || retained.Revision != replacement.Revision+1 || history.header.Get("ETag") != retired.header.Get("ETag") {
+				t.Fatalf("recovery or replay changed release history: %+v", retained)
+			}
+			assertActive(recovered.ID)
+			ard := request(t, server.URL, http.MethodGet, "/.well-known/ard.json", "", "", "", nil)
+			requireStatus(t, ard, http.StatusOK)
+			var manifest publication.ARDManifest
+			decode(t, ard, &manifest)
+			if ard.header.Get("ETag") != recovered.ETag || len(manifest.Entries) != 1 || manifest.Entries[0].Type != "application/ai-registry+json" {
+				t.Fatalf("expected only the Registry in the recovered ARD feed: %s", ard.body)
+			}
+			ai := request(t, server.URL, http.MethodGet, "/.well-known/ai-catalog.json", "", "", "", nil)
+			requireStatus(t, ai, http.StatusOK)
+			var aiCatalog publication.AICatalog
+			decode(t, ai, &aiCatalog)
+			if ai.header.Get("ETag") != recovered.AICatalogETag || aiCatalog.Entries == nil || len(aiCatalog.Entries) != 0 {
+				t.Fatalf("expected an empty recovered AI Catalog: %s", ai.body)
 			}
 		})
 	}

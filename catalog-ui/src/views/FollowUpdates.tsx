@@ -3,6 +3,7 @@ import { result } from "../api/client";
 import type { components } from "../api/schema";
 import { object } from "../api/values";
 import { PersonalResolution } from "./responses";
+import { savedItemTitle } from "./PersonalSummary";
 import type { WorkspaceProps } from "./workspace";
 
 type Resolution = components["schemas"]["PersonalResolution"];
@@ -81,7 +82,9 @@ export function FollowUpdates({
         <ul>
           {rows.map(({ item, result: r }) => (
             <li key={item.id}>
-              <a href={basePath + "/saved-items/" + item.id}>{item.label}</a>
+              <a href={basePath + "/saved-items/" + item.id}>
+                {savedItemTitle(item)}
+              </a>
               {" · "}
               {r.change ? changeLabels[r.change] : "Unavailable"}
             </li>

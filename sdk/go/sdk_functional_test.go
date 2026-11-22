@@ -40,8 +40,6 @@ func TestFunctionalVerifiedTLSAndCredentialRotation(t *testing.T) {
 	server.Config.ErrorLog = log.New(io.Discard, "", 0)
 	server.StartTLS()
 	defer server.Close()
-	roots := x509.NewCertPool()
-	roots.AddCert(server.Certificate())
 	for _, tc := range []struct {
 		name      string
 		trust     bool
@@ -53,7 +51,7 @@ func TestFunctionalVerifiedTLSAndCredentialRotation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			selected := x509.NewCertPool()
 			if tc.trust {
-				selected = roots
+				selected.AddCert(server.Certificate())
 			}
 			token := "first"
 			c, err := New(Config{Origin: server.URL, RootCAs: selected, TokenProvider: func(context.Context) (string, error) { return token, nil }})
@@ -76,6 +74,13 @@ func TestFunctionalVerifiedTLSAndCredentialRotation(t *testing.T) {
 			if !tc.pass {
 				if err == nil || r != nil || calls.Load() != before {
 					t.Fatal("TLS refusal reached HTTP")
+				}
+				if !tc.trust {
+					selected.AddCert(server.Certificate())
+					r, err = c.GetCapabilitiesWithResponse(t.Context(), editor)
+					if err == nil || r != nil || calls.Load() != before {
+						t.Fatal("editing the caller's CA pool changed the existing client's trust")
+					}
 				}
 				return
 			}

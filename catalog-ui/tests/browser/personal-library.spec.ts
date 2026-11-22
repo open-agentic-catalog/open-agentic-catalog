@@ -4,6 +4,29 @@ import { test, expect, login } from "./fixtures";
 import { array, object, text } from "./json";
 import { personalCommandOutcome } from "../../scripts/personal-evidence.mjs";
 
+test("open a saved search whose label has no visible characters", async ({
+  page,
+  catalog,
+}) => {
+  const label = "\uFEFF";
+  const { data } = await catalog.admin<{ id: string }>(
+    "POST",
+    "/api/v1/personal/items",
+    { type: "search", label, search: { text: "Invisible label lookup" } },
+    undefined,
+    "local-reader",
+  );
+  await login(page, catalog, "local-reader", "/saved-items");
+  const title = `Named search (${data.id})`;
+  await page.getByRole("link", { name: title, exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: title, exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Saved label", exact: true }),
+  ).toHaveValue(label);
+});
+
 for (const base of ["root", "subpath"]) {
   test(`${base}: rejected library continuation recovers applied filters without submitting pending edits`, async ({
     page,

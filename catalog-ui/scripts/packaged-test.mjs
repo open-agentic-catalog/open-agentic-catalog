@@ -2674,8 +2674,66 @@ try {
         exact: true,
       }),
     ).toBeVisible();
-    await page.getByTitle("Account", { exact: true }).click();
-    await page.getByRole("button", { name: "Sign out", exact: true }).click();
+    const signOut = async () => {
+      await page.getByTitle("Account", { exact: true }).click();
+      const [logout] = await Promise.all([
+        page.waitForResponse(
+          (reply) =>
+            reply.request().method() === "POST" &&
+            reply.url() === origin + basePath + "/auth/logout",
+        ),
+        page.getByRole("button", { name: "Sign out", exact: true }).click(),
+      ]);
+      expect(logout.status()).toBe(204);
+    };
+    if (mode === "oidc" && !basePath) {
+      phase = "oidc-root-cross-tab-sign-out";
+      console.log("Checking " + phase);
+      const editor = await context.newPage();
+      await collector.ready(editor);
+      let updates = 0;
+      editor.on("request", (request) => {
+        if (
+          request.method() === "PATCH" &&
+          request.url() === origin + savedNamespaceRead.route
+        )
+          updates++;
+      });
+      await editor.goto(savedNamespaceURL);
+      const name = editor.getByLabel("Display name", { exact: true });
+      await expect(name).toHaveValue(savedNamespace);
+      await name.fill("Unconfirmed namespace rename");
+      await editor
+        .getByRole("textbox", { name: "Reason", exact: true })
+        .fill("Clarify the namespace name");
+      await editor
+        .getByRole("button", { name: "Review changes", exact: true })
+        .click();
+      const dialog = editor.getByRole("dialog");
+      await expect(dialog).toContainText("Unconfirmed namespace rename");
+      await expect(
+        dialog.getByRole("button", { name: "Confirm", exact: true }),
+      ).toBeEnabled();
+      await signOut();
+      await expect(editor.getByRole("alert")).toContainText(
+        "Your session changed in another tab.",
+      );
+      await expect(dialog).toHaveCount(0);
+      await expect(name).toHaveCount(0);
+      ledger.expectFailure("GET", savedNamespaceRead.route, 401);
+      expect(
+        await editor.evaluate(namespaceReadControl, savedNamespaceRead),
+      ).toEqual({
+        status: 401,
+        retained: false,
+        forbidden: false,
+      });
+      expect(updates).toBe(0);
+      await collector.flush(editor);
+      await editor.close();
+    } else {
+      await signOut();
+    }
     expect(
       (await context.cookies(origin + basePath + "/")).some(
         (c) => c.name === "catalog-ui-packaged",
@@ -3423,19 +3481,58 @@ try {
         await compose("stop", "catalog-oidc");
         await openBrowser();
         await page.goto(origin + basePath + "/access");
+        const loginURL = origin + basePath + "/auth/login";
+        const loginOutcomes = [];
+        page.on("response", (reply) => {
+          if (reply.request().method() === "POST" && reply.url() === loginURL)
+            loginOutcomes.push(reply.status());
+        });
         ledger.expectFailure("POST", "/auth/login", 503);
-        const [unavailable] = await Promise.all([
-          page.waitForResponse(
-            (response) =>
-              new URL(response.url()).pathname === basePath + "/auth/login",
-          ),
-          page.getByRole("button", { name: "Sign in", exact: true }).click(),
-        ]);
-        expect(unavailable.status()).toBe(503);
-        await expect(page.getByRole("alert")).toBeVisible();
+        await page
+          .getByRole("button", { name: "Sign in", exact: true })
+          .click();
+        await expect(page.getByRole("alert")).toContainText(
+          "Sign-in is temporarily unavailable.",
+        );
         await expect(page.getByTitle("Account", { exact: true })).toHaveCount(
           0,
         );
+        expect(
+          (await context.cookies(origin + basePath + "/")).some(
+            (cookie) =>
+              cookie.name === uiConfig.cookieName ||
+              cookie.name.startsWith(uiConfig.cookieName + "-login-"),
+          ),
+        ).toBe(false);
+
+        phase = "oidc-provider-recovery";
+        console.log("Checking same-tab OIDC sign-in after issuer recovery");
+        await compose("start", "catalog-oidc");
+        await ready(ratingsIssuer + "/.well-known/openid-configuration", cert);
+        await waitForStableNetwork({ interrupted: () => interrupted });
+        expect(loginOutcomes).toEqual([503]);
+        await signInWithCallback();
+        await expect(page).toHaveURL(origin + basePath + "/catalog");
+        await expect(page.getByTitle("Account", { exact: true })).toBeVisible();
+        await sessionCookie();
+        const [self] = await Promise.all([
+          page.waitForResponse(
+            (reply) =>
+              reply.request().method() === "GET" &&
+              new URL(reply.url()).pathname ===
+                basePath + "/_catalog/api/v1/access/self",
+          ),
+          page.goto(origin + basePath + "/access"),
+        ]);
+        expect(self.status()).toBe(200);
+        const identity = page.getByRole("region", { name: "Your identity" });
+        await expect(
+          identity.getByText(distinctPrincipal.subject, { exact: true }),
+        ).toBeVisible();
+        await expect(
+          identity.getByText(distinctPrincipal.realmId, { exact: true }),
+        ).toBeVisible();
+        expect(loginOutcomes).toEqual([503, 200]);
       }
     }
     if (mode === "compose") {
@@ -3771,9 +3868,10 @@ try {
       phase = "compose-database-unavailable";
       console.log(`Checking ${phase}`);
       const retainedCookies = await context.cookies(origin + basePath + "/");
-      expect(
-        retainedCookies.some((cookie) => cookie.name === "catalog-ui-packaged"),
-      ).toBe(true);
+      const retainedSession = retainedCookies.find(
+        (cookie) => cookie.name === uiConfig.cookieName,
+      );
+      expect(Boolean(retainedSession)).toBe(true);
       await collector.finish();
       await browser.close();
       await compose("stop", "postgres");
@@ -3787,7 +3885,9 @@ try {
         page.goto(origin + basePath + "/access"),
       ]);
       expect(unavailable.status()).toBe(503);
-      await expect(page.getByRole("alert")).toBeVisible();
+      await expect(page.getByRole("alert")).toContainText(
+        "Reload the page to try again.",
+      );
       // The application rejects the failed session response without reading its
       // body. Read a separate bounded browser request rather than waiting for
       // Playwright to retrieve that unconsumed response through Chromium.
@@ -3806,18 +3906,39 @@ try {
       await expect(
         page.getByRole("heading", { name: "My access", exact: true }),
       ).toHaveCount(0);
+      const outageCookies = await context.cookies(origin + basePath + "/");
+      expect(outageCookies.length).toBe(retainedCookies.length);
       expect(
-        (await context.cookies(origin + basePath + "/")).map((c) => ({
-          name: c.name,
-          value: c.value,
-        })),
-      ).toEqual(retainedCookies.map((c) => ({ name: c.name, value: c.value })));
-      await collector.finish();
-      await browser.close();
+        retainedCookies.every((before) =>
+          outageCookies.some(
+            (after) =>
+              after.name === before.name &&
+              after.path === before.path &&
+              after.domain === before.domain &&
+              after.value === before.value,
+          ),
+        ),
+      ).toBe(true);
       phase = "compose-database-recovered";
       console.log(`Checking ${phase}`);
       await compose("start", "postgres");
       await ready(`http://127.0.0.1:${apiPort}/readyz`);
+      await waitForStableNetwork({ interrupted: () => interrupted });
+      const [restored] = await Promise.all([
+        page.waitForResponse(origin + basePath + "/auth/session"),
+        page.reload(),
+      ]);
+      expect(restored.status()).toBe(200);
+      const identity = page.getByRole("region", { name: "Your identity" });
+      await expect(
+        identity.getByText("local-admin", { exact: true }),
+      ).toBeVisible();
+      await expect(identity.getByText(tenant, { exact: true })).toBeVisible();
+      expect((await sessionCookie()).value === retainedSession.value).toBe(
+        true,
+      );
+      await collector.finish();
+      await browser.close();
       // Finish the owned UI topology change before reopening Chromium. Docker
       // veth changes can otherwise interrupt an unrelated in-flight browser request.
       phase = "compose-documentation-override";

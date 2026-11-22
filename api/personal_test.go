@@ -1,9 +1,51 @@
 package api
 
 import (
-	"github.com/getkin/kin-openapi/openapi3"
+	"strings"
 	"testing"
+
+	"github.com/getkin/kin-openapi/openapi3"
 )
+
+func TestPersonalLabelContract(t *testing.T) {
+	doc, err := openapi3.NewLoader().LoadFromData(ControlV1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	library := doc.Paths.Find("/api/v1/personal/items")
+	item := doc.Paths.Find("/api/v1/personal/items/{itemId}")
+	filter := library.Get.Parameters.GetByInAndName("query", "label")
+	if filter == nil || filter.Schema == nil {
+		t.Fatal("missing label query parameter schema")
+	}
+	schemas := map[string]*openapi3.Schema{
+		"create": library.Post.RequestBody.Value.Content.Get("application/json").Schema.Value.Properties["label"].Value,
+		"update": item.Patch.RequestBody.Value.Content.Get("application/json").Schema.Value.Properties["label"].Value,
+		"read":   item.Get.Responses.Status(200).Value.Content.Get("application/json").Schema.Value.Properties["label"].Value,
+		"filter": filter.Schema.Value,
+	}
+	for _, tc := range []struct {
+		name, label string
+		valid       bool
+	}{
+		{"empty", "", false},
+		{"unicode spaces", " \u00a0\u1680\u2007\u2028\u2029\u202f\u205f\u3000", false},
+		{"padded", "\u00a0 Café \u3000", true},
+		{"byte order mark", "\ufeff", true},
+		{"embedded control", "abc\u0085def", false},
+		{"trailing newline", "label\n", false},
+		{"at limit", strings.Repeat("🙂", 120), true},
+		{"over limit", strings.Repeat("🙂", 121), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for use, schema := range schemas {
+				if err := schema.VisitJSON(tc.label); (err == nil) != tc.valid {
+					t.Errorf("%s label %q: expected valid=%t, got %v", use, tc.label, tc.valid, err)
+				}
+			}
+		})
+	}
+}
 
 func TestPersonalContractsAreClosedAndKeepExactOrigins(t *testing.T) {
 	doc, err := openapi3.NewLoader().LoadFromData(ControlV1)

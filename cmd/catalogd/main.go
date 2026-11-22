@@ -81,6 +81,9 @@ func runArgsServing(arguments []string, serve func(*http.Server) error) (compone
 	if err := diagnostics.Parse(flags, arguments[1:]); err != nil {
 		return err
 	}
+	if flags.NArg() != 0 {
+		return safeerr.New("unexpected arguments; use " + flags.Name() + " --help")
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	runtime, err := platformruntime.Build(ctx, platformruntime.BuildOptions{StartTracing: true, ConfigPath: *configPath, Version: version, Commit: commit, SourceState: sourceState, Role: role})

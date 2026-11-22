@@ -398,13 +398,21 @@
           "symbol": "TestPersonalCLIRealAPIAndLostAcknowledgement"
         },
         {
+          "path": "cmd/catalogctl/personal_functional_test.go",
+          "symbol": "TestPersonalCLIResumesLostExistingFollow"
+        },
+        {
+          "path": "test/functional/personal_restore_integration_test.go",
+          "symbol": "qualifyProcessPersonalRestore"
+        },
+        {
           "path": "test/functional/operators.py"
         }
       ],
       "reason": "The existing packaged operator journey restores selected private searches and exact release references through the shipped CLI and PostgreSQL. Native process controls qualify actual response loss on first and later selected saves, retained acknowledgements and skips, same-origin tenant refusal, and membership suspension/reactivation between saves. Units qualify strict local input, finite enumeration, durable intent before sending and unverified acknowledgement/progress refusal.",
-      "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per item.",
-      "rejection": "Refuse malformed/oversized files, changed origins/tenants/principals/intent, unsafe private state, unavailable targets and quota exhaustion without overwriting existing items or disclosing another owner.",
-      "recovery": "Keep acknowledged saves and original request/key/first-attempt bindings. Explicit resume skips acknowledged work, replays safe uncertain commands only within the conservative window, and refuses expired, future or missing chronology without mutation.",
+      "success": "Export observed owner pages without target reads; preview exact create/skip choices offline; restore selected same-origin/tenant inputs under current human authority with private durable per-item progress and one create audit per newly created item.",
+      "rejection": "Refuse malformed/oversized files, changed origins/tenants/principals/intent, unsafe private state, unavailable targets and quota exhaustion without overwriting existing items or disclosing another owner. At quota, freeing a slot allows a newly confirmed plan to save the failed item. Resuming the original plan leaves the slot free.",
+      "recovery": "Keep acknowledged saves and original request/key/first-attempt bindings. Explicit resume skips acknowledged work, replays safe uncertain commands only within the conservative window, and refuses expired, future or missing chronology without mutation. After a lost HTTP 200 response and API restart, a fresh CLI reports the existing follow. PostgreSQL retains its original ID, current label, revision, acknowledged release and single creation audit.",
       "gaps": []
     },
     {
@@ -629,7 +637,7 @@
       "reason": "Independent HTTPS service-account dedicated/shared mappings and revoked access join existing controlled Minikube human subjects. Claim, scope, cursor and final-administrator permutations remain in named verifier/database tests; no password or browser flow is required.",
       "success": "Grant and read a membership, traverse bounded pages, filter its exact identity, inspect bounded direct/group contributions, suspend/reactivate/offboard and verify revoked access.",
       "rejection": "Deny cross-tenant reads and invalid or stale transitions; roles must not come from token claims.",
-      "recovery": "Same-key requests replay the retained lifecycle across complete stack recreation.",
+      "recovery": "Same-key requests replay the retained lifecycle across complete stack recreation. With OIDC, reactivation restores the same grants after suspension. Offboarding revokes them and a rejected reactivation leaves the membership and grants unchanged.",
       "gaps": []
     },
     {
@@ -663,6 +671,9 @@
           "path": "test/functional/core.py"
         },
         {
+          "path": "test/functional/oidc.py"
+        },
+        {
           "path": "internal/platform/httpserver/server_functional_test.go",
           "symbol": "TestHTTPAuthoringPublicationSecurityAndReplay"
         }
@@ -670,7 +681,7 @@
       "reason": "Owned namespace create/update/readback/stale/replay/audit checks reject changed-body and changed-If-Match reuse without replacing the retained response. They join shipped namespace/Publisher smoke and shared lower-level pagination/authorization tests.",
       "success": "Create/update namespace and Publisher with current ETags; approve the publication domain.",
       "rejection": "Reject removal of an approved domain through ordinary update; preserve safe timeout and revision failures.",
-      "recovery": "Replay mutations after recreation; drain retains the exact timeout response and a new key can succeed.",
+      "recovery": "Replay mutations after recreation; drain retains the exact timeout response and a new key can succeed. A namespace creation denied for insufficient OAuth scope leaves no namespace. The same account can retry the key with the required scope, and the original token still cannot replay the result.",
       "gaps": []
     },
     {
@@ -963,6 +974,10 @@
         {
           "path": "internal/platform/httpserver/guardrails_functional_test.go",
           "symbol": "TestHTTPPublicationAndPublicDiscoveryRoundTrip"
+        },
+        {
+          "path": "internal/integration/publication_replacement_functional_test.go",
+          "symbol": "TestReplacementPublicationPreservesActiveDiscoveryUntilExplicitChange"
         },
         {
           "path": "test/functional/core.py"
@@ -1455,6 +1470,10 @@
           "symbol": "TestExportCLIEndToEnd"
         },
         {
+          "path": "cmd/catalogctl/export_recovery_functional_test.go",
+          "symbol": "qualifyExportBatchCrash"
+        },
+        {
           "path": "cmd/catalogctl/export_functional_test.go",
           "symbol": "TestExportLocalTLSFaultsAndDeadline"
         },
@@ -1478,7 +1497,7 @@
       "reason": "Units qualify exact identities, current permission, required audits, local-only paging, limits, lossless text, private files and artifact integrity. The compiled CLI qualifies native and reusable exports for all four kinds against an owned Catalog. PostgreSQL process tests verify delivered jsonb precision, exact reusable-file reads, separate digests and explicit native re-import. The packaged Compose runner has no export phase.",
       "success": "Save a selected native representation or a reusable file with all representations and optional exact Listing metadata. Preserve native text and separate digest scopes. Freeze bounded local selections before batch reads; deduplicate exact releases only.",
       "rejection": "Refuse conflicting selections, changed origins/identities, malformed pages, repeated cursors, over-limit responses, ambiguous representations, mismatched integrity, permission loss, unsafe output paths and overwrites.",
-      "recovery": "Record complete, reference-only, denied, failed and unattempted outcomes. Preserve earlier successful files and a bounded final report after cancellation. Missing completion markers identify interrupted output; retries use a new directory. Incomplete selections stay incomplete. No automatic network retry or Catalog mutation occurs.",
+      "recovery": "Record complete, reference-only, denied, failed and unattempted outcomes. SIGTERM preserves successful files and a bounded final report. SIGKILL during an artifact read leaves the earlier export intact and no final batch report. A fresh CLI refuses the existing directory before contacting the API and can export the saved selection to a new directory. Incomplete selections stay incomplete. No automatic network retry or Catalog mutation occurs.",
       "gaps": []
     },
     {
@@ -1993,7 +2012,15 @@
         },
         {
           "path": "internal/platform/database/tenant_settings_integration_test.go",
-          "symbol": "TestPostgresTenantSettingsPolicyIsolationAndAuditRollback"
+          "symbol": "TestPostgresTenantSettingsPolicyIsolationAndConstraints"
+        },
+        {
+          "path": "internal/platform/database/tenant_settings_integration_test.go",
+          "symbol": "TestPostgresTenantSettingsConcurrentSaves"
+        },
+        {
+          "path": "internal/platform/database/tenant_settings_integration_test.go",
+          "symbol": "TestPostgresTenantSettingsRollbackAndGrantRepair"
         },
         {
           "path": "test/functional/tenant_settings_integration_test.go",

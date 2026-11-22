@@ -799,7 +799,7 @@ test("credentials, exact bytes, command bindings and response metadata", async (
   assert.equal(calls, 1);
 });
 
-test("request size and serialization failures send nothing", async () => {
+test("invalid or oversized requests fail before credentials or transport", async () => {
   let calls = 0,
     providers = 0;
   const client = make(
@@ -825,6 +825,10 @@ test("request size and serialization failures send nothing", async () => {
   );
   await assert.rejects(
     client.raw("/x", { method: "POST", body: {} }),
+    code("invalid_request"),
+  );
+  await assert.rejects(
+    client.raw("/x", { method: "GET", body: "{}" }),
     code("invalid_request"),
   );
   assert.equal(calls, 0);
@@ -996,6 +1000,21 @@ test("HTTP errors preserve retry hints without another request", async () => {
     );
     assert.equal(calls, 1);
   }
+});
+
+test("rawBytes returns an independent copy of the original typed response bytes", async () => {
+  const wire = '{ "items": [] }\n';
+  const client = make(
+    async () =>
+      new Response(wire, { headers: { "Content-Type": "application/json" } }),
+  );
+  const { data, response } = await client.api.GET("/api/v1/namespaces");
+  assert.deepEqual(data, { items: [] });
+  const expected = new TextEncoder().encode(wire);
+  const copy = client.rawBytes(response);
+  assert.deepEqual(copy, expected);
+  copy.fill(0);
+  assert.deepEqual(client.rawBytes(response), expected);
 });
 
 test("malformed and null JSON produce safe errors; raw bytes remain available", async () => {

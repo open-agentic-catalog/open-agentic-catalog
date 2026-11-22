@@ -37,7 +37,9 @@ else:
         """  # noqa: E501
 
         type: StrictStr
-        label: Annotated[str, Field(min_length=1, strict=True, max_length=120)]
+        label: Annotated[str, Field(min_length=1, strict=True, max_length=120)] = Field(
+            description="Literal label of 1 to 120 Unicode code points. Requires a non-whitespace character and excludes control characters. Surrounding spaces are significant."
+        )
         listing_id: Optional[UUID] = Field(default=None, alias="listingId")
         reference: Optional[PersonalReference] = None
         search: Optional[PersonalCriteria] = None
@@ -66,11 +68,12 @@ else:
         @field_validator("label", mode="before")
         def label_validate_regular_expression(cls, value):
             """Validates the regular expression"""
-            if isinstance(value, str) and not re.match(
-                r"^[^\x00-\x1F\x7F-\x9F]*$", value
+            if isinstance(value, str) and not re.fullmatch(
+                r"^[ \xA0  -     　]*[^\x00-\x20\x7F-\xA0  -     　][^\x00-\x1F\x7F-\x9F]*$",
+                value,
             ):
                 raise ValueError(
-                    r"must validate the regular expression /^[^\x00-\x1F\x7F-\x9F]*$/"
+                    r"must validate the regular expression /^[ \xA0  -     　]*[^\x00-\x20\x7F-\xA0  -     　][^\x00-\x1F\x7F-\x9F]*$/"
                 )
             return value
 

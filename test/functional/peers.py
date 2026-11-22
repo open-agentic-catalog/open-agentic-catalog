@@ -633,41 +633,51 @@ class Peers:
         sealed = self.synchronize(source)
         assert {x["identityDigest"] for x in sealed} == {x["identityDigest"] for x in updated}, "draft changed published observations"
         plugin = items[3]
+        plugin_identifier = plugin["resource"]["canonicalIdentifier"]
         old_plugin_version = copy.deepcopy(plugin["version"])
         plugin["version"] = mutate(self.author, "/api/v1/resources/" + plugin["resource"]["id"] + "/versions",
             {"version": "2.0.0", "representations": [self.plugin_representation("a-plugin-v2")]}, 201)[0]
         self.publish_item(plugin)
         self.snapshot(self.publisher_client, PUBLIC_A)
         changed_plugin = self.synchronize(source)
-        previous = next(x for x in updated if x["kind"] == "plugin")
-        current = next(x for x in changed_plugin if x["kind"] == "plugin")
-        assert current["version"] == "2.0.0" and current["normalizedEntryDigest"] != previous["normalizedEntryDigest"], "Plugin version did not converge"
+        self.check_index(changed_plugin, registry_members(self.public), ids, source)
+        previous = next(x for x in sealed if x["identifier"] == plugin_identifier)
+        current = next(x for x in changed_plugin if x["identifier"] == plugin_identifier)
+        assert current["normalizedEntryDigest"] != previous["normalizedEntryDigest"], "Plugin update reused the previous content"
+        superseded = ("1.0.0", previous["id"], "withdrawn")
+        self.check_version_history(source["id"], plugin_identifier, [superseded, ("2.0.0", current["id"], "current")])
         self.b.request("GET", "/api/v1/observations/" + previous["id"] + "/raw")
         self.author.request("GET", "/api/v1/version-revisions/" + old_plugin_version["revision"]["id"])
         self.compose("stop", "--timeout", "10", "peer-archives")
         self.passed("update")
         self.phase("removal")
-        path = "/api/v1/listing-releases/" + items[3]["release"]["id"]
+        path = "/api/v1/listing-releases/" + plugin["release"]["id"]
         _, headers = self.publisher_client.request("GET", path)
         mutate(self.publisher_client, path + ":retire", {"reason": "Owned peer removal"}, etag=header(headers, "ETag"))
         self.snapshot(self.publisher_client, PUBLIC_A)
-        remaining = ids - {items[3]["resource"]["canonicalIdentifier"]}
-        self.check_index(self.synchronize(source), registry_members(self.public), remaining, source)
-        history = observations(self.b, source["id"], "all")
-        assert any(x["identifier"] not in remaining and x["freshness"] == "withdrawn" for x in history), "absent manifest member not withdrawn"
+        published = registry_members(self.public)
+        assert all(entry["identifier"] != plugin_identifier for entry in published), "retired Plugin still published by A"
+        remaining = ids - {plugin_identifier}
+        remaining_index = self.synchronize(source)
+        self.check_index(remaining_index, published, remaining, source)
+        self.check_version_history(source["id"], plugin_identifier, [superseded, ("2.0.0", current["id"], "withdrawn")])
+        for observation in (previous, current):
+            raw, _ = self.b.request("GET", "/api/v1/observations/" + observation["id"] + "/raw", decode_body=False)
+            assert "sha256:" + hashlib.sha256(raw).hexdigest() == observation["exactEntryDigest"], "withdrawal changed retained Plugin bytes"
         self.passed("removal")
         self.phase("api-recovery")
         source = self.change_source(source, {"retrievalMode": "hybrid", "live": {"enabled": True, "queryPrivacyAcknowledged": True, "federationMode": "none"},
             "discoveryAssignments": [{"host": PRIVATE_B, "audience": "authenticated"}]})
+        self.check_outage_readers(source["id"], remaining_index, peer_online=True)
         def unavailable():
             self.compose("stop", "--timeout", "10", "api-a")
             self.b.request("GET", "/readyz")
             self.check_combined(observations(self.b, source["id"]))
-            ard, response_headers = self.b_private.request("POST", "/ard/v1/search", {"query": {"text": "peer"}, "federation": "auto", "pageSize": 100})
-            assert {x["identifier"] for x in ard["results"]} == self.b_private_native and "partial" in header(response_headers, "Server-Timing"), "ARD outage lost local results or partial signal"
+            self.check_outage_readers(source["id"], remaining_index, peer_online=False)
             control = self.b.request("POST", "/api/v1/catalog/search", {"text": "peer", "tags": ["peers"], "origins": ["local", "indexed", "live"], "limit": 100})[0]
             assert control["partial"] and control["diagnostics"] and {x["identifier"] for x in control["items"]} == self.b_native | remaining, "Control outage lost retained results or diagnostics"
         self.failure_recovery(source, unavailable, lambda: (self.compose("start", "api-a"), self.wait(ready)))
+        self.check_outage_readers(source["id"], remaining_index, peer_online=True)
         source = self.change_source(source, {"retrievalMode": "indexed", "live": {"enabled": False}})
         self.passed("api-recovery")
         self.phase("unpublish-recovery")
@@ -784,6 +794,34 @@ class Peers:
             assert raw == expected[item["identifier"]], "peer ingestion changed published entry"
         search = self.b.request("POST", "/api/v1/catalog/search", {"tags": ["peers"], "origins": ["indexed"], "limit": 20})[0]
         check_indexed_search(search, indexed, source["id"])
+
+    def check_version_history(self, source_id, identifier, expected):
+        query = urllib.parse.urlencode({"sourceId": source_id, "freshness": "all", "limit": 100})
+        page, _ = self.b.request("GET", "/api/v1/observations?" + query)
+        assert not page.get("nextCursor"), "peer version history exceeded the fixture bound"
+        versions = sorted((row["version"], row["id"], row["freshness"]) for row in page["items"] if row["identifier"] == identifier)
+        assert versions == expected, "peer observation IDs, versions or withdrawal state differ from the expected history"
+
+    def check_outage_readers(self, source_id, indexed, *, peer_online):
+        before = self.stats()
+        reader = Client(self.b.base_url, "local-reader")
+        page, _ = reader.request("POST", "/api/v1/catalog/search", {"origins": ["indexed"], "tags": ["peers"], "limit": 20})
+        check_indexed_search(page, indexed, source_id)
+        self.assert_contacts(before, PUBLIC_A, 0)
+
+        query = {"query": {"text": "peer"}, "federation": "auto", "pageSize": 100}
+        live = {item["identifier"] for item in indexed} if peer_online else set()
+        for client, expected, partial, contacts in (
+            (self.b_private, self.b_private_native | live, not peer_online, 1),
+            (self.b_public, self.b_native, False, 0),
+        ):
+            before = self.stats()
+            page, headers = client.request("POST", "/ard/v1/search", query)
+            assert sorted(item["identifier"] for item in page["results"]) == sorted(expected), "ARD reader saw the wrong audience or peer entries"
+            assert not page.get("pageToken"), "ARD reader recovery check did not cover the full result"
+            assert ("partial" in (header(headers, "Server-Timing") or "")) == partial, "ARD reader received the wrong federation status"
+            assert not {"partial", "diagnostics", "sourceIds"}.intersection(page), "ARD reader received private diagnostics"
+            self.assert_contacts(before, PUBLIC_A, contacts)
 
     def plugin_representation(self, name):
         origin = read_document(self.fixture / "archive-origin.json")["origin"]

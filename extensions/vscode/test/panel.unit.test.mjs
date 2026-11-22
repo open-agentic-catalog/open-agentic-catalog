@@ -50,7 +50,12 @@ test("credential-write contention does not offer another sign-in or write retry"
 });
 
 test("read cancellation and timeout guidance preserve explicit recovery choices", () => {
-  for (const error of ["request_canceled", "aborted", "cancelled"]) {
+  for (const error of [
+    "request_canceled",
+    "request_cancelled",
+    "aborted",
+    "cancelled",
+  ]) {
     const result = guidance("verified", true, 4, false, error);
     assert.equal(result.phase, "failed");
     assert.deepEqual(result.actions, ["restart", "help"]);

@@ -5,6 +5,7 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -140,6 +141,52 @@ func TestPostgresPersonalLibraryOwnershipQuotaAndAtomicAudit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Run("owner context ends with the transaction on a reused API connection", func(t *testing.T) {
+		sameTenantItem, err := service.Save(other, "", 0, input, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		otherTenantItem, err := service.Save(otherTenant, "", 0, input, false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pool := singleConnectionTestPool(t, ctx, db.api)
+		var backend uint32
+		if err := pool.QueryRow(ctx, "SELECT pg_backend_pid()").Scan(&backend); err != nil {
+			t.Fatal(err)
+		}
+		// The row query has no application predicate. PostgreSQL must apply both RLS policies.
+		const scope = `SELECT pg_backend_pid(), coalesce(current_setting('app.tenant_id',true),''),
+ coalesce(current_setting('app.actor_subject',true),''), coalesce(current_setting('app.membership_id',true),''),
+ ARRAY(SELECT id::text FROM personal_items ORDER BY id)`
+		check := func(row pgx.Row, want identity.Actor, ids ...string) {
+			t.Helper()
+			var pid uint32
+			var tenant, subject, membership string
+			var visible []string
+			if err := row.Scan(&pid, &tenant, &subject, &membership, &visible); err != nil {
+				t.Fatal(err)
+			}
+			if pid != backend || tenant != want.TenantID || subject != want.Subject || membership != want.MembershipID || !slices.Equal(visible, ids) {
+				t.Fatalf("backend %d tenant %q subject %q membership %q rows %v; want backend %d tenant %q subject %q membership %q rows %v", pid, tenant, subject, membership, visible, backend, want.TenantID, want.Subject, want.MembershipID, ids)
+			}
+		}
+		readOwner := func(ownerCtx context.Context, id string, end error) {
+			t.Helper()
+			actor, _ := identity.FromContext(ownerCtx)
+			_, err := withTenantRead(ownerCtx, pool, actor.TenantID, func(tx pgx.Tx) (struct{}, error) {
+				check(tx.QueryRow(ownerCtx, scope), actor, id)
+				return struct{}{}, end
+			})
+			if !errors.Is(err, end) {
+				t.Fatalf("transaction returned %v; want %v", err, end)
+			}
+			check(pool.QueryRow(ownerCtx, scope), identity.Actor{})
+		}
+		readOwner(ctx, item.ID, nil)
+		readOwner(other, sameTenantItem.ID, errors.New("roll back the second owner's transaction"))
+		readOwner(otherTenant, otherTenantItem.ID, nil)
+	})
 	// Actual restore constraint digest is derived from this newly migrated PostgreSQL 18 schema.
 	_, err = withTenantRead(ctx, db.api, housekeepingTenantA, func(tx pgx.Tx) (struct{}, error) {
 		if e := verifyRestoreConstraints(ctx, tx, schema); e != nil {

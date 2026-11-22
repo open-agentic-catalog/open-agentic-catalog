@@ -2,7 +2,7 @@ import { object, array, text } from "./json";
 import { test, expect, login } from "./fixtures";
 import { publishFixture } from "./published-fixture";
 import { doubleText } from "./text-layout";
-import { visibleFocus } from "./keyboard";
+import { tabTo, visibleFocus } from "./keyboard";
 import { searchContinuationRefusal } from "../../scripts/search-continuation-evidence.mjs";
 import type { Response } from "@playwright/test";
 
@@ -375,7 +375,16 @@ test("search pages contain disjoint real releases and submitting filters resets 
 
   // The actual API accepts declaration filters across origins. Panel edits
   // stay staged, and detail/back navigation retains the submitted predicate.
-  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  const filters = page.getByRole("button", { name: "Filters", exact: true });
+  await filters.focus();
+  await page.keyboard.press("Control+k");
+  const chooser = page.getByRole("dialog", { name: "Quick navigation" });
+  await expect(
+    chooser.getByRole("textbox", { name: "Find a page" }),
+  ).toBeFocused();
+  await page.keyboard.press("Escape");
+  await visibleFocus(filters);
+  await page.keyboard.press("Enter");
   await page.getByLabel("License declaration").fill(" Apache-2.0 ");
   await page.getByRole("button", { name: "Add category", exact: true }).click();
   await page.getByLabel("Category 1", { exact: true }).fill(" TESTING ");
@@ -387,10 +396,27 @@ test("search pages contain disjoint real releases and submitting filters resets 
   });
   await expect(indexed).toBeEnabled();
   await expect(indexed).toBeChecked();
-  await page
-    .getByRole("checkbox", { name: "Live external", exact: true })
-    .uncheck();
+  const live = page.getByRole("checkbox", {
+    name: "Live external",
+    exact: true,
+  });
+  await indexed.focus();
+  await page.keyboard.press("Tab");
+  await visibleFocus(live);
+  await page.keyboard.press("Space");
+  await expect(live).not.toBeChecked();
+  await page.setViewportSize({ width: 320, height: 740 });
+  const drawer = page.getByRole("dialog", { name: "Filters", exact: true });
+  await expect(drawer).toBeVisible();
+  await visibleFocus(live);
+  await expect(live).not.toBeChecked();
   await expect(cards).toHaveCount(24);
+  await tabTo(
+    page,
+    drawer.getByRole("button", { name: "Apply filters", exact: true }),
+    "Tab",
+    drawer,
+  );
   const filtered = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/v1/catalog/search") &&
@@ -398,7 +424,7 @@ test("search pages contain disjoint real releases and submitting filters resets 
   );
   const [selected] = await Promise.all([
     filtered,
-    page.getByRole("button", { name: "Apply filters", exact: true }).click(),
+    page.keyboard.press("Enter"),
   ]);
   expect(selected.status()).toBe(200);
   expect(object(selected.request().postDataJSON())).toMatchObject({

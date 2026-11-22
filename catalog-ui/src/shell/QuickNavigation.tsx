@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Access } from "../api/client";
 import { navigationGroups } from "./navigation";
 import { Icon, controlIcons } from "./Icon";
@@ -14,11 +14,24 @@ export function QuickNavigation({
   const dialog = useRef<HTMLDialogElement>(null);
   const opener = useRef<HTMLButtonElement>(null);
   const [query, setQuery] = useState("");
-  const close = () => {
+  const open = useCallback(() => {
+    document
+      .querySelectorAll<HTMLDetailsElement>(".header-actions details[open]")
+      .forEach((entry) => {
+        entry.open = false;
+      });
+    dialog.current?.showModal();
+  }, []);
+  const close = useCallback(() => {
     dialog.current?.close();
+    // Native dialogs restore the previous control when it still accepts focus.
+    if (
+      document.activeElement === document.body ||
+      dialog.current?.contains(document.activeElement)
+    )
+      opener.current?.focus();
     setQuery("");
-    opener.current?.focus();
-  };
+  }, []);
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       const target = event.target;
@@ -35,25 +48,16 @@ export function QuickNavigation({
       )
         return;
       event.preventDefault();
-      document
-        .querySelectorAll<HTMLDetailsElement>(".header-actions details[open]")
-        .forEach((entry) => {
-          entry.open = false;
-        });
-      dialog.current?.showModal();
+      open();
     };
     document.addEventListener("keydown", shortcut);
     return () => document.removeEventListener("keydown", shortcut);
-  }, []);
+  }, [open]);
   const policy = JSON.stringify(access);
   // Policy refresh must remove old matches and dismiss a stale page choice.
   useEffect(() => {
-    if (dialog.current?.open) {
-      dialog.current.close();
-      opener.current?.focus();
-    }
-    setQuery("");
-  }, [policy]);
+    if (dialog.current?.open) close();
+  }, [policy, close]);
   const groups = navigationGroups(access);
   return (
     <>
@@ -61,15 +65,10 @@ export function QuickNavigation({
         ref={opener}
         className="quick-navigation-trigger"
         title="Quick navigation (Ctrl+K or Command+K)"
-        onClick={() => {
-          document
-            .querySelectorAll<HTMLDetailsElement>(
-              ".header-actions details[open]",
-            )
-            .forEach((entry) => {
-              entry.open = false;
-            });
-          dialog.current?.showModal();
+        onClick={(event) => {
+          // Some browsers leave focus on the previous control after a pointer click.
+          event.currentTarget.focus();
+          open();
         }}
       >
         <Icon name="search" />

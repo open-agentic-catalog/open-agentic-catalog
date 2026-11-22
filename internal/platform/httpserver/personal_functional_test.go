@@ -33,7 +33,7 @@ func TestHTTPPersonalLiteralLabelAndBoundContinuation(t *testing.T) {
 	}
 	type libraryPage struct {
 		Items      []personal.Item `json:"items"`
-		NextCursor string          `json:"nextCursor"`
+		NextCursor *string         `json:"nextCursor"`
 	}
 	path := "/api/v1/personal/items?type=search&label=Exact&limit=1"
 	first := requestJSON(t, s.URL, "GET", path, "reader", "", "", nil)
@@ -41,45 +41,86 @@ func TestHTTPPersonalLiteralLabelAndBoundContinuation(t *testing.T) {
 	requireControlSchema(t, "PersonalPage", first.body)
 	var page libraryPage
 	decodeResult(t, first, &page)
-	if len(page.Items) != 1 || page.Items[0].ID != want[0] || page.NextCursor == "" || first.header.Get("Cache-Control") != "no-store" {
+	if len(page.Items) != 1 || page.Items[0].ID != want[0] || first.header.Get("Cache-Control") != "no-store" {
 		t.Fatal("filtered first page", page)
 	}
-	next := path + "&cursor=" + url.QueryEscape(page.NextCursor)
+	if page.NextCursor == nil || *page.NextCursor == "" {
+		t.Fatal("missing continuation with a second match")
+	}
+	next := path + "&cursor=" + url.QueryEscape(*page.NextCursor)
 	second := requestJSON(t, s.URL, "GET", next, "reader", "", "", nil)
 	requireStatus(t, second, 200)
+	requireControlSchema(t, "PersonalPage", second.body)
 	page = libraryPage{}
 	decodeResult(t, second, &page)
-	if len(page.Items) != 1 || page.Items[0].ID != want[1] || page.NextCursor != "" {
+	if len(page.Items) != 1 || page.Items[0].ID != want[1] || page.NextCursor != nil {
 		t.Fatal("filtered second page", page)
 	}
 	for _, test := range []struct{ path, token string }{
 		{strings.Replace(next, "label=Exact", "label=exact", 1), "reader"},
 		{strings.Replace(next, "&label=Exact", "", 1), "reader"},
 		{strings.Replace(next, "type=search", "type=resource", 1), "reader"},
+		{strings.Replace(next, "limit=1", "limit=2", 1), "reader"},
 		{next, "reader-two"},
 		{next, "other-admin"},
 	} {
-		requireStatus(t, requestJSON(t, s.URL, "GET", test.path, test.token, "", "", nil), 400)
+		requireControlProblem(t, requestJSON(t, s.URL, "GET", test.path, test.token, "", "", nil), 400, catalog.CodeInvalidArgument)
 	}
 	for _, label := range []string{"exact", " Exact ", "café", "cafe\u0301", "%_"} {
 		r := requestJSON(t, s.URL, "GET", "/api/v1/personal/items?limit=1&label="+url.QueryEscape(label), "reader", "", "", nil)
 		requireStatus(t, r, 200)
 		page = libraryPage{}
 		decodeResult(t, r, &page)
-		if len(page.Items) != 1 || page.Items[0].Label != label || page.NextCursor != "" {
+		if len(page.Items) != 1 || page.Items[0].Label != label || page.NextCursor != nil {
 			t.Fatal("literal label changed", label, page)
 		}
-	}
-	for _, label := range []string{"", "   ", "\n", strings.Repeat("🙂", 121)} {
-		requireStatus(t, requestJSON(t, s.URL, "GET", "/api/v1/personal/items?label="+url.QueryEscape(label), "reader", "", "", nil), 400)
 	}
 	requireStatus(t, requestJSON(t, s.URL, "GET", "/api/v1/personal/items?label=Exact&label=Exact", "reader", "", "", nil), 400)
 	for _, token := range []string{"admin", "reader-two", "other-admin"} {
 		r := requestJSON(t, s.URL, "GET", path, token, "", "", nil)
 		requireStatus(t, r, 200)
+		page = libraryPage{}
 		decodeResult(t, r, &page)
-		if len(page.Items) != 0 || page.NextCursor != "" {
+		if len(page.Items) != 0 || page.NextCursor != nil {
 			t.Fatal("label escaped owner", token, page)
+		}
+	}
+}
+
+func TestHTTPPersonalInvalidLabelsPreserveSavedSearch(t *testing.T) {
+	s := newWebhookHTTPServer(t)
+	defer s.Close()
+	const path = "/api/v1/personal/items"
+	input := map[string]any{"type": "search", "label": "\ufeff", "search": map[string]any{"text": "same saved search"}}
+	create := requestJSON(t, s.URL, "POST", path, "reader", "create-saved-search", "", input)
+	requireStatus(t, create, 201)
+	etag := create.header.Get("ETag")
+	var receipt feedbackReceipt
+	decodeResult(t, create, &receipt)
+	itemPath := path + "/" + receipt.ID
+	for i, label := range []string{"", "   ", "\u00a0", "x\n", "a\u0085b", strings.Repeat("🙂", 121)} {
+		input["label"] = label
+		invalid := requestJSON(t, s.URL, "POST", path, "reader", fmt.Sprintf("invalid-create-%d", i), "", input)
+		requireControlProblem(t, invalid, 400, catalog.CodeInvalidArgument)
+		update := requestJSON(t, s.URL, "PATCH", itemPath, "reader", fmt.Sprintf("invalid-update-%d", i), etag, input)
+		requireControlProblem(t, update, 400, catalog.CodeInvalidArgument)
+		filter := requestJSON(t, s.URL, "GET", path+"?label="+url.QueryEscape(label), "reader", "", "", nil)
+		requireControlProblem(t, filter, 400, catalog.CodeInvalidArgument)
+	}
+	// A refused create must not add a row, and a refused rename must not change
+	// the existing label, criteria or revision.
+	for _, query := range []string{"", "?label=" + url.QueryEscape("\ufeff")} {
+		list := requestJSON(t, s.URL, "GET", path+query, "reader", "", "", nil)
+		requireStatus(t, list, 200)
+		requireControlSchema(t, "PersonalPage", list.body)
+		var page struct{ Items []personal.Item }
+		decodeResult(t, list, &page)
+		if len(page.Items) != 1 {
+			t.Fatalf("query %q returned %d saved items", query, len(page.Items))
+		}
+		item := page.Items[0]
+		if item.ID != receipt.ID || item.Revision != 1 || item.Label != "\ufeff" || item.Search == nil || item.Search.Text != "same saved search" {
+			t.Fatalf("saved search changed: %+v", item)
 		}
 	}
 }
@@ -111,7 +152,7 @@ func TestHTTPPersonalLibraryReplayRevisionAndCursorIsolation(t *testing.T) {
 		t.Fatal(item)
 	}
 	for _, token := range []string{"admin", "reader-two", "other-admin"} {
-		requireStatus(t, requestJSON(t, s.URL, "GET", path, token, "", "", nil), 404)
+		requireControlProblem(t, requestJSON(t, s.URL, "GET", path, token, "", "", nil), 404, catalog.CodeNotFound)
 	}
 	body["label"] = "Renamed"
 	updated := requestJSON(t, s.URL, "PATCH", path, "reader", "personal-rename", get.header.Get("ETag"), body)
@@ -134,8 +175,16 @@ func TestHTTPPersonalLibraryReplayRevisionAndCursorIsolation(t *testing.T) {
 	}
 	next := "/api/v1/personal/items?limit=1&cursor=" + page.NextCursor
 	requireStatus(t, requestJSON(t, s.URL, "GET", next, "reader", "", "", nil), 200)
-	for _, test := range []struct{ path, token string }{{next, "reader-two"}, {next + "&type=search", "reader"}, {next + "tampered", "reader"}} {
-		requireStatus(t, requestJSON(t, s.URL, "GET", test.path, test.token, "", "", nil), 400)
+	// Omitting type lists all saved items. An explicit empty type is outside
+	// the enum, on both the first page and a continuation issued without it.
+	for _, test := range []struct{ path, token string }{
+		{"/api/v1/personal/items?type=", "reader"},
+		{next + "&type=", "reader"},
+		{next + "&type=search", "reader"},
+		{next + "tampered", "reader"},
+		{next, "reader-two"},
+	} {
+		requireControlProblem(t, requestJSON(t, s.URL, "GET", test.path, test.token, "", "", nil), 400, catalog.CodeInvalidArgument)
 	}
 	requireStatus(t, requestJSON(t, s.URL, "DELETE", path, "reader", "personal-remove", updated.header.Get("ETag"), nil), 200)
 	requireStatus(t, requestJSON(t, s.URL, "GET", path, "reader", "", "", nil), 404)

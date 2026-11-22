@@ -31,6 +31,21 @@ def snake(name):
 
 
 class ContractUnits(unittest.TestCase):
+    def test_saved_labels_match_schema_on_write_and_read(self):
+        validator = jsonschema.Draft202012Validator(CONTRACT["components"]["schemas"]["PersonalLabel"])
+        stored = {"id": "00000000-0000-7000-8000-000000000001", "revision": 1,
+                  "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-01-01T00:00:00Z"}
+        for label, valid in (("\ufeff", True), ("  Café  ", True), (" \u00a0", False), ("search\n", False)):
+            with self.subTest(label=label):
+                self.assertEqual(validator.is_valid(label), valid)
+                command = {"type": "search", "label": label, "search": {"text": "catalog"}}
+                for model, body in ((models.PersonalInput, command), (models.PersonalItem, {**command, **stored})):
+                    if valid:
+                        self.assertEqual(model.from_dict(body).to_dict()["label"], label)
+                    else:
+                        with self.assertRaises(ValueError):
+                            model.from_dict(body)
+
     def test_personal_library_round_trips_mixed_items_and_follow_observations(self):
         from catalog_sdk.generated.models.personal_input import PersonalInput
         from catalog_sdk.generated.models.personal_page import PersonalPage

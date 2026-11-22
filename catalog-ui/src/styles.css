@@ -1725,6 +1725,17 @@
       padding: 20px;
     }
   }
+  @media (max-width: 360px) {
+    .topbar {
+      display: flex;
+    }
+    .brand > span:last-child {
+      max-width: none;
+    }
+    .topbar > .header-actions {
+      margin-inline-start: auto;
+    }
+  }
   @media (pointer: coarse) {
     .icon-button,
     .preview-actions .button,

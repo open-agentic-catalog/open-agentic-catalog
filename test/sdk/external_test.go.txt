@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -44,21 +44,29 @@ func TestIndependentSDKConsumer(t *testing.T) {
 // These controls test client usage; the composed fixture separately owns schema
 // and governed-release correctness.
 func TestReadmeSearchContinuation(t *testing.T) {
+	type exchange struct{ cursor, next string }
+	const resume = "resume+second/page=="
 	for _, tc := range []struct {
-		name    string
-		cursors []string
-		failure bool
+		name        string
+		exchanges   []exchange
+		secondFault string
+		wantPages   int
 	}{
-		{name: "empty-page-can-continue", cursors: []string{"next", ""}},
-		{name: "three-page-budget", cursors: []string{"second", "third", "fourth", ""}},
-		{name: "refusal-retains-previous-page", cursors: []string{"retry"}, failure: true},
+		{name: "empty-page-can-continue", exchanges: []exchange{{"", "next"}, {"next", ""}}, wantPages: 2},
+		{name: "three-page-budget", exchanges: []exchange{{"", "second"}, {"second", "third"}, {"third", "fourth"}}, wantPages: 3},
+		{name: "refusal-retains-previous-page", exchanges: []exchange{{"", resume}, {resume, ""}}, secondFault: "forbidden", wantPages: 1},
+		{name: "resume-after-truncated-page", exchanges: []exchange{{"", resume}, {resume, "unconfirmed"}, {resume, ""}}, secondFault: "truncated", wantPages: 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			var requestsMu sync.Mutex
-			var requests []map[string]any
+			var calls atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				requestsMu.Lock()
-				defer requestsMu.Unlock()
+				call := int(calls.Add(1))
+				if call > len(tc.exchanges) {
+					t.Errorf("unexpected extra search request %d", call)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				expected := tc.exchanges[call-1]
 				if r.Method != http.MethodPost || r.URL.Path != "/api/v1/catalog/search" || r.Header.Get("Authorization") != "Bearer selected" {
 					t.Error("README helper changed request destination or identity")
 				}
@@ -66,11 +74,14 @@ func TestReadmeSearchContinuation(t *testing.T) {
 				if err := json.NewDecoder(r.Body).Decode(&query); err != nil {
 					t.Error(err)
 				}
-				requests = append(requests, query)
-				if len(requests) > 1 && query["cursor"] != tc.cursors[len(requests)-2] {
-					t.Error("README helper changed the opaque cursor")
+				want := map[string]any{"text": "documentation", "limit": float64(10), "origins": []any{"local"}}
+				if expected.cursor != "" {
+					want["cursor"] = expected.cursor
 				}
-				if tc.failure && len(requests) > 1 {
+				if !reflect.DeepEqual(query, want) {
+					t.Errorf("search request %d = %v, want %v", call, query, want)
+				}
+				if call == 2 && tc.secondFault == "forbidden" {
 					w.Header().Set("Content-Type", "application/problem+json")
 					w.WriteHeader(http.StatusForbidden)
 					_, _ = io.WriteString(w, `{"type":"about:blank","title":"Forbidden","status":403,"code":"FORBIDDEN","detail":"private-content"}`)
@@ -83,10 +94,20 @@ func TestReadmeSearchContinuation(t *testing.T) {
 					"generation":  "sha256:" + strings.Repeat("a", 64),
 					"diagnostics": []any{map[string]any{"status": "continuation_unavailable"}},
 				}
-				if cursor := tc.cursors[len(requests)-1]; cursor != "" {
-					page["nextCursor"] = cursor
+				if expected.next != "" {
+					page["nextCursor"] = expected.next
 				}
-				if err := json.NewEncoder(w).Encode(page); err != nil {
+				body, err := json.Marshal(page)
+				if err != nil {
+					t.Error(err)
+					return
+				}
+				if call == 2 && tc.secondFault == "truncated" {
+					// The JSON is decodable, but the HTTP message ends one byte early.
+					w.Header().Set("Content-Length", strconv.Itoa(len(body)+1))
+					w.Header().Set("X-Request-ID", "short-page")
+				}
+				if _, err := w.Write(body); err != nil {
 					t.Error(err)
 				}
 			}))
@@ -99,34 +120,46 @@ func TestReadmeSearchContinuation(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			pages, next, err := searchLocalPages(ctx, client, nil)
-			requestsMu.Lock()
-			defer requestsMu.Unlock()
-			if tc.failure {
-				if err == nil || strings.Contains(err.Error(), "private-content") || len(pages) != 1 || next == nil || *next != "retry" {
-					t.Fatal("README helper lost earlier pages or exposed refusal contents")
-				}
-			} else if err != nil {
-				t.Fatal(err)
+			if len(pages) != tc.wantPages {
+				t.Fatalf("retained %d pages, want %d", len(pages), tc.wantPages)
 			}
-			if len(pages) > 3 || len(requests) > 3 {
-				t.Fatal("README helper exceeded its three-page budget")
+			wantNext := tc.exchanges[tc.wantPages-1].next
+			if (wantNext == "") != (next == nil) || next != nil && *next != wantNext {
+				t.Fatalf("incorrect continuation after %d pages, want %q", len(pages), wantNext)
 			}
-			if !tc.failure && len(tc.cursors) > 3 {
-				if next == nil || *next != "fourth" || len(pages) != 3 {
-					t.Fatal("README helper discarded remaining continuation")
+			wantCalls := tc.wantPages
+			if tc.secondFault != "" {
+				wantCalls++
+			}
+			if int(calls.Load()) != wantCalls {
+				t.Fatalf("made %d requests, want %d", calls.Load(), wantCalls)
+			}
+			switch tc.secondFault {
+			case "forbidden":
+				if err == nil || strings.Contains(err.Error(), "private-content") {
+					t.Fatal("README helper lost the refusal or exposed its content", err)
 				}
-			} else if !tc.failure && (next != nil || len(pages) != 2) {
-				t.Fatal("README helper stopped at an empty page instead of the cursor")
+			case "truncated":
+				var diagnostic *sdk.Error
+				if !errors.As(err, &diagnostic) || diagnostic.Code != "response_unreadable" || diagnostic.StatusCode != http.StatusOK || diagnostic.RequestID != "short-page" {
+					t.Fatalf("expected correlated response_unreadable error, got %+v", diagnostic)
+				}
+				resumed, remaining, err := searchLocalPages(ctx, client, next)
+				if err != nil || remaining != nil || len(resumed) != 1 || calls.Load() != 3 {
+					t.Fatalf("explicit resume returned %d pages, cursor %v, error %v after %d requests", len(resumed), remaining, err, calls.Load())
+				}
+				pages = append(pages, resumed...)
+			default:
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if pages[0].NextCursor == nil || *pages[0].NextCursor != tc.exchanges[0].next {
+				t.Fatal("README helper lost the first page's continuation")
 			}
 			for _, page := range pages {
 				if !page.Partial || page.Diagnostics == nil || len(*page.Diagnostics) != 1 || (*page.Diagnostics)[0].Status != "continuation_unavailable" {
 					t.Fatal("README helper discarded partial-result evidence")
-				}
-			}
-			for _, query := range requests {
-				delete(query, "cursor")
-				if !reflect.DeepEqual(query, map[string]any{"text": "documentation", "limit": float64(10), "origins": []any{"local"}}) {
-					t.Fatal("README continuation changed the query or filters")
 				}
 			}
 		})

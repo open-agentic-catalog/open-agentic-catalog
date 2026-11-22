@@ -47,7 +47,9 @@ make test-functional-webhooks
 
 This target builds the example and starts it in the owned Catalog fixture. It creates a separate receiver database and an account without Catalog database access. A dedicated API identity receives only the three read permissions below.
 
-The worker sends verified HTTPS notifications for activation and unpublish. Each report must match the exact completed receipt and current publication state, including the JSON file. Startup and periodic reconciliation cannot qualify those event checks. Both tests preserve the retained development environment.
+The worker sends signed HTTPS notifications for activation and unpublish. The test revokes the receiver's Catalog read access before unpublish. The receiver accepts the notification, records the failed read and keeps the last successful report. When access is restored, it completes the pending receipt and writes `active: null` to its database and JSON file. Both tests preserve the retained development environment.
+
+The same test covers a missed notification during emergency signing-key rotation. With the old key installed, the receiver rejects the next activation with HTTP 401. Its startup reconciliation reads the current snapshot and delivery loss count from the API. The operator can then replace the signer file while the receiver is running to accept subsequent notifications.
 
 ## Prepare protected inputs
 

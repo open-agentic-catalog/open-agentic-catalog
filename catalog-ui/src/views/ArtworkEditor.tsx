@@ -170,6 +170,7 @@ export function ArtworkEditor({
       asset.url ||
       asset.alt ||
       asset.caption ||
+      asset.rights.basis !== "owned" ||
       asset.rights.attribution ||
       asset.rights.reference
     );

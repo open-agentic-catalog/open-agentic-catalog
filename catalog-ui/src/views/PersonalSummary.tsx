@@ -41,6 +41,15 @@ export const savedTypeNames = {
   resource: "Resource reference",
   follow: "Followed Listing",
 };
+
+/** Give links and headings readable text when every label character is invisible. */
+export function savedItemTitle(
+  item: components["schemas"]["PersonalItem"],
+): string {
+  return /[^\p{White_Space}\p{Default_Ignorable_Code_Point}]/u.test(item.label)
+    ? item.label
+    : `${savedTypeNames[item.type]} (${item.id})`;
+}
 export function personalFacts(input: Input): NonNullable<Command["summary"]> {
   const facts = commandSummary([
     ["Saved label", input.label] as const,

@@ -90,6 +90,7 @@ it("checks owner item fields and consumed work references", () => {
     null,
     { ...item, label: "" },
     { ...item, label: " " },
+    { ...item, label: "\u00a0" },
     { ...item, label: "x".repeat(121) },
     { ...item, label: "line\nbreak" },
     { ...item, label: String.fromCodePoint(128) },

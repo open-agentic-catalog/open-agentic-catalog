@@ -71,6 +71,12 @@ class PublicationReportTests(unittest.TestCase):
             expected = {"lastSuccessfulObservation": {"label": "Last observed publication state", "tenant": report.TENANT,
                 "host": "127.0.0.1", "observedAt": "2026-10-27T12:00:01Z", "trigger": trigger, "active": selected}}
             self.assertTrue(report.check_observation(expected, trigger, selected))
+            self.assertFalse(report.check_observation(expected, None, selected))
+            reconciled = copy.deepcopy(expected)
+            del reconciled["lastSuccessfulObservation"]["trigger"]
+            self.assertTrue(report.check_observation(reconciled, None, selected))
+            reconciled["lastSuccessfulObservation"]["trigger"] = None
+            self.assertFalse(report.check_observation(reconciled, None, selected))
             for field in expected["lastSuccessfulObservation"]:
                 bad = copy.deepcopy(expected)
                 del bad["lastSuccessfulObservation"][field]
@@ -102,9 +108,10 @@ class PublicationReportTests(unittest.TestCase):
             missing = dict(control)
             del missing[field]
             self.assertFalse(report.valid_evidence(missing), field)
-        for field, value in (("programDigest", "private"), ("completedReceipts", True), ("completedReceipts", 1),
+        for field, value in (("programDigest", "private"), ("completedReceipts", True), ("completedReceipts", 2),
                              ("activationReport", False), ("unpublishReport", 1), ("readerRestricted", False),
-                             ("databaseIsolated", None), ("fileMatchesDatabase", False), ("body", "private")):
+                             ("databaseIsolated", None), ("fileMatchesDatabase", False),
+                             ("pendingUnpublishRecovered", False), ("missedActivationReconciled", False), ("body", "private")):
             self.assertFalse(report.valid_evidence(dict(control, **{field: value})), field)
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)

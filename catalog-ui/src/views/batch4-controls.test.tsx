@@ -47,6 +47,37 @@ function asset(alt: string) {
     rights: { basis: "owned" as const, attribution: "Example" },
   };
 }
+it.each([
+  ["icon", "Icon", "licensed"],
+  ["screenshot", "Screenshot 1", "permission"],
+])(
+  "keeps an unsaved %s rights choice when removal is cancelled",
+  (kind, label, basis) => {
+    function Editor() {
+      const [value, onChange] = useState<ArtworkDescriptor>({
+        schemaVersion: 1,
+      });
+      return <ArtworkEditor value={value} onChange={onChange} />;
+    }
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    render(<Editor />);
+    fireEvent.click(screen.getByText("Icon and screenshots"));
+    click(`Add ${kind}`);
+    const field = `${label} rights basis`;
+    const remove = `Remove ${label.toLowerCase()}`;
+    expect(screen.getByLabelText(field)).toHaveProperty("value", "owned");
+    change(field, basis);
+    click(remove);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText(field)).toHaveProperty("value", basis);
+    confirm.mockReturnValue(true);
+    click(remove);
+    expect(screen.queryByLabelText(field)).toBeNull();
+    expect(screen.getByRole("button", { name: `Add ${kind}` })).toBe(
+      document.activeElement,
+    );
+  },
+);
 it("moves focus with duplicate-URL artwork through repeated movement and deliberate removals", () => {
   const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
   function Editor() {
@@ -61,6 +92,7 @@ it("moves focus with duplicate-URL artwork through repeated movement and deliber
   click("Add icon");
   expect(screen.getByLabelText("Icon HTTPS URL")).toBe(document.activeElement);
   click("Remove icon");
+  expect(confirm).not.toHaveBeenCalled();
   expect(screen.getByRole("button", { name: "Add icon" })).toBe(
     document.activeElement,
   );

@@ -209,9 +209,11 @@ func TestRustSDKReportWire(t *testing.T) {
 	base := reportJSON(t, f, "/api/v1/catalog/search", map[string]any{"limit": 10, "origins": []string{"local"}})
 	items := base["items"].([]any)
 	records := map[string]map[string]any{}
+	var firstTwoReleases []string
 	for _, item := range items[:2] {
 		release := item.(map[string]any)["local"].(map[string]any)["release"].(map[string]any)["id"].(string)
 		records[release] = reportJSON(t, f, "/api/v1/catalog/resources/"+release, nil)
+		firstTwoReleases = append(firstTwoReleases, release)
 	}
 	page := func(selected []any, cursor string, partial bool) map[string]any {
 		copy := map[string]any{}
@@ -233,15 +235,29 @@ func TestRustSDKReportWire(t *testing.T) {
 		corrupt                          string
 		contains                         string
 		message                          string
+		wantRows                         []string
 	}
 	partial := page([]any{}, "", true)
 	partial["diagnostics"] = []any{map[string]any{"status": "failed", "message": "sensitive-diagnostic"}}
 	partialFirst := page(items[:1], "partial-cursor", true)
+	digest := "sha256:" + strings.Repeat("a", 64)
+	indexedPage := page([]any{map[string]any{
+		"id": "indexed:upstream", "type": "indexed", "kind": "agent", "identifier": "urn:air:example.com:catalog:upstream",
+		"displayName": "Upstream agent", "versionPresent": false, "score": 0, "tags": []any{},
+		"indexed": map[string]any{
+			"observationGroupId": "observation-group-v1:" + digest, "normalizedEntryDigest": digest,
+			"sourceIds": []any{"00000000-0000-7000-8000-000000000001"}, "sourceCount": 1,
+			"sourcesTruncated": false, "conflict": false, "sameSourceConflict": false,
+		},
+	}}, "", false)
+	indexedPage["durableTotal"] = 1
+	must(t, component(t, "CatalogSearchResponse").Validate(indexedPage))
 	cases := []wireCase{
-		{name: "short-and-empty-continuation", pages: []map[string]any{page(items[:1], "sensitive-cursor/+$", false), page([]any{}, "next-sensitive-cursor", false), page(items[1:2], "", false)}, searches: 3, reads: 2, contains: "Complete (3 pages, 2 releases)"},
+		{name: "short-and-empty-continuation", pages: []map[string]any{page(items[:1], "sensitive-cursor/+$", false), page([]any{}, "next-sensitive-cursor", false), page(items[1:2], "", false)}, searches: 3, reads: 2, contains: "Complete (3 pages, 2 releases)", wantRows: firstTwoReleases},
 		{name: "three-page-cap", pages: []map[string]any{page([]any{}, "a", false), page([]any{}, "b", false), page([]any{}, "c", false)}, code: 2, searches: 3, contains: "No rows were obtained within the budget."},
 		{name: "partial-empty", pages: []map[string]any{partial}, code: 2, searches: 1, contains: "Search diagnostic statuses: failed."},
-		{name: "partial-then-complete", pages: []map[string]any{partialFirst, page(items[1:2], "", false)}, code: 2, searches: 2, reads: 2, contains: "Incomplete (2 pages, 2 releases)"},
+		{name: "partial-then-complete", pages: []map[string]any{partialFirst, page(items[1:2], "", false)}, code: 2, searches: 2, reads: 2, contains: "Incomplete (2 pages, 2 releases)", wantRows: firstTwoReleases},
+		{name: "indexed-result-in-local-search", pages: []map[string]any{indexedPage}, code: 1, searches: 1, message: "Search returned a non-local result."},
 		{name: "empty", pages: []map[string]any{page([]any{}, "", false)}, searches: 1, contains: "No authorized matches."},
 		{name: "malformed-search", pages: []map[string]any{{"detail": "sensitive-error-body"}}, code: 1, searches: 1, message: "Search failed: Catalog returned an unexpected or malformed success response (HTTP 200)."},
 		{name: "denied-record", pages: []map[string]any{page(items[:2], "", false)}, code: 1, recordStatus: 403, searches: 1, reads: 2, message: "Record read failed: Catalog SDK: HTTP 403"},
@@ -329,6 +345,14 @@ func TestRustSDKReportWire(t *testing.T) {
 				}
 			} else if message != "" || !strings.Contains(output, tc.contains) {
 				t.Fatal("wrong output", output, message)
+			}
+			if code != 1 && strings.Count(output, "| agent |") != tc.reads {
+				t.Fatalf("report row count differs from the %d expected records:\n%s", tc.reads, output)
+			}
+			for _, release := range tc.wantRows {
+				if strings.Count(output, "| "+release+" |") != 1 {
+					t.Fatalf("expected one Markdown row for release %s, got:\n%s", release, output)
+				}
 			}
 			if strings.Contains(output+message, "sensitive") || searches.Load() > 3 {
 				t.Fatal("unsafe output or unbounded paging")

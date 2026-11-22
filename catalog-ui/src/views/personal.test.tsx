@@ -142,8 +142,9 @@ it("checks exact identities, presence and link-bearing fields", () => {
 });
 it("lists bounded private items without executing a named search", async () => {
   const w = screenWorkspace();
+  const opaque = { ...item, id: "saved-2", label: "\uFEFF" };
   readReplies(w.get, {
-    "/api/v1/personal/items": { items: [item], nextCursor: "next" },
+    "/api/v1/personal/items": { items: [item, opaque], nextCursor: "next" },
   });
   render(<PersonalLibrary {...w.props} />);
   expect(
@@ -151,6 +152,11 @@ it("lists bounded private items without executing a named search", async () => {
       "href",
     ),
   ).toBe("/unit/saved-items/saved-1");
+  expect(
+    screen
+      .getByRole("link", { name: "Named search (saved-2)" })
+      .getAttribute("href"),
+  ).toBe("/unit/saved-items/saved-2");
   expect(w.get).toHaveBeenCalledWith(
     "/api/v1/personal/items",
     expect.objectContaining({ params: { query: { limit: 25 } } }),
@@ -171,7 +177,7 @@ it("saves a private query only after confirmation and accepts a receipt without 
       }}
     />,
   );
-  change("Saved label", "Research");
+  change("Saved label", "  Café  ");
   expect(w.post).not.toHaveBeenCalled();
   await confirmCommand("Save named search");
   await screen.findByText("Private item saved.");
@@ -180,7 +186,7 @@ it("saves a private query only after confirmation and accepts a receipt without 
     expect.objectContaining({
       body: {
         type: "search",
-        label: "Research",
+        label: "  Café  ",
         search: { text: "private-sentinel" },
       },
       params: { header: { "Idempotency-Key": expect.any(String) as unknown } },

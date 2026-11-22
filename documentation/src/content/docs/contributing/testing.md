@@ -512,7 +512,7 @@ Schema checks cover several different inputs. Select the target for the contract
 | Runtime configuration | `config-check` | Strict decoding and cross-field validation for the selected configuration and role, without opening runtime dependencies. `env-check` is its alias. |
 | Kubernetes resources | `helm-schema-check`, `deploy-check` | Strict schema validation of rendered Kubernetes resources. Requires the container engine and schema source, not a running cluster; see [test boundaries](#test-boundaries). |
 
-`conformance-fixture` independently validates the service fixture and all four checksummed official v0.91 examples. It passes each official example through federation ingestion. It checks mandatory-path and Link resolution with generic JSON, and rejects profile confusion.
+`conformance-fixture` independently validates the service fixture and all four checksummed official v0.91 examples. It passes each official example through federation ingestion. Source inspection must read the lowercase `entries` array even when the transport adds a separate `Entries` member. Publication must reject the whole manifest if a later entry claims another entry's identity. The suite also checks mandatory-path and Link resolution with generic JSON and rejects profile confusion.
 
 The target then runs the unchanged official CLI over all five documents. The official basic example must produce two warnings. The other four documents must produce none. It also runs the source-pinned reference corpus and service handler contracts. `verify` and `test-all` include this target. Unit targets run selected Go schema and corpus tests but do not invoke the upstream CLI.
 
@@ -1171,11 +1171,12 @@ make test-ui-engine UI_BROWSER_ENGINE=firefox
 make test-ui-engine UI_BROWSER_ENGINE=webkit
 ```
 
-Run the two engine checks serially and separately from other browser or Docker deployment tests. Creating or removing a Docker network can interrupt in-flight browser requests, including local Chromium tests. Each engine runs five existing local journeys and one packaged journey:
+Run the two engine checks serially and separately from other browser or Docker deployment tests. Creating or removing a Docker network can interrupt in-flight browser requests, including local Chromium tests. Each engine runs the local and packaged journeys below:
 
 | Task | What must work |
 | --- | --- |
-| Find and open a release | Apply filters, page through distinct releases, inspect the selected record and navigate the pager by keyboard. |
+| Find and open a release | Navigate the pager by keyboard, cancel Quick navigation from Filters, and apply staged filters after resizing to 320 pixels. Verify the returned releases and open a selected record. |
+| Filter with enlarged text | At 320 by 568 pixels with doubled text, reach an offscreen kind by keyboard, apply it and check the matching result. The focused checkbox must scroll into view, and the Filters button must regain visible focus below the header. |
 | Read with limited permissions | Metadata-only readers see authorized information. Content and history links require their respective grants. |
 | Recover a Listing edit | On a nested UI path, recover a lost response with the original command key and revision precondition. |
 | Download a retained document | Reject corrupted responses, then save the verified bytes through the browser's download handler. |
@@ -2162,7 +2163,7 @@ Do not substitute `SSL_CERT_FILE`, insecure verification or a globally trusted t
 
 The harness creates a client secret without shell metacharacters and renders realm JSON with a structured tool. It writes the realm, CA, certificate, key and separate secret file into a restricted invocation directory. Mounts expose only required inputs, read-only. Secrets never enter command arguments, Compose environment values, retained reports or unredacted diagnostics. Cleanup removes the temporary inputs and owned containers, network, volume and Catalog image. The acquired provider image remains in the shared engine cache.
 
-Four confidential service-account clients use client credentials, an exact Catalog audience, and controlled organization and scope claims. Direct Access Grants and browser flows are disabled. The fixture uses no dynamic registration or administrative bootstrap. See Keycloak's [client-credentials guidance](https://www.keycloak.org/securing-apps/oidc-layers). [OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/info/rfc9700/) prohibits the resource-owner password grant.
+The fixture uses confidential service-account clients with controlled audience, organization and scope claims. Direct Access Grants and browser flows are disabled. The fixture uses no dynamic registration or administrative bootstrap. See Keycloak's [client-credentials guidance](https://www.keycloak.org/securing-apps/oidc-layers). [OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/info/rfc9700/) prohibits the resource-owner password grant.
 
 The host runner waits with the generated CA and explicit hostname resolution. Curl reads the client secret from a file. Shell tracing is disabled.
 
@@ -2172,7 +2173,9 @@ Controlled signed tokens test human-membership classification. `make test-ui-oid
 
 #### Tenancy scenarios and bounded execution
 
-The scenario checks dedicated and shared Catalog configurations against one fresh provider. It tests service-membership resolution, exact audience and issuer binding, organization mapping and optional scope ceilings. Unknown subjects or organizations, suspended memberships and terminal offboarding must be rejected. Authenticated Control and ARD requests provide successful controls. Dedicated clients supply wrong-audience, wrong-organization and limited-scope tokens.
+The scenario checks dedicated and shared Catalog configurations against one fresh provider. It tests service-membership resolution, exact audience and issuer binding, organization mapping and optional scope ceilings. Unknown subjects or organizations, suspended memberships and terminal offboarding must be rejected. Authenticated Control and ARD requests provide successful controls.
+
+Separate clients supply wrong-audience and wrong-organization tokens. With scope enforcement enabled, the administrator and a namespace reader both request `catalog.read` and `tenant.admin`. Only the administrator can create a namespace. The reader can list and open its assigned namespace. A sibling stays out of its directory and a direct read returns HTTP 403.
 
 Stopping the provider checks known-key outage behavior. Verifier tests retain deterministic malformed-document, key-rotation and injected-clock expiry matrices. They need no Admin API simulator or 15-minute wait.
 
@@ -2280,7 +2283,7 @@ Memory repositories remain useful for domain and HTTP tests because they impleme
 
 Run `make client-skill-check` for the [portable discovery package](../guides/assistant-discovery.md). It needs Go and cached project dependencies, not an assistant, model, database, Compose or a built binary. The colocated command tests validate pinned frontmatter, copied relative files and license bytes.
 
-The tests exercise a real in-memory Reader workflow, including retirement and revoked or namespace-only access. They preserve Plugin, conflicting external and large-output evidence, and check safe failures.
+The tests exercise a real in-memory Reader workflow, including retirement and revoked or namespace-only access. One test loads the curated sample manifest, finds Catalog Discovery Tools by license and two categories, and reads the selected release. It compares the bundled `SKILL.md` with the original file. Other cases cover conflicting external results, large records and failed reads.
 
 They also check the model-session fixture's read-only guard, strict structural admission, synthetic scenario refusal, valid distinct kinds and limits, unchanged ordinary-body forwarding, compact local Search and exact selected-record evidence without starting a long-lived session. `TestRemoteAgainstCatalog` tests real continuation. `TestRemoteLargeGovernedRecord` tests compact Search for large records, exact bytes and CLI budget failure. Remote transport and Plugin lifecycle tests remain their owning regression coverage. These tests also run in ordinary Go gates.
 
@@ -2297,7 +2300,7 @@ The opt-in test writes `origin` and a synthetic `reader-token` file into the sel
 
 Query `order` for the real three-kind governed demo. Exact text selectors `plugin`, `triage` and `large` select synthetic Plugin, conflicting external and large-record scenarios. Empty text with only `kinds: ["plugin"]` also selects the Plugin scenario. Ordinary phrases, such as `plugin tools`, and genuine continuation pass unchanged to the demo.
 
-Reserved scenarios accept only text, distinct valid kinds and an omitted or explicit limit from 1 through 100. The triage limit must cover its kind-filtered results: two when unfiltered. No reserved scenario simulates pagination. Supplied `origins`, `namespaceId`, `tags`, `publisher`, `visibility` or `cursor` fields receive HTTP 400, including empty values. Invalid fields, typed nulls, wrong case and invalid kinds or limits also receive 400 without reaching the demo. Use the governed demo and API tests for general filters and continuation.
+Reserved scenarios accept only text, distinct valid kinds and an optional limit from 1 through 100. An unfiltered triage search needs room for both results. Any other filter or a cursor returns HTTP 400, even when empty. Invalid fields, explicit nulls, incorrect field casing and invalid kinds or limits also return 400. Use an ordinary search such as `order` to exercise license, categories or continuation against the governed demo.
 
 The `large` exact record retains about 648 KiB of inline evidence. It checks display and evidence handling, not the 8 MiB CLI overflow boundary. The separate real large-record test checks overflow, compact Search and the record-only override up to 64 MiB. These response fixtures add no federation or publication tests.
 

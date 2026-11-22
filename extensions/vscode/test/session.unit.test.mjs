@@ -1252,7 +1252,7 @@ test("OIDC callback completes only after bound credentials are stored and cannot
   assert.equal(exchanges, 1);
 });
 
-test("concurrent reads share one renewal and adopt its token only after persistence", async (t) => {
+test("concurrent reads share one renewal even if its first reader cancels, and use the token only after persistence", async (t) => {
   const signer = await sessionSigner(t);
   const selected = {
     ...sessionOIDC,
@@ -1308,14 +1308,23 @@ test("concurrent reads share one renewal and adopt its token only after persiste
   await f.session.select(selected);
   const guard = f.session.guard(selected);
   const signal = f.session.cancellation();
+  const reader = new AbortController();
+  const cancelled = assert.rejects(
+    f.session.read("/api/v1/capabilities", { signal: reader.signal }),
+    { code: "request_cancelled" },
+  );
   const first = f.session.read("/api/v1/me");
   const second = f.session.read("/api/v1/me");
   t.after(async () => {
     renew.resolve();
     commit.resolve();
-    await Promise.allSettled([first, second]);
+    await Promise.allSettled([cancelled, first, second]);
   });
   await entered.promise;
+  reader.abort();
+  await cancelled;
+  const exchange = requests.find((r) => r.url.endsWith("/token"));
+  assert.equal(exchange.init.signal.aborted, false);
   assert.equal(f.saved.get(key), original);
   assert.equal(requests.filter((r) => r.url.endsWith("/token")).length, 1);
   assert.equal(
@@ -1337,7 +1346,10 @@ test("concurrent reads share one renewal and adopt its token only after persiste
   );
   assert.equal(requests.filter((r) => r.url.endsWith("/token")).length, 1);
   assert.equal(writes, 1);
-  const exchange = requests.find((r) => r.url.endsWith("/token"));
+  assert.equal(
+    requests.filter((r) => r.url.startsWith(connection.origin)).length,
+    2,
+  );
   assert.deepEqual(
     Object.fromEntries(new URLSearchParams(exchange.init.body)),
     {

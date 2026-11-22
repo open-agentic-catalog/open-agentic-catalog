@@ -200,6 +200,58 @@ it("stages criteria, pages and refreshes applied filters, recovers explicitly an
   expect(w.remove).not.toHaveBeenCalled();
 });
 
+it("shows fresh first-page members when Clear or Apply keeps the same filters", async () => {
+  const w = screenWorkspace();
+  w.props.access = administrator;
+  let items = [member];
+  const memberQueries: unknown[] = [];
+  w.get.mockImplementation(async (path, options) => {
+    if (path === "/api/v1/collections/{collectionId}/members") {
+      memberQueries.push(
+        (options as { params: { query: unknown } }).params.query,
+      );
+      return etagReply({ items });
+    }
+    if (path === "/api/v1/collections/{collectionId}")
+      return etagReply(collection);
+    if (path === "/api/v1/namespaces/{namespaceId}")
+      return etagReply(namespace);
+    throw new Error(`Unexpected collection read: ${String(path)}`);
+  });
+  render(<Collections {...w.props} id="one" />);
+  await screen.findByRole("link", { name: "Invoice entry" });
+  fireEvent.change(screen.getByRole("textbox", { name: "Name" }), {
+    target: { value: "Unsaved collection name" },
+  });
+  const agents = () => screen.getByRole("checkbox", { name: "Agents" });
+  fireEvent.click(agents());
+  items = [];
+  fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+  await screen.findByText(/No currently readable entries\./);
+  expect(agents()).toHaveProperty("checked", false);
+  expect(screen.queryByRole("link", { name: "Invoice entry" })).toBeNull();
+  expect(memberQueries).toEqual([{ limit: 20 }, { limit: 20 }]);
+
+  items = [member];
+  fireEvent.click(agents());
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  await screen.findByRole("link", { name: "Invoice entry" });
+  items = [];
+  fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
+  await screen.findByText(/No currently readable entries match these filters/);
+  expect(screen.queryByRole("link", { name: "Invoice entry" })).toBeNull();
+  expect(screen.getByText("Applied filters: any text; Agent.")).toBeTruthy();
+  expect(memberQueries.slice(2)).toEqual([
+    { limit: 20, kinds: ["agent"] },
+    { limit: 20, kinds: ["agent"] },
+  ]);
+  expect(screen.getByRole("textbox", { name: "Name" })).toHaveProperty(
+    "value",
+    "Unsaved collection name",
+  );
+  expect(w.props.onFailure).not.toHaveBeenCalled();
+});
+
 it("bounds filter text in Unicode code points before sending a request", async () => {
   const w = screenWorkspace();
   w.get.mockImplementation(async (path) =>

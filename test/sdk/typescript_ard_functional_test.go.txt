@@ -135,7 +135,7 @@ func TestTypeScriptARDExample(t *testing.T) {
 			"null-token":      `{"items":[],"total":0,"pageToken":null}`,
 			"empty-continued": `{"items":[],"total":0,"pageToken":"next"}`,
 		}[mode]; ok {
-			if mode == "empty-continued" && q.Get("pageToken") != "" {
+			if mode == "empty-continued" && q.Get("pageToken") == "next" {
 				raw = `{"items":[],"total":0}`
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -206,7 +206,8 @@ func TestTypeScriptARDExample(t *testing.T) {
 	}
 	manager := func(audience publication.Audience, active bool) *publication.Manager {
 		t.Helper()
-		m, createErr := publication.NewManager(publication.Options{Records: f.service, Store: publication.NewMemoryStore(), Clock: c, IDs: id.Generator{}, BaseURL: server.URL, Host: "127.0.0.1", PublisherDomain: "catalog.example.com", Audience: audience, ARDProfile: "ard-test", AICatalogProfile: "ai-test", CursorKey: key[:]})
+		// Sort the Registry after the agents so page one contains a printable release.
+		m, createErr := publication.NewManager(publication.Options{Records: f.service, Store: publication.NewMemoryStore(), Clock: c, IDs: id.Generator{}, BaseURL: server.URL, Host: "127.0.0.1", PublisherDomain: "catalog.example.com", DisplayName: "Test Catalog", Audience: audience, ARDProfile: "ard-test", AICatalogProfile: "ai-test", CursorKey: key[:]})
 		must(t, createErr)
 		if active {
 			snapshot, buildErr := m.BuildCandidate(f.actor("admin"), tenant)
@@ -244,7 +245,7 @@ func TestTypeScriptARDExample(t *testing.T) {
 		mu.Lock()
 		mode, requests = selected, 0
 		mu.Unlock()
-		args := []string{os.Getenv("CATALOG_ARD_EXAMPLE"), "--origin", server.URL, "--page-size", "1", "--max-pages", "10"}
+		args := []string{os.Getenv("CATALOG_ARD_EXAMPLE"), "--origin", server.URL, "--page-size", "1"}
 		if token != "" {
 			path := filepath.Join(directory, "token")
 			must(t, os.WriteFile(path, []byte(token), 0600))
@@ -324,7 +325,7 @@ func TestTypeScriptARDExample(t *testing.T) {
 			}
 			lines, exit := run(t, selected, token, true)
 			summary := lines[len(lines)-1]
-			if exit != 0 || len(lines) != 4 || summary["complete"] != true || summary["resourceEntries"] != float64(3) || summary["registryEntriesSkipped"] != float64(1) || summary["reportedTotal"] != float64(4) {
+			if exit != 0 || len(lines) != 4 || summary["complete"] != true || summary["reason"] != "exhausted" || summary["resourceEntries"] != float64(3) || summary["registryEntriesSkipped"] != float64(1) || summary["reportedTotal"] != float64(4) {
 				t.Fatalf("published-only traversal failed: %d %#v", exit, summary)
 			}
 			want := map[string]string{}
@@ -344,10 +345,21 @@ func TestTypeScriptARDExample(t *testing.T) {
 			}
 		})
 	}
+	checkFirstPageOutput := func(t *testing.T, lines []map[string]any, reason string) {
+		t.Helper()
+		if len(lines) != 2 || lines[0]["kind"] != "entry" || lines[0]["identifier"] != "urn:air:catalog.example.com:example:agent0" {
+			t.Fatalf("partial output did not retain the first published agent: %#v", lines)
+		}
+		summary := lines[1]
+		if summary["complete"] != false || summary["reason"] != reason || summary["pages"] != float64(1) || summary["resourceEntries"] != float64(1) || summary["registryEntriesSkipped"] != float64(0) || summary["reportedTotal"] != float64(4) {
+			t.Fatalf("incorrect partial summary: %#v", summary)
+		}
+	}
 	t.Run("budget", func(t *testing.T) {
 		lines, exit := run(t, "anonymous", "", true, "--max-pages", "1")
-		if exit != 2 || lines[len(lines)-1]["complete"] != false {
-			t.Fatal("page budget reported completion")
+		checkFirstPageOutput(t, lines, "page_limit")
+		if exit != 2 {
+			t.Fatalf("page budget exit = %d, want 2", exit)
 		}
 		mu.Lock()
 		defer mu.Unlock()
@@ -355,11 +367,14 @@ func TestTypeScriptARDExample(t *testing.T) {
 			t.Fatal("page budget sent extra requests")
 		}
 	})
-	for _, selected := range []string{"empty", "empty-continued"} {
-		t.Run(selected, func(t *testing.T) {
-			lines, exit := run(t, selected, "", true)
-			if exit != 0 || len(lines) != 1 || lines[0]["resourceEntries"] != float64(0) {
-				t.Fatal("empty List traversal failed")
+	for _, tc := range []struct {
+		mode  string
+		pages float64
+	}{{"empty", 1}, {"empty-continued", 2}} {
+		t.Run(tc.mode, func(t *testing.T) {
+			lines, exit := run(t, tc.mode, "", true)
+			if exit != 0 || len(lines) != 1 || lines[0]["complete"] != true || lines[0]["reason"] != "exhausted" || lines[0]["pages"] != tc.pages || lines[0]["resourceEntries"] != float64(0) {
+				t.Fatalf("empty List traversal: exit %d, output %#v", exit, lines)
 			}
 		})
 	}
@@ -370,6 +385,7 @@ func TestTypeScriptARDExample(t *testing.T) {
 				t.Fatalf("failed traversal became complete: %s", selected)
 			}
 			if selected == "expired" || selected == "activation" {
+				checkFirstPageOutput(t, lines, "http_error")
 				if lines[len(lines)-1]["status"] != float64(http.StatusBadRequest) {
 					t.Fatal("continuation failed outside the intended guard")
 				}

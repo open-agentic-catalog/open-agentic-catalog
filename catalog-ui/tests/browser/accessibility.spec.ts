@@ -5,7 +5,7 @@ import type { Page } from "@playwright/test";
 import { test, expect, login, openAccount } from "./fixtures";
 import { noBackgroundFocus, tabTo, visibleFocus } from "./keyboard";
 import { doubleText, expectNaturalText } from "./text-layout";
-import { paintedContrast } from "./painted-contrast";
+import { controlContrast, paintedContrast } from "./painted-contrast";
 
 /** Scan the settled page or selected exposed surface without disabling rules. */
 async function accessible(
@@ -364,7 +364,12 @@ for (const deployment of ["root", "subpath"]) {
     ).toBeVisible();
     await doubleText(page);
     await accessible(page);
-    await page.keyboard.press("Control+k");
+    const quickNavigation = page.getByRole("button", {
+      name: "Quick navigation",
+      exact: true,
+    });
+    await quickNavigation.focus();
+    await page.keyboard.press("Enter");
     const chooser = page.getByRole("dialog", { name: "Quick navigation" });
     const input = chooser.getByRole("textbox", { name: "Find a page" });
     await expect(input).toBeFocused();
@@ -390,9 +395,7 @@ for (const deployment of ["root", "subpath"]) {
     });
     await accessible(page);
     await page.keyboard.press("Escape");
-    await visibleFocus(
-      page.getByRole("button", { name: "Quick navigation", exact: true }),
-    );
+    await visibleFocus(quickNavigation);
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth),
     ).toBeLessThanOrEqual(320);
@@ -413,6 +416,68 @@ for (const deployment of ["root", "subpath"]) {
     ).toBeLessThanOrEqual(320);
   });
 }
+
+test("subpath: keyboard filtering keeps enlarged controls in view", async ({
+  page,
+  catalog,
+}) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  await login(page, catalog);
+  const cards = page.locator("article.resource-card");
+  await expect(cards).toHaveCount(3);
+  const filters = page.getByRole("button", { name: "Filters", exact: true });
+  await filters.focus();
+  await page.keyboard.press("Enter");
+  const drawer = page.getByRole("dialog", { name: "Filters", exact: true });
+  await expect(
+    drawer.getByRole("button", { name: "Close filters" }),
+  ).toBeFocused();
+  await doubleText(page);
+
+  const agents = drawer.getByRole("checkbox", { name: "Agents", exact: true });
+  await tabTo(page, agents, "Tab", drawer);
+  expect(
+    await agents.evaluate((input) => {
+      const box = input.getBoundingClientRect();
+      return (
+        document.elementFromPoint(
+          box.x + box.width / 2,
+          box.y + box.height / 2,
+        ) === input
+      );
+    }),
+    "The focused checkbox is visible inside the scrolled drawer",
+  ).toBe(true);
+  await page.keyboard.press("Space");
+  const apply = drawer.getByRole("button", {
+    name: "Apply filters",
+    exact: true,
+  });
+  await tabTo(page, apply, "Tab", drawer);
+  expect(await controlContrast(apply, "outlineColor")).toBeGreaterThanOrEqual(
+    3,
+  );
+  await page.keyboard.press("Enter");
+  await expect(drawer).toBeHidden();
+  await expect(cards).toHaveCount(1);
+  await visibleFocus(filters);
+  await expect
+    .poll(
+      () =>
+        filters.evaluate((button) => {
+          const box = button.getBoundingClientRect();
+          return (
+            box.top >=
+              document.querySelector(".topbar")!.getBoundingClientRect()
+                .bottom &&
+            box.bottom <= innerHeight &&
+            document.documentElement.scrollWidth <= innerWidth
+          );
+        }),
+      { message: "The filter opener is visible below the sticky header" },
+    )
+    .toBe(true);
+});
 
 test("accessibility: login, results, preview and dark narrow filters", async ({
   page,
@@ -536,23 +601,20 @@ test("accessibility: login, results, preview and dark narrow filters", async ({
     drawer,
   );
   await page.keyboard.press("Space");
-  await tabTo(
-    page,
-    page.getByRole("button", { name: "Apply filters", exact: true }),
-    "Tab",
-    drawer,
+  const apply = drawer.getByRole("button", {
+    name: "Apply filters",
+    exact: true,
+  });
+  await tabTo(page, apply, "Tab", drawer);
+  expect(await controlContrast(apply, "outlineColor")).toBeGreaterThanOrEqual(
+    3,
   );
   await page.keyboard.press("Tab");
   await noBackgroundFocus(drawer);
   await tabTo(page, closeFilters, "Tab", drawer);
   await page.keyboard.press("Shift+Tab");
   await noBackgroundFocus(drawer);
-  await tabTo(
-    page,
-    page.getByRole("button", { name: "Apply filters", exact: true }),
-    "Shift+Tab",
-    drawer,
-  );
+  await tabTo(page, apply, "Shift+Tab", drawer);
   await page.keyboard.press("Enter");
   await expect(
     page.getByRole("dialog", { name: "Filters", exact: true }),
@@ -796,6 +858,14 @@ test("accessibility: search indexing remains usable with doubled text at 320px",
     }),
     "Enlarged header contents remain inside their background",
   ).toBe(true);
+  expect(
+    await page.locator(".brand strong").evaluate((word) => {
+      const range = document.createRange();
+      range.selectNodeContents(word);
+      return range.getClientRects().length;
+    }),
+    "Catalog fits on one line in the enlarged brand",
+  ).toBe(1);
   const refresh = page.getByRole("button", { name: "Refresh", exact: true });
   await expect(refresh).toBeEnabled();
   await refresh.focus();

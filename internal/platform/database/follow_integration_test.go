@@ -5,6 +5,7 @@ package database
 import (
 	"context"
 	"crypto/sha256"
+	"slices"
 	"sync"
 	"testing"
 
@@ -188,4 +189,35 @@ func TestPostgresListingFollow(t *testing.T) {
 		t.Fatal(err)
 	}
 	check(independent.ID, "unacknowledged")
+	withdrawingAuthor := f.author(t)
+	t.Run("target retired between observation and acknowledgement", func(t *testing.T) {
+		observed := catalog.ReleaseObservation{ReleaseID: other.Release.ID, Revision: other.Release.Revision}
+		racing, err := personal.New(beforeFollowSave{st, func() {
+			if _, err := f.service.TransitionRelease(withdrawingAuthor, observed.ReleaseID, catalog.ReleaseRetired, "Retire the followed release", "", nil, observed.Revision); err != nil {
+				t.Fatal(err)
+			}
+		}}, followFixtureAuthority{f.service}, clock.Real{}, id.Generator{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		edited := independent.Input
+		edited.Label = "Rename while acknowledging"
+		if _, err := racing.SaveObserved(ctx, independent.ID, independent.Revision, edited, false, &observed); catalog.ErrorCodeOf(err) != catalog.CodeNotFound {
+			t.Fatalf("acknowledgement of the retired target returned %v", err)
+		}
+		resolution, err := service.ResolveFollow(ctx, independent.ID)
+		if err != nil || resolution.Status != "unavailable" || resolution.Current != nil {
+			t.Fatalf("retired target resolved to %+v, error %v", resolution, err)
+		}
+		retained, err := service.Get(ctx, independent.ID)
+		if err != nil || retained.Revision != independent.Revision || retained.Label != independent.Label || retained.Acknowledged != nil {
+			t.Fatalf("failed acknowledgement changed the saved follow: %+v, %v", retained, err)
+		}
+		var actions []string
+		if err := f.db.operator.QueryRow(ctx, `SELECT ARRAY(SELECT action FROM audit_events
+ WHERE tenant_id=$1 AND target_type='personal_item' AND target_id=$2 ORDER BY id)`,
+			a.TenantID, independent.ID).Scan(&actions); err != nil || !slices.Equal(actions, []string{"personal.item.created"}) {
+			t.Fatalf("saved follow history after failed acknowledgement: %v, %v", actions, err)
+		}
+	})
 }

@@ -280,9 +280,28 @@ func TestPersonalRestoreRejectsChangedStateAndIntent(t *testing.T) {
 }
 
 func TestPersonalSaveRejectsUnverifiableAcknowledgements(t *testing.T) {
-	for _, fault := range []string{"valid", "revision", "etag", "request id", "reused id"} {
-		t.Run(fault, func(t *testing.T) {
+	newID, earlierID := importTestPrincipal.MembershipID, importTestPrincipal.RealmID
+	const requestID = "owned-request"
+	for _, tc := range []struct {
+		name                           string
+		follow                         bool
+		status, revision               int
+		id, etag, requestID, wantState string
+	}{
+		{"valid", false, 201, 1, newID, `"rev-1"`, requestID, "acknowledged"},
+		{"revision", false, 201, 2, newID, `"rev-2"`, requestID, "uncertain"},
+		{"etag", false, 201, 1, newID, `"rev-2"`, requestID, "uncertain"},
+		{"request id", false, 201, 1, newID, `"rev-1"`, "unsafe PRIVATE_SENTINEL", "uncertain"},
+		{"reused id", false, 201, 1, earlierID, `"rev-1"`, requestID, "uncertain"},
+		{"existing follow", true, 200, 2, newID, `"rev-2"`, requestID, "already-followed"},
+		{"existing follow mismatched etag", true, 200, 2, newID, `"rev-1"`, requestID, "uncertain"},
+		{"200 for a bookmark", false, 200, 1, newID, `"rev-1"`, requestID, "uncertain"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			file := personalTestFile()
+			if tc.follow {
+				file.Items[2] = personal.Input{Type: "follow", Label: "Release notes", ListingID: "00000000-0000-7000-8000-00000000000a"}
+			}
 			raw := personalTestBytes(t, file)
 			receipt, err := newPersonalRestore(file, raw, []bool{true, false, true}, importTestPrincipal)
 			if err != nil {
@@ -293,7 +312,7 @@ func TestPersonalSaveRejectsUnverifiableAcknowledgements(t *testing.T) {
 				State: "acknowledged", Key: receipt.Steps[0].Key, Method: http.MethodPost,
 				Path: personalSavePath, BodyDigest: importDigest(personalTestBytes(t, file.Items[0])),
 				FirstAttempt: time.Unix(1, 0).UTC(), RequestID: "earlier-request",
-				Ack: importAcknowledgement{ID: importTestPrincipal.RealmID, ETag: `"rev-1"`},
+				Ack: importAcknowledgement{ID: earlierID, ETag: `"rev-1"`},
 			}
 			earlier := receipt.Steps[0]
 			state, err := openImportState(filepath.Join(canonicalTempDir(t), "private", "state.json"), false)
@@ -304,45 +323,40 @@ func TestPersonalSaveRejectsUnverifiableAcknowledgements(t *testing.T) {
 			if err := savePersonalRestore(state, receipt); err != nil {
 				t.Fatal(err)
 			}
+			originalKey := receipt.Steps[2].Key
 			calls := 0
 			client := &http.Client{Transport: catalogctlRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 				calls++
-				if request.Method != http.MethodPost || request.URL.Path != personalSavePath {
+				if request.Method != http.MethodPost || request.URL.Path != personalSavePath || request.Header.Get("Idempotency-Key") != originalKey {
 					t.Fatal("acknowledgement check made an unexpected request")
 				}
-				id, revision := importTestPrincipal.MembershipID, int64(1)
-				if fault == "reused id" {
-					id = earlier.Ack.ID
-				}
-				if fault == "revision" {
-					revision = 2
-				}
-				reply := personalUnitReply(t, http.StatusCreated, map[string]any{"id": id, "revision": revision})
-				if fault == "etag" {
-					reply.Header.Set("ETag", `"rev-2"`)
-				}
-				if fault == "request id" {
-					reply.Header.Set("X-Request-ID", "unsafe PRIVATE_SENTINEL")
-				}
+				reply := personalUnitReply(t, tc.status, map[string]any{"id": tc.id, "revision": tc.revision})
+				reply.Header.Set("ETag", tc.etag)
+				reply.Header.Set("X-Request-ID", tc.requestID)
 				return reply, nil
 			})}
 			err = savePersonalItem(t.Context(), &remoteSession{client: client, origin: file.Origin, token: "unit"}, remoteOptions{}, state, &receipt, 2, file.Items)
-			if (err == nil) != (fault == "valid") || calls != 1 {
+			accepted := tc.wantState != "uncertain"
+			if (err == nil) != accepted || calls != 1 {
 				t.Fatal("incorrect acknowledgement admission or implicit retry", err, calls)
 			}
-			persisted, err := decodePersonalRestore(state.previous, file, raw, receipt.Selected)
+			saved, err := state.root.ReadFile(state.name)
+			if err != nil {
+				t.Fatal(err)
+			}
+			persisted, err := decodePersonalRestore(saved, file, raw, receipt.Selected)
 			if err != nil || !reflect.DeepEqual(persisted.Steps[0], earlier) || persisted.Steps[1].State != "skipped" {
 				t.Fatal("later acknowledgement changed earlier progress", err)
 			}
 			last := persisted.Steps[2]
-			if fault == "valid" {
-				if last.State != "acknowledged" || last.Ack.ID != importTestPrincipal.MembershipID {
-					t.Fatal("valid new acknowledgement refused")
-				}
-			} else if last.State != "uncertain" || last.Ack.ID != "" || last.RequestID != "" {
-				t.Fatal("unverifiable reply was treated as acknowledged")
+			wantAck, wantRequestID := importAcknowledgement{}, ""
+			if accepted {
+				wantAck, wantRequestID = importAcknowledgement{ID: tc.id, ETag: tc.etag}, requestID
 			}
-			if bytes.Contains(state.previous, []byte("PRIVATE_SENTINEL")) {
+			if last.Key != originalKey || last.State != tc.wantState || !reflect.DeepEqual(last.Ack, wantAck) || last.RequestID != wantRequestID {
+				t.Fatalf("persisted receipt: key=%q state=%s ack=%+v request=%q", last.Key, last.State, last.Ack, last.RequestID)
+			}
+			if bytes.Contains(saved, []byte("PRIVATE_SENTINEL")) {
 				t.Fatal("unsafe response metadata entered private progress")
 			}
 		})
