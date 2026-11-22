@@ -127,11 +127,19 @@ class DeadCodeMakeTests(MakeScopeTestsFixture, unittest.TestCase):
         self.assertNotIn("dead_code.py", self.run_make("-n", "test-unit"))
 
     def test_failures_propagate_through_lint_and_aggregate_targets(self):
-        # Override sibling recipes in a disposable Makefile; run no other gates.
+        # Exercise ordinary fail-fast Make even when the outer build uses -k or -j.
+        env = {key: value for key, value in os.environ.items()
+               if key not in ("MAKEFLAGS", "MFLAGS", "GNUMAKEFLAGS")}
         for target in ["lint", "check", "test-all", "verify"]:
             with tempfile.TemporaryDirectory() as directory:
                 path = Path(directory) / "Makefile"
                 path.write_text((ROOT / "Makefile").read_text() + "\n.PHONY: force-deadcode-fixture\nforce-deadcode-fixture:\n\t@false\ndead-code-check: force-deadcode-fixture\n")
-                result = subprocess.run(["make", "-sf", str(path), "-o", "fmt-check", "-o", "module-check", "-o", "license-check", "-o", "test-integration-compile", "-o", "test-deployment-compile", "-o", "architecture-check", "-o", "shell-check", "CATALOG_ENV_FILE=/dev/null", target], cwd=ROOT, capture_output=True, text=True, timeout=20)
+                result = subprocess.run(
+                    ["make", "-sf", str(path), "-o", "fmt-check", "-o", "module-check",
+                     "-o", "license-check", "-o", "test-integration-compile",
+                     "-o", "test-deployment-compile", "-o", "architecture-check",
+                     "-o", "shell-check", "CATALOG_ENV_FILE=/dev/null", target],
+                    cwd=ROOT, env=env, capture_output=True, text=True, timeout=20,
+                )
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("force-deadcode-fixture", result.stderr)
