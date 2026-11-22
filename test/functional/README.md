@@ -171,9 +171,13 @@ The ordered phases begin with startup, governed seeding, exact indexed entry con
 
 Control declaration checks also traverse page-size-one local/indexed results, preserve counts and source provenance, and reject a differently cased license. Four-kind live checks require both normalized integration and kind categories. ARD queries keep their original exact-value filters. These checks reuse the ordered phases and owned peers.
 
+When A publishes Plugin version `2.0.0`, B indexes it and marks the `1.0.0` observation withdrawn. Retiring `2.0.0` and republishing on A removes the Plugin from A's publication. After the next sync, B's indexed Search still returns the other three kinds. Both Plugin observation IDs remain available with their original bytes and withdrawn status.
+
 The native Plugin archive binding is Catalog-supported; it is not a standardized ARD Plugin type or an installation capability.
 
 Live queries require explicit disclosure acknowledgement and an authenticated host assignment. `none` searches only local publications; `referrals` returns local matches and an eligible Registry reference without an upstream Search contact. Referral participation is disabled before `auto` queries, whose upstream mode stays `none`. Safe counters record only fixed host/method/route/mode/status keys. They verify exact page counts and no recursive traversal.
+
+The outage test repeats the same searches before A stops, while its API is down and after B completes a recovery sync. A signed-in reader on B can search the last indexed entries throughout. On B's authenticated ARD host, the reader keeps B's public and tenant-visible entries during the outage and receives a partial-result signal. A's live entries return and the signal clears after recovery. The same query on B's anonymous host returns only B's public entries and makes no peer request at any stage.
 
 The owned overlay sets B's `federation.maxLivePagesPerSource` to three and A's to one. Product defaults remain one. An explicit fixture page ceiling forces small upstream pages from A during this phase. The TLS frontend applies the same ceiling to each continuation request; actual Catalog A responses and signed tokens remain unchanged. The ceiling is removed before normal client/browser qualification. An unfiltered direct query establishes the first, second and third peer results. A temporary exact-identifier source scope excludes earlier results without changing the query sent to A. One downstream request must reach the allowed result on page two or three. ARD `auto` uses the approved authenticated host; private-network sources remain unavailable to anonymous discovery, with no outbound request.
 
