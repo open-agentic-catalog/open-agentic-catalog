@@ -2009,7 +2009,15 @@
         },
         {
           "path": "internal/platform/database/tenant_settings_integration_test.go",
-          "symbol": "TestPostgresTenantSettingsPolicyIsolationAndAuditRollback"
+          "symbol": "TestPostgresTenantSettingsPolicyIsolationAndConstraints"
+        },
+        {
+          "path": "internal/platform/database/tenant_settings_integration_test.go",
+          "symbol": "TestPostgresTenantSettingsConcurrentSaves"
+        },
+        {
+          "path": "internal/platform/database/tenant_settings_integration_test.go",
+          "symbol": "TestPostgresTenantSettingsRollbackAndGrantRepair"
         },
         {
           "path": "test/functional/tenant_settings_integration_test.go",

@@ -6,7 +6,22 @@ import (
 	"context"
 	"testing"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// Use the fixture's login and search path, with a single backend for deterministic reuse.
+func singleConnectionTestPool(t *testing.T, ctx context.Context, base *pgxpool.Pool) *pgxpool.Pool {
+	t.Helper()
+	cfg := base.Config()
+	cfg.MaxConns = 1
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	return pool
+}
 
 // Called with the owned unprivileged role from the connection-admission test.
 // Keep real database scheduling outside unit tests and use eventual counters,

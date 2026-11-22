@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -40,19 +42,47 @@ func tenantSettingsFixture(t *testing.T) (*housekeepingDatabase, *tenantsettings
 	ctx := postgresFixtureContext(t, db, t.Context(), identity.Actor{TenantID: housekeepingTenantA, Subject: "settings-admin", Roles: []identity.Role{identity.RoleTenantAdmin}})
 	return db, service, ctx
 }
+
+const seedSettingsReason = "Change owned test tenant operations"
+
 func saveTenantPolicy(t *testing.T, s *tenantsettings.Service, ctx context.Context, o tenantsettings.Overrides) tenantsettings.View {
 	t.Helper()
 	v, err := s.Get(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	v, err = s.Save(ctx, o, s.Tag(v), "Change owned test tenant operations")
+	v, err = s.Save(ctx, o, s.Tag(v), seedSettingsReason)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return v
 }
-func TestPostgresTenantSettingsPolicyIsolationAndAuditRollback(t *testing.T) {
+
+// Read the retained policy as the worker that uses it for Job admission.
+func assertWorkerSettings(t *testing.T, db *housekeepingDatabase, ctx context.Context, want tenantsettings.Record) {
+	t.Helper()
+	got, err := withTenantRead(ctx, db.worker, want.TenantID, func(tx pgx.Tx) (tenantsettings.Record, error) {
+		return readTenantSettings(ctx, tx, want.TenantID)
+	})
+	if err != nil || !reflect.DeepEqual(got, want) {
+		t.Fatalf("worker read settings %+v, want %+v: %v", got, want, err)
+	}
+}
+
+func assertSettingsAuditReasons(t *testing.T, db *housekeepingDatabase, ctx context.Context, want []string) {
+	t.Helper()
+	got, err := withTenantRead(ctx, db.api, housekeepingTenantA, func(tx pgx.Tx) ([]string, error) {
+		var reasons []string
+		err := tx.QueryRow(ctx, `SELECT array_agg(reason ORDER BY (details->'facts'->>'afterRevision')::bigint)
+			FROM audit_events WHERE tenant_id=$1 AND action=$2`, housekeepingTenantA, tenantsettings.Action).Scan(&reasons)
+		return reasons, err
+	})
+	if err != nil || !slices.Equal(got, want) {
+		t.Fatalf("API read settings audit reasons %q, want %q: %v", got, want, err)
+	}
+}
+
+func TestPostgresTenantSettingsPolicyIsolationAndConstraints(t *testing.T) {
 	db, s, ctx := tenantSettingsFixture(t)
 	initial, err := s.Get(ctx)
 	if err != nil || initial.Revision != 0 {
@@ -82,10 +112,6 @@ func TestPostgresTenantSettingsPolicyIsolationAndAuditRollback(t *testing.T) {
 	if _, err = s.Get(reader); catalog.ErrorCodeOf(err) != catalog.CodeForbidden {
 		t.Fatal("reader received settings", err)
 	}
-	// Runtime SQL grants are exact; workers read policy but cannot edit it.
-	if _, err = db.worker.Exec(ctx, `UPDATE tenant_settings SET new_job_max_attempts=3 WHERE tenant_id=$1`, housekeepingTenantA); err == nil {
-		t.Fatal("worker edited policy")
-	}
 	tx, err := db.api.Begin(ctx)
 	if err != nil {
 		t.Fatal(err)
@@ -100,34 +126,65 @@ func TestPostgresTenantSettingsPolicyIsolationAndAuditRollback(t *testing.T) {
 	if err = tx.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	// A failing required audit must roll back the settings revision and values.
-	_, err = db.operator.Exec(ctx, `CREATE FUNCTION reject_test_settings_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN IF NEW.action='tenant.settings.changed' THEN RAISE EXCEPTION 'owned audit failure'; END IF; RETURN NEW; END $$; CREATE TRIGGER reject_test_settings_audit BEFORE INSERT ON audit_events FOR EACH ROW EXECUTE FUNCTION reject_test_settings_audit()`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = s.Save(ctx, tenantsettings.Overrides{}, s.Tag(saved), "Reset must roll back"); err == nil {
-		t.Fatal("failed audit accepted")
-	}
-	read, err = s.Get(ctx)
-	if err != nil || s.Tag(read) != s.Tag(saved) {
-		t.Fatal("audit failure changed policy", read, err)
-	}
-	if _, err = db.operator.Exec(ctx, `DROP TRIGGER reject_test_settings_audit ON audit_events; DROP FUNCTION reject_test_settings_audit()`); err != nil {
-		t.Fatal(err)
-	}
-	reset := saveTenantPolicy(t, s, ctx, tenantsettings.Overrides{})
-	if reset.Revision != 2 || reset.Effective.NewJobMaxAttempts != 5 || reset.Effective.AutomaticSourceSyncInterval != tenantsettings.Duration(15*time.Minute) {
-		t.Fatal("reset changed inheritance", reset)
-	}
-	if err = db.operator.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE tenant_id=$1 AND action='tenant.settings.changed'`, housekeepingTenantA).Scan(&count); err != nil || count != 2 {
-		t.Fatal("audit count", count, err)
-	}
 	for _, sql := range []string{`UPDATE tenant_settings SET revision=revision+2 WHERE tenant_id=$1`, `UPDATE tenant_settings SET revision=revision+1,new_job_max_attempts=21 WHERE tenant_id=$1`, `UPDATE tenant_settings SET revision=revision+1,automatic_source_sync_interval_ns=59999999999 WHERE tenant_id=$1`, `DELETE FROM tenant_settings WHERE tenant_id=$1`} {
 		if _, err = db.operator.Exec(ctx, sql, housekeepingTenantA); err == nil {
 			t.Fatalf("invalid transition accepted: %s", sql)
 		}
 	}
 }
+
+func TestPostgresTenantSettingsRollbackAndGrantRepair(t *testing.T) {
+	db, s, ctx := tenantSettingsFixture(t)
+	attempts := 2
+	interval := tenantsettings.Duration(90500 * time.Millisecond)
+	initial := saveTenantPolicy(t, s, ctx, tenantsettings.Overrides{NewJobMaxAttempts: &attempts, AutomaticSourceSyncInterval: &interval})
+	const resetReason = "Restore the deployment defaults"
+	tag := s.Tag(initial)
+
+	apiRole, workerRole := db.api.Config().ConnConfig.User, db.worker.Config().ConnConfig.User
+	if _, err := db.operator.Exec(ctx, "REVOKE INSERT (reason) ON audit_events FROM "+pgx.Identifier{apiRole}.Sanitize()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.operator.Exec(ctx, "GRANT UPDATE (new_job_max_attempts) ON tenant_settings TO "+pgx.Identifier{workerRole}.Sanitize()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyRuntimeRole(ctx, db.api, RuntimeRoleAPI); err == nil || !strings.Contains(err.Error(), "missing INSERT on audit_events.reason") {
+		t.Fatalf("API admission after revoking audit INSERT: %v", err)
+	}
+	if _, err := VerifyRuntimeRole(ctx, db.worker, RuntimeRoleWorker); err == nil || !strings.Contains(err.Error(), "unexpected UPDATE on tenant_settings.new_job_max_attempts") {
+		t.Fatalf("worker admission after granting policy UPDATE: %v", err)
+	}
+
+	// The settings UPDATE runs before the audited INSERT on the same transaction.
+	_, err := s.Save(ctx, tenantsettings.Overrides{}, tag, resetReason)
+	requireInsufficientPrivilege(t, err)
+	if !strings.Contains(err.Error(), "insert audit event") {
+		t.Fatalf("reset did not reach the audit write: %v", err)
+	}
+	assertWorkerSettings(t, db, ctx, initial.Record)
+	assertSettingsAuditReasons(t, db, ctx, []string{seedSettingsReason})
+
+	applied, reports, err := ApplyAndReconcileRuntimePrivileges(ctx, db.operator, apiRole, workerRole)
+	if err != nil || len(applied) != 0 || len(reports) != 2 || !reports[0].Compliant || !reports[1].Compliant {
+		t.Fatalf("grant repair: applied %v, reports %v, error %v", applied, reports, err)
+	}
+	if _, err := VerifyRuntimeRole(ctx, db.api, RuntimeRoleAPI); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyRuntimeRole(ctx, db.worker, RuntimeRoleWorker); err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.worker.Exec(ctx, `UPDATE tenant_settings SET new_job_max_attempts=3 WHERE tenant_id=$1`, housekeepingTenantA)
+	requireInsufficientPrivilege(t, err)
+	reset, err := s.Save(ctx, tenantsettings.Overrides{}, tag, resetReason)
+	if err != nil || reset.Revision != initial.Revision+1 || reset.Overrides != (tenantsettings.Overrides{}) ||
+		reset.Effective.NewJobMaxAttempts != 5 || reset.Effective.AutomaticSourceSyncInterval != tenantsettings.Duration(15*time.Minute) {
+		t.Fatalf("retry with the original ETag: %+v, %v", reset, err)
+	}
+	assertWorkerSettings(t, db, ctx, reset.Record)
+	assertSettingsAuditReasons(t, db, ctx, []string{seedSettingsReason, resetReason})
+}
+
 func TestPostgresTenantSettingsNewJobsAndSourcePause(t *testing.T) {
 	db, s, ctx := tenantSettingsFixture(t)
 	attempts := 2
@@ -218,20 +275,7 @@ func TestPostgresTenantSettingsWaitedAdmissionSeesCommittedPolicy(t *testing.T) 
 		}
 		result <- err
 	}()
-	deadline := time.Now().Add(5 * time.Second)
-	for {
-		var waiting bool
-		if err = db.operator.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))`, pid).Scan(&waiting); err != nil {
-			t.Fatal(err)
-		}
-		if waiting {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("admission did not wait on settings fence")
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
+	waitForSettingsWaiters(t, db, ctx, pid, 1)
 	if _, err = held.Exec(ctx, `INSERT INTO tenant_settings(tenant_id,revision,new_job_max_attempts,updated_at) VALUES($1,1,3,clock_timestamp())`, housekeepingTenantA); err != nil {
 		t.Fatal(err)
 	}
@@ -247,57 +291,89 @@ func TestPostgresTenantSettingsWaitedAdmissionSeesCommittedPolicy(t *testing.T) 
 	}
 }
 
-func waitForSettingsWaiter(t *testing.T, db *housekeepingDatabase, ctx context.Context, pid int) {
+func waitForSettingsWaiters(t *testing.T, db *housekeepingDatabase, ctx context.Context, pid, want int) {
 	t.Helper()
 	deadline := time.Now().Add(5 * time.Second)
 	for {
-		var waiting bool
-		if err := db.operator.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid)))`, pid).Scan(&waiting); err != nil {
+		var waiting int
+		if err := db.operator.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity WHERE $1=ANY(pg_blocking_pids(pid))`, pid).Scan(&waiting); err != nil {
 			t.Fatal(err)
 		}
-		if waiting {
+		if waiting == want {
 			return
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("settings operation did not wait on its tenant fence")
+			t.Fatalf("%d settings operations waiting on the tenant lock, want %d", waiting, want)
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
 }
-func TestPostgresTenantSettingsConcurrentFirstSave(t *testing.T) {
-	db, s, ctx := tenantSettingsFixture(t)
-	initial, err := s.Get(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	replies := make(chan error, 2)
-	for range 2 {
-		go func() {
-			_, err := s.Save(ctx, tenantsettings.Overrides{}, s.Tag(initial), "Concurrent owned first save")
-			replies <- err
-		}()
-	}
-	success, stale := 0, 0
-	for range 2 {
-		err := <-replies
-		switch {
-		case err == nil:
-			success++
-		case catalog.ErrorCodeOf(err) == catalog.CodePreconditionFailed:
-			stale++
-		default:
-			t.Fatal(err)
-		}
-	}
-	current, err := s.Get(ctx)
-	if err != nil || current.Revision != 1 || success != 1 || stale != 1 {
-		t.Fatal(current, success, stale, err)
-	}
-	var count int
-	if err = db.operator.QueryRow(ctx, `SELECT count(*) FROM audit_events WHERE tenant_id=$1 AND action='tenant.settings.changed'`, housekeepingTenantA).Scan(&count); err != nil || count != 1 {
-		t.Fatal("race duplicated audit", count, err)
+func TestPostgresTenantSettingsConcurrentSaves(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		existing bool
+	}{{"first save", false}, {"update existing policy", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, s, ctx := tenantSettingsFixture(t)
+			var reasons []string
+			if tc.existing {
+				attempts := 7
+				saveTenantPolicy(t, s, ctx, tenantsettings.Overrides{NewJobMaxAttempts: &attempts})
+				reasons = append(reasons, seedSettingsReason)
+			}
+			before, err := s.Get(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// A worker admitting a Job holds the shared lock. Both writers must
+			// have read the same revision before either can acquire its write lock.
+			held, err := db.worker.Begin(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer rollbackForCleanup(ctx, held)()
+			if err := lockTenantSettings(ctx, held, housekeepingTenantA, true); err != nil {
+				t.Fatal(err)
+			}
+			pid := int(held.Conn().PgConn().PID())
+			type proposal struct {
+				attempts int
+				reason   string
+				err      error
+			}
+			replies := make(chan proposal, 2)
+			waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			defer cancel()
+			for _, attempts := range []int{2, 3} {
+				go func() {
+					reason := fmt.Sprintf("Set the Job attempt limit to %d", attempts)
+					_, err := s.Save(waitCtx, tenantsettings.Overrides{NewJobMaxAttempts: &attempts}, s.Tag(before), reason)
+					replies <- proposal{attempts, reason, err}
+				}()
+			}
+			waitForSettingsWaiters(t, db, ctx, pid, 2)
+			if err := held.Commit(ctx); err != nil {
+				t.Fatal(err)
+			}
+			winner, stale := <-replies, <-replies
+			if winner.err != nil {
+				winner, stale = stale, winner
+			}
+			if winner.err != nil || catalog.ErrorCodeOf(stale.err) != catalog.CodePreconditionFailed {
+				t.Fatalf("expected one committed save and one stale ETag, got %v and %v", winner.err, stale.err)
+			}
+			got, err := s.Get(ctx)
+			if err != nil || got.Revision != before.Revision+1 || got.Overrides.NewJobMaxAttempts == nil ||
+				*got.Overrides.NewJobMaxAttempts != winner.attempts {
+				t.Fatalf("API read %+v after the save for %d attempts won: %v", got, winner.attempts, err)
+			}
+			assertWorkerSettings(t, db, ctx, got.Record)
+			reasons = append(reasons, winner.reason)
+			assertSettingsAuditReasons(t, db, ctx, reasons)
+		})
 	}
 }
+
 func TestPostgresTenantSettingsSaveWaitsForAdmissionAndCancels(t *testing.T) {
 	for _, cancelSave := range []bool{false, true} {
 		t.Run(fmt.Sprint(cancelSave), func(t *testing.T) {
@@ -326,7 +402,7 @@ func TestPostgresTenantSettingsSaveWaitsForAdmissionAndCancels(t *testing.T) {
 				_, err := s.Save(waitCtx, tenantsettings.Overrides{AutomaticSourceSyncEnabled: &off}, s.Tag(initial), "Pause after owned admission")
 				replies <- err
 			}()
-			waitForSettingsWaiter(t, db, ctx, pid)
+			waitForSettingsWaiters(t, db, ctx, pid, 1)
 			if cancelSave {
 				cancel()
 				if err = <-replies; !errors.Is(err, context.Canceled) {
