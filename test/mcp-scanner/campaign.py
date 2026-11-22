@@ -28,7 +28,7 @@ from core import mutate  # noqa: E402
 from federation import Client  # noqa: E402
 from http_client import fixture_tls_context  # noqa: E402
 from journeys import header  # noqa: E402
-from runner import command  # noqa: E402
+from runner import Failure, command  # noqa: E402
 
 spec = importlib.util.spec_from_file_location("mcp_scanner_runner", HERE / "runner.py")
 scanner = importlib.util.module_from_spec(spec)
@@ -38,8 +38,8 @@ relay = importlib.util.module_from_spec(relay_spec)
 relay_spec.loader.exec_module(relay)
 TENANT = "00000000-0000-7000-8000-000000000001"
 EVENT_SOURCE = "https://github.com/open-agentic-catalog/open-agentic-catalog/tenants/" + TENANT
-CASES = ("network-isolation", "least-privilege-reader", "worker-delivery-and-restart", "duplicate-receipt",
-         "out-of-order-releases", "finding-control", "unpublished-draft", "wrong-runtime-credential",
+CASES = ("network-isolation", "least-privilege-reader", "scanner-unavailable", "worker-delivery-and-restart",
+         "duplicate-receipt", "out-of-order-releases", "finding-control", "unpublished-draft", "wrong-runtime-credential",
          "wrong-runtime-trust", "revoked-catalog-access", "scanner-process-failure", "missed-event-reconciliation",
          "unrecognized-endpoint", "immutable-catalog-evidence", "metadata-only")
 
@@ -562,6 +562,73 @@ def completed(directory, event_id):
     return receiver_sql(directory, "SELECT EXISTS(SELECT 1 FROM mcp_receiver_inbox WHERE source='" + EVENT_SOURCE + "' AND id='" + event_id + "' AND completed_at IS NOT NULL)") == "t"
 
 
+def publication_receipt(directory, event_id):
+    raw = receiver_sql(directory, f"SELECT to_jsonb(i) FROM mcp_receiver_inbox i WHERE source='{EVENT_SOURCE}' AND id='{event_id}'")
+    return json.loads(raw) if raw else None
+
+
+def check_duplicate_receipt(directory, notification, receipt):
+    signer = json.loads((directory / "private/receiver/signer.json").read_bytes())
+    body = json.dumps(notification, separators=(",", ":")).encode()
+    timestamp = str(int(time.time()))
+    signature = hmac.new(signer["secret"].encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
+    assert receiver_request(directory, "POST", body, {"Content-Type": "application/cloudevents+json", "X-Catalog-Timestamp": timestamp,
+        "X-Catalog-Signature": "v1,kid=" + str(signer["version"]) + ",sha256=" + signature}) == 204
+    assert publication_receipt(directory, notification["id"]) == receipt, "redelivery changed the retained receipt"
+
+
+def check_publication_scan(directory, release, notification, *, finding):
+    state = owner(directory)
+    resource, endpoint, event_id = state["resource"], state["endpoint"], notification["id"]
+    api = client(directory)
+    def acknowledged():
+        page, _ = api.request("GET", f"/api/v1/webhooks/{endpoint}/deliveries?eventId={event_id}&limit=2")
+        if not page["items"]:
+            return False
+        assert len(page["items"]) == 1 and not page.get("nextCursor")
+        delivery = page["items"][0]
+        assert (delivery["endpointId"], delivery["eventId"], delivery["eventType"]) == (endpoint, event_id, notification["type"])
+        if delivery["state"] in ("pending", "waiting"):
+            return False
+        assert delivery["state"] == "succeeded" and delivery["responseStatus"] == 204
+        return True
+    wait("signed publication acknowledged", acknowledged, 30)
+
+    saved = observation(directory)
+    raw = native_report(directory)
+    trigger = {"source": EVENT_SOURCE, "id": event_id, "action": "listing.release.published", "targetId": release["id"]}
+    if "digest" in notification["data"]:
+        trigger["transitionDigest"] = notification["data"]["digest"]
+    assert saved["trigger"] == trigger and saved["state"] == "eligible_at_check" and saved["analysisReused"] is False
+    evidence = saved["catalogEvidence"]
+    assert evidence["resourceId"] == resource and evidence["releaseId"] == release["id"]
+    assert evidence["versionRevisionId"] == release["versionRevisionId"] and evidence["listingRevisionId"] == release["listingRevisionId"]
+    assert evidence["endpoint"] == saved["capture"]["source"] == raw["capture"]["source"] == state["mcp"] + "/mcp"
+    assert saved["capture"]["complete"] and saved["capture"]["pages"] == 2 and saved["capture"]["sha256"] == raw["capture"]["inputSha256"]
+
+    stored = json.loads(receiver_sql(directory, f"""
+        SELECT json_build_object('receipt', i.event, 'observation', o.document,
+                                 'scanSha256', encode(sha256(s.report), 'hex'))
+        FROM mcp_receiver_observations o
+        JOIN mcp_receiver_scans s ON s.scan_key = o.scan_key
+        JOIN mcp_receiver_inbox i ON i.source = o.document #>> '{{trigger,source}}'
+                                 AND i.id = o.document #>> '{{trigger,id}}'
+        WHERE o.resource_id = '{resource}' AND o.release_id = '{release['id']}'
+          AND i.source = '{EVENT_SOURCE}' AND i.id = '{event_id}'
+          AND i.completed_at IS NOT NULL AND i.outcome = ''
+    """))
+    assert stored["receipt"] == trigger and stored["scanSha256"] == saved["scanSha256"]
+    assert saved == dict(stored["observation"], scanFile=resource + "-scan.json", scanSha256=stored["scanSha256"])
+    assert raw["status"] == "completed" and raw["cleanup"] == "passed"
+    assert raw["plannedTools"] == raw["completedTools"] == len(raw["results"]) == 2
+    results = {item["tool_name"]: item for item in raw["results"]}
+    assert set(results) == {"absolute_value", "add_integers"} and results["absolute_value"]["findings"] == []
+    for item in results.values():
+        assert item["status"] == "completed" and item["analyzers"] == ["YARA"] and item["analyzer_errors"] == []
+    matches = {(item["details"]["tool_name"], item["details"]["content_type"]) for item in results["add_integers"]["findings"]}
+    assert matches == ({("add_integers", "description")} if finding else set())
+
+
 def refresh(directory):
     call(receiver_args(directory, "reconcile"))
     call(receiver_args(directory, "process"), seconds=240)
@@ -597,52 +664,66 @@ def qualify(directory):
     mark(directory, "least-privilege-reader")
     # Startup sees no publication. A slow polling interval leaves the later
     # worker-accepted receipt pending so restart is tested before collection.
-    start_receiver(directory, poll="1m")
+    idle_runtime = stats(directory)
+    assert idle_runtime["methods"] == {}
+    fixture_runner = directory / "private/scanner-runner.py"
+    fixture_runner.symlink_to(HERE / "runner.py")
+    start_receiver(directory, poll="1m", runner=fixture_runner)
+    fixture_runner.unlink()
     first = publish(directory, 0)
     first_event = event(directory, first["id"])
-    def accepted():
-        return receiver_sql(directory, "SELECT EXISTS(SELECT 1 FROM mcp_receiver_inbox WHERE source='" + EVENT_SOURCE + "' AND id='" + first_event["id"] + "' AND completed_at IS NULL)") == "t"
-    wait("durable worker receipt", accepted, 30)
-    assert stats(directory)["methods"] == {}
+    pending = wait("durable worker receipt", lambda: publication_receipt(directory, first_event["id"]), 30)
+    assert pending["completed_at"] is None
+    check_duplicate_receipt(directory, first_event, pending)
+    assert stats(directory) == idle_runtime
     stop_receiver(directory)
-    assert accepted()
-    # A fresh processor consumes the retained worker receipt. Serve startup
-    # also queues reconciliation, which can replace the latest observation.
-    call(receiver_args(directory, "process"), seconds=240)
+    process = receiver_args(directory, "process", runner=fixture_runner)
+    try:
+        call(process, seconds=60)
+    except Failure as error:
+        if str(error) != "child-failed":
+            raise
+    else:
+        raise AssertionError("processor started without the scanner runner")
+    assert publication_receipt(directory, first_event["id"]) == pending
+    assert stats(directory) == idle_runtime and observation(directory) is None
+    assert receiver_sql(directory, "SELECT NOT EXISTS(SELECT 1 FROM mcp_receiver_observations) AND NOT EXISTS(SELECT 1 FROM mcp_receiver_scans)") == "t"
+    mark(directory, "scanner-unavailable")
+    # Restore only the private runner link and retry the same command.
+    fixture_runner.symlink_to(HERE / "runner.py")
+    call(process, seconds=240)
     assert completed(directory, first_event["id"])
-    saved = observation(directory)
-    raw = native_report(directory)
-    assert saved["state"] == "eligible_at_check" and saved["catalogEvidence"]["releaseId"] == first["id"] and saved["trigger"]["id"] == first_event["id"]
-    assert raw["status"] == "completed" and raw["plannedTools"] == raw["completedTools"] == 1 and raw["cleanup"] == "passed" and raw["results"][0]["findings"] == []
+    check_publication_scan(directory, first, first_event, finding=False)
     retain_report(directory, "benign")
     mark(directory, "worker-delivery-and-restart")
-    start_receiver(directory)
+    start_receiver(directory, poll="1m")
     baseline = stats(directory)
-    signer = json.loads((directory / "private/receiver/signer.json").read_bytes())
-    body = json.dumps(first_event, separators=(",", ":")).encode()
-    timestamp = str(int(time.time()))
-    signature = hmac.new(signer["secret"].encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
-    assert receiver_request(directory, "POST", body, {"Content-Type": "application/cloudevents+json", "X-Catalog-Timestamp": timestamp,
-        "X-Catalog-Signature": "v1,kid=" + str(signer["version"]) + ",sha256=" + signature}) == 204
+    prior, prior_scan = observation(directory), native_report(directory)
+    finished = publication_receipt(directory, first_event["id"])
+    assert finished["completed_at"] is not None and finished["outcome"] == ""
+    check_duplicate_receipt(directory, first_event, finished)
     stop_receiver(directory)
+    # Give any accidentally requeued work a chance to run after restart.
+    call(receiver_args(directory, "process"), seconds=240)
     assert stats(directory) == baseline
-    assert receiver_sql(directory, "SELECT count(*) FROM mcp_receiver_inbox WHERE source='" + EVENT_SOURCE + "' AND id='" + first_event["id"] + "'") == "1"
+    assert observation(directory) == prior and native_report(directory) == prior_scan
     mark(directory, "duplicate-receipt")
+
     compose(directory, "stop", "--timeout", "20", "worker")
     second = publish(directory, 1)
-    mode(directory, "finding")
     third = publish(directory, 2)
     second_event, third_event = event(directory, second["id"]), event(directory, third["id"])
     start_receiver(directory)
+    # Let startup reconciliation see the benign definitions. Only the subsequent
+    # published event should collect and record the changed second page.
+    mode(directory, "finding")
     compose(directory, "up", "-d", "--no-deps", "--wait", "worker")
     wait("new release analysis", lambda: completed(directory, second_event["id"]) and completed(directory, third_event["id"]), 180)
     stop_receiver(directory)
     assert receiver_sql(directory, "SELECT outcome FROM mcp_receiver_inbox WHERE source='" + EVENT_SOURCE + "' AND id='" + second_event["id"] + "'") == "catalog_record_unavailable"
-    assert stats(directory)["methods"].get("tools/list") == baseline["methods"].get("tools/list", 0) + 2  # startup reconciliation plus one notification can reuse analysis
+    assert stats(directory)["methods"].get("tools/list") == baseline["methods"]["tools/list"] + 4  # two pages for startup and two for the current release event
     mark(directory, "out-of-order-releases")
-    saved, raw = observation(directory), native_report(directory)
-    assert saved["catalogEvidence"]["releaseId"] == third["id"] and raw["status"] == "completed" and raw["completedTools"] == 1
-    assert {f["details"]["content_type"] for f in raw["results"][0]["findings"]} == {"description"}
+    check_publication_scan(directory, third, third_event, finding=True)
     retain_report(directory, "finding")
     mark(directory, "finding-control")
     immutable, _ = reader.request("GET", "/api/v1/catalog/resources/" + third["id"])
@@ -681,18 +762,6 @@ def qualify(directory):
     assert stats(directory) == counts
     grant(directory, scoped=True)
     mark(directory, "revoked-catalog-access")
-    fault = directory / "private/fault-runner.py"
-    write(fault, ("import runpy,sys\nif sys.argv[1] == 'scan': raise SystemExit(2)\nrunpy.run_path(" + repr(str(HERE / "runner.py")) + ",run_name='__main__')\n").encode())
-    call(receiver_args(directory, "reconcile"))
-    # A different definition prevents the successful cache from hiding the fault.
-    mode(directory, "benign")
-    call(receiver_args(directory, "process", runner=fault), seconds=240)
-    failed = observation(directory)
-    assert failed["state"] == "failed" and failed["failure"] == "scanner_report_missing"
-    mark(directory, "scanner-process-failure")
-    # The receiver first recovers the failed scan without another notification.
-    recovered = refresh(directory)
-    assert recovered["state"] == "eligible_at_check" and recovered["catalogEvidence"]["releaseId"] == third["id"]
     endpoint_path = "/api/v1/webhooks/" + state["endpoint"]
     _, headers = api.request("GET", endpoint_path)
     mutate(api, "DELETE", endpoint_path, None, 204, header(headers, "ETag"))
@@ -700,8 +769,19 @@ def qualify(directory):
     missed_event = event(directory, missed["id"])
     wait("disabled endpoint event drained", lambda: sql(directory, "SELECT published_at IS NOT NULL FROM outbox_events WHERE id='" + missed_event["id"] + "'") == "t")
     assert receiver_sql(directory, "SELECT count(*) FROM mcp_receiver_inbox WHERE id='" + missed_event["id"] + "'") == "0"
+    # This release has never been scanned, so a cached result cannot mask the fault.
+    fault = directory / "private/fault-runner.py"
+    write(fault, ("import runpy,sys\nif sys.argv[1] == 'scan': raise SystemExit(2)\nrunpy.run_path(" + repr(str(HERE / "runner.py")) + ",run_name='__main__')\n").encode())
+    mode(directory, "benign")
+    call(receiver_args(directory, "reconcile"))
+    call(receiver_args(directory, "process", runner=fault), seconds=240)
+    failed = observation(directory)
+    assert failed["state"] == "failed" and failed["failure"] == "scanner_report_missing" and failed["attemptedReleaseId"] == missed["id"]
+    assert failed["catalogEvidence"]["releaseId"] == third["id"] and failed["scanSha256"] == saved["scanSha256"]
+    mark(directory, "scanner-process-failure")
     recovered = refresh(directory)
     assert recovered["state"] == "eligible_at_check" and recovered["catalogEvidence"]["releaseId"] == missed["id"] and recovered["trigger"]["source"] == "urn:catalog-mcp-scanner:reconciliation"
+    assert recovered["analysisReused"] is False and recovered["scanSha256"] != failed["scanSha256"]
     retain_report(directory, "reconciled")
     endpoint, _ = mutate(api, "POST", "/api/v1/webhooks", {"name": "Restored MCP Scanner receiver", "url": state["receiverURL"], "eventTypes": ["listing.release.published"]}, 201)
     write(directory / "private/receiver/signer.json", {"secret": endpoint["secret"], "version": endpoint["endpoint"]["secretVersion"]})
