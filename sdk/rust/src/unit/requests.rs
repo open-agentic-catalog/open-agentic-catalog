@@ -468,12 +468,15 @@ async fn typed_transport_failures_do_not_retry_and_an_explicit_call_recovers() {
 }
 
 #[tokio::test]
-async fn malformed_typed_command_header_is_refused_before_credentials_or_transport() {
-    let wire = br#"{"id":"00000000-0000-7000-8000-000000000001","tenantId":"00000000-0000-7000-8000-000000000002","slug":"unit","displayName":"Unit","revision":1,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"#;
+async fn typed_command_checks_headers_and_encoded_body_size_before_credentials_or_transport() {
+    let wire = br#"{"id":"00000000-0000-7000-8000-000000000001","tenantId":"00000000-0000-7000-8000-000000000002","slug":"unit","displayName":"Caf\u00e9","revision":1,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}"#;
+    let request_bytes = r#"{"displayName":"Café","slug":"unit"}"#.len();
+    let input = CreateNamespace::new("Café".into(), "unit".into());
     let transport = Scripted::new(vec![reply(201, wire)]);
     let calls = Arc::new(AtomicUsize::new(0));
     let acquired = calls.clone();
     let mut config = Config::new("https://catalog.example.com");
+    config.limits.request_bytes = request_bytes;
     config.token_provider = Some(Arc::new(move || {
         acquired.fetch_add(1, Ordering::SeqCst);
         Box::pin(async { Ok("unit-provider-token".into()) })
@@ -481,10 +484,7 @@ async fn malformed_typed_command_header_is_refused_before_credentials_or_transpo
     let client = Client::with_transport(config, transport.clone()).unwrap();
 
     let error = client
-        .create_namespace(
-            "private-command\r\ninjected: value",
-            CreateNamespace::new("Unit".into(), "unit".into()),
-        )
+        .create_namespace("private-command\r\ninjected: value", input.clone())
         .await
         .unwrap_err();
     assert!(!format!("{error:?} {error}").contains("private-command"));
@@ -492,11 +492,19 @@ async fn malformed_typed_command_header_is_refused_before_credentials_or_transpo
     assert_eq!(calls.load(Ordering::SeqCst), 0);
     assert!(transport.requests.lock().unwrap().is_empty());
 
-    let result = client
+    let error = client
         .create_namespace(
             "unit-command",
-            CreateNamespace::new("Unit".into(), "unit".into()),
+            CreateNamespace::new("Cafés".into(), "unit".into()),
         )
+        .await
+        .unwrap_err();
+    assert_transport_error(error, Error::RequestTooLarge);
+    assert_eq!(calls.load(Ordering::SeqCst), 0);
+    assert!(transport.requests.lock().unwrap().is_empty());
+
+    let result = client
+        .create_namespace("unit-command", input)
         .await
         .unwrap();
     assert_eq!(result.status, 201);
@@ -505,6 +513,12 @@ async fn malformed_typed_command_header_is_refused_before_credentials_or_transpo
     let requests = transport.requests.lock().unwrap();
     assert_eq!(requests.len(), 1);
     assert_eq!(requests[0].headers()["idempotency-key"], "unit-command");
+    let body = requests[0].body().unwrap().as_bytes().unwrap();
+    assert_eq!(body.len(), request_bytes);
+    assert_eq!(
+        serde_json::from_slice::<Value>(body).unwrap(),
+        json!({"slug":"unit", "displayName":"Café"})
+    );
 }
 
 #[tokio::test]
