@@ -71,8 +71,9 @@ def projection(source, contract, pin):
     """Only name the return value and insert comments; copy every executable body byte."""
     require(digest(contract) == pin["contractSHA256"], "formal contract drift")
     lines = contract.decode().splitlines()
-    require(len(lines) == 4 and all(line.startswith(prefix) for line, prefix in zip(lines,
-            ("//@ ensures ", "//@ ensures ", "//@ invariant ", "//@ decreases "), strict=True)), "invalid formal contract")
+    prefixes = ("//@ ensures ", "//@ ensures ", "//@ decreases ", "//@ invariant ", "//@ decreases ")
+    require(len(lines) == len(prefixes) and all(line.startswith(prefix) for line, prefix in zip(lines, prefixes, strict=True)),
+            "invalid formal contract")
     require(not re.search(r"\b(requires|assume|inhale|trusted)\b", contract.decode()), "forbidden proof assumption")
     source = source.decode()
     caller = function(source, "backoff")
@@ -82,8 +83,8 @@ def projection(source, contract, pin):
             "unsupported helper signature or annotations")
     loop = "\tfor attempt > 1 {"
     require(helper.count(loop) == 1, "unsupported helper loop")
-    body = helper.replace(SIGNATURE, NAMED, 1).replace(loop, "\n".join("\t" + line for line in lines[2:]) + "\n" + loop, 1)
-    return 'package jobs\nimport "time"\n' + "\n".join(lines[:2]) + "\n" + body + "\n"
+    body = helper.replace(SIGNATURE, NAMED, 1).replace(loop, "\n".join("\t" + line for line in lines[3:]) + "\n" + loop, 1)
+    return 'package jobs\nimport "time"\n' + "\n".join(lines[:3]) + "\n" + body + "\n"
 
 
 def validate(result, expected, commit):
@@ -105,8 +106,10 @@ def controls(proof):
     return {
         "valid": (proof, None),
         "false-specification": (change("//@ ensures 0 <", "//@ ensures ceiling == 0\n//@ ensures 0 <"), "Postcondition might not hold"),
-        "broken-arithmetic": (change("return time.Hour", "return 2 * time.Hour"), "Postcondition might not hold"),
+        "below-minimum": (change("return delay", "return delay - 1"), "Postcondition might not hold"),
+        "above-maximum": (change("return time.Hour", "return time.Hour + 1"), "Postcondition might not hold"),
         "nondecreasing-measure": (change("delay *= 3", "delay *= 1"), "Termination measure might not decrease"),
+        "recursive-at-cap": (change("return time.Hour", "return backoffCeiling(7)"), "Function might not terminate"),
         # Tool calibration is explicitly distinct from the application proof.
         # These expose weak-contract success and qualify parser/overflow diagnostics.
         "calibration-missing-contract": ("package probe\nfunc unconstrained(x int64) int64 { return 0 }\n", None),
@@ -200,7 +203,7 @@ def execute(root=ROOT):
     finally:
         report["seconds"] = round(time.monotonic() - start, 3)
         (evidence / "report.json").write_text(json.dumps(report, indent=2) + "\n")
-    print("Formal proof, three diagnostic controls and four tool calibrations passed.", flush=True)
+    print("Formal proof, five diagnostic controls and four tool calibrations passed.", flush=True)
     return report
 
 

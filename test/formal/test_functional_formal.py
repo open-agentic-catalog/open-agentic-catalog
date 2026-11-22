@@ -61,6 +61,7 @@ name = sys.argv[sys.argv.index('-i')+1]
 if any(name.endswith(x) for x in ('/valid.go', '/calibration-missing-contract.go', '/calibration-vacuous.go')):
  print('Gobra found 0 errors.'); sys.exit()
 message = 'Termination measure might not decrease' if 'nondecreasing' in name else 'Postcondition might not hold'
+if 'recursive-at-cap' in name: message = 'Function might not terminate'
 if 'calibration-unsupported' in name: message = "no viable alternative at input '['"
 if 'calibration-overflow' in name: message = 'Expression may cause integer overflow'
 if mode == 'wrong': message = 'unexpected parser failure'
@@ -123,7 +124,7 @@ sys.exit(1)
             with patch.dict(os.environ, env), contextlib.redirect_stdout(io.StringIO()):
                 report = formal.execute(root)
                 self.assertEqual(report["status"], "passed")
-                self.assertEqual(len(report["cases"]), 8)
+                self.assertEqual(len(report["cases"]), 10)
                 for mode, diagnostic in (("empty", "incomplete or failed formal proof"),
                                          ("wrong", "negative control failed for an unintended reason"),
                                          ("drift", "formal input changed during verification")):

@@ -24,7 +24,10 @@ class FormalUnitTests(unittest.TestCase):
         restored = "\n".join(line for line in projected.splitlines() if not line.strip().startswith("//@"))
         self.assertEqual(restored.replace(formal.NAMED, formal.SIGNATURE),
                          formal.function(self.source.decode(), "backoffCeiling"))
-        self.assertEqual(set(formal.controls(proof)), {"valid", "false-specification", "broken-arithmetic", "nondecreasing-measure", "calibration-missing-contract", "calibration-vacuous", "calibration-unsupported", "calibration-overflow"})
+        self.assertEqual(set(formal.controls(proof)), {
+            "valid", "false-specification", "below-minimum", "above-maximum", "nondecreasing-measure", "recursive-at-cap",
+            "calibration-missing-contract", "calibration-vacuous", "calibration-unsupported", "calibration-overflow",
+        })
         changed = self.source.replace(b"delay *= 3", b"delay *= 4")
         self.assertIn("delay *= 4", formal.projection(changed, self.contract, self.pin))
         for source in (self.source.replace(b"base := min(backoffCeiling(attempt), ceiling, 24*time.Hour-hint)", b"base := time.Hour"),
@@ -44,6 +47,9 @@ class FormalUnitTests(unittest.TestCase):
         # Updating the checksum cannot silently add preconditions or assumptions.
         contract = self.contract.replace(b"//@ ensures", b"//@ requires", 1)
         with self.assertRaises(ValueError):
+            formal.projection(self.source, contract, dict(self.pin, contractSHA256=formal.digest(contract)))
+        contract = self.contract.replace(b"//@ decreases 0\n", b"")
+        with self.assertRaisesRegex(ValueError, "invalid formal contract"):
             formal.projection(self.source, contract, dict(self.pin, contractSHA256=formal.digest(contract)))
 
     def test_complete_success_and_specific_failure_evidence(self):

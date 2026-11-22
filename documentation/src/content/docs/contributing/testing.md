@@ -1667,7 +1667,7 @@ Neither accepts a retained Catalog target. See [runtime qualification](../../../
 
 ## Focused formal verification
 
-`make test-formal` uses Gobra, Viper/Silicon and Z3 to verify one pure production helper: the Job retry ceiling in `internal/jobs/jobs.go`. It proves five-second/one-hour bounds, overflow safety, loop termination and a strictly positive random-selection bound for all signed 64-bit attempts. Expired-lease reclaims can exceed the configured retry limit, so the proof has no attempt-limit precondition. Ordinary tests retain the exact retry schedule, jitter and worker/store assertions.
+`make test-formal` uses Gobra, Viper/Silicon and Z3 to verify the Job retry ceiling in `internal/jobs/jobs.go`. For every signed 64-bit attempt, the helper terminates and returns a duration between five seconds and one hour without integer overflow. Adding one nanosecond to that ceiling gives a positive upper bound for jitter selection. Expired-lease reclaims can exceed the configured retry limit, so the proof has no attempt-limit precondition. Ordinary tests retain the exact retry schedule, jitter and worker/store assertions.
 
 Install and run separately:
 
@@ -1684,7 +1684,7 @@ The qualified host requires Linux amd64, Java 21 and `gh` for explicit installat
 
 The launcher copies the current helper body unchanged, adding only a named result and proof comments. Reviewed hashes bind the contract, concrete duration declarations and safe caller. Mandatory overflow checking uses signed 64-bit integers, matching the shipped application architectures.
 
-A pass requires the actual proof, three expected semantic failures and four tool calibrations. The calibrations demonstrate weak-contract success and exercise unsupported syntax and machine overflow. Missing or contradictory application contracts are rejected independently.
+A pass requires the actual proof, five expected semantic failures and four tool calibrations. The failure cases include results one nanosecond outside each bound, a loop that stops making progress and a recursive call at the retry cap. The calibrations demonstrate weak-contract success and exercise unsupported syntax and machine overflow. Missing or contradictory application contracts are rejected independently.
 
 An arbitrary nonzero exit never counts as a successful negative control.
 
