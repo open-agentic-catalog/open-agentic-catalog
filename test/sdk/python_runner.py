@@ -304,7 +304,7 @@ def build_packages(work, env):
 
 def package_sources():
     return [ROOT / "VERSION", ROOT / "api/openapi/control-v1.yaml", *sorted((SDK / "src").rglob("*.py")),
-            SDK / "src/catalog_sdk/py.typed", *(SDK / name for name in ("pyproject.toml", "README.md", "LICENSE", "NOTICE"))]
+            SDK / "src/catalog_sdk/py.typed", *(SDK / name for name in (".gitignore", "pyproject.toml", "README.md", "LICENSE", "NOTICE"))]
 
 
 def package():

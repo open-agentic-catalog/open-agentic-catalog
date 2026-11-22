@@ -115,6 +115,7 @@ class PythonRunnerUnits(unittest.TestCase):
             root = Path(directory)
             sdk = root / "sdk/python"
             sources = {"VERSION": "0.1.0\n", "api/openapi/control-v1.yaml": "openapi: 3.1.0\n",
+                       "sdk/python/.gitignore": "__pycache__/\n",
                        "sdk/python/pyproject.toml": "[project]\nname = 'fixture'\n", "sdk/python/README.md": "SDK guide\n",
                        "sdk/python/LICENSE": "Apache License 2.0\n", "sdk/python/NOTICE": "Template attribution\n",
                        "sdk/python/src/catalog_sdk/client.py": "value = 'original'\n", "sdk/python/src/catalog_sdk/py.typed": "",
