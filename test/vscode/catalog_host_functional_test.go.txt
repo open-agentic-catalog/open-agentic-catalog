@@ -589,7 +589,7 @@ func vscodePlugins(t *testing.T) (map[string][]byte, []string, string) {
 	var calls atomic.Int32
 	peer := vscodeTLS(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
-			t.Error("Catalog credential reached Plugin archive peer")
+			t.Error("Unexpected credential or cookie reached anonymous Plugin archive peer")
 			w.WriteHeader(403)
 			return
 		}
@@ -604,8 +604,8 @@ func vscodePlugins(t *testing.T) (map[string][]byte, []string, string) {
 	}))
 	t.Cleanup(func() {
 		peer.Close()
-		if calls.Load() != 2 {
-			t.Errorf("Plugin archive downloads: %d, want exactly two (browse/no-op must not download)", calls.Load())
+		if got := calls.Load(); got != 3 {
+			t.Errorf("Plugin archive downloads: %d, want three (install, update and fresh consent in the remaining workspace)", got)
 		}
 	})
 	var urls []string

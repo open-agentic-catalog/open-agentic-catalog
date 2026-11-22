@@ -288,8 +288,6 @@ export class CatalogPlugins implements vscode.Disposable {
       guard();
       await read();
       guard();
-      // Register false BEFORE any installed directory appears. A crash cannot enable it.
-      await locations.set(destination, current, false, guard);
       const work = await store.temporary();
       try {
         await vscode.window.withProgress(
@@ -306,10 +304,11 @@ export class CatalogPlugins implements vscode.Disposable {
               cancelled.signal,
               this.session.cancellation(),
             ]);
+            let expectedLocation = current;
             const fence = () => {
               guard();
               if (signal.aborted) throw new ClientError("package_cancelled");
-              if (locations.value(destination) !== false)
+              if (locations.value(destination) !== expectedLocation)
                 throw new ClientError("plugin_configuration_changed");
             };
             try {
@@ -327,6 +326,12 @@ export class CatalogPlugins implements vscode.Disposable {
                 credential,
               );
               fence();
+              // Expose only verified files, with native loading already disabled.
+              if (expectedLocation === undefined) {
+                await locations.set(destination, undefined, false, guard);
+                expectedLocation = false;
+                fence();
+              }
               await store.install(
                 plan,
                 content,

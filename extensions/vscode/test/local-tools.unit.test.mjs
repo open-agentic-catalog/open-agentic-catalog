@@ -327,6 +327,11 @@ for (const kind of ["skill", "plugin"]) {
         "A stale or canceled choice must not start a download",
       );
       assert.equal(await store.get(name), undefined);
+      assert.equal(
+        f.writes,
+        0,
+        "Refusing acquisition must preserve native settings",
+      );
       assert.equal(f.cancel, undefined, "Progress listener should be released");
     }
     f.folders = [original];
@@ -337,6 +342,46 @@ for (const kind of ["skill", "plugin"]) {
     assert.deepEqual(await readdir(replacement), []);
   });
 }
+
+test("Plugin archive failure and a registration changed during download preserve native settings", async (t) => {
+  const { root, plugins, browser } = await setup(t);
+  const plugin = pluginFixture();
+  f.representation = plugin.representation;
+  browser.state.detail = {
+    item: { kind: "plugin", releaseId: "owned-release" },
+    facts: [],
+  };
+  const store = new SkillStore(root, "plugin");
+  const path = join(store.destination, plugin.plan.name);
+  const original = { ...f.locations };
+  const offline = new Error("fixture archive unavailable");
+  f.acquire = async () => {
+    throw offline;
+  };
+  await assert.rejects(plugins.install(0, root), (error) => error === offline);
+  assert.deepEqual(f.locations, original);
+  assert.equal(f.writes, 0);
+  assert.equal(await store.get(plugin.plan.name), undefined);
+
+  const bytes = unpackPackage(plugin.plan, plugin.archive);
+  f.acquire = async () => {
+    f.locations[path] = true;
+    return bytes;
+  };
+  await assert.rejects(plugins.install(0, root), {
+    code: "plugin_configuration_changed",
+  });
+  assert.deepEqual(f.locations, { ...original, [path]: true });
+  assert.equal(f.writes, 0);
+  assert.equal(await store.get(plugin.plan.name), undefined);
+
+  f.locations[path] = false;
+  f.acquire = async () => bytes;
+  await plugins.install(0, root);
+  assert.equal((await store.get(plugin.plan.name)).name, plugin.plan.name);
+  assert.deepEqual(f.locations, { ...original, [path]: false });
+  assert.equal(f.writes, 0, "An already-disabled path needs no settings write");
+});
 
 test("Skill and Plugin removal consent cannot transfer to a replacement receipt", async (t) => {
   for (const kind of ["skill", "plugin"]) {
