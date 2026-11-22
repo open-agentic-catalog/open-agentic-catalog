@@ -49,6 +49,8 @@ func TestPropertySearchCompleteLexicalTraversal(t *testing.T) {
 		order := rapid.SampledFrom([]SearchOrder{"", SearchOrderNameAsc, SearchOrderNameDesc, SearchOrderKindAsc, SearchOrderKindDesc, SearchOrderPublisherAsc, SearchOrderPublisherDesc}).Draw(rt, "order")
 		limit := rapid.IntRange(1, 3).Draw(rt, "page size")
 		count := rapid.IntRange(6, 12).Draw(rt, "identity groups")
+		publishers := [...]string{"Zulu Tools", "Alpha Labs", "", "ZULU TOOLS"}
+		publisherCount := rapid.IntRange(1, len(publishers)).Draw(rt, "publisher count")
 		all, locals, indexed := []CatalogSearchResult{}, []CatalogSummary{}, []CatalogSearchResult{}
 		expected := make([]CatalogSearchResult, 0, count)
 		for i := range count {
@@ -59,10 +61,12 @@ func TestPropertySearchCompleteLexicalTraversal(t *testing.T) {
 			}
 			name := rapid.SampledFrom([]string{" Alpha ", "ALPHA", "Éclair", "界", "beta"}).Draw(rt, "name")
 			score := rapid.IntRange(1, 3).Draw(rt, "score")
+			// Indexed publishers may be missing or tie after case normalization.
+			publisherIndex := i % publisherCount
 			item := CatalogSearchResult{ID: IndexedSearchResultID(identifier, version, present), Type: SearchResultIndexed,
 				Identifier: identifier, Version: version, VersionPresent: present, DisplayName: name,
 				Kind: []Kind{KindAgent, KindMCPServer, KindSkill, KindPlugin}[i%4], Score: score,
-				Publisher: "publisher-local", Tags: []string{"keep"}, Indexed: &IndexedSearchEvidence{}}
+				Publisher: publishers[publisherIndex], Tags: []string{"keep"}, Indexed: &IndexedSearchEvidence{}}
 			all = append(all, item)
 			// Every group has a lower-precedence live copy, with a deliberately
 			// greater score. Identity includes omitted versus present-empty version.
@@ -74,11 +78,20 @@ func TestPropertySearchCompleteLexicalTraversal(t *testing.T) {
 			if present && version != "" && i%2 == 0 {
 				local := unifiedLocalRecord(fmt.Sprintf("release-%d", i), identifier, name, score)
 				local.Resource.Kind = item.Kind
+				local.ListingRevision.PublisherID = fmt.Sprintf("publisher-%d", publisherIndex)
+				if rapid.Bool().Draw(rt, "local publisher display available") {
+					local.Display = &CatalogPresentation{PublisherName: item.Publisher}
+				}
 				local.ListingRevision.Tags = []string{"keep"}
 				locals = append(locals, local)
 				winner.ID, winner.Type, winner.Indexed = "local:"+local.Release.ID, SearchResultLocal, nil
 				winner.Local = new(local.SearchLocal())
+				winner.Publisher = local.ListingRevision.PublisherID
 				all = append(all, winner)
+				// The local result carries the ID, but sorts by the label when available.
+				if local.Display != nil && item.Publisher != "" {
+					winner.Publisher = item.Publisher
+				}
 			} else {
 				indexed = append(indexed, item)
 			}
@@ -106,27 +119,36 @@ func TestPropertySearchCompleteLexicalTraversal(t *testing.T) {
 			if p == nil {
 				return true
 			}
+			// The repositories compare stored keys to the cursor as supplied.
+			// Normalizing a malformed cursor in the comparator would hide it.
+			if p.DisplayName != propertySearchName(p.DisplayName) || p.SortValue != propertySearchName(p.SortValue) {
+				rt.Fatalf("unnormalized continuation keys: name=%q sort=%q", p.DisplayName, p.SortValue)
+			}
 			previous := CatalogSearchResult{ID: p.ResultID, DisplayName: p.DisplayName, Score: p.Score, Publisher: p.SortValue, Kind: Kind(p.SortValue)}
 			return propertySearchLess(previous, item, order)
 		}
-		generation := "42"
+		const initialLocal, initialIndexed = "local-1", "indexed-1"
+		localGeneration, indexedGeneration := initialLocal, initialIndexed
 		repo := &unifiedSearchRepository{search: func(_ context.Context, tenant string, request CatalogSearchRepositoryRequest) (CatalogSearchRepositoryPage, error) {
 			if tenant != "tenant-1" || !slices.Equal(request.Query.Tags, []string{"keep"}) || request.Query.Order != order {
 				rt.Fatal("local query lost its tenant/filter/order context")
 			}
+			projection := func(row CatalogSummary) CatalogSearchResult {
+				publisher := row.ListingRevision.PublisherID
+				if row.Display != nil && row.Display.PublisherName != "" {
+					publisher = row.Display.PublisherName
+				}
+				return CatalogSearchResult{ID: "local:" + row.Release.ID, DisplayName: row.ListingRevision.DisplayName, Score: row.RelevanceScore, Kind: row.Resource.Kind, Publisher: publisher}
+			}
 			items := []CatalogSummary{}
 			for _, row := range locals {
-				item := CatalogSearchResult{ID: "local:" + row.Release.ID, DisplayName: row.ListingRevision.DisplayName, Score: row.RelevanceScore, Kind: row.Resource.Kind, Publisher: row.ListingRevision.PublisherID}
-				if after(item, request.After) {
+				if after(projection(row), request.After) {
 					items = append(items, row)
 				}
 			}
-			projection := func(row CatalogSummary) CatalogSearchResult {
-				return CatalogSearchResult{ID: "local:" + row.Release.ID, DisplayName: row.ListingRevision.DisplayName, Score: row.RelevanceScore, Kind: row.Resource.Kind, Publisher: row.ListingRevision.PublisherID}
-			}
 			sort.Slice(items, func(i, j int) bool { return propertySearchLess(projection(items[i]), projection(items[j]), order) })
 			more := len(items) > request.Limit
-			return CatalogSearchRepositoryPage{Items: items[:min(request.Limit, len(items))], HasMore: more, Total: len(locals), Generation: generation}, nil
+			return CatalogSearchRepositoryPage{Items: items[:min(request.Limit, len(items))], HasMore: more, Total: len(locals), Generation: localGeneration}, nil
 		}}
 		external := unifiedFederatedSearcher{search: func(_ context.Context, request FederatedCatalogSearchRequest) (FederatedCatalogSearchPage, error) {
 			if !slices.Equal(request.Query.Tags, []string{"keep"}) || request.Query.Order != order {
@@ -140,7 +162,7 @@ func TestPropertySearchCompleteLexicalTraversal(t *testing.T) {
 			}
 			sort.Slice(items, func(i, j int) bool { return propertySearchLess(items[i], items[j], order) })
 			more := len(items) > request.Limit
-			return FederatedCatalogSearchPage{Indexed: items[:min(request.Limit, len(items))], HasMore: more, IndexedTotal: len(indexed), Generation: generation}, nil
+			return FederatedCatalogSearchPage{Indexed: items[:min(request.Limit, len(items))], HasMore: more, IndexedTotal: len(indexed), Generation: indexedGeneration}, nil
 		}}
 		service := newUnifiedSearchTestService(t, repo, external)
 		query := SearchQuery{Limit: limit, Order: order, Tags: []string{"keep"}}
@@ -186,9 +208,12 @@ func TestPropertySearchCompleteLexicalTraversal(t *testing.T) {
 		if _, err := service.Search(unifiedReaderContext(), changed); ErrorCodeOf(err) != CodeInvalidArgument {
 			rt.Fatalf("changed binding did not refuse: %v", err)
 		}
-		generation = "43"
-		if _, err := service.Search(unifiedReaderContext(), query); ErrorCodeOf(err) != CodeInvalidArgument {
-			rt.Fatalf("changed generation did not refuse: %v", err)
+		for _, generations := range []struct{ local, indexed string }{{"local-2", initialIndexed}, {initialLocal, "indexed-2"}} {
+			localGeneration, indexedGeneration = generations.local, generations.indexed
+			page, err := service.Search(unifiedReaderContext(), query)
+			if ErrorCodeOf(err) != CodeInvalidArgument || len(page.Items) != 0 || page.NextCursor != "" {
+				rt.Fatalf("stale cursor with local=%q indexed=%q returned %d items, cursor=%t, error=%v", localGeneration, indexedGeneration, len(page.Items), page.NextCursor != "", err)
+			}
 		}
 	})
 }
