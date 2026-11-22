@@ -56,13 +56,12 @@ const configuration = ["first", "second"].map((id) => ({
   auth: "manual",
 }));
 const commands = new Map();
-const saved = new Map();
+const configurationListeners = new Set();
 const requests = [];
 const errors = [];
 const status = { show() {}, dispose() {} };
 let prompt;
 let input;
-let deletion;
 let bridge;
 const frames = [];
 const openedHelp = [];
@@ -147,13 +146,16 @@ globalThis.catalogCommandFixture = {
           configuration.splice(0, configuration.length, ...value);
         },
       }),
-      onDidChangeConfiguration: () => ({ dispose() {} }),
+      onDidChangeConfiguration: (listener) => {
+        configurationListeners.add(listener);
+        return { dispose: () => configurationListeners.delete(listener) };
+      },
     },
     commands: {
       executeCommand: async (...args) => openedHelp.push(args),
       registerCommand: (name, action) => {
         commands.set(name, action);
-        return { dispose() {} };
+        return { dispose: () => commands.delete(name) };
       },
     },
     env: { uriScheme: "vscode" },
@@ -199,34 +201,151 @@ const { activate } = await import(
   new URL("extension.js", pathToFileURL(process.env.CATALOG_VSCODE_LIB))
 );
 
-test("native prompts and browser handoffs stay bound to the selected session", async (t) => {
-  t.after(() => {
-    hooks.deregister();
-    delete globalThis.catalogCommandFixture;
-  });
+test.after(() => {
+  hooks.deregister();
+  delete globalThis.catalogCommandFixture;
+});
+
+async function activateCommands(t) {
+  requests.length = 0;
+  errors.length = 0;
+  const originalConfiguration = [...configuration];
   const subscriptions = [];
   const directory = await mkdtemp(join(tmpdir(), "catalog-commands-"));
-  t.after(() => rm(directory, { recursive: true, force: true }));
+  t.after(async () => {
+    for (const subscription of subscriptions) subscription.dispose();
+    configuration.splice(0, configuration.length, ...originalConfiguration);
+    await rm(directory, { recursive: true, force: true });
+  });
+  const saved = new Map();
+  const secrets = {
+    get: async (key) => saved.get(key),
+    store: async (key, value) => {
+      saved.set(key, value);
+    },
+    delete: async (key) => {
+      saved.delete(key);
+    },
+    onDidChange: () => ({ dispose() {} }),
+  };
+  const state = new Map();
   const api = await activate({
     subscriptions,
     extension: { id: "open-agentic-catalog.open-agentic-catalog" },
     globalStorageUri: { fsPath: directory },
     extensionUri: { toString: () => "file:///owned-extension" },
-    globalState: { get: () => undefined, update: async () => undefined },
-    secrets: {
-      get: async (key) => saved.get(key),
-      store: async (key, value) => {
-        saved.set(key, value);
+    globalState: {
+      get: (key) => structuredClone(state.get(key)),
+      update: async (key, value) => {
+        if (value === undefined) state.delete(key);
+        else state.set(key, structuredClone(value));
       },
-      delete: async (key) => {
-        if (deletion) await deletion(key);
-        saved.delete(key);
-      },
-      onDidChange: () => ({ dispose() {} }),
     },
+    secrets,
   });
-  t.after(() => {
-    for (const subscription of subscriptions) subscription.dispose();
+  return { api, saved, secrets };
+}
+
+test("confirming removal cannot delete the bookmark that moved into the selected row", async (t) => {
+  const { api } = await activateCommands(t);
+  await api.select("first");
+  await api.authenticate("reader");
+  const identifiers = [
+    "urn:air:example.com:test:first",
+    "urn:air:example.com:test:second",
+  ];
+  for (const identifier of identifiers) {
+    api.browsing().detail = {
+      item: {
+        key: identifier,
+        origin: "indexed",
+        identifier,
+        versionPresent: false,
+        kind: "agent",
+        name: identifier,
+        description: "",
+        tags: [],
+        references: [],
+      },
+      references: [],
+      facts: [],
+      documents: [],
+    };
+    await api.saveBookmark();
+  }
+  const references = identifiers.map((identifier) => ({
+    identifier,
+    versionPresent: false,
+  }));
+  assert.deepEqual(api.browsing().bookmarks, references);
+  const confirmation = t.mock.method(
+    globalThis.catalogCommandFixture.vscode.window,
+    "showWarningMessage",
+    async () => "Remove reference",
+  );
+  confirmation.mock.mockImplementationOnce(async () => {
+    await api.removeBookmark(0);
+    return "Remove reference";
+  });
+  const remove = commands.get("openAgenticCatalog.removeReference");
+  await remove(0);
+  assert.equal(errors.length, 1);
+  assert.match(errors.pop(), /selection_changed/u);
+  await api.browse({});
+  assert.deepEqual(api.browsing().bookmarks, [references[1]]);
+  await remove(0);
+  await api.browse({});
+  assert.deepEqual(errors, []);
+  assert.deepEqual(api.browsing().bookmarks, []);
+});
+
+test("a failed configuration reload cannot clear a newer selection of the same connection", async (t) => {
+  const { api, secrets } = await activateCommands(t);
+  const original = [...configuration];
+  function settingsChanged() {
+    for (const listener of configurationListeners)
+      listener({
+        affectsConfiguration: (key) => key === "openAgenticCatalog.connections",
+      });
+  }
+  await api.select("first");
+  await api.authenticate("reader");
+  await api.test();
+  configuration[1] = { ...original[1], label: "Other connection renamed" };
+  settingsChanged();
+  assert.equal(api.snapshot()?.identity.subject, "reader");
+
+  const readStarted = deferred();
+  const finishRead = deferred();
+  t.mock.method(secrets, "get").mock.mockImplementationOnce(async () => {
+    readStarted.resolve();
+    await finishRead.promise;
+    throw new Error("previous selection could not read credentials");
+  });
+  configuration[0] = { ...original[0], label: "First renamed" };
+  settingsChanged();
+  await readStarted.promise;
+  assert.equal(api.snapshot(), undefined);
+  await api.select("second");
+  configuration[0] = original[0];
+  await api.select("first");
+  await api.test();
+
+  const rendered = deferred();
+  t.mock.method(status, "show", () => rendered.resolve());
+  finishRead.resolve();
+  await rendered.promise;
+  assert.match(status.tooltip, /https:\/\/first\.example; reader; tenant/u);
+  assert.equal(api.snapshot()?.identity.subject, "reader");
+});
+
+test("native prompts and browser handoffs stay bound to the selected session", async (t) => {
+  const { api, saved, secrets } = await activateCommands(t);
+  let deletion;
+  const deleteSecret = secrets.delete;
+  t.mock.method(secrets, "delete", async (key) => {
+    if (deletion) await deletion(key);
+    return deleteSecret(key);
   });
   // Offline Help works before authentication in both exact maintained layouts.
   for (const layout of ["README.md", "readme.md"]) {

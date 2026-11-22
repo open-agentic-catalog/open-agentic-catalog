@@ -139,7 +139,8 @@ export class CatalogOpinions implements vscode.Disposable {
     };
     input.buttons = editing ? [paste, keep] : [paste];
     let full: string | undefined,
-      changing = false;
+      changing = false,
+      editRevision = 0;
     const retain = (value: string) => {
       feedbackText(value);
       full = value;
@@ -162,20 +163,29 @@ export class CatalogOpinions implements vscode.Disposable {
             input.value = "";
             fail(new ClientError("connection_changed"));
           }),
-          input.onDidHide(() => resolve(undefined)),
+          input.onDidHide(() => {
+            editRevision++;
+            resolve(undefined);
+          }),
           input.onDidChangeValue(() => {
-            if (!changing) full = undefined;
+            if (!changing) {
+              editRevision++;
+              full = undefined;
+            }
           }),
           input.onDidTriggerButton(async (button) => {
+            const revision = ++editRevision;
             try {
               check();
               const value =
                 button === keep
                   ? initial
                   : await vscode.env.clipboard.readText();
+              if (revision !== editRevision) return;
               check();
               retain(value);
             } catch (error) {
+              if (revision !== editRevision) return;
               if (
                 error instanceof ClientError &&
                 error.code === "connection_changed"

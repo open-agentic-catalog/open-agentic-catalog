@@ -313,13 +313,18 @@ export class CatalogPlugins implements vscode.Disposable {
                 throw new ClientError("plugin_configuration_changed");
             };
             try {
+              fence();
+              const credential = await this.packageCredentials?.select(
+                plan.sources[0]!,
+              );
+              fence();
               const content = await acquirePackage(
                 plan,
                 plan.sources[0]!,
                 work,
                 tools,
                 signal,
-                await this.packageCredentials?.select(plan.sources[0]!),
+                credential,
               );
               fence();
               await store.install(

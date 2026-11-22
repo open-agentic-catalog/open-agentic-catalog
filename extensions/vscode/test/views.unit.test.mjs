@@ -5,15 +5,17 @@ import { pathToFileURL } from "node:url";
 
 // Exercise the real view owner with inert editor tabs and content providers.
 class EventEmitter {
-  listeners = [];
+  listeners = new Set();
   event = (listener) => {
-    this.listeners.push(listener);
-    return { dispose() {} };
+    this.listeners.add(listener);
+    return { dispose: () => this.listeners.delete(listener) };
   };
   fire(value) {
     for (const listener of this.listeners) listener(value);
   }
-  dispose() {}
+  dispose() {
+    this.listeners.clear();
+  }
 }
 class TabInputText {
   constructor(uri) {
@@ -44,8 +46,10 @@ const vscode = {
     createTreeView: () => ({ dispose() {} }),
     tabGroups: { all: [], onDidChangeTabs: closed.event },
     showTextDocument: async () => undefined,
+    showSaveDialog: async () => undefined,
   },
   workspace: {
+    fs: { writeFile: async () => {} },
     onDidChangeWorkspaceFolders: () => ({ dispose() {} }),
     registerTextDocumentContentProvider: (_, value) => {
       provider = value;
@@ -78,6 +82,46 @@ const { CatalogViews } = await import(
   new URL("views.js", pathToFileURL(process.env.CATALOG_VSCODE_LIB))
 );
 
+test.after(() => {
+  hooks.deregister();
+  delete globalThis.catalogViewsFixture;
+});
+
+test("document export writes exact bytes only while the selected record is current", async (t) => {
+  const state = { detail: { item: { key: "original" } } };
+  const views = new CatalogViews(
+    {},
+    {
+      state,
+      onChange: new EventEmitter().event,
+      document: async (index) => {
+        assert.equal(index, 0);
+        return { bytes: Uint8Array.of(0, 255, 65) };
+      },
+    },
+    { onChange: changed.event, connection: () => ({}), guard: () => () => {} },
+  );
+  t.after(() => views.dispose());
+  const destination = vscode.Uri.parse("file:///owned/export");
+  const save = t.mock.method(
+    vscode.window,
+    "showSaveDialog",
+    async () => destination,
+  );
+  const write = t.mock.method(vscode.workspace.fs, "writeFile");
+  await views.inspect(0, true);
+  assert.deepEqual(
+    write.mock.calls.map((call) => call.arguments),
+    [[destination, Uint8Array.of(0, 255, 65)]],
+  );
+  save.mock.mockImplementationOnce(async () => {
+    state.detail = { item: { key: "replacement" } };
+    return destination;
+  });
+  await assert.rejects(views.inspect(0, true), { code: "selection_changed" });
+  assert.equal(write.mock.callCount(), 1);
+});
+
 test("evidence follows text and diff tab references and redacts on session change", async (t) => {
   const views = new CatalogViews(
     {},
@@ -88,11 +132,7 @@ test("evidence follows text and diff tab references and redacts on session chang
       connection: () => ({}),
     },
   );
-  t.after(() => {
-    views.dispose();
-    hooks.deregister();
-    delete globalThis.catalogViewsFixture;
-  });
+  t.after(() => views.dispose());
   const uris = [];
   const open = vscode.workspace.openTextDocument;
   vscode.workspace.openTextDocument = async (uri) => {

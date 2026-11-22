@@ -184,6 +184,62 @@ test("native feedback rejects invalid clipboard without retaining it and redacts
 });
 process.on("exit", () => hook.deregister());
 
+test("an older clipboard reply cannot replace newer feedback or mark it invalid", async (t) => {
+  const f = fixture();
+  t.after(() => f.host.dispose());
+  for (const lateResult of ["text", "error"]) {
+    const reply = Promise.withResolvers();
+    const opened = Promise.withResolvers();
+    scenario = {
+      clipboard: reply.promise,
+      drive(input, callbacks) {
+        opened.resolve({ input, callbacks });
+      },
+    };
+    const editing = f.host.text("", false);
+    const { input, callbacks } = await opened.promise;
+    const oldPaste = callbacks.button(input.buttons[0]);
+    if (lateResult === "text") {
+      input.value = "More recent typing";
+      reply.resolve("Old clipboard contents");
+    } else {
+      scenario.clipboard = "Second paste\nwith a new line";
+      await callbacks.button(input.buttons[0]);
+      reply.reject(new Error("private clipboard error"));
+    }
+    await oldPaste;
+    callbacks.accept();
+    assert.equal(input.validationMessage, undefined);
+    assert.equal(
+      await editing,
+      lateResult === "text"
+        ? "More recent typing"
+        : "Second paste\nwith a new line",
+    );
+  }
+});
+
+test("canceling feedback discards a paste that is still reading the clipboard", async (t) => {
+  const f = fixture();
+  t.after(() => f.host.dispose());
+  const reply = Promise.withResolvers();
+  const pending = Promise.withResolvers();
+  scenario = {
+    clipboard: reply.promise,
+    drive(input, callbacks) {
+      pending.resolve({ input, paste: callbacks.button(input.buttons[0]) });
+      input.hide();
+    },
+  };
+  assert.equal(await f.host.text("", false), undefined);
+  const { input, paste } = await pending.promise;
+  assert.equal(input.disposed, true);
+  reply.resolve("Late clipboard contents");
+  await paste;
+  assert.equal(input.value, "");
+  assert.equal(input.validationMessage, undefined);
+});
+
 test("recent feedback, refresh and submission-order switches restart only the private page", async () => {
   const f = fixture(),
     calls = [];
@@ -253,4 +309,38 @@ test("private native personal lists close immediately on account invalidation", 
   );
   assert.equal(f.listeners.size, 1);
   f.host.dispose();
+});
+
+test("a feedback page returned after an account change never reaches the picker", async (t) => {
+  const f = fixture();
+  t.after(() => f.host.dispose());
+  const reply = Promise.withResolvers();
+  const entered = Promise.withResolvers();
+  f.host.opinions = {
+    clear() {},
+    page: async () => {
+      entered.resolve();
+      return reply.promise;
+    },
+  };
+  const picker = t.mock.method(
+    globalThis.opinionNativeFixture.window,
+    "showQuickPick",
+    async () => undefined,
+  );
+  const listing = f.host.list("feedback");
+  await entered.promise;
+  f.change();
+  reply.resolve({
+    items: [
+      {
+        id: "old-account-id",
+        category: "problem",
+        state: "addressed",
+        response: "Private moderator reply",
+      },
+    ],
+  });
+  await assert.rejects(listing, { code: "connection_changed" });
+  assert.equal(picker.mock.callCount(), 0);
 });

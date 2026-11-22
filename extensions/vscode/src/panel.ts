@@ -159,6 +159,7 @@ export function guidance(
     };
   if (
     error === "request_canceled" ||
+    error === "request_cancelled" ||
     error === "aborted" ||
     error === "cancelled"
   )

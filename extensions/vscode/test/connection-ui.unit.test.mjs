@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { registerHooks } from "node:module";
+import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const hooks = registerHooks({
@@ -21,13 +22,13 @@ const hooks = registerHooks({
   },
 });
 let values = [],
+  groups = {},
   steps = [],
   failures = [],
   scope = {},
   updates = 0,
   writeMode = "save";
-const groups = {},
-  opened = [];
+const opened = [];
 const Back = {};
 class Input {
   value = "";
@@ -140,6 +141,7 @@ const add = (label = "New") => [
 ];
 function reset() {
   values = [structuredClone(first)];
+  groups = {};
   steps = [];
   failures = [];
   scope = {};
@@ -151,6 +153,10 @@ function finished() {
   assert.deepEqual(failures, []);
   assert.deepEqual(steps, []);
 }
+test.after(() => {
+  hooks.deregister();
+  delete globalThis.connectionUIFixture;
+});
 test("setup Help retains unsaved answers and uses a fixed offline target", async () => {
   reset();
   steps = [
@@ -304,11 +310,34 @@ test("connection saves recheck newly conflicting IDs and workspace scope before 
   assert.equal(updates, 0);
   assert.deepEqual(values, [first]);
 });
-test("transport navigation uses fixed setting IDs and path edits preserve fresh values", async (t) => {
-  t.after(() => {
-    hooks.deregister();
-    delete globalThis.connectionUIFixture;
+test("a workspace override introduced while editing the Agent CA path prevents a global write", async () => {
+  reset();
+  const original = resolve("original.pem");
+  const replacement = resolve("new.pem");
+  groups.a2a = { caFile: original, timeoutMs: 5000 };
+  const edit = (before) => [
+    (items) => items.find((item) => item.id === "a2a"),
+    (items) => items.find((item) => item.key === "caFile"),
+    answer("caFile", replacement, before),
+  ];
+  steps = edit(() => {
+    scope = { workspaceFolderValue: { caFile: resolve("folder.pem") } };
   });
+  await assert.rejects(transportSettings(), {
+    code: "workspace_settings_refused",
+  });
+  finished();
+  assert.equal(updates, 0);
+  assert.deepEqual(groups.a2a, { caFile: original, timeoutMs: 5000 });
+  scope = {};
+  steps = edit();
+  await transportSettings();
+  finished();
+  assert.equal(updates, 1);
+  assert.deepEqual(groups.a2a, { caFile: replacement, timeoutMs: 5000 });
+});
+
+test("transport navigation uses fixed setting IDs and path edits preserve fresh values", async () => {
   reset();
   steps = [(items) => items.find((item) => item.id === "connections")];
   await transportSettings();
