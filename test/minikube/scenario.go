@@ -122,7 +122,7 @@ func (h *harness) execute() error {
 		return h.verifyAutoscaling(runID, initialSmoke)
 	}
 	if h.options.scenario == "cert-manager" {
-		return h.verifyCertificateRenewal()
+		return h.verifyCertificateRenewal(initialSmoke)
 	}
 	if h.options.scenario == "backup-restore" {
 		return h.verifyBackupRestore(baseURL, initialSmoke)

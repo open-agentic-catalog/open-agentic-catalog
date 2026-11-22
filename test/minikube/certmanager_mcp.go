@@ -6,32 +6,62 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 )
 
-func (h *harness) verifyCertificateMCP(client *http.Client) error {
+type smokeRelease struct {
+	ReleaseID  string `json:"releaseId"`
+	Identifier string `json:"identifier"`
+}
+
+func (h *harness) verifyCertificateMCPRead(client *http.Client, version, method string, want smokeRelease) error {
+	response, err := h.mcpRequestWithClient("https://"+certificateHost, version, method, client)
+	if err != nil {
+		return err
+	}
+	var reply struct {
+		ID      int             `json:"id"`
+		JSONRPC string          `json:"jsonrpc"`
+		Error   json.RawMessage `json:"error"`
+		Result  struct {
+			Tools   []json.RawMessage `json:"tools"`
+			IsError bool              `json:"isError"`
+			Content struct {
+				Data struct {
+					Items []struct {
+						ID         string `json:"id"`
+						Identifier string `json:"identifier"`
+						Type       string `json:"type"`
+					} `json:"items"`
+				} `json:"data"`
+			} `json:"structuredContent"`
+		} `json:"result"`
+	}
+	if response.Status != http.StatusOK || json.Unmarshal(response.Body, &reply) != nil || reply.JSONRPC != "2.0" || reply.ID != 1 || len(reply.Error) != 0 || reply.Result.IsError {
+		return fmt.Errorf("authenticated MCP ingress %s failed (HTTP %d)", method, response.Status)
+	}
+	if method == "tools/list" {
+		if len(reply.Result.Tools) != 6 {
+			return errors.New("MCP ingress lost tool inventory")
+		}
+		return nil
+	}
+	for _, item := range reply.Result.Content.Data.Items {
+		if item.Type == "local" && item.ID == "local:"+want.ReleaseID && item.Identifier == want.Identifier {
+			return nil
+		}
+	}
+	return errors.New("MCP ingress Search did not return the published smoke release and its identifier")
+}
+
+func (h *harness) verifyCertificateMCP(client *http.Client, want smokeRelease) error {
 	base := "https://" + certificateHost
 	for _, version := range []string{"2026-07-28", "2025-11-25"} {
 		for _, method := range []string{"tools/list", "tools/call"} {
-			response, err := h.mcpRequestWithClient(base, version, method, client)
-			var reply struct {
-				Error  json.RawMessage `json:"error"`
-				Result struct {
-					Tools   []json.RawMessage `json:"tools"`
-					IsError bool              `json:"isError"`
-					Content struct {
-						Data struct {
-							Items []json.RawMessage `json:"items"`
-						} `json:"data"`
-					} `json:"structuredContent"`
-				} `json:"result"`
-			}
-			if err != nil || response.Status != 200 || json.Unmarshal(response.Body, &reply) != nil || len(reply.Error) != 0 || reply.Result.IsError {
-				return errors.New("authenticated MCP ingress read failed")
-			}
-			if method == "tools/list" && len(reply.Result.Tools) != 6 || method == "tools/call" && len(reply.Result.Content.Data.Items) == 0 {
-				return errors.New("MCP ingress lost tool inventory or governed Search results")
+			if err := h.verifyCertificateMCPRead(client, version, method, want); err != nil {
+				return err
 			}
 		}
 	}
