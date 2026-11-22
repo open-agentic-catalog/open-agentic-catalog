@@ -65,13 +65,14 @@ The target runs 30 trust phases with fixed assertion inventories and owner SQL c
 
 | Scope | Required results |
 | --- | --- |
-| Disabled and enabled without a selected source policy | Ordinary discovery and refused requests create no assessment Jobs and make no evidence requests. |
+| Verification disabled or no source policy selected | Catalog and ARD Search return the Finder entry to an ordinary reader. Those reads and a refused assessment create no Jobs and make no evidence requests. |
 | Explicit V1/V2 assessments | Every independent signature, checkpoint, inclusion, target and status check passes. Key fingerprints match the exported public keys. |
+| Reader discovery after assessment | Before and after a successful V1 assessment, the same reader finds the unchanged Finder entry through Catalog and ARD Search. Neither search fetches evidence or discloses the private Job ID, receipt bytes, checkpoint, status token or registration verdict. |
 | Private boundaries and replay | Reader and other-tenant access is denied. Replays retain one Job without another fetch. Generic Job reads omit evidence. |
 | Unsupported or corrupted evidence | Unsupported frameworks make zero evidence requests. Invalid signatures, fake proof roots, wrong checkpoints, missing status and HTTP 410 cannot establish current registration. |
 | Checkpoint advancement | A native registration advances the log after receipt retrieval. The Catalog verifies the older proof against exact signed history. Missing or corrupted history cannot establish current registration. |
-| Cancellation, source changes and restart | Queued and in-flight cancellation stop further acquisition. A paused source blocks completion. Worker replacement preserves queued work and exact historical bytes. |
-| Dependency recovery | TL outage retries the same Job while discovery remains available. A queued assessment completes with Finder stopped. |
+| Cancellation, source changes and restart | Pausing a source during an assessment stops further evidence requests. Reader searches omit the entry without querying the paused source. Resuming restores the entry without fetching evidence. Cancellation stops queued or in-flight work, and worker replacement preserves queued work and historical bytes. |
+| Dependency recovery | With the transparency log offline, Catalog and ARD Search still return the Finder entry without fetching evidence. An explicit assessment receives a server error for its receipt and the same Job succeeds after recovery. A queued assessment also completes with Finder stopped. |
 | Loaded policy and key changes | Matching API/worker rollouts qualify overlap, key removal, restoration and shorter freshness. Old results remain readable as historical evidence. |
 | Native signer changes | RA changes first, then TL, on retained native state. Old/new signatures use exact exported keys. Removing an old key rejects dependent evidence while new registrations still pass. |
 | Expiry, native revocation and disablement | Expiry cannot erase valid historical signatures. A queued V2 assessment cannot become current after native revocation. Disabling refuses new work and preserves private history. |
