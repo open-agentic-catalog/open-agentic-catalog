@@ -2162,7 +2162,7 @@ Do not substitute `SSL_CERT_FILE`, insecure verification or a globally trusted t
 
 The harness creates a client secret without shell metacharacters and renders realm JSON with a structured tool. It writes the realm, CA, certificate, key and separate secret file into a restricted invocation directory. Mounts expose only required inputs, read-only. Secrets never enter command arguments, Compose environment values, retained reports or unredacted diagnostics. Cleanup removes the temporary inputs and owned containers, network, volume and Catalog image. The acquired provider image remains in the shared engine cache.
 
-Four confidential service-account clients use client credentials, an exact Catalog audience, and controlled organization and scope claims. Direct Access Grants and browser flows are disabled. The fixture uses no dynamic registration or administrative bootstrap. See Keycloak's [client-credentials guidance](https://www.keycloak.org/securing-apps/oidc-layers). [OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/info/rfc9700/) prohibits the resource-owner password grant.
+The fixture uses confidential service-account clients with controlled audience, organization and scope claims. Direct Access Grants and browser flows are disabled. The fixture uses no dynamic registration or administrative bootstrap. See Keycloak's [client-credentials guidance](https://www.keycloak.org/securing-apps/oidc-layers). [OAuth 2.0 Security Best Current Practice](https://www.rfc-editor.org/info/rfc9700/) prohibits the resource-owner password grant.
 
 The host runner waits with the generated CA and explicit hostname resolution. Curl reads the client secret from a file. Shell tracing is disabled.
 
@@ -2172,7 +2172,9 @@ Controlled signed tokens test human-membership classification. `make test-ui-oid
 
 #### Tenancy scenarios and bounded execution
 
-The scenario checks dedicated and shared Catalog configurations against one fresh provider. It tests service-membership resolution, exact audience and issuer binding, organization mapping and optional scope ceilings. Unknown subjects or organizations, suspended memberships and terminal offboarding must be rejected. Authenticated Control and ARD requests provide successful controls. Dedicated clients supply wrong-audience, wrong-organization and limited-scope tokens.
+The scenario checks dedicated and shared Catalog configurations against one fresh provider. It tests service-membership resolution, exact audience and issuer binding, organization mapping and optional scope ceilings. Unknown subjects or organizations, suspended memberships and terminal offboarding must be rejected. Authenticated Control and ARD requests provide successful controls.
+
+Separate clients supply wrong-audience and wrong-organization tokens. With scope enforcement enabled, the administrator and a namespace reader both request `catalog.read` and `tenant.admin`. Only the administrator can create a namespace. The reader can list and open its assigned namespace. A sibling stays out of its directory and a direct read returns HTTP 403.
 
 Stopping the provider checks known-key outage behavior. Verifier tests retain deterministic malformed-document, key-rotation and injected-clock expiry matrices. They need no Admin API simulator or 15-minute wait.
 

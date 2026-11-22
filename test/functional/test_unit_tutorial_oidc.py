@@ -79,6 +79,17 @@ class TutorialOIDCTests(unittest.TestCase):
             with self.subTest(key=key), self.assertRaisesRegex(ValueError, "complete enumeration"):
                 f.assert_snapshot({**expected, key: value}, source, 4, "new", "source")
 
+    def test_sync_refusal_requires_authentication_failure_and_preserved_snapshot(self):
+        failed = {"state": "failed", "failureClass": "authentication", "attempt": 1}
+        source = {"lastCompleteSnapshotId": "original"}
+        f.assert_auth_failure(failed, source, "original")
+        for changes in ({"state": "cancelled"}, {"state": "dead_letter"}, {"failureClass": "internal"},
+                        {"attempt": 2}, {"result": {"type": "source_snapshot"}}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                f.assert_auth_failure({**failed, **changes}, source, "original")
+        with self.assertRaises(ValueError):
+            f.assert_auth_failure(failed, {"lastCompleteSnapshotId": "replacement"}, "original")
+
     def test_refusals_require_exact_fresh_source_audit_and_guard_evidence(self):
         problem = {"code": "DEPENDENCY_UNAVAILABLE"}
         facts = {"beforeRevision": 4, "afterRevision": 4, "stateChanged": False, "outcome": "transport_error"}

@@ -34,7 +34,8 @@ class OIDCTests(unittest.TestCase):
     def test_realm_is_ephemeral_service_only(self):
         with patch.object(Path, "read_bytes", return_value=b'{"realm":"catalog","clients":[]}'):
             value = oidc.realm_template("private-secret")
-        self.assertEqual(len(value["clients"]), 4)
+        self.assertCountEqual([client["clientId"] for client in value["clients"]],
+                              ["catalog", "namespace-reader", "unknown", "wrong-audience", "wrong-organization"])
         scopes = {scope["name"] for scope in value["clientScopes"]}
         self.assertEqual(scopes, {"catalog.read", "tenant.admin"})
         for client in value["clients"]:
@@ -44,7 +45,7 @@ class OIDCTests(unittest.TestCase):
             self.assertFalse(client["publicClient"])
             self.assertEqual(client["secret"], "private-secret")
             self.assertEqual(client["defaultClientScopes"], [])
-            self.assertEqual(set(client["optionalClientScopes"]), scopes if client["clientId"] == "catalog" else set())
+            self.assertEqual(set(client["optionalClientScopes"]), scopes if client["clientId"] in ("catalog", "namespace-reader") else set())
 
     def test_progress_and_identity_cannot_be_skipped(self):
         with tempfile.TemporaryDirectory() as directory:

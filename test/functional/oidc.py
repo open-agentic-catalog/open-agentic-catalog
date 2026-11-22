@@ -18,6 +18,12 @@ from runner import Failure, command, port, write_document, OIDC_CASES
 TENANT = "00000000-0000-7000-8000-000000000001"
 
 
+def issued_subject(token):
+    # Select the fixture account to grant. Catalog verifies its token on every request.
+    payload = token.split(".")[1]
+    return decode(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))["sub"]
+
+
 def direct_grants(api, member):
     page, _ = api.request("GET", "/api/v1/memberships/" + member["id"] + "/access?limit=100")
     if page["membership"] != member or page.get("nextCursor"):
@@ -42,6 +48,7 @@ def realm_template(secret):
     # Separate ordinary clients exercise issuer-issued claims, without an
     # Admin API, password flow, custom provider or token-signing shortcut.
     for name, audience, organization in (("catalog", "open-agentic-catalog", "owned"),
+                                          ("namespace-reader", "open-agentic-catalog", "owned"),
                                           ("unknown", "open-agentic-catalog", "owned"),
                                           ("wrong-audience", "not-catalog", "owned"),
                                           ("wrong-organization", "open-agentic-catalog", "unknown")):
@@ -49,7 +56,7 @@ def realm_template(secret):
             "clientId": name, "secret": secret, "enabled": True, "protocol": "openid-connect",
             "publicClient": False, "serviceAccountsEnabled": True, "standardFlowEnabled": False,
             "directAccessGrantsEnabled": False, "implicitFlowEnabled": False,
-            "defaultClientScopes": [], "optionalClientScopes": catalog_scopes if name == "catalog" else [],
+            "defaultClientScopes": [], "optionalClientScopes": catalog_scopes if name in ("catalog", "namespace-reader") else [],
             "protocolMappers": [
                 {"name": "catalog-audience", "protocol": "openid-connect", "protocolMapper": "oidc-audience-mapper",
                  "config": {"included.custom.audience": audience, "access.token.claim": "true", "id.token.claim": "false"}},
@@ -125,8 +132,7 @@ class OIDCJourney:
             raise Failure("oidc-token-shape")
         return token
 
-    def verify_namespace_scope_retry(self, limited, membership_id):
-        scoped = Client(self.base, self.token(scope="catalog.read tenant.admin"))
+    def verify_namespace_scope_retry(self, limited, scoped, membership_id):
         for client, has_admin_scope in ((limited, False), (scoped, True)):
             access, _ = client.request("GET", "/api/v1/me")
             if (not access["scopeEnforcement"] or access["membershipId"] != membership_id or
@@ -160,16 +166,59 @@ class OIDCJourney:
         page, _ = scoped.request("GET", lookup)
         if [namespace_state(item) for item in page["items"]] != [namespace_state(created)] or page.get("nextCursor"):
             raise Failure("oidc-namespace-scope-readback")
+        return created
+
+    def verify_namespace_reader(self, admin, visible):
+        token = self.token("namespace-reader", scope="catalog.read tenant.admin")
+        reader = Client(self.base, token)
+        assignment, _ = admin.request("POST", "/api/v1/role-assignments", {
+            "actorType": "service", "subject": issued_subject(token), "role": "reader", "namespaceId": visible["id"],
+            "reason": "Read one namespace"}, (201,), {"Idempotency-Key": key("reader-grant")})
+        access, _ = reader.request("GET", "/api/v1/me")
+        if (access["membershipId"] != assignment["membershipId"] or access["tenantId"] != visible["tenantId"] or
+                not access["scopeEnforcement"] or not {"catalog.read", "tenant.admin"} <= set(access["scopes"])):
+            raise Failure("oidc-reader-identity-or-scopes")
+
+        path = "/api/v1/namespaces"
+        read, _ = reader.request("GET", path + "/" + visible["id"])
+        if namespace_state(read) != namespace_state(visible):
+            raise Failure("oidc-reader-namespace-read")
+
+        body = {"slug": "oidc-private-sibling", "displayName": "Private OIDC sibling"}
+        command_headers = {"Idempotency-Key": key("reader-create")}
+
+        def expect_create_refusal():
+            problem, headers = reader.request("POST", path, body, (403,), command_headers)
+            if (problem["code"] != "FORBIDDEN" or header(headers, "WWW-Authenticate") or
+                    header(headers, "Idempotency-Replayed")):
+                raise Failure("oidc-reader-namespace-create")
+
+        expect_create_refusal()
+        page, _ = admin.request("GET", path + "?limit=1&slug=" + body["slug"])
+        if page["items"] or page.get("nextCursor"):
+            raise Failure("oidc-reader-created-namespace")
+        sibling, _ = admin.request("POST", path, body, (201,), command_headers)
+        expect_create_refusal()
+        exact = path + "/" + sibling["id"]
+        retained, _ = admin.request("GET", exact)
+        if (sibling["slug"] != body["slug"] or sibling["displayName"] != body["displayName"] or
+                sibling["tenantId"] != visible["tenantId"] or sibling["revision"] != 1 or
+                namespace_state(retained) != namespace_state(sibling)):
+            raise Failure("oidc-sibling-namespace-readback")
+        problem, headers = reader.request("GET", exact, expected=(403,))
+        serialized = json.dumps(problem)
+        if (problem["code"] != "FORBIDDEN" or header(headers, "ETag") or
+                body["slug"] in serialized or body["displayName"] in serialized):
+            raise Failure("oidc-reader-sibling-read")
+        page, _ = reader.request("GET", path + "?limit=1")
+        if [namespace_state(item) for item in page["items"]] != [namespace_state(visible)] or page.get("nextCursor"):
+            raise Failure("oidc-reader-namespace-page")
 
     def provision(self, token, mode, organization=""):
-        # This reads only our newly issued subject for the explicit operator
-        # bootstrap. The Catalog independently verifies the token on requests.
-        encoded = token.split(".")[1]
-        claims = decode(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
         args = ["run", "--rm", "--no-deps", "--entrypoint", "/usr/local/bin/catalogctl", "migrate",
                 "identity", "provision", "--config", "/config/config.json", "--tenant", TENANT,
                 "--tenant-name", "Tenant " + TENANT, "--issuer", self.issuer, "--tenancy-mode", mode,
-                "--subject", claims["sub"], "--actor-type", "service", "--roles", "tenant_admin,publisher,reader",
+                "--subject", issued_subject(token), "--actor-type", "service", "--roles", "tenant_admin,publisher,reader",
                 "--operator", "owned-functional-oidc", "--reason", "Independent provider qualification"]
         if organization:
             args += ["--external-organization", organization]
@@ -381,8 +430,12 @@ class OIDCJourney:
         self.configure_catalog("shared", scopes=True)
         self.compose("up", "--detach", "--no-deps", "--no-build", "--force-recreate", "api")
         self.ready()
-        self.verify_namespace_scope_retry(api, shared["membershipId"])
+        admin = Client(self.base, self.token(scope="catalog.read tenant.admin"))
+        visible = self.verify_namespace_scope_retry(api, admin, shared["membershipId"])
         self.record("scope-ceiling")
+        self.phase = "namespace-grants"
+        self.verify_namespace_reader(admin, visible)
+        self.record("namespace-grants")
         self.phase = "identity-report"
         print("Independent HTTPS provider, tenancy, membership/realm, outage, discovery and scope cases passed.")
         identifier = self.compose("ps", "-q", "oidc", capture=True).decode().strip()

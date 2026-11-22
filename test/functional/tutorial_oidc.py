@@ -123,7 +123,16 @@ def assert_source_refusal(problem, records, source_id, revision, credential_revi
     elif (facts.get("outcome") != "http_error" or facts.get("httpClass") != "4xx"
           or facts.get("credentialRevision") != credential_revision
           or not re.fullmatch(r"sha256:[0-9a-f]{64}", facts.get("bodyDigest", ""))):
-        raise ValueError("Wrong-audience credential did not retain the upstream HTTP refusal")
+        raise ValueError("Source test did not retain the upstream HTTP refusal for the selected credential")
+
+
+def check_source_refusal(api, source_id, credential_revision=None):
+    path = "/api/v1/federation/sources/" + source_id
+    source, etag = api.request("GET", path)
+    before = source_tests(api, source_id)
+    refused, _ = api.request("POST", path + ":test", {}, expected=503, etag=etag)
+    after = source_tests(api, source_id)
+    assert_source_refusal(refused, [r for key, r in after.items() if key not in before], source_id, source["revision"], credential_revision)
 
 
 def assert_snapshot(snapshot, source, expected_revision, credential_revision, source_id):
@@ -131,6 +140,13 @@ def assert_snapshot(snapshot, source, expected_revision, credential_revision, so
             or snapshot.get("sourceId") != source_id or snapshot.get("sourceRevision") != expected_revision
             or snapshot.get("credentialRevision") != credential_revision or source.get("lastCompleteSnapshotId") != snapshot.get("id")):
         raise ValueError("Source snapshot did not bind current complete enumeration and credential generation")
+
+
+def assert_auth_failure(job, source, last_complete):
+    if job["state"] != "failed" or job.get("failureClass") != "authentication" or job["attempt"] != 1 or job.get("result") is not None:
+        raise ValueError("Source access refusal did not produce a first-attempt terminal authentication failure")
+    if source["lastCompleteSnapshotId"] != last_complete:
+        raise ValueError("Failed tutorial synchronization replaced the last complete snapshot")
 
 
 def generation(directory, *, origin=A, token_stem="upstream-a"):
@@ -244,7 +260,7 @@ def assert_publication(snapshot, identifier):
         raise ValueError("Tutorial candidate omitted the exact Agent/version; exclusion codes=" + json.dumps(codes))
 
 
-def synchronize(api, source_id, credential_revision, *, succeeds=True):
+def synchronize(api, source_id, credential_revision, *, preserve_snapshot=None):
     source, etag = api.request("GET", "/api/v1/federation/sources/" + source_id)
     expected_revision = source["revision"]
     accepted, _ = api.request("POST", "/api/v1/federation/sources/" + source_id + ":sync", {}, 202, etag)
@@ -256,16 +272,16 @@ def synchronize(api, source_id, credential_revision, *, succeeds=True):
         if time.monotonic() >= deadline:
             raise ValueError("Tutorial source sync did not reach a terminal state")
         time.sleep(0.2)
-    if succeeds:
-        if job["state"] != "succeeded" or job["result"].get("type") != "source_snapshot" or job["result"].get("state") != "complete":
-            raise ValueError("Tutorial source sync failed or was incomplete")
-        snapshot, _ = api.request("GET", "/api/v1/federation/snapshots/" + job["result"]["snapshotId"])
+    if preserve_snapshot is not None:
         source, _ = api.request("GET", "/api/v1/federation/sources/" + source_id)
-        assert_snapshot(snapshot, source, expected_revision, credential_revision, source_id)
-        return snapshot
-    if job["state"] == "succeeded":
-        raise ValueError("Withdrawn source authority unexpectedly synchronized")
-    return job
+        assert_auth_failure(job, source, preserve_snapshot)
+        return job
+    if job["state"] != "succeeded" or job["result"].get("type") != "source_snapshot" or job["result"].get("state") != "complete":
+        raise ValueError("Tutorial source sync failed or was incomplete")
+    snapshot, _ = api.request("GET", "/api/v1/federation/snapshots/" + job["result"]["snapshotId"])
+    source, _ = api.request("GET", "/api/v1/federation/sources/" + source_id)
+    assert_snapshot(snapshot, source, expected_revision, credential_revision, source_id)
+    return snapshot
 
 
 def check_index(api, source_id, identifier):
@@ -404,7 +420,9 @@ def run(args):
                 source_api.request("GET", manifest_path, expected=403)
                 role, _ = a.request("POST", "/api/v1/access/roles", {"name": "Published metadata reader", "permissions": ["discovery.read"],
                     "reason": "Allow only upstream publication reads"}, 201)
-                a.request("POST", "/api/v1/access/assignments", {"roleDefinitionId": role["id"], "membershipId": member["membershipId"], "reason": "Owned tutorial discovery caller"}, 201)
+                access_path = "/api/v1/access/assignments"
+                read_grant = {"roleDefinitionId": role["id"], "membershipId": member["membershipId"], "reason": "Read the tutorial publication"}
+                assignment, grant_etag = a.request("POST", access_path, read_grant, 201)
                 access, _ = source_api.request("GET", "/api/v1/me")
                 if (access["actorType"] != "service" or access["tenantId"] != TENANTS["a"] or access["subject"] != claims(source_token)["sub"]
                         or access["permissions"] != ["discovery.read"] or not access["scopeEnforcement"] or "catalog.read" not in access["scopes"]):
@@ -443,20 +461,12 @@ def run(args):
                         "reason": "Isolate wrong audience from missing membership"}, 201)
                     API(directory, side, token).request("GET", "/api/v1/me", expected=401)
                 generation(directory, origin=B)
-                selected_source, etag = b.request("GET", "/api/v1/federation/sources/" + sid)
-                before_tests = source_tests(b, sid)
-                refused, _ = b.request("POST", "/api/v1/federation/sources/" + sid + ":test", {}, expected=503, etag=etag)
-                after_tests = source_tests(b, sid)
-                assert_source_refusal(refused, [r for key, r in after_tests.items() if key not in before_tests], sid, selected_source["revision"])
+                check_source_refusal(b, sid)
                 bad_revision = generation(directory, token_stem="automation")
                 # The exact same B token gets a direct 401 from A's manifest;
                 # retained source evidence discloses only bounded HTTP class.
                 API(directory, "a", tokens["b"]).request("GET", "/.well-known/ard.json", expected=401)
-                selected_source, etag = b.request("GET", "/api/v1/federation/sources/" + sid)
-                before_tests = source_tests(b, sid)
-                refused, _ = b.request("POST", "/api/v1/federation/sources/" + sid + ":test", {}, expected=503, etag=etag)
-                after_tests = source_tests(b, sid)
-                assert_source_refusal(refused, [r for key, r in after_tests.items() if key not in before_tests], sid, selected_source["revision"], bad_revision)
+                check_source_refusal(b, sid, bad_revision)
                 revision = generation(directory)
                 _, etag = b.request("GET", "/api/v1/federation/sources/" + sid)
                 tested, _ = b.request("POST", "/api/v1/federation/sources/" + sid + ":test", {}, etag=etag)
@@ -466,26 +476,48 @@ def run(args):
                 path = "/api/v1/memberships/" + member["membershipId"]
                 _, etag = a.request("GET", path)
                 _, etag = a.request("POST", path + ":suspend", {"reason": "Withdraw current tutorial source authority"}, etag=etag)
-                source_api.request("GET", "/.well-known/ard.json", expected=401)
-                failed_job = synchronize(b, sid, revision, succeeds=False)
-                retained, _ = b.request("GET", "/api/v1/federation/sources/" + sid)
-                if retained["lastCompleteSnapshotId"] != snapshot["id"]:
-                    raise ValueError("Failed tutorial synchronization replaced the last complete snapshot")
+                source_api.request("GET", manifest_path, expected=401)
+                suspended_job = synchronize(b, sid, revision, preserve_snapshot=snapshot["id"])
+                check_index(b, sid, identifier)
+                a.request("POST", path + ":reactivate", {"reason": "Restore tutorial source membership"}, etag=etag)
+                restored, _ = source_api.request("GET", manifest_path)
+                if restored != manifest:
+                    raise ValueError("Reactivated source membership did not recover its publication")
+                outcome["stage"] = "revoke-discovery-grant"
+                a.request("POST", access_path + "/" + assignment["id"] + ":revoke", {"reason": "Withdraw only publication reads"}, etag=grant_etag)
+                source_api.request("GET", manifest_path, expected=403)
+                revoked_job = synchronize(b, sid, revision, preserve_snapshot=snapshot["id"])
                 check_index(b, sid, identifier)
                 outcome["completed"].append("grant-withdrawal")
                 outcome["stage"] = "external-renewal-and-explicit-recovery"
-                a.request("POST", path + ":reactivate", {"reason": "Restore current tutorial source authority"}, etag=etag)
-                acquire(directory, "b", "catalog-source-b-to-a", "source-client-secret", "upstream-a", "open-agentic-catalog")
-                revision = generation(directory)
+                replacement = acquire(directory, "b", "catalog-source-b-to-a", "source-client-secret", "upstream-a", "open-agentic-catalog")
+                if replacement == source_token:
+                    raise ValueError("Issuer returned the previous source token during renewal")
+                source_api.token = replacement
+                replacement_revision = generation(directory)
+                if replacement_revision == revision:
+                    raise ValueError("Renewal reused the preceding mounted credential generation")
+                current, _ = source_api.request("GET", "/api/v1/me")
+                if (current["membershipId"] != member["membershipId"] or current["permissions"] != []
+                        or not current["scopeEnforcement"] or "catalog.read" not in current["scopes"]):
+                    raise ValueError("Renewed token did not authenticate the same member with its grant withdrawn")
+                source_api.request("GET", manifest_path, expected=403)
+                check_source_refusal(b, sid, replacement_revision)
+                outcome["stage"] = "restore-discovery-grant"
+                a.request("POST", access_path, read_grant, 201)
+                restored, _ = source_api.request("GET", manifest_path)
+                if restored != manifest:
+                    raise ValueError("Restoring the discovery grant did not recover the publication with the renewed token")
                 _, etag = b.request("GET", "/api/v1/federation/sources/" + sid)
                 tested, _ = b.request("POST", "/api/v1/federation/sources/" + sid + ":test", {}, etag=etag)
-                assert_test(tested, revision)
-                renewed = synchronize(b, sid, revision)
-                if renewed["credentialRevision"] == snapshot["credentialRevision"]:
-                    raise ValueError("Tutorial renewal reused an old credential generation")
-                retained_job, _ = b.request("GET", "/api/v1/jobs/" + failed_job["id"])
-                if retained_job["state"] != failed_job["state"] or retained_job["attempt"] != failed_job["attempt"]:
-                    raise ValueError("Credential replacement revived a terminal Job")
+                assert_test(tested, replacement_revision)
+                renewed = synchronize(b, sid, replacement_revision)
+                if renewed["id"] == snapshot["id"]:
+                    raise ValueError("Tutorial recovery did not produce a new complete snapshot")
+                for failed in (suspended_job, revoked_job):
+                    retained_job, _ = b.request("GET", "/api/v1/jobs/" + failed["id"])
+                    if retained_job != failed:
+                        raise ValueError("Credential recovery changed a terminal synchronization Job")
                 check_index(b, sid, identifier)
                 outcome["completed"].append("renewal")
                 outcome["requests"] = {"a": a.requests, "b": b.requests, "reviewer": reviewer.requests, "source": source_api.requests}

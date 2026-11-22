@@ -89,8 +89,8 @@ PEER_STEPS = {
     "startup-contract": STEPS["startup-contract"],
     "federation-peers": ["source-sync-smoke", "catalog-search-smoke", "public-discovery", "publication-smoke", "source-comparison-cli"],
 }
-OIDC_CASES = ["provider-startup", "dedicated-mapping", "discovery-isolation", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling"]
-OIDC_PHASES = ["setup", "provision", "provision-replay", "dedicated-startup", "capabilities", "membership", "token-rejection", "discovery", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "identity-report"]
+OIDC_CASES = ["provider-startup", "dedicated-mapping", "discovery-isolation", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "namespace-grants"]
+OIDC_PHASES = ["setup", "provision", "provision-replay", "dedicated-startup", "capabilities", "membership", "token-rejection", "discovery", "membership-lifecycle", "shared-mapping", "realm-operations", "provider-outage", "scope-ceiling", "namespace-grants", "identity-report"]
 OIDC_PHASES += ["membership-lifecycle-read", "membership-lifecycle-terminal"] + [
     "membership-lifecycle-" + action + suffix
     for action in ("suspend", "reactivate", "offboard")
