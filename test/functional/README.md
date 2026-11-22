@@ -337,6 +337,10 @@ Reports retain only safe digests, counts and conclusions.
 
 Restoration creates the exact fixture roles and an empty `template0` database, then uses `pg_restore --single-transaction`. No Catalog bootstrap or migration creates missing state before loading the archive. The unchanged migration plan must pass before exact-grant reconciliation, which applies no migrations. Database ownership, locale, encoding, ACLs and database-specific settings are compared separately because a single-database dump without `--create` does not restore them. These fixed fixture inputs are not a general role/settings importer.
 
+The drill first writes a marker table to the disposable destination using the name of an index from the dump. PostgreSQL loads the namespace rows, then refuses to create that index. A new connection must find only the original table and marker row. The drill removes that fixture table and retries the same archive against the same database. A passing logical recovery report requires `failedRestoreRolledBack`.
+
+The non-root containers can read the archive's public TLS certificate and the operator's audit inputs even with a host `umask` of `077`. The archive's private TLS key and the parent directory for the recovery files remain accessible only to their owner.
+
 The drill saves distinct tenant overrides before capture. After restore, both tenants must retain their exact settings and validators. The queued Job keeps its two-attempt budget; restoring policy does not rewrite admitted work. The closed report requires `tenantSettingsRetained` as well as authorization policy evidence.
 
 The API creates one unpublished Plugin from an owned HTTPS archive, plus one private saved search and one saved resource reference. The Plugin includes a manifest, a Skill document and an MCP component document. The fixture reuses the peer archive tool without starting the peer Catalog. Its exact origin, private trust and allowlist stay unchanged across runtime replacement. The archive server stops before the dump and remains stopped during restored reads. Archive bytes remain external; the database retains the inspected documents and inventory.
@@ -357,7 +361,9 @@ The original database stays stopped. Only the API starts first, with an explicit
 
 Replay compares exact response bytes, namespace ETags must be `"rev-1"`, and the public ETag must match the SHA-256 of the retained public bytes. Missing tags or equal decoded JSON with changed encoding cannot pass. Current custom roles, group/member relations, scoped assignments and a separately revoked direct edit grant must equal their captured rows. A member retains exact-namespace create authority, no tenant-wide create or revoked edit authority, and exact completed resource-command replay with one audit.
 
-This uses the same bounded API control as writer recovery; no policy can be reconstructed by bootstrap. The restored worker then completes the queued Job and sends the retained event with a valid signature using the retained encryption key. No provisioning, mutating smoke, key rotation or source-database fallback can manufacture recovery.
+After the retained-state checks, the API creates a new namespace. With the API and worker stopped, an independent PostgreSQL connection checks the ID, tenant, slug, display name and revision. After restarting, the API reads the row with the same ETag and returns 404 to the other tenant.
+
+The pre-backup Job must still be queued with zero attempts before the worker starts. The API and PostgreSQL must then agree on its successful completion, attempt count and original budget. The receiver must accept valid signatures for both the pre-backup event and the new namespace event. The drill checks the logins for each service's address in PostgreSQL: only `catalog_api` for the API and only `catalog_worker` for the worker. Both restore reports require `runtimeRoleWrites`.
 
 The scenario's Compose commands share a ten-minute budget within the supervisor's twenty-minute workflow limit; cleanup has its own ninety-second budget. Individual commands, HTTP calls and waits are bounded. Each tenant has at most 200 verification pages; inventory scans allow at most 150 tables, 10,000 rows and 16 MiB of encoded data per table, with a 16 MiB archive ceiling. These are small-test safeguards, not service capacity limits. Reports include PostgreSQL/image/source identities, tenant/page/audit counts, dump/inventory/binding digests, runtime outcomes, closed failure phase/location and independently checked cleanup. Failed dump, restore, inventory, verification or audit comparison cannot advance to runtime startup.
 
@@ -409,7 +415,7 @@ Two separate destinations use the same base backup. The negative copy receives a
 
 The intact destination must reach an actual recovery pause, the exact target LSN, source timeline and cluster identity. SQL checks require A present and B absent. Only then does the test resume recovery onto a new timeline. It reconciles exact grants and reuses every tenant's restore-verifier pages, table digests and bound audit comparisons.
 
-The API starts before the worker. Existing assertions verify current permissions, retained records, public bytes/ETag, command replay, personal data and older rating state. The worker then completes the retained Job and signed webhook delivery against owned peers. The original source stays stopped. No bootstrap or smoke command runs against the restored database.
+The API starts before the worker. The physical restore runs the same retained reads, fresh namespace write, API restart and worker checks as the [logical restore](#logical-backup-recovery). The original database stays stopped throughout.
 
 Four memory-backed data volumes each have a 512 MiB cap. The intact and negative WAL archives each have a 128 MiB cap. A persistent tools container holds the restore inputs; stopping the original source releases its data. The supervisor allows 20 minutes, the recovery journey allows 15 minutes, and cleanup has a separate 90-second budget. No test result establishes production capacity or recovery objectives.
 

@@ -387,7 +387,8 @@ class PeerTests(unittest.TestCase):
             runner.write_document(directory / "peer-a.json", {"auth": {"mode": "development"}})
             (directory / "peer-a.json").chmod(0o444)
             environment = {"CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY": temp, "CATALOG_FUNCTIONAL_SUBNET": "172.31.1.240/28"}
-            with patch.object(peers, "command") as command:
+            certificate = directory / "archives/cert.pem"
+            with patch.object(peers, "command", side_effect=lambda *_: certificate.touch(mode=0o600)) as command:
                 peers.prepare_archives(environment)
             archives = directory / "archives"
             self.assertEqual(archives.stat().st_mode & 0o777, 0o700)

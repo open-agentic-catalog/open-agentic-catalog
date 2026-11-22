@@ -1,4 +1,5 @@
 import copy
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,14 +11,35 @@ from backup_restore_test_helpers import chain, evidence, page
 
 
 class BackupTests(unittest.TestCase):
+    def test_recovered_service_requires_its_own_database_login(self):
+        journey = object.__new__(backup.BackupRestore)
+        journey.writer = "restored"
+        journey.compose = mock.Mock(return_value=b"192.0.2.1 STREAM api\n192.0.2.1 DGRAM api\n")
+        for service, observed in (("api", ""), ("api", "catalog_worker"), ("worker", "catalog_api"),
+                                  ("api", "catalog_api\ncatalog"), ("worker", "catalog_worker")):
+            with self.subTest(service=service, observed=observed):
+                journey.sql = mock.Mock(return_value=observed)
+                if observed == "catalog_" + service:
+                    journey.verify_runtime_login(service)
+                else:
+                    with self.assertRaisesRegex(runner.Failure, "login-mismatch"):
+                        journey.verify_runtime_login(service)
+                journey.compose.assert_called_with("exec", "-T", "restored", "getent", "ahostsv4", service, capture=True)
+                self.assertIn("client_addr='192.0.2.1'::inet", journey.sql.call_args.args[0])
+
     def test_restore_archive_preparation_needs_no_peer_catalog_config(self):
         with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            def generate_tls_files(*_):
+                for name in ("cert.pem", "key.pem"):
+                    (root / "archives" / name).touch(mode=0o600)
             environment = {"CATALOG_FUNCTIONAL_FIXTURE_DIRECTORY": directory,
                            "CATALOG_FUNCTIONAL_SUBNET": "172.31.1.240/28"}
-            with mock.patch("peers.command") as command:
+            with mock.patch("peers.command", side_effect=generate_tls_files) as command:
                 origin = backup.prepare_plugin_archives(environment, (("restore-plugin", "1.0.0"),), include_mcp=True)
             self.assertEqual(origin, "https://172.31.1.252:8443")
-            root = Path(directory)
+            self.assertEqual((root / "archives/cert.pem").stat().st_mode & 0o777, 0o444)
+            self.assertEqual((root / "archives/key.pem").stat().st_mode & 0o777, 0o600)
             self.assertFalse((root / "peer-a.json").exists())
             catalog = runner.read_document(root / "archives/catalog.json")
             self.assertEqual(catalog["profiles"]["peers"], ["restore-plugin"])
@@ -32,6 +54,21 @@ class BackupTests(unittest.TestCase):
             self.assertEqual(arguments[0], str(root / "demo-archives"))
             self.assertIn("--prepare", arguments)
             self.assertEqual(arguments[-2:], ["--archive-origin", origin])
+
+    def test_operator_can_traverse_mounted_inputs_under_private_umask(self):
+        with tempfile.TemporaryDirectory() as directory:
+            def init_journey(journey, environment):
+                journey.env = dict(environment)
+                journey.state = Path(directory)
+            previous = os.umask(0o077)
+            try:
+                with mock.patch.object(backup.Journey, "__init__", init_journey):
+                    journey = backup.BackupRestore({"CATALOG_FUNCTIONAL_PROFILE": "backup-restore",
+                                                    "CATALOG_FUNCTIONAL_SUFFIX": "012345abcdef"})
+            finally:
+                os.umask(previous)
+            self.assertEqual(journey.inputs.stat().st_mode & 0o777, 0o755)
+            self.assertEqual(journey.inputs.parent.stat().st_mode & 0o777, 0o700)
 
     def test_restore_requires_populated_exact_inputs_and_both_owner_denials(self):
         plugin_reads = [("/api/v1/" + name + "/id", {"id": name, "retained": "document"}, '"rev-1"')
@@ -128,6 +165,7 @@ class BackupTests(unittest.TestCase):
         instance.ctl.assert_not_called()
     def test_migration_plan_drift_never_reconciles_grants(self):
         instance = object.__new__(backup.BackupRestore)
+        instance.verify_restore_rollback = mock.Mock()
         instance.phase = mock.Mock()
         instance.compose = mock.Mock(return_value=b"/tmp/catalog-archive.0123456789\n")
         instance.sql = mock.Mock(return_value="0")
@@ -342,7 +380,8 @@ class BackupTests(unittest.TestCase):
                              ("dumpBytes", backup.MAX_DUMP + 1), ("dumpDigest", "private"),
                              ("verificationPages", [1, 2]), ("verificationPages", [True, 2]),
                              ("auditRows", [0, 1]), ("postgresVersions", [180006, 180005]),
-                             ("sourceStopped", False), ("signedDelivery", 1), ("tenantSettingsRetained", False),
+                             ("sourceStopped", False), ("failedRestoreRolledBack", False), ("failedRestoreRolledBack", 1),
+                             ("signedDelivery", 1), ("tenantSettingsRetained", False), ("runtimeRoleWrites", False),
                              ("pluginRetained", False), ("personalItemsRetained", 1), ("archiveStopped", False), ("ratingsRetained", False)):
             self.assertFalse(backup.valid_evidence(dict(original, **{field: value})), field)
         self.assertFalse(backup.valid_evidence(dict(original, logs="private")))
@@ -408,6 +447,7 @@ class BackupTests(unittest.TestCase):
             instance.rating_seed, instance.rating_expectations = {}, {}
             instance.rating_capture_digest, instance.later_rating_state = "digest", {}
             instance.policy = {"owned": True}
+            instance.verify_recovered_api_write = mock.Mock()
             instance.verify_retained_inputs = mock.Mock(side_effect=AssertionError("retained-input-mismatch") if fault == "retained-inputs" else None)
             instance.evidence = {}
             instance.phase, instance.stopped = mock.Mock(), mock.Mock()
@@ -450,7 +490,9 @@ class BackupTests(unittest.TestCase):
             if fault == "settings-defaults":
                 current = dict(saved, deploymentDefaults={"newJobMaxAttempts": 5})
             current_headers = {"ETag": '"wrong"' if fault == "settings-etag" else validator}
-            instance.api.request.side_effect = [(None, {}), (current, current_headers), (replay, headers)]
+            instance.job = "retained-job"
+            queued = {"id": instance.job, "tenantId": backup.TENANT, "state": "queued", "attempt": 0}
+            instance.api.request.side_effect = [(None, {}), (current, current_headers), (replay, headers), (queued, {})]
             with self.subTest(fault=fault), mock.patch.object(backup, "records", return_value=[]), \
                     mock.patch.object(backup.audit, "request", return_value=public), \
                     mock.patch.object(backup.authorization_recovery, "verify") as policy_verify, \
@@ -459,14 +501,16 @@ class BackupTests(unittest.TestCase):
                     with self.assertRaisesRegex(runner.Failure, "worker-start"):
                         instance.runtime()
                     self.assertEqual(instance.inventory.call_count, 2)
-                    instance.api.request.assert_called_with("POST", "/api/v1/namespaces", instance.replay_body,
-                                                            (201,), instance.replay_headers, decode_body=False)
+                    instance.api.request.assert_any_call("POST", "/api/v1/namespaces", instance.replay_body,
+                                                         (201,), instance.replay_headers, decode_body=False)
                     self.assertEqual(instance.compose.call_args.args[-1], "worker")
                     policy_verify.assert_called_once_with(instance.api, instance.policy)
+                    instance.verify_recovered_api_write.assert_called_once_with()
                 else:
                     with self.assertRaises(AssertionError):
                         instance.runtime()
                     self.assertEqual(instance.compose.call_count, 1)
+                    instance.verify_recovered_api_write.assert_not_called()
                     self.assertEqual(instance.compose.call_args.args[-1], "api")
                     if fault in ("retained-inputs", "ratings"):
                         policy_verify.assert_called_once_with(instance.api, instance.policy)
@@ -505,8 +549,23 @@ class BackupTests(unittest.TestCase):
             self.assertEqual(calls[-1], ("exec", "-T", service, "rm", "-r", "--", "/tmp/catalog-archive.0123456789"))
             self.assertFalse(any(call[0] == "stop" or "pg_restore" in call for call in calls))
             instance.ctl.assert_not_called()
+    def test_rollback_probe_rejects_early_or_unrelated_restore_failures(self):
+        copy_notice = b'pg_restore: processing data for table "public.namespaces"\n'
+        conflict = b'ERROR:  relation "namespaces_tenant_id_id_uq" already exists\n'
+        for diagnostic in (conflict + copy_notice, copy_notice + b"connection lost\n",
+                           copy_notice + conflict.replace(b"namespaces_", b"other_")):
+            instance = object.__new__(backup.BackupRestore)
+            instance.compose = mock.Mock(return_value=diagnostic)
+            instance.sql = mock.Mock()
+            instance.evidence = {}
+            with self.subTest(diagnostic=diagnostic), self.assertRaisesRegex(runner.Failure, "backup-expected-post-data-index-conflict"):
+                instance.verify_restore_rollback(("--single-transaction", "/owned/archive.dump"))
+            self.assertFalse(instance.evidence)
+            self.assertFalse(any("DROP TABLE" in call.args[0] for call in instance.sql.call_args_list))
+
     def test_restore_failure_never_reconciles_or_bootstraps(self):
         instance = object.__new__(backup.BackupRestore)
+        instance.verify_restore_rollback = mock.Mock()
         instance.phase = mock.Mock()
         instance.sql = mock.Mock(return_value="0")
         instance.archive = Path("/owned/catalog-backup.dump")

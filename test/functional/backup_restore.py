@@ -7,6 +7,7 @@ hashing is bounded to this small synthetic fixture, not a production backup API.
 
 import datetime
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,7 @@ import re
 import shlex
 import sys
 import time
+from uuid import UUID
 
 import audit
 import authorization_recovery
@@ -57,8 +59,11 @@ def valid_evidence(value, *, physical=False):
     fields = {digest_field, "inventoryDigest", "bindingDigest", size_field, "tenantCount",
               "verificationPages", "auditRows", "postgresVersions", "sourceStopped",
               "retainedState", "replay", "jobRecovered", "signedDelivery", "policyRetained", "tenantSettingsRetained",
-              "pluginRetained", "personalItemsRetained", "ratingsRetained", "archiveStopped"}
+              "pluginRetained", "personalItemsRetained", "ratingsRetained", "archiveStopped", "runtimeRoleWrites"}
+    if not physical:
+        fields.add("failedRestoreRolledBack")
     return (isinstance(value, dict) and set(value) == fields
+            and (physical or value["failedRestoreRolledBack"] is True)
             and all(isinstance(value[k], str) and DIGEST.fullmatch(value[k]) for k in (digest_field, "inventoryDigest", "bindingDigest"))
             and type(value[size_field]) is int and 0 < value[size_field] <= (512 << 20 if physical else MAX_DUMP)
             and type(value["tenantCount"]) is int and value["tenantCount"] == 2
@@ -68,7 +73,7 @@ def valid_evidence(value, *, physical=False):
                                       ("postgresVersions", 180000, 189999)))
             and value["postgresVersions"][0] == value["postgresVersions"][1]
             and all(value[k] is True for k in ("sourceStopped", "retainedState", "replay", "jobRecovered", "signedDelivery", "policyRetained", "tenantSettingsRetained",
-                                               "pluginRetained", "personalItemsRetained", "ratingsRetained", "archiveStopped")))
+                                               "pluginRetained", "personalItemsRetained", "ratingsRetained", "archiveStopped", "runtimeRoleWrites")))
 
 
 def verify_chain(read_page, tenant, recovery_point, schema, manifest):
@@ -93,6 +98,7 @@ class BackupRestore(Journey):
         # and unrelated state/credentials are never included in that mount.
         self.inputs = self.state / "backup-inputs"
         self.inputs.mkdir(mode=0o755)
+        self.inputs.chmod(0o755)
 
     def phase(self, value):
         if value not in PHASES:
@@ -360,6 +366,26 @@ class BackupRestore(Journey):
         self.compose("stop", "--timeout", "20", "postgres")
         self.stopped("postgres", "api", "worker")
 
+    def verify_restore_rollback(self, restore_args):
+        # This table deliberately occupies the name of a post-data index. The
+        # archive loads the known namespace rows before trying to create it.
+        self.sql("CREATE TABLE public.namespaces_tenant_id_id_uq (marker text NOT NULL); "
+                 "INSERT INTO public.namespaces_tenant_id_id_uq VALUES ('before-restore')")
+        diagnostic = self.compose("exec", "-T", "restored", "sh", "-ec",
+                                  'if LC_ALL=C pg_restore --verbose "$@" 2>&1; then exit 2; else test "$?" -eq 1; fi',
+                                  "expect-index-conflict", *restore_args, capture=True)
+        _, copied, after_copy = diagnostic.partition(b'pg_restore: processing data for table "public.namespaces"\n')
+        if not copied or b'ERROR:  relation "namespaces_tenant_id_id_uq" already exists' not in after_copy:
+            raise Failure("backup-expected-post-data-index-conflict")
+
+        # New connections observe only committed state after pg_restore exits.
+        tables = self.sql("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
+        if tables != "namespaces_tenant_id_id_uq" or self.sql("SELECT marker FROM public.namespaces_tenant_id_id_uq") != "before-restore":
+            raise Failure("backup-failed-restore-not-atomic")
+        self.stopped("postgres", "api", "worker")
+        self.sql("DROP TABLE public.namespaces_tenant_id_id_uq")
+        self.evidence["failedRestoreRolledBack"] = True
+
     def restore(self):
         self.phase("restore")
         self.compose("up", "--no-deps", "--detach", "--wait", "--wait-timeout", "60", "restored")
@@ -373,7 +399,9 @@ class BackupRestore(Journey):
         self.sql("GRANT CONNECT ON DATABASE catalog TO catalog_api,catalog_worker")
         with temporary_archive(self.compose, "restored") as archive:
             self.compose("cp", str(self.archive), "restored:" + archive)
-            self.compose("exec", "-T", "restored", "pg_restore", "-U", "catalog", "-d", "catalog", "--single-transaction", archive)
+            restore_args = ("-U", "catalog", "-d", "catalog", "--single-transaction", archive)
+            self.verify_restore_rollback(restore_args)
+            self.compose("exec", "-T", "restored", "pg_restore", *restore_args)
         assert self.ctl("migrate", "plan", "--config", "/config/config.json") == self.plan
         applied = self.ctl("migrate", "apply", "--config", "/config/config.json", "--api-role", "catalog_api", "--worker-role", "catalog_worker")
         assert not applied["applied"]
@@ -427,6 +455,41 @@ class BackupRestore(Journey):
             return delivery if delivery and delivery["state"] == "succeeded" else None
         return wait_until("backup fixture webhook delivery", read)
 
+    def verify_runtime_login(self, service):
+        # Resolve on the restored server's own Compose network. A role present
+        # elsewhere on this server cannot stand in for this process's login.
+        answer = self.compose("exec", "-T", self.writer, "getent", "ahostsv4", service, capture=True)
+        address, = {ipaddress.IPv4Address(line.split()[0].decode()) for line in answer.splitlines()}
+        roles = self.sql("SELECT DISTINCT usename FROM pg_stat_activity WHERE datname=current_database() "
+                         f"AND backend_type='client backend' AND client_addr='{address}'::inet")
+        if roles != "catalog_" + service:
+            raise Failure("backup-" + service + "-login-mismatch")
+
+    def verify_recovered_api_write(self):
+        body = {"slug": "post-restore-write", "displayName": "Created after recovery"}
+        lookup = f" FROM namespaces WHERE tenant_id='{TENANT}' AND slug='post-restore-write'"
+        assert self.sql("SELECT count(*)" + lookup) == "0"
+        self.verify_runtime_login("api")
+        created, headers = self.api.request("POST", "/api/v1/namespaces", body, (201,),
+                                            {"Idempotency-Key": self.point + "-new-namespace"})
+        assert header(headers, "ETag") == '"rev-1"' and header(headers, "Idempotency-Replayed") is None
+        expected = [str(UUID(created["id"])), TENANT, body["slug"], body["displayName"], 1]
+        fields = ("id", "tenantId", "slug", "displayName", "revision")
+        assert [created[k] for k in fields] == expected
+
+        self.compose("stop", "--timeout", "20", "api")
+        self.stopped("api", "worker")
+        assert json.loads(self.sql("SELECT json_build_array(id,tenant_id,slug,display_name,revision)" + lookup)) == expected
+        self.compose("up", "--no-deps", "--detach", "--wait", "--wait-timeout", "60", "api")
+        path = "/api/v1/namespaces/" + created["id"]
+        retained, headers = self.api.request("GET", path)
+        assert [retained[k] for k in fields] == expected and header(headers, "ETag") == '"rev-1"'
+        self.other.request("GET", path, expected=(404,))
+        self.verify_runtime_login("api")
+        event = self.event_id(created)
+        assert str(UUID(event)) == event and event != self.pending_event
+        return event
+
     def runtime(self):
         self.phase("runtime")
         if getattr(self, "rating_owner_verified", False) is not True:
@@ -477,16 +540,26 @@ class BackupRestore(Journey):
         backup_ratings.verify_api(self, self.rating_seed, self.rating_expectations,
                                   self.rating_capture_digest, self.later_rating_state)
         self.evidence.update(pluginRetained=True, personalItemsRetained=True, ratingsRetained=True)
+        fresh_event = self.verify_recovered_api_write()
+        queued, _ = self.api.request("GET", "/api/v1/jobs/" + self.job)
+        assert (queued["id"], queued["tenantId"], queued["state"], queued["attempt"]) == (self.job, TENANT, "queued", 0)
         self.compose("up", "--no-deps", "--force-recreate", "--detach", "--wait", "--wait-timeout", "60", "worker")
         self.ready()
         recovered = wait_job(self.api, self.job, {"succeeded"})
-        assert recovered["attemptLimit"] == 2, "restore rewrote an admitted Job budget"
-        delivery = self.verified_delivery(self.pending_event)
-        assert delivery["state"] == "succeeded"
-        assert self.stats()["invalid"] == 0 and self.stats()["accepted"] > self.receiver_state["accepted"]
-        assert self.sql("SELECT count(DISTINCT usename) FROM pg_stat_activity WHERE usename IN ('catalog_api','catalog_worker')") == "2"
+        self.verify_runtime_login("worker")
+        assert recovered["attemptLimit"] == 2 and 1 <= recovered["attempt"] <= 2
+        job = str(UUID(self.job))
+        assert (recovered["id"], recovered["tenantId"]) == (job, TENANT)
+        stored = self.sql("SELECT json_build_array(state,attempt,attempt_limit) FROM jobs "
+                          f"WHERE tenant_id='{TENANT}' AND id='{job}'")
+        assert json.loads(stored) == ["succeeded", recovered["attempt"], recovered["attemptLimit"]]
+        for event in (self.pending_event, fresh_event):
+            self.verified_delivery(event)
+        stats = self.stats()
+        accepted = set(stats["ids"]) - set(self.receiver_state["ids"])
+        assert stats["invalid"] == 0 and {self.pending_event, fresh_event} <= accepted
         self.stopped("postgres", "peer-archives")
-        self.evidence.update(sourceStopped=True, archiveStopped=True, replay=True, jobRecovered=True, signedDelivery=True, policyRetained=True, tenantSettingsRetained=True)
+        self.evidence.update(sourceStopped=True, archiveStopped=True, replay=True, jobRecovered=True, signedDelivery=True, policyRetained=True, tenantSettingsRetained=True, runtimeRoleWrites=True)
         if not valid_evidence(self.evidence, physical=self.env["CATALOG_FUNCTIONAL_PROFILE"] == "pitr-recovery"):
             raise Failure("backup-invalid-evidence")
         write_document(self.state / "backup-restore.json", self.evidence)

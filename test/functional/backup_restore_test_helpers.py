@@ -4,10 +4,11 @@ import backup_restore as backup
 
 def evidence():
     return {"dumpDigest": "sha256:" + "a" * 64, "inventoryDigest": "sha256:" + "b" * 64,
-            "bindingDigest": "sha256:" + "c" * 64, "dumpBytes": 1024, "tenantCount": 2,
+            "bindingDigest": "sha256:" + "c" * 64, "dumpBytes": 1024, "failedRestoreRolledBack": True, "tenantCount": 2,
             "verificationPages": [20, 2], "auditRows": [50, 3], "postgresVersions": [180006, 180006],
             "sourceStopped": True, "retainedState": True, "replay": True, "jobRecovered": True, "signedDelivery": True, "policyRetained": True, "tenantSettingsRetained": True,
-            "pluginRetained": True, "personalItemsRetained": True, "ratingsRetained": True, "archiveStopped": True}
+            "pluginRetained": True, "personalItemsRetained": True, "ratingsRetained": True, "archiveStopped": True,
+            "runtimeRoleWrites": True}
 
 def page(**changes):
     value = {"formatVersion": 1, "checkSetVersion": 8, "recoveryPoint": "fixture-point", "tenantId": backup.TENANT,
