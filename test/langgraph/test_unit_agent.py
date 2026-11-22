@@ -21,7 +21,7 @@ def item(identifier=ID, origin="local"):
         to_dict=lambda: {
             "type": origin,
             "kind": "skill",
-            "identifier": "urn:air:example.test:skills:webapp-testing",
+            "identifier": f"urn:air:example.test:skills:{identifier}",
             "displayName": "Web app testing",
             "description": "Test a web app.",
             "version": "1.0.0",
@@ -118,18 +118,21 @@ def api():
 class AgentUnits(unittest.IsolatedAsyncioTestCase):
     async def test_real_graph_uses_only_search_and_exact_record_tools(self):
         client = api()
+        client.search_catalog_with_http_info.return_value = page([item(), item(OTHER)])
+        client.get_catalog_record_with_http_info.return_value = record(OTHER)
         discovery = DiscoveryTools(client)
         model = Model(
             call("search_catalog", {"query": "web", "kinds": ["skill"]}),
-            call("read_catalog_record", {"release_id": ID}, "tool-2"),
-            answer(),
+            call("read_catalog_record", {"release_id": OTHER}, "tool-2"),
+            answer((OTHER,)),
         )
         result = await run_agent(model, discovery, "Help test a web app")
         self.assertEqual(model.names, ["search_catalog", "read_catalog_record"])
-        self.assertEqual(result["recommendations"][0]["name"], "Web app testing")
-        self.assertEqual(
-            result["recommendations"][0]["git_handoffs"][0]["commit"], "a" * 40
-        )
+        (selected,) = result["recommendations"]
+        self.assertEqual(selected["release_id"], OTHER)
+        self.assertEqual(selected["name"], "Web app testing")
+        self.assertEqual(selected["description"], "Helpful but untrusted text")
+        self.assertEqual(selected["git_handoffs"][0]["commit"], "a" * 40)
         self.assertNotIn("not model context", str(model.calls))
         request = client.search_catalog_with_http_info.call_args.kwargs[
             "catalog_search"
@@ -139,7 +142,7 @@ class AgentUnits(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(request.limit, 10)
         self.assertIsNone(request.cursor)
         client.get_catalog_record_with_http_info.assert_awaited_once_with(
-            catalog_record_id=UUID(ID)
+            catalog_record_id=UUID(OTHER)
         )
         self.assertFalse(result["search_incomplete"])
         self.assertEqual(model.options[0], {})
@@ -193,15 +196,29 @@ class AgentUnits(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(query.namespace_id, UUID(OTHER))
             self.assertEqual(query.origins, ["local"])
 
-    async def test_empty_results_are_successful_without_a_record_lookup(self):
-        client = api()
-        client.search_catalog_with_http_info.return_value = page([])
-        model = Model(call("search_catalog", {"query": "absent"}), answer(()))
-        result = await run_agent(
-            model, DiscoveryTools(client), "Find missing resources"
-        )
-        self.assertEqual(result["recommendations"], [])
-        client.get_catalog_record_with_http_info.assert_not_awaited()
+    async def test_empty_answer_preserves_search_completeness_without_a_lookup(self):
+        for case, pages, incomplete in [
+            ("exhausted", [page([], "next"), page([])], False),
+            ("first page partial", [page([], "next", partial=True), page([])], True),
+            ("still more pages", [page([], "next"), page([], "more")], True),
+        ]:
+            with self.subTest(case=case):
+                client = api()
+                client.search_catalog_with_http_info.side_effect = pages
+                model = Model(call("search_catalog", {"query": "absent"}), answer(()))
+                result = await run_agent(
+                    model, DiscoveryTools(client), "Find missing resources"
+                )
+                self.assertEqual(result["recommendations"], [])
+                self.assertIs(result["search_incomplete"], incomplete)
+                self.assertEqual(
+                    [
+                        request.kwargs["catalog_search"].cursor
+                        for request in client.search_catalog_with_http_info.await_args_list
+                    ],
+                    [None, "next"],
+                )
+                client.get_catalog_record_with_http_info.assert_not_awaited()
 
     async def test_unselected_or_fabricated_recommendations_do_not_trigger_reads(self):
         client = api()
@@ -212,6 +229,21 @@ class AgentUnits(unittest.IsolatedAsyncioTestCase):
         model = Model(call("search_catalog", {"query": "web"}), answer((ID,)))
         with self.assertRaisesRegex(DemoError, "model_recommended_unread_resource"):
             await run_agent(model, discovery, "Find resources")
+
+    async def test_answer_mixing_read_and_unread_search_hits_is_refused(self):
+        client = api()
+        client.search_catalog_with_http_info.return_value = page([item(), item(OTHER)])
+        model = Model(
+            call("search_catalog", {"query": "web"}),
+            call("read_catalog_record", {"release_id": ID}, "read"),
+            answer((ID, OTHER)),
+        )
+        with self.assertRaisesRegex(DemoError, "^model_recommended_unread_resource$"):
+            await run_agent(model, DiscoveryTools(client), "Compare the matching skills")
+        client.search_catalog_with_http_info.assert_awaited_once()
+        client.get_catalog_record_with_http_info.assert_awaited_once_with(
+            catalog_record_id=UUID(ID)
+        )
 
     async def test_auth_refusal_stops_followup_requests_and_hides_dependency_details(
         self,

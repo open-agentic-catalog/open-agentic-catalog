@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import AsyncMock, patch
 from uuid import UUID
 
+from catalog_sdk.generated.models.catalog_search_response import CatalogSearchResponse
 from langchain_core.messages import AIMessage
 import httpx
 import test_unit_agent as data
@@ -51,6 +52,50 @@ class ObservationUnits(unittest.TestCase):
         self.assertIsNone(row["tokens"])
         json.dumps(row)  # UUIDs in the generated SDK must not corrupt reports.
         self.assertFalse(any("relevant" in str(message.content) for call in model.calls for message in call))
+
+    def test_no_answer_task_distinguishes_abstention_from_a_grounded_irrelevant_recommendation(self):
+        for ids, outcome in [
+            ((), "appropriate_abstention"),
+            ((data.ID,), "unsupported_recommendation"),
+        ]:
+            with self.subTest(outcome=outcome):
+                fixture, api, task = self.fixture()
+                task.update(text="Find a Skill for testing payroll", intentFamily="payroll", relevant={})
+                model = data.Model(
+                    data.call("search_catalog", {"query": "testing"}),
+                    data.call("read_catalog_record", {"release_id": data.ID}, "read"),
+                    data.answer(ids),
+                )
+                with patch.object(subject, "CatalogDiscoveryApi", return_value=api):
+                    row = asyncio.run(subject.run_episode(fixture, task, {}, 30, scripted=model))
+                self.assertEqual(row["outcome"], outcome)
+                self.assertEqual(row["stratum"], "no_answer")
+                self.assertEqual(row["read"], ["fixture-skill"])
+                self.assertEqual(row["recommended"], ["fixture-skill"] if ids else [])
+                self.assertTrue(row["grounded"])
+                self.assertEqual(row["inference_http_attempts"], 0)
+
+    def test_page_limit_does_not_earn_credit_for_abstaining(self):
+        fixture, api, task = self.fixture()
+        task.update(text="Find a Skill for testing payroll", intentFamily="payroll", relevant={})
+        response = json.loads(api.search_catalog_with_http_info.return_value.data.to_json())
+        api.search_catalog_with_http_info.side_effect = [
+            SimpleNamespace(
+                status_code=200,
+                data=CatalogSearchResponse.from_dict({
+                    **response, "items": [], "durableTotal": 1, "nextCursor": cursor,
+                }),
+            )
+            for cursor in ("next", "remaining")
+        ]
+        model = data.Model(data.call("search_catalog", {"query": "testing"}), data.answer(()))
+        with patch.object(subject, "CatalogDiscoveryApi", return_value=api):
+            row = asyncio.run(subject.run_episode(fixture, task, {}, 30, scripted=model))
+        self.assertEqual(row["outcome"], "incomplete_search")
+        self.assertTrue(row["incomplete"])
+        self.assertEqual(row["recommended"], [])
+        self.assertEqual(row["catalog_requests"], 2)
+        api.get_catalog_record_with_http_info.assert_not_awaited()
 
     def test_refused_tool_attempt_is_observed_before_any_sdk_call_then_graph_can_recover(self):
         fixture, api, task = self.fixture()

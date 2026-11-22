@@ -17,8 +17,12 @@ class ModelEvaluationTests(unittest.TestCase):
         self.assertEqual(classify("withdraw-before-read", ["owned"], [], None, "catalog_record_unavailable"), "expected_refusal")
 
     def test_unread_forged_and_duplicate_facts_fail_independently(self):
-        for allowed, inspected, ids in [(["owned"], [], ["owned"]), (["owned"], ["forged"], ["forged"]),
-                                        (["owned"], ["owned"], ["owned", "owned"])]:
+        for allowed, inspected, ids in [
+            (["owned"], [], ["owned"]),
+            (["owned", "other"], ["owned"], ["owned", "other"]),
+            (["owned"], ["forged"], ["forged"]),
+            (["owned"], ["owned"], ["owned", "owned"]),
+        ]:
             with self.subTest(ids=ids), self.assertRaisesRegex(ValueError, "unbound"):
                 classify("ambiguous", allowed, inspected, self.result(*ids), None)
 

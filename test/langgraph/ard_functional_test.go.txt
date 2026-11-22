@@ -155,17 +155,28 @@ func TestLangGraphARDExample(t *testing.T) {
 		if query["text"] == "recursive" {
 			response["referrals"] = []map[string]string{{"identifier": "urn:air:unapproved.test:registry:other", "displayName": "Unapproved", "type": "application/ai-registry+json", "url": unapproved.URL + "/search"}}
 		}
-		if body["pageToken"] == nil && (query["text"] == "peer-pages" || query["text"] == "page-failure") {
-			response["results"] = rows[:1]
-			response["pageToken"] = "peer +/&?=雪"
-		} else if query["text"] == "peer-pages" {
-			if body["pageToken"] != "peer +/&?=雪" {
+		if query["text"] == "peer-pages" || query["text"] == "page-failure" {
+			switch body["pageToken"] {
+			case nil:
+				response["results"] = rows[:1]
+				response["pageToken"] = "peer +/&?=雪"
+			case "peer +/&?=雪":
+				if query["text"] == "page-failure" {
+					mu.Lock()
+					contacts["page-failure continuation"]++
+					first := contacts["page-failure continuation"] == 1
+					mu.Unlock()
+					if first {
+						w.WriteHeader(http.StatusServiceUnavailable)
+						return
+					}
+				}
+				response["results"] = rows[1:]
+			default:
 				t.Error("peer continuation changed")
+				w.WriteHeader(http.StatusBadRequest)
+				return
 			}
-			response["results"] = rows[1:]
-		} else if query["text"] == "page-failure" {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			return
 		}
 		_ = json.NewEncoder(w).Encode(response)
 	}), nil)

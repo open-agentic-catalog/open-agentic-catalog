@@ -123,12 +123,26 @@ async def main():
         for observation in graph["observations"]
         for value in observation.get("omitted_referrals", [])
     )
-    forwarded = await ARDClient(approved).search(
-        "filtered", ["text/markdown"], ["developer tools"]
+    forwarded = await run_ard_agent(
+        ScriptedModel("filtered"),
+        ARDTools(
+            ARDClient(approved), types=("text/markdown",), categories=("developer tools",)
+        ),
+        "Find matching metadata at the approved services",
     )
-    assert len(forwarded["results"]) == 2 and all(
-        row["service"] == "referral" for row in forwarded["results"]
-    )
+    assert forwarded["observed_results"] == 2
+    first, second = forwarded["recommendations"]
+    for recommendation in (first, second):
+        assert recommendation["service"] == "referral"
+        assert recommendation["responder"] == peer.search_url
+        assert recommendation["identifier"] == "urn:air:peer.test:skills:sparse"
+        assert recommendation["source"] == "https://claimed-source.test/registry"
+    assert first["result_id"] != second["result_id"]
+    assert first["score"] == 42 and "version" not in first
+    assert first["trustStatus"] == "unverified"
+    assert first["trustManifest"]["identity"] == "did:web:unverified.test"
+    assert second["score"] == 41 and second["version"] == ""
+    assert "trustStatus" not in second and "trustManifest" not in second
     withheld = ARDClient(Settings(primary=primary, referral=peer))
     result = await withheld.search("web")
     assert (
@@ -189,12 +203,23 @@ async def main():
         result["status"] == "failed"
         and result["issues"][0]["code"] == "unauthenticated"
     )
-    result = await ARDClient(Settings(primary=peer_only)).search("page-failure")
-    assert (
-        result["status"] == "partial"
-        and len(result["results"]) == 1
-        and result["issues"][0]["code"] == "service_unavailable"
-    )
+    peer_settings = Settings(primary=peer_only)
+    interrupted = ARDClient(peer_settings)
+    result = await interrupted.search("page-failure")
+    assert interrupted.requests == 2 and result["status"] == "partial"
+    assert result["issues"] == [{"service": "primary", "code": "service_unavailable"}]
+    (first_page,) = result["results"]
+    assert first_page["responder"] == peer_only.search_url and first_page["score"] == 42
+    assert "version" not in first_page
+
+    fresh = ARDClient(peer_settings)
+    recovered = await fresh.search("page-failure")
+    assert fresh.requests == 2 and recovered["status"] == "complete"
+    assert recovered["issues"] == []
+    first, second = recovered["results"]
+    assert first == first_page
+    assert second["responder"] == peer_only.search_url and second["score"] == 41
+    assert second["version"] == ""
     drip = ARDClient(Settings(primary=peer_only))
     drip.started = time.monotonic() - DEADLINE + 0.5
     result = await drip.search("drip")
@@ -202,8 +227,6 @@ async def main():
         result["status"] == "failed"
         and result["issues"][0]["code"] == "deadline_exceeded"
     )
-    recovered = await ARDClient(Settings(primary=primary)).search("web")
-    assert recovered["status"] == "complete" and len(recovered["results"]) == 13
     print(
         "Actual TLS/auth refusal, ambient proxy/CA isolation, no redirect following, byte limit, whole-call drip deadline, late-page failure and fresh explicit recovery passed."
     )

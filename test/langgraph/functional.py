@@ -40,6 +40,11 @@ class ScriptedModel:
             )
         if len(tool_messages) == 1:
             page = json.loads(tool_messages[-1].content)
+            if not page["items"]:
+                return AIMessage(content=json.dumps({
+                    "summary": "No matching release was observed.",
+                    "recommendations": [],
+                }))
             identifier = page["items"][0]["release_id"]
             return AIMessage(
                 content="",
@@ -111,18 +116,34 @@ async def main():
     )
     # Validate the real HTTP/SDK fixtures independently before a stochastic
     # model can obscure a malformed fixture as an inference failure.
+    model_origin = os.environ.get("CATALOG_LANGGRAPH_MODEL_ORIGIN")
     for case in expected["modelCases"]:
         control = DiscoveryTools(
             CatalogDiscoveryApi(Client(Config(origin=case["origin"], allow_loopback_http=True, token="reader"))),
             UUID(case["namespaceId"]),
         )
+        # The first exact GET withdraws this fixture's release. On an inference
+        # run, leave that transition for the model being evaluated.
+        if case["name"] == "withdraw-before-read" and not model_origin:
+            try:
+                await run_agent(ScriptedModel(), control, "Inspect the matching web testing Skill")
+            except DemoError as error:
+                assert str(error) == "catalog_record_unavailable"
+            else:
+                raise AssertionError("graph answered after the selected release was withdrawn")
+            assert control.seen == set(case["releaseIds"]) and not control.records
+            assert control.requests == 2
+            fresh = DiscoveryTools(control.api, control.namespace_id)
+            result = await run_agent(ScriptedModel(), fresh, "Inspect the matching web testing Skill")
+            assert result["recommendations"] == [] and result["search_incomplete"] is False
+            assert fresh.requests == 1 and not fresh.seen
+            continue
         page = await control.tools()[0].ainvoke({"query": "web", "kinds": []})
         assert {item["release_id"] for item in page["items"]} == set(case["releaseIds"])
         if case["name"] not in ("empty", "withdraw-before-read"):
             record = await control.tools()[1].ainvoke({"release_id": case["releaseIds"][0]})
             assert record["release_id"] == case["releaseIds"][0]
     print("Four owned model-case real Catalog/SDK HTTP fixture controls: passed.")
-    model_origin = os.environ.get("CATALOG_LANGGRAPH_MODEL_ORIGIN")
     if model_origin:
         pin = json.loads(Path(__file__).with_name("model.json").read_text())
         assert os.environ["CATALOG_LANGGRAPH_MODEL"] == pin["model"]
