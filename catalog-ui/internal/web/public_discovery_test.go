@@ -187,6 +187,38 @@ func TestPublicDiscoveryResponsePolicy(t *testing.T) {
 	}
 }
 
+func TestPublicDiscoveryManifestRecoversOnNextRead(t *testing.T) {
+	t.Parallel()
+	c := fixtureConfig(t, "https://api.example.test")
+	c.PublicDiscoveryEnabled = true
+	s := directHost(t, c)
+	cookie := directHostSession(t, s)
+	const manifest = `{"entries":[]}`
+	calls := 0
+	s.apiClient.Transport = hostRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		if r.Method != http.MethodGet || r.URL.String() != "https://api.example.test/.well-known/ard.json" || r.Header.Get("Authorization") != "" || r.Header.Get("Cookie") != "" {
+			t.Fatal("public manifest read changed its destination or forwarded credentials")
+		}
+		if calls == 1 {
+			return nil, errors.New("private transport diagnostic")
+		}
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(manifest))}, nil
+	})
+	read := func() *httptest.ResponseRecorder {
+		return uiRequest(s, http.MethodGet, "/_discovery/manifest", "", cookie)
+	}
+	failed := read()
+	assertUIProblem(t, failed, http.StatusBadGateway, "catalog_unavailable")
+	if calls != 1 || failed.Header().Get("Cache-Control") != "no-store" || failed.Header().Get("Set-Cookie") != "" || len(s.admission) != 0 {
+		t.Fatal("failed manifest read retried, changed the session or cache policy, or retained admission")
+	}
+	refreshed := read()
+	if calls != 2 || refreshed.Code != http.StatusOK || refreshed.Body.String() != manifest {
+		t.Fatalf("explicit refresh returned status %d and body %q after %d upstream calls", refreshed.Code, refreshed.Body.String(), calls)
+	}
+}
+
 // TestPublicDiscoveryConfig remains opt-in and rejects ambiguous non-boolean input.
 func TestPublicDiscoveryConfig(t *testing.T) {
 	t.Parallel()

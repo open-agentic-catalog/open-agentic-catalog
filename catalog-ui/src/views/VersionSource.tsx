@@ -40,14 +40,14 @@ export default function VersionSource(
     "catalog.read",
     props.resource.namespaceId,
   );
-  useEffect(() => () => controller.current?.abort(), []);
-  useEffect(() => {
-    if (!readable) controller.current?.abort();
-  }, [readable]);
   const cancelRead = () => {
     controller.current?.abort();
     setBusy(false);
   };
+  useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => {
+    if (!readable) cancelRead();
+  }, [readable]);
   const selectRevision = (id: string) => {
     cancelRead();
     setRevision(id);

@@ -1,7 +1,15 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { expect, it } from "vitest";
 import { APIError } from "../api/client";
+import { deferred } from "../../tests/unit/fixtures";
 import {
   administrator,
   etagReply,
@@ -41,6 +49,7 @@ it("clears stale results on a refused continuation and keeps pending criteria se
     ).params;
     queries.push(query);
     if (query.cursor) throw new APIError(400, "INVALID_ARGUMENT");
+    if (query.kind === "skill") return etagReply({ items: [] });
     return etagReply({ items: [row], nextCursor: "page-two" });
   });
   render(<ListingMetadataGaps {...w.props} />);
@@ -68,13 +77,14 @@ it("clears stale results on a refused continuation and keeps pending criteria se
     checks: "documentation,support,license",
   });
   fireEvent.click(screen.getByRole("button", { name: "Apply filters" }));
-  await waitFor(() =>
-    expect(queries.at(-1)).toEqual({
-      limit: 20,
-      checks: "documentation,support,license",
-      kind: "skill",
-    }),
+  await screen.findByText(
+    "No current releases are missing the selected fields.",
   );
+  expect(queries.at(-1)).toEqual({
+    limit: 20,
+    checks: "documentation,support,license",
+    kind: "skill",
+  });
   for (const label of [
     "Documentation URL",
     "Support URL",
@@ -86,6 +96,64 @@ it("clears stale results on a refused continuation and keeps pending criteria se
     true,
   );
   expect(w.post).not.toHaveBeenCalled();
+});
+
+it("retains filter edits during a failed refresh and retries only the applied selection", async () => {
+  const w = screenWorkspace();
+  const pending = deferred<unknown>();
+  w.get
+    .mockResolvedValueOnce(etagReply({ items: [row] }))
+    .mockReturnValueOnce(pending.promise)
+    .mockResolvedValueOnce(etagReply({ items: [] }))
+    .mockResolvedValueOnce(etagReply({ items: [row] }));
+  render(<ListingMetadataGaps {...w.props} />);
+  await screen.findByRole("link", { name: row.displayName });
+  const apply = screen.getByRole("button", { name: "Apply filters" });
+  fireEvent.click(apply);
+  expect(screen.getByRole("status").textContent).toContain("Loading");
+  expect(apply).toHaveProperty("disabled", true);
+  expect(
+    screen.getByRole("button", { name: "Refresh from first page" }),
+  ).toHaveProperty("disabled", true);
+  expect(screen.queryByRole("link", { name: row.displayName })).toBeNull();
+  fireEvent.change(screen.getByRole("textbox", { name: "Namespace ID" }), {
+    target: { value: row.namespaceId },
+  });
+  const failure = new APIError(503, "DEPENDENCY_UNAVAILABLE", "report-read");
+  await act(async () => pending.reject(failure));
+  const alert = screen.getByRole("alert");
+  expect(alert.textContent).toContain(
+    "The request could not be completed. Please try again.",
+  );
+  expect(w.props.onFailure).toHaveBeenCalledExactlyOnceWith(failure);
+  expect(screen.queryByText(/No current releases are missing/)).toBeNull();
+  expect(w.get).toHaveBeenCalledTimes(2);
+  fireEvent.click(within(alert).getByRole("button", { name: "Reload" }));
+  await screen.findByText(
+    "No current releases are missing the selected fields.",
+  );
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByRole("textbox", { name: "Namespace ID" })).toHaveProperty(
+    "value",
+    row.namespaceId,
+  );
+  fireEvent.click(apply);
+  await screen.findByRole("link", { name: row.displayName });
+  const initial = { checks: "documentation,support,license", limit: 20 };
+  expect(
+    w.get.mock.calls.map(([path, options]) => [
+      path,
+      (options as { params: { query: unknown } }).params.query,
+    ]),
+  ).toEqual([
+    ["/api/v1/listing-metadata-gaps", initial],
+    ["/api/v1/listing-metadata-gaps", initial],
+    ["/api/v1/listing-metadata-gaps", initial],
+    [
+      "/api/v1/listing-metadata-gaps",
+      { ...initial, namespaceId: row.namespaceId },
+    ],
+  ]);
 });
 
 it("refuses a malformed row or page instead of hiding a missing declaration", () => {

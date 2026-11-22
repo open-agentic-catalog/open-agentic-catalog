@@ -138,35 +138,38 @@ it("shows an unavailable feed without private fallback or old rows", async () =>
   expect(document.body.textContent).not.toContain("secret upstream body");
   expect(fetch).toHaveBeenCalledTimes(3);
 });
-it("ignores late replies after a new runtime and aborts on unmount", async () => {
-  const old = deferred<Response>();
-  let originalSignal: AbortSignal | undefined;
-  const fetch = vi
-    .fn()
-    .mockImplementation(async (path: string, options: RequestInit) => {
-      if (path === "/_discovery/manifest") {
-        originalSignal = options.signal ?? undefined;
-        return old.promise;
-      }
-      return Response.json(
-        path.endsWith("manifest") ? { entries: [] } : { items: [] },
-      );
+it.each(["succeeds", "fails"] as const)(
+  "keeps the current directory when the previous manifest read %s late",
+  async (outcome) => {
+    const old = deferred<Response>();
+    let originalSignal: AbortSignal | undefined;
+    const fetch = replies();
+    fetch.mockImplementationOnce((_path: string, options: RequestInit) => {
+      originalSignal = options.signal ?? undefined;
+      return old.promise;
     });
-  vi.stubGlobal("fetch", fetch);
-  const view = render(<PublicDiscovery runtime={runtime} />);
-  view.rerender(
-    <PublicDiscovery runtime={{ ...runtime, basePath: "/nested" }} />,
-  );
-  await screen.findByText("No entries were returned on this page.");
-  expect(originalSignal?.aborted).toBe(true);
-  await act(async () => old.resolve(Response.json({ entries: [entry] })));
-  expect(
-    fetch.mock.calls.some((call: unknown[]) =>
-      String(call[0]).startsWith("/_discovery/agents"),
-    ),
-  ).toBe(false);
-  view.unmount();
-});
+    const view = render(<PublicDiscovery runtime={runtime} />);
+    view.rerender(
+      <PublicDiscovery runtime={{ ...runtime, basePath: "/nested" }} />,
+    );
+    await screen.findByRole("heading", { name: entry.displayName });
+    expect(originalSignal?.aborted).toBe(true);
+    await act(async () => {
+      if (outcome === "fails") old.reject(new Error("cancelled read"));
+      else old.resolve(Response.json({ entries: [] }));
+    });
+    expect(
+      screen.getByRole("heading", { name: entry.displayName }),
+    ).toBeTruthy();
+    expect(screen.getByText(/Last read manifest: 1\b/)).toBeTruthy();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(fetch.mock.calls.map(([path]: unknown[]) => path)).toEqual([
+      "/_discovery/manifest",
+      "/nested/_discovery/manifest",
+      "/nested/_discovery/agents?pageSize=20",
+    ]);
+  },
+);
 it("cancels a pending Search when provider consent is withdrawn", async () => {
   const fetch = replies();
   render(<PublicDiscovery runtime={runtime} />);
