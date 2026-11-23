@@ -8,3 +8,5 @@ documentation/src/content/docs/guides/mcp-server.mdx:curl-auth-header:127
 # Public SHA-256 of the upstream ADK base_authenticated_tool.py source file.
 # Its filename resembles an authentication assignment; the value is not a credential.
 test/interoperability/adk/provenance.json:generic-api-key:13
+# Public SHA-256 of OpenHands' conversation/secret_registry.py at the pinned revision.
+test/interoperability/plugins/provenance.json:generic-api-key:81

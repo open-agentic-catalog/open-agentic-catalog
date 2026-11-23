@@ -93,11 +93,11 @@ func loadOptions(scenario string) (options, error) {
 		helm:             environment("CATALOG_HELM_BIN", "helm"),
 		docker:           environment("CATALOG_CONTAINER_ENGINE_BIN", "docker"),
 		requiredMinikube: environment("CATALOG_MINIKUBE_VERSION", "v1.39.0"),
-		kubernetes:       environment("CATALOG_MINIKUBE_KUBERNETES_VERSION", "v1.37.1"),
+		kubernetes:       environment("CATALOG_MINIKUBE_KUBERNETES_VERSION", "v1.37.2"),
 		driver:           environment("CATALOG_MINIKUBE_DRIVER", "docker"),
 		runtime:          environment("CATALOG_MINIKUBE_CONTAINER_RUNTIME", "containerd"),
 		baseImage:        environment("CATALOG_MINIKUBE_BASE_IMAGE", "gcr.io/k8s-minikube/kicbase:v0.0.51@sha256:4a1c825b61479e6c898851ea66f13c620aaeab6002746e95067fc2c4b38a0b24"),
-		postgresImage:    environment("CATALOG_MINIKUBE_POSTGRES_IMAGE", "pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11"),
+		postgresImage:    environment("CATALOG_MINIKUBE_POSTGRES_IMAGE", "pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782"),
 		preloadArchive:   strings.TrimSpace(os.Getenv("CATALOG_MINIKUBE_PRELOAD_ARCHIVE")),
 	}
 	switch scenario {
@@ -132,8 +132,8 @@ func loadOptions(scenario string) (options, error) {
 	if configured.driver != "docker" || configured.runtime != "containerd" {
 		return options{}, errors.New("the maintained Minikube harness requires the docker driver and containerd runtime")
 	}
-	if scenario == "argocd" && configured.kubernetes != "v1.37.1" {
-		return options{}, errors.New("the Argo CD fixture requires the pinned Kubernetes v1.37.1 preload")
+	if scenario == "argocd" && configured.kubernetes != "v1.37.2" {
+		return options{}, errors.New("the Argo CD fixture requires the pinned Kubernetes v1.37.2 preload")
 	}
 	for name, reference := range map[string]string{"base image": configured.baseImage, "PostgreSQL image": configured.postgresImage} {
 		if err := validateDigestReference(reference); err != nil {

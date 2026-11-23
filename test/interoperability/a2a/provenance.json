@@ -1,10 +1,10 @@
 {
   "sdk": {
-    "version": "1.2.3",
+    "version": "1.3.0",
     "repository": "a2aproject/a2a-python",
-    "revision": "44b2f761a99123370237afe6c828f4cd2a50c402",
-    "source_sha256": "2857e0f6e7b0608535da70c941cdc6765ed3a09f98bffd6cd7305340771eaad5",
-    "wheel_sha256": "a89529ab7d026900170aefc1515f35c68d9a14b6a9133f8cc775c8fe598f8ae7"
+    "revision": "0d9dafb92328144384eca58a6e8ab80cb8f7d445",
+    "source_sha256": "d7642f66f4bd27188fb463f23abf3b5198b1e82aef1cdba5d85160c48abbf380",
+    "wheel_sha256": "b94a73b5dc7ff1afe5f11d324480f83386a64d02b8a6b719baf013595284cc6c"
   },
   "executor": {
     "repository": "a2aproject/a2a-samples",

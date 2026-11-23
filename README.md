@@ -62,7 +62,7 @@ Local Compose enables webhooks. Add `LOCAL_WEBHOOKS=off` to disable them, or `LO
 
 ### Optional: load sample data
 
-With Go 1.27.3 installed, populate a new development Catalog through its API:
+With Go 1.27.4 installed, populate a new development Catalog through its API:
 
 ```sh
 make demo-seed DEMO_SAMPLE_SET=minimal DEMO_STATE_FILE=output/demo/quick-start.json
@@ -72,7 +72,7 @@ This creates three published examples (Agent, MCP Server and Skill), one draft a
 
 ## Run without containers
 
-Install GNU Make, Go 1.27.3, Python 3.12-3.14, Git and curl. Stop Compose or choose different ports before starting this alternative:
+Install GNU Make, Go 1.27.4, Python 3.12-3.14, Git and curl. Stop Compose or choose different ports before starting this alternative:
 
 ```sh
 make run

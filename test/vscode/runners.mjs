@@ -77,7 +77,7 @@ export async function qualifyRunners(parent, host, vsix, uvx, go) {
     const run = (command, args, timeout = 60000) =>
       execFileSync(command, args, { env, cwd: work, timeout, stdio: "pipe" });
     const uvVersion = run(uvx, ["--version"]).toString().trim();
-    assert.deepEqual(uvVersion.split(/\s+/).slice(0, 2), ["uvx", "0.13.6"]);
+    assert.deepEqual(uvVersion.split(/\s+/).slice(0, 2), ["uvx", "0.13.7"]);
     const dockerVersion = run("docker", [
       "version",
       "--format",

@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // reference projects the connected Catalog's contract for read-only browsing.

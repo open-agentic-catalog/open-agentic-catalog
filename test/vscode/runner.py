@@ -35,7 +35,7 @@ build = core.build
 REMOTE_TOOLS = {
     "remote-ssh-0.128.0.vsix": ("https://ms-vscode-remote.gallery.vsassets.io/_apis/public/gallery/publisher/ms-vscode-remote/extension/remote-ssh/0.128.0/assetbyname/Microsoft.VisualStudio.Services.VSIXPackage", "458bfdea562840a3a4d9cb246cfe9a212c67a0c9317a8fdd0d22aeaedc82bf2c"),
     "server-linux-x64-1.143.1.tar.gz": ("https://update.code.visualstudio.com/commit:e646868227c3e3a9e3f24277c8c7220be42c0be7/server-linux-x64/stable", "5cc911f00c7fd762afa1f978485d9604ceac5984f2b5e6607d981092f894326a"),
-    "chrome-linux64-156.0.8078.47.zip": ("https://storage.googleapis.com/chrome-for-testing-public/156.0.8078.47/linux64/chrome-linux64.zip", "e6c94490f0b6b337225aeb2d2a5034858516b7017356980ba94f5176d8774a50"),
+    "chrome-linux64-157.0.8103.78.zip": ("https://storage.googleapis.com/chrome-for-testing-public/157.0.8103.78/linux64/chrome-linux64.zip", "9223832977a13db3646201b1341c1f9cf08afa3ceae92540116d7b0c062364fb"),
 }
 
 
@@ -124,8 +124,8 @@ def install():
     install_remote()
     install_a2a_sample()
     uvx = Path(shutil.which("uvx") or "")
-    if not uvx.is_file() or run([uvx, "--version"], capture=True).split()[:2] != ["uvx", "0.13.6"]:
-        raise RuntimeError("Install uvx 0.13.6 explicitly for offline native MCP qualification")
+    if not uvx.is_file() or run([uvx, "--version"], capture=True).split()[:2] != ["uvx", "0.13.7"]:
+        raise RuntimeError("Install uvx 0.13.7 explicitly for offline native MCP qualification")
     if before != inputs():
         raise RuntimeError("Extension inputs changed during installation; review and reinstall")
     core.write_json(marker, {"uvx": str(uvx.resolve()), "uvx_hash": sdk.digest(uvx), "oras": str(oras), "oras_hash": sdk.digest(oras), "inputs": before, "host": str(host), "host_hash": sdk.digest(host), "tool_hashes": tool_hashes(host), "node_hash": sdk.digest(Path(stamp["node"]))})

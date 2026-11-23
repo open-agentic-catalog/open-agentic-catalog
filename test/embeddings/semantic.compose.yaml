@@ -5,7 +5,7 @@ services:
     cpus: 2
     mem_limit: 1g
   semantic-setup:
-    image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+    image: pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782
     entrypoint: [psql]
     command: ["postgres://catalog:catalog@postgres:5432/catalog?sslmode=disable", "-v", "ON_ERROR_STOP=1", "-c", "CREATE EXTENSION IF NOT EXISTS vector"]
     depends_on:

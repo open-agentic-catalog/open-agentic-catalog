@@ -2,7 +2,7 @@
   "rust": "1.99.1",
   "msrv": "1.88.0",
   "host": "x86_64-unknown-linux-gnu",
-  "dependencyCutoff": "2026-10-27T02:11:38Z",
+  "dependencyCutoff": "2026-11-09T12:11:09Z",
   "securityFixes": [
     {
       "name": "rustls",

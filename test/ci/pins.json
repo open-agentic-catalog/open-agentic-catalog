@@ -15,17 +15,17 @@
     "sourceRevision": "914e7df21a07ef503a81201c76d2b11c789d3fca",
     "license": "MIT"
   },
-  "dependencyCutoff": "2026-10-27T02:11:38Z",
+  "dependencyCutoff": "2026-11-09T12:11:09Z",
   "shellcheck": "0.11.0",
   "markdownlint-cli": "0.50.0",
   "hadolint": "2.15.1",
   "helm": "4.3.1",
-  "compose": "5.6.1",
+  "compose": "5.7.0",
   "archives": {
     "go": {
-      "version": "1.27.3",
-      "filename": "go1.27.3.linux-amd64.tar.gz",
-      "sha256": "65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40"
+      "version": "1.27.4",
+      "filename": "go1.27.4.linux-amd64.tar.gz",
+      "sha256": "7226736c2339719cda28fbf3a54d71aa63bcefe376e98cef00034268dab24840"
     },
     "helm": {
       "version": "4.3.1",
@@ -38,14 +38,14 @@
       "sha256": "c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507"
     },
     "compose": {
-      "version": "5.6.1",
+      "version": "5.7.0",
       "filename": "docker-compose-linux-x86_64",
-      "sha256": "47737f4236e6d3ccea7291995203f8f018058783b4c3a9469119811a0b5db8c0"
+      "sha256": "7758048ad38e580f22559603312874fec8bb638d021a9e64182385fc17cc12a2"
     },
     "trivy": {
-      "version": "0.76.1",
-      "filename": "trivy_0.76.1_Linux-64bit.tar.gz",
-      "sha256": "c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0"
+      "version": "0.76.2",
+      "filename": "trivy_0.76.2_Linux-64bit.tar.gz",
+      "sha256": "bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf"
     },
     "gitleaks": {
       "version": "8.30.1",

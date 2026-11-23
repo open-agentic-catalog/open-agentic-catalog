@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"encoding/pem"
 	"github.com/open-agentic-catalog/open-agentic-catalog/samples"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"

@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/api"
 )

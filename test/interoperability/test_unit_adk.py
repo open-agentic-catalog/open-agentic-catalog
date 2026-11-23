@@ -18,7 +18,7 @@ from common import Result
 
 def native_result():
     """Construct the documented complete child result independently of its driver."""
-    return {"adk": "2.13.0", "mcp": "2.3.0", "cases": dict.fromkeys(contract.CASES, True),
+    return {"adk": "2.14.0", "mcp": "2.3.0", "cases": dict.fromkeys(contract.CASES, True),
             "closed": True, "sameToolsetRevocation": True, "phase": "complete",
             "schemas": {"server": {name: {"inputSchema": {"type": "object"}} for name in contract.TOOLS},
                         "adk": {name: {"parameters": {"type": "OBJECT"}} for name in contract.TOOLS}}}
@@ -50,7 +50,7 @@ class ADKContractTests(unittest.TestCase):
 
     def test_complete_native_report_and_failure_controls(self):
         """Require exact versions, every real case, lifecycle and process success."""
-        versions = {"adk": "2.13.0", "mcp": "2.3.0"}
+        versions = {"adk": "2.14.0", "mcp": "2.3.0"}
         value = native_result()
         self.assertEqual(contract.validate_result(Result(0, json.dumps(value), ""), ["PRIVATE_SENTINEL"], versions), value)
         mutations = [lambda v: v["cases"].pop("revoked-access"), lambda v: v["cases"].update(inventory=False),
@@ -190,8 +190,8 @@ class ADKOwnershipTests(unittest.TestCase):
 
     def test_native_inventory_rejects_source_and_version_drift(self):
         """Version labels alone do not establish unchanged native adapter code."""
-        expected = {"adk": {"version": "2.13.0", "source_files": {"owned.py": "hash"}}, "mcp": {"version": "2.3.0"}}
-        inventory = {"source_files": {"owned.py": "hash"}, "packages": [{"name": "google-adk", "version": "2.13.0"}, {"name": "mcp", "version": "2.3.0"}, {"name": "mcp-types", "version": "2.3.0"}]}
+        expected = {"adk": {"version": "2.14.0", "source_files": {"owned.py": "hash"}}, "mcp": {"version": "2.3.0"}}
+        inventory = {"source_files": {"owned.py": "hash"}, "packages": [{"name": "google-adk", "version": "2.14.0"}, {"name": "mcp", "version": "2.3.0"}, {"name": "mcp-types", "version": "2.3.0"}]}
         adk_tools.verify_inventory(inventory, expected)
         for value in ({**inventory, "source_files": {"owned.py": "changed"}}, {**inventory, "packages": [{"name": "google-adk", "version": "0"}]}):
             with self.assertRaises((AssertionError, KeyError)):

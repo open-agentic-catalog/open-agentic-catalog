@@ -15,14 +15,14 @@ function fixture(t) {
   };
   const packages = {};
   for (const name of browserSuppliers) {
-    packages['node_modules/' + name] = {version:name.includes('pagefind')?'1.5.2':'1.0.0',license:'MIT'};
+    packages['node_modules/' + name] = {version:name.includes('pagefind')?'1.6.0':'1.0.0',license:'MIT'};
     fs.mkdirSync(path.join(directory,'node_modules',name),{recursive:true});
     if (!['@pagefind/default-ui','pagefind'].includes(name)) write('node_modules/' + name + '/LICENSE','License for ' + name + '\n');
   }
   write('node_modules/pagefind/LICENSE/LICENSE','Pagefind primary license\n');
   write('node_modules/pagefind/LICENSE/LICENSE-vscode-ripgrep','Microsoft companion notice\n');
   write('package-lock.json',JSON.stringify({packages}));
-  write('scripts/licenses/pagefind-default-ui-1.5.2.txt','Pinned Pagefind repository license\n');
+  write('scripts/licenses/pagefind-default-ui-1.6.0.txt','Pinned Pagefind repository license\n');
   write('src/assets/navigation/LICENSE','Navigation icon attribution\n');
   fs.mkdirSync(path.join(directory,'public/generated'),{recursive:true});
   return {directory,write,packages};
@@ -35,7 +35,7 @@ test('notices retain nested Pagefind texts, pinned default UI text and icon attr
   for (const required of ['Pagefind primary license\n','Microsoft companion notice\n','Pinned Pagefind repository license\n','Navigation icon attribution\n']) assert.ok(text.includes(required),required);
   const suppliers = JSON.parse(fs.readFileSync(path.join(directory,'public/generated/browser-inventory.json')));
   assert.deepEqual(suppliers.packages.find(p=>p.name==='pagefind').notices,['LICENSE/LICENSE','LICENSE/LICENSE-vscode-ripgrep']);
-  assert.deepEqual(suppliers.packages.find(p=>p.name==='@pagefind/default-ui').notices,['scripts/licenses/pagefind-default-ui-1.5.2.txt']);
+  assert.deepEqual(suppliers.packages.find(p=>p.name==='@pagefind/default-ui').notices,['scripts/licenses/pagefind-default-ui-1.6.0.txt']);
 });
 
 test('every browser supplier must be installed with a nonempty notice',t=>{
@@ -57,12 +57,12 @@ test('every browser supplier must be installed with a nonempty notice',t=>{
 
 test('missing, empty or stale upstream fallback prevents generation',t=>{
   const {directory,write,packages} = fixture(t);
-  const file = path.join(directory,'scripts/licenses/pagefind-default-ui-1.5.2.txt');
+  const file = path.join(directory,'scripts/licenses/pagefind-default-ui-1.6.0.txt');
   fs.unlinkSync(file);
   assert.throws(()=>notices(directory),/ENOENT/);
-  write('scripts/licenses/pagefind-default-ui-1.5.2.txt','\n');
+  write('scripts/licenses/pagefind-default-ui-1.6.0.txt','\n');
   assert.throws(()=>notices(directory),/Empty upstream notice/);
-  write('scripts/licenses/pagefind-default-ui-1.5.2.txt','Reviewed upstream text\n');
+  write('scripts/licenses/pagefind-default-ui-1.6.0.txt','Reviewed upstream text\n');
   packages['node_modules/@pagefind/default-ui'].version = '1.5.3';
   write('package-lock.json',JSON.stringify({packages}));
   assert.throws(()=>notices(directory),/Review upstream notice/);

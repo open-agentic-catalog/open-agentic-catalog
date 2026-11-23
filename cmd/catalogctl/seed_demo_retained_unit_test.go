@@ -12,7 +12,7 @@ import (
 
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demodata"
 	"github.com/open-agentic-catalog/open-agentic-catalog/samples"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Retention units prepare valid inert plans without invoking the sample loader.

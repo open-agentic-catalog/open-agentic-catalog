@@ -1,6 +1,6 @@
 # PgBouncer qualification
 
-Run `make test-pgbouncer` from the repository root with the maintained Go/Docker/Python environment and OpenSSL installed. The exact PgBouncer 1.26.0 and PostgreSQL 18 image digests are in `runner.py`; acquisition is explicit to this selected real-boundary gate. It creates a randomly named Compose project, private temporary credentials/certificates, loopback listeners and fresh primary/standby volumes.
+Run `make test-pgbouncer` from the repository root with the maintained Go/Docker/Python environment and OpenSSL installed. The exact PgBouncer 1.26.1 and PostgreSQL 18 image digests are in `runner.py`; acquisition is explicit to this selected real-boundary gate. It creates a randomly named Compose project, private temporary credentials/certificates, loopback listeners and fresh primary/standby volumes.
 
 Select abrupt writer loss with `make test-pgbouncer PGBOUNCER_WRITER_LOSS=abrupt`. The default is `planned`; it preserves the governance smoke, dependency restarts, planned promotion and six Search trials.
 

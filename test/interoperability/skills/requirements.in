@@ -2,4 +2,4 @@
 hatchling
 click>=8.0
 strictyaml>=1.7.3
-pip==26.2.2
+pip==26.3

@@ -224,7 +224,7 @@ class WorkflowAdmissionTests(unittest.TestCase):
     def test_failed_python_bootstrap_removes_only_new_environment(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "pyproject.toml").write_text('[tool.uv]\nrequired-version = "==0.13.6"\n')
+            (root / "pyproject.toml").write_text('[tool.uv]\nrequired-version = "==0.13.7"\n')
             retained = root / "retained"
             retained.write_text("keep")
 
@@ -244,7 +244,7 @@ class WorkflowAdmissionTests(unittest.TestCase):
     def test_python_metadata_drift_refuses_before_executing_uv(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "pyproject.toml").write_text('[tool.uv]\nrequired-version = "==0.13.6"\n')
+            (root / "pyproject.toml").write_text('[tool.uv]\nrequired-version = "==0.13.7"\n')
 
             def command(arguments, **_kwargs):
                 if "venv" in arguments:

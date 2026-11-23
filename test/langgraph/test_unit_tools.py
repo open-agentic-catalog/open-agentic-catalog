@@ -47,7 +47,7 @@ class ToolUnits(unittest.TestCase):
     def test_license_control_rejects_changed_versions_and_unreviewed_licenses(self):
         for dependency, code in [
             (package("langgraph", "0.0.0", "MIT"), "differs from its lock"),
-            (package("langgraph", "1.2.18", "GPL-3.0"), "Unreviewed"),
+            (package("langgraph", "1.2.20", "GPL-3.0"), "Unreviewed"),
             (package("certifi", "2026.10.23", "GPL-3.0"), "Unreviewed"),
         ]:
             with (

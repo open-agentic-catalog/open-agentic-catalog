@@ -251,7 +251,7 @@ Private Git and OCI acquisition use owned TLS peers and real tools. The controls
 
 ### Real Linux Remote SSH and browser callback
 
-The runtime selection runs `remote.mjs` serially after desktop checks. Explicit test installation acquires Remote SSH 0.128.0, VS Code Server 1.143.1 and Chrome for Testing 156.0.8078.47. `runner.py` pins their immutable download URLs and SHA-256 values. Download bounds and checksums precede use. These test-only archives never enter the VSIX. Checks acquire nothing.
+The runtime selection runs `remote.mjs` serially after desktop checks. Explicit test installation acquires Remote SSH 0.128.0, VS Code Server 1.143.1 and Chrome for Testing 157.0.8103.78. `runner.py` pins their immutable download URLs and SHA-256 values. Download bounds and checksums precede use. These test-only archives never enter the VSIX. Checks acquire nothing.
 
 Install OpenSSH client/server, Xvfb and the recorded Linux prerequisites before `test-tools-install`. The fixture uses owned keys, strict host checking, an unprivileged loopback SSH server and a fresh editor/server/browser profile. It does not use your SSH agent or edit OS URL associations. The real remote extension process must live under the owned server tree; remote API filesystem URIs translate to `file:` inside that process. Tool lookup and file writes must use that execution host.
 
@@ -259,7 +259,7 @@ The fixture explicitly opens the returned authorization URL in its browser. The 
 
 ### Offline native MCP runners
 
-The runtime selection also runs `runners.mjs` serially. Install uvx 0.13.6 explicitly before test installation; its absolute executable and hash join the tool stamp. Docker must already be available on the local `/var/run/docker.sock`. The fixture selects that socket explicitly, uses isolated Docker/uvx configuration and never contacts a remote Docker context.
+The runtime selection also runs `runners.mjs` serially. Install uvx 0.13.7 explicitly before test installation; its absolute executable and hash join the tool stamp. Docker must already be available on the local `/var/run/docker.sock`. The fixture selects that socket explicitly, uses isolated Docker/uvx configuration and never contacts a remote Docker context.
 
 An owned dependency-free Python wheel runs through the actual uvx binary with offline/no-index flags and a local wheel directory. A fixture launcher supplies only those offline flags; it does not emulate MCP. An owned Go echo server becomes a local non-root scratch image. A loopback registry supplies its digest-addressed bytes to Docker. No public resource package/image, model subscription or external publication participates. Existing desktop checks retain the separate offline npm/npx runner.
 

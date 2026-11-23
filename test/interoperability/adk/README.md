@@ -1,6 +1,6 @@
 # Native ADK MCP qualification
 
-This optional test uses unchanged [Google Agent Development Kit (ADK) for Python](https://github.com/google/adk-python/tree/d68ca857d5e3bab8e968d4e5f98ef028eb37dc87) to discover and call Catalog's read-only MCP tools. Predetermined calls use native `McpToolset` and `McpTool` objects. A native context and in-memory session provide bookkeeping. No model, model runner, Google account, provider API key, embeddings or model weights are required.
+This optional test uses unchanged [Google Agent Development Kit (ADK) for Python](https://github.com/google/adk-python/tree/93814c3475916bf873236f4e30f6915b4b9c8698) to discover and call Catalog's read-only MCP tools. Predetermined calls use native `McpToolset` and `McpTool` objects. A native context and in-memory session provide bookkeeping. No model, model runner, Google account, provider API key, embeddings or model weights are required.
 
 ## Prerequisites
 
@@ -123,15 +123,13 @@ Let Ctrl-C or SIGTERM cleanup finish before inspecting results. Completed, faile
 
 ## Dependency provenance and updates
 
-Installation downloads hash-locked wheels and builds a test-only image from the digest-pinned Python base. ADK 2.13.0, MCP 2.3.0 and the dependency closure use the fixed `2026-10-29T00:00:00Z` cutoff. Pinned pip 26.2.2 performs installation and dependency checks. The image then removes pip and its unused bundled libraries.
+Installation downloads hash-locked wheels and builds a test-only image from the digest-pinned Python base. ADK 2.14.0, MCP 2.3.0 and the dependency closure use the fixed `2026-11-09T12:11:09Z` cutoff. Pinned pip 26.3 performs installation and dependency checks. The image then removes pip and its unused bundled libraries.
 
 The installer verifies ADK's release revision, license, direct wheel hashes and installed adapter source bytes. Both upstream notices and the installed distribution/license inventory remain with the test tooling. These dependencies are outside application modules, SDK runtime dependencies and shipped Catalog images.
 
 `requirements.in` owns direct selection. `requirements.txt` is its generated hash lock. Use the repository-pinned uv, an explicitly selected cutoff, Python 3.13, the Linux target and wheel-only resolution when regenerating it. Review the complete closure, provenance and notices together. Follow the [dependency policy](../../../documentation/src/content/docs/reference/dependencies.md#adk-interoperability-tools); do not edit lock graphs or force incompatible transitive versions.
 
 Reinstall after changing the installer, Containerfile, locks, notices or provenance. Ordinary driver/source changes require another native qualification, but do not change the installed dependency selection.
-
-The selected closure retains [CVE-2026-114603](https://github.com/advisories/GHSA-xcq7-p3pf-p88h), a Medium advisory in `opentelemetry-api` 1.44.0. ADK 2.13.0 caps this dependency at 1.44; fixed 1.45.1 is outside its supported range. The selected process is an outbound client with no ASGI server, and trace propagators are disabled. Retain the finding for a compatible upstream update. These controls do not fix the library or establish an all-severity clean inventory.
 
 LLM decisions, natural-language answer quality, ADK Web/cloud deployment, OAuth login, Google mTLS, indexed/live federation, and installation or execution of discovered resources remain outside this selection. Existing [Catalog MCP qualification](../mcp/README.md#catalog-control-stdio-qualification) owns the broader protocol/replica matrix.
 

@@ -26,8 +26,8 @@ make ui-container-build
 Acquire the pinned test infrastructure images explicitly:
 
 ```sh
-docker pull pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
-docker pull quay.io/keycloak/keycloak:26.8.1@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b
+docker pull pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782
+docker pull quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b
 ```
 
 The launcher builds the small TLS frontend with the tutorial's pinned Go image. Docker can acquire that build image if needed. The launcher does not build the API or UI, install tools, or pull runtime images.
@@ -264,7 +264,7 @@ For shared tenancy, emit one stable organization string through an access-token 
 
 ## Run the interactive local tutorial
 
-This procedure runs a disposable password-based Catalog on your machine. It uses [Keycloak 26.8.1](https://www.keycloak.org/server/containers), pinned to the same digest as the maintained OIDC fixture. The prepared files also support the [two-Catalog federation tutorial](../guides/two-catalog-federation.mdx). They do not use the retained developer Compose stack.
+This procedure runs a disposable password-based Catalog on your machine. It uses [Keycloak 26.8.2](https://www.keycloak.org/server/containers), pinned to the same digest as the maintained OIDC fixture. The prepared files also support the [two-Catalog federation tutorial](../guides/two-catalog-federation.mdx). They do not use the retained developer Compose stack.
 
 ### Prepare tools, names and trust
 
@@ -373,7 +373,7 @@ The imported clients have these settings:
 
 Every human client has the `basic` subject mapper and an access-token audience mapper for `open-agentic-catalog`. The mapper has `access.token.claim=true` and `id.token.claim=false`; ID-token audiences remain the login clients. UI and CLI do not send an extra audience parameter. VS Code's configured audience must still match this mapper. A/B use separate clients and API audiences.
 
-VS Code can append `?windowId=N` to its native callback through `asExternalUri`. Keycloak 26.8.1's [redirect matcher](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/protocol/oidc/utils/RedirectUtils.java) supports this with the fixed scheme/authority and `/oidc/*` path registration. That registration admits the base `/oidc`, its query and descendant paths at the provider; the extension accepts only its exact native callback path with the pending state and PKCE binding. A query wildcard such as `?windowId=*` is not supported. Keep the UI client's HTTPS callback exact.
+VS Code can append `?windowId=N` to its native callback through `asExternalUri`. Keycloak 26.8.2's [redirect matcher](https://github.com/keycloak/keycloak/blob/26.8.2/services/src/main/java/org/keycloak/protocol/oidc/utils/RedirectUtils.java) supports this with the fixed scheme/authority and `/oidc/*` path registration. That registration admits the base `/oidc`, its query and descendant paths at the provider; the extension accepts only its exact native callback path with the pending state and PKCE binding. A query wildcard such as `?windowId=*` is not supported. Keep the UI client's HTTPS callback exact.
 
 The selected human tokens last 30 minutes, with no requested offline refresh. The UI retains no refresh token, rejects `offline_access`, and does not extend session expiry with activity. CLI/extension refresh remains an optional separate configuration described above. A new human login requires a new CLI credential file; log out the selected old file before replacement. The UI's 3,600-byte ceiling applies to the encoded cookie value. A and B have separate cookie names and keys because cookies are not port-scoped.
 

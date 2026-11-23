@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Render the installed immutable charts, including their actual value schemas.
@@ -55,7 +55,7 @@ func TestInstalledCertificateChartsKeepControllersOutsideCatalog(t *testing.T) {
 			if err := os.WriteFile(path, raw, 0o600); err != nil {
 				t.Fatal(err)
 			}
-			args := []string{"template", release, chart, "--namespace", scope, "--kube-version", "1.37.1", "--values", path}
+			args := []string{"template", release, chart, "--namespace", scope, "--kube-version", "1.37.2", "--values", path}
 			if name == "cert-manager" {
 				args = append(args, "--include-crds")
 			}

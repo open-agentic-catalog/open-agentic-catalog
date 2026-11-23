@@ -368,7 +368,7 @@ This leaves Catalog, PostgreSQL, the external admin Secret and external claims a
 
 ## Verification and reuse
 
-`deployments/monitoring/images.json` selects Grafana 13.2.4. The [dependency reference](../reference/dependencies.md#optional-local-monitoring-tools) explains why this pin is retained. Owned Compose, Minikube and browser checks pass for this image on linux/amd64.
+`deployments/monitoring/images.json` pins the Grafana and Prometheus images used by both the monitoring chart and the Compose fixture. See the [dependency reference](../reference/dependencies.md#optional-local-monitoring-tools) for versions and qualification scope.
 
 `make helm-check` tests default-disabled empty renders, enabled required/invalid settings, standalone packaging, private resources, Pod-only RBAC, hardening, existing claims and application-chart independence. `make deploy-check` validates the enabled Kubernetes objects. `make test-minikube-monitoring` uses an owned disposable cluster to exercise a disabled install without credentials, enablement, four API/worker targets, dashboard queries, workload samples, Pod replacement, missing-Secret isolation, flag-based disable/re-enable and removal/reinstallation with externally retained storage. It never connects to an existing monitoring system; its fixture claims and credentials are destroyed with its owned cluster.
 

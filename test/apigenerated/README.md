@@ -14,7 +14,7 @@ The existing packaged harness builds current-source images, seeds three governed
 
 ## Scope and assertions
 
-Schemathesis 4.32.5 reads the original `api/openapi/control-v1.yaml`. Local references are required before loading it; no flattened or relaxed schema is generated. Successful controls exercise `listNamespaces`, `createNamespace`, `getNamespace`, `updateNamespace`, `searchCatalog`, `browseCatalog`, `listResources` and `listResourceVersions`, including create/read/update, nonempty browse/search continuation and selected reader/other-tenant denials.
+Schemathesis 4.33.1 reads the original `api/openapi/control-v1.yaml`. Local references are required before loading it; no flattened or relaxed schema is generated. Successful controls exercise `listNamespaces`, `createNamespace`, `getNamespace`, `updateNamespace`, `searchCatalog`, `browseCatalog`, `listResources` and `listResourceVersions`, including create/read/update, nonempty browse/search continuation and selected reader/other-tenant denials.
 
 Resource List and parent-bound Version List add complete fixture identity, exact canonical-identifier and intersected kind filtering (including an empty Plugin selection), nonempty continuation and exact timestamp/UUID ordering controls. Both reads succeed for global Reader; a valid fixture-only member with only the inert Service client template receives an empty Resource List and 403 for the exact parent-bound Version List. Other-tenant Resource List is empty and foreign-parent Version List receives 404.
 

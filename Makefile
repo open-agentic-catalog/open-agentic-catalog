@@ -503,16 +503,17 @@ GOVULNCHECK_VERSION := v1.9.0
 GO_LICENSES_VERSION := v1.6.0
 GO_LICENSE_ALLOWLIST := Apache-2.0,MIT,BSD-2-Clause,BSD-3-Clause
 KUBECONFORM_VERSION := v0.8.0
+KUBECONFORM_SCHEMA_LOCATION := https://raw.githubusercontent.com/yannh/kubernetes-json-schema/c416d7b0da0751bd8ebe5be4fa4c8e8274e3bbe2/{{.NormalizedKubernetesVersion}}-standalone{{.StrictSuffix}}/{{.ResourceKind}}{{.KindSuffix}}.json
 KUBECONFORM_IMAGE := ghcr.io/yannh/kubeconform:$(KUBECONFORM_VERSION)@sha256:faffaf43f95aa6425306e1ab8d6fcad72acb9049158f38e574c085ea1ec0f64e
 HELM_CHART := deployments/helm/open-agentic-catalog
 HELM_KUBE_VERSION := 1.34.0
 HELM_CHECK_VALUES := $(HELM_CHART)/ci/shared-values.yaml $(HELM_CHART)/ci/optional-values.yaml $(HELM_CHART)/ci/ambiguous-values.yaml $(HELM_CHART)/ci/ui-values.yaml $(HELM_CHART)/ci/mcp-values.yaml $(HELM_CHART)/ci/ard-mcp-values.yaml $(HELM_CHART)/ci/semantic-values.yaml $(HELM_CHART)/ci/pgbouncer.yaml $(HELM_CHART)/ci/payload-values.yaml
 MINIKUBE_VERSION := v1.39.0
-MINIKUBE_KUBERNETES_VERSION := v1.37.1
+MINIKUBE_KUBERNETES_VERSION := v1.37.2
 MINIKUBE_DRIVER := docker
 MINIKUBE_CONTAINER_RUNTIME := containerd
 MINIKUBE_BASE_IMAGE := gcr.io/k8s-minikube/kicbase:v0.0.51@sha256:4a1c825b61479e6c898851ea66f13c620aaeab6002746e95067fc2c4b38a0b24
-MINIKUBE_POSTGRES_IMAGE := pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+MINIKUBE_POSTGRES_IMAGE := pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782
 MINIKUBE_PRELOAD_ARCHIVE ?=
 MINIKUBE_TIMEOUT ?=
 MONITORING_CONTEXT ?=
@@ -640,7 +641,7 @@ verify: test-all ## Alias for test-all (Go gate; not all repository checks)
 .PHONY: build binary-check run diagnostics config-check env-check smoke demo-seed
 .PHONY: dev-tools-install version version-check version-bump version-bump-dry-run release-check
 
-dev-tools-install: ## Install the locked shared Python dev tools into .tools/dev (uv 0.13.6 required)
+dev-tools-install: ## Install the locked shared Python dev tools into .tools/dev (uv 0.13.7 required)
 	python3 -B test/packaging/versioning.py install --uv "$(UV)" --python "$(DEV_PYTHON)"
 
 version: ## Show the effective application build version, full commit and source state
@@ -1541,7 +1542,7 @@ agntcy-tools-install: ## Acquire checksum-pinned Directory tools, chart and imag
 ans-tools-install: ## Acquire and build pinned ANS RA, TL and Finder; no cluster deployment
 	PYTHONOPTIMIZE=0 $(PYTHON) -B test/interoperability/ans_tools.py install
 
-gateway-tools-install: ## Acquire exact Gateway source/images and build its native auth layout; no deployment
+gateway-tools-install: ## Acquire and verify pinned Gateway source, Registry/auth-server images and MongoDB; no deployment
 	PYTHONOPTIMIZE=0 $(PYTHON) -B test/interoperability/gateway_tools.py install
 
 test-interoperability-agntcy: export AGNTCY_LAB_DIR := $(AGNTCY_LAB_DIR)
@@ -1906,7 +1907,7 @@ container-sync-check: ## Verify compatibility files match the canonical containe
 	@cmp -s .containerignore .dockerignore || { printf '%s\n' '.containerignore and .dockerignore differ.' >&2; exit 1; }
 
 container-check: container-sync-check ## Verify compatibility files and lint every Containerfile
-	$(HADOLINT) "$(CONTAINERFILE)" "$(FUNCTIONAL_CONTAINERFILE)" catalog-ui/Containerfile test/ci/Containerfile.act test/interoperability/Containerfile test/embeddings/Containerfile test/interoperability/mcp/Containerfile test/interoperability/a2a/Containerfile test/interoperability/adk/Containerfile test/interoperability/skills/Containerfile test/interoperability/plugins/Containerfile test/interoperability/agntcy/router/Containerfile test/interoperability/gateway/Containerfile.auth test/interoperability/ans/Containerfile test/interoperability/ard-registry/Containerfile test/interoperability/agentfield/Containerfile test/mcp-scanner/Containerfile examples/tutorials/local-oidc/Containerfile test/interoperability/mcp/catalog/Containerfile
+	$(HADOLINT) "$(CONTAINERFILE)" "$(FUNCTIONAL_CONTAINERFILE)" catalog-ui/Containerfile test/ci/Containerfile.act test/interoperability/Containerfile test/embeddings/Containerfile test/interoperability/mcp/Containerfile test/interoperability/a2a/Containerfile test/interoperability/adk/Containerfile test/interoperability/skills/Containerfile test/interoperability/plugins/Containerfile test/interoperability/agntcy/router/Containerfile test/interoperability/ans/Containerfile test/interoperability/ard-registry/Containerfile test/interoperability/agentfield/Containerfile test/mcp-scanner/Containerfile examples/tutorials/local-oidc/Containerfile test/interoperability/mcp/catalog/Containerfile
 
 container-build: container-sync-check ## Build the minimal OCI runtime image with Docker or Podman
 	@case "$(CONTAINER_PLATFORM)" in linux/amd64|linux/arm64) ;; *) printf 'CONTAINER_PLATFORM must be linux/amd64 or linux/arm64, got %s\n' "$(CONTAINER_PLATFORM)" >&2; exit 2 ;; esac
@@ -2515,7 +2516,7 @@ helm-schema-check: ## Validate representative Helm renders; requires schema-sour
 		$(HELM) template default $(HELM_CHART) --namespace open-agentic-catalog --kube-version "$(HELM_KUBE_VERSION)" >"$$render_directory/default.yaml"; \
 		index=0; for values in $(HELM_CHECK_VALUES); do index=$$((index + 1)); $(HELM) template "profile-$$index" $(HELM_CHART) --namespace open-agentic-catalog --kube-version "$(HELM_KUBE_VERSION)" --values "$$values" >"$$render_directory/profile-$$index.yaml"; done; \
 		$(HELM) template upgrade $(HELM_CHART) --namespace open-agentic-catalog --kube-version "$(HELM_KUBE_VERSION)" --is-upgrade --values $(HELM_CHART)/ci/optional-values.yaml >"$$render_directory/upgrade.yaml"; \
-		cat "$$render_directory"/*.yaml | $(CONTAINER_ENGINE) run --rm -i $(KUBECONFORM_IMAGE) -strict -summary -kubernetes-version "$(HELM_KUBE_VERSION)"
+		cat "$$render_directory"/*.yaml | $(CONTAINER_ENGINE) run --rm -i $(KUBECONFORM_IMAGE) -schema-location '$(KUBECONFORM_SCHEMA_LOCATION)' -strict -summary -kubernetes-version "$(HELM_KUBE_VERSION)"
 
 deploy-check: helm-check helm-schema-check monitoring-schema-check container-check ## Run the complete static container and Kubernetes manifest gate
 
@@ -2527,7 +2528,7 @@ monitoring-schema-check: monitoring-package ## Validate the packaged optional mo
 		archive="$$($(PYTHON) test/monitoring/helm.py package)"; \
 		$(HELM) template monitor "$$archive" --namespace monitor --kube-version "$(HELM_KUBE_VERSION)" \
 		--set enabled=true --set target.release=catalog --set target.deploymentLabel=check --set grafana.adminSecret.name=admin > "$$rendered"; \
-		$(CONTAINER_ENGINE) run --rm -i $(KUBECONFORM_IMAGE) -strict -summary -kubernetes-version "$(HELM_KUBE_VERSION)" < "$$rendered"
+		$(CONTAINER_ENGINE) run --rm -i $(KUBECONFORM_IMAGE) -schema-location '$(KUBECONFORM_SCHEMA_LOCATION)' -strict -summary -kubernetes-version "$(HELM_KUBE_VERSION)" < "$$rendered"
 
 monitoring-install: ## Install/upgrade the optional chart; requires explicit context, namespace and values
 monitoring-status: ## Inspect only the explicitly selected monitoring release

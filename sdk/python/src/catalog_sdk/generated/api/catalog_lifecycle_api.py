@@ -542,7 +542,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -555,29 +555,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if reason is not None:
             _body_params = reason
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -975,7 +979,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -986,27 +990,31 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if create_listing is not None:
             _body_params = create_listing
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -1508,7 +1516,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -1521,29 +1529,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if create_listing_revision is not None:
             _body_params = create_listing_revision
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -1941,7 +1953,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -1952,27 +1964,31 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if create_resource is not None:
             _body_params = create_resource
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -2419,7 +2435,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -2432,27 +2448,31 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if create_version is not None:
             _body_params = create_version
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -2942,7 +2962,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -2955,29 +2975,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if create_version_revision_request is not None:
             _body_params = create_version_revision_request
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -3467,7 +3491,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -3480,29 +3504,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if reason is not None:
             _body_params = reason
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -3974,7 +4002,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -3987,29 +4015,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if release_transition is not None:
             _body_params = release_transition
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -4389,7 +4421,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -4408,7 +4440,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -4760,7 +4792,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -4776,7 +4808,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["*/*", "application/problem+json"]
             )
@@ -5110,7 +5142,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -5126,7 +5158,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -5430,7 +5462,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -5446,7 +5478,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -5780,7 +5812,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -5796,7 +5828,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -6130,7 +6162,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -6146,7 +6178,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -6468,7 +6500,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -6484,7 +6516,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -6800,7 +6832,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -6816,7 +6848,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -7132,7 +7164,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -7148,7 +7180,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -7482,7 +7514,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -7498,7 +7530,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -7968,7 +8000,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -7997,7 +8029,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -8429,7 +8461,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -8451,7 +8483,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -8883,7 +8915,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -8905,7 +8937,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -9337,7 +9369,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -9359,7 +9391,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -9791,7 +9823,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -9813,7 +9845,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -10294,7 +10326,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -10320,7 +10352,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -10875,7 +10907,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -10907,7 +10939,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -11358,7 +11390,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -11384,7 +11416,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -11804,7 +11836,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -11826,7 +11858,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -12179,7 +12211,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -12198,7 +12230,7 @@ class CatalogLifecycleApi:
         # process the body parameter
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
@@ -12703,7 +12735,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -12716,29 +12748,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if publish_listing is not None:
             _body_params = publish_listing
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -13210,7 +13246,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -13223,29 +13259,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if reason is not None:
             _body_params = reason
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -13717,7 +13757,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -13730,29 +13770,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if reason is not None:
             _body_params = reason
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -14224,7 +14268,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -14237,29 +14281,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if release_transition is not None:
             _body_params = release_transition
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -14731,7 +14779,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -14744,29 +14792,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if release_transition is not None:
             _body_params = release_transition
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -15213,7 +15265,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -15226,27 +15278,31 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if body is not None:
             _body_params = body
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -15718,7 +15774,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -15731,29 +15787,33 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         if if_match is not None:
-            _header_params["If-Match"] = if_match
+            self.api_client._set_header(_header_params, "If-Match", if_match)
         # process the form parameters
         # process the body parameter
         if release_transition is not None:
             _body_params = release_transition
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]
@@ -16200,7 +16260,7 @@ class CatalogLifecycleApi:
 
         _path_params: Dict[str, str] = {}
         _query_params: List[Tuple[str, str]] = []
-        _header_params: Dict[str, Optional[str]] = _headers or {}
+        _header_params: Dict[str, Any] = self.api_client._merge_headers(_headers)
         _form_params: List[Tuple[str, str]] = []
         _files: Dict[
             str, Union[str, bytes, List[str], List[bytes], List[Tuple[str, bytes]]]
@@ -16213,27 +16273,31 @@ class CatalogLifecycleApi:
         # process the query parameters
         # process the header parameters
         if idempotency_key is not None:
-            _header_params["Idempotency-Key"] = idempotency_key
+            self.api_client._set_header(
+                _header_params, "Idempotency-Key", idempotency_key
+            )
         # process the form parameters
         # process the body parameter
         if body is not None:
             _body_params = body
 
         # set the HTTP header `Accept`
-        if "Accept" not in _header_params:
+        if not any(key.lower() == "accept" for key in _header_params):
             _header_params["Accept"] = self.api_client.select_header_accept(
                 ["application/json", "application/problem+json"]
             )
 
         # set the HTTP header `Content-Type`
         if _content_type:
-            _header_params["Content-Type"] = _content_type
+            self.api_client._set_header(_header_params, "Content-Type", _content_type)
         else:
             _default_content_type = self.api_client.select_header_content_type(
                 ["application/json"]
             )
             if _default_content_type is not None:
-                _header_params["Content-Type"] = _default_content_type
+                self.api_client._set_header(
+                    _header_params, "Content-Type", _default_content_type
+                )
 
         # authentication setting
         _auth_settings: List[str] = ["bearerAuth"]

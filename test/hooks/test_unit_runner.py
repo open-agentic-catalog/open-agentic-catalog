@@ -26,7 +26,7 @@ class StagedSelectionTests(unittest.TestCase):
             "documentation/src/content/docs/index.mdx": "markdownlint",
             "internal/adapter/testdata/upstream/README.md": "markdownlint",
             "internal/adapter/testdata/upstream/other/README.md": "markdownlint",
-            "Containerfile": "hadolint", "test/interoperability/gateway/Containerfile.auth": "hadolint", "test/interoperability/adk/Containerfile": "hadolint",
+            "Containerfile": "hadolint", "test/interoperability/adk/Containerfile": "hadolint",
             "test/ci/Containerfile.act": "hadolint", "test/mcp-scanner/Containerfile": "hadolint",
             "examples/tutorials/local-oidc/Containerfile": "hadolint",
             "test/interoperability/mcp/catalog/Containerfile": "hadolint",

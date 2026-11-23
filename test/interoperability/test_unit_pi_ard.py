@@ -54,7 +54,7 @@ def evidence():
 class PiUnits(unittest.TestCase):
     def test_reviewed_lock_age_integrity_and_license(self):
         lock = lock_fixture()
-        self.assertEqual(len(pi.validate_lock(lock, datetime(2026, 11, 10, 3, tzinfo=timezone.utc))), 123)
+        self.assertEqual(len(pi.validate_lock(lock, datetime(2026, 11, 23, 13, tzinfo=timezone.utc))), 123)
         for key, value in (
             ("integrity", ""),
             ("resolved", "https://other.invalid/"),
@@ -63,7 +63,7 @@ class PiUnits(unittest.TestCase):
             wrong = copy.deepcopy(lock)
             wrong["packages"]["node_modules/undici"][key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
-                pi.validate_lock(wrong, datetime(2026, 11, 10, 3, tzinfo=timezone.utc))
+                pi.validate_lock(wrong, datetime(2026, 11, 23, 13, tzinfo=timezone.utc))
         with self.assertRaises(ValueError):
             pi.validate_lock(lock, datetime(2026, 10, 25, tzinfo=timezone.utc))
 
@@ -89,19 +89,28 @@ class PiUnits(unittest.TestCase):
 
     def test_age_exceptions_bind_exact_packages_and_preserve_other_age_limits(self):
         lock = lock_fixture()
-        now = datetime(2026, 11, 10, 3, tzinfo=timezone.utc)
-        pi.validate_lock(lock, now)
-        wrong = copy.deepcopy(lock)
-        wrong["packages"]["node_modules/minimatch"]["integrity"] = "sha512-AAAA"
-        with self.assertRaisesRegex(ValueError, "approved package"):
-            pi.validate_lock(wrong, now)
+        now = datetime(2026, 11, 23, 13, tzinfo=timezone.utc)
+        reviewed = copy.deepcopy(pi.PIN)
+        package = lock["packages"]["node_modules/minimatch"]
+        pair = "minimatch@" + package["version"]
+        released = "2026-11-20T12:00:00Z"
+        reviewed["releaseDates"][pair] = released
+        reviewed["ageExceptions"] = [
+            {"name": "minimatch", "version": package["version"], "published": released, "integrity": package["integrity"]}
+        ]
+        with patch.object(pi, "PIN", reviewed):
+            pi.validate_lock(lock, now)
+            wrong = copy.deepcopy(lock)
+            wrong["packages"]["node_modules/minimatch"]["integrity"] = "sha512-AAAA"
+            with self.assertRaisesRegex(ValueError, "approved package"):
+                pi.validate_lock(wrong, now)
         for mutation, message in (
             (lambda pin: pin.update(ageExceptions=[]), "14-day rule"),
             (lambda pin: pin["releaseDates"].pop("undici@8.12.3"), "incomplete"),
-            (lambda pin: pin["releaseDates"].update({"undici@8.12.3": "2026-11-02T20:00:00Z"}), "14-day rule"),
-            (lambda pin: pin["releaseDates"].update({"minimatch@11.0.3": "2026-11-11T00:00:00Z"}), "unpublished"),
+            (lambda pin: pin["releaseDates"].update({"undici@8.12.3": "2026-11-21T20:00:00Z"}), "14-day rule"),
+            (lambda pin: pin["releaseDates"].update({pair: "2026-11-24T00:00:00Z"}), "unpublished"),
         ):
-            pin = copy.deepcopy(pi.PIN)
+            pin = copy.deepcopy(reviewed)
             mutation(pin)
             with self.subTest(message=message), patch.object(pi, "PIN", pin), self.assertRaisesRegex(ValueError, message):
                 pi.validate_lock(lock, now)

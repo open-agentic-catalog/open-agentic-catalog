@@ -279,7 +279,7 @@ class GitVersionTests(unittest.TestCase):
         self.assertEqual(v.run([str(yamllint), "--version"], self.root), "yamllint 1.38.0")
         manifest = self.root / "pyproject.toml"
         original = manifest.read_text()
-        for old, new in (("ruff==0.17.3", "ruff==0.16.6"), ("yamllint==1.38.0", "yamllint==1.37.1")):
+        for old, new in (("ruff==0.17.4", "ruff==0.16.6"), ("yamllint==1.38.0", "yamllint==1.37.1")):
             manifest.write_text(original.replace(old, new))
             with self.subTest(stale=old), patch.object(v, "check"), self.assertRaises(ValueError):
                 v.install(self.root, uv, shutil.which("python3"))

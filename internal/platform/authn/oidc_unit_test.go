@@ -21,6 +21,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	jose "github.com/go-jose/go-jose/v4"
+
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/identity"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/config"
 )
@@ -93,10 +95,17 @@ func TestOIDCUnitRejectsOversizedRSAKeysAndRecovers(t *testing.T) {
 				// Synthetic public moduli exercise parsing without generating large keys.
 				modulus := new(big.Int).Lsh(big.NewInt(1), uint(bits-1))
 				modulus.SetBit(modulus, 0, 1)
-				keys := mustJSON(t, map[string]any{"keys": []map[string]any{{
+				publicKey := map[string]any{
 					"kty": "RSA", "kid": "test-key", "use": "sig", "alg": "RS256",
 					"n": base64.RawURLEncoding.EncodeToString(modulus.Bytes()), "e": "AQAB",
-				}}})
+				}
+				// The verifier skips unsupported keys. Check the modulus limit separately
+				// so a signature mismatch cannot mask acceptance of the oversized key.
+				var jwk jose.JSONWebKey
+				if err := json.Unmarshal(mustJSON(t, publicKey), &jwk); !errors.Is(err, jose.ErrUnsupportedKeyType) {
+					t.Fatalf("parsing %d-bit public key: %v", bits, err)
+				}
+				keys := mustJSON(t, map[string]any{"keys": []map[string]any{publicKey}})
 				documents := unitOIDCDocuments(t, key)
 				oversized, membershipCalls, keyCalls := true, 0, 0
 				authenticator := unitOIDC(t, func() time.Time { return now }, oidcRoundTripFunc(func(request *http.Request) (*http.Response, error) {
@@ -112,9 +121,7 @@ func TestOIDCUnitRejectsOversizedRSAKeysAndRecovers(t *testing.T) {
 					return identity.Actor{Subject: principal.Subject, TenantID: principal.TenantID}, nil
 				}))
 				actor, err := authenticator.Authenticate(t.Context(), token)
-				// A signature mismatch alone would also fail with the vulnerable library.
-				// Require the parser's size rejection before any membership lookup.
-				if err == nil || !strings.Contains(err.Error(), "modulus too large") || !reflect.DeepEqual(actor, identity.Actor{}) || membershipCalls != 0 || keyCalls != 1 {
+				if err == nil || !reflect.DeepEqual(actor, identity.Actor{}) || membershipCalls != 0 || keyCalls != 1 {
 					t.Fatalf("oversized JWK: actor=%#v membership=%d keys=%d error=%v", actor, membershipCalls, keyCalls, err)
 				}
 				// Finish the failed single-flight fetch before the next request.

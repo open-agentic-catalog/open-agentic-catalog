@@ -17,7 +17,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/id"
 	"github.com/open-agentic-catalog/open-agentic-catalog/schemas"
 	"github.com/santhosh-tekuri/jsonschema/v6"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // pinnedSearchSchema compiles an unchanged upstream HTTP definition with

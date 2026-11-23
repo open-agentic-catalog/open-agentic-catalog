@@ -22,7 +22,7 @@ import (
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/jsondoc"
 	"github.com/open-agentic-catalog/open-agentic-catalog/internal/platform/demoarchive"
 	"github.com/open-agentic-catalog/open-agentic-catalog/samples"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 const (
@@ -191,7 +191,7 @@ func validNode(n *yaml.Node, depth int, count *int) bool {
 		return false
 	}
 	switch n.Kind {
-	case yaml.AliasNode:
+	case yaml.AliasNode, yaml.StreamNode:
 		return false
 	case yaml.DocumentNode:
 	case yaml.MappingNode:

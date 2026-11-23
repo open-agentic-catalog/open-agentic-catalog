@@ -18,6 +18,9 @@ ASSETS = shared.HERE / "ans"
 TOOLS = shared.ROOT / ".tools/ans"
 
 
+LICENSE_FILES = ("LICENSE", "NOTICE", "LICENSES/MIT.txt")
+
+
 def lock():
     return json.loads((ASSETS / "lock.json").read_text())
 
@@ -46,8 +49,9 @@ def inspect():
     source = TOOLS / "source"
     if digest_tree(source) != pins["source_sha256"]:
         raise ValueError("ANS source differs from its exact pin")
-    if (source / "LICENSE").read_bytes() != (ASSETS / "LICENSE").read_bytes():
-        raise ValueError("ANS source license differs")
+    for filename in LICENSE_FILES:
+        if (source / filename).read_bytes() != (ASSETS / filename).read_bytes():
+            raise ValueError("ANS source license or notice differs: " + filename)
     image = json.loads(command("docker", "image", "inspect", image_tag()).stdout)[0]
     if (image["Os"], image["Architecture"]) != ("linux", "amd64") or image["Config"]["Labels"]["org.opencontainers.image.revision"] != pins["revision"]:
         raise ValueError("ANS image identity differs")
@@ -59,7 +63,7 @@ def inspect():
             raise ValueError("ANS binary build stamp differs")
         binaries[name] = {"sha256": hashlib.sha256(binary.read_bytes()).hexdigest(), "version": version}
     return {"revision": pins["revision"], "source_sha256": pins["source_sha256"],
-            "inputs_sha256": shared.fingerprint((ASSETS / "Containerfile", ASSETS / "lock.json", ASSETS / "LICENSE", shared.HERE / "ans_tools.py")),
+            "inputs_sha256": shared.fingerprint((ASSETS / "Containerfile", ASSETS / "lock.json", *(ASSETS / name for name in LICENSE_FILES), shared.HERE / "ans_tools.py")),
             "artifacts_sha256": digest_tree(TOOLS / "artifacts"), "binaries": binaries,
             "images": {"native": {"reference": image_tag(), "id": image["Id"]}}}
 

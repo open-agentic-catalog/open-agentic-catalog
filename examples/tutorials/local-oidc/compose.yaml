@@ -8,7 +8,7 @@ x-runtime: &runtime
   networks: [tutorial]
 
 x-database: &database
-  image: pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11
+  image: pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782
   entrypoint: [/bin/sh, -ec]
   command:
     - |
@@ -182,7 +182,7 @@ services:
       - ${CATALOG_TUTORIAL_DIRECTORY}/b/ui-keys.json:/inputs/b/ui-keys.json:ro
       - ${CATALOG_TUTORIAL_DIRECTORY}/trust/ca.pem:/trust/ca.pem:ro
   identity:
-    image: quay.io/keycloak/keycloak:26.8.1@sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b
+    image: quay.io/keycloak/keycloak:26.8.2@sha256:3879c623248408de29a5303178b5816c77e8dfef3890c361f8c0bbeaa979ba3b
     entrypoint: [/bin/bash, -ec]
     command:
       - |

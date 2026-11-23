@@ -1,9 +1,9 @@
 module github.com/open-agentic-catalog/open-agentic-catalog/examples/publication-report
 
-go 1.27.3
+go 1.27.4
 
 require (
-	github.com/jackc/pgx/v5 v5.11.0
+	github.com/jackc/pgx/v5 v5.12.0
 	github.com/open-agentic-catalog/open-agentic-catalog/sdk/go v0.1.0
 )
 

@@ -76,12 +76,12 @@ The [Go publication report](../../../../../examples/publication-report/README.md
 
 | Target | Effect |
 | --- | --- |
-| `make sdk-tools-install UV=/path/to/uv-0.13.6` | Install all SDKs' pinned tools and cached test dependencies. Only this target acquires packages. |
+| `make sdk-tools-install UV=/path/to/uv-0.13.7` | Install all SDKs' pinned tools and cached test dependencies. Only this target acquires packages. |
 | `make sdk-generate` | Regenerate the selected checked-in source from the complete OpenAPI. |
 | `make sdk-check` | Check drift, types, lint, licenses, units, local HTTP/TLS and clean installed-package API calls. |
 | `make sdk-package` | Build local artifacts without generation, tests or publication. |
 
-Append `SDK_LANGUAGE=go`, `python`, `typescript` or `rust` for one language. Go-only selection needs no Python SDK, Node, Rust or browser installation. Missing or stale tools fail without skipping a language. Python installation requires pinned uv 0.13.6. Packages and hash manifests use `output/artifacts/sdk/`; Rust produces a `.crate`, while Go remains a source module. See [combined SDK qualification](../contributing/testing.md#combined-sdk-qualification) for prerequisites, test boundaries and coverage interpretation.
+Append `SDK_LANGUAGE=go`, `python`, `typescript` or `rust` for one language. Go-only selection needs no Python SDK, Node, Rust or browser installation. Missing or stale tools fail without skipping a language. Python installation requires pinned uv 0.13.7. Packages and hash manifests use `output/artifacts/sdk/`; Rust produces a `.crate`, while Go remains a source module. See [combined SDK qualification](../contributing/testing.md#combined-sdk-qualification) for prerequisites, test boundaries and coverage interpretation.
 
 Independent A2A handoff qualification uses `make a2a-tools-install`, then `make test-interoperability-a2a`, separately. It runs the official SDK client and unchanged Hello World executor over private HTTPS on owned loopback without external egress. It builds an owned in-memory Catalog, governs and publishes an Agent Card, then qualifies exact CLI-selected invocation, immutable evidence and Catalog/TLS/outage denials. See [A2A control testing](../contributing/testing.md#local-a2a-interoperability-control) for pins, prerequisites and reports.
 
@@ -103,7 +103,7 @@ The [SDK-based discovery assistant](../../../../../examples/langgraph/README.md)
 
 | Command | Effect |
 | --- | --- |
-| `make langgraph-tools-install UV=/path/to/uv-0.13.6` | Install the example's locked optional environment. No model is downloaded or started. |
+| `make langgraph-tools-install UV=/path/to/uv-0.13.7` | Install the example's locked optional environment. No model is downloaded or started. |
 | `make langgraph-demo` | Ask the configured local model with explicit SDK origin, bearer credentials and `LANGGRAPH_QUESTION`. |
 | `make langgraph-ard-demo` | Run the separate model-free ARD Search/Explore graph with `LANGGRAPH_ARD_CONFIG` and `LANGGRAPH_ARD_QUERY`. Referral query disclosure requires explicit configuration. |
 | `make test-langgraph-unit` | Run isolated graph/tool units and example source coverage. |

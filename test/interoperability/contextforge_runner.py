@@ -143,7 +143,7 @@ def prepare():
         for name, reference in (("catalog", catalog_image), ("fixture", fixture_image)):
             image = json.loads(docker("image", "inspect", reference).stdout)[0]
             state["builds"][name] = {"id": image["Id"], "reference": reference, "labels": image["Config"].get("Labels") or {}}
-        pg = "pgvector/pgvector:pg18@sha256:2358fcba361ed2233a5ed81b5fe4ca779ccb304120ce531a3bf51c0ed7e2bc11"
+        pg = "pgvector/pgvector:pg18@sha256:38681dc6eaf55308e2a4c6de392d131652dcfac70e1263e35cd9b5ea3fe39782"
         docker("image", "inspect", pg, timeout=10)
         values = dict(PRIVATE=str(private), REPOSITORY=str(ROOT), FIXTURE_UID=os.getuid(), FIXTURE_GID=os.getgid(), CATALOG_IMAGE=catalog_image,
                       FIXTURE_IMAGE=fixture_image, POSTGRES_IMAGE=pg, CONTEXTFORGE_IMAGE=cf["reference"], CLIENT_IMAGE=client["image"],

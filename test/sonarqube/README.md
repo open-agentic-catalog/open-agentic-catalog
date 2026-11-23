@@ -6,7 +6,7 @@ Use the free, self-hosted SonarQube Community Build dashboard to review analyzer
 
 Prerequisites: Linux AMD64, a local Unix-socket Docker engine with Compose, Python 3, Git and the locked UI dependencies installed through `make ui-install`. Allow at least 12 GiB of available container memory plus host headroom: the server is capped at 4 GiB and the scanner at 8 GiB with a 6 GiB Java heap. Other running environments need additional resources.
 
-The image pins in [images.json](images.json) qualify Community Build 26.9.0.129388 and scanner CLI 8.1.0.6389; ARM emulation is not qualified.
+The image pins in [images.json](images.json) qualify Community Build 26.9.0.129388 and scanner CLI 8.3.1.16491; ARM emulation is not qualified.
 
 Follow the reader guide to [start and scan](../../documentation/src/content/docs/contributing/testing.md#optional-local-sonarqube-dashboard), [log in and retrieve the local password](../../documentation/src/content/docs/contributing/testing.md#log-in-to-sonarqube), and [troubleshoot access](../../documentation/src/content/docs/contributing/testing.md#stop-restart-and-troubleshoot-sonarqube). The default dashboard is `http://127.0.0.1:19000/dashboard?id=open-agentic-catalog`; username `admin` uses the generated `password` field in private `output/sonarqube/credentials.json`. `make sonarqube-credentials` displays the saved URL, username and password locally, even while Sonar is stopped; keep its output out of shared logs.
 

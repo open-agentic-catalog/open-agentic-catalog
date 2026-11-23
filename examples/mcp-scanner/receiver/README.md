@@ -9,7 +9,7 @@ The [manual](../../../documentation/src/content/docs/guides/mcp-scanner.mdx) own
 ## Prerequisites
 
 - Use a non-root Linux AMD64 host and a source checkout.
-- Provide Go 1.27.3 and the [installed offline scanner](../README.md#install-the-scanner).
+- Provide Go 1.27.4 and the [installed offline scanner](../README.md#install-the-scanner).
 - Provide a separate PostgreSQL 18 database and account for this receiver.
 - Obtain a Catalog token with access to the configured resource namespaces.
 - Configure a local HTTPS MCP endpoint with a separate bearer credential.

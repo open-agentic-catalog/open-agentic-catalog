@@ -1,9 +1,10 @@
 {
   "repository": "agentic-community/mcp-gateway-registry",
-  "revision": "8db93ba578083384c8e7d4d5bfceefd93fc71732",
-  "source_sha256": "32881fd8b387c2d1231b455f2a01642bc84c09d993882edb8fbe81e1c8295638",
+  "revision": "fc283ccecc0e73a0ea0740208a9f2cc06db17f4c",
+  "source_sha256": "6dda1758b7993203a54a6081f4a8c89d7de40ec3a351227248074dc9d8f8a91f",
   "images": {
-    "registry": "public.ecr.aws/p3v1o3c6/registry@sha256:41312ae67a52ae42d308047f002467f7b63629cb3715c057ce587f7d5caffb76",
-    "mongodb": "mongo:8.2.12@sha256:41afd6e1183f57e4e4d03ab733070671fca8553da2b36f15d6e3fc9760494d17"
+    "registry": "public.ecr.aws/p3v1o3c6/registry@sha256:f36ba6d5bb173b7bb15064afc814d380fc3f0f56a39cd374d877c93bb1b7a12c",
+    "mongodb": "mongo:8.3.13@sha256:03c33634f52626f197bba89ad16e6482ed12425d9588249660bf2f64be8e553c",
+    "auth": "public.ecr.aws/p3v1o3c6/auth-server@sha256:eecd2dae52c18eb7be7fe619aee52b35eae435dcf40652c2e55d9c55192a4559"
   }
 }

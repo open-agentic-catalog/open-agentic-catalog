@@ -55,7 +55,7 @@ A breaking report calls for review; it does not independently determine the proj
 
 ## Rule and input boundaries
 
-Redocly 2.71.1 uses `spec` plus the reviewed rules in `redocly.yaml`: operations, parameters, references, examples, tags, summaries and security references. Unused components and cross-category component names are warnings. The rules do not require every response to list a concrete 4xx in addition to the shared default Problem response, require unconditional `If-Match` on conditionally revisioned commands, or reject the documented anonymous/conditional discovery security alternatives.
+Redocly 2.77.0 uses `spec` plus the reviewed rules in `redocly.yaml`: operations, parameters, references, examples, tags, summaries and security references. Unused components and cross-category component names are warnings. The rules do not require every response to list a concrete 4xx in addition to the shared default Problem response, require unconditional `If-Match` on conditionally revisioned commands, or reject the documented anonymous/conditional discovery security alternatives.
 
 Domain-specific API conventions remain in Go tests.
 

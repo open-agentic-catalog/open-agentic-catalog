@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import platform
+import re
 import sys
 import tarfile
 import tempfile
@@ -42,15 +43,13 @@ def command(*args, **kwargs):
 
 def read_lock():
     lock = json.loads((ASSETS / "lock.json").read_text())
-    validate_auth_base(lock["images"]["registry"], (ASSETS / "Containerfile.auth").read_text())
+    images = lock["images"]
+    if set(images) != {"registry", "auth", "mongodb"} or any(
+        not re.fullmatch(r"[^@]+@sha256:[0-9a-f]{64}", reference)
+        for reference in images.values()
+    ):
+        raise ValueError("Gateway requires exact Registry, auth-server and MongoDB image digests")
     return lock
-
-
-def validate_auth_base(reference, containerfile):
-    """Keep native auth source and its Registry dependency closure on one image."""
-    bases = [line.strip() for line in containerfile.splitlines() if line.strip().upper().startswith("FROM ")]
-    if bases != ["FROM " + reference]:
-        raise ValueError("Gateway auth base must match the pinned Registry image")
 
 
 def tree_digest(source):
@@ -123,21 +122,63 @@ def extract(raw, destination, expected):
 
 # The container executes metadata inspection only: no entrypoint, model, service or network.
 INVENTORY = """
-import hashlib, importlib.metadata as m, json, pathlib, subprocess
+import hashlib, importlib.metadata as m, json, pathlib, subprocess, sys
 packages = sorted([{'name':d.metadata['Name'],'version':d.version,
  'license':d.metadata.get('License-Expression') or d.metadata.get('License'),
  'requires':d.metadata.get_all('Requires-Dist',[]),
  'license_files':{str(p):hashlib.sha256(d.locate_file(p).read_bytes()).hexdigest()
   for p in (d.files or []) if ('license' in p.name.lower() or 'copying' in p.name.lower()) and d.locate_file(p).is_file()},
  'classifiers':d.metadata.get_all('Classifier',[])} for d in m.distributions()],key=lambda d:d['name'].lower())
-source = {str(p.relative_to('/app')):hashlib.sha256(p.read_bytes()).hexdigest()
- for root in ['registry','auth_server'] for p in pathlib.Path('/app',root).rglob('*.py')}
-print(json.dumps({'packages':packages,'source':source,
- 'assets':{p:hashlib.sha256(pathlib.Path('/app',p).read_bytes()).hexdigest() for p in ASSETS},
- 'entrypoint':hashlib.sha256(pathlib.Path('/app/registry-entrypoint.sh').read_bytes()).hexdigest(),
+root = pathlib.Path('/app')
+sources, assets = json.loads(sys.argv[1])
+paths = []
+for name in sources:
+    if name == '.':
+        paths.extend(root.glob('*.py'))
+    else:
+        paths.extend((root / name).rglob('*.py'))
+print(json.dumps({'packages':packages,
+ 'source':{str(p.relative_to(root)):hashlib.sha256(p.read_bytes()).hexdigest() for p in paths},
+ 'assets':{p:hashlib.sha256((root / p).read_bytes()).hexdigest() for p in assets},
  'os_packages':subprocess.check_output(['dpkg-query','-W','-f=${Package}=${Version}\\n'],text=True),
  'os_licenses':{str(p):hashlib.sha256(p.read_bytes()).hexdigest() for p in pathlib.Path('/usr/share/doc').glob('*/copyright')}}))
 """
+
+
+def inspect_application_image(reference, revision, source, component):
+    image = json.loads(command("docker", "image", "inspect", reference).stdout)[0]
+    if image["Config"]["Labels"]["org.opencontainers.image.revision"] != revision:
+        raise ValueError(f"Gateway {component} image source revision differs")
+    if component == "registry":
+        roots = {"registry": source / "registry", "auth_server": source / "auth_server"}
+        filenames = NATIVE_ASSETS + [
+            str(p.relative_to(source)) for p in sorted((source / "scripts").glob("*.json"))
+        ]
+        assets = {name: source / name for name in filenames}
+        assets["registry-entrypoint.sh"] = source / "docker/registry-entrypoint.sh"
+    else:
+        auth = source / "auth_server"
+        roots = {".": auth, "registry": source / "registry"}
+        roots.update({p.name: p for p in auth.iterdir() if p.is_dir()})
+        assets = {name: auth / name for name in ("oauth2_providers.yml", "pyproject.toml", "uv.lock")}
+        assets["auth-entrypoint.sh"] = source / "docker/auth-entrypoint.sh"
+
+    inventory = json.loads(command(
+        "docker", "run", "--rm", "--network=none", "--read-only",
+        "--entrypoint", "/app/.venv/bin/python", reference, "-B", "-c", INVENTORY,
+        json.dumps([list(roots), list(assets)]), timeout=30,
+    ).stdout)
+    expected = {}
+    for name, directory in roots.items():
+        paths = directory.glob("*.py") if name == "." else directory.rglob("*.py")
+        for path in paths:
+            relative = Path(name) / path.relative_to(directory)
+            expected[relative.as_posix()] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if inventory["source"] != expected or inventory["assets"] != {
+        name: hashlib.sha256(path.read_bytes()).hexdigest() for name, path in assets.items()
+    }:
+        raise ValueError(f"Gateway {component} image source or native assets differ")
+    return inventory
 
 
 def inspect():
@@ -150,105 +191,23 @@ def inspect():
     images = {
         name: image_identity(reference) for name, reference in lock["images"].items()
     }
-    auth_reference = "open-agentic-catalog:gateway-auth-" + lock["revision"][:12]
-    auth = json.loads(command("docker", "image", "inspect", auth_reference).stdout)[0]
-    if auth["Os"] != "linux" or auth["Architecture"] != "amd64":
-        raise ValueError("Gateway auth image platform differs")
-    auth_bytes = json.loads(
-        command(
-            "docker",
-            "run",
-            "--rm",
-            "--network=none",
-            "--read-only",
-            "--entrypoint",
-            "/app/.venv/bin/python",
-            auth_reference,
-            "-B",
-            "-c",
-            "import hashlib,json,pathlib; print(json.dumps({str(p.relative_to('/app')):hashlib.sha256(p.read_bytes()).hexdigest() for p in [*pathlib.Path('/app').glob('*.py'),pathlib.Path('/app/auth-entrypoint.sh'),*pathlib.Path('/app/providers').rglob('*.py'),*pathlib.Path('/app/observability').rglob('*.py')]}))",
-        ).stdout
-    )
-    expected_auth = {
-        str(p.relative_to(source / "auth_server")): hashlib.sha256(
-            p.read_bytes()
-        ).hexdigest()
-        for p in (source / "auth_server").rglob("*.py")
+    inventory = {
+        component: inspect_application_image(lock["images"][component], lock["revision"], source, component)
+        for component in ("registry", "auth")
     }
-    expected_auth["auth-entrypoint.sh"] = hashlib.sha256(
-        (source / "docker/auth-entrypoint.sh").read_bytes()
-    ).hexdigest()
-    if auth_bytes != expected_auth:
-        raise ValueError("Gateway auth image source differs")
-    images["auth"] = {"id": auth["Id"], "reference": auth_reference}
-    metadata = json.loads(
-        command("docker", "image", "inspect", lock["images"]["registry"]).stdout
-    )[0]
-    if (
-        metadata["Config"]["Labels"]["org.opencontainers.image.revision"]
-        != lock["revision"]
-    ):
-        raise ValueError("Gateway image source revision differs")
-    inventory = json.loads(
-        command(
-            "docker",
-            "run",
-            "--rm",
-            "--network=none",
-            "--read-only",
-            "--entrypoint",
-            "/app/.venv/bin/python",
-            lock["images"]["registry"],
-            "-B",
-            "-c",
-            INVENTORY.replace(
-                "ASSETS",
-                repr(
-                    NATIVE_ASSETS
-                    + [
-                        str(p.relative_to(source))
-                        for p in sorted((source / "scripts").glob("*.json"))
-                    ]
-                ),
-            ),
-            timeout=30,
-        ).stdout
-    )
-    expected = {
-        str(path.relative_to(source)): hashlib.sha256(path.read_bytes()).hexdigest()
-        for root in ("registry", "auth_server")
-        for path in (source / root).rglob("*.py")
-    }
-    if (
-        inventory["source"] != expected
-        or inventory["assets"]
-        != {
-            p: hashlib.sha256((source / p).read_bytes()).hexdigest()
-            for p in inventory["assets"]
-        }
-        or inventory["entrypoint"]
-        != hashlib.sha256(
-            (source / "docker/registry-entrypoint.sh").read_bytes()
-        ).hexdigest()
-    ):
-        raise ValueError(
-            "Gateway image does not contain the exact native source and entrypoint"
-        )
-    if (
-        not any(p["name"] == "jsonschema" for p in inventory["packages"])
-        or len(inventory["packages"]) < 100
-    ):
-        raise ValueError("Gateway installed dependency closure is incomplete")
+    registry_packages = {p["name"] for p in inventory["registry"]["packages"]}
+    auth_packages = {p["name"] for p in inventory["auth"]["packages"]}
+    if "jsonschema" not in registry_packages or len(registry_packages) < 100:
+        raise ValueError("Gateway Registry dependency closure is incomplete")
+    if not {"fastapi", "pymongo"} <= auth_packages:
+        raise ValueError("Gateway auth-server dependency closure is incomplete")
     closure = hashlib.sha256(json.dumps(inventory, sort_keys=True).encode()).hexdigest()
     return {
         "revision": lock["revision"],
         "source_sha256": lock["source_sha256"],
         "images": images,
         "closure_sha256": closure,
-        "python_packages": len(inventory["packages"]),
-        "auth_build_sha256": hashlib.sha256(
-            (ASSETS / "Containerfile.auth").read_bytes()
-        ).hexdigest(),
+        "python_packages": {name: len(item["packages"]) for name, item in inventory.items()},
     }, inventory
 
 
@@ -277,18 +236,6 @@ def install():
         raise ValueError("Gateway installed source differs")
     for reference in lock["images"].values():
         command("docker", "pull", "--platform=linux/amd64", reference, timeout=600)
-    command(
-        "docker",
-        "build",
-        "--pull=false",
-        "--network=none",
-        "--file",
-        str(ASSETS / "Containerfile.auth"),
-        "--tag",
-        "open-agentic-catalog:gateway-auth-" + lock["revision"][:12],
-        str(TOOLS / "source"),
-        timeout=120,
-    )
     identity, inventory = inspect()
     (TOOLS / "closure.json").write_text(json.dumps(inventory, indent=2) + "\n")
     (TOOLS / "installation.json").write_text(json.dumps(identity, indent=2) + "\n")
